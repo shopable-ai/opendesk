@@ -80,8 +80,11 @@
     const absolute = path.startsWith('/') || /^[A-Za-z]:\//.test(path);
     if (!relative && absolute) return '';
     if (!relative) relative = './' + pathSegments.join('/');
-    return /^\.\/\.runtime\/recordings\/rec-[A-Za-z0-9][A-Za-z0-9._-]*\/generated\/[^/]+\.js$/.test(relative)
-      ? relative : '';
+    const recordingRoot = /^\.\/\.runtime\/recordings\/rec-[A-Za-z0-9][A-Za-z0-9._-]*\//;
+    const rootScript = /^\.\/\.runtime\/recordings\/rec-[A-Za-z0-9][A-Za-z0-9._-]*\/(?:[A-Za-z0-9][A-Za-z0-9._-]*\.recipe\.js|flow\.js)$/;
+    const legacyGeneratedScript = /^\.\/\.runtime\/recordings\/rec-[A-Za-z0-9][A-Za-z0-9._-]*\/generated\/[^/]+\.js$/;
+    if (!recordingRoot.test(relative)) return '';
+    return rootScript.test(relative) || legacyGeneratedScript.test(relative) ? relative : '';
   }
 
   function buildAgentRefinementPrompt(input) {

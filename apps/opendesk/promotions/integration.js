@@ -29,20 +29,20 @@
     }
   }
 
-  function wrapRunnerController(BaseController, getOwner) {
+  function wrapFlowRunnerController(BaseController, getOwner) {
     if (!BaseController || typeof BaseController.createApp !== 'function') {
-      throw new Error('Promotion runner guard requires a controller');
+      throw new Error('Promotion Flow Runner guard requires a controller');
     }
     const wrapper = Object.assign({}, BaseController);
     wrapper.createApp = options => {
       const app = BaseController.createApp(options || {});
       async function requestRun(queue, source) {
-        return guardedAutomation(getOwner, `script-runner:${source || 'run'}`, () => app.requestRun(queue, source));
+        return guardedAutomation(getOwner, `flow-runner:${source || 'run'}`, () => app.requestRun(queue, source));
       }
       async function openList(...args) {
-        const owner = await noteOwner(getOwner, 'script-runner-manager');
+        const owner = await noteOwner(getOwner, 'flow-runner-manager');
         if (owner && typeof owner.beforeInteraction === 'function') {
-          await owner.beforeInteraction('script-runner-manager');
+          await owner.beforeInteraction('flow-runner-manager');
         }
         return app.openList(...args);
       }
@@ -58,7 +58,7 @@
     return Object.freeze({
       async createWindow(spec) {
         const handle = await baseUI.createWindow(spec);
-        const isPlayerPanel = !!spec && typeof spec.id === 'string' && spec.id.startsWith('scriptRunnerPanel');
+        const isPlayerPanel = !!spec && typeof spec.id === 'string' && spec.id.startsWith('flowRunnerPanel');
         if (!isPlayerPanel || !handle) return handle;
         const decorated = {};
         for (const name of [
@@ -73,9 +73,9 @@
           get() { return handle.id; },
         });
         decorated.show = async function show() {
-          const owner = await noteOwner(getOwner, 'script-runner-panel');
+          const owner = await noteOwner(getOwner, 'flow-runner-panel');
           if (owner && typeof owner.beforeInteraction === 'function') {
-            await owner.beforeInteraction('script-runner-panel');
+            await owner.beforeInteraction('flow-runner-panel');
           }
           return handle.show();
         };
@@ -84,9 +84,9 @@
     });
   }
 
-  function createRunnerFloatingWindow(BaseFloatingWindow, getOwner) {
+  function createFlowRunnerFloatingWindow(BaseFloatingWindow, getOwner) {
     if (typeof BaseFloatingWindow !== 'function') {
-      throw new Error('Promotion runner surface guard requires FloatingWindow');
+      throw new Error('Promotion Flow Runner surface guard requires FloatingWindow');
     }
     return function PromotionAwareFloatingWindow(spec) {
       const inner = new BaseFloatingWindow(spec);
@@ -94,8 +94,8 @@
 
       async function publish(state) {
         const owner = ownerOf(getOwner);
-        if (!owner || typeof owner.setRunnerSurface !== 'function') return;
-        try { await owner.setRunnerSurface(state); } catch (_) {}
+        if (!owner || typeof owner.setFlowRunnerSurface !== 'function') return;
+        try { await owner.setFlowRunnerSurface(state); } catch (_) {}
       }
 
       for (const name of [
@@ -112,7 +112,7 @@
         wrapper.addButton = function addButton(id, label, icon, callback) {
           const guarded = typeof callback === 'function'
             ? async (...args) => {
-              await noteOwner(getOwner, `runner-button:${id}`);
+              await noteOwner(getOwner, `flow-runner-button:${id}`);
               return callback(...args);
             }
             : callback;
@@ -184,9 +184,9 @@
   }
 
   root.OpenDeskPromotionsIntegration = Object.freeze({
-    wrapRunnerController,
+    wrapFlowRunnerController,
     createPlayerUI,
-    createRunnerFloatingWindow,
+    createFlowRunnerFloatingWindow,
     wrapAgent,
     wrapCalculator,
   });

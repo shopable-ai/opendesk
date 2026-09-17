@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestProductAppPackageOwnsRunnerButNotReservedRecorderAction(t *testing.T) {
+func TestProductAppPackageOwnsFlowRunnerButNotReservedRecorderAction(t *testing.T) {
 	root := filepath.Join("..", "..", "apps", "opendesk")
 	appPackage, err := appshell.LoadPackage(root)
 	if err != nil {
@@ -51,15 +51,15 @@ func TestProductAppUsesAppOwnedSeparateRecipeExecution(t *testing.T) {
 		t.Fatal(err)
 	}
 	mainText := string(mainSource)
-	for _, required := range []string{"OpenDeskProductAppController.create", "OpenDeskSchedulerCenter.create", "OpenDeskDeveloperTools.create", "runner", "schedulerCenter", "runtimeLog", "developerTools", "recipeProcessModel: 'app-owned-separate-execution'"} {
+	for _, required := range []string{"OpenDeskProductAppController.create", "OpenDeskSchedulerCenter.create", "OpenDeskDeveloperTools.create", "flowRunner", "schedulerCenter", "runtimeLog", "developerTools", "recipeProcessModel: 'app-owned-separate-execution'"} {
 		if !strings.Contains(mainText, required) {
 			t.Fatalf("main.js missing %q", required)
 		}
 	}
-	if strings.Count(mainText, "const runner =") != 1 {
-		t.Fatalf("main.js must create exactly one product runner; declarations=%d", strings.Count(mainText, "const runner ="))
+	if strings.Count(mainText, "const flowRunner =") != 1 {
+		t.Fatalf("main.js must create exactly one product Flow Runner; declarations=%d", strings.Count(mainText, "const flowRunner ="))
 	}
-	for _, legacyLifecycle := range []string{"runner.waitUntilClosed", "unsubscribeAppActions"} {
+	for _, legacyLifecycle := range []string{"flowRunner.waitUntilClosed", "unsubscribeAppActions"} {
 		if strings.Contains(mainText, legacyLifecycle) {
 			t.Fatalf("main.js must leave App Shell action handling alive after its initial window closes; found %q", legacyLifecycle)
 		}
@@ -68,24 +68,24 @@ func TestProductAppUsesAppOwnedSeparateRecipeExecution(t *testing.T) {
 		t.Fatal("main.js must initialize auxiliary Inspector state without blocking the primary desktop UI")
 	}
 
-	coreSource, err := os.ReadFile(filepath.Join(root, "script-runner", "controller.js"))
+	coreSource, err := os.ReadFile(filepath.Join(root, "flow-runner", "controller.js"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	coreText := string(coreSource)
 	for _, required := range []string{"getExecutablePath", "command.run", "'-script'", "hideWindow: true"} {
 		if !strings.Contains(coreText, required) {
-			t.Fatalf("generic Script Runner controller missing command-compatible contract %q", required)
+			t.Fatalf("generic Flow Runner controller missing command-compatible contract %q", required)
 		}
 	}
-	productSource, err := os.ReadFile(filepath.Join(root, "script-runner-simple.js"))
+	productSource, err := os.ReadFile(filepath.Join(root, "flow-runner.js"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	productText := string(productSource)
 	for _, required := range []string{"__opendeskRecipeExecution", "nativeRecipeExecution.run", "beginRecipeToast", "permissionFailure"} {
 		if !strings.Contains(productText, required) {
-			t.Fatalf("product Script Runner missing App-owned execution contract %q", required)
+			t.Fatalf("product Flow Runner missing App-owned execution contract %q", required)
 		}
 	}
 	if strings.Contains(productText, "command.run(executablePath, args, runOptions)") {
@@ -99,7 +99,9 @@ func TestProductizedUIsHaveSingleCanonicalImplementations(t *testing.T) {
 		filepath.Join("..", "..", "examples", "custom-ui", "recording-console-simple", "controller.js"),
 		filepath.Join("..", "..", "examples", "custom-ui", "recording-console-simple", "controller-core.js"),
 		filepath.Join("..", "..", "examples", "custom-ui", "recording-console-simple", "recording-history.js"),
-		filepath.Join("..", "..", "examples", "custom-ui", "script-runner-simple", "controller.js"),
+		filepath.Join("..", "..", "examples", "custom-ui", "script-runner-simple.js"),
+		filepath.Join("..", "..", "apps", "opendesk", "script-runner", "controller.js"),
+		filepath.Join("..", "..", "apps", "opendesk", "script-runner-simple.js"),
 	} {
 		if _, err := os.Stat(legacy); !os.IsNotExist(err) {
 			t.Fatalf("legacy productized implementation still exists at %s: %v", legacy, err)
@@ -111,7 +113,8 @@ func TestProductizedUIsHaveSingleCanonicalImplementations(t *testing.T) {
 		filepath.Join("..", "..", "apps", "opendesk", "recorder", "controller.js"),
 		filepath.Join("..", "..", "apps", "opendesk", "recorder", "controller-core.js"),
 		filepath.Join("..", "..", "apps", "opendesk", "recorder", "recording-history.js"),
-		filepath.Join("..", "..", "apps", "opendesk", "script-runner", "controller.js"),
+		filepath.Join("..", "..", "apps", "opendesk", "flow-runner", "controller.js"),
+		filepath.Join("..", "..", "apps", "opendesk", "flow-runner.js"),
 	} {
 		if info, err := os.Stat(canonical); err != nil || !info.Mode().IsRegular() {
 			t.Fatalf("missing canonical productized implementation %s: info=%v err=%v", canonical, info, err)
@@ -125,7 +128,7 @@ func TestProductAppUsesOnlyTheSharedAppLocalServicesRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(source)
-	if strings.Count(text, "startAppScheduler(") != 1 {
+	if strings.Count(text, "startAppSchedulerWithActivity(") != 1 {
 		t.Fatalf("App Mode must start exactly one App Local Services runtime; source=%s", text)
 	}
 	for _, forbidden := range []string{"startAppDeveloperRuntime", "appDeveloper", "OPENDESK_APP_INSPECTOR_CONTROL_TOKEN"} {

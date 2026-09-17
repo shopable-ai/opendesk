@@ -11,7 +11,7 @@
   function createController(options) {
     const settings = options || {};
     const appRuntime = settings.appRuntime || (global.automation && global.automation.app);
-    const runner = settings.runner;
+    const flowRunner = settings.flowRunner;
     const assistant = settings.assistant;
     const schedulerCenter = settings.schedulerCenter;
     const runtimeLog = settings.runtimeLog;
@@ -31,8 +31,8 @@
     if (!appRuntime || typeof appRuntime.onAction !== 'function') {
       throw new Error('OpenDesk product controller requires automation.app.onAction()');
     }
-    if (!runner || typeof runner.open !== 'function') {
-      throw new Error('OpenDesk product controller requires Script Runner');
+    if (!flowRunner || typeof flowRunner.open !== 'function') {
+      throw new Error('OpenDesk product controller requires Flow Runner');
     }
     if (!assistant || typeof assistant.open !== 'function') {
       throw new Error('OpenDesk product controller requires AI Assistant');
@@ -74,8 +74,10 @@
           await promotions.restore();
           return true;
         case 'opendesk.open':
+        case 'flow-runner.open':
+        // Existing App Shell action ID retained for installed clients.
         case 'runner.open':
-          await runner.open(source);
+          await flowRunner.open(source);
           return true;
         case 'assistant.open':
         case 'opendesk.assistant.open':

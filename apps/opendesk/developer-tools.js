@@ -8,7 +8,7 @@
     const settings = options || {};
     const appRuntime = settings.appRuntime || (global.automation && global.automation.app);
     const runtimeLog = settings.runtimeLog;
-    const runner = settings.runner;
+    const flowRunner = settings.flowRunner;
     const schedulerClient = settings.schedulerClient || global.OpenDeskSchedulerClient;
     const inspectorLauncher = settings.inspectorLauncher;
     const execution = settings.execution || global.Execution;
@@ -46,7 +46,7 @@
     function statusHTML() {
       return `<!doctype html><html><head><meta charset="utf-8"></head><body><main>
         <header><div><strong>OpenDesk 运行状态</strong><p>同一 Runtime 内的产品能力状态</p></div><div><button id="refresh">刷新</button><button id="close">关闭</button></div></header>
-        <section><div><span>App Execution ID</span><strong id="executionId">—</strong></div><div><span>Package ID</span><strong id="packageId">—</strong></div><div><span>OpenDesk 主界面</span><strong id="runner">—</strong></div><div><span>计划服务</span><strong id="scheduler">—</strong></div><div><span>录制能力</span><strong id="recorder">—</strong></div><div><span>Inspector</span><strong id="inspector">—</strong></div><div><span>Inspector 网络范围</span><strong id="inspectorScope">—</strong></div><div><span>日志目录</span><strong id="logs">—</strong></div></section>
+        <section><div><span>App Execution ID</span><strong id="executionId">—</strong></div><div><span>Package ID</span><strong id="packageId">—</strong></div><div><span>自动化</span><strong id="flowRunner">—</strong></div><div><span>计划服务</span><strong id="scheduler">—</strong></div><div><span>录制能力</span><strong id="recorder">—</strong></div><div><span>Inspector</span><strong id="inspector">—</strong></div><div><span>Inspector 网络范围</span><strong id="inspectorScope">—</strong></div><div><span>日志目录</span><strong id="logs">—</strong></div></section>
         <p id="notice">运行状态来自当前 OpenDesk App Execution。</p>
       </main></body></html>`;
     }
@@ -57,7 +57,7 @@
       if (!statusWindow) return;
       const appCapabilities = appRuntime && typeof appRuntime.getCapabilities === 'function'
         ? appRuntime.getCapabilities() : {};
-      const runnerState = runner && typeof runner.state === 'function' ? runner.state() : {};
+      const flowRunnerState = flowRunner && typeof flowRunner.state === 'function' ? flowRunner.state() : {};
       const scheduler = schedulerClient && typeof schedulerClient.getCapabilities === 'function'
         ? schedulerClient.getCapabilities() : {};
       const inspector = inspectorCapabilities();
@@ -69,7 +69,7 @@
       const values = {
         executionId: execution && execution.id ? execution.id : '—',
         packageId: appCapabilities.packageId || '—',
-        runner: runnerState.active ? (runnerState.runner && runnerState.runner.listVisible ? '已显示' : '运行中 / 已隐藏') : '未启动',
+        flowRunner: flowRunnerState.active ? (flowRunnerState.flowRunner && flowRunnerState.flowRunner.listVisible ? '已显示' : '运行中 / 已隐藏') : '未启动',
         scheduler: scheduler.available === false ? '不可用' : (scheduler.endpoint || '可用'),
         recorder: recorder.available === false ? '权限或平台不可用' : 'Framework-owned / 可用',
         inspector: inspector.url || '不可用',

@@ -36,7 +36,7 @@ func TestOfficialAppInspectorSharesSchedulerListenerAndKeepsGenericHTTPClosed(t 
 	defer cancel()
 	environment := map[string]string{
 		"HOME":                       root,
-		"OPENDESK_SCRIPT_RUNNER_DIR": filepath.Join(root, "recipes"),
+		"OPENDESK_FLOW_RUNNER_DIR": filepath.Join(root, "recipes"),
 	}
 	runtime, err := startAppScheduler(ctx, &Config{SchedulerDBPath: filepath.Join(root, "scheduler.db")}, appInspectorProductID, appRoot, environment)
 	if err != nil {
@@ -119,7 +119,7 @@ func TestOfficialAppInspectorSharesSchedulerListenerAndKeepsGenericHTTPClosed(t 
 func TestAppLocalServicesCloseReleasesSharedListener(t *testing.T) {
 	root := t.TempDir()
 	runtime, err := startAppScheduler(context.Background(), &Config{SchedulerDBPath: filepath.Join(root, "scheduler.db")}, "com.example.app", root, map[string]string{
-		"HOME": root, "OPENDESK_SCRIPT_RUNNER_DIR": filepath.Join(root, "recipes"),
+		"HOME": root, "OPENDESK_FLOW_RUNNER_DIR": filepath.Join(root, "recipes"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -151,7 +151,7 @@ func TestThirdPartyAppDoesNotMountOfficialInspector(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	environment := map[string]string{"HOME": root, "OPENDESK_SCRIPT_RUNNER_DIR": filepath.Join(root, "recipes")}
+	environment := map[string]string{"HOME": root, "OPENDESK_FLOW_RUNNER_DIR": filepath.Join(root, "recipes")}
 	runtime, err := startAppScheduler(context.Background(), &Config{SchedulerDBPath: filepath.Join(root, "scheduler.db")}, "com.example.app", appRoot, environment)
 	if err != nil {
 		t.Fatal(err)

@@ -7,9 +7,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const repo = path.resolve(__dirname, '..', '..');
-const playerFile = path.join(repo, 'apps', 'opendesk', 'script-runner', 'player-controller.js');
+const playerFile = path.join(repo, 'apps', 'opendesk', 'flow-runner', 'player-controller.js');
 vm.runInThisContext(fs.readFileSync(playerFile, 'utf8'), {filename: playerFile});
-const Player = globalThis.OpenDeskScriptRunnerPlayer;
+const Player = globalThis.OpenDeskFlowRunnerPlayerController;
 
 function deferred() {
   let resolve;
@@ -67,7 +67,7 @@ function ToolbarCapture() {
     constructor(spec) {
       current = this;
       this.spec = spec;
-      this.id = 'script-runner-test-toolbar';
+      this.id = 'flow-runner-test-toolbar';
       this.buttons = new Map();
       this.labels = new Map();
       this.handlers = new Map();
@@ -92,8 +92,8 @@ function ToolbarCapture() {
 
 function BaseController(names, holder) {
   return {createApp(options) {
-    let scripts = names.map(name => ({name, path: `/recipes/${name}`}));
-    let selected = scripts[0] && scripts[0].name || null;
+    let entries = names.map(name => ({name, path: `/recipes/${name}`, kind: 'javascript'}));
+    let selected = entries[0] && entries[0].name || null;
     let activeRun = null;
     let running = false;
     let loadError = null;
@@ -103,17 +103,17 @@ function BaseController(names, holder) {
     const headless = new options.FloatingWindow({});
     headless.addButton('run', '运行', 'play.fill', () => {});
     headless.addButton('stop', '停止', 'stop.fill', () => {});
-    headless.addLabel('script', '', {});
+    headless.addLabel('entry', '', {});
     headless.addButton('list', '列表', 'list.bullet', () => {});
     const base = {
       async run() { await headless.show(); await headless.waitUntilClosed(); },
       async prepareList() { return {prepared: true}; },
       async openList() { listOpened++; return {opened: true}; },
-      async selectScript(name) {
-        if (running || !scripts.some(script => script.name === name)) return false;
+      async selectEntry(name) {
+        if (running || !entries.some(entry => entry.name === name)) return false;
         holder.selectCalls.push(name);
         selected = name;
-        await headless.updateLabel('script', {text: name});
+        await headless.updateLabel('entry', {text: name});
         return true;
       },
       async stopRun() { running = false; activeRun = null; await headless.updateButton('run', {}); return true; },
@@ -122,12 +122,12 @@ function BaseController(names, holder) {
         holder.runRequests++;
         running = true;
         activeRun = {current: queue[0] && queue[0].name || null, total: queue.length, index: 0};
-        void headless.updateLabel('script', {text: activeRun.current});
+        void headless.updateLabel('entry', {text: activeRun.current});
         if (holder.runDeferred) return holder.runDeferred.promise.then(async () => {
-          running = false; activeRun = null; await headless.updateLabel('script', {text: selected}); return {status: 'succeeded', completed: queue.length, total: queue.length};
+          running = false; activeRun = null; await headless.updateLabel('entry', {text: selected}); return {status: 'succeeded', completed: queue.length, total: queue.length};
         });
         return Promise.resolve().then(async () => {
-          running = false; activeRun = null; await headless.updateLabel('script', {text: selected}); return {status: 'succeeded', completed: queue.length, total: queue.length};
+          running = false; activeRun = null; await headless.updateLabel('entry', {text: selected}); return {status: 'succeeded', completed: queue.length, total: queue.length};
         });
       },
       async rescan() {
@@ -135,9 +135,9 @@ function BaseController(names, holder) {
         return !loadError;
       },
       async restoreDefaultOrder() { return !running; },
-      scripts() { return scripts.map(script => ({...script})); },
-      state() { return {selectedScriptName: selected, loadError, configValid: true, running, activeRun, listOpened}; },
-      setScripts(next) { scripts = next.map(name => ({name, path: `/recipes/${name}`})); },
+      entries() { return entries.map(entry => ({...entry})); },
+      state() { return {selectedEntryKey: selected, loadError, configValid: true, running, activeRun, listOpened}; },
+      setEntries(next) { entries = next.map(name => ({name, path: `/recipes/${name}`, kind: 'javascript'})); },
       setLoadError(error) { loadError = error; },
     };
     holder.base = base;
@@ -152,7 +152,7 @@ function harness(names = ['a.js', 'b.js', 'c.js'], options = {}) {
   const app = Player.createApp({
     BaseController: BaseController(names, holder), playerUI: ui, ui, FloatingWindow: capture.Toolbar,
     file: {}, command: {async run() { return {exitCode: 0}; }}, execution: {workdir: '/tmp'},
-    system: {getPlatformInfo: () => ({os: 'darwin'})}, scriptRoot: '/recipes', AbortController,
+    system: {getPlatformInfo: () => ({os: 'darwin'})}, runnableRoot: '/recipes', AbortController,
     Screen: {getDisplays: () => [{x: -1200, y: 0, width: 1200, height: 900}, {x: 0, y: 0, width: 1440, height: 900}]},
   });
   return {app, ui, toolbar: capture.current(), holder};
@@ -169,10 +169,10 @@ async function start(f) {
 async function finish(f, run) { await f.toolbar.close(); await run.completion; }
 
 test('display name strips only trailing js extension', () => {
-  assert.equal(Player.displayScriptName('daily-report.js'), 'daily-report');
-  assert.equal(Player.displayScriptName('report.v2.js'), 'report.v2');
-  assert.equal(Player.displayScriptName('report.jsx'), 'report.jsx');
-  assert.equal(Player.displayScriptName('foo.js.backup'), 'foo.js.backup');
+  assert.equal(Player.displayEntryName('daily-report.js'), 'daily-report');
+  assert.equal(Player.displayEntryName('report.v2.js'), 'report.v2');
+  assert.equal(Player.displayEntryName('report.jsx'), 'report.jsx');
+  assert.equal(Player.displayEntryName('foo.js.backup'), 'foo.js.backup');
 });
 
 test('refresh replacement follows old-order next then previous rule', () => {
@@ -185,11 +185,11 @@ test('six-control player uses file-name-only labels with bounded previous and ne
   const f = harness(['daily-report.js', 'report.v2.js', '中文名称.js']);
   const run = await start(f);
   assert.deepEqual([...f.toolbar.buttons.keys()], ['run', 'stop', 'previous', 'next', 'list']);
-  assert.equal(f.toolbar.labels.get('script').text, 'daily-report');
+  assert.equal(f.toolbar.labels.get('entry').text, 'daily-report');
   assert.equal(await f.app.previous(), false);
   assert.equal(await f.app.next(), true);
-  assert.equal(f.app.state().selectedScriptName, 'report.v2.js');
-  assert.equal(f.toolbar.labels.get('script').text, 'report.v2');
+  assert.equal(f.app.state().selectedEntryKey, 'report.v2.js');
+  assert.equal(f.toolbar.labels.get('entry').text, 'report.v2');
   assert.equal(f.toolbar.buttons.get('previous').disabled, false);
   await f.app.next();
   assert.equal(f.toolbar.buttons.get('next').disabled, true);
@@ -200,10 +200,10 @@ test('panel click confirms, hides without running or destroying, and reuses the 
   const f = harness(['a.js', 'b.js']);
   const run = await start(f);
   const panel = await f.app.openPanel();
-  const row = panel.control('panelScript1');
+  const row = panel.control('panelEntry1');
   assert.equal(typeof row.handlers.click, 'function');
   await row.handlers.click({type: 'click'});
-  assert.equal(f.app.state().selectedScriptName, 'b.js');
+  assert.equal(f.app.state().selectedEntryKey, 'b.js');
   assert.equal(f.app.state().player.panelHighlightKey, 'b.js');
   assert.equal(f.app.state().running, false);
   assert.equal(f.app.state().activeRun, null);
@@ -216,8 +216,8 @@ test('panel click confirms, hides without running or destroying, and reuses the 
   assert.equal(reopened, panel);
   assert.equal(f.ui.windows.length, 1);
   assert.equal(f.app.state().player.panelHighlightKey, 'b.js');
-  assert.equal(panel.control('panelScript1').state.classes.includes('current'), true);
-  await panel.control('panelScript1').handlers.click({type: 'click'});
+  assert.equal(panel.control('panelEntry1').state.classes.includes('current'), true);
+  await panel.control('panelEntry1').handlers.click({type: 'click'});
   assert.deepEqual(f.holder.selectCalls, ['b.js', 'b.js'], 'clicking the current row still confirms and hides');
   assert.equal(f.holder.runRequests, 0);
   assert.equal(panel.hidden, true);
@@ -230,12 +230,12 @@ test('Enter confirms like click, ignores a synthetic click, and never runs', asy
   const run = await start(f);
   const panel = await f.app.openPanel();
   await panel.emit('key', {fields: {key: 'ArrowDown'}});
-  assert.equal(f.app.state().selectedScriptName, 'a.js');
+  assert.equal(f.app.state().selectedEntryKey, 'a.js');
   assert.equal(f.app.state().player.panelHighlightKey, 'b.js');
   const enter = panel.emit('key', {fields: {key: 'Enter'}});
-  const syntheticClick = panel.control('panelScript0').handlers.click({type: 'click'});
+  const syntheticClick = panel.control('panelEntry0').handlers.click({type: 'click'});
   await Promise.all([enter, syntheticClick]);
-  assert.equal(f.app.state().selectedScriptName, 'b.js');
+  assert.equal(f.app.state().selectedEntryKey, 'b.js');
   assert.deepEqual(f.holder.selectCalls, ['b.js']);
   assert.equal(f.holder.runRequests, 0);
   assert.equal(f.app.state().player.panelLifecycle, 'hidden');
@@ -251,7 +251,7 @@ test('Escape discards keyboard highlight without submitting or destroying', asyn
   await panel.emit('key', {fields: {key: 'ArrowDown'}});
   assert.equal(f.app.state().player.panelHighlightKey, 'b.js');
   await panel.emit('key', {fields: {key: 'Escape'}});
-  assert.equal(f.app.state().selectedScriptName, 'a.js');
+  assert.equal(f.app.state().selectedEntryKey, 'a.js');
   assert.deepEqual(f.holder.selectCalls, []);
   assert.equal(f.holder.runRequests, 0);
   assert.equal(panel.hidden, true);
@@ -275,12 +275,12 @@ test('running keeps the panel browseable while every current mutation is locked'
   assert.equal(f.toolbar.buttons.get('previous').disabled, true);
   assert.equal(f.toolbar.buttons.get('next').disabled, true);
   assert.equal(f.toolbar.buttons.get('list').disabled, false);
-  assert.equal(panel.control('panelScript1').state.disabled, true);
-  assert.equal(await panel.control('panelScript1').handlers.click({type: 'click'}), false);
+  assert.equal(panel.control('panelEntry1').state.disabled, true);
+  assert.equal(await panel.control('panelEntry1').handlers.click({type: 'click'}), false);
   assert.equal(await panel.emit('key', {fields: {key: 'Enter'}}), false);
-  assert.equal(await f.app.selectScript('b.js'), false);
+  assert.equal(await f.app.selectEntry('b.js'), false);
   await panel.emit('key', {fields: {key: 'ArrowDown'}});
-  assert.equal(f.app.state().selectedScriptName, 'a.js');
+  assert.equal(f.app.state().selectedEntryKey, 'a.js');
   assert.equal(f.app.state().player.panelHighlightKey, 'a.js');
   assert.deepEqual(f.holder.selectCalls, []);
   assert.equal(f.holder.runRequests, 1);
@@ -300,8 +300,8 @@ test('relative placement uses actual List button logical bounds and follows runn
   const run = await start(f);
   const panel = await f.app.openPanel();
   assert.equal(panel.spec.keyEvents, true);
-  assert.equal(panel.spec.interactionGroup, 'scriptRunnerPlayer');
-  assert.equal(f.toolbar.spec.interactionGroup, 'scriptRunnerPlayer');
+  assert.equal(panel.spec.interactionGroup, 'flowRunnerPlayer');
+  assert.equal(f.toolbar.spec.interactionGroup, 'flowRunnerPlayer');
   assert.equal(panel.spec.position.size.height, 154, 'outer frame reserves native chrome above three compact rows');
   assert.deepEqual(panel.relative.anchor, {x: 1000, y: 700, width: 40, height: 40});
   assert.deepEqual(panel.relative.options.preferredSides, ['above', 'below', 'left', 'right']);
@@ -352,27 +352,27 @@ test('panel markup preserves full identity in title only and never shows .js as 
     {name: '中文超长自动化脚本名称.js', path: '/recipes/中文超长自动化脚本名称.js'},
     {name: 'report.v2.js', path: '/recipes/report.v2.js'},
   ], {currentKey: 'daily-report.js', highlightKey: 'daily-report.js', running: false});
-  assert.match(html, /class="script-row current highlight"/);
-  assert.match(html, /class="marker" aria-hidden="true"><\/span><span class="script-name">daily-report<\/span>/);
-  assert.match(html, /script-name">中文超长自动化脚本名称<\/span>/);
-  assert.match(html, /script-name">report\.v2<\/span>/);
-  assert.doesNotMatch(html, /script-name">(?:daily-report|report\.v2)\.js<\/span>/);
+  assert.match(html, /class="entry-row current highlight"/);
+  assert.match(html, /class="marker" aria-hidden="true"><\/span><span class="entry-name">daily-report<\/span>/);
+  assert.match(html, /entry-name">中文超长自动化脚本名称<\/span>/);
+  assert.match(html, /entry-name">report\.v2<\/span>/);
+  assert.doesNotMatch(html, /entry-name">(?:daily-report|report\.v2)\.js<\/span>/);
 });
 
 test('panel keeps only the script list and one icon-only manage action', () => {
   const html = Player.buildPanelHTML([{name: 'daily-report.js', path: '/recipes/daily-report.js'}], {
     currentKey: 'daily-report.js', highlightKey: 'daily-report.js', running: false,
   });
-  assert.match(html, /<button id="panelManage" class="manage-button" title="管理脚本" aria-label="管理脚本">⚙<\/button>/);
+  assert.match(html, /<button id="panelManage" class="manage-button" title="管理流程" aria-label="管理流程">⚙<\/button>/);
   assert.doesNotMatch(html, /<header>|panelMode|panelStatus|panelRefresh|panelOpenDirectory|<footer>/);
-  assert.doesNotMatch(html, /单击只高亮|Enter 提交高亮|选择脚本/);
+  assert.doesNotMatch(html, /单击只高亮|Enter 提交高亮|选择流程/);
   assert.doesNotMatch(html, /data-opendesk-dialog-(?:default|cancel)/);
   const content = Player.buildPanelContent([{name: 'daily-report.js'}], {
     currentKey: 'daily-report.js', highlightKey: 'daily-report.js', running: false,
   });
   assert.match(content.html, /id="panelManage"/);
   assert.match(content.css, /\.manage-button\{/);
-  assert.match(content.css, /\.script-row\.current \.marker::before\{content:'✓'\}/);
+  assert.match(content.css, /\.entry-row\.current \.marker::before\{content:'✓'\}/);
 });
 
 test('the compact manage icon hides the panel and opens the full manager', async () => {
@@ -387,8 +387,8 @@ test('the compact manage icon hides the panel and opens the full manager', async
 
 test('official OpenDesk main decorates the base controller before product runner capture', () => {
   const mainSource = fs.readFileSync(path.join(repo, 'apps', 'opendesk', 'main.js'), 'utf8');
-  assert.match(mainSource, /script-runner['"]\s*,\s*['"]controller\.js/);
-  assert.match(mainSource, /script-runner['"]\s*,\s*['"]player-controller\.js/);
-  assert.match(mainSource, /OpenDeskScriptRunnerPlayer\.wrapController/);
-  assert.match(mainSource, /playerUI:\s*ui/);
+  assert.match(mainSource, /flow-runner['"]\s*,\s*['"]controller\.js/);
+  assert.match(mainSource, /flow-runner['"]\s*,\s*['"]player-controller\.js/);
+  assert.match(mainSource, /OpenDeskFlowRunnerPlayerController\.wrapController/);
+  assert.match(mainSource, /playerUI:\s*OpenDeskPromotionsIntegration\.createPlayerUI\(ui/);
 });

@@ -301,8 +301,8 @@
     const keepRecordingId = 'rec-native-history-keep';
     const recordingDir = File.join(root, recordingId);
     const keepRecordingDir = File.join(root, keepRecordingId);
-    File.ensureDir(File.join(recordingDir, 'generated'));
-    File.ensureDir(File.join(keepRecordingDir, 'generated'));
+    File.ensureDir(recordingDir);
+    File.ensureDir(keepRecordingDir);
     File.write(File.join(recordingDir, 'manifest.json'), JSON.stringify({
       recordingId,
       state: 'stopped',
@@ -311,7 +311,7 @@
       storage: {state: 'saved'},
       issues: [],
     }));
-    File.write(File.join(recordingDir, 'generated', 'basic.recipe.js'), '// native History fixture\n');
+    File.write(File.join(recordingDir, 'basic.recipe.js'), '// native History fixture\n');
     File.write(File.join(keepRecordingDir, 'manifest.json'), JSON.stringify({
       recordingId: keepRecordingId,
       state: 'stopped',
@@ -320,7 +320,7 @@
       storage: {state: 'saved'},
       issues: [],
     }));
-    File.write(File.join(keepRecordingDir, 'generated', 'basic.recipe.js'), '// native History keep fixture\n');
+    File.write(File.join(keepRecordingDir, 'basic.recipe.js'), '// native History keep fixture\n');
 
     const toolbar = {
       addButton() {},

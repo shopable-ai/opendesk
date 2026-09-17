@@ -95,7 +95,14 @@ if [[ ! -f "${APP_ICON_SOURCE}" ]]; then
   printf 'App icon is missing: %s\nRun scripts/generate_app_icons.sh first.\n' "${APP_ICON_SOURCE}" >&2
   exit 1
 fi
-rm -rf "${APP_ROOT}"
+if [[ -e "${APP_ROOT}" ]]; then
+  # Staging intentionally makes payload trees non-writable before signing.
+  # Restore owner write permission only on the previous generated bundle so a
+  # second current-source build can replace it instead of leaving a partial
+  # bundle behind at this boundary.
+  chmod -R u+w "${APP_ROOT}"
+  rm -rf "${APP_ROOT}"
+fi
 mkdir -p "${MACOS_DIR}" "${HELPERS_DIR}" "${RESOURCES_DIR}"
 
 cp "${EXECUTABLE_STAGE}" "${EXECUTABLE_PATH}"

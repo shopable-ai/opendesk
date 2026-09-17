@@ -1,4 +1,4 @@
-(function installOpenDeskScriptRunnerPlayer(global) {
+(function installOpenDeskFlowRunnerPlayerController(global) {
   'use strict';
 
   const PANEL_WIDTH = 320;
@@ -20,22 +20,22 @@
       .replace(/'/g, '&#39;');
   }
 
-  function displayScriptName(name) {
+  function displayEntryName(name) {
     const value = String(name || '');
     const parts = value.split(/[\\/]/);
     const base = parts[parts.length - 1] || value;
     return /\.(?:m?js|odpkg)$/i.test(base) ? base.replace(/\.(?:m?js|odpkg)$/i, '') : base;
   }
 
-  function displayScript(script) {
-    if (script && typeof script === 'object') {
-      return script.displayName || displayScriptName(script.name);
+  function displayEntry(entry) {
+    if (entry && typeof entry === 'object') {
+      return entry.displayName || displayEntryName(entry.name);
     }
-    return displayScriptName(script);
+    return displayEntryName(entry);
   }
 
-  function scriptNames(scripts) {
-    return (scripts || []).map(script => typeof script === 'string' ? script : script && script.name).filter(Boolean);
+  function entryNames(entries) {
+    return (entries || []).map(entry => typeof entry === 'string' ? entry : entry && entry.name).filter(Boolean);
   }
 
   function reconcileCurrentAfterRefresh(oldOrder, newOrder, currentKey) {
@@ -102,29 +102,29 @@
     };
   }
 
-  function buildPanelHTML(scripts, state) {
+  function buildPanelHTML(entries, state) {
     const input = state || {};
     const currentKey = input.currentKey || null;
     const highlightKey = input.highlightKey || currentKey;
     const running = !!input.running;
     const loadError = input.loadError || null;
-    const all = scripts || [];
-    const rows = all.map((script, index) => {
-      const current = script.name === currentKey;
-      const highlighted = script.name === highlightKey;
-      const classes = ['script-row'];
+    const all = entries || [];
+    const rows = all.map((entry, index) => {
+      const current = entry.name === currentKey;
+      const highlighted = entry.name === highlightKey;
+      const classes = ['entry-row'];
       if (current) classes.push('current');
       if (highlighted) classes.push('highlight');
-      const displayName = displayScript(script);
-      return `<button id="panelScript${index}" class="${classes.join(' ')}" title="${escapeHTML(script.path || displayName)}" aria-label="选择 ${escapeHTML(displayName)}"${running || loadError ? ' disabled' : ''}><span class="marker" aria-hidden="true"></span><span class="script-name">${escapeHTML(displayName)}</span></button>`;
+      const displayName = displayEntry(entry);
+      return `<button id="panelEntry${index}" class="${classes.join(' ')}" title="${escapeHTML(entry.path || displayName)}" aria-label="选择 ${escapeHTML(displayName)}"${running || loadError ? ' disabled' : ''}><span class="marker" aria-hidden="true"></span><span class="entry-name">${escapeHTML(displayName)}</span></button>`;
     });
     const list = all.length
-      ? `<div id="panelScriptList" class="script-list" aria-label="脚本列表">${rows.join('\n')}</div>`
-      : `<p id="panelEmpty" class="empty">${loadError ? '脚本目录读取失败' : '暂无可运行脚本'}</p>`;
+      ? `<div id="panelEntryList" class="entry-list" aria-label="流程列表">${rows.join('\n')}</div>`
+      : `<p id="panelEmpty" class="empty">${loadError ? '自动化目录读取失败' : '暂无可运行的流程'}</p>`;
     return `<!doctype html><html><head><meta charset="utf-8"></head><body>
       <main>
         <div class="list">${list}</div>
-        <button id="panelManage" class="manage-button" title="管理脚本" aria-label="管理脚本">⚙</button>
+        <button id="panelManage" class="manage-button" title="管理流程" aria-label="管理流程">⚙</button>
       </main>
     </body></html>`;
   }
@@ -133,12 +133,12 @@
     html,body{margin:0;padding:0;background:#171717;color:#f4f4f4;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     *{box-sizing:border-box} main{position:relative;height:100vh;padding:8px;overflow:hidden}
     .list{height:100%;min-height:0;overflow:hidden;border:1px solid #333;border-radius:9px;background:#1d1d1d}
-    .script-list{width:100%;height:100%;min-height:0;overflow:auto;padding:4px 42px 4px 4px}.script-row{width:100%;min-height:34px;border:0;border-radius:6px;background:transparent;color:#f4f4f4;padding:7px 8px;display:flex;align-items:center;gap:7px;text-align:left;font:inherit}.script-row:not(:disabled){cursor:pointer}.script-row:hover:not(:disabled){background:#292929}.script-row.highlight{background:#2d3b52;color:#fff}.script-row.current .marker{color:#8db7ff}.script-row.current .marker::before{content:'✓'}.script-row:disabled{opacity:.68}.marker{flex:0 0 15px;width:15px;text-align:center;color:transparent}.script-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.empty{margin:0;padding:24px 12px;text-align:center;color:#999}
+    .entry-list{width:100%;height:100%;min-height:0;overflow:auto;padding:4px 42px 4px 4px}.entry-row{width:100%;min-height:34px;border:0;border-radius:6px;background:transparent;color:#f4f4f4;padding:7px 8px;display:flex;align-items:center;gap:7px;text-align:left;font:inherit}.entry-row:not(:disabled){cursor:pointer}.entry-row:hover:not(:disabled){background:#292929}.entry-row.highlight{background:#2d3b52;color:#fff}.entry-row.current .marker{color:#8db7ff}.entry-row.current .marker::before{content:'✓'}.entry-row:disabled{opacity:.68}.marker{flex:0 0 15px;width:15px;text-align:center;color:transparent}.entry-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.empty{margin:0;padding:24px 12px;text-align:center;color:#999}
     .manage-button{position:absolute;top:12px;right:12px;width:30px;height:30px;padding:0;border:1px solid #505050;border-radius:7px;background:#303030;color:#f4f4f4;font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1}.manage-button:not(:disabled){cursor:pointer}.manage-button:hover:not(:disabled){background:#3b3b3b}
   `;
 
-  function buildPanelContent(scripts, state) {
-    return {html: buildPanelHTML(scripts, state), css: PANEL_CSS};
+  function buildPanelContent(entries, state) {
+    return {html: buildPanelHTML(entries, state), css: PANEL_CSS};
   }
 
   function createLifecycleToolbar(onUpdate, holder) {
@@ -147,7 +147,7 @@
     const closePromise = new Promise(resolve => { closeResolve = resolve; });
     const handlers = new Map();
     return class HeadlessFloatingWindow {
-      constructor() { this.id = 'script-runner-headless'; if (holder) holder.instance = this; }
+      constructor() { this.id = 'flow-runner-headless'; if (holder) holder.instance = this; }
       addButton() {}
       addLabel() {}
       addSeparator() {}
@@ -174,9 +174,9 @@
     const BaseController = settings.BaseController;
     const ui = settings.playerUI || settings.ui;
     const Floating = settings.FloatingWindow;
-    if (!BaseController || typeof BaseController.createApp !== 'function') throw new Error('script runner player requires BaseController');
-    if (!ui || typeof ui.createWindow !== 'function') throw new Error('script runner player requires playerUI.createWindow()');
-    if (typeof Floating !== 'function') throw new Error('script runner player requires FloatingWindow');
+    if (!BaseController || typeof BaseController.createApp !== 'function') throw new Error('flow runner player requires BaseController');
+    if (!ui || typeof ui.createWindow !== 'function') throw new Error('flow runner player requires playerUI.createWindow()');
+    if (typeof Floating !== 'function') throw new Error('flow runner player requires FloatingWindow');
 
     let base = null;
     let closed = false;
@@ -206,21 +206,29 @@
 
     const toolbar = new Floating({
       position: {mode: 'anchor', horizontal: 'right', vertical: 'bottom', margin: 16, display: 'active'},
-      title: 'OpenDesk Script Runner',
+      title: 'OpenDesk — 自动化',
       theme: 'dark',
       alwaysOnTop: true,
       draggable: true,
-      interactionGroup: 'scriptRunnerPlayer',
+      interactionGroup: 'flowRunnerPlayer',
       orientation: 'horizontal',
       toolbar: {maxWidth: 520, maxRows: 1},
     });
 
     function baseState() { return base.state(); }
-    function scripts() { return base.scripts(); }
-    function orderedNames() { return scriptNames(scripts()); }
+    function selectedEntryKey(state) {
+      return state && state.selectedEntryKey || null;
+    }
+    function entries() {
+      return typeof base.entries === 'function' ? base.entries() : [];
+    }
+    async function selectBaseEntry(key) {
+      return typeof base.selectEntry === 'function' ? base.selectEntry(key) : false;
+    }
+    function orderedNames() { return entryNames(entries()); }
     function currentKey() {
       const state = baseState();
-      return state && state.selectedScriptName || lastKnownCurrentKey || null;
+      return selectedEntryKey(state) || lastKnownCurrentKey || null;
     }
     function isRunning() {
       const state = baseState();
@@ -229,7 +237,7 @@
     function currentDisplayKey() {
       const state = baseState();
       if (state && state.activeRun && state.activeRun.current) return state.activeRun.current;
-      return state && state.selectedScriptName || lastKnownCurrentKey || null;
+      return selectedEntryKey(state) || lastKnownCurrentKey || null;
     }
 
     async function safeToolbar(method, ...args) {
@@ -243,21 +251,22 @@
       if (closed) return;
       const state = baseState();
       const names = orderedNames();
-      const selected = state.selectedScriptName || null;
+      const selected = selectedEntryKey(state);
       if (selected) lastKnownCurrentKey = selected;
       const index = names.indexOf(selected);
       const running = !!(state.running || state.activeRun);
       const readable = !state.loadError && state.configValid !== false;
-      const runnable = readable && !!selected && names.includes(selected);
+      const selectedEntry = entries().find(item => item.name === selected);
+      const runnable = readable && !!selectedEntry && (selectedEntry.kind !== 'flow' || selectedEntry.state === 'ready');
       const displayKey = currentDisplayKey();
-      const selectedScript = scripts().find(item => item.name === displayKey);
-      const label = displayKey ? displayScript(selectedScript || displayKey) : state.loadError ? '目录错误' : '暂无脚本';
+      const displayEntryValue = entries().find(item => item.name === displayKey);
+      const label = displayKey ? displayEntry(displayEntryValue || displayKey) : state.loadError ? '目录错误' : '暂无流程';
       await safeToolbar('updateButton', 'run', {disabled: running || !runnable, active: running});
       await safeToolbar('updateButton', 'stop', {disabled: !running, active: false});
       await safeToolbar('updateButton', 'previous', {disabled: running || !readable || index <= 0});
       await safeToolbar('updateButton', 'next', {disabled: running || !readable || index < 0 || index >= names.length - 1});
       await safeToolbar('updateButton', 'list', {disabled: false, active: panelLifecycle === 'visible'});
-      await safeToolbar('updateLabel', 'script', {text: label, tone: state.loadError || state.configValid === false ? 'error' : running ? 'warning' : 'secondary'});
+      await safeToolbar('updateLabel', 'entry', {text: label});
       toolbarState = {running, readable, runnable, label, index, count: names.length};
       await syncPanelControls();
     }
@@ -271,13 +280,13 @@
       }).catch(() => { syncQueued = false; });
     }
 
-    async function selectScript(name) {
+    async function selectEntry(key) {
       if (isRunning()) return false;
-      if (!orderedNames().includes(name)) return false;
-      const changed = await base.selectScript(name);
+      if (!orderedNames().includes(key)) return false;
+      const changed = await selectBaseEntry(key);
       if (changed !== false) {
-        lastKnownCurrentKey = name;
-        panelHighlightKey = name;
+        lastKnownCurrentKey = key;
+        panelHighlightKey = key;
       }
       await syncToolbar();
       return changed !== false;
@@ -291,7 +300,7 @@
       // the first await so every event sequence has one selection side effect.
       panelCommitPending = true;
       try {
-        const selected = await selectScript(name);
+        const selected = await selectEntry(name);
         if (!selected) return false;
         await hidePanel();
         return true;
@@ -306,19 +315,19 @@
       const index = names.indexOf(currentKey());
       const target = index + delta;
       if (index < 0 || target < 0 || target >= names.length) return false;
-      return selectScript(names[target]);
+      return selectEntry(names[target]);
     }
 
     async function runCurrent() {
       const state = baseState();
-      const key = state.selectedScriptName;
-      const script = key ? scripts().find(item => item.name === key) : null;
-      if (!script) {
-        const error = new Error(key ? `当前脚本已不存在：${key}` : '没有可运行的脚本');
-        error.code = key ? 'FILE_NOT_FOUND' : 'NO_CURRENT_SCRIPT';
+      const key = selectedEntryKey(state);
+      const entry = key ? entries().find(item => item.name === key) : null;
+      if (!entry) {
+        const error = new Error(key ? `当前流程已不存在：${key}` : '暂无可运行的流程');
+        error.code = key ? 'FILE_NOT_FOUND' : 'NO_CURRENT_FLOW';
         return Promise.reject(error);
       }
-      const pending = base.requestRun([script], 'toolbar-player');
+      const pending = base.requestRun([entry], 'toolbar-player');
       await Promise.resolve();
       await syncToolbar();
       try { return await pending; } finally { await syncToolbar(); }
@@ -326,13 +335,13 @@
 
     function panelSpec() {
       const state = baseState();
-      const all = scripts();
+      const all = entries();
       const highlight = panelHighlightKey && all.some(item => item.name === panelHighlightKey)
-        ? panelHighlightKey : state.selectedScriptName || (all[0] && all[0].name) || null;
+        ? panelHighlightKey : selectedEntryKey(state) || (all[0] && all[0].name) || null;
       panelHighlightKey = highlight;
       panelSignature = all.map(item => item.name).join('\u0000');
       return {
-        id: `scriptRunnerPanel${++panelSequence}`,
+        id: `flowRunnerPanel${++panelSequence}`,
         kind: 'normal',
         title: '',
         position: {mode: 'anchor', size: {width: PANEL_WIDTH, height: panelHeight(all.length)}, horizontal: 'right', vertical: 'bottom', margin: 64, display: 'active'},
@@ -340,16 +349,16 @@
         draggable: false,
         theme: 'dark',
         keyEvents: true,
-        interactionGroup: 'scriptRunnerPlayer',
-        content: buildPanelContent(all, {currentKey: state.selectedScriptName, highlightKey: highlight, running: isRunning(), loadError: state.loadError}),
+        interactionGroup: 'flowRunnerPlayer',
+        content: buildPanelContent(all, {currentKey: selectedEntryKey(state), highlightKey: highlight, running: isRunning(), loadError: state.loadError}),
       };
     }
 
     function bindPanel(window, snapshot) {
-      const names = snapshot.map(script => script.name);
+      const names = snapshot.map(entry => entry.name);
       for (let index = 0; index < names.length; index++) {
         const name = names[index];
-        window.control(`panelScript${index}`).on('click', async () => {
+        window.control(`panelEntry${index}`).on('click', async () => {
           return confirmPanelSelection(name);
         });
       }
@@ -378,7 +387,7 @@
       if (panelCreating) return panelCreating;
       const intentAtCreate = panelIntent;
       panelLifecycle = 'creating';
-      const snapshot = scripts();
+      const snapshot = entries();
       const task = (async () => {
         const window = await ui.createWindow(panelSpec());
         if (closed) {
@@ -404,7 +413,7 @@
     async function syncPanelControls() {
       if (!panel) return;
       const state = baseState();
-      const all = scripts();
+      const all = entries();
       const signature = all.map(item => item.name).join('\u0000');
       if (signature !== panelSignature) {
         const wasVisible = panelLifecycle === 'visible' && panelDesiredVisible;
@@ -416,14 +425,14 @@
         return;
       }
       const running = isRunning();
-      const current = state.selectedScriptName || null;
+      const current = selectedEntryKey(state);
       if (!panelHighlightKey || !all.some(item => item.name === panelHighlightKey)) panelHighlightKey = current || (all[0] && all[0].name) || null;
       for (let index = 0; index < all.length; index++) {
-        const script = all[index];
-        const classes = ['script-row'];
-        if (script.name === current) classes.push('current');
-        if (script.name === panelHighlightKey) classes.push('highlight');
-        await safePanelControl(`panelScript${index}`, {
+        const entry = all[index];
+        const classes = ['entry-row'];
+        if (entry.name === current) classes.push('current');
+        if (entry.name === panelHighlightKey) classes.push('highlight');
+        await safePanelControl(`panelEntry${index}`, {
           classes,
           disabled: running || !!state.loadError,
         });
@@ -460,7 +469,7 @@
       let panelState = null;
       try { panelState = await panel.getState(); } catch (_) {}
       const width = panelState && panelState.bounds && panelState.bounds.width || PANEL_WIDTH;
-      const height = panelState && panelState.bounds && panelState.bounds.height || panelHeight(scripts().length);
+      const height = panelState && panelState.bounds && panelState.bounds.height || panelHeight(entries().length);
       const Screen = settings.Screen || global.Screen;
       let displays = [];
       try { displays = Screen && typeof Screen.getDisplays === 'function' ? Screen.getDisplays() : []; } catch (_) {}
@@ -537,10 +546,10 @@
       return false;
     }
 
-    async function refreshScripts() {
+    async function refreshEntries() {
       if (isRunning()) return false;
       const oldOrder = orderedNames();
-      const oldCurrent = baseState().selectedScriptName || lastKnownCurrentKey;
+      const oldCurrent = selectedEntryKey(baseState()) || lastKnownCurrentKey;
       const ok = await base.rescan();
       if (!ok) {
         lastKnownCurrentKey = oldCurrent || lastKnownCurrentKey;
@@ -549,7 +558,7 @@
       }
       const newOrder = orderedNames();
       const replacement = reconcileCurrentAfterRefresh(oldOrder, newOrder, oldCurrent);
-      if (replacement && baseState().selectedScriptName !== replacement) await base.selectScript(replacement);
+      if (replacement && selectedEntryKey(baseState()) !== replacement) await selectBaseEntry(replacement);
       lastKnownCurrentKey = replacement;
       panelHighlightKey = replacement;
       await syncToolbar();
@@ -558,10 +567,10 @@
 
     toolbar.addButton('run', '运行', 'play.fill', runCurrent);
     toolbar.addButton('stop', '停止', 'stop.fill', async () => { const stopped = await base.stopRun(); await syncToolbar(); return stopped; });
-    toolbar.addButton('previous', '上一个脚本', settings.previousIcon || 'backward.fill', () => shiftCurrent(-1));
-    toolbar.addLabel('script', '暂无脚本', {width: 168, alignment: 'center', verticalAlignment: 'center', tone: 'secondary'});
-    toolbar.addButton('next', '下一个脚本', settings.nextIcon || 'forward.fill', () => shiftCurrent(1));
-    toolbar.addButton('list', '脚本列表', 'list.bullet', togglePanel);
+    toolbar.addButton('previous', '上一个流程', settings.previousIcon || 'backward.fill', () => shiftCurrent(-1));
+    toolbar.addLabel('entry', '暂无流程', {width: 168, alignment: 'center', verticalAlignment: 'center', tone: 'secondary'});
+    toolbar.addButton('next', '下一个流程', settings.nextIcon || 'forward.fill', () => shiftCurrent(1));
+    toolbar.addButton('list', '流程列表', 'list.bullet', togglePanel);
     toolbar.on('move', event => {
       if (event && event.bounds) lastToolbarBounds = event.bounds;
       if (panelLifecycle === 'visible') void anchorPanel();
@@ -631,29 +640,29 @@
       closePanel: hidePanel,
       togglePanel,
       panelKey,
-      selectScript,
+      selectEntry,
       previous: () => shiftCurrent(-1),
       next: () => shiftCurrent(1),
-      rescan: refreshScripts,
+      rescan: refreshEntries,
       stopRun,
       restoreDefaultOrder,
       requestRun,
-      scripts: () => clone(scripts()),
+      entries: () => clone(entries()),
       state,
     });
   }
 
   function wrapController(BaseController, defaults) {
-    if (!BaseController || typeof BaseController.createApp !== 'function') throw new Error('script runner player requires a base controller');
+    if (!BaseController || typeof BaseController.createApp !== 'function') throw new Error('flow runner player requires a base controller');
     const wrapper = Object.assign({}, BaseController);
     wrapper.createApp = options => createApp(Object.assign({}, options || {}, defaults || {}, {BaseController}));
     return Object.freeze(wrapper);
   }
 
-  global.OpenDeskScriptRunnerPlayer = Object.freeze({
+  global.OpenDeskFlowRunnerPlayerController = Object.freeze({
     createApp,
     wrapController,
-    displayScriptName,
+    displayEntryName,
     reconcileCurrentAfterRefresh,
     buildPanelHTML,
     buildPanelContent,

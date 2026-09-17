@@ -44,8 +44,8 @@ func TestOfficialProductWebsiteComesFromProductConfig(t *testing.T) {
 	for _, relative := range []string{
 		"polyfills/000-systemBase.js",
 		"apps/opendesk/official-shell.js",
-		"apps/opendesk/script-runner-simple.js",
-		"apps/opendesk/script-runner/controller.js",
+		"apps/opendesk/flow-runner.js",
+		"apps/opendesk/flow-runner/controller.js",
 		"apps/opendesk/recorder/controller.js",
 		"apps/opendesk/recorder/controller-core.js",
 	} {

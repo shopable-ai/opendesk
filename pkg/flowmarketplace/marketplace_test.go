@@ -76,6 +76,12 @@ func TestMarketplaceInstallVerticalSlice(t *testing.T) {
 		t.Fatalf("catalog did not persist Marketplace provenance: %+v", loaded)
 	}
 	assertTrustSource(t, service, "user")
+	// Installed content is intentionally sealed read-only. Exercise the
+	// production uninstall path so TempDir cleanup does not bypass that
+	// lifecycle contract on macOS.
+	if err := service.Uninstall(context.Background(), result.Record.InstallID, false); err != nil {
+		t.Fatalf("Uninstall() error = %v", err)
+	}
 }
 
 func TestMarketplaceVerifiedPublisherDoesNotBypassLocalTrust(t *testing.T) {

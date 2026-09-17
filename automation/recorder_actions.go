@@ -68,6 +68,19 @@ const (
 
 var recorderIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 
+// recorderRawRelativePath accepts the current recording-root layout and the
+// legacy raw/ layout. Keep the accepted set explicit so a manifest cannot
+// turn Recorder.buildActions into a general path reader.
+func recorderRawRelativePath(value string) (string, bool) {
+	normalized := filepath.ToSlash(filepath.Clean(filepath.FromSlash(value)))
+	switch normalized {
+	case "events.ndjson", "raw/events.ndjson":
+		return normalized, true
+	default:
+		return "", false
+	}
+}
+
 type recorderRawReference struct {
 	File   string `json:"file"`
 	SHA256 string `json:"sha256"`
@@ -503,23 +516,24 @@ func (r *RecorderRuntime) buildActionsFile(input string) (recorderActionsResult,
 	if err != nil {
 		return recorderActionsResult{}, recorderError(RecorderInvalidRecording, operation, "manifest.json contains invalid recording facts", err)
 	}
-	if manifest.Storage.RawFile != filepath.ToSlash(filepath.Join("raw", "events.ndjson")) && manifest.Storage.RawFile != filepath.Join("raw", "events.ndjson") {
-		return recorderActionsResult{}, recorderError(RecorderInvalidRecording, operation, "manifest rawFile must be raw/events.ndjson", nil)
+	rawRelative, ok := recorderRawRelativePath(manifest.Storage.RawFile)
+	if !ok {
+		return recorderActionsResult{}, recorderError(RecorderInvalidRecording, operation, "manifest rawFile must be events.ndjson or raw/events.ndjson", nil)
 	}
-	rawPath := filepath.Join(recordingDir, "raw", "events.ndjson")
+	rawPath := filepath.Join(recordingDir, filepath.FromSlash(rawRelative))
 	rawBytes, err := recorderReadRegular(rawPath, recorderMaxRawBytes)
 	if err != nil {
-		return recorderActionsResult{}, recorderWrapFileError(operation, "raw/events.ndjson", err)
+		return recorderActionsResult{}, recorderWrapFileError(operation, rawRelative, err)
 	}
 	rawHash := recorderSHA256(rawBytes)
 	events, parseIssues, err := recorderParseRawEvents(rawBytes, !terminal || manifest.Storage.State != "saved")
 	if err != nil {
-		return recorderActionsResult{}, recorderError(RecorderInvalidRecording, operation, "raw/events.ndjson is invalid", err)
+		return recorderActionsResult{}, recorderError(RecorderInvalidRecording, operation, rawRelative+" is invalid", err)
 	}
 	actions := recorderActions{
 		FormatVersion: recorderActionsFormatVersion, RecordingID: manifest.RecordingID,
 		CreatedAt:   manifest.StoppedAt,
-		Raw:         recorderRawReference{File: filepath.ToSlash(filepath.Join("raw", "events.ndjson")), SHA256: rawHash, Bytes: int64(len(rawBytes))},
+		Raw:         recorderRawReference{File: rawRelative, SHA256: rawHash, Bytes: int64(len(rawBytes))},
 		Environment: recorderActionEnvironment{Platform: manifest.Capture.Platform, CoordinateSpace: manifest.Capture.CoordinateSpace, Within: manifest.Within, InitialWindow: manifest.InitialWindow},
 		Actions:     []recorderAction{}, EventDisposition: []recorderEventDisposition{}, Issues: append(make([]recorderIssue, 0), parseIssues...),
 	}
@@ -3403,26 +3417,22 @@ func (r *RecorderRuntime) generateScriptFile(input, outputFile string, timing re
 	if actions.Readiness == "blocked" {
 		return recorderScriptResult{}, recorderError(RecorderGenerationBlocked, operation, "actions package integrity does not permit generation", nil)
 	}
-	generatedDir := filepath.Join(recordingDir, "generated")
-	if err := os.MkdirAll(generatedDir, 0700); err != nil {
-		return recorderScriptResult{}, recorderError(RecorderStorageFailed, operation, "could not create generated directory", err)
-	}
-	if err := recorderRejectSymlinkPath(recordingDir, generatedDir); err != nil {
-		return recorderScriptResult{}, recorderError(RecorderInvalidArgument, operation, "generated directory contains a symbolic link", err)
-	}
-	scriptPath := filepath.Join(generatedDir, mode+".recipe.js")
+	// A generated recipe and its candidate belong directly to the recording.
+	// A generated/ wrapper adds no semantic boundary and made the common files
+	// needlessly harder to find.
+	scriptPath := filepath.Join(recordingDir, mode+".recipe.js")
 	if outputFile != "" {
 		scriptPath = outputFile
 		if !filepath.IsAbs(scriptPath) {
-			scriptPath = filepath.Join(generatedDir, scriptPath)
+			scriptPath = filepath.Join(recordingDir, scriptPath)
 		}
 		scriptPath, err = filepath.Abs(filepath.Clean(scriptPath))
-		if err != nil || !recorderPathWithin(generatedDir, scriptPath) || strings.ToLower(filepath.Ext(scriptPath)) != ".js" {
-			return recorderScriptResult{}, recorderError(RecorderInvalidArgument, operation, "outputFile must be a .js file within the recording generated directory", err)
+		if err != nil || filepath.Dir(scriptPath) != recordingDir || strings.ToLower(filepath.Ext(scriptPath)) != ".js" {
+			return recorderScriptResult{}, recorderError(RecorderInvalidArgument, operation, "outputFile must be a .js file at the recording root", err)
 		}
 	}
 	base := strings.TrimSuffix(filepath.Base(scriptPath), filepath.Ext(scriptPath))
-	candidatePath := filepath.Join(generatedDir, strings.TrimSuffix(base, ".recipe")+".candidate.json")
+	candidatePath := filepath.Join(recordingDir, strings.TrimSuffix(base, ".recipe")+".candidate.json")
 	if _, err := os.Lstat(scriptPath); err == nil {
 		return recorderScriptResult{}, recorderError(RecorderWouldOverwrite, operation, "script output already exists", nil)
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -3510,10 +3520,11 @@ func recorderValidateActions(actions recorderActions, actionsPath, recordingDir 
 			return recorderError(RecorderInvalidRecording, operation, "actions initial window snapshot is invalid", err)
 		}
 	}
-	rawPath := filepath.Join(recordingDir, filepath.FromSlash(actions.Raw.File))
-	if actions.Raw.File != "raw/events.ndjson" || !recorderPathWithin(recordingDir, rawPath) || len(actions.Raw.SHA256) != 64 || actions.Raw.Bytes < 0 {
+	rawRelative, ok := recorderRawRelativePath(actions.Raw.File)
+	if !ok || !recorderPathWithin(recordingDir, filepath.Join(recordingDir, filepath.FromSlash(rawRelative))) || len(actions.Raw.SHA256) != 64 || actions.Raw.Bytes < 0 {
 		return recorderError(RecorderInvalidRecording, operation, "actions raw reference is invalid", nil)
 	}
+	rawPath := filepath.Join(recordingDir, filepath.FromSlash(rawRelative))
 	rawBytes, err := recorderReadRegular(rawPath, recorderMaxRawBytes)
 	if err != nil || int64(len(rawBytes)) != actions.Raw.Bytes || recorderSHA256(rawBytes) != actions.Raw.SHA256 {
 		return recorderError(RecorderInvalidRecording, operation, "actions raw reference no longer matches the recorded bytes", err)

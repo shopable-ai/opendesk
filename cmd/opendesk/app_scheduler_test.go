@@ -24,14 +24,25 @@ func TestResolveAppSchedulerScriptRootMatchesProductRecipes(t *testing.T) {
 	}
 
 	configured, err := resolveAppSchedulerScriptRoot("com.opendesk.desktop", root, map[string]string{
-		"HOME":                       home,
-		"OPENDESK_SCRIPT_RUNNER_DIR": "recipes-custom",
+		"HOME":                     home,
+		"OPENDESK_FLOW_RUNNER_DIR": "recipes-custom",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if configured != filepath.Join(root, "recipes-custom") {
 		t.Fatalf("configured root = %q", configured)
+	}
+
+	legacyConfigured, err := resolveAppSchedulerScriptRoot("com.opendesk.desktop", root, map[string]string{
+		"HOME":                       home,
+		"OPENDESK_SCRIPT_RUNNER_DIR": "legacy-recipes-custom",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legacyConfigured != filepath.Join(root, "legacy-recipes-custom") {
+		t.Fatalf("legacy configured root = %q", legacyConfigured)
 	}
 
 	appDataRoot, err := resolveAppSchedulerScriptRoot("com.opendesk.desktop", root, map[string]string{
@@ -52,8 +63,8 @@ func TestAppSchedulerBridgeIsTokenProtectedAndReportsState(t *testing.T) {
 	defer cancel()
 
 	runtime, err := startAppScheduler(ctx, &Config{SchedulerDBPath: filepath.Join(root, "scheduler.db")}, "com.opendesk.desktop", root, map[string]string{
-		"HOME":                       root,
-		"OPENDESK_SCRIPT_RUNNER_DIR": filepath.Join(root, "recipes"),
+		"HOME":                     root,
+		"OPENDESK_FLOW_RUNNER_DIR": filepath.Join(root, "recipes"),
 	}, customui.NewMemoryDriver())
 	if err != nil {
 		t.Fatal(err)
@@ -107,7 +118,7 @@ func TestAppSchedulerBridgeIsTokenProtectedAndReportsState(t *testing.T) {
 	if payload.Data.ScriptRoot != filepath.Join(root, "recipes") {
 		t.Fatalf("scriptRoot = %q", payload.Data.ScriptRoot)
 	}
-	expectedArtifactRoot := filepath.Join(root, ".opendesk", "apps", "com.opendesk.desktop", ".runtime", "examples", "custom-ui", "script-runner-simple", "runs")
+	expectedArtifactRoot := filepath.Join(root, ".opendesk", "apps", "com.opendesk.desktop", ".runtime", "flow-runner", "runs")
 	if payload.Data.ArtifactRoot != expectedArtifactRoot {
 		t.Fatalf("artifactRoot = %q, want %q", payload.Data.ArtifactRoot, expectedArtifactRoot)
 	}

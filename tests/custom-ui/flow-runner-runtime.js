@@ -1,10 +1,10 @@
 'use strict';
 
-const controllerFile = File.join(Execution.workdir, 'apps', 'opendesk', 'script-runner', 'controller.js');
+const controllerFile = File.join(Execution.workdir, 'apps', 'opendesk', 'flow-runner', 'controller.js');
 (0, eval)(File.read(controllerFile) + '\n//# sourceURL=' + controllerFile);
 
-if (!globalThis.OpenDeskScriptRunnerSimple || typeof OpenDeskScriptRunnerSimple.createApp !== 'function') {
-  throw new Error('OpenDesk Script Runner Simple controller did not load');
+if (!globalThis.OpenDeskFlowRunner || typeof OpenDeskFlowRunner.createApp !== 'function') {
+  throw new Error('OpenDesk Flow Runner controller did not load');
 }
 
 function assert(condition, message) {
@@ -15,7 +15,7 @@ const evidenceRoot = File.join(
   Execution.workdir,
   '.runtime',
   'tests',
-  'script-runner-simple',
+  'flow-runner',
   String(Date.now()),
 );
 File.ensureDir(evidenceRoot);
@@ -88,7 +88,7 @@ async function runScenario(name) {
   class FakeToolbar {
     constructor() {
       toolbar = this;
-      this.id = `script-runner-runtime-${name}`;
+      this.id = `flow-runner-runtime-${name}`;
       this.buttons = new Map();
       this.labels = new Map();
       this.handlers = new Map();
@@ -129,8 +129,8 @@ async function runScenario(name) {
   }
 
   const commandCalls = [];
-  const app = OpenDeskScriptRunnerSimple.createApp({
-    scriptRoot: recipes,
+  const app = OpenDeskFlowRunner.createApp({
+    runnableRoot: recipes,
     file: File,
     command: {
       async run(executable, args, options) {
@@ -161,7 +161,7 @@ async function runScenario(name) {
     let pending;
     if (stopRunning) {
       const window = await app.openList();
-      for (let index = 0; index < app.scripts().length; index++) window.control(`select${index}`).state.checked = true;
+      for (let index = 0; index < app.entries().length; index++) window.control(`select${index}`).state.checked = true;
       pending = window.control('runSelected').handlers.click();
     } else {
       pending = toolbar.buttons.get('run').callback();
@@ -241,4 +241,4 @@ const result = {
 };
 const resultFile = File.join(evidenceRoot, 'result.json');
 File.write(resultFile, JSON.stringify(result, null, 2) + '\n');
-console.log('SCRIPT_RUNNER_SIMPLE_RUNTIME_OK=' + JSON.stringify({resultFile, result}));
+console.log('FLOW_RUNNER_RUNTIME_OK=' + JSON.stringify({resultFile, result}));

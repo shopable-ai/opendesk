@@ -26,7 +26,7 @@ if (!globalThis.OpenDeskProductI18n || !OpenDeskProductI18n.install()) {
 }
 
 // Promotions are product-owned. Their integration adapters are loaded before
-// Runner composition, but the concrete owner is assigned only after the Runner
+// Flow Runner composition, but the concrete owner is assigned only after the Flow Runner
 // and private App local-services client exist. Every adapter dereferences this
 // closure at interaction time, so startup has no owner/controller cycle.
 for (const name of ['core.js', 'controller.js', 'integration.js', 'official-creative.js', 'owner.js']) {
@@ -44,34 +44,34 @@ let promotionOwner = null;
 const promotionOwnerRef = () => promotionOwner;
 
 // The low-frequency manager, ordering, batch execution and run lifecycle stay
-// in the established Script Runner controller. Promotions decorate only the
-// task boundary and surface lifecycle; the generic Runner never learns about
+// in the established Flow Runner controller. Promotions decorate only the
+// task boundary and surface lifecycle; the generic Flow Runner never learns about
 // advertisers, campaigns, frequency, or paid-placement policy.
-const runnerControllerEntry = File.join(Execution.scriptDir, 'script-runner', 'controller.js');
-(0, eval)(File.read(runnerControllerEntry) + '\n//# sourceURL=' + runnerControllerEntry);
-if (!globalThis.OpenDeskScriptRunnerSimple
-  || typeof OpenDeskScriptRunnerSimple.createApp !== 'function') {
-  throw new Error('OpenDesk Script Runner base controller did not initialize');
+const flowRunnerControllerEntry = File.join(Execution.scriptDir, 'flow-runner', 'controller.js');
+(0, eval)(File.read(flowRunnerControllerEntry) + '\n//# sourceURL=' + flowRunnerControllerEntry);
+if (!globalThis.OpenDeskFlowRunner
+  || typeof OpenDeskFlowRunner.createApp !== 'function') {
+  throw new Error('OpenDesk Flow Runner base controller did not initialize');
 }
-const baseRunnerController = OpenDeskPromotionsIntegration.wrapRunnerController(
-  OpenDeskScriptRunnerSimple,
+const baseFlowRunnerController = OpenDeskPromotionsIntegration.wrapFlowRunnerController(
+  OpenDeskFlowRunner,
   promotionOwnerRef,
 );
 
-const runnerPlayerEntry = File.join(Execution.scriptDir, 'script-runner', 'player-controller.js');
-(0, eval)(File.read(runnerPlayerEntry) + '\n//# sourceURL=' + runnerPlayerEntry);
-if (!globalThis.OpenDeskScriptRunnerPlayer
-  || typeof OpenDeskScriptRunnerPlayer.wrapController !== 'function') {
-  throw new Error('OpenDesk Script Runner player controller did not initialize');
+const flowRunnerPlayerEntry = File.join(Execution.scriptDir, 'flow-runner', 'player-controller.js');
+(0, eval)(File.read(flowRunnerPlayerEntry) + '\n//# sourceURL=' + flowRunnerPlayerEntry);
+if (!globalThis.OpenDeskFlowRunnerPlayerController
+  || typeof OpenDeskFlowRunnerPlayerController.wrapController !== 'function') {
+  throw new Error('OpenDesk Flow Runner player controller did not initialize');
 }
-globalThis.OpenDeskScriptRunnerSimple = OpenDeskScriptRunnerPlayer.wrapController(baseRunnerController, {
+globalThis.OpenDeskFlowRunner = OpenDeskFlowRunnerPlayerController.wrapController(baseFlowRunnerController, {
   playerUI: OpenDeskPromotionsIntegration.createPlayerUI(ui, promotionOwnerRef),
   previousIcon: {
-    path: File.join(Execution.scriptDir, 'assets', 'script-previous.png'),
+    path: File.join(Execution.scriptDir, 'assets', 'flow-previous.png'),
     renderingMode: 'template',
   },
   nextIcon: {
-    path: File.join(Execution.scriptDir, 'assets', 'script-next.png'),
+    path: File.join(Execution.scriptDir, 'assets', 'flow-next.png'),
     renderingMode: 'template',
   },
 });
@@ -97,14 +97,14 @@ globalThis.OpenDeskScriptRunnerSimple = OpenDeskProductAnalyticsIntegration.wrap
 // Add state-scoped keyboard control only after the player surface has been
 // composed. Idle exposes Run; while a recipe is executing it releases Run and
 // owns Stop instead, so both accelerators are never reserved at the same time.
-const runnerShortcutEntry = File.join(Execution.scriptDir, 'script-runner', 'shortcut-controller.js');
-(0, eval)(File.read(runnerShortcutEntry) + '\n//# sourceURL=' + runnerShortcutEntry);
-if (!globalThis.OpenDeskScriptRunnerShortcuts
-  || typeof OpenDeskScriptRunnerShortcuts.wrapController !== 'function') {
-  throw new Error('OpenDesk Script Runner shortcut controller did not initialize');
+const flowRunnerShortcutEntry = File.join(Execution.scriptDir, 'flow-runner', 'shortcut-controller.js');
+(0, eval)(File.read(flowRunnerShortcutEntry) + '\n//# sourceURL=' + flowRunnerShortcutEntry);
+if (!globalThis.OpenDeskFlowRunnerShortcutController
+  || typeof OpenDeskFlowRunnerShortcutController.wrapController !== 'function') {
+  throw new Error('OpenDesk Flow Runner shortcut controller did not initialize');
 }
-globalThis.OpenDeskScriptRunnerSimple = OpenDeskScriptRunnerShortcuts.wrapController(
-  OpenDeskScriptRunnerSimple,
+globalThis.OpenDeskFlowRunner = OpenDeskFlowRunnerShortcutController.wrapController(
+  OpenDeskFlowRunner,
   {
     globalShortcut: globalThis.globalShortcut,
     system: System,
@@ -112,27 +112,27 @@ globalThis.OpenDeskScriptRunnerSimple = OpenDeskScriptRunnerShortcuts.wrapContro
   },
 );
 
-// script-runner-simple captures FloatingWindow during module installation. Give
+// flow-runner captures FloatingWindow during module installation. Give
 // only that module a promotion-aware wrapper, then immediately restore the
 // process global so unrelated product windows remain ordinary Custom UI.
 const nativeFloatingWindow = globalThis.FloatingWindow;
-const promotionAwareFloatingWindow = OpenDeskPromotionsIntegration.createRunnerFloatingWindow(
+const promotionAwareFloatingWindow = OpenDeskPromotionsIntegration.createFlowRunnerFloatingWindow(
   nativeFloatingWindow,
   promotionOwnerRef,
 );
-const runnerEntry = File.join(Execution.scriptDir, 'script-runner-simple.js');
+const flowRunnerEntry = File.join(Execution.scriptDir, 'flow-runner.js');
 globalThis.FloatingWindow = promotionAwareFloatingWindow;
 try {
-  (0, eval)(File.read(runnerEntry) + '\n//# sourceURL=' + runnerEntry);
+  (0, eval)(File.read(flowRunnerEntry) + '\n//# sourceURL=' + flowRunnerEntry);
 } finally {
   globalThis.FloatingWindow = nativeFloatingWindow;
 }
-if (!globalThis.OpenDeskProductScriptRunner
-  || typeof OpenDeskProductScriptRunner.create !== 'function') {
-  throw new Error('OpenDesk product Script Runner did not initialize');
+if (!globalThis.OpenDeskProductFlowRunner
+  || typeof OpenDeskProductFlowRunner.create !== 'function') {
+  throw new Error('OpenDesk product Flow Runner did not initialize');
 }
 
-const runner = OpenDeskProductScriptRunner.create({officialShell});
+const flowRunner = OpenDeskProductFlowRunner.create({officialShell});
 
 const calculatorCapabilityEntry = File.join(Execution.scriptDir, 'capabilities', 'calculator.js');
 (0, eval)(File.read(calculatorCapabilityEntry) + '\n//# sourceURL=' + calculatorCapabilityEntry);
@@ -188,8 +188,8 @@ promotionOwner = OpenDeskPromotionsOwner.create({
   officialShell,
   schedulerClient: nativeSchedulerClient,
   creative: OpenDeskOfficialPromotionCreative.create(),
-  getRunnerState: () => runner.state(),
-  // Script Runner has no product fullscreen or presentation mode. The native
+  getFlowRunnerState: () => flowRunner.state(),
+  // Flow Runner has no product fullscreen or presentation mode. The native
   // surface state still supplies visible/onScreen/bounds; unknown automation,
   // Recorder, Measurement and Scheduler activity fails closed separately.
   getForegroundIdle: () => true,
@@ -247,7 +247,7 @@ if (!globalThis.OpenDeskProductAppController
 }
 
 const schedulerCenter = OpenDeskSchedulerCenter.create();
-const runtimeLog = OpenDeskRuntimeLog.create({runner});
+const runtimeLog = OpenDeskRuntimeLog.create({flowRunner});
 const permissionsCenter = OpenDeskPermissionsCenter.create();
 const analyticsSettings = OpenDeskAnalyticsSettings.create({client: OpenDeskProductAnalytics});
 const about = OpenDeskAbout.create({
@@ -269,14 +269,14 @@ if (!globalThis.OpenDeskDeveloperTools
 }
 const developerTools = OpenDeskDeveloperTools.create({
   appRuntime: automation.app,
-  runner,
+  flowRunner,
   schedulerClient: OpenDeskSchedulerClient,
   runtimeLog,
   inspectorLauncher,
 });
 const appController = OpenDeskProductAppController.create({
   appRuntime: automation.app,
-  runner,
+  flowRunner,
   assistant,
   schedulerCenter,
   runtimeLog,
@@ -298,8 +298,8 @@ void developerTools.initialize();
 // prompts are reserved for an explicit Permissions Center action or the first
 // real protected operation.
 await permissionsCenter.preflight('startup');
-const initialState = await runner.launch();
-// Promotion startup is deliberately after the real Runner surface exists.
+const initialState = await flowRunner.launch();
+// Promotion startup is deliberately after the real Flow Runner surface exists.
 // The owner will still suppress itself if any required lifecycle source is
 // unknown, active, hidden, list-open, or otherwise unsafe.
 await promotionOwner.start();
@@ -311,7 +311,7 @@ console.log('OPENDESK_PRODUCT_APP_READY=' + JSON.stringify({
   scriptDir: Execution.scriptDir,
   executable: System.getExecutablePath(),
   appDataRoot: globalThis.OpenDeskProductPaths.appDataRoot,
-  scriptRoot: globalThis.OpenDeskProductPaths.scriptRoot,
+  runnableRoot: globalThis.OpenDeskProductPaths.runnableRoot,
   mainWindowId: initialState.mainWindowId,
   toolbarMaxWidth: initialState.toolbarMaxWidth,
   recipeProcessModel: 'app-owned-separate-execution',

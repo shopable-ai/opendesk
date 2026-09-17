@@ -1,6 +1,7 @@
 package automation
 
 import (
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -44,10 +45,13 @@ func TestPermissionFeatureRequirements(t *testing.T) {
 	if desktop[PermissionAutomation] != PermissionOnDemand {
 		t.Fatalf("desktop automation = %q, want on-demand", desktop[PermissionAutomation])
 	}
-	for id, requirement := range permissionRequirements("script-runner") {
+	for id, requirement := range permissionRequirements("flow-runner") {
 		if requirement != PermissionOnDemand {
-			t.Fatalf("script-runner %s = %q, want on-demand", id, requirement)
+			t.Fatalf("flow-runner %s = %q, want on-demand", id, requirement)
 		}
+	}
+	if got, want := permissionRequirements("script-runner"), permissionRequirements("flow-runner"); !reflect.DeepEqual(got, want) {
+		t.Fatalf("legacy script-runner permissions = %v, want %v", got, want)
 	}
 	if permissionRequirements("screenshot")[PermissionScreenCapture] != PermissionRequired {
 		t.Fatal("screenshot screen capture should be required")

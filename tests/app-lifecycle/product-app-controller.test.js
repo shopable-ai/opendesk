@@ -14,7 +14,7 @@ function harness(options = {}) {
   let listener = null;
   let subscriptions = 0;
   let unsubscriptions = 0;
-  const runnerCalls = [];
+  const flowRunnerCalls = [];
   const schedulerOpenCalls = [];
   const schedulerNewCalls = [];
   const inspectorCalls = [];
@@ -29,10 +29,10 @@ function harness(options = {}) {
       return () => { unsubscriptions++; listener = null; };
     },
   };
-  const runner = {
+  const flowRunner = {
     async open(source) {
-      runnerCalls.push(source);
-      if (options.rejectRunnerSource === source) throw new Error('runner action rejected');
+      flowRunnerCalls.push(source);
+      if (options.rejectFlowRunnerSource === source) throw new Error('flow runner action rejected');
     },
   };
   const assistant = {
@@ -51,13 +51,17 @@ function harness(options = {}) {
   const permissionsCenter = {
     async open(source) { permissionCalls.push(source); },
   };
+  const about = {
+    async open() {},
+  };
   const controller = ProductAppController.create({
     appRuntime,
-    runner,
+    flowRunner,
     assistant,
     schedulerCenter,
     inspectorLauncher,
     permissionsCenter,
+    about,
     runtimeLog: {async open(source) { runtimeLogCalls.push(source); }},
     developerTools: {async activate(id) { developerCalls.push(id); }},
     logger: {error(message) { errors.push(String(message)); }},
@@ -68,7 +72,7 @@ function harness(options = {}) {
       assert.equal(typeof listener, 'function', 'App action listener must remain registered');
       listener(event);
     },
-    runnerCalls,
+    flowRunnerCalls,
     schedulerOpenCalls,
     schedulerNewCalls,
     inspectorCalls,
@@ -117,38 +121,38 @@ test('routes Runtime Log and nested developer actions through the same App Shell
   assert.equal(f.subscriptions, 1);
 });
 
-test('Runner hide or close does not unsubscribe the product action dispatcher', async () => {
+test('Flow Runner hide or close does not unsubscribe the product action dispatcher', async () => {
   const f = harness();
   f.controller.start();
   f.controller.start();
 
-  // Runner window lifecycle is deliberately outside this controller. These
+  // Flow Runner window lifecycle is deliberately outside this controller. These
   // state transitions therefore cannot dispose the App Shell listener.
-  const runnerWindow = {hidden: false, closed: false};
-  runnerWindow.hidden = true;
-  f.dispatch({id: 'scheduler.open', source: 'runner-hidden'});
-  runnerWindow.closed = true;
-  f.dispatch({id: 'scheduler.open', source: 'runner-closed'});
+  const flowRunnerWindow = {hidden: false, closed: false};
+  flowRunnerWindow.hidden = true;
+  f.dispatch({id: 'scheduler.open', source: 'flow-runner-hidden'});
+  flowRunnerWindow.closed = true;
+  f.dispatch({id: 'scheduler.open', source: 'flow-runner-closed'});
   await settle();
 
-  assert.deepEqual(f.schedulerOpenCalls, ['runner-hidden', 'runner-closed']);
+  assert.deepEqual(f.schedulerOpenCalls, ['flow-runner-hidden', 'flow-runner-closed']);
   assert.equal(f.subscriptions, 1, 'start is idempotent');
   assert.equal(f.unsubscriptions, 0, 'only unified Runtime teardown owns listener cleanup');
 });
 
 test('one rejected action is logged and the next action still runs', async () => {
-  const f = harness({rejectRunnerSource: 'reject-me'});
+  const f = harness({rejectFlowRunnerSource: 'reject-me'});
   f.controller.start();
-  f.dispatch({id: 'runner.open', source: 'reject-me'});
+  f.dispatch({id: 'flow-runner.open', source: 'reject-me'});
   await settle();
   f.dispatch({id: 'scheduler.open', source: 'after-rejection'});
   await settle();
 
-  assert.deepEqual(f.runnerCalls, ['reject-me']);
+  assert.deepEqual(f.flowRunnerCalls, ['reject-me']);
   assert.deepEqual(f.schedulerOpenCalls, ['after-rejection']);
   assert.equal(f.errors.length, 1);
-  assert.match(f.errors[0], /\[APP_ACTION\] action=runner\.open stage=dispatch/);
-  assert.match(f.errors[0], /runner action rejected/);
+  assert.match(f.errors[0], /\[APP_ACTION\] action=flow-runner\.open stage=dispatch/);
+  assert.match(f.errors[0], /flow runner action rejected/);
   assert.deepEqual(f.controller.state(), {started: true, handledActions: 1, failedActions: 1});
 });
 
@@ -189,7 +193,7 @@ test('Developer tools delegate Inspector launch and keep local-only status, debu
     };
     const tools = globalThis.OpenDeskDeveloperTools.create({
       appRuntime,
-      runner: {state() { return {active: true, runner: {listVisible: true}}; }},
+      flowRunner: {state() { return {active: true, flowRunner: {listVisible: true}}; }},
       schedulerClient: {getCapabilities() { return {available: true, endpoint: 'app-loopback'}; }},
       runtimeLog,
       inspectorLauncher: {
@@ -238,7 +242,7 @@ test('Developer tools delegate Inspector launch and keep local-only status, debu
     assert.equal(statusWindowCreates, 1);
     assert.equal(tools.state().statusOpen, true);
     assert.equal(controls.get('executionId').at(-1).text, 'app-001');
-    assert.equal(controls.get('runner').at(-1).text, '已显示');
+    assert.equal(controls.get('flowRunner').at(-1).text, '已显示');
     assert.equal(controls.get('inspectorScope').at(-1).text, '仅本机 loopback');
     assert.equal(menuUpdates.some(update => update.id.includes('.lan.')), false);
     assert.ok(menuUpdates.some(update => update.id === 'opendesk.debug.detailed' && update.patch.label === '✓ 详细'));
@@ -251,7 +255,7 @@ test('Developer tools delegate Inspector launch and keep local-only status, debu
 test('Runtime Log reads canonical artifacts, tails detailed events, and rebuilds after close', async () => {
   const originals = Object.fromEntries(['File', 'Command', 'System', 'ui', 'OpenDeskProductPaths']
     .map(key => [key, globalThis[key]]));
-  const root = '/data/.runtime/examples/custom-ui/script-runner-simple/runs';
+  const root = '/data/.runtime/flow-runner/runs';
   const run = `${root}/run-001`;
   const schedulerRun = `${root}/scheduler-20260912-110100-000000`;
   const contents = new Map([
@@ -312,7 +316,7 @@ test('Runtime Log reads canonical artifacts, tails detailed events, and rebuilds
     const runtimeLogFile = path.resolve(__dirname, '..', '..', 'apps', 'opendesk', 'runtime-log.js');
     vm.runInThisContext(fs.readFileSync(runtimeLogFile, 'utf8'), {filename: runtimeLogFile});
     const runtimeLog = globalThis.OpenDeskRuntimeLog.create({
-      runner: {state() { return {latestExecution: {scriptPath: '/recipes/daily.js', logDir: run, status: 'failed'}}; }},
+      flowRunner: {state() { return {latestExecution: {entryPath: '/recipes/daily.js', logDir: run, status: 'failed'}}; }},
     });
     await Promise.all([
       runtimeLog.open('test'),

@@ -102,10 +102,8 @@ const fixtureRoot = File.join(
   Execution.workdir, '.runtime', 'recordings', `rec-recording-console-simple-test-${Date.now()}`,
 );
 File.ensureDir(fixtureRoot);
-const generatedDir = File.join(fixtureRoot, 'generated');
-File.ensureDir(generatedDir);
-const generatedScript = File.join(generatedDir, 'basic.recipe.js');
-const generatedCandidate = File.join(generatedDir, 'basic.candidate.json');
+const generatedScript = File.join(fixtureRoot, 'basic.recipe.js');
+const generatedCandidate = File.join(fixtureRoot, 'basic.candidate.json');
 const actionsFile = File.join(fixtureRoot, 'actions.json');
 const generatedSource = "'use strict';\nconsole.log('recording-console-simple fixture');\n";
 File.write(generatedScript, generatedSource);
@@ -114,7 +112,7 @@ File.write(actionsFile, JSON.stringify({
   revision: 1,
   readiness: 'ready',
   issues: [{code: 'semantic-unavailable', message: 'DO_NOT_COPY_ISSUE_TEXT'}],
-  raw: {file: 'raw/events.ndjson', content: 'DO_NOT_COPY_RAW_CONTENT'},
+  raw: {file: 'events.ndjson', content: 'DO_NOT_COPY_RAW_CONTENT'},
   actions: [
     {
       id: 'a0001', kind: 'click', text: 'DO_NOT_COPY_ACTION_TEXT',
@@ -172,7 +170,7 @@ function makeSession() {
       captureState = 'stopped';
       return {
         recordingId: 'simple-fixture', recordingDir: fixtureRoot,
-        rawFile: File.join(fixtureRoot, 'raw', 'events.ndjson'),
+        rawFile: File.join(fixtureRoot, 'events.ndjson'),
         manifestFile: File.join(fixtureRoot, 'manifest.json'),
         captureState: 'stopped', storageState: 'saved', counts, issues: [],
       };
@@ -492,10 +490,10 @@ for (const name of ['start', 'exclude', 'pause', 'resume', 'stop', 'build', 'gen
 equal(commandCalls.length, commandCountBeforePromptCopy, 'Agent prompt copy must not call Command.run');
 
 for (const invalidScriptFile of [
-  String(Execution.workdir) + '/.runtime/recordings/rec-fixture/generated/../../secret.js',
-  File.join(Execution.workdir, '.runtime', 'recordings-other', 'rec-fixture', 'generated', 'basic.recipe.js'),
-  File.join(Execution.workdir, '.runtime', 'recordings', 'rec-fixture', 'generated', 'bad`name.js'),
-  File.join(Execution.workdir, '.runtime', 'recordings', 'rec-fixture', 'generated', 'bad\nname.js'),
+  String(Execution.workdir) + '/.runtime/recordings/rec-fixture/../secret.js',
+  File.join(Execution.workdir, '.runtime', 'recordings-other', 'rec-fixture', 'basic.recipe.js'),
+  File.join(Execution.workdir, '.runtime', 'recordings', 'rec-fixture', 'bad`name.js'),
+  File.join(Execution.workdir, '.runtime', 'recordings', 'rec-fixture', 'bad\nname.js'),
 ]) {
   let rejected = null;
   try {
@@ -577,7 +575,7 @@ const retryRecorder = {
         retryCalls.stop += 1;
         return {
           recordingId: 'generation-retry-fixture', recordingDir: fixtureRoot,
-          rawFile: File.join(fixtureRoot, 'raw', 'events.ndjson'),
+          rawFile: File.join(fixtureRoot, 'events.ndjson'),
           manifestFile: File.join(fixtureRoot, 'manifest.json'),
           captureState: 'stopped', storageState: 'saved', counts, issues: [],
         };
@@ -671,7 +669,7 @@ const reviewRecorder = {
         reviewCalls.stop += 1;
         return {
           recordingId: 'review-fixture', recordingDir: fixtureRoot,
-          rawFile: File.join(fixtureRoot, 'raw', 'events.ndjson'),
+          rawFile: File.join(fixtureRoot, 'events.ndjson'),
           manifestFile: File.join(fixtureRoot, 'manifest.json'),
           captureState: 'stopped', storageState: 'saved', counts, issues: [],
         };
@@ -744,7 +742,7 @@ const captureIssue = {
 };
 const failedSaved = {
   recordingId: 'simple-failed-fixture', recordingDir: File.join(fixtureRoot, 'failed-recording'),
-  rawFile: File.join(fixtureRoot, 'failed-recording', 'raw', 'events.ndjson'),
+  rawFile: File.join(fixtureRoot, 'failed-recording', 'events.ndjson'),
   manifestFile: File.join(fixtureRoot, 'failed-recording', 'manifest.json'),
   captureState: 'failed', storageState: 'saved', counts, issues: [captureIssue],
 };

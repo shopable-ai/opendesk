@@ -11,7 +11,11 @@
   const NATIVE_START_GUARD_MS = 3000;
   const PREFERENCE_MAX_BYTES = 64 * 1024;
   const RESTORE_MENU_ID = 'restore-promotions';
-  const PLACEMENT_MODES = Object.freeze(['runner-above', 'screen-bottom-right']);
+  const FLOW_RUNNER_ABOVE = 'flow-runner-above';
+  // Stored preferences created before the component rename may still carry
+  // this value; normalize it before the value reaches the presentation layer.
+  const LEGACY_RUNNER_ABOVE = 'runner-above';
+  const PLACEMENT_MODES = Object.freeze([FLOW_RUNNER_ABOVE, 'screen-bottom-right']);
 
   function clone(value) {
     return value == null ? value : JSON.parse(JSON.stringify(value));
@@ -46,7 +50,10 @@
     const stateRefreshMs = Number.isFinite(o.stateRefreshMs)
       ? Math.max(500, o.stateRefreshMs)
       : DEFAULT_STATE_REFRESH_MS;
-    const placementMode = o.placementMode == null ? 'runner-above' : String(o.placementMode);
+    const requestedPlacementMode = o.placementMode == null ? FLOW_RUNNER_ABOVE : String(o.placementMode);
+    const placementMode = requestedPlacementMode === LEGACY_RUNNER_ABOVE
+      ? FLOW_RUNNER_ABOVE
+      : requestedPlacementMode;
 
     if (!file || typeof file.join !== 'function' || typeof file.readJSON !== 'function' || typeof file.writeJSON !== 'function') {
       throw new Error('Promotion owner requires File.join/readJSON/writeJSON');
@@ -64,7 +71,7 @@
     let started = false;
     let disposed = false;
     let preferenceLoadFailed = false;
-    let runnerSurface = null;
+    let flowRunnerSurface = null;
     let ownerEngaged = false;
     let surfaceUnavailable = false;
     let creativeUnavailable = false;
@@ -99,19 +106,19 @@
       }
     }
 
-    function runnerState() {
-      if (typeof o.getRunnerState !== 'function') return null;
-      try { return o.getRunnerState() || null; } catch (_) { return null; }
+    function flowRunnerState() {
+      if (typeof o.getFlowRunnerState !== 'function') return null;
+      try { return o.getFlowRunnerState() || null; } catch (_) { return null; }
     }
 
-    function runnerBusy(value) {
-      const state = value && value.runner;
+    function flowRunnerBusy(value) {
+      const state = value && value.flowRunner;
       if (!state) return true;
       return !!(state.running || state.activeRun || (value.latestExecution && value.latestExecution.status === 'running'));
     }
 
-    function runnerListOpen(value) {
-      const state = value && value.runner;
+    function flowRunnerListOpen(value) {
+      const state = value && value.flowRunner;
       if (!state) return true;
       const player = state.player || {};
       return state.selectorVisible === true
@@ -121,7 +128,7 @@
     }
 
     function context() {
-      const currentRunner = runnerState();
+      const currentFlowRunner = flowRunnerState();
       const foregroundOverride = providerBoolean(o.getForegroundIdle, true);
       const fullscreen = providerBoolean(o.getFullscreen, false);
       const presentationMode = providerBoolean(o.getPresentationMode, false);
@@ -133,15 +140,15 @@
         && clock() >= schedulerManualUntil;
       return {
         ready: initialized && schedulerKnown && nativeActivityKnown && !surfaceUnavailable && !creativeUnavailable,
-        ownerVisible: validSurface(runnerSurface) && ownerEngaged && foregroundOverride === true,
+        ownerVisible: validSurface(flowRunnerSurface) && ownerEngaged && foregroundOverride === true,
         automationIdle: activities.size === 0
-          && !runnerBusy(currentRunner)
+          && !flowRunnerBusy(currentFlowRunner)
           && schedulerIdle
           && clock() >= nativeStartGuardUntil
           && !nativeActivityActive,
         recorderIdle: nativeActivityKnown && !nativeKinds.has('recorder') && recorderOverride === true,
         measurementIdle: nativeActivityKnown && !nativeKinds.has('measurement') && measurementOverride === true,
-        listOpen: runnerListOpen(currentRunner),
+        listOpen: flowRunnerListOpen(currentFlowRunner),
         fullscreen: fullscreen === null ? true : fullscreen,
         presentationMode: presentationMode === null ? true : presentationMode,
       };
@@ -206,7 +213,7 @@
           savePreferences,
           activate,
           reducedMotion: o.reducedMotion,
-          interactionGroup: 'scriptRunnerPlayer',
+          interactionGroup: 'flowRunnerPlayer',
           onInteractionOutside: async () => {
             ownerEngaged = false;
             if (showTimer !== null) cancel(showTimer);
@@ -271,7 +278,7 @@
         return lastResult;
       }
       lastTrigger = trigger || 'idle';
-      lastResult = await controller.show(creative, {mode: placementMode, anchor: runnerSurface.bounds});
+      lastResult = await controller.show(creative, {mode: placementMode, anchor: flowRunnerSurface.bounds});
       if (mediaFailure(lastResult)) {
         creativeUnavailable = true;
         log('warn', 'CREATIVE_DISABLED', {error: lastResult.error || 'media decode failed'});
@@ -350,29 +357,29 @@
       }, stateRefreshMs);
     }
 
-    async function setRunnerSurface(surface) {
-      runnerSurface = surface && core.validBounds(surface.bounds) ? clone(surface) : null;
-      ownerEngaged = validSurface(runnerSurface);
+    async function setFlowRunnerSurface(surface) {
+      flowRunnerSurface = surface && core.validBounds(surface.bounds) ? clone(surface) : null;
+      ownerEngaged = validSurface(flowRunnerSurface);
       if (!controller) return state();
-      if (!validSurface(runnerSurface)) {
+      if (!validSurface(flowRunnerSurface)) {
         await controller.refreshContext();
         return state();
       }
       if (controller.state().visible) {
-        try { await controller.reanchor(runnerSurface.bounds); } catch (error) {
+        try { await controller.reanchor(flowRunnerSurface.bounds); } catch (error) {
           lastError = String(error && error.message || error);
           log('warn', 'REANCHOR_ERROR', {message: lastError});
         }
       } else {
-        scheduleShow('runner-visible');
+        scheduleShow('flow-runner-visible');
       }
       return state();
     }
 
     async function noteOwnerInteraction(source) {
-      if (validSurface(runnerSurface)) ownerEngaged = true;
+      if (validSurface(flowRunnerSurface)) ownerEngaged = true;
       if (controller) await controller.refreshContext();
-      if (!core.contextReason(context())) scheduleShow(source || 'runner-interaction');
+      if (!core.contextReason(context())) scheduleShow(source || 'flow-runner-interaction');
       return state();
     }
 
@@ -492,7 +499,7 @@
         ownerEngaged,
         preferences: clone(controller ? controller.state().preferences : preferences),
         context: context(),
-        runnerSurface: clone(runnerSurface),
+        flowRunnerSurface: clone(flowRunnerSurface),
         activeActivities: activities.size,
         schedulerKnown,
         schedulerRunning,
@@ -513,7 +520,7 @@
       dispose,
       state,
       maybeShow,
-      setRunnerSurface,
+      setFlowRunnerSurface,
       noteOwnerInteraction,
       beforeInteraction,
       prepareDesktopActivity,

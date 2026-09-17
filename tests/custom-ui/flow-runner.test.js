@@ -8,9 +8,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const repo = path.resolve(__dirname, '..', '..');
-const controllerFile = path.join(repo, 'apps/opendesk/script-runner/controller.js');
+const controllerFile = path.join(repo, 'apps/opendesk/flow-runner/controller.js');
 vm.runInThisContext(fs.readFileSync(controllerFile, 'utf8'), {filename: controllerFile});
-const Runner = globalThis.OpenDeskScriptRunnerSimple;
+const Runner = globalThis.OpenDeskFlowRunner;
 
 function FileAPI(overrides = {}) {
   const api = {
@@ -87,7 +87,7 @@ function ToolbarCapture() {
     constructor(spec) {
       current = this;
       this.spec = spec;
-      this.id = 'script-runner-test-toolbar';
+      this.id = 'flow-runner-test-toolbar';
       this.buttons = new Map();
       this.labels = new Map();
       this.handlers = new Map();
@@ -122,14 +122,14 @@ async function waitFor(predicate, message = 'condition') {
 }
 
 async function fixture(options = {}) {
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'script-runner-simple-'));
-  const scriptRoot = path.join(temp, 'recipes');
-  if (options.createRoot !== false) fs.mkdirSync(scriptRoot, {recursive: true});
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'flow-runner-'));
+  const runnableRoot = path.join(temp, 'recipes');
+  if (options.createRoot !== false) fs.mkdirSync(runnableRoot, {recursive: true});
   const scriptNames = options.scriptNames === undefined ? ['a.js'] : options.scriptNames;
   if (options.createRoot !== false) {
-    for (const name of scriptNames) fs.writeFileSync(path.join(scriptRoot, name), `// ${name}\n`);
+    for (const name of scriptNames) fs.writeFileSync(path.join(runnableRoot, name), `// ${name}\n`);
     if (options.order) {
-      fs.writeFileSync(path.join(scriptRoot, '.opendesk-runner.json'), JSON.stringify({schemaVersion: 1, order: options.order}));
+      fs.writeFileSync(path.join(runnableRoot, '.opendesk-runner.json'), JSON.stringify({schemaVersion: 1, order: options.order}));
     }
   }
   const ui = FakeUI();
@@ -143,9 +143,9 @@ async function fixture(options = {}) {
     },
   };
   const app = Runner.createApp({
-    scriptRoot,
+    runnableRoot,
     flowCatalog: options.flowCatalog === true,
-    managedScriptRoot: options.managedScriptRoot !== false,
+    managedRunnableRoot: options.managedRunnableRoot !== false,
     openListOnStart: options.openListOnStart !== false,
     hideListOnClose: options.hideListOnClose === true,
     file: options.file || FileAPI(),
@@ -173,7 +173,7 @@ async function fixture(options = {}) {
     await appRun;
     fs.rmSync(temp, {recursive: true, force: true});
   }
-  return {temp, scriptRoot, ui, toolbar, calls, confirmations, app, appRun, cleanup};
+  return {temp, runnableRoot, ui, toolbar, calls, confirmations, app, appRun, cleanup};
 }
 
 async function click(window, id) {
@@ -184,7 +184,7 @@ async function click(window, id) {
 
 async function selectAllAndRun(f) {
   const window = await f.app.openList();
-  for (let index = 0; index < f.app.scripts().length; index++) {
+  for (let index = 0; index < f.app.entries().length; index++) {
     window.control(`select${index}`).state.checked = true;
   }
   return click(window, 'runSelected');
@@ -246,8 +246,8 @@ test('automation list uses compact icon controls with accessible labels', () => 
     loading: false,
     running: false,
     rowCapacity: 32,
-    selectedNames: new Set(),
-    scriptRoot: '/tmp/recipes',
+    selectedEntryKeys: new Set(),
+    runnableRoot: '/tmp/recipes',
     statusMessage: '',
   });
 
@@ -255,7 +255,7 @@ test('automation list uses compact icon controls with accessible labels', () => 
   assert.match(html, /id="run0"[^>]*class="run icon-button"[^>]*data-icon="play\.fill"[^>]*aria-label="[^"]+"/);
   assert.match(html, /id="up0"[^>]*data-icon="square\.and\.arrow\.up"/);
   assert.match(html, /id="down0"[^>]*data-icon="square\.and\.arrow\.down"/);
-  assert.match(html, /id="delete0"[^>]*class="delete icon-button"[^>]*data-icon="trash"[^>]*aria-label="删除第 1 个自动化"/);
+  assert.match(html, /id="delete0"[^>]*class="delete icon-button"[^>]*data-icon="trash\.fill"[^>]*aria-label="删除第 1 个流程"/);
   for (const [id, icon] of [
     ['runSelected', 'play.fill'],
     ['stopRun', 'stop.fill'],
@@ -270,16 +270,41 @@ test('automation list uses compact icon controls with accessible labels', () => 
   assert.match(html, /id="errorRefresh"[^>]*aria-label="加载失败后重新扫描自动化目录"/);
 });
 
+test('automation manager keeps every row and delete action in fixed grid cells while controls update', async () => {
+  const f = await fixture({scriptNames: ['a.js', 'b.js']});
+  try {
+    const window = f.ui.windows[0];
+    const html = window.spec.content.html;
+    const css = window.spec.content.css;
+
+    assert.match(html, /<div id="listHeader" class="list-header">/);
+    assert.match(html, /<div id="row0" class="list-row">[\s\S]*id="select0"[\s\S]*id="delete0"[\s\S]*<\/div>/);
+    assert.match(html, /<div id="row1" class="list-row">[\s\S]*id="select1"[\s\S]*id="delete1"[\s\S]*<\/div>/);
+    assert.match(css, /\.list-header,\.list-row\{display:grid;grid-template-columns:34px 36px minmax\(0,1fr\) 40px 34px 34px 34px/);
+    assert.match(css, /\.select\{grid-column:1/);
+    assert.match(css, /\.index\{grid-column:2/);
+    assert.match(css, /\.name\{grid-column:3/);
+    assert.match(css, /\.run\{grid-column:4/);
+    assert.match(css, /\.up\{grid-column:5/);
+    assert.match(css, /\.down\{grid-column:6/);
+    assert.match(css, /\.delete\{grid-column:7/);
+    assert.equal(window.control('row0').state.visible, true);
+    assert.equal(window.control('row1').state.visible, true);
+  } finally {
+    await f.cleanup();
+  }
+});
+
 test('compact selector presents current selection and makes overflow discoverable without changing its five-row layout', () => {
   const html = Runner.buildCompactSelectorHTML([
     {name: 'a.js'}, {name: 'b.js'}, {name: 'c.js'},
     {name: 'd.js'}, {name: 'e.js'}, {name: 'f.js'},
   ], 'b.js');
 
-  assert.match(html, /当前脚本<\/span><strong>b\.js<\/strong><span class="compact-count">共 6 个 · 可滚动查看/);
+  assert.match(html, /当前流程<\/span><strong>b\.js<\/strong><span class="compact-count">共 6 个流程 · 可滚动查看/);
   assert.match(html, /class="compact-list has-overflow"/);
-  assert.match(html, /class="compact-script selected"[^>]*aria-pressed="true"/);
-  assert.doesNotMatch(html, /<p class="compact-title">选择脚本<\/p>/);
+  assert.match(html, /class="compact-entry selected"[^>]*aria-pressed="true"/);
+  assert.doesNotMatch(html, /<p class="compact-title">选择流程<\/p>/);
 });
 
 test('automation list keeps Runtime-hidden icon and grid controls out of layout', async () => {
@@ -302,7 +327,7 @@ test('empty startup still creates the main list page with legal empty actions', 
     const window = f.ui.windows[0];
     assert.equal(window.shown, true);
     assert.equal(f.app.state().viewState, 'empty');
-    assert.equal(f.app.state().selectedScriptName, null);
+    assert.equal(f.app.state().selectedEntryKey, null);
     assert.equal(f.toolbar.buttons.get('run').disabled, true);
     assert.equal(f.toolbar.buttons.get('stop').disabled, true);
     assert.equal(window.control('runSelected').state.disabled, true);
@@ -310,7 +335,7 @@ test('empty startup still creates the main list page with legal empty actions', 
     assert.equal(window.control('openDirectory').state.disabled, false);
     assert.equal(window.control('emptyTitle').state.visible, true);
     assert.equal(window.control('emptyRefresh').state.visible, true);
-    assert.match(window.spec.content.html, /暂无可运行脚本/);
+    assert.match(window.spec.content.html, /暂无可运行的流程/);
   } finally {
     await f.cleanup();
   }
@@ -320,13 +345,13 @@ test('empty refreshes to ready in the same window', async () => {
   const f = await fixture({scriptNames: []});
   try {
     const window = f.ui.windows[0];
-    fs.writeFileSync(path.join(f.scriptRoot, 'a.js'), '// a\n');
+    fs.writeFileSync(path.join(f.runnableRoot, 'a.js'), '// a\n');
     assert.equal(await click(window, 'refresh'), true);
     assert.equal(f.ui.windows.length, 1);
     assert.equal(f.ui.windows[0], window);
     assert.equal(f.app.state().viewState, 'ready');
-    assert.deepEqual(f.app.scripts().map(s => s.name), ['a.js']);
-    assert.equal(f.app.state().selectedScriptName, 'a.js');
+    assert.deepEqual(f.app.entries().map(entry => entry.name), ['a.js']);
+    assert.equal(f.app.state().selectedEntryKey, 'a.js');
     assert.equal(window.control('emptyTitle').state.visible, false);
     assert.equal(window.control('name0').state.text, 'a.js');
     assert.equal(window.control('name0').state.visible, true);
@@ -360,13 +385,13 @@ test('ready refreshes to empty, clears stale selection, and keeps the same windo
     const window = f.ui.windows[0];
     window.control('select0').state.checked = true;
     await window.control('select0').handlers.change({type: 'change'});
-    assert.deepEqual(f.app.state().selectedNames, ['a.js']);
-    fs.rmSync(path.join(f.scriptRoot, 'a.js'));
+    assert.deepEqual(f.app.state().selectedEntryKeys, ['a.js']);
+    fs.rmSync(path.join(f.runnableRoot, 'a.js'));
     assert.equal(await click(window, 'refresh'), true);
     assert.equal(f.ui.windows.length, 1);
     assert.equal(f.app.state().viewState, 'empty');
-    assert.equal(f.app.state().selectedScriptName, null);
-    assert.deepEqual(f.app.state().selectedNames, []);
+    assert.equal(f.app.state().selectedEntryKey, null);
+    assert.deepEqual(f.app.state().selectedEntryKeys, []);
     assert.equal(window.control('name0').state.visible, false);
     assert.equal(window.control('emptyTitle').state.visible, true);
     assert.equal(f.toolbar.buttons.get('run').disabled, true);
@@ -390,7 +415,7 @@ test('row Delete requires explicit confirmation, removes the local file, and sel
   try {
     const window = f.ui.windows[0];
     assert.equal(await click(window, 'delete0'), false);
-    assert.equal(fs.existsSync(path.join(f.scriptRoot, 'a.js')), true);
+    assert.equal(fs.existsSync(path.join(f.runnableRoot, 'a.js')), true);
     assert.equal(confirmations[0].defaultAction, 'cancel');
     assert.equal(confirmations[0].confirmText, '永久删除');
     assert.match(confirmations[0].message, /a\.js/);
@@ -398,14 +423,14 @@ test('row Delete requires explicit confirmation, removes the local file, and sel
 
     accepted = true;
     assert.equal(await click(window, 'delete0'), true);
-    assert.equal(fs.existsSync(path.join(f.scriptRoot, 'a.js')), false);
-    assert.deepEqual(f.app.scripts().map(script => script.name), ['b.js']);
-    assert.equal(f.app.state().selectedScriptName, 'b.js');
-    assert.equal(f.app.state().pendingDeleteName, null);
+    assert.equal(fs.existsSync(path.join(f.runnableRoot, 'a.js')), false);
+    assert.deepEqual(f.app.entries().map(entry => entry.name), ['b.js']);
+    assert.equal(f.app.state().selectedEntryKey, 'b.js');
+    assert.equal(f.app.state().pendingDeleteKey, null);
     assert.equal(window.control('name0').state.text, 'b.js');
     assert.equal(window.control('delete0').state.disabled, false);
     assert.equal(window.control('delete1').state.visible, false);
-    const config = JSON.parse(fs.readFileSync(path.join(f.scriptRoot, '.opendesk-runner.json'), 'utf8'));
+    const config = JSON.parse(fs.readFileSync(path.join(f.runnableRoot, '.opendesk-runner.json'), 'utf8'));
     assert.deepEqual(config.order, ['b.js']);
   } finally {
     await f.cleanup();
@@ -442,9 +467,9 @@ test('row Delete uninstalls a Flow without removing its independent business dat
     const uninstall = calls.find(call => call.args[0] === 'flow' && call.args[1] === 'uninstall');
     assert.deepEqual(uninstall.args, ['flow', 'uninstall', installId]);
     assert.equal(uninstall.args.includes('--remove-data'), false);
-    assert.deepEqual(f.app.scripts(), []);
+    assert.deepEqual(f.app.entries(), []);
     assert.equal(f.app.state().viewState, 'empty');
-    assert.equal(f.app.state().selectedScriptName, null);
+    assert.equal(f.app.state().selectedEntryKey, null);
     assert.equal(window.control('emptyTitle').state.visible, true);
   } finally {
     await f.cleanup();
@@ -463,11 +488,11 @@ test('empty run guard is safe even when invoked at controller level', async () =
 });
 
 test('scan error is distinct from legal empty', async () => {
-  const f = await fixture({createRoot: false, managedScriptRoot: false, scriptNames: []});
+  const f = await fixture({createRoot: false, managedRunnableRoot: false, scriptNames: []});
   try {
     assert.equal(f.app.state().viewState, 'error');
-    assert.equal(f.app.state().scriptCount, 0);
-    assert.equal(f.app.state().loadError.code, 'SCRIPT_ROOT_NOT_FOUND');
+    assert.equal(f.app.state().entryCount, 0);
+    assert.equal(f.app.state().loadError.code, 'RUNNABLE_ROOT_NOT_FOUND');
     const window = f.ui.windows[0];
     assert.equal(window.control('emptyTitle').state.visible, false);
     assert.equal(window.control('errorTitle').state.visible, true);
@@ -478,9 +503,9 @@ test('scan error is distinct from legal empty', async () => {
 });
 
 test('managed default script root is created and becomes legal empty', async () => {
-  const f = await fixture({createRoot: false, managedScriptRoot: true, scriptNames: []});
+  const f = await fixture({createRoot: false, managedRunnableRoot: true, scriptNames: []});
   try {
-    assert.equal(fs.statSync(f.scriptRoot).isDirectory(), true);
+    assert.equal(fs.statSync(f.runnableRoot).isDirectory(), true);
     assert.equal(f.app.state().viewState, 'empty');
     assert.equal(f.app.state().loadError, null);
   } finally {
@@ -584,7 +609,7 @@ test('queue is fail-fast after the first child failure', async () => {
     const outcome = await selectAllAndRun(f);
     assert.equal(outcome.status, 'failed');
     assert.equal(outcome.completed, 0);
-    assert.equal(outcome.failedScript, 'a.js');
+    assert.equal(outcome.failedEntry, 'a.js');
     assert.equal(calls, 1);
   } finally {
     await f.cleanup();
@@ -663,12 +688,12 @@ test('compact selector defaults to first sorted script and keeps toolbar label i
   const f = await fixture({openListOnStart: false, scriptNames: ['c.js', 'a.js', 'b.js']});
   try {
     await waitFor(
-      () => f.app.state().scriptCount === 3 && f.toolbar.labels.get('script').text === 'a.js',
-      'script load and toolbar synchronization',
+      () => f.app.state().entryCount === 3 && f.toolbar.labels.get('entry').text === 'a.js',
+      'entry load and toolbar synchronization',
     );
-    assert.deepEqual(f.app.scripts().map(script => script.name), ['a.js', 'b.js', 'c.js']);
-    assert.equal(f.app.state().selectedScriptName, 'a.js');
-    assert.equal(f.toolbar.labels.get('script').text, 'a.js');
+    assert.deepEqual(f.app.entries().map(entry => entry.name), ['a.js', 'b.js', 'c.js']);
+    assert.equal(f.app.state().selectedEntryKey, 'a.js');
+    assert.equal(f.toolbar.labels.get('entry').text, 'a.js');
   } finally {
     await f.cleanup();
   }
@@ -681,12 +706,12 @@ test('compact selector changes selected script without auto-running and closes a
     assert.equal(f.app.state().selectorVisible, true);
     assert.equal(f.app.state().listVisible, false);
     const selector = f.ui.windows[0];
-    assert.match(selector.spec.content.html, /当前脚本<\/span><strong>a\.js<\/strong><span class="compact-count">共 3 个/);
+    assert.match(selector.spec.content.html, /当前流程<\/span><strong>a\.js<\/strong><span class="compact-count">共 3 个流程/);
     assert.match(selector.spec.content.css, /overflow-y:auto/);
-    await click(selector, 'compactScript1');
-    assert.equal(f.app.state().selectedScriptName, 'b.js');
+    await click(selector, 'compactEntry1');
+    assert.equal(f.app.state().selectedEntryKey, 'b.js');
     assert.equal(f.app.state().selectorVisible, false);
-    assert.equal(f.toolbar.labels.get('script').text, 'b.js');
+    assert.equal(f.toolbar.labels.get('entry').text, 'b.js');
     assert.equal(f.calls.length, 0);
   } finally {
     await f.cleanup();
@@ -696,12 +721,12 @@ test('compact selector changes selected script without auto-running and closes a
 test('toolbar Run executes selected script rather than the first script', async () => {
   const f = await fixture({openListOnStart: false, scriptNames: ['a.js', 'b.js', 'c.js']});
   try {
-    assert.equal(await f.app.selectScript('b.js'), true);
+    assert.equal(await f.app.selectEntry('b.js'), true);
     const outcome = await f.toolbar.buttons.get('run').callback();
     assert.deepEqual(outcome, {status: 'succeeded', completed: 1, total: 1});
     assert.equal(f.calls.length, 1);
     assert.equal(path.basename(f.calls[0].args[1]), 'b.js');
-    assert.equal(f.app.state().selectedScriptName, 'b.js');
+    assert.equal(f.app.state().selectedEntryKey, 'b.js');
   } finally {
     await f.cleanup();
   }
@@ -728,11 +753,11 @@ test('Flow Catalog entries use stable install identity, manifest display name, a
     },
   });
   try {
-    assert.deepEqual(f.app.scripts().map(script => ({name: script.name, displayName: script.displayName, kind: script.kind})), [
+    assert.deepEqual(f.app.entries().map(entry => ({name: entry.name, displayName: entry.displayName, kind: entry.kind})), [
       {name: `flow:${installId}`, displayName: 'Export Orders', kind: 'flow'},
     ]);
-    assert.equal(f.app.state().selectedScriptName, `flow:${installId}`);
-    assert.equal(f.toolbar.labels.get('script').text, 'Export Orders');
+    assert.equal(f.app.state().selectedEntryKey, `flow:${installId}`);
+    assert.equal(f.toolbar.labels.get('entry').text, 'Export Orders');
     assert.equal(fCalls.filter(call => call.args[0] === 'flow' && call.args[1] === 'run').length, 0);
     const outcome = await f.toolbar.buttons.get('run').callback();
     assert.deepEqual(outcome, {status: 'succeeded', completed: 1, total: 1});
@@ -766,7 +791,7 @@ test('plain JS and MJS imports remain discoverable as local Flow records until e
     },
   });
   try {
-    assert.deepEqual(f.app.scripts().map(script => ({name: script.name, displayName: script.displayName})), [
+    assert.deepEqual(f.app.entries().map(entry => ({name: entry.name, displayName: entry.displayName})), [
       {name: `flow:${installId}`, displayName: '本地 MJS Flow'},
     ]);
     assert.equal(calls.some(call => call.args[0] === 'flow' && call.args[1] === 'run'), false);
@@ -795,8 +820,8 @@ test('Runner keeps bare odpkg on the protected -script path and displays authent
     },
   });
   try {
-    assert.equal(f.app.scripts()[0].displayName, 'protected-export');
-    assert.equal(f.toolbar.labels.get('script').text, 'protected-export');
+    assert.equal(f.app.entries()[0].displayName, 'protected-export');
+    assert.equal(f.toolbar.labels.get('entry').text, 'protected-export');
     assert.equal(fCalls.filter(call => call.args[0] === '-script').length, 0);
     const outcome = await f.toolbar.buttons.get('run').callback();
     assert.equal(outcome.status, 'succeeded');
@@ -819,14 +844,14 @@ test('running disables Run and compact selection while Stop remains enabled', as
   };
   const f = await fixture({openListOnStart: false, scriptNames: ['a.js', 'b.js', 'c.js'], command});
   try {
-    await f.app.selectScript('b.js');
+    await f.app.selectEntry('b.js');
     const pending = f.toolbar.buttons.get('run').callback();
     await waitFor(() => started === 1, 'selected script run');
     assert.equal(f.toolbar.buttons.get('run').disabled, true);
     assert.equal(f.toolbar.buttons.get('stop').disabled, false);
     assert.equal(f.toolbar.buttons.get('list').disabled, true);
-    assert.equal(await f.app.selectScript('c.js'), false);
-    assert.equal(f.app.state().selectedScriptName, 'b.js');
+    assert.equal(await f.app.selectEntry('c.js'), false);
+    assert.equal(f.app.state().selectedEntryKey, 'b.js');
     release();
     assert.equal((await pending).status, 'succeeded');
   } finally {
@@ -837,13 +862,13 @@ test('running disables Run and compact selection while Stop remains enabled', as
 test('refresh preserves selected script by name and selects the old-order successor when it disappears', async () => {
   const f = await fixture({openListOnStart: false, scriptNames: ['a.js', 'b.js', 'c.js']});
   try {
-    await f.app.selectScript('b.js');
+    await f.app.selectEntry('b.js');
     assert.equal(await f.app.rescan(), true);
-    assert.equal(f.app.state().selectedScriptName, 'b.js');
-    fs.rmSync(path.join(f.scriptRoot, 'b.js'));
+    assert.equal(f.app.state().selectedEntryKey, 'b.js');
+    fs.rmSync(path.join(f.runnableRoot, 'b.js'));
     assert.equal(await f.app.rescan(), true);
-    assert.equal(f.app.state().selectedScriptName, 'c.js');
-    assert.equal(f.toolbar.labels.get('script').text, 'c.js');
+    assert.equal(f.app.state().selectedEntryKey, 'c.js');
+    assert.equal(f.toolbar.labels.get('entry').text, 'c.js');
   } finally {
     await f.cleanup();
   }

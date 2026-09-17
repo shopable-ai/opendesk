@@ -7,7 +7,10 @@
   const runtimeUI = global.ui;
   const logger = global.console;
   const productPaths = global.OpenDeskProductPaths;
-  const RUN_LOG_ROOT = ['.runtime', 'examples', 'custom-ui', 'script-runner-simple', 'runs'];
+  const RUN_LOG_ROOT = ['.runtime', 'flow-runner', 'runs'];
+  // Read-only migration support for runs written by Script Runner. New runs
+  // are always written beneath RUN_LOG_ROOT.
+  const LEGACY_RUN_LOG_ROOT = ['.runtime', 'examples', 'custom-ui', 'script-runner-simple', 'runs'];
   const MAX_TAIL_CHARS = 128 * 1024;
   const MAX_DIRECT_READ_BYTES = 512 * 1024;
 
@@ -60,22 +63,29 @@
     return file.join.apply(file, [productPaths.appDataRoot].concat(RUN_LOG_ROOT));
   }
 
+  function legacyRunRoot() {
+    return file.join.apply(file, [productPaths.appDataRoot].concat(LEGACY_RUN_LOG_ROOT));
+  }
+
   function latestRunDirectory() {
-    const root = runRoot();
-    const rootInfo = file.stat(root);
-    if (!rootInfo || rootInfo.type !== 'directory') return '';
-    const candidates = file.listDir(root)
-      .filter(name => {
-        const info = file.stat(file.join(root, name));
-        return info && info.type === 'directory';
-      })
-      .map(name => {
-        const directory = file.join(root, name);
-        const info = file.stat(directory) || {};
-        const summary = safeJSON(file.join(directory, 'summary.json')) || {};
-        const agentSummary = safeJSON(file.join(directory, 'agent_summary.json')) || {};
-        const timestamp = Date.parse(summary.started_at || agentSummary.startedAt || info.modifiedAt || '') || 0;
-        return {directory, name, timestamp};
+    const candidates = [runRoot(), legacyRunRoot()]
+      .filter((root, index, roots) => roots.indexOf(root) === index)
+      .flatMap(root => {
+        const rootInfo = file.stat(root);
+        if (!rootInfo || rootInfo.type !== 'directory') return [];
+        return file.listDir(root)
+          .filter(name => {
+            const info = file.stat(file.join(root, name));
+            return info && info.type === 'directory';
+          })
+          .map(name => {
+            const directory = file.join(root, name);
+            const info = file.stat(directory) || {};
+            const summary = safeJSON(file.join(directory, 'summary.json')) || {};
+            const agentSummary = safeJSON(file.join(directory, 'agent_summary.json')) || {};
+            const timestamp = Date.parse(summary.started_at || agentSummary.startedAt || info.modifiedAt || '') || 0;
+            return {directory, name, timestamp};
+          });
       })
       .sort((left, right) => right.timestamp - left.timestamp || right.name.localeCompare(left.name));
     return candidates.length ? candidates[0].directory : '';
@@ -134,7 +144,7 @@
 
   function createRuntimeLog(options) {
     const settings = options || {};
-    const runner = settings.runner || null;
+    const flowRunner = settings.flowRunner || null;
     let window = null;
     let opening = null;
     let sequence = 0;
@@ -154,12 +164,12 @@
       try { await window.control(id).update({scrollTop: 2147483647}); } catch (_) {}
     }
 
-    function runnerState() {
-      try { return runner && typeof runner.state === 'function' ? runner.state() : null; } catch (_) { return null; }
+    function flowRunnerState() {
+      try { return flowRunner && typeof flowRunner.state === 'function' ? flowRunner.state() : null; } catch (_) { return null; }
     }
 
     function resolveRunDirectory() {
-      const current = runnerState();
+      const current = flowRunnerState();
       const candidate = current && current.latestExecution && current.latestExecution.logDir;
       const info = candidate ? file.stat(candidate) : null;
       const discovered = latestRunDirectory();
@@ -205,18 +215,18 @@
         const events = detailMode === 'detailed'
           ? await readTail(file.join(selectedDirectory, 'events.ndjson'))
           : '';
-        const currentRunner = runnerState();
-        const latest = currentRunner && currentRunner.latestExecution ? currentRunner.latestExecution : {};
-        const selectedIsRunner = !!latest.logDir && latest.logDir === selectedDirectory;
-        const automationName = (selectedIsRunner ? basename(latest.scriptPath) : '')
+        const currentFlowRunner = flowRunnerState();
+        const latest = currentFlowRunner && currentFlowRunner.latestExecution ? currentFlowRunner.latestExecution : {};
+        const selectedIsFlowRunner = !!latest.logDir && latest.logDir === selectedDirectory;
+        const automationName = (selectedIsFlowRunner ? basename(latest.entryPath || latest.scriptPath) : '')
           || automationNameFromSource(agentSummary.source || summary.source)
           || basename(summary.script_snapshot_path)
           || '自动化';
         const executionId = summary.execution_id || agentSummary.executionId || '—';
-        const status = summary.status || agentSummary.status || (selectedIsRunner ? latest.status : '')
-          || (currentRunner && currentRunner.runner && currentRunner.runner.running ? 'running' : 'unknown');
-        const startedAt = summary.started_at || agentSummary.startedAt || (selectedIsRunner ? latest.startedAt : '') || '—';
-        const finishedAt = summary.finished_at || agentSummary.finishedAt || (selectedIsRunner ? latest.finishedAt : '') || '—';
+        const status = summary.status || agentSummary.status || (selectedIsFlowRunner ? latest.status : '')
+          || (currentFlowRunner && currentFlowRunner.flowRunner && currentFlowRunner.flowRunner.running ? 'running' : 'unknown');
+        const startedAt = summary.started_at || agentSummary.startedAt || (selectedIsFlowRunner ? latest.startedAt : '') || '—';
+        const finishedAt = summary.finished_at || agentSummary.finishedAt || (selectedIsFlowRunner ? latest.finishedAt : '') || '—';
         const structuredErrors = [
           summary.error || '',
           Array.isArray(agentSummary.errors) ? compactJSON(agentSummary.errors) : '',

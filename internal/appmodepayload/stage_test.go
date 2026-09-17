@@ -126,12 +126,12 @@ func TestStageRejectsLiteralPackageDependencyMissingFromReleasePolicy(t *testing
 func TestLiteralPackageDependenciesIncludeNestedRuntimeResources(t *testing.T) {
 	content := []byte(`
 const one = File.join(Execution.scriptDir, 'developer-tools.js');
-const two = file.join(execution.scriptDir, 'script-runner', 'controller.js');
+const two = file.join(execution.scriptDir, 'flow-runner', 'controller.js');
 const three = file.join(execution.scriptDir, dynamicName);
 const runtimeDirectory = file.join(execution.scriptDir, 'recording-console-simple');
 `)
 	got := literalPackageDependencies(content)
-	want := []string{"developer-tools.js", "script-runner/controller.js"}
+	want := []string{"developer-tools.js", "flow-runner/controller.js"}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("literal dependencies=%v, want=%v", got, want)
 	}
@@ -197,18 +197,25 @@ func TestOpenDeskProductReleasePolicy(t *testing.T) {
 		"scheduler-client.js",
 		"scheduler-center.js",
 		"permissions-center.js",
+		"about.js",
 		"inspector-launcher.js",
 		"app-controller.js",
 		"developer-tools.js",
 		"runtime-log.js",
-		"script-runner-simple.js",
-		"script-runner/controller.js",
-		"script-runner/player-controller.js",
-		"script-runner/shortcut-controller.js",
+		"promotions/core.js",
+		"promotions/controller.js",
+		"promotions/integration.js",
+		"promotions/official-creative.js",
+		"promotions/owner.js",
+		"flow-runner.js",
+		"flow-runner/controller.js",
+		"flow-runner/player-controller.js",
+		"flow-runner/shortcut-controller.js",
 		"assets/product.odcfg",
+		"assets/help-questionmark.png",
 		"assets/opendesk-logo.png",
-		"assets/script-previous.png",
-		"assets/script-next.png",
+		"assets/flow-previous.png",
+		"assets/flow-next.png",
 		"assets/tray-template.png",
 		"assets/tray.ico",
 		"recorder/controller.js",

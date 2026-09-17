@@ -28,7 +28,7 @@ type appShellPending struct {
 }
 
 // AppOwnedScriptRunRequest contains plain, host-validated inputs for the
-// bundled product Script Runner. The callback never receives Goja values.
+// bundled product Flow Runner. The callback never receives Goja values.
 type AppOwnedScriptRunRequest struct {
 	ScriptPath string
 	WorkDir    string
@@ -44,7 +44,12 @@ type AppOwnedScriptRunResult struct {
 	LogDir      string `json:"logDir"`
 }
 
-type AppOwnedScriptRunner func(context.Context, AppOwnedScriptRunRequest) (AppOwnedScriptRunResult, error)
+type AppOwnedFlowRunner func(context.Context, AppOwnedScriptRunRequest) (AppOwnedScriptRunResult, error)
+
+// AppOwnedScriptRunner is retained as a source-compatible Go alias. It is not
+// exposed to JavaScript; new product integrations use AppOwnedFlowRunner.
+// Deprecated: use AppOwnedFlowRunner.
+type AppOwnedScriptRunner = AppOwnedFlowRunner
 
 // AppOwnedScriptRunError preserves a stable product-facing failure category
 // without turning the internal host bridge into a public Runtime API.
@@ -127,7 +132,7 @@ func registerAppShell(runtime *goja.Runtime, opts InitJSOptions, ui *CustomUIRun
 		return nil, err
 	}
 	if opts.AppOwnedScriptRun != nil {
-		if err := bridge.attachAppOwnedScriptRunner(opts.AppOwnedScriptRun); err != nil {
+		if err := bridge.attachAppOwnedFlowRunner(opts.AppOwnedScriptRun); err != nil {
 			opts.AppShell.UnbindActionSink()
 			return nil, err
 		}
@@ -135,7 +140,7 @@ func registerAppShell(runtime *goja.Runtime, opts InitJSOptions, ui *CustomUIRun
 	return bridge, nil
 }
 
-func (a *AppShellRuntime) attachAppOwnedScriptRunner(run AppOwnedScriptRunner) error {
+func (a *AppShellRuntime) attachAppOwnedFlowRunner(run AppOwnedFlowRunner) error {
 	object := a.runtime.NewObject()
 	if err := object.Set("run", func(call goja.FunctionCall) goja.Value {
 		request, signal, err := decodeAppOwnedScriptRunRequest(call.Argument(0))
@@ -148,7 +153,7 @@ func (a *AppShellRuntime) attachAppOwnedScriptRunner(run AppOwnedScriptRunner) e
 			return run(ctx, request)
 		})
 	}); err != nil {
-		return fmt.Errorf("register internal App-owned Script Runner: %w", err)
+		return fmt.Errorf("register internal App-owned Flow Runner: %w", err)
 	}
 	return a.runtime.GlobalObject().DefineDataProperty(
 		"__opendeskRecipeExecution",

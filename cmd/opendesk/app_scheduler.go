@@ -68,7 +68,7 @@ func startAppSchedulerWithActivity(ctx context.Context, config *Config, packageI
 	if err != nil {
 		return nil, fmt.Errorf("resolve App Scheduler artifact root: %w", err)
 	}
-	artifactRoot := filepath.Join(dataRoot, ".runtime", "examples", "custom-ui", "script-runner-simple", "runs")
+	artifactRoot := filepath.Join(dataRoot, ".runtime", "flow-runner", "runs")
 
 	databasePath := ""
 	if config != nil {
@@ -413,7 +413,12 @@ func (r *appSchedulerRuntime) close(ctx context.Context) error {
 }
 
 func resolveAppSchedulerScriptRoot(packageID, appRoot string, environment map[string]string) (string, error) {
-	configured := strings.TrimSpace(environment["OPENDESK_SCRIPT_RUNNER_DIR"])
+	configured := strings.TrimSpace(environment["OPENDESK_FLOW_RUNNER_DIR"])
+	if configured == "" {
+		// Existing App Mode installations may still configure the old variable.
+		// The canonical Flow Runner setting above always takes precedence.
+		configured = strings.TrimSpace(environment["OPENDESK_SCRIPT_RUNNER_DIR"])
+	}
 	if configured != "" {
 		return normalizeAppSchedulerRoot(configured, appRoot)
 	}

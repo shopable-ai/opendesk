@@ -81,7 +81,7 @@ function fixture(initialCapability = capability(true)) {
   const alerts = [];
   const saved = {
     recordingDir: '/repo/.runtime/recordings/rec-permission-recovery',
-    rawFile: '/repo/.runtime/recordings/rec-permission-recovery/raw/events.ndjson',
+    rawFile: '/repo/.runtime/recordings/rec-permission-recovery/events.ndjson',
     manifestFile: '/repo/.runtime/recordings/rec-permission-recovery/manifest.json',
     counts: {observed: 3, persisted: 3},
     issues: [],
@@ -92,8 +92,8 @@ function fixture(initialCapability = capability(true)) {
     issues: [],
   };
   const generated = {
-    scriptFile: '/repo/.runtime/recordings/rec-permission-recovery/generated/basic.recipe.js',
-    candidateFile: '/repo/.runtime/recordings/rec-permission-recovery/generated/basic.candidate.json',
+    scriptFile: '/repo/.runtime/recordings/rec-permission-recovery/basic.recipe.js',
+    candidateFile: '/repo/.runtime/recordings/rec-permission-recovery/basic.candidate.json',
     timing: {speedMultiplier: 1, minimumDelayMs: 10, maximumDelayMs: 100},
   };
   let toolbar = null;
@@ -341,6 +341,6 @@ test('Recorder defaults to semantic generation and requires an explicit compatib
   assert.equal(basic.calls.generateOptions.mode,'basic');assert.equal(basic.calls.generateOptions.pointerMotion,'smooth');
 });
 test('semantic candidates route to business authoring rather than the basic physical refiner',()=>{
-  const prompt=RecordingConsole.buildAgentRefinementPrompt({execution:{workdir:'/repo'},generated:{mode:'semantic',scriptFile:'/repo/.runtime/recordings/rec-test/generated/semantic.recipe.js'}});
+  const prompt=RecordingConsole.buildAgentRefinementPrompt({execution:{workdir:'/repo'},generated:{mode:'semantic',scriptFile:'/repo/.runtime/recordings/rec-test/semantic.recipe.js'}});
   assert.match(prompt,/human-to-recipe/);assert.match(prompt,/逐步骤映射/);
 });

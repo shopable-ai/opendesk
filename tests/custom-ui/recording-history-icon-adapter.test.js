@@ -118,7 +118,7 @@ test('Recorder wrapper and core default to a localizable title and honor windowT
   assert.doesNotMatch(coreSource, /title:\s*'\\u200B'/);
 });
 
-test('Recorder home uses the Script Runner image descriptor from the self-contained execution payload', () => {
+test('Recorder home uses the Flow Runner image descriptor from the self-contained execution payload', () => {
   const baseUI = {async createWindow() { return {control() { return null; }}; }};
   const {toolbarIcons} = loadController(baseUI);
 

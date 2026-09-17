@@ -126,10 +126,10 @@ type InitJSOptions struct {
 	// the automation.app action dispatcher.
 	EnableProductLocale bool
 	// AppOwnedScriptRun is a first-party product bridge used by the bundled
-	// Script Runner. It creates a separate JavaScript Execution inside the App
+	// Flow Runner. It creates a separate JavaScript Execution inside the App
 	// host process so protected desktop operations retain the App's OS identity.
 	// It is deliberately not exposed through the public automation.app object.
-	AppOwnedScriptRun AppOwnedScriptRunner
+	AppOwnedScriptRun AppOwnedFlowRunner
 	// ExecutionID binds a capture session and its manifest to this Runtime.
 	ExecutionID string
 	// RecorderBackendFactory and RecorderWindowProbe are internal seams for

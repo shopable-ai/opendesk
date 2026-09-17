@@ -167,7 +167,7 @@ File.write(contentKey, '404142434445464748494a4b4c4d4e4f505152535455565758595a5b
 
   function rewriteZipEntryNameSameLength(source, target, fromName, toName) {
     assert(fromName.length === toName.length, 'ZIP test rename must preserve byte length');
-    const bytes = File.readBytes(source);
+    const bytes = new Uint8Array(File.readBytes(source));
     const local = localEntryData(bytes, fromName);
     const central = centralEntryData(bytes, fromName);
     assert(local && central, 'ZIP entry not found for rename: ' + fromName);
@@ -177,7 +177,7 @@ File.write(contentKey, '404142434445464748494a4b4c4d4e4f505152535455565758595a5b
   }
 
   function markZipEntrySymlink(source, target, entryName) {
-    const bytes = File.readBytes(source);
+    const bytes = new Uint8Array(File.readBytes(source));
     const central = centralEntryData(bytes, entryName);
     assert(central, 'ZIP central entry not found: ' + entryName);
     // Creator system = Unix and external mode = symlink (0120777). The payload

@@ -27,7 +27,7 @@ test('official product page catalogs stay symmetric and cover the adapter regist
     assert.equal(typeof en[key], 'string', `en-US lacks ${key}`);
     assert.notEqual(en[key].trim(), '', `en-US has an empty ${key}`);
   }
-  for (const prefix of ['assistant.', 'scheduler.', 'permissions.', 'runtimeLog.', 'developer.', 'product.', 'runner.', 'recorder.', 'official.', 'inspector.']) {
+  for (const prefix of ['assistant.', 'scheduler.', 'permissions.', 'runtimeLog.', 'developer.', 'product.', 'flowRunner.', 'recorder.', 'official.', 'inspector.']) {
     assert.ok(context.OpenDeskProductI18n.keys().some(key => key.startsWith(prefix)), `missing page family ${prefix}`);
   }
 });
@@ -67,7 +67,7 @@ test('official locale adapter resolves Custom UI, dialogs, and all Recorder cont
   vm.runInNewContext(fs.readFileSync(helperFile, 'utf8'), context, {filename: helperFile});
   assert.equal(context.OpenDeskProductI18n.install(), true);
   await context.ui.createWindow({title: 'AI 助手', content: {html: '<button>发送消息</button>'}});
-  const toolbar = new context.FloatingWindow({title: 'OpenDesk — Script Runner'});
+  const toolbar = new context.FloatingWindow({title: 'OpenDesk — 自动化'});
   toolbar.addButton('run', '运行');
   toolbar.addSwitch('pointerMotion', '兼容物理回放（开：录制坐标；关：语义生成）');
   toolbar.addSelect('scheduleType', '调度类型', {items: [{id: 'once', label: '单次执行'}]});
@@ -86,7 +86,7 @@ test('the product composition loads localization before every reachable UI modul
   const main = fs.readFileSync(path.join(productRoot, 'main.js'), 'utf8');
   const helperAt = main.indexOf("'localization.js'");
   for (const module of [
-    "'player-controller.js'", 'script-runner-simple.js', 'assistantEntries', "'scheduler-center.js'", "'runtime-log.js'",
+    "'player-controller.js'", 'flow-runner.js', 'assistantEntries', "'scheduler-center.js'", "'runtime-log.js'",
     "'permissions-center.js'", "'inspector-launcher.js'", "'developer-tools.js'", "'app-controller.js'",
   ]) {
     assert.ok(helperAt >= 0 && helperAt < main.indexOf(module), `localization must load before ${module}`);
@@ -95,8 +95,8 @@ test('the product composition loads localization before every reachable UI modul
   for (const name of [
     'localization.js', 'locales/zh-CN.json', 'locales/en-US.json',
     'recorder/controller.js', 'recorder/controller-core.js', 'recorder/recording-history.js',
-    'script-runner/player-controller.js',
-    'assets/script-previous.png', 'assets/script-next.png',
+    'flow-runner/player-controller.js',
+    'assets/flow-previous.png', 'assets/flow-next.png',
   ]) {
     assert.match(allowlist, new RegExp(`^${name.replace('.', '\\.')}$`, 'm'));
   }
@@ -111,18 +111,19 @@ test('the L1 page/action matrix retains machine action IDs while registering vis
     'new-schedule': 'scheduler.new',
     'open-permissions': 'permissions.open',
     'open-runtime-log': 'runtime.log',
+    'restore-promotions': 'promotions.restore',
     'open-examples': 'opendesk.examples',
     'open-api-docs': 'opendesk.api-docs',
   });
   for (const file of [
-    'script-runner-simple.js', 'assistant/controller.js', 'scheduler-center.js', 'permissions-center.js',
+    'flow-runner.js', 'assistant/controller.js', 'scheduler-center.js', 'permissions-center.js',
     'runtime-log.js', 'developer-tools.js', 'inspector-launcher.js', 'official-shell.js',
     'recorder/controller-core.js', 'recorder/recording-history.js',
   ]) {
     assert.ok(fs.existsSync(path.join(productRoot, file)), `missing reachable product surface ${file}`);
   }
   for (const key of [
-    'runner.runSelected', 'assistant.openConversation', 'scheduler.confirmDelete', 'permissions.granted',
+    'flowRunner.runSelected', 'assistant.openConversation', 'scheduler.confirmDelete', 'permissions.granted',
     'runtimeLog.readFailed', 'developer.mainUI', 'inspector.openFailed', 'official.helpPending',
     'recorder.deleteTitle', 'recorder.pointerMode',
   ]) {

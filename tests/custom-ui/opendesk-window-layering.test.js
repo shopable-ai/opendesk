@@ -21,7 +21,7 @@ function createSpec(relative, marker) {
 
 test('all OpenDesk full-page windows use normal, non-topmost specifications', () => {
   const pages = [
-    ['apps/opendesk/script-runner/controller.js', 'id: `scriptRunnerList', 'Script Runner List'],
+    ['apps/opendesk/flow-runner/controller.js', 'id: `flowRunnerList', 'Flow Runner List'],
     ['apps/opendesk/recorder/recording-history.js', 'const window = await ui.createWindow({', 'Recorder History'],
     ['apps/opendesk/scheduler-center.js', 'id: `schedulerHistory', 'Scheduler History'],
     ['apps/opendesk/scheduler-center.js', 'id: `schedulerCenter', 'Scheduler Center'],
@@ -40,10 +40,10 @@ test('all OpenDesk full-page windows use normal, non-topmost specifications', ()
 });
 
 test('only compact native control bars retain intentional floating topmost behavior', () => {
-  const runner = source('apps/opendesk/script-runner/controller.js');
+  const flowRunner = source('apps/opendesk/flow-runner/controller.js');
   const recorder = source('apps/opendesk/recorder/controller-core.js');
 
-  for (const [label, text] of [['Script Runner control bar', runner], ['Recorder control bar', recorder]]) {
+  for (const [label, text] of [['Flow Runner control bar', flowRunner], ['Recorder control bar', recorder]]) {
     assert.match(text, /new Floating(?:WindowAPI)?\s*\([\s\S]{0,700}?alwaysOnTop:\s*true/, `${label} must remain an intentional floating control`);
   }
 });

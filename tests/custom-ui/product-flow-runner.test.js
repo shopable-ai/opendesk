@@ -8,7 +8,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const repo = process.env.OPENDESK_TEST_REPO || path.resolve(__dirname, '..', '..');
-const productEntry = path.join(repo, 'apps', 'opendesk', 'script-runner-simple.js');
+const productEntry = path.join(repo, 'apps', 'opendesk', 'flow-runner.js');
 
 function loadProductRunner(harness) {
   const previous = new Map();
@@ -22,8 +22,8 @@ function loadProductRunner(harness) {
     FloatingWindow: harness.FloatingWindow,
     AbortController,
     console: harness.console,
-    OpenDeskScriptRunnerSimple: harness.RunnerController,
-    OpenDeskProductScriptRunner: undefined,
+    OpenDeskFlowRunner: harness.RunnerController,
+    OpenDeskProductFlowRunner: undefined,
     OpenDeskProductPaths: undefined,
     __opendeskRecipeExecution: harness.recipeExecution,
   };
@@ -37,7 +37,7 @@ function loadProductRunner(harness) {
   try {
     vm.runInThisContext(fs.readFileSync(productEntry, 'utf8'), {filename: productEntry});
     return {
-      api: globalThis.OpenDeskProductScriptRunner,
+      api: globalThis.OpenDeskProductFlowRunner,
       paths: globalThis.OpenDeskProductPaths,
     };
   } finally {
@@ -55,7 +55,7 @@ function deferred() {
 }
 
 function createHarness(options = {}) {
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'opendesk-product-runner-'));
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'opendesk-product-flow-runner-'));
   const runError = options.runError || null;
   const windows = [];
   const notifications = [];
@@ -134,19 +134,19 @@ function createHarness(options = {}) {
       runnerToolbar = toolbar;
       toolbar.addButton('run', '运行', 'play.fill', () => {});
       toolbar.addButton('stop', '停止', 'stop.fill', () => {});
-      toolbar.addButton('previous', '上一个脚本', 'backward.fill', () => {});
-      toolbar.addLabel('script', '暂无脚本', {width: 168});
-      toolbar.addButton('next', '下一个脚本', 'forward.fill', () => {});
-      toolbar.addButton('list', '脚本列表', 'list.bullet', () => {});
+      toolbar.addButton('previous', '上一个流程', 'backward.fill', () => {});
+      toolbar.addLabel('entry', '暂无流程', {width: 168});
+      toolbar.addButton('next', '下一个流程', 'forward.fill', () => {});
+      toolbar.addButton('list', '流程列表', 'list.bullet', () => {});
       let listWindow = null;
       let listCreating = null;
       async function prepareList() {
         if (listWindow) return listWindow;
         if (listCreating) return listCreating;
         const task = options.ui.createWindow({
-          id: 'scriptRunnerList1',
+          id: 'flowRunnerList1',
           kind: 'normal',
-          title: 'OpenDesk Script Runner',
+          title: 'OpenDesk — 自动化',
         });
         listCreating = task;
         try {
@@ -170,7 +170,7 @@ function createHarness(options = {}) {
         },
         async stopRun() { return true; },
         async rescan() { rescanCount += 1; return true; },
-        state() { return {running: true, scriptCount: 1}; },
+        state() { return {running: true, entryCount: 1}; },
       };
     },
   };
@@ -266,7 +266,7 @@ test('product Open action keeps the toolbar visible without opening the prepared
   assert.equal(harness.windows.length, 1, 'startup must create window.mainId before entry completion');
   assert.equal(harness.windows[0].id, 'main');
   assert.equal(harness.windows[0].spec.kind, 'normal');
-  assert.equal(harness.windows[0].spec.title, 'OpenDesk — Script Runner');
+  assert.equal(harness.windows[0].spec.title, 'OpenDesk — 自动化');
   assert.equal(harness.windows[0].showCount, 0, 'startup must not show list content');
   assert.equal(launchSettled, false, 'launch must await main window registration');
 
@@ -274,9 +274,9 @@ test('product Open action keeps the toolbar visible without opening the prepared
   const state = await launch;
   assert.equal(state.mainWindowId, 'main');
   assert.equal(state.toolbarMaxWidth, 590);
-  assert.equal(state.windowTitle, 'OpenDesk — Script Runner');
+  assert.equal(state.windowTitle, 'OpenDesk — 自动化');
   assert.equal(harness.createAppCount, 1);
-  assert.equal(harness.floatingWindows[0].spec.title, 'OpenDesk — Script Runner');
+  assert.equal(harness.floatingWindows[0].spec.title, 'OpenDesk — 自动化');
   assert.deepEqual((await harness.runnerToolbar.getButtonState('list')).screenBounds, {x: 71, y: 83, width: 42, height: 30});
   assert.deepEqual((await harness.runnerToolbar.getState()).bounds, {x: 10, y: 20, width: 400, height: 40});
 
@@ -299,23 +299,23 @@ test('product Open action keeps the toolbar visible without opening the prepared
   assert.equal(harness.windows[0].showCount, 1, 'the dedicated list action must still open the list window');
 });
 
-test('product Script Runner injects one title into the main window and FloatingWindow', async () => {
+test('product Flow Runner injects one title into the main window and FloatingWindow', async () => {
   const harness = createHarness();
   const loaded = loadProductRunner(harness);
   const runner = loaded.api.create({
     officialShell: harness.officialShell,
-    title: 'Legacy Script Runner',
-    windowTitle: '  Localized Script Runner  ',
+    title: 'Legacy Automation',
+    windowTitle: '  Localized Automation  ',
   });
 
   await runner.launch();
 
-  assert.equal(runner.state().windowTitle, 'Localized Script Runner');
-  assert.equal(harness.windows[0].spec.title, 'Localized Script Runner');
-  assert.equal(harness.floatingWindows[0].spec.title, 'Localized Script Runner');
+  assert.equal(runner.state().windowTitle, 'Localized Automation');
+  assert.equal(harness.windows[0].spec.title, 'Localized Automation');
+  assert.equal(harness.floatingWindows[0].spec.title, 'Localized Automation');
 });
 
-test('product composition keeps the Compact Selector distinct from the main Script Manager window', async () => {
+test('product composition keeps the Compact Selector distinct from the main Flow Manager window', async () => {
   const harness = createHarness();
   const loaded = loadProductRunner(harness);
   const runner = loaded.api.create({officialShell: harness.officialShell});
@@ -323,21 +323,21 @@ test('product composition keeps the Compact Selector distinct from the main Scri
   await runner.launch();
 
   assert.equal(harness.windows[0].id, 'main');
-  assert.equal(harness.windows[0].spec.title, 'OpenDesk — Script Runner');
+  assert.equal(harness.windows[0].spec.title, 'OpenDesk — 自动化');
 
   const selector = await harness.runnerOptions.ui.createWindow({
-    id: 'scriptRunnerSelector1',
+    id: 'flowRunnerSelector1',
     kind: 'normal',
-    title: '选择脚本',
+    title: '选择流程',
     content: {html: '<main>selector</main>'},
   });
 
-  assert.equal(selector.id, 'scriptRunnerSelector1');
-  assert.equal(selector.spec.title, '选择脚本');
+  assert.equal(selector.id, 'flowRunnerSelector1');
+  assert.equal(selector.spec.title, '选择流程');
   assert.equal(selector.spec.content.html, '<main>selector</main>');
 });
 
-test('product Script Runner retains title as a compatibility input', async () => {
+test('product Flow Runner retains title as a compatibility input', async () => {
   const harness = createHarness();
   const loaded = loadProductRunner(harness);
   const runner = loaded.api.create({officialShell: harness.officialShell, title: '  Existing title option  '});
@@ -465,7 +465,7 @@ test('brand home is the first icon and official actions stay independent from ru
     toolbar.controls.map(control => control.id),
     [
       'officialHome', 'officialBrandSeparator',
-      'run', 'stop', 'previous', 'script', 'next', 'list',
+      'run', 'stop', 'previous', 'entry', 'next', 'list',
       'officialActionsSeparator', 'officialCustomize', 'officialHelp',
     ],
   );
@@ -478,8 +478,11 @@ test('brand home is the first icon and official actions stay independent from ru
     path: '/bundle/apps/opendesk/assets/opendesk-logo.png',
     renderingMode: 'original',
   });
-  assert.equal(customize.icon, 'ai.assistant');
-  assert.equal(help.icon, 'questionmark.circle');
+  assert.equal(customize.icon, 'bag.fill');
+  assert.deepEqual(help.icon, {
+    path: '/bundle/apps/opendesk/assets/help-questionmark.png',
+    renderingMode: 'template',
+  });
   assert.equal(toolbar.controls.some(control => control.id === 'opendesk.marketplace'), false);
   assert.equal(toolbar.controls.some(control => control.id === 'opendesk.upgrade'), false);
 
@@ -502,7 +505,7 @@ test('product toolbar logo is a bounded packaged PNG derived for native icon use
 });
 
 test('generic example remains independent of Official Shell product actions', () => {
-  const exampleFile = path.join(repo, 'examples', 'custom-ui', 'script-runner-simple.js');
+  const exampleFile = path.join(repo, 'examples', 'custom-ui', 'flow-runner.js');
   const source = fs.readFileSync(exampleFile, 'utf8');
   assert.match(source, /controller\.js/);
   assert.doesNotMatch(source, /OpenDeskOfficialShell|opendesk\.help|opendesk\.customize/);
@@ -517,7 +520,7 @@ test('App Mode composition has no Demo panel and leaves OpenDesk opening to the 
 
   assert.doesNotMatch(mainSource, /ui\.createWindow\s*\(/, 'main.js must not create a Demo window');
   assert.doesNotMatch(mainSource, /打开 Script Runner|自动化运行中心已就绪|OpenDesk 服务/);
-  assert.match(mainSource, /runner\.launch\(\)/);
+  assert.match(mainSource, /flowRunner\.launch\(\)/);
   assert.match(mainSource, /OpenDeskProductAppController\.create\(/);
   assert.match(appControllerSource, /appRuntime\.onAction/);
   assert.match(fs.readFileSync(productEntry, 'utf8'), /hideListOnClose:\s*true/);

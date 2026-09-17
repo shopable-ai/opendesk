@@ -1,4 +1,4 @@
-(function installOpenDeskProductScriptRunner(global) {
+(function installOpenDeskProductFlowRunner(global) {
   'use strict';
 
   const file = global.File;
@@ -12,15 +12,15 @@
   const nativeRecipeExecution = global.__opendeskRecipeExecution;
   const logger = global.console;
 
-  if (!global.OpenDeskScriptRunnerSimple
-    || typeof global.OpenDeskScriptRunnerSimple.createApp !== 'function') {
-    const controllerFile = file.join(execution.scriptDir, 'script-runner', 'controller.js');
+  if (!global.OpenDeskFlowRunner
+    || typeof global.OpenDeskFlowRunner.createApp !== 'function') {
+    const controllerFile = file.join(execution.scriptDir, 'flow-runner', 'controller.js');
     (0, eval)(file.read(controllerFile) + '\n//# sourceURL=' + controllerFile);
   }
 
-  const RunnerController = global.OpenDeskScriptRunnerSimple;
-  if (!RunnerController || typeof RunnerController.createApp !== 'function') {
-    throw new Error('OpenDesk Script Runner controller did not load');
+  const FlowRunnerController = global.OpenDeskFlowRunner;
+  if (!FlowRunnerController || typeof FlowRunnerController.createApp !== 'function') {
+    throw new Error('OpenDesk Flow Runner controller did not load');
   }
 
   function readEnv(name) {
@@ -42,14 +42,14 @@
   const appDataRoot = resolveAppDataRoot();
   file.ensureDir(appDataRoot);
 
-  const configuredRoot = readEnv('OPENDESK_SCRIPT_RUNNER_DIR');
+  const configuredRoot = readEnv('OPENDESK_FLOW_RUNNER_DIR') || readEnv('OPENDESK_SCRIPT_RUNNER_DIR');
   const hasConfiguredRoot = !!configuredRoot;
-  const scriptRoot = hasConfiguredRoot
+  const runnableRoot = hasConfiguredRoot
     ? file.path(configuredRoot)
     : file.join(appDataRoot, 'recipes');
-  const runnerExecution = Object.freeze({workdir: appDataRoot});
+  const flowRunnerExecution = Object.freeze({workdir: appDataRoot});
 
-  const DEFAULT_WINDOW_TITLE = 'OpenDesk — Script Runner';
+  const DEFAULT_WINDOW_TITLE = 'OpenDesk — 自动化';
   const PRODUCT_MAIN_WINDOW_ID = 'main';
   // The product shell adds the brand, Customize and Help controls around the
   // player controls (Run/Stop/Previous/Current/Next/List). Their one-row
@@ -99,7 +99,7 @@
     let content = source.content;
     if (content && typeof content === 'object' && typeof content.html === 'string') {
       content = Object.assign({}, content, {
-        html: content.html.replace(/>Script Runner</g, '>自动化<'),
+          html: content.html.replace(/>Flow Runner</g, '>自动化<'),
       });
     }
     return Object.assign({}, source, {
@@ -109,16 +109,16 @@
     });
   }
 
-  function isScriptManagerWindowSpec(spec) {
-    return !!spec && typeof spec.id === 'string' && spec.id.startsWith('scriptRunnerList');
+  function isFlowManagerWindowSpec(spec) {
+    return !!spec && typeof spec.id === 'string' && spec.id.startsWith('flowRunnerList');
   }
 
-  function createRunnerUI(mainWindowId, windowTitle) {
+  function createFlowRunnerUI(mainWindowId, windowTitle) {
     return Object.freeze({
       createWindow(spec) {
         const source = spec || {};
         return runtimeUI.createWindow(
-          isScriptManagerWindowSpec(source)
+          isFlowManagerWindowSpec(source)
             ? productizeMainWindowSpec(source, mainWindowId, windowTitle)
             : source,
         );
@@ -126,7 +126,7 @@
     });
   }
 
-  function formatScriptLabelText(value) {
+  function formatEntryLabelText(value) {
     return typeof value === 'string'
       ? value.replace(/\.(?:m?js|odpkg)(?=$|\s*·)/i, '')
       : value;
@@ -160,13 +160,13 @@
         get id() { return inner.id; },
         addButton(id, label, icon, callback) { return inner.addButton(id, label, icon, callback); },
         addLabel(id, text, options) {
-          return inner.addLabel(id, id === 'script' ? formatScriptLabelText(text) : text, options);
+          return inner.addLabel(id, id === 'entry' ? formatEntryLabelText(text) : text, options);
         },
         addSeparator(id) { return inner.addSeparator(id); },
         updateButton(id, patch) { return inner.updateButton(id, patch); },
         updateLabel(id, patch) {
-          const nextPatch = id === 'script' && patch && typeof patch.text === 'string'
-            ? Object.assign({}, patch, {text: formatScriptLabelText(patch.text)})
+          const nextPatch = id === 'entry' && patch && typeof patch.text === 'string'
+            ? Object.assign({}, patch, {text: formatEntryLabelText(patch.text)})
             : patch;
           return inner.updateLabel(id, nextPatch);
         },
@@ -196,14 +196,14 @@
     return index >= 0 && index + 1 < args.length ? String(args[index + 1]) : '';
   }
 
-  function createProductRunner(options) {
+  function createProductFlowRunner(options) {
     const settings = options || {};
     const windowTitle = resolveWindowTitle(settings);
     const officialShell = settings.officialShell;
     if (!officialShell
       || typeof officialShell.getAction !== 'function'
       || typeof officialShell.activate !== 'function') {
-      throw new Error('OpenDesk product Script Runner requires Official Shell');
+      throw new Error('OpenDesk product Flow Runner requires Official Shell');
     }
 
     const mainWindowId = settings.mainWindowId || PRODUCT_MAIN_WINDOW_ID;
@@ -216,9 +216,9 @@
     let lastError = null;
     let latestExecution = null;
 
-    function recipeDisplayName(scriptPath) {
-      const parts = String(scriptPath || '').split(/[\\/]/);
-      return formatScriptLabelText(parts[parts.length - 1] || '自动化');
+    function entryDisplayName(entryPath) {
+      const parts = String(entryPath || '').split(/[\\/]/);
+      return formatEntryLabelText(parts[parts.length - 1] || '自动化');
     }
 
     async function beginRecipeToast(base) {
@@ -228,7 +228,7 @@
       if (!show) return null;
       try {
         return await show({
-          message: `正在运行“${recipeDisplayName(base.scriptPath)}”…`,
+          message: `正在运行“${entryDisplayName(base.entryPath)}”…`,
           caption: 'OpenDesk 已开始执行，可随时点击停止。',
           level: 'info',
           timeoutMs: 0,
@@ -276,24 +276,24 @@
     }
 
     function recipeFailureMessage(base, error) {
-      const scriptName = recipeDisplayName(base.scriptPath);
+      const entryName = entryDisplayName(base.entryPath);
       const permission = permissionFailure(error);
       if (permission) {
         return {
-          message: `“${scriptName}”未运行：OpenDesk 缺少“${permission}”权限。`,
+          message: `“${entryName}”未运行：OpenDesk 缺少“${permission}”权限。`,
           caption: '请打开菜单“系统权限…”处理后重试。',
         };
       }
       const detail = error && error.message ? String(error.message) : String(error || '未知错误');
       return {
-        message: `“${scriptName}”运行失败。`,
+        message: `“${entryName}”运行失败。`,
         caption: detail.length > 180 ? detail.slice(0, 177) + '…' : detail,
       };
     }
 
     function logRecipeToastError(stage, error) {
       if (logger && typeof logger.warn === 'function') {
-        logger.warn('SCRIPT_RUNNER_TOAST_ERROR=' + JSON.stringify({
+        logger.warn('FLOW_RUNNER_TOAST_ERROR=' + JSON.stringify({
           stage,
           message: error && error.message ? String(error.message) : String(error || 'toast failed'),
         }));
@@ -322,7 +322,7 @@
 
         const startedAt = new Date().toISOString();
         const base = {
-          scriptPath: argValue(args, '-script'),
+          entryPath: argValue(args, '-script'),
           logDir: argValue(args, '-log-dir'),
           status: 'running',
           startedAt,
@@ -339,8 +339,8 @@
             throw unavailable;
           }
           pending = nativeRecipeExecution.run({
-            scriptPath: base.scriptPath,
-            workdir: options && options.cwd ? String(options.cwd) : runnerExecution.workdir,
+            scriptPath: base.entryPath,
+            workdir: options && options.cwd ? String(options.cwd) : flowRunnerExecution.workdir,
             logDir: base.logDir,
             signal: options && options.signal,
           });
@@ -361,7 +361,7 @@
             executionId: result && result.executionId ? String(result.executionId) : '',
           });
           await finishRecipeToast(toastTask, {
-            message: `“${recipeDisplayName(base.scriptPath)}”运行完成。`,
+            message: `“${entryDisplayName(base.entryPath)}”运行完成。`,
             caption: '执行日志已保存。',
             level: 'success',
             timeoutMs: 2200,
@@ -377,7 +377,7 @@
           });
           if (error && error.code === 'CANCELED') {
             await finishRecipeToast(toastTask, {
-              message: `已停止“${recipeDisplayName(base.scriptPath)}”。`,
+              message: `已停止“${entryDisplayName(base.entryPath)}”。`,
               caption: '剩余脚本不会继续执行。',
               level: 'warning',
               timeoutMs: 2600,
@@ -413,7 +413,7 @@
       }
       if (app && typeof app.openList === 'function') {
         await app.openList(text);
-        return 'runner-status';
+        return 'flow-runner-status';
       }
       return 'log-only';
     }
@@ -470,20 +470,20 @@
 
     function start() {
       if (app && runTask) return app;
-      const current = RunnerController.createApp({
-        scriptRoot,
-        managedScriptRoot: !hasConfiguredRoot,
+      const current = FlowRunnerController.createApp({
+        runnableRoot,
+        managedRunnableRoot: !hasConfiguredRoot,
         flowCatalog: true,
         file,
         command: productCommand,
-        execution: runnerExecution,
+        execution: flowRunnerExecution,
         system,
-        ui: createRunnerUI(mainWindowId, windowTitle),
+        ui: createFlowRunnerUI(mainWindowId, windowTitle),
         FloatingWindow: createProductFloatingWindow(homeAction(), secondaryActions(), toolbarMaxWidth, windowTitle),
         AbortController: NativeAbortController,
         openListOnStart: false,
         hideListOnClose: true,
-        closeListOnRunnerExit: true,
+        closeListOnFlowRunnerExit: true,
       });
       app = current;
       const task = current.run()
@@ -492,9 +492,9 @@
             lastError = null;
             return;
           }
-          lastError = error && error.message ? String(error.message) : String(error || 'Script Runner failed');
+          lastError = error && error.message ? String(error.message) : String(error || 'Flow Runner failed');
           if (logger && typeof logger.error === 'function') {
-            logger.error('SCRIPT_RUNNER_LIFECYCLE_ERROR=' + JSON.stringify({message: lastError}));
+            logger.error('FLOW_RUNNER_LIFECYCLE_ERROR=' + JSON.stringify({message: lastError}));
           }
         })
         .finally(() => {
@@ -556,7 +556,7 @@
         toolbarMaxWidth,
         windowTitle,
         latestExecution: latestExecution ? Object.assign({}, latestExecution) : null,
-        runner: app ? app.state() : null,
+        flowRunner: app ? app.state() : null,
       };
     }
 
@@ -570,8 +570,8 @@
     });
   }
 
-  global.OpenDeskProductScriptRunner = Object.freeze({
-    create: createProductRunner,
+  global.OpenDeskProductFlowRunner = Object.freeze({
+    create: createProductFlowRunner,
     constants: Object.freeze({
       defaultWindowTitle: DEFAULT_WINDOW_TITLE,
       mainWindowId: PRODUCT_MAIN_WINDOW_ID,
@@ -581,7 +581,7 @@
 
   global.OpenDeskProductPaths = Object.freeze({
     appDataRoot,
-    scriptRoot,
+    runnableRoot,
     packageRoot: execution.workdir,
     executable: system.getExecutablePath(),
   });

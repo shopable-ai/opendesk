@@ -465,5 +465,5 @@ test('Runner integration wraps every requestRun with promotion activity barrier'
   const wrapped = integration.wrapRunnerController(Base, () => fakeOwner).createApp({});
   assert.equal(await wrapped.requestRun([], 'test'), 7);
   assert.equal(await wrapped.openList(), 8);
-  assert.deepEqual(order, ['begin', 'run', 'end', 'script-runner-manager', 'list']);
+  assert.deepEqual(order, ['begin', 'run', 'end', 'flow-runner-manager', 'list']);
 });

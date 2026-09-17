@@ -1,4 +1,4 @@
-(function installOpenDeskScriptRunnerShortcuts(global) {
+(function installOpenDeskFlowRunnerShortcutController(global) {
   'use strict';
 
   const RUN_ACCELERATOR = 'CommandOrControl+Alt+R';
@@ -38,7 +38,7 @@
 
   function wrapController(BaseController, defaults) {
     if (!BaseController || typeof BaseController.createApp !== 'function') {
-      throw new Error('script runner shortcuts require a base controller');
+      throw new Error('flow runner shortcuts require a base controller');
     }
 
     const wrapper = Object.assign({}, BaseController);
@@ -78,7 +78,7 @@
         shortcutError = normalizeError(error);
         if (!logger || typeof logger.warn !== 'function') return;
         try {
-          logger.warn('SCRIPT_RUNNER_SHORTCUT_UNAVAILABLE=' + JSON.stringify({
+          logger.warn('FLOW_RUNNER_SHORTCUT_UNAVAILABLE=' + JSON.stringify({
             mode,
             accelerator: acceleratorFor(mode),
             code: shortcutError && shortcutError.code || '',
@@ -106,19 +106,20 @@
         return '';
       }
 
-      function currentScript() {
-        if (!app || typeof app.state !== 'function' || typeof app.scripts !== 'function') return null;
+      function currentEntry() {
+        if (!app || typeof app.state !== 'function') return null;
         const state = app.state();
         if (!state || state.running || state.activeRun) return null;
-        const selected = state.selectedScriptName;
+        const selected = state.selectedEntryKey;
         if (!selected) return null;
-        return app.scripts().find(script => script && script.name === selected) || null;
+        const list = typeof app.entries === 'function' ? app.entries() : [];
+        return list.find(entry => entry && entry.name === selected) || null;
       }
 
       function runFromShortcut() {
-        const script = currentScript();
-        if (!script || !app || typeof app.requestRun !== 'function') return false;
-        return app.requestRun([script], 'shortcut-run');
+        const entry = currentEntry();
+        if (!entry || !app || typeof app.requestRun !== 'function') return false;
+        return app.requestRun([entry], 'shortcut-run');
       }
 
       function stopFromShortcut() {
@@ -250,7 +251,7 @@
     return Object.freeze(wrapper);
   }
 
-  global.OpenDeskScriptRunnerShortcuts = Object.freeze({
+  global.OpenDeskFlowRunnerShortcutController = Object.freeze({
     wrapController,
     formatShortcutLabel,
     shortcutLabelForButton,

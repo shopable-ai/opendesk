@@ -60,7 +60,7 @@ RuntimeAPITest.contractObject('Recorder');
       stoppedAt,
       cutoff: {sequence: String(raw.length), time: stoppedAt},
       counts: {observed: raw.length, accepted: raw.length, persisted: raw.length, filtered: 0, paused: 0, dropped: 0, late: 0},
-      storage: {state: 'saved', rawFile: 'raw/events.ndjson', manifestFile: 'manifest.json', rawBytes: rawPayload.length},
+      storage: {state: 'saved', rawFile: options.legacyLayout ? 'raw/events.ndjson' : 'events.ndjson', manifestFile: 'manifest.json', rawBytes: rawPayload.length},
       displays: [{index: 1, id: 'fixture-display', hardwareId: 'fixture', isPrimary: true, isBuiltin: false, vendor: 0, model: 0, serial: 0, unit: 0, x: 0, y: 0, width: 800, height: 600, pixelWidth: 800, pixelHeight: 600, scale: 1}],
 	  inputContexts: raw.filter(event => event.libraryEvent === 'MOUSE_PRESSED' || event.libraryEvent === 'MOUSE_RELEASED' || event.libraryEvent === 'KEY_TYPED' || (event.libraryEvent === 'MOUSE_WHEEL' && options.includeWheelContexts !== false) || keyboardContextEventIds.has(event.eventId)).map(event => ({
         eventId: event.eventId,
@@ -157,9 +157,10 @@ RuntimeAPITest.contractObject('Recorder');
           observedAt: event.receivedAt};
       }
     }
-    File.ensureDir(File.join(recordingDir, 'raw'));
+    File.ensureDir(recordingDir);
     File.write(File.join(recordingDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
-    File.write(File.join(recordingDir, 'raw', 'events.ndjson'), rawPayload);
+    if (options.legacyLayout) File.ensureDir(File.join(recordingDir, 'raw'));
+    File.write(File.join(recordingDir, options.legacyLayout ? 'raw/events.ndjson' : 'events.ndjson'), rawPayload);
   }
 
   test({
@@ -477,6 +478,9 @@ RuntimeAPITest.contractObject('Recorder');
 	  assert(actions.eventDisposition.every(item => item.actionId === 'a0001' && (item.disposition === 'consumed' || item.disposition === 'evidence')), JSON.stringify(actions.eventDisposition));
 	  const generated = await Recorder.generateScript(built.actionsFile, {mode: 'basic'});
 	  assert(File.isFile(generated.scriptFile) && File.isFile(generated.candidateFile), JSON.stringify(generated));
+	  equal(generated.scriptFile, File.join(physicalDir, 'basic.recipe.js'), 'new script is written at the recording root');
+	  equal(generated.candidateFile, File.join(physicalDir, 'basic.candidate.json'), 'new candidate is written at the recording root');
+	  assert(!File.isDir(File.join(physicalDir, 'generated')), 'new generation must not create generated/');
 	  assert(File.read(generated.scriptFile).includes('await keyboard.press("Enter")'), File.read(generated.scriptFile));
 
 	  writeFixture(valueDir, valueId, [press, release], {
@@ -675,7 +679,7 @@ RuntimeAPITest.contractObject('Recorder');
 		assert(built.issues.some(issue => issue.code === fixture.issue), JSON.stringify(built.issues));
 		assert(built.issues.some(issue => issue.code === 'missing-key-release-at-stop'), JSON.stringify(built.issues));
 		assert(built.issues.every(issue => issue.severity !== 'error'), JSON.stringify(built.issues));
-		assert(!File.read(File.join(recordingDir, 'raw', 'events.ndjson')).includes('KEY_RELEASED'), 'fixture raw unexpectedly contains a release');
+		assert(!File.read(File.join(recordingDir, 'events.ndjson')).includes('KEY_RELEASED'), 'fixture raw unexpectedly contains a release');
 	  } finally {
 		File.removeDir(recordingDir);
 	  }
@@ -1169,7 +1173,7 @@ RuntimeAPITest.contractObject('Recorder');
       delete manifest.stoppedAt;
       manifest.storage.state = 'open';
       File.write(manifestFile, JSON.stringify(manifest, null, 2) + '\n');
-      File.append(File.join(recordingDir, 'raw', 'events.ndjson'), '{"formatVersion":');
+      File.append(File.join(recordingDir, 'events.ndjson'), '{"formatVersion":');
 
       const recovered = await Recorder.buildActions(recordingDir);
       equal(recovered.readiness, 'blocked', JSON.stringify(recovered));

@@ -331,15 +331,15 @@ func runtimePermission(definition permissionDefinition, requirement PermissionRe
 		requirement = PermissionOnDemand
 	}
 	permission := RuntimePermission{
-		ID:              string(definition.ID),
-		Platform:        runtime.GOOS,
-		DisplayName:     definition.DisplayName,
-		Description:     definition.Description,
-		Requirement:     requirement,
-		Status:          probe.Status,
-		SettingsTarget:  definition.SettingsTarget,
-		Remediation:     probe.Remediation,
-		Evidence:        clonePermissionEvidence(probe.Evidence),
+		ID:             string(definition.ID),
+		Platform:       runtime.GOOS,
+		DisplayName:    definition.DisplayName,
+		Description:    definition.Description,
+		Requirement:    requirement,
+		Status:         probe.Status,
+		SettingsTarget: definition.SettingsTarget,
+		Remediation:    probe.Remediation,
+		Evidence:       clonePermissionEvidence(probe.Evidence),
 	}
 	if target != "" {
 		permission.ID += ":" + target
@@ -375,7 +375,7 @@ func permissionRequirements(feature string) map[PermissionID]PermissionRequireme
 		result[PermissionScreenCapture] = PermissionRequired
 	case "ui-automation":
 		result[PermissionAccessibility] = PermissionRequired
-	case "script-runner", "scheduler", "inspector":
+	case "flow-runner", "script-runner", "scheduler", "inspector":
 		// Product surfaces do not require desktop consent by themselves.
 	}
 	return result
@@ -386,7 +386,7 @@ func normalizePermissionFeature(feature string) string {
 	switch feature {
 	case "", "desktop", "automation":
 		return "desktop-automation"
-	case "desktop-automation", "recorder", "screenshot", "ui-automation", "script-runner", "scheduler", "inspector":
+	case "desktop-automation", "recorder", "screenshot", "ui-automation", "flow-runner", "script-runner", "scheduler", "inspector":
 		return feature
 	default:
 		return feature

@@ -12,11 +12,11 @@ const vm = require('node:vm');
 
 const repo = path.resolve(__dirname, '..', '..');
 const shellFile = path.join(repo, 'apps', 'opendesk', 'official-shell.js');
-const runnerFile = path.join(repo, 'apps', 'opendesk', 'script-runner', 'controller.js');
+const runnerFile = path.join(repo, 'apps', 'opendesk', 'flow-runner', 'controller.js');
 vm.runInThisContext(fs.readFileSync(shellFile, 'utf8'), {filename: shellFile});
 vm.runInThisContext(fs.readFileSync(runnerFile, 'utf8'), {filename: runnerFile});
 const Shell = globalThis.OpenDeskOfficialShell;
-const Runner = globalThis.OpenDeskScriptRunnerSimple;
+const Runner = globalThis.OpenDeskFlowRunner;
 const asset = fs.readFileSync(path.join(repo, 'apps', 'opendesk', 'assets', 'product.odcfg'), 'utf8');
 const sourceConfig = JSON.parse(fs.readFileSync(path.join(repo, 'configs', 'product.json'), 'utf8'));
 const OBFUSCATION_KEY = 'OpenDeskOfficialShell/v1';
@@ -337,7 +337,7 @@ test('invalid URL config falls back without invoking an external handler', async
   }
 });
 
-test('product Script Runner emits only supported Custom UI HTML elements', () => {
+test('product Flow Runner emits only supported Custom UI HTML elements', () => {
   const html = Runner.buildListHTML([{name: 'example.js'}], {
     configValid: true,
     configError: '',
@@ -345,21 +345,21 @@ test('product Script Runner emits only supported Custom UI HTML elements', () =>
     loading: false,
     running: false,
     rowCapacity: 32,
-    selectedNames: new Set(),
-    scriptRoot: '/tmp/recipes',
+    selectedEntryKeys: new Set(),
+    runnableRoot: '/tmp/recipes',
     statusMessage: '',
   });
   const supported = new Set(['html', 'head', 'body', 'meta', 'title', 'style', 'div', 'section', 'main', 'header', 'footer', 'button', 'span', 'p', 'label', 'strong', 'em', 'img', 'input', 'select', 'option']);
   for (const match of html.matchAll(/<\/?([a-z][a-z0-9]*)\b/gi)) {
     assert.equal(supported.has(match[1].toLowerCase()), true, `unsupported Custom UI element <${match[1]}>`);
   }
-  assert.match(html, /class="title">Script Runner/);
+  assert.match(html, /class="title">自动化/);
 });
 
 test('product runner owns current official actions and keeps future actions out of the UI', () => {
   const main = fs.readFileSync(path.join(repo, 'apps', 'opendesk', 'main.js'), 'utf8');
-  const productRunner = fs.readFileSync(path.join(repo, 'apps', 'opendesk', 'script-runner-simple.js'), 'utf8');
-  assert.match(main, /OpenDeskProductScriptRunner\.create\(\{officialShell\}\)/);
+  const productRunner = fs.readFileSync(path.join(repo, 'apps', 'opendesk', 'flow-runner.js'), 'utf8');
+  assert.match(main, /OpenDeskProductFlowRunner\.create\(\{officialShell\}\)/);
   assert.match(productRunner, /opendesk\.home/);
   assert.match(productRunner, /opendesk\.help/);
   assert.match(productRunner, /opendesk\.customize/);

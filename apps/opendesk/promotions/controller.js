@@ -8,7 +8,8 @@
     if(!o.ui||typeof o.ui.createWindow!=='function')throw new Error('Promotion controller requires ui.createWindow');
     const clock=o.now||Date.now,later=o.setTimeout||root.setTimeout,cancel=o.clearTimeout||root.clearTimeout;
     const getContext=typeof o.getContext==='function'?o.getContext:()=>({});
-    let preferences=core.readPreferences(o.preferences),handle=null,opening=null,creative=null,placementMode='runner-above';
+    const FLOW_RUNNER_ABOVE='flow-runner-above',LEGACY_RUNNER_ABOVE='runner-above';
+    let preferences=core.readPreferences(o.preferences),handle=null,opening=null,creative=null,placementMode=FLOW_RUNNER_ABOVE;
     let revision=0,phase='idle',displayTimer=null,motionTimer=null,disposed=false,closing=null,blocked=false,menuOpen=false,motionPlayed=false;
     const offs=[];let saveTail=Promise.resolve();
     function context(){try{return getContext()||{};}catch(_){return {};}}
@@ -17,7 +18,7 @@
     function clearTimers(){if(displayTimer!==null)cancel(displayTimer);if(motionTimer!==null)cancel(motionTimer);displayTimer=motionTimer=null;}
     function offAll(){while(offs.length){try{offs.pop()();}catch(error){log(error);}}}
     function near(a,b){return Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1;}
-    function exactRunnerAbove(bounds,anchor,size){
+    function exactFlowRunnerAbove(bounds,anchor,size){
       return core.validBounds(bounds)&&core.validBounds(anchor)
         &&near(bounds.width,size.width)&&near(bounds.height,size.height)
         &&near(bounds.x+bounds.width,anchor.x+anchor.width)
@@ -43,12 +44,12 @@
       throw new Error('Promotion image readiness timeout');
     }
     async function place(candidate,p,size){
-      if(p.mode==='runner-above'){
+      if(p.mode===FLOW_RUNNER_ABOVE){
         const state=await candidate.setRelativeTo(p.anchor,{preferredSides:['above'],align:'end',gap:core.LIMITS.gap});
-        if(!state||!exactRunnerAbove(state.bounds,p.anchor,size))return null;
+        if(!state||!exactFlowRunnerAbove(state.bounds,p.anchor,size))return null;
         return state;
       }
-      // The corner placement belongs to the display containing the Runner.
+      // The corner placement belongs to the display containing Flow Runner.
       // Move the still-hidden surface onto that display first, then ask the
       // native host to resolve the current work area's exact 16-unit corner.
       if(core.validBounds(p.anchor)){
@@ -73,13 +74,13 @@
     async function dismiss(mode){if(!creative)return;const next=core.dismiss(preferences,creative,mode,clock());const shut=close(mode);try{await persist(next);}finally{await shut;}}
     function show(input,placement){
       if(disposed||blocked)return Promise.resolve({status:'suppressed',reason:disposed?'disposed':'failed'});if(opening)return opening;if(closing)return Promise.resolve({status:'suppressed',reason:'closing'});if(handle)return Promise.resolve({status:phase,windowId:handle.id});
-      let value;try{value=core.validateCreative(input);}catch(error){return Promise.reject(error);}const p=placement||{mode:'runner-above'};
-      if(!['runner-above','screen-bottom-right'].includes(p.mode))return Promise.reject(new Error('Unknown promotion placement'));if(p.mode==='runner-above'&&!core.validBounds(p.anchor))return Promise.resolve({status:'suppressed',reason:'anchor'});
+      let value;try{value=core.validateCreative(input);}catch(error){return Promise.reject(error);}const p=Object.assign({mode:FLOW_RUNNER_ABOVE},placement||{});if(p.mode===LEGACY_RUNNER_ABOVE)p.mode=FLOW_RUNNER_ABOVE;
+      if(![FLOW_RUNNER_ABOVE,'screen-bottom-right'].includes(p.mode))return Promise.reject(new Error('Unknown promotion placement'));if(p.mode===FLOW_RUNNER_ABOVE&&!core.validBounds(p.anchor))return Promise.resolve({status:'suppressed',reason:'anchor'});
       const reason=core.eligible(value,context(),preferences,clock());if(reason)return Promise.resolve({status:'suppressed',reason});
       const token=++revision;phase='opening';creative=value;placementMode=p.mode;motionPlayed=false;const valid=()=>token===revision&&!disposed&&!blocked&&!core.contextReason(context())&&(!o.canShow||o.canShow()===true);
       opening=(async()=>{let candidate=null;try{
         const content=core.render(value,true);
-        candidate=await o.ui.createWindow({id:'opendeskPromotion'+(++sequence),kind:'floating',chrome:'none',title:'OpenDesk · 推广',position:{mode:'anchor',size:content.size,horizontal:'right',vertical:'bottom',margin:core.LIMITS.margin,display:'active'},alwaysOnTop:true,draggable:false,keyEvents:true,interactionGroup:o.interactionGroup||'scriptRunnerPlayer',content:{html:content.html,css:content.css}});
+        candidate=await o.ui.createWindow({id:'opendeskPromotion'+(++sequence),kind:'floating',chrome:'none',title:'OpenDesk · 推广',position:{mode:'anchor',size:content.size,horizontal:'right',vertical:'bottom',margin:core.LIMITS.margin,display:'active'},alwaysOnTop:true,draggable:false,keyEvents:true,interactionGroup:o.interactionGroup||'flowRunnerPlayer',content:{html:content.html,css:content.css}});
         if(!valid()){await candidate.close();return {status:'suppressed',reason:'canceled'};}handle=candidate;
         const placed=await place(candidate,p,content.size);
         if(!placed||!core.validBounds(placed.bounds)){await close('placement');return {status:'suppressed',reason:'placement'};}
@@ -107,7 +108,7 @@
         }else{
           state=await current.setRelativeTo(bounds,{preferredSides:['above'],align:'end',gap:core.LIMITS.gap});
           const size=core.sizeFor(creative);
-          if(!state||!exactRunnerAbove(state.bounds,bounds,size)){await close('placement');return;}
+          if(!state||!exactFlowRunnerAbove(state.bounds,bounds,size)){await close('placement');return;}
         }
         if(!state||!core.validBounds(state.bounds)||core.overlaps(state.bounds,bounds))await close('overlap');
       }catch(error){await close('anchor-error');throw error;}

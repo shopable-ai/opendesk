@@ -7,13 +7,13 @@ function assert(condition, message) {
 const controllerFile = File.join(
   Execution.scriptDir,
   '..', '..',
-  'apps', 'opendesk', 'script-runner', 'shortcut-controller.js',
+  'apps', 'opendesk', 'flow-runner', 'shortcut-controller.js',
 );
 (0, eval)(File.read(controllerFile) + '\n//# sourceURL=' + controllerFile);
 
-if (!globalThis.OpenDeskScriptRunnerShortcuts
-  || typeof OpenDeskScriptRunnerShortcuts.wrapController !== 'function') {
-  throw new Error('OpenDesk Script Runner shortcut controller did not load');
+if (!globalThis.OpenDeskFlowRunnerShortcutController
+  || typeof OpenDeskFlowRunnerShortcutController.wrapController !== 'function') {
+  throw new Error('OpenDesk Flow Runner shortcut controller did not load');
 }
 
 function createHarness(platform, conflictAccelerator) {
@@ -21,7 +21,7 @@ function createHarness(platform, conflictAccelerator) {
   const buttonLabels = new Map();
   let toolbar = null;
   let state = {
-    selectedScriptName: 'demo.js',
+    selectedEntryKey: 'demo.js',
     running: false,
     activeRun: null,
   };
@@ -81,13 +81,13 @@ function createHarness(platform, conflictAccelerator) {
       window.updateButton('stop', {disabled: true, active: false});
 
       const app = {
-        scripts() { return [{name: 'demo.js'}]; },
+        entries() { return [{name: 'demo.js', kind: 'javascript'}]; },
         state() { return Object.assign({}, state); },
         async showToolbar() { return window.show(); },
         async closeToolbar() { return window.close(); },
         requestRun() {
           state = {
-            selectedScriptName: 'demo.js',
+            selectedEntryKey: 'demo.js',
             running: true,
             activeRun: {current: {name: 'demo.js'}},
           };
@@ -97,7 +97,7 @@ function createHarness(platform, conflictAccelerator) {
         },
         async stopRun() {
           state = {
-            selectedScriptName: 'demo.js',
+            selectedEntryKey: 'demo.js',
             running: false,
             activeRun: null,
           };
@@ -110,7 +110,7 @@ function createHarness(platform, conflictAccelerator) {
     },
   };
 
-  const wrapped = OpenDeskScriptRunnerShortcuts.wrapController(BaseController, {
+  const wrapped = OpenDeskFlowRunnerShortcutController.wrapController(BaseController, {
     globalShortcut: shortcut,
     system: {getPlatformInfo() { return {os: platform}; }},
     console: {warn() {}},
@@ -120,7 +120,7 @@ function createHarness(platform, conflictAccelerator) {
 }
 
 async function main() {
-  const shortcuts = OpenDeskScriptRunnerShortcuts.shortcuts;
+  const shortcuts = OpenDeskFlowRunnerShortcutController.shortcuts;
   assert(shortcuts.run === 'CommandOrControl+Alt+R', 'Run accelerator drifted');
   assert(shortcuts.stop === 'CommandOrControl+Alt+X', 'Stop accelerator drifted');
 
@@ -157,7 +157,7 @@ async function main() {
   assert(conflictState.player.shortcutError, 'shortcut conflict must remain diagnosable in state');
   assert(conflictState.player.shortcutError.code === 'ALREADY_REGISTERED', 'shortcut conflict code must be preserved');
 
-  console.log('SCRIPT_RUNNER_SHORTCUTS_OK=' + JSON.stringify({
+  console.log('FLOW_RUNNER_SHORTCUTS_OK=' + JSON.stringify({
     run: shortcuts.run,
     stop: shortcuts.stop,
     macRunLabel: mac.buttonLabels.get('run'),

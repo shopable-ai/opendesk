@@ -199,7 +199,7 @@
     await screenshot('stopping');
     stopping.resolve({
       recordingId: 'rec-ui-fixture', recordingDir: '.runtime/recordings/rec-ui-fixture',
-      rawFile: '.runtime/recordings/rec-ui-fixture/raw/events.ndjson',
+      rawFile: '.runtime/recordings/rec-ui-fixture/events.ndjson',
       manifestFile: '.runtime/recordings/rec-ui-fixture/manifest.json',
       captureState: 'stopped', storageState: 'saved', counts, issues: [],
     });
@@ -223,7 +223,7 @@
     await screenshot('generating');
     generating.resolve({
       scriptFile: generatedScriptPath,
-      candidateFile: '.runtime/recordings/rec-ui-fixture/generated/basic.candidate.json',
+      candidateFile: '.runtime/recordings/rec-ui-fixture/basic.candidate.json',
       actionsSha256: 'actions-fixture', scriptSha256: 'script-fixture',
       constraints: ['fixture'], verification: 'not-run',
     });
@@ -331,7 +331,7 @@
     const partialCalls = {stop: 0, build: 0, generate: 0};
     const partialSaved = {
       recordingId: 'rec-ui-partial', recordingDir: '.runtime/recordings/rec-ui-partial',
-      rawFile: '.runtime/recordings/rec-ui-partial/raw/events.ndjson',
+      rawFile: '.runtime/recordings/rec-ui-partial/events.ndjson',
       manifestFile: '.runtime/recordings/rec-ui-partial/manifest.json',
       captureState: 'stopped', storageState: 'failed', counts, issues: [{code: 'WRITE_FAILED'}],
     };
@@ -388,7 +388,7 @@
     const blockedCalls = {stop: 0, build: 0, generate: 0};
     const blockedSaved = {
       recordingId: 'rec-ui-blocked', recordingDir: '.runtime/recordings/rec-ui-blocked',
-      rawFile: '.runtime/recordings/rec-ui-blocked/raw/events.ndjson',
+      rawFile: '.runtime/recordings/rec-ui-blocked/events.ndjson',
       manifestFile: '.runtime/recordings/rec-ui-blocked/manifest.json',
       captureState: 'stopped', storageState: 'saved', counts, issues: [],
     };
@@ -440,7 +440,7 @@
     const reviewCalls = {stop: 0, build: 0, generate: 0, run: 0};
     const reviewSaved = {
       recordingId: 'rec-ui-needs-review', recordingDir: '.runtime/recordings/rec-ui-needs-review',
-      rawFile: '.runtime/recordings/rec-ui-needs-review/raw/events.ndjson',
+      rawFile: '.runtime/recordings/rec-ui-needs-review/events.ndjson',
       manifestFile: '.runtime/recordings/rec-ui-needs-review/manifest.json',
       captureState: 'stopped', storageState: 'saved', counts, issues: [],
     };
@@ -471,7 +471,7 @@
           reviewCalls.generate += 1;
           return {
             scriptFile: generatedScriptPath,
-            candidateFile: '.runtime/recordings/rec-ui-needs-review/generated/basic.candidate.json',
+            candidateFile: '.runtime/recordings/rec-ui-needs-review/basic.candidate.json',
             actionsSha256: 'review-actions', scriptSha256: 'review-script',
             constraints: ['partial candidate: one raw event was omitted'], verification: 'not-run',
           };
@@ -498,7 +498,7 @@
     let recoveryCaptureState = 'recording';
     const failedSaved = {
       recordingId: 'rec-ui-failed', recordingDir: '.runtime/recordings/rec-ui-failed',
-      rawFile: '.runtime/recordings/rec-ui-failed/raw/events.ndjson',
+      rawFile: '.runtime/recordings/rec-ui-failed/events.ndjson',
       manifestFile: '.runtime/recordings/rec-ui-failed/manifest.json',
       captureState: 'failed', storageState: 'saved', counts, issues: [{code: 'BACKEND_INTERRUPTED'}],
     };
@@ -653,8 +653,8 @@
         generateScript: async () => {
           closeRunCalls.generate += 1;
           return {
-            scriptFile: '.runtime/recordings/close-run/generated/basic.recipe.js',
-            candidateFile: '.runtime/recordings/close-run/generated/basic.candidate.json',
+            scriptFile: '.runtime/recordings/close-run/basic.recipe.js',
+            candidateFile: '.runtime/recordings/close-run/basic.candidate.json',
             actionsSha256: 'close-actions', scriptSha256: 'close-script', constraints: [], verification: 'not-run',
           };
         },

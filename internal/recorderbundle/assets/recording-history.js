@@ -125,25 +125,35 @@
     return !!info && info.type === type;
   }
 
-  function resolveGeneratedScript(file, recordingDir) {
-    const generatedDir = file.join(recordingDir, 'generated');
-    if (!statIs(file, generatedDir, 'directory')) return null;
+  function resolveRecipeInDirectory(file, directory, includeFlow) {
+    if (!statIs(file, directory, 'directory')) return null;
 
-    const semantic = file.join(generatedDir, 'semantic.recipe.js');
+    const semantic = file.join(directory, 'semantic.recipe.js');
     if (statIs(file, semantic, 'file')) return semantic;
-    const canonical = file.join(generatedDir, 'basic.recipe.js');
+    const canonical = file.join(directory, 'basic.recipe.js');
     if (statIs(file, canonical, 'file')) return canonical;
+    if (includeFlow) {
+      const flow = file.join(directory, 'flow.js');
+      if (statIs(file, flow, 'file')) return flow;
+    }
 
     const candidates = [];
-    for (const name of file.listDir(generatedDir)) {
+    for (const name of file.listDir(directory)) {
       if (!RECIPE_FILE.test(name)) continue;
-      const path = file.join(generatedDir, name);
+      const path = file.join(directory, name);
       const info = file.stat(path);
       if (!info || info.type !== 'file') continue;
       candidates.push({path, name, modifiedAt: parseTimestamp(info.modifiedAt)});
     }
     candidates.sort((left, right) => right.modifiedAt - left.modifiedAt || left.name.localeCompare(right.name));
     return candidates.length ? candidates[0].path : null;
+  }
+
+  function resolveGeneratedScript(file, recordingDir) {
+    // New recordings keep their runnable artifact beside manifest/actions/raw
+    // facts. Read the former generated/ shape only for existing history.
+    return resolveRecipeInDirectory(file, recordingDir, true)
+      || resolveRecipeInDirectory(file, file.join(recordingDir, 'generated'), false);
   }
 
   function inspectRecording(file, root, recordingId, options) {
@@ -772,8 +782,8 @@
       const row = assertMutableRecording(recordingId);
       const scriptFile = resolveGeneratedScript(file, row.recordingDir);
       if (!scriptFile) {
-        await dialog.alert({title: '无法运行', message: '该录制还没有 generated/*.recipe.js。', level: 'warning', okText: '关闭'});
-        await refresh(`无法运行 ${recordingId}：generated recipe 已不存在。`);
+        await dialog.alert({title: '无法运行', message: '该录制还没有可运行的生成脚本。', level: 'warning', okText: '关闭'});
+        await refresh(`无法运行 ${recordingId}：生成脚本已不存在。`);
         return null;
       }
       const scriptInfo = file.stat(scriptFile);
