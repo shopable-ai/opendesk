@@ -163,11 +163,27 @@ func ValidateContentPath(value string) error {
 		return newError(CodeInvalidPath, "flow inventory must not contain flow.json or flow.sig", nil)
 	}
 	for _, segment := range strings.Split(value, "/") {
-		if segment == "." || segment == ".." || !pathSegmentPattern.MatchString(segment) {
+		if segment == "." || segment == ".." || strings.HasSuffix(segment, ".") || !pathSegmentPattern.MatchString(segment) || isWindowsReservedPathSegment(segment) {
 			return newError(CodeInvalidPath, "flow file path uses a non-portable segment", nil)
 		}
 	}
 	return nil
+}
+
+func isWindowsReservedPathSegment(segment string) bool {
+	base := segment
+	if dot := strings.IndexByte(base, '.'); dot >= 0 {
+		base = base[:dot]
+	}
+	base = strings.ToUpper(base)
+	switch base {
+	case "CON", "PRN", "AUX", "NUL":
+		return true
+	}
+	if len(base) == 4 && (strings.HasPrefix(base, "COM") || strings.HasPrefix(base, "LPT")) && base[3] >= '1' && base[3] <= '9' {
+		return true
+	}
+	return false
 }
 
 func validSemanticVersion(value string) bool {

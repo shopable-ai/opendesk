@@ -59,7 +59,8 @@ func Read(data []byte) (*Package, error) {
 	folded := map[string]struct{}{}
 	var total int64
 	for _, file := range reader.File {
-		if file.FileInfo().IsDir() || file.Mode()&os.ModeSymlink != 0 {
+		mode := file.Mode()
+		if file.FileInfo().IsDir() || mode&os.ModeSymlink != 0 || !mode.IsRegular() {
 			return nil, newError(CodeInvalidPackage, "flow package entries must be regular files", nil)
 		}
 		name := file.Name

@@ -1,0 +1,75 @@
+name: Flow Commercial Qualification
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'pkg/flow/**'
+      - 'internal/flowcli/**'
+      - 'internal/packagecli/**'
+      - 'cmd/opendesk/**'
+      - 'tests/runtime-api/flow-package.js'
+      - 'tests/runtime-api/support/flow-package-harness.js'
+      - 'tests/runtime-api/gates/**'
+      - 'scripts/test_runtime_apis.js'
+      - 'VERSION'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/flow-commercial.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: flow-commercial-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  b0:
+    name: B0 / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary: ./dist/opendesk
+          - os: macos-latest
+            binary: ./dist/opendesk
+          - os: windows-latest
+            binary: ./dist/opendesk.exe
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout current commit
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test B0 package and CLI owners
+        run: go test ./pkg/flow ./internal/flowcli ./internal/packagecli -count=1
+
+      - name: Build current OpenDesk runtime
+        env:
+          BINARY: ${{ matrix.binary }}
+        run: |
+          mkdir -p dist
+          VERSION_VALUE="$(tr -d '[:space:]' < VERSION)"
+          go build -ldflags "-X opendesk/pkg/runtimeversion.Current=${VERSION_VALUE}" -o "${BINARY}" ./cmd/opendesk
+
+      - name: Run B0 direct Runtime test
+        env:
+          BINARY: ${{ matrix.binary }}
+        run: "${BINARY}" -script tests/runtime-api/flow-package.js -console-mode script
+
+      - name: Run B0 formal Runtime gate
+        env:
+          BINARY: ${{ matrix.binary }}
+          OPENDESK_RUNTIME_API_MODE: flow-package
+        run: "${BINARY}" -script scripts/test_runtime_apis.js -console-mode script
