@@ -25,10 +25,10 @@ type appProductActivityCoordinator struct {
 }
 
 type appProductActivitySnapshot struct {
-	Version      uint64   `json:"version"`
-	Pending      int      `json:"pending"`
-	Active       bool     `json:"active"`
-	ActiveKinds  []string `json:"activeKinds"`
+	Version     uint64   `json:"version"`
+	Pending     int      `json:"pending"`
+	Active      bool     `json:"active"`
+	ActiveKinds []string `json:"activeKinds"`
 }
 
 func newAppProductActivityCoordinator() *appProductActivityCoordinator {
@@ -51,6 +51,15 @@ func (c *appProductActivityCoordinator) request() (uint64, <-chan struct{}) {
 	ready := make(chan struct{})
 	c.pending[version] = ready
 	return version, ready
+}
+
+func (c *appProductActivityCoordinator) cancelRequest(version uint64) {
+	if c == nil || version == 0 {
+		return
+	}
+	c.mu.Lock()
+	delete(c.pending, version)
+	c.mu.Unlock()
 }
 
 func (c *appProductActivityCoordinator) acknowledgePending() int {
@@ -104,9 +113,9 @@ func (c *appProductActivityCoordinator) snapshot() appProductActivitySnapshot {
 	}
 	sort.Strings(kinds)
 	return appProductActivitySnapshot{
-		Version: c.version,
-		Pending: len(c.pending),
-		Active: len(kinds) != 0,
+		Version:     c.version,
+		Pending:     len(c.pending),
+		Active:      len(kinds) != 0,
 		ActiveKinds: kinds,
 	}
 }
@@ -119,8 +128,9 @@ func waitBeforeProductDesktopActivity(ctx context.Context, shell *appshell.Shell
 	if activity == nil || shell == nil {
 		return true
 	}
-	_, ready := activity.request()
+	version, ready := activity.request()
 	if err := shell.DispatchAction("opendesk.activity.suspend", source); err != nil {
+		activity.cancelRequest(version)
 		return false
 	}
 	if ctx == nil {
@@ -132,8 +142,10 @@ func waitBeforeProductDesktopActivity(ctx context.Context, shell *appshell.Shell
 	case <-ready:
 		return true
 	case <-ctx.Done():
+		activity.cancelRequest(version)
 		return false
 	case <-timer.C:
+		activity.cancelRequest(version)
 		return false
 	}
 }
