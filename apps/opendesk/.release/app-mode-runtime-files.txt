@@ -17,6 +17,11 @@ inspector-launcher.js
 app-controller.js
 developer-tools.js
 runtime-log.js
+promotions/core.js
+promotions/controller.js
+promotions/integration.js
+promotions/official-creative.js
+promotions/owner.js
 script-runner-simple.js
 script-runner/controller.js
 script-runner/player-controller.js
