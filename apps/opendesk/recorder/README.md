@@ -2,6 +2,25 @@
 
 `controller-core.js` 负责录制、暂停、停止、生成和测量动作；`controller.js` 负责产品工具栏组合与历史记录集成。
 
+## 录制产物目录
+
+新录制采用扁平的顶层产物合同。`raw/` 与 `generated/` 不再作为新 Session 的目录层级；它们只是旧录制的历史结构，不应继续出现在新写入路径、提示词或产品文档中。
+
+```text
+.runtime/recordings/<recording-id>/
+├── manifest.json
+├── events.ndjson
+├── flow.js
+├── replay-config.json
+├── observations/
+├── distilled/
+└── runs/
+```
+
+顶层文件是用户最常查看的核心产物：`events.ndjson` 为原始录制事实，`flow.js` 为最终生成脚本。`observations/`、`distilled/`、`runs/` 仍保留，因为它们分别表达采集证据、整理结果和执行结果，具有真实语义边界。
+
+兼容策略为“新写入只使用新结构，旧结构只读兼容”。读取历史录制时仍允许回退到 `raw/events.ndjson`；涉及旧生成脚本的入口可继续识别 `<recording>/generated/*.js`，但不得为新录制重新创建 `raw/` 或 `generated/`。
+
 ## 桌面测量入口
 
 正式 Recorder 工具栏右侧依次为：详情、文件夹、分隔线、测量、历史记录。测量是常驻的独立图标按钮，不必打开开发者菜单。悬停提示沿用按钮的本地化 label，并附上当前平台的默认全局快捷键：macOS `⌘⇧M`，Windows / Linux `Ctrl+Shift+M`。
@@ -12,11 +31,12 @@
 
 ## 维护与验证
 
-修改 `controller.js` 后，使用现有同步入口 `go generate ./internal/recorderbundle` 更新内嵌资源，不允许发布源码与 `internal/recorderbundle/assets/` 不一致的版本。
+修改 `controller.js` 或 `controller-core.js` 后，使用现有同步入口 `go generate ./internal/recorderbundle` 更新内嵌资源，不允许发布源码与 `internal/recorderbundle/assets/` 不一致的版本。
 
-在仓库根目录执行工具栏组合回归：
+在仓库根目录执行目录合同与工具栏组合回归：
 
 ```sh
+./dist/opendesk -script tests/runtime-api/recorder-artifact-layout.js -console-mode script
 node --test tests/custom-ui/recording-measurement-entry.test.js
 ```
 
