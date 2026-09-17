@@ -6,72 +6,127 @@ on:
       - master
     paths:
       - 'pkg/flow/**'
+      - 'pkg/appdata/**'
       - 'internal/flowcli/**'
       - 'internal/packagecli/**'
       - 'cmd/opendesk/**'
       - 'tests/runtime-api/flow-package.js'
+      - 'tests/runtime-api/flow-installation.js'
       - 'tests/runtime-api/support/flow-package-harness.js'
       - 'tests/runtime-api/gates/**'
       - 'scripts/test_runtime_apis.js'
+      - 'scripts/build_windows_distribution.ps1'
       - 'VERSION'
       - 'go.mod'
       - 'go.sum'
+      - 'Makefile'
       - '.github/workflows/flow-commercial.yml'
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: flow-commercial-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:
-  b0:
-    name: B0 / ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            binary: ./dist/opendesk
-          - os: macos-latest
-            binary: ./dist/opendesk
-          - os: windows-latest
-            binary: ./dist/opendesk.exe
-    defaults:
-      run:
-        shell: bash
-
+  owners:
+    name: B0+B1 portable owners
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout current commit
         uses: actions/checkout@v4
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
+      - name: Test package, installer, app-data and CLI owners
+        run: go test ./pkg/flow ./pkg/appdata ./internal/flowcli ./internal/packagecli -count=1
 
-      - name: Test B0 package and CLI owners
-        run: go test ./pkg/flow ./internal/flowcli ./internal/packagecli -count=1
-
-      - name: Build current OpenDesk runtime
-        env:
-          BINARY: ${{ matrix.binary }}
-        run: |
-          mkdir -p dist
-          VERSION_VALUE="$(tr -d '[:space:]' < VERSION)"
-          go build -ldflags "-X opendesk/pkg/runtimeversion.Current=${VERSION_VALUE}" -o "${BINARY}" ./cmd/opendesk
-
+  macos-runtime:
+    name: B0+B1 / macOS Runtime
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout current commit
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build current OpenDesk through repository build owner
+        run: make build
       - name: Run B0 direct Runtime test
-        env:
-          BINARY: ${{ matrix.binary }}
-        run: |
-          "${BINARY}" -script tests/runtime-api/flow-package.js -console-mode script
-
+        run: ./dist/opendesk -script tests/runtime-api/flow-package.js -console-mode script
       - name: Run B0 formal Runtime gate
-        env:
-          BINARY: ${{ matrix.binary }}
-          OPENDESK_RUNTIME_API_MODE: flow-package
+        run: OPENDESK_RUNTIME_API_MODE=flow-package ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+      - name: Run B1 direct Runtime test
+        run: ./dist/opendesk -script tests/runtime-api/flow-installation.js -console-mode script
+      - name: Run B1 formal Runtime gate
+        run: OPENDESK_RUNTIME_API_MODE=flow-installation ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+      - name: Upload macOS Flow evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flow-commercial-macos-evidence
+          path: .runtime/tests
+          if-no-files-found: ignore
+          retention-days: 7
+
+  windows-runtime:
+    name: B0+B1 / Windows Runtime
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout current commit
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Set up .NET for the maintained Windows distribution build
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build current OpenDesk through repository Windows distribution owner
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/build_windows_distribution.ps1 -Runtime win-x64
+      - name: Run B0 direct Runtime test
+        shell: pwsh
         run: |
-          "${BINARY}" -script scripts/test_runtime_apis.js -console-mode script
+          $runtime = '.\dist\windows\win-x64\opendesk.exe'
+          & $runtime -script 'tests/runtime-api/flow-package.js' -console-mode script
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run B0 formal Runtime gate
+        shell: pwsh
+        run: |
+          $runtime = '.\dist\windows\win-x64\opendesk.exe'
+          $env:OPENDESK_RUNTIME_API_MODE = 'flow-package'
+          & $runtime -script 'scripts/test_runtime_apis.js' -console-mode script
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run B1 direct Runtime test
+        shell: pwsh
+        run: |
+          $runtime = '.\dist\windows\win-x64\opendesk.exe'
+          & $runtime -script 'tests/runtime-api/flow-installation.js' -console-mode script
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run B1 formal Runtime gate
+        shell: pwsh
+        run: |
+          $runtime = '.\dist\windows\win-x64\opendesk.exe'
+          $env:OPENDESK_RUNTIME_API_MODE = 'flow-installation'
+          & $runtime -script 'scripts/test_runtime_apis.js' -console-mode script
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload Windows Flow evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flow-commercial-windows-evidence
+          path: .runtime/tests
+          if-no-files-found: ignore
+          retention-days: 7
