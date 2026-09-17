@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"opendesk/pkg/appshell"
 	"opendesk/pkg/customui"
 	pkgHTTP "opendesk/pkg/http"
 	pkgScheduler "opendesk/pkg/scheduler"
@@ -33,13 +34,14 @@ const (
 // appSchedulerRuntime historically owned only the Scheduler bridge. It now
 // owns the App Mode local-services listener: Scheduler keeps its token-protected
 // routes, while the official OpenDesk package can mount the existing read-only
-// Inspector on the same loopback endpoint.
+// Inspector and private product-activity handshake on the same loopback endpoint.
 type appSchedulerRuntime struct {
 	service      *pkgScheduler.Service
 	store        *pkgScheduler.Store
 	server       *http.Server
 	listener     net.Listener
 	inspector    *pkgHTTP.AppInspectorRoutes
+	activity     *appProductActivityCoordinator
 	endpoint     string
 	inspectorURL string
 	token        string
@@ -51,6 +53,10 @@ type appSchedulerRuntime struct {
 }
 
 func startAppScheduler(ctx context.Context, config *Config, packageID, appRoot string, environment map[string]string, uiDrivers ...customui.Driver) (*appSchedulerRuntime, error) {
+	return startAppSchedulerWithActivity(ctx, config, packageID, appRoot, environment, nil, nil, uiDrivers...)
+}
+
+func startAppSchedulerWithActivity(ctx context.Context, config *Config, packageID, appRoot string, environment map[string]string, activity *appProductActivityCoordinator, shell *appshell.Shell, uiDrivers ...customui.Driver) (*appSchedulerRuntime, error) {
 	scriptRoot, err := resolveAppSchedulerScriptRoot(packageID, appRoot, environment)
 	if err != nil {
 		return nil, err
@@ -83,11 +89,11 @@ func startAppScheduler(ctx context.Context, config *Config, packageID, appRoot s
 	if len(uiDrivers) > 0 {
 		uiDriver = uiDrivers[0]
 	}
-	var executor *pkgScheduler.ScriptExecutor
+	var scriptExecutor *pkgScheduler.ScriptExecutor
 	if uiDriver == nil {
-		executor, err = pkgScheduler.NewScriptExecutor(scriptRoot, 30*time.Minute)
+		scriptExecutor, err = pkgScheduler.NewScriptExecutor(scriptRoot, 30*time.Minute)
 	} else {
-		executor, err = pkgScheduler.NewScriptExecutorWithOptions(scriptRoot, pkgScheduler.ScriptExecutorOptions{
+		scriptExecutor, err = pkgScheduler.NewScriptExecutorWithOptions(scriptRoot, pkgScheduler.ScriptExecutorOptions{
 			ArtifactRoot:   artifactRoot,
 			Timeout:        30 * time.Minute,
 			EnableCustomUI: true,
@@ -96,6 +102,10 @@ func startAppScheduler(ctx context.Context, config *Config, packageID, appRoot s
 	}
 	if err != nil {
 		return nil, fmt.Errorf("initialize App Scheduler executor: %w", err)
+	}
+	var executor pkgScheduler.Executor = scriptExecutor
+	if activity != nil && shell != nil {
+		executor = &appActivitySchedulerExecutor{inner: scriptExecutor, activity: activity, shell: shell}
 	}
 	service, err := pkgScheduler.NewService(store, executor, pkgScheduler.Options{ScriptRoot: scriptRoot})
 	if err != nil {
@@ -125,6 +135,7 @@ func startAppScheduler(ctx context.Context, config *Config, packageID, appRoot s
 		service:      service,
 		store:        store,
 		listener:     listener,
+		activity:     activity,
 		endpoint:     "http://" + listener.Addr().String(),
 		token:        token,
 		root:         scriptRoot,
@@ -135,6 +146,8 @@ func startAppScheduler(ctx context.Context, config *Config, packageID, appRoot s
 	mux.HandleFunc("/api/scheduler/status", runtime.authorize(runtime.handleStatus))
 	mux.HandleFunc("/api/scheduler/jobs", runtime.authorize(handler.HandleSchedulerJobs))
 	mux.HandleFunc("/api/scheduler/jobs/", runtime.authorize(handler.HandleSchedulerJobRoutes))
+	mux.HandleFunc("/api/product/activity", runtime.authorize(runtime.handleProductActivity))
+	mux.HandleFunc("/api/product/activity/ack", runtime.authorize(runtime.handleProductActivityAck))
 	if err := runtime.attachInspector(packageID, appRoot, scriptRoot, mux); err != nil {
 		_ = listener.Close()
 		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -264,6 +277,49 @@ func (r *appSchedulerRuntime) handleStatus(w http.ResponseWriter, request *http.
 			"artifactRoot":  r.artifactRoot,
 			"localEndpoint": r.endpoint,
 			"inspectorUrl":  r.inspectorURL,
+		},
+	})
+}
+
+func (r *appSchedulerRuntime) handleProductActivity(w http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	available := r != nil && r.activity != nil
+	var snapshot appProductActivitySnapshot
+	if available {
+		snapshot = r.activity.snapshot()
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"code":    0,
+		"message": "success",
+		"data": map[string]any{
+			"available":   available,
+			"version":     snapshot.Version,
+			"pending":     snapshot.Pending,
+			"active":      snapshot.Active,
+			"activeKinds": snapshot.ActiveKinds,
+		},
+	})
+}
+
+func (r *appSchedulerRuntime) handleProductActivityAck(w http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	acknowledged := 0
+	if r != nil && r.activity != nil {
+		acknowledged = r.activity.acknowledgePending()
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"code":    0,
+		"message": "success",
+		"data": map[string]any{
+			"acknowledged": acknowledged,
 		},
 	})
 }
