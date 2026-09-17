@@ -1,43 +1,112 @@
-# OpenDesk 图片推广浮层：展示层 v1
+# OpenDesk 图片推广浮层：v4 Native Product Integration
 
-日期：2026-09-17。状态：展示核心、受限 Native UI 适配器和中文交互原型已存在；**浏览器视觉 Oracle 已进入 v4，Native renderer 与正式产品生命周期尚未完成 v4 对齐，也未完成 macOS / Windows 实窗资格验证**。
+日期：2026-09-17。状态：**v4 产品模型、Native renderer、官方 Product Owner、自动化生命周期屏障、偏好持久化、release payload 与 JavaScript 回归已经接线；macOS / Windows 实窗资格验证仍必须在对应真机完成。**
 
-## 产品决定
+## 1. Oracle 与职责边界
 
-第一广告位是独立推广浮层，不扩张紧凑 Runner，也不使用系统通知替代。默认显示在 Runner 上方、右边缘对齐，间隔 12 logical units；可显式配置为屏幕工作区右下角，边距 16。同一时刻只有一张；空间不足时不展示，不遮挡 Run / Stop，也不偷偷切换位置。
+唯一 UI / Interaction Oracle：
 
-素材来源、排版、媒体类型和位置相互独立。首版不接视频、远程 HTML、第三方脚本或广告 SDK。
+```text
+apps/opendesk/prototypes/promotions/index.html
+```
 
-## v4 视觉 / 交互 Oracle
+正式链路：
 
-`apps/opendesk/prototypes/promotions/index.html` 是当前浏览器视觉与交互基准。原型提供五种场景：
+```text
+Prototype v4
+→ apps/opendesk/promotions/core.js
+→ apps/opendesk/promotions/controller.js
+→ apps/opendesk/promotions/owner.js
+→ apps/opendesk/main.js
+→ Custom UI native surface
+```
 
-| 场景 | 规则 |
-| --- | --- |
-| 静态大图 | 图片为主，可叠加标题、说明和 CTA |
-| GIF / WebP 动图 | 与静态大图同布局；无播放/暂停按钮；最多约 5 秒后切回 poster |
-| **素材自带文案（media-only）** | 图片/GIF 内已经包含标题、卖点、视觉文案；**不再叠加外部标题和说明**，只保留推广标识、`⋯`、`×` 和最小 CTA |
-| 图片＋文字 | 图片负责视觉，外层补充标题、说明、CTA |
-| 纯文字 | 无媒体时的退化/官方文本推广 |
+Script Runner 保持通用业务控制器；广告主、campaign、频次和商业策略不进入通用 Runner controller。
 
-media-only 是排版语义，不是新的网络媒体格式。它可以承载静态图片，也可以承载 animated-image。不能要求广告主为了切换 media-only 再生成另一套 Runtime 窗口。
+首版仍然只支持 Local / Official Promotion，不接第三方广告 SDK、远程 HTML/JavaScript creative、竞价、视频、曝光计费或广告后台。
 
-### 卡片与位置
+## 2. v4 正式 Promotion Model
 
-- 静态大图 / 动图 / media-only：目标 360×240 logical units，推荐素材 3:2。
-- 图片＋文字：目标约 360×268。
-- 纯文字：目标约 360×196。
-- 图片是广告画布；不增加独立 footer 背景。
-- 普通图文仅用轻量透明渐变和文字阴影提高可读性。
-- media-only 的底部渐变更弱，因为素材内部已经完成主要信息层级；不得再盖一层标题说明。
-- 顶部永久显示“推广 · 广告主”；右上角 `⋯` 与 `×` 默认无填充背景。
-- CTA 是显式文字动作；整张图片不能成为无提示隐形链接。
+当前 schemaVersion 为 `2`，`presentation` 明确取值：
 
-### 关闭语义
+```text
+image
+animated-image
+media-only
+image-text
+text
+```
 
-`×` **只关闭本次展示**，不写长期偏好。
+媒体类型仍只有：
 
-`⋯` 菜单负责持久偏好：
+```text
+image
+animated-image
+```
+
+`media-only` 是 presentation mode，不是媒体格式。它可以承载静态 image 或 animated-image，但正式校验拒绝额外非空 `title` / `description`，避免素材已经排版完整文案时被 OpenDesk 再覆盖一层标题说明。
+
+未知 presentation、未知 media 字段、非法 raster data URI、未知 action 一律 fail closed。
+
+## 3. v4 Native Renderer
+
+### 3.1 尺寸
+
+```text
+image / animated-image / media-only: 360 × 240
+image-text:                         360 × 268
+text:                               360 × 196
+```
+
+默认位置：Runner 上方、右边缘对齐、间隔 12 logical units。可选位置：当前显示器 work area 右下角、边距 16。
+
+空间不足或 placement/readback 无法确认时不显示，不覆盖 Runner，也不偷偷切换到其他位置。
+
+### 3.2 视觉结构
+
+普通 image / animated-image：
+
+```text
+media
++ 轻量底部渐变
++ title
++ description
++ CTA
++ 推广标识 / ⋯ / ×
+```
+
+media-only：
+
+```text
+media
++ 弱化 system chrome
++ CTA
++ 推广标识 / ⋯ / ×
+```
+
+没有旧 footer bar，没有明显 CTA 背景按钮，也没有播放/暂停按钮。
+
+### 3.3 动图
+
+正式 controller 总是先用静态 poster 创建并验证 image readiness；窗口确认可见后才把同一 img control 更新为 GIF / WebP source。
+
+```text
+poster ready
+→ native window visible
+→ animated source
+→ 最多 5 秒
+→ poster
+```
+
+单次展示只播放一次。`reducedMotion === true` 时保持 poster-only。
+
+关闭、隐藏、自动化任务开始或 surface context 失效时会取消 display/motion timer 并关闭 promotion surface。
+
+## 4. 关闭与偏好
+
+`×` 只关闭当前一次展示，不写 campaign dismissal。
+
+`⋯` 菜单负责：
 
 ```text
 今天不再显示
@@ -45,34 +114,52 @@ media-only 是排版语义，不是新的网络媒体格式。它可以承载静
 关闭所有推广
 ```
 
-“7 天不再显示此推广”以 `campaignId` 为单位，更换 creativeId 不得绕过。关闭所有推广必须有明确恢复入口。
+7 天 dismissal 绑定 `campaignId`，更换 `creativeId` 不能绕过。
 
-### 动图合同
+关闭所有推广后，OpenDesk 托盘出现“恢复推广”入口；恢复后重新启用 promotion preference。
 
-广告内部**不显示播放/暂停按钮**。GIF/WebP 自动播放一次，最多约 5 秒，之后切回静态 poster；本次展示不再次自动播放。系统/产品已知 reduced-motion 时，从第一帧开始只显示 poster。
+正式偏好路径：
 
-隐藏、关闭、进入自动化任务、后台化时必须清理计时器并停止动态图资源。首版不自动轮播、不连续补弹、不播放音频。
+```text
+<OpenDesk appDataRoot>/promotions/preferences.json
+```
 
-## 当前实现与漂移
+不写 Recipe 目录，不写 `apps/opendesk` 源码目录。`×` 不产生持久记录。
 
-已交付：
+默认频次仍是：
 
-- `apps/opendesk/promotions/core.js`：内容校验、媒体约束、几何、频次和偏好规则。
-- `apps/opendesk/promotions/controller.js`：Custom UI Native surface 适配器。
-- `apps/opendesk/prototypes/promotions/index.html`：**v4 浏览器 Oracle，包含 media-only**。
-- `apps/opendesk/prototypes/promotions/samples.js`：本地 PNG / GIF fixture。
-- `tests/promotions/core.test.js`。
-- `tests/runtime-api/promotion-surface.js`。
+```text
+每天最多 2 次
+至少间隔 30 分钟
+```
 
-当前 `core.js` / `controller.js` 的 Native renderer 仍可能包含旧尺寸、footer、motion 控件和关闭语义，且尚未支持 v4 media-only 作为正式渲染合同。因此不能把浏览器 v4 表述成已经安装后的产品效果。
+## 5. Promotion Owner
 
-下一轮必须先做 `Prototype v4 → Native renderer → Product integration` Gap Matrix，再修改正式实现；禁止为了减少修改量把原型重新降回旧 UI。
+正式唯一 Owner：
 
-## 生命周期与安全
+```text
+apps/opendesk/promotions/owner.js
+```
 
-内容只接受严格结构化字段及受限 raster data。拒绝远程 HTML、SVG、业务 script、inline handler、命令和未知动作。后续若引入远程素材，必须单独增加可信下载、字节/像素预算、实际图片解码、签名/有效期和失败回退；当前 data URI fixture 校验不等于远程广告安全沙箱。
+Product 装配入口：
 
-正式生产状态提供者必须明确覆盖：
+```text
+apps/opendesk/main.js
+```
+
+Owner 职责：
+
+- 持久偏好加载 / 保存；
+- Runner surface bounds / visible state；
+- show single-flight；
+- scheduler/native product activity 状态刷新；
+- 自动化开始前 promotion close barrier；
+- Runner move / hide / close / list panel 生命周期；
+- Windows WebView2 或 native surface 不可用时仅禁用 Promotion，不阻塞 OpenDesk 核心功能。
+
+## 6. 自动化安全
+
+最低展示上下文仍为：
 
 ```js
 {
@@ -87,42 +174,164 @@ media-only 是排版语义，不是新的网络媒体格式。它可以承载静
 }
 ```
 
-这里的 `automationIdle` 不能只代表 Runner；必须覆盖 Agent、Scheduler 和其他可驱动桌面的任务。任何来源状态未知时 fail closed，不展示广告。进入任务状态前应先禁用广告点击并 await surface 收起，不能依赖低频轮询。
+`core.contextReason()` 对缺失、未知或非安全值 fail closed。
 
-Native 使用真实 logical desktop bounds 与 host work area。不能用浏览器 CSS 像素冒充原生坐标。Runner 移动、多屏、DPI、显示器 work area 改变和空间不足都需要真实 host readback 与重验。
+### 6.1 Runner / Recipe
 
-## 偏好与频次
+`apps/opendesk/promotions/integration.js` 包装统一 `requestRun()` 边界：
 
-当前默认策略仍为：每日最多两次、间隔至少 30 分钟；该策略是产品起始默认值，不是广告平台结算规则。
+```text
+promotionOwner.beginAutomation()
+→ promotion close/cancel intent
+→ Runner requestRun()
+→ promotionOwner.endAutomation()
+```
 
-- `×`：仅本次，不持久化。
-- 今天不再显示：到下一个本地午夜。
-- 7 天不再显示：按 campaignId。
-- 关闭所有推广：持续到用户主动恢复。
+因此 Toolbar、快捷键和程序化 requestRun 进入同一安全边界。
 
-正式偏好必须写入 OpenDesk appDataRoot，而不是 Recipe 目录。原型 localStorage 只用于交互样机。
+### 6.2 Agent
 
-## 原型与 Native 的差异不能隐藏
+Assistant 注入的 `Agent.run()` 通过 `wrapAgent()` 进入同一 begin/end activity 生命周期；Calculator capability 也独立包装，避免规划阶段和桌面执行阶段之间出现推广 surface。
 
-浏览器原型里的 Esc、组外点击、拖动 Runner 锚点、模拟 Run/List 抑制、文件上传和 reduced-motion 控件都只是 Oracle / fixture。Native 需要通过现有 Custom UI / App owner 能力逐项实现或明确记录 Gap。
+### 6.3 Scheduler / Recorder / Measurement
 
-Windows HTML surface 依赖 WebView2；不可用时只禁用推广，不得阻塞 OpenDesk 启动、Runner、Stop 或任务执行。任何展示不得抢夺当前前台输入焦点。
+`cmd/opendesk/app_product_activity.go` 提供产品私有 activity coordinator，不暴露新的公共 Runtime API。
 
-## 验证状态
+原生任务开始流程：
 
-历史纯 JS/fake-host 回归曾达到 18/18；该结果覆盖旧核心行为，不代表 v4 Native 已对齐。
+```text
+native feature requests barrier
+→ App Shell dispatches opendesk.activity.suspend
+→ JS Product Owner closes/cancels Promotion
+→ private loopback activity ack
+→ Recorder / Measurement / Scheduler begins
+```
 
-v4 浏览器原型已经解决：
+barrier 有短超时；Promotion/UI 故障不得阻塞真实业务任务。超时或取消请求会清理 pending barrier，不遗留到下一次 activity ack。
 
-- 无播放/暂停按钮；
-- `×` 只关闭本次；
-- 三种长期偏好进入 `⋯`；
-- 五种展示模式，新增 media-only；
-- media-only 不叠加标题和说明；
-- 图片/动图主卡收敛到 3:2 目标比例。
+Recorder tray action 与 Measurement 一样在菜单回调返回后再等待 barrier，避免占用 native menu tracking loop。
 
-下一轮需要更新旧测试断言，并进行真实 Runtime / macOS / Windows 视觉证据验证。没有实窗证据不得写“双系统已通过”。
+Scheduler executor 在真正执行 job 时进入 native activity coordinator，不只依赖前端 Scheduler Center 轮询。
 
-## 下一步
+## 7. 图片 readiness 公共合同
 
-执行 `docs/command/opendesk-promotions-next.md`。本轮优先完成 v4 Native 对齐和正式产品接线；远程广告清单、广告平台 SDK、计费和视频属于后续独立 Goal。
+macOS WKWebView bridge 与 Windows WebView2 bridge 原本已经能读取：
+
+```text
+imageComplete
+imageNaturalWidth
+imageNaturalHeight
+source
+```
+
+本轮把这些既有 native/browser 事实正式透传到 `pkg/customui.ControlState` 和 JavaScript `ControlHandle.getState()`。
+
+公开类型文件已经与 canonical `ui` API 名称对齐：
+
+```text
+types/ui.d.ts
+```
+
+旧 `types/custom-ui.d.ts` 已移除。
+
+图片 `imageComplete === true` 且 natural dimensions 为 `0` 代表加载/解码失败；Promotion 遇到该状态会取消本次展示，不留下空白广告框，也不记一次成功展示。
+
+公共 JS 行为测试：
+
+```text
+tests/runtime-api/custom-ui-image-readiness.js
+```
+
+## 8. Interaction Group / Focus
+
+Promotion HTML surface 使用与 Script Runner Player 相同的 interaction group：
+
+```text
+scriptRunnerPlayer
+```
+
+目标是让 Runner / List Panel / Promotion 之间的组内交互不被误判成 outside interaction。
+
+Promotion 使用 floating surface，show 不应主动抢当前前台键盘焦点。组外 interaction 会关闭 Promotion 并让 Owner 停止继续自动补弹，直到 Runner 再发生真实 show/move/button interaction。
+
+**Esc、nonactivating floating WebView 键盘事件、跨窗口 interactionOutside 在 macOS / Windows 上仍必须通过真机资格验证；没有真机证据不能写已通过。**
+
+## 9. Prototype v4 → Native Gap Matrix
+
+| v4 Oracle / 产品合同 | 当前代码状态 | 仍需真机证据 |
+| --- | --- | --- |
+| 5 种 presentation | 已实现 | 视觉一致性 |
+| media-only static / animated | 已实现 | 视觉遮罩与 CTA |
+| media-only 无 title/description | 正式 validation + renderer 已实现 | 实窗确认 |
+| 无 promotionMotion / footer | 已移除 | 实窗确认 |
+| GIF/WebP 一次播放 ≤5s → poster | controller 已实现 | GIF/WebP native playback |
+| reduced-motion poster-only | 已实现 | 平台 reduced-motion provider/产品接线进一步验证 |
+| × transient close | 已实现 | 点击命中区 |
+| 今天/7天/关闭全部/恢复 | 已实现 | 跨重启手测 |
+| campaignId dismissal | 已实现 | 跨 creative 手测 |
+| Runner move/hide/list | 已接线 | 多屏 / DPI / 边界 |
+| Runner / Agent / Scheduler / Recorder / Measurement 抑制 | 已接线 | 真实并发任务 |
+| create/show 与 automation 竞态 | revision cancel + 非等待 barrier | native host 卡顿/并发 |
+| image readiness | Runtime JS 可观察 | macOS WKWebView / Windows WebView2 |
+| show 不抢焦点 | floating contract | 真机焦点证据 |
+| Esc / interaction group | 已按现有 host contract 接线 | **必须真机验证** |
+| Windows 无 WebView2 | surface failure 后 Promotion self-disable | Windows 真机 |
+
+## 10. Release payload
+
+正式 App Mode release 已包含：
+
+```text
+promotions/core.js
+promotions/controller.js
+promotions/integration.js
+promotions/official-creative.js
+promotions/owner.js
+```
+
+Prototype 和测试 fixture 不进入正式安装 payload。
+
+## 11. 自动测试入口
+
+纯 JavaScript 产品合同：
+
+```bash
+make test-promotions
+# 等价核心：node --test tests/promotions/*.test.js
+```
+
+Public Runtime image readiness：
+
+```bash
+make test-promotions-native
+```
+
+手工 Native promotion surface：
+
+```bash
+./dist/opendesk -ui -script tests/runtime-api/promotion-surface.js -console-mode script
+```
+
+该手工 fixture 用于实际 GIF、poster、focus、Esc、点击、placement 和关闭体验；不能用 fake host 结果替代实窗证据。
+
+## 12. Qualification 状态
+
+当前仓库可以陈述：
+
+```text
+v4 Model / Renderer / Product Integration 已写入 master
+正式 release payload 已接线
+Promotion-specific JS gates 已注册
+Public image readiness JS test 已存在
+```
+
+当前仓库**不能**陈述：
+
+```text
+macOS Native 全部通过
+Windows Native 全部通过
+Esc / focus / multi-display 已完成真机资格化
+安装包实窗截图已经存在
+```
+
+下一步只做本地 build、自动测试、真实 OpenDesk App 运行和 macOS/Windows Native qualification；发现失败直接修复当前实现，不重新设计 v4 Oracle。
