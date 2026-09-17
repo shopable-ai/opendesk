@@ -25,11 +25,29 @@ func (provenance MarketplaceProvenance) validate() error {
 	return nil
 }
 
-// MarkMarketplaceInstall records the canonical Marketplace Release that led to
-// an already successful FlowInstallService installation. It uses the same
-// per-Flow process lock as Install so provenance cannot race a concurrent
-// update. The executable package and trust state are never derived from this
-// metadata; it is update/discovery provenance only.
+// applyMarketplaceProvenance only annotates catalog/update provenance. It is
+// deliberately not a trust or authorization primitive: Publisher Trust still
+// comes from the verified .odflow identity plus an explicit local decision.
+func applyMarketplaceProvenance(record Record, provenance *MarketplaceProvenance) (Record, bool, error) {
+	if provenance == nil {
+		return record, false, nil
+	}
+	if err := provenance.validate(); err != nil {
+		return Record{}, false, err
+	}
+	updated := record
+	updated.Origin = "marketplace"
+	updated.MarketplaceID = provenance.MarketplaceID
+	updated.ReleaseID = provenance.ReleaseID
+	updated.UpdateChannel = provenance.UpdateChannel
+	return updated, updated != record, nil
+}
+
+// MarkMarketplaceInstall is retained for compatibility with callers that need
+// to annotate an already-existing identical installation. New Marketplace
+// installs pass provenance through InstallOptions so fresh installs and updates
+// commit package content, trust state, and catalog provenance in one install
+// transaction.
 func (service *Service) MarkMarketplaceInstall(ctx context.Context, result InstallResult, provenance MarketplaceProvenance) (InstallResult, error) {
 	if service == nil {
 		return InstallResult{}, newError(CodeTransactionFailed, "Flow install service is unavailable", nil)
@@ -56,14 +74,16 @@ func (service *Service) MarkMarketplaceInstall(ctx context.Context, result Insta
 	if current.FlowID != result.Record.FlowID || current.Version != result.Record.Version || current.ArchiveDigest != result.Record.ArchiveDigest || current.PublisherFingerprint != result.Record.PublisherFingerprint {
 		return InstallResult{}, newError(CodeVersionConflict, "installed Flow changed before Marketplace provenance could be recorded", nil)
 	}
-	current.Origin = "marketplace"
-	current.MarketplaceID = provenance.MarketplaceID
-	current.ReleaseID = provenance.ReleaseID
-	current.UpdateChannel = provenance.UpdateChannel
-	if err := service.Catalog.write(current); err != nil {
-		return InstallResult{}, newError(CodeTransactionFailed, "cannot record Marketplace Flow provenance", err)
+	current, changed, err := applyMarketplaceProvenance(current, &provenance)
+	if err != nil {
+		return InstallResult{}, newError(CodeTransactionFailed, "Marketplace provenance is invalid", err)
 	}
-	_ = syncDirectory(service.Roots.recordsRoot())
+	if changed {
+		if err := service.Catalog.write(current); err != nil {
+			return InstallResult{}, newError(CodeTransactionFailed, "cannot record Marketplace Flow provenance", err)
+		}
+		_ = syncDirectory(service.Roots.recordsRoot())
+	}
 	result.Record = current
 	return result, nil
 }
