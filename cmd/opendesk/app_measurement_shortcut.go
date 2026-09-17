@@ -8,6 +8,7 @@ import (
 
 	"opendesk/automation"
 	"opendesk/internal/measurementshortcut"
+	"opendesk/pkg/appshell"
 	"opendesk/pkg/measurement"
 )
 
@@ -34,9 +35,9 @@ var dispatchMeasurementShortcutWarning = func(callback func()) {
 	go callback()
 }
 
-// registerMeasurementGlobalShortcut is intentionally App-lifecycle-owned. It
-// invokes the same process-wide Measurement Service as the menu and Recorder;
-// it is neither a second Runtime nor a generic keyboard automation layer.
+// registerMeasurementGlobalShortcut is the compatibility entry used by unit
+// tests and non-product callers. The product path below adds the native activity
+// barrier without changing this helper's established contract.
 func registerMeasurementGlobalShortcut(service *measurement.Service, ctx context.Context) (appMeasurementShortcut, error) {
 	if service == nil {
 		return nil, nil
@@ -47,6 +48,28 @@ func registerMeasurementGlobalShortcut(service *measurement.Service, ctx context
 	return registerAppMeasurementShortcut(func() {
 		go func() {
 			if err := openMeasurementFromGlobalShortcut(service, ctx); err != nil {
+				log.Printf("Desktop Measurement global shortcut open failed: %v", err)
+			}
+		}()
+	})
+}
+
+// registerMeasurementGlobalShortcutWithActivity is used by the official App
+// owner. It closes passive product surfaces before capture and keeps Measurement
+// marked active until its native session actually closes.
+func registerMeasurementGlobalShortcutWithActivity(service *measurement.Service, ctx context.Context, shell *appshell.Shell, activity *appProductActivityCoordinator) (appMeasurementShortcut, error) {
+	if service == nil {
+		return nil, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return registerAppMeasurementShortcut(func() {
+		go func() {
+			waitBeforeProductDesktopActivity(ctx, shell, activity, "measurement", "global-shortcut")
+			finish := activity.begin("measurement")
+			defer finish()
+			if err := service.OpenAndWait(ctx, "global-shortcut"); err != nil {
 				log.Printf("Desktop Measurement global shortcut open failed: %v", err)
 			}
 		}()
