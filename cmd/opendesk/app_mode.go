@@ -127,20 +127,24 @@ func executeAppMode(config *Config) error {
 	defer stopSignals()
 	appContext, cancelApp := context.WithCancel(signalContext)
 	defer cancelApp()
+	productActivity := newAppProductActivityCoordinator()
 	if measurementService != nil {
 		if err := shell.BindMeasurementAction(func(event appshell.ActionEvent) error {
 			// AppKit invokes a tray-menu action while its menu tracking loop owns the
-			// main thread. Capture and native WebView creation must run after that
-			// callback returns; otherwise the visible-surface handshake can wait on
-			// the very event loop needed to place the Measurement Panel on screen.
+			// main thread. The barrier and capture therefore run after that callback
+			// returns. OpenAndWait keeps Measurement marked active for the complete
+			// native session, not only until its window first appears.
 			source := event.Source
 			go func() {
 				log.Printf("Desktop Measurement entry %s requested", source)
-				if openErr := measurementService.Open(appContext, source); openErr != nil {
+				waitBeforeProductDesktopActivity(appContext, shell, productActivity, "measurement", source)
+				finish := productActivity.begin("measurement")
+				defer finish()
+				if openErr := measurementService.OpenAndWait(appContext, source); openErr != nil {
 					log.Printf("Desktop Measurement entry %s failed: %v", source, openErr)
 					return
 				}
-				log.Printf("Desktop Measurement entry %s opened", source)
+				log.Printf("Desktop Measurement entry %s closed", source)
 			}()
 			return nil
 		}); err != nil {
@@ -171,7 +175,7 @@ func executeAppMode(config *Config) error {
 		// Register only in the primary instance. A secondary launch must first
 		// activate the running product instead of racing it for this optional
 		// process-wide shortcut.
-		measurementShortcut, shortcutErr := registerMeasurementGlobalShortcut(measurementService, appContext)
+		measurementShortcut, shortcutErr := registerMeasurementGlobalShortcutWithActivity(measurementService, appContext, shell, productActivity)
 		if shortcutErr != nil {
 			warnMeasurementGlobalShortcutUnavailable(shortcutErr)
 		} else if measurementShortcut != nil {
@@ -185,6 +189,8 @@ func executeAppMode(config *Config) error {
 	var openMeasurement func(context.Context) error
 	if measurementService != nil {
 		openMeasurement = func(ctx context.Context) error {
+			finish := productActivity.begin("measurement")
+			defer finish()
 			return measurementService.OpenAndWait(ctx, "recorder-toolbar")
 		}
 	}
@@ -197,17 +203,36 @@ func executeAppMode(config *Config) error {
 		MeasurementOpen:                       openMeasurement,
 	}, environment, sharedUIDriver)
 	if err := shell.BindRecorderAction(func(event appshell.ActionEvent) error {
-		return recorder.Open(appContext, event.Source)
+		waitBeforeProductDesktopActivity(appContext, shell, productActivity, "recorder", event.Source)
+		finish := productActivity.begin("recorder")
+		if openErr := recorder.Open(appContext, event.Source); openErr != nil {
+			finish()
+			return openErr
+		}
+		// Open() intentionally returns after launching/re-showing the long-lived
+		// Recorder execution. Follow that execution's existing done channel so the
+		// product activity flag remains true until Recorder really closes.
+		recorder.mu.Lock()
+		done := recorder.done
+		recorder.mu.Unlock()
+		if done == nil {
+			finish()
+		} else {
+			go func() { <-done; finish() }()
+		}
+		return nil
 	}); err != nil {
 		return err
 	}
 	defer recorder.Cancel()
-	appScheduler, err := startAppScheduler(
+	appScheduler, err := startAppSchedulerWithActivity(
 		appContext,
 		config,
 		appPackage.Manifest.ID,
 		appPackage.Root,
 		environment.Values,
+		productActivity,
+		shell,
 		sharedUIDriver,
 	)
 	if err != nil {
