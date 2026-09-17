@@ -75,12 +75,7 @@ func TestMarketplaceInstallVerticalSlice(t *testing.T) {
 }
 
 func TestMarketplaceVerifiedPublisherDoesNotBypassLocalTrust(t *testing.T) {
-	fixture := newMarketplaceFixture(t, EntitlementFree)
-	fixture.release.VerifiedPublisher = true
-	fixture.attestation = signReleaseAttestation(t, fixture.release, fixture.marketplaceKey, nil)
-	// signReleaseAttestation needs the private key, so rebuild the complete
-	// fixture with a verified publisher while preserving the security case.
-	fixture = newMarketplaceFixtureWithVerifiedPublisher(t)
+	fixture := newMarketplaceFixtureWithVerifiedPublisher(t)
 	server, _ := newMarketplaceServer(t, fixture)
 	defer server.Close()
 	service := newFlowService(t)
@@ -183,7 +178,7 @@ func newMarketplaceFixtureWithVerifiedPublisher(t *testing.T) marketplaceFixture
 func buildMarketplaceFixture(t *testing.T, entitlement EntitlementPolicy, verified bool) marketplaceFixture {
 	t.Helper()
 	source := t.TempDir()
-	if err := os.WriteFile(filepath.Join(source, "main.js"), []byte(`throw new Error("install must never execute Flow code");\n`), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(source, "main.js"), []byte(`throw new Error("install must never execute Flow code");`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	publisherPublic, publisherPrivate, err := ed25519.GenerateKey(rand.Reader)
@@ -308,6 +303,9 @@ func assertNoTrustRecords(t *testing.T, service *flowinstall.Service) {
 	t.Helper()
 	recordsRoot := filepath.Join(service.Roots.TrustRoot, "records")
 	entries, err := os.ReadDir(recordsRoot)
+	if os.IsNotExist(err) {
+		return
+	}
 	if err != nil {
 		t.Fatalf("ReadDir(%s) error = %v", recordsRoot, err)
 	}
