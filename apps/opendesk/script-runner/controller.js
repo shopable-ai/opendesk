@@ -55,9 +55,27 @@
     const value = String(name || '');
     return value.length > 3
       && !value.startsWith('.')
-      && value.toLowerCase().endsWith('.js')
+      && (value.toLowerCase().endsWith('.js') || value.toLowerCase().endsWith('.mjs'))
       && !value.includes('/')
       && !value.includes('\\');
+  }
+
+  function isDirectScriptName(name) {
+    const value = String(name || '');
+    return isDirectJavaScriptName(value)
+      || (value.length > 5 && !value.startsWith('.')
+        && value.toLowerCase().endsWith('.odpkg')
+        && !value.includes('/') && !value.includes('\\'));
+  }
+
+  function isFlowEntryName(name) {
+    return /^flow:[a-z0-9-]{6,}$/.test(String(name || ''));
+  }
+
+  function scriptDisplayName(script) {
+    if (!script) return '';
+    if (typeof script === 'string') return script;
+    return script.displayName || script.name || '';
   }
 
   function validateOrderConfig(value) {
@@ -70,7 +88,7 @@
     const seen = new Set();
     const order = [];
     for (const entry of value.order) {
-      if (typeof entry !== 'string' || !isDirectJavaScriptName(entry) || seen.has(entry)) {
+      if (typeof entry !== 'string' || (!isDirectScriptName(entry) && !isFlowEntryName(entry)) || seen.has(entry)) {
         throw new Error('排序配置包含非法或重复脚本名');
       }
       seen.add(entry);
@@ -129,8 +147,9 @@
     const selectedName = resolveSelectedScriptName(items, selectedScriptName);
     const hasOverflow = items.length > COMPACT_VISIBLE_SCRIPT_COUNT;
     const rows = items.map((script, index) => {
-      const selected = script.name === selectedName;
-      return `<button id="compactScript${index}" class="compact-script${selected ? ' selected' : ''}" title="选择 ${escapeHTML(script.name)}" aria-label="选择 ${escapeHTML(script.name)}" aria-pressed="${selected ? 'true' : 'false'}"><span class="check">${selected ? '✓' : ''}</span><span class="script-name">${escapeHTML(script.name)}</span></button>`;
+    const selected = script.name === selectedName;
+      const displayName = scriptDisplayName(script);
+      return `<button id="compactScript${index}" class="compact-script${selected ? ' selected' : ''}" title="选择 ${escapeHTML(displayName)}" aria-label="选择 ${escapeHTML(displayName)}" aria-pressed="${selected ? 'true' : 'false'}"><span class="check">${selected ? '✓' : ''}</span><span class="script-name">${escapeHTML(displayName)}</span></button>`;
     });
     if (!rows.length) rows.push('<p class="compact-empty">暂无可运行脚本</p>');
     return `<!doctype html><html><head><meta charset="utf-8"></head><body>
@@ -174,7 +193,7 @@
       const selected = script && state.selectedNames && state.selectedNames.has(script.name) ? ' checked' : '';
       const upDisabled = !script || index === 0 ? ' disabled' : '';
       const downDisabled = !script || index === scripts.length - 1 ? ' disabled' : '';
-      const name = script ? script.name : '';
+      const name = script ? scriptDisplayName(script) : '';
       rowParts.push(
         `<input id="select${index}" class="select${hiddenClass}" type="checkbox" aria-label="选择第 ${index + 1} 个脚本"${selected}>`,
         `<p id="index${index}" class="index${hiddenClass}">${script ? index + 1 : ''}</p>`,
@@ -267,6 +286,7 @@
     const logger = settings.logger || global.console;
     const scriptRoot = settings.scriptRoot;
     const managedScriptRoot = settings.managedScriptRoot !== false;
+    const flowCatalogEnabled = settings.flowCatalog === true;
     const openListOnStart = settings.openListOnStart !== false;
     const hideListOnClose = settings.hideListOnClose === true;
     const closeListOnRunnerExit = settings.closeListOnRunnerExit === true;
@@ -297,6 +317,7 @@
     let configValid = true;
     let configError = '';
     let loadError = null;
+    let flowCatalogError = null;
     let loading = false;
     let lastOutcome = null;
     let listWindow = null;
@@ -364,13 +385,28 @@
       ensureManagedRoot();
       const names = [];
       for (const name of file.listDir(root)) {
-        if (!isDirectJavaScriptName(name)) continue;
+        if (!isDirectScriptName(name)) continue;
         const path = file.join(root, name);
         const entry = file.stat(path);
         if (entry && entry.type === 'file') names.push(name);
       }
       names.sort((left, right) => left.localeCompare(right));
       return names;
+    }
+
+    function directScriptEntry(name) {
+      const extension = String(name).toLowerCase().endsWith('.odpkg') ? '.odpkg' : '';
+      return {
+        name,
+        key: name,
+        path: file.join(root, name),
+        kind: extension ? 'protected-package' : 'script',
+        displayName: extension ? name.slice(0, -extension.length) : name,
+      };
+    }
+
+    function discoverEntries() {
+      return discoverNames().map(directScriptEntry);
     }
 
     function readOrder() {
@@ -381,12 +417,96 @@
     }
 
     function setScriptsFromNames(names) {
-      scripts = names.map(name => ({name, path: file.join(root, name)}));
-      const available = new Set(names);
+      setScriptsFromEntries(names.map(directScriptEntry));
+    }
+
+    function setScriptsFromEntries(entries) {
+      scripts = entries.map(entry => Object.assign({}, entry, {
+        name: entry.key || entry.name,
+      }));
+      const available = new Set(scripts.map(script => script.name));
       for (const selected of Array.from(selectedNames)) {
         if (!available.has(selected)) selectedNames.delete(selected);
       }
       selectedScriptName = resolveSelectedScriptName(scripts, selectedScriptName);
+    }
+
+    function decodeCommandJSON(result, operation) {
+      const output = result && typeof result.stdout === 'string' ? result.stdout.trim() : '';
+      if (!output) throw new Error(`${operation} 没有返回 JSON 结果`);
+      let envelope;
+      try {
+        envelope = JSON.parse(output);
+      } catch (error) {
+        const failure = new Error(`${operation} 返回了无效 JSON`);
+        failure.cause = error;
+        throw failure;
+      }
+      if (!envelope || envelope.ok !== true || !envelope.result) {
+        const error = new Error(envelope && envelope.error && envelope.error.message
+          ? String(envelope.error.message) : `${operation} 失败`);
+        error.code = envelope && envelope.error && envelope.error.code
+          ? String(envelope.error.code) : 'FLOW_CATALOG_FAILED';
+        throw error;
+      }
+      return envelope.result;
+    }
+
+    async function inspectProtectedDisplayName(entry) {
+      try {
+        const result = await command.run(executable, ['package', 'inspect', entry.path], {
+          cwd: execution.workdir,
+          timeout: 30000,
+          maxOutputBytes: MAX_OUTPUT_BYTES,
+          hideWindow: true,
+        });
+        const payload = decodeCommandJSON(result, 'package inspect');
+        const manifest = payload.manifest || {};
+        // Protected v1 has no display-name field. Package ID is authenticated
+        // public metadata and is the only safe friendly name available here.
+        if (typeof manifest.packageId === 'string' && manifest.packageId.trim()) {
+          entry.displayName = manifest.packageId.trim();
+        }
+      } catch (_) {
+        // A malformed or unauthorized package remains visible by its safe file
+        // stem and will fail at the existing protected execution boundary.
+      }
+      return entry;
+    }
+
+    async function discoverFlowEntries() {
+      const result = await command.run(executable, ['flow', 'list'], {
+        cwd: execution.workdir,
+        timeout: 30000,
+        maxOutputBytes: MAX_OUTPUT_BYTES,
+        hideWindow: true,
+      });
+      const payload = decodeCommandJSON(result, 'flow list');
+      if (!Array.isArray(payload.flows)) throw new Error('flow list 返回的 flows 不是数组');
+      return payload.flows.map(record => {
+        const installId = record && typeof record.installId === 'string' ? record.installId : '';
+        const name = record && typeof record.name === 'string' ? record.name.trim() : '';
+        if (!/^flow-[a-f0-9]{32}$/.test(installId) || !name) return null;
+        return {
+          name: `flow:${installId}`,
+          key: `flow:${installId}`,
+          path: `flow:${installId}`,
+          kind: 'flow',
+          installId,
+          state: record.state || 'blocked',
+          displayName: name,
+          record,
+        };
+      }).filter(Boolean);
+    }
+
+    async function discoverAllEntries() {
+      const direct = discoverEntries();
+      const protectedEntries = direct.filter(entry => entry.kind === 'protected-package');
+      await Promise.all(protectedEntries.map(inspectProtectedDisplayName));
+      if (!flowCatalogEnabled) return direct;
+      const flows = await discoverFlowEntries();
+      return direct.concat(flows);
     }
 
     function selectedScript() {
@@ -394,11 +514,21 @@
       return scripts.find(script => script.name === selectedScriptName) || null;
     }
 
+    function applyDiscoveredEntries(discovered) {
+      const discoveredKeys = discovered.map(entry => entry.key || entry.name);
+      const byKey = new Map(discovered.map(entry => [entry.key || entry.name, entry]));
+      const config = readOrder();
+      const orderedKeys = config.exists ? reconcileOrder(discoveredKeys, config.order) : discoveredKeys;
+      setScriptsFromEntries(orderedKeys.map(key => byKey.get(key)).filter(Boolean));
+      configValid = true;
+      configError = '';
+    }
+
     function loadScripts() {
       loadError = null;
       let discovered;
       try {
-        discovered = discoverNames();
+        discovered = discoverEntries();
       } catch (error) {
         // A directory-read failure is neither an empty list nor permission to
         // replace the current target. Keep the last known collection inert and
@@ -410,13 +540,42 @@
       }
 
       try {
-        const config = readOrder();
-        const ordered = config.exists ? reconcileOrder(discovered, config.order) : discovered;
-        setScriptsFromNames(ordered);
+        applyDiscoveredEntries(discovered);
+      } catch (error) {
+        setScriptsFromEntries(discovered);
+        configValid = false;
+        configError = normalizeError(error, 'ScriptRunner.loadOrder').message;
+        logError(error, 'ScriptRunner.loadOrder', {configFile});
+      }
+      return scripts;
+    }
+
+    async function loadAllScripts() {
+      loadError = null;
+      flowCatalogError = null;
+      let discovered;
+      try {
+        discovered = await discoverAllEntries();
+      } catch (error) {
         configValid = true;
         configError = '';
+        flowCatalogError = normalizeError(error, 'ScriptRunner.flowCatalog');
+        logError(error, 'ScriptRunner.flowCatalog', {scriptRoot: root});
+        // Keep legacy recipes available when the catalog command is not
+        // reachable. A product build still exposes the failure in status so
+        // an installed Flow is never silently presented as absent.
+        try {
+          discovered = discoverEntries();
+        } catch (directoryError) {
+          loadError = logError(directoryError, 'ScriptRunner.scan', {scriptRoot: root});
+          return scripts;
+        }
+      }
+
+      try {
+        applyDiscoveredEntries(discovered);
       } catch (error) {
-        setScriptsFromNames(discovered);
+        setScriptsFromEntries(discovered);
         configValid = false;
         configError = normalizeError(error, 'ScriptRunner.loadOrder').message;
         logError(error, 'ScriptRunner.loadOrder', {configFile});
@@ -445,13 +604,13 @@
     function idleLabel() {
       if (loadError) return '目录错误';
       const current = selectedScript();
-      return current ? current.name : '暂无脚本';
+      return current ? scriptDisplayName(current) : '暂无脚本';
     }
 
     function currentLabel() {
       if (!activeRun || !activeRun.current) return idleLabel();
-      if (activeRun.total > 1) return `${activeRun.index + 1}/${activeRun.total} · ${activeRun.current.name}`;
-      return activeRun.current.name;
+      if (activeRun.total > 1) return `${activeRun.index + 1}/${activeRun.total} · ${scriptDisplayName(activeRun.current)}`;
+      return scriptDisplayName(activeRun.current);
     }
 
     function viewState() {
@@ -482,10 +641,12 @@
     function defaultStatusMessage() {
       if (loading) return '正在读取脚本目录…';
       if (loadError) return `无法读取脚本目录：${loadError.message}`;
+      if (flowCatalogError) return `Flow Catalog 不可用：${flowCatalogError.message}`;
       if (!configValid) return `排序配置无效：${configError || '请恢复默认排序'}`;
       if (!scripts.length) return '当前没有可运行脚本。';
-      if (runPromise && activeRun && activeRun.current) return `正在运行：${activeRun.current.name}`;
-      return `当前脚本：${selectedScriptName || '暂无脚本'}`;
+      if (runPromise && activeRun && activeRun.current) return `正在运行：${scriptDisplayName(activeRun.current)}`;
+      const current = selectedScript();
+      return `当前脚本：${current ? scriptDisplayName(current) : '暂无脚本'}`;
     }
 
     async function safeControlUpdate(id, patch) {
@@ -504,7 +665,9 @@
 
     async function updateToolbar() {
       const busy = !!activeRun;
-      const runnable = !loadError && configValid && !!selectedScript();
+      const current = selectedScript();
+      const runnable = !loadError && configValid && !!current
+        && (current.kind !== 'flow' || current.state === 'ready');
       try {
         await toolbar.updateButton('run', {disabled: busy || !runnable, active: busy});
       } catch (_) {}
@@ -544,6 +707,8 @@
       const loadingVisible = currentView === 'loading';
       const rootText = loadError
         ? `脚本目录不可用：${loadError.message}`
+        : flowCatalogError
+          ? `Flow Catalog 不可用：${flowCatalogError.message}`
         : configValid
           ? `脚本目录：${root}`
           : `排序配置无效：${configError || '请恢复默认排序后再运行'}`;
@@ -579,32 +744,36 @@
           classes: ['select'],
         }));
         await safeControlUpdate(`index${index}`, {visible, text: script ? String(index + 1) : '', classes: ['index']});
-        await safeControlUpdate(`name${index}`, {visible, text: script ? script.name : '', classes: ['name']});
+        const displayName = script ? scriptDisplayName(script) : '';
+        await safeControlUpdate(`name${index}`, {visible, text: displayName, classes: ['name']});
         await safeControlUpdate(`run${index}`, {
           visible,
-          disabled: busy || !script || !configValid || !!loadError,
+          disabled: busy || !script || !configValid || !!loadError
+            || (script.kind === 'flow' && script.state !== 'ready'),
           icon: BUTTON_ICONS.run,
-          text: script ? `运行 ${script.name}` : '运行自动化',
+          text: script ? `运行 ${displayName}` : '运行自动化',
           classes: ['run', 'icon-button'],
         });
         await safeControlUpdate(`up${index}`, {
           visible,
           disabled: busy || !script || index === 0 || !!loadError,
           icon: BUTTON_ICONS.moveUp,
-          text: script ? `上移 ${script.name}` : '上移自动化',
+          text: script ? `上移 ${displayName}` : '上移自动化',
           classes: ['order', 'icon-button'],
         });
         await safeControlUpdate(`down${index}`, {
           visible,
           disabled: busy || !script || index === scripts.length - 1 || !!loadError,
           icon: BUTTON_ICONS.moveDown,
-          text: script ? `下移 ${script.name}` : '下移自动化',
+          text: script ? `下移 ${displayName}` : '下移自动化',
           classes: ['order', 'icon-button'],
         });
       }
 
       await safeControlUpdate('runSelected', {
-        disabled: busy || !!loadError || !configValid || scripts.length === 0 || selectedNames.size === 0,
+        disabled: busy || !!loadError || !configValid || scripts.length === 0 || selectedNames.size === 0
+          || scripts.some(script => selectedNames.has(script.name)
+            && script.kind === 'flow' && script.state !== 'ready'),
       });
       await safeControlUpdate('stopRun', {disabled: !busy});
       await safeControlUpdate('refresh', {disabled: busy});
@@ -663,33 +832,41 @@
             break;
           }
           const script = queue[index];
-          const info = file.stat(script.path);
-          if (!info || info.type !== 'file') {
-            const error = new Error(`脚本已不存在：${script.name}`);
-            error.code = 'FILE_NOT_FOUND';
-            throw error;
+          if (script.kind === 'flow') {
+            if (script.state !== 'ready') {
+              const error = new Error(`Flow 当前不可运行：${scriptDisplayName(script)}（${script.state || 'blocked'}）`);
+              error.code = script.state === 'needs-activation' ? 'needs_activation' : 'flow_blocked';
+              throw error;
+            }
+          } else {
+            const info = file.stat(script.path);
+            if (!info || info.type !== 'file') {
+              const error = new Error(`脚本已不存在：${scriptDisplayName(script)}`);
+              error.code = 'FILE_NOT_FOUND';
+              throw error;
+            }
           }
           run.index = index;
           run.current = script;
-          const logDir = nextRunLogDir(script.name);
+          const logDir = nextRunLogDir(scriptDisplayName(script));
           file.ensureDir(logDir);
-          await setListStatus(`正在运行 ${index + 1}/${queue.length}：${script.name}`);
+          await setListStatus(`正在运行 ${index + 1}/${queue.length}：${scriptDisplayName(script)}`);
           await syncUI();
           logRecord('SCRIPT_RUNNER_RUN_START', {
             source,
             index: index + 1,
             total: queue.length,
-            script: script.name,
+            script: scriptDisplayName(script),
+            scriptKey: script.name,
             scriptPath: script.path,
             logDir,
           });
 
           try {
-            const result = await command.run(executable, [
-              '-script', script.path,
-              '-console-mode', 'script',
-              '-log-dir', logDir,
-            ], {
+            const args = script.kind === 'flow'
+              ? ['flow', 'run', script.installId, '-log-dir', logDir]
+              : ['-script', script.path, '-console-mode', 'script', '-log-dir', logDir];
+            const result = await command.run(executable, args, {
               cwd: execution.workdir,
               timeout: 0,
               maxOutputBytes: MAX_OUTPUT_BYTES,
@@ -701,7 +878,8 @@
               source,
               index: index + 1,
               total: queue.length,
-              script: script.name,
+              script: scriptDisplayName(script),
+              scriptKey: script.name,
               status: 'succeeded',
               exitCode: result.exitCode,
               logDir,
@@ -715,20 +893,22 @@
                 source,
                 index: index + 1,
                 total: queue.length,
-                script: script.name,
+                script: scriptDisplayName(script),
+                scriptKey: script.name,
                 logDir,
               });
               break;
             }
             outcome = {
               status: 'failed', completed: index, total: queue.length,
-              failedScript: script.name, error: normalized,
+              failedScript: scriptDisplayName(script), error: normalized,
             };
             logError(error, 'Command.run', {
               source,
               index: index + 1,
               total: queue.length,
-              script: script.name,
+              script: scriptDisplayName(script),
+              scriptKey: script.name,
               logDir,
             });
             break;
@@ -805,7 +985,7 @@
       next.splice(target, 0, item);
       scripts = next;
       await saveCurrentOrder();
-      statusMessage = `已调整顺序；第一项 = ${scripts[0].name}`;
+      statusMessage = `已调整顺序；第一项 = ${scripts[0] ? scriptDisplayName(scripts[0]) : '暂无脚本'}`;
       await syncUI();
       return true;
     }
@@ -814,19 +994,14 @@
       if (runPromise) return false;
       const oldOrder = scripts.map(script => script.name);
       const oldCurrent = selectedScriptName;
-      let names;
-      try {
-        names = discoverNames();
-      } catch (error) {
-        loadError = logError(error, 'ScriptRunner.restoreDefaultOrder', {scriptRoot: root});
-        statusMessage = `无法恢复默认排序：${loadError.message}`;
-        await syncUI();
-        return false;
-      }
-      setScriptsFromNames(names);
+      loading = true;
+      await loadAllScripts();
+      loading = false;
+      const names = scripts.map(script => script.name);
       selectedScriptName = reconcileCurrentAfterRefresh(oldOrder, names, oldCurrent);
       await saveCurrentOrder();
-      statusMessage = scripts.length ? `已恢复默认文件名排序；当前脚本 = ${selectedScriptName}` : '已恢复默认排序；当前没有脚本。';
+      const current = selectedScript();
+      statusMessage = scripts.length ? `已恢复默认排序；当前脚本 = ${current ? scriptDisplayName(current) : '暂无脚本'}` : '已恢复默认排序；当前没有脚本。';
       await ensureListCapacity();
       await syncUI();
       return true;
@@ -851,17 +1026,20 @@
       loadError = null;
       statusMessage = '正在重新扫描脚本目录…';
       await syncUI();
-      loadScripts();
+      if (flowCatalogEnabled) await loadAllScripts();
+      else loadScripts();
       loading = false;
       if (!loadError) {
         selectedScriptName = reconcileCurrentAfterRefresh(oldOrder, scripts.map(script => script.name), oldCurrent);
       }
       statusMessage = loadError
         ? `重新扫描失败：${loadError.message}`
+        : flowCatalogError
+          ? `已扫描脚本，但 Flow Catalog 不可用：${flowCatalogError.message}`
         : !configValid
           ? `重新扫描完成，但 ${CONFIG_FILE} 仍无效。`
-          : scripts.length
-            ? `已重新扫描；当前脚本 = ${selectedScriptName}`
+        : scripts.length
+            ? `已重新扫描；当前脚本 = ${scriptDisplayName(selectedScript())}`
             : '已重新扫描；当前没有脚本。';
       const rebuilt = await ensureListCapacity();
       if (!rebuilt) await syncUI();
@@ -907,7 +1085,7 @@
       const script = scripts.find(item => item.name === name);
       if (!script) return false;
       selectedScriptName = script.name;
-      statusMessage = `当前脚本：${script.name}`;
+      statusMessage = `当前脚本：${scriptDisplayName(script)}`;
       await closeSelector();
       await safeToolbarUpdate();
       return true;
@@ -1136,16 +1314,19 @@
 
     async function run() {
       loading = true;
-      loadScripts();
+      if (flowCatalogEnabled) await loadAllScripts();
+      else loadScripts();
       loading = false;
       const shown = await toolbar.show();
       if (openListOnStart) await openList();
       statusMessage = loadError
         ? `无法读取脚本目录：${loadError.message}`
+        : flowCatalogError
+          ? `已加载脚本，但 Flow Catalog 不可用：${flowCatalogError.message}`
         : !configValid
           ? `排序配置无效：${configError || '请恢复默认排序'}`
-          : scripts.length
-            ? `已加载 ${scripts.length} 个脚本；当前脚本 = ${selectedScriptName}`
+        : scripts.length
+            ? `已加载 ${scripts.length} 个脚本；当前脚本 = ${scriptDisplayName(selectedScript())}`
             : '暂无可运行脚本。将 JavaScript Recipe 添加到脚本目录后点击“刷新”。';
       const rebuilt = await ensureListCapacity();
       if (!rebuilt) await syncUI();
@@ -1202,6 +1383,7 @@
         configError,
         loading,
         loadError: clone(loadError),
+        flowCatalogError: clone(flowCatalogError),
         viewState: viewState(),
         scriptCount: scripts.length,
         selectedScriptName,
@@ -1217,6 +1399,7 @@
           total: activeRun.total,
           index: activeRun.index,
           current: activeRun.current ? activeRun.current.name : null,
+          currentDisplayName: activeRun.current ? scriptDisplayName(activeRun.current) : null,
           canceled: activeRun.canceled,
         } : null,
       }),

@@ -9,12 +9,14 @@ import (
 	"opendesk/pkg/appshell"
 	"opendesk/pkg/customui"
 	pkgExecution "opendesk/pkg/execution"
+	"opendesk/pkg/flowinstall"
 	"opendesk/pkg/measurement"
 	"opendesk/pkg/runtimeenv"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 )
 
@@ -127,6 +129,125 @@ func executeAppMode(config *Config) error {
 	defer stopSignals()
 	appContext, cancelApp := context.WithCancel(signalContext)
 	defer cancelApp()
+	var flowService *flowinstall.Service
+	var flowInstallMu sync.Mutex
+	flowDocumentInstalled := false
+	flowDropSessionID := ""
+	if appshell.IsOpenDeskProduct(appPackage.Manifest) {
+		flowService, err = flowinstall.NewProductService(environment.Values)
+		if err != nil {
+			return fmt.Errorf("initialize Flow install service: %w", err)
+		}
+	}
+	flowTrustApprover := func(ctx context.Context, candidate flowinstall.TrustCandidate) (flowinstall.TrustDecision, error) {
+		host, ok := nativeHost.(appshell.FlowInstallHost)
+		if !ok {
+			return flowinstall.DecisionCancel, fmt.Errorf("native Flow trust prompt is unavailable")
+		}
+		decision, err := host.ConfirmFlowTrust(ctx, appshell.FlowTrustPrompt{
+			FlowID: candidate.FlowID, Name: candidate.Name, PublisherID: candidate.PublisherID,
+			PublisherKeyID: candidate.PublisherKeyID, PublisherFingerprint: candidate.PublisherFingerprint,
+		})
+		if err != nil {
+			return flowinstall.DecisionCancel, err
+		}
+		switch decision {
+		case appshell.FlowTrustFlow:
+			return flowinstall.DecisionFlow, nil
+		case appshell.FlowTrustPublisher:
+			return flowinstall.DecisionPublisher, nil
+		default:
+			return flowinstall.DecisionCancel, nil
+		}
+	}
+	installFlowDocument := func(path string, interactive bool) bool {
+		path = strings.TrimSpace(path)
+		if flowService == nil || path == "" {
+			return false
+		}
+		flowInstallMu.Lock()
+		defer flowInstallMu.Unlock()
+		var result flowinstall.InstallResult
+		var installErr error
+		switch strings.ToLower(filepath.Ext(path)) {
+		case ".odflow":
+			// Native document open is an installation request, not a run
+			// request. Unknown publishers remain blocked until the explicit
+			// trust UI exists; this callback never silently approves them.
+			options := flowinstall.InstallOptions{}
+			if interactive {
+				options.Approver = flowTrustApprover
+			}
+			result, installErr = flowService.Install(appContext, path, options)
+		case ".js", ".mjs":
+			result, installErr = flowService.InstallScript(appContext, path)
+		default:
+			log.Printf("[FLOW_INSTALL] rejected unsupported document path=%q", path)
+			return false
+		}
+		if installErr != nil {
+			log.Printf("[FLOW_INSTALL] blocked path=%q code=%s error=%v", path, flowinstall.CodeOf(installErr), installErr)
+			return false
+		}
+		flowDocumentInstalled = true
+		log.Printf("[FLOW_INSTALL] installed path=%q installId=%s idempotent=%t", path, result.Record.InstallID, result.Idempotent)
+		return true
+	}
+	if flowService != nil {
+		sharedUIDriver.SetFileDropHandler(func(event customui.FileDropEvent) {
+			// The shared native host also serves Recorder and other product
+			// surfaces. Only the App Mode execution that owns the Runner may
+			// turn a native file URL drop into a Flow installation request.
+			if flowDropSessionID == "" || event.SessionID != flowDropSessionID {
+				log.Printf("[FLOW_INSTALL] ignored file drop from session=%q window=%q", event.SessionID, event.WindowID)
+				return
+			}
+			paths := append([]string(nil), event.Paths...)
+			go func() {
+				installed := false
+				for _, path := range paths {
+					installed = installFlowDocument(path, true) || installed
+				}
+				if installed {
+					if activateErr := shell.Activate("flow-file-drop"); activateErr != nil {
+						log.Printf("[FLOW_INSTALL] Runner refresh activation failed after drop: %v", activateErr)
+					}
+				}
+			}()
+		})
+	}
+	if documentHost, ok := nativeHost.(appshell.OpenDocumentHost); ok {
+		documentHost.SetOpenDocumentHandler(func(path string) {
+			go func() {
+				if installFlowDocument(path, true) {
+					_ = shell.Activate("flow-document")
+				}
+			}()
+		})
+	}
+	if flowHost, ok := nativeHost.(appshell.FlowInstallHost); ok {
+		if err := shell.BindFlowInstallAction(func(appshell.ActionEvent) error {
+			go func() {
+				paths, pickerErr := flowHost.OpenFlowFiles(appContext)
+				if pickerErr != nil {
+					log.Printf("[FLOW_INSTALL] file picker failed: %v", pickerErr)
+					return
+				}
+				installed := false
+				for _, path := range paths {
+					installed = installFlowDocument(path, true) || installed
+				}
+				if installed {
+					if err := shell.Activate("flow-file-picker"); err != nil {
+						log.Printf("[FLOW_INSTALL] Runner refresh activation failed: %v", err)
+					}
+				}
+			}()
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
 	productActivity := newAppProductActivityCoordinator()
 	if measurementService != nil {
 		if err := shell.BindMeasurementAction(func(event appshell.ActionEvent) error {
@@ -154,8 +275,10 @@ func executeAppMode(config *Config) error {
 	shell.SetQuitHook(cancelApp)
 	stopSignalHook := context.AfterFunc(signalContext, func() { _ = shell.RequestQuit() })
 	defer stopSignalHook()
-
-	lease, primary, err := appshell.AcquireSingleInstance(appContext, appPackage.Manifest, func() bool {
+	lease, primary, err := appshell.AcquireSingleInstanceWithDocuments(appContext, appPackage.Manifest, config.FlowDocumentPaths, func(paths []string) bool {
+		for _, path := range paths {
+			installFlowDocument(path, true)
+		}
 		return shell.Activate("second-instance") == nil
 	})
 	if err != nil {
@@ -163,6 +286,9 @@ func executeAppMode(config *Config) error {
 	}
 	if !primary {
 		return nil
+	}
+	for _, path := range config.FlowDocumentPaths {
+		installFlowDocument(path, true)
 	}
 	leaseClosed := false
 	defer func() {
@@ -261,8 +387,19 @@ func executeAppMode(config *Config) error {
 	if err := shell.Start(appContext); err != nil {
 		return fmt.Errorf("start App Shell: %w", err)
 	}
+	flowInstallMu.Lock()
+	installedBeforeShellStart := flowDocumentInstalled
+	flowInstallMu.Unlock()
+	if installedBeforeShellStart {
+		// Refresh/discover the Runner after installation. This action only opens
+		// the Runner; it never starts the newly installed Flow.
+		if err := shell.Activate("flow-install"); err != nil {
+			log.Printf("[FLOW_INSTALL] Runner refresh activation failed: %v", err)
+		}
+	}
 
 	executionID := pkgExecution.NewExecutionID("app")
+	flowDropSessionID = executionID
 	appLogDir := artifactsRoot
 	if !artifactsConfigured {
 		appLogDir = filepath.Join(artifactsRoot, executionID)

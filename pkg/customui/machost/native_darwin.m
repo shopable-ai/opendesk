@@ -435,10 +435,37 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 // WKWebView otherwise treats that event as activation-only and the controlled
 // pointer bridge never sees a drag start. Accepting first mouse does not make
 // the application active or grant page JavaScript any Runtime capability.
-@interface CDWebView : WKWebView
+@interface CDWebView : WKWebView <NSDraggingDestination>
+@property(nonatomic, weak) id<CDFileDropDelegate> fileDropDelegate;
 @end
 
 @implementation CDWebView
+
+- (instancetype)initWithFrame:(NSRect)frame configuration:(WKWebViewConfiguration *)configuration {
+	self = [super initWithFrame:frame configuration:configuration];
+	if (self) [self registerForDraggedTypes:@[NSPasteboardTypeFileURL]];
+	return self;
+}
+
+- (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
+	return CDFileURLsFromDraggingInfo(sender).count ? NSDragOperationCopy : NSDragOperationNone;
+}
+
+- (NSDragOperation)draggingUpdated:(id<NSDraggingInfo>)sender {
+	return [self draggingEntered:sender];
+}
+
+- (BOOL)prepareForDragOperation:(id<NSDraggingInfo>)sender {
+	return CDFileURLsFromDraggingInfo(sender).count > 0;
+}
+
+- (BOOL)performDragOperation:(id<NSDraggingInfo>)sender {
+	NSArray<NSURL *> *urls = CDFileURLsFromDraggingInfo(sender);
+	if (!urls.count) return NO;
+	[self.fileDropDelegate fileDropDidReceiveURLs:urls];
+	return YES;
+}
+
 - (BOOL)acceptsFirstMouse:(NSEvent *)event {
     return YES;
 }
@@ -802,7 +829,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 
 @end
 
-@interface CDWindowController : NSObject <WKScriptMessageHandler, WKNavigationDelegate, NSWindowDelegate, CDDragOverlayDelegate, CDWebAccessibilityButtonProxyDelegate, CDWebAccessibilityInputProxyDelegate, CDFloatingToolbarDelegate>
+@interface CDWindowController : NSObject <WKScriptMessageHandler, WKNavigationDelegate, NSWindowDelegate, CDDragOverlayDelegate, CDWebAccessibilityButtonProxyDelegate, CDWebAccessibilityInputProxyDelegate, CDFloatingToolbarDelegate, CDFileDropDelegate>
 @property(nonatomic, copy) NSString *sessionID;
 @property(nonatomic, copy) NSString *windowID;
 @property(nonatomic, copy) NSString *kind;
@@ -855,6 +882,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 - (BOOL)fitHostDialogToContentLayout:(NSDictionary *)layout;
 - (void)failInitialNavigation:(NSError *)error;
 	- (void)refreshDragRegionsWithCompletion:(void (^)(NSError *error))completion;
+- (void)fileDropDidReceiveURLs:(NSArray<NSURL *> *)urls;
 @end
 
 static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger attempt);
@@ -936,6 +964,25 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
 	NSDictionary *state = [self.floatingToolbarView stateForButtonID:targetID window:self.window];
 	NSDictionary *bounds = [state[@"screenBounds"] isKindOfClass:NSDictionary.class] ? state[@"screenBounds"] : nil;
 	[self emitType:@"click" target:targetID body:(bounds ? @{@"bounds": bounds} : @{}) reason:nil];
+}
+
+- (void)fileDropDidReceiveURLs:(NSArray<NSURL *> *)urls {
+	if (self.closed || !urls.count) return;
+	NSMutableArray<NSString *> *paths = [NSMutableArray arrayWithCapacity:MIN(urls.count, 32)];
+	for (NSURL *url in urls) {
+		if (![url isKindOfClass:NSURL.class] || !url.isFileURL) continue;
+		NSString *path = url.path.stringByStandardizingPath;
+		if (!path.length || path.length > 4096 || !path.isAbsolutePath) continue;
+		NSString *extension = path.pathExtension.lowercaseString;
+		if (![@[@"odflow", @"js", @"mjs"] containsObject:extension]) continue;
+		NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil];
+		if (![attributes[NSFileType] isEqualToString:NSFileTypeRegular]) continue;
+		if (![paths containsObject:path]) [paths addObject:path];
+		if (paths.count >= 32) break;
+	}
+	if (paths.count) {
+		[self emitType:@"fileDrop" target:nil body:@{ @"paths": paths.copy } reason:@"externalFileDrop"];
+	}
 }
 
 - (void)floatingToolbarDidChangeControl:(NSString *)targetID type:(NSString *)type value:(id)value checked:(NSNumber *)checked {
@@ -1207,6 +1254,7 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
 	if (body[@"checked"] && body[@"checked"] != NSNull.null) event[@"checked"] = body[@"checked"];
 	if ([body[@"bounds"] isKindOfClass:NSDictionary.class]) event[@"bounds"] = body[@"bounds"];
 	if ([body[@"fields"] isKindOfClass:NSDictionary.class]) event[@"fields"] = body[@"fields"];
+	if ([body[@"paths"] isKindOfClass:NSArray.class]) event[@"paths"] = body[@"paths"];
 	if ([type isEqualToString:@"move"] || [type isEqualToString:@"resize"]) event[@"bounds"] = CDBoundsForWindow(self.window);
     if (reason.length) event[@"reason"] = reason;
     CDEmit(@{@"version": CDProtocolVersion, @"kind": @"event", @"event": event});
@@ -1785,6 +1833,7 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 		}
 		toolbarView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 		toolbarView.eventDelegate = controller;
+		toolbarView.fileDropDelegate = controller;
 		controller.floatingToolbarView = toolbarView;
 		window.contentView = toolbarView;
 		window.movableByWindowBackground = controller.draggable;
@@ -1819,9 +1868,11 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 	contentView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 	contentView.accessibilityElement = YES;
 	WKWebView *webView = [[CDWebView alloc] initWithFrame:contentView.bounds configuration:configuration];
+	[webView registerForDraggedTypes:@[NSPasteboardTypeFileURL]];
     webView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     webView.navigationDelegate = controller;
 	controller.webView = webView;
+	((CDWebView *)webView).fileDropDelegate = controller;
 	CDWebIconOverlayView *webIconOverlay = [[CDWebIconOverlayView alloc] initWithFrame:contentView.bounds];
 	webIconOverlay.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 	controller.webIconOverlay = webIconOverlay;

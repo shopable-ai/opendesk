@@ -97,6 +97,24 @@ func TestProcessDriverGlobalNativeSessionLease(t *testing.T) {
 	}
 }
 
+func TestValidateFileDropEventIsBoundedAndExtensionScoped(t *testing.T) {
+	valid := Event{WindowID: "runner", Type: "fileDrop", Sequence: 1, Paths: []string{"/tmp/example.odflow", "/tmp/recipe.mjs"}}
+	if err := validateFileDropEvent(valid, 0); err != nil {
+		t.Fatal(err)
+	}
+	for name, event := range map[string]Event{
+		"relative":    {WindowID: "runner", Type: "fileDrop", Sequence: 1, Paths: []string{"recipe.js"}},
+		"unsupported": {WindowID: "runner", Type: "fileDrop", Sequence: 1, Paths: []string{"/tmp/notes.txt"}},
+		"target":      {WindowID: "runner", Type: "fileDrop", TargetID: "button", Sequence: 1, Paths: []string{"/tmp/recipe.js"}},
+		"empty":       {WindowID: "runner", Type: "fileDrop", Sequence: 1},
+		"duplicate":   {WindowID: "runner", Type: "fileDrop", Sequence: 1, Paths: []string{"/tmp/recipe.js", "/tmp/recipe.js"}},
+	} {
+		if err := validateFileDropEvent(event, 0); err == nil {
+			t.Fatalf("%s file-drop event unexpectedly accepted", name)
+		}
+	}
+}
+
 func TestProcessDriverResourceCountsAreScopedToSession(t *testing.T) {
 	driver := NewProcessDriver(ProcessDriverOptions{Platform: "darwin"})
 	driver.sinks["app-session/main"] = nil

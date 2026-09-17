@@ -8,6 +8,6 @@ import (
 	"runtime"
 )
 
-func acquirePlatformSingleInstance(context.Context, string, func() bool) (InstanceLease, bool, error) {
+func acquirePlatformSingleInstance(context.Context, string, []string, func([]string) bool) (InstanceLease, bool, error) {
 	return nil, false, fmt.Errorf("App Mode single-instance is not supported on %s", runtime.GOOS)
 }

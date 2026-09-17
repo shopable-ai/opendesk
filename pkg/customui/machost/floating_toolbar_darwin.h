@@ -5,12 +5,21 @@
 - (void)floatingToolbarDidChangeControl:(NSString *)targetID type:(NSString *)type value:(id)value checked:(NSNumber *)checked;
 @end
 
+// File drops stay in the native host. The controller validates extensions and
+// emits the private fileDrop event; no dropped path is evaluated by WebKit.
+@protocol CDFileDropDelegate <NSObject>
+- (void)fileDropDidReceiveURLs:(NSArray<NSURL *> *)urls;
+@end
+
+NSArray<NSURL *> *CDFileURLsFromDraggingInfo(id<NSDraggingInfo> info);
+
 // Shared by the generic WebKit control bridge only to validate an existing
 // icon patch against the same generated registry as the native toolbar.
 BOOL CDIsTrustedToolbarSymbol(NSString *symbol);
 
 @interface CDToolbarView : NSView
 @property(nonatomic, weak) id<CDFloatingToolbarDelegate> eventDelegate;
+@property(nonatomic, weak) id<CDFileDropDelegate> fileDropDelegate;
 + (NSDictionary *)outerBoundsForSpec:(NSDictionary *)spec position:(NSDictionary *)position;
 + (BOOL)requiresKeyboardActivationForSpec:(NSDictionary *)spec;
 - (instancetype)initWithFrame:(NSRect)frame spec:(NSDictionary *)spec error:(NSError **)error;

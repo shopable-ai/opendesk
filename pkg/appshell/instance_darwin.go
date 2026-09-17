@@ -31,13 +31,13 @@ type darwinInstanceLease struct {
 	listener   net.Listener
 	socketPath string
 	token      []byte
-	activate   func() bool
+	activate   func([]string) bool
 	closing    atomic.Bool
 	closeOnce  sync.Once
 	wg         sync.WaitGroup
 }
 
-func acquirePlatformSingleInstance(ctx context.Context, key string, activate func() bool) (InstanceLease, bool, error) {
+func acquirePlatformSingleInstance(ctx context.Context, key string, paths []string, activate func([]string) bool) (InstanceLease, bool, error) {
 	dir, err := appInstanceStateDir()
 	if err != nil {
 		return nil, false, err
@@ -69,7 +69,7 @@ func acquirePlatformSingleInstance(ctx context.Context, key string, activate fun
 		info, readErr := readDarwinInstanceInfo(file)
 		if readErr == nil {
 			_ = file.Close()
-			accepted, activateErr := requestDarwinActivation(activationContext, info)
+			accepted, activateErr := requestDarwinActivation(activationContext, info, paths)
 			if activateErr != nil {
 				return nil, false, activateErr
 			}
@@ -108,7 +108,7 @@ func appInstanceStateDir() (string, error) {
 	return dir, nil
 }
 
-func startDarwinInstanceLease(file *os.File, dir, key string, activate func() bool) (*darwinInstanceLease, error) {
+func startDarwinInstanceLease(file *os.File, dir, key string, activate func([]string) bool) (*darwinInstanceLease, error) {
 	socketPath := filepath.Join(dir, key[:32]+".sock")
 	_ = os.Remove(socketPath)
 	listener, err := net.Listen("unix", socketPath)
@@ -169,7 +169,7 @@ func readDarwinInstanceInfo(file *os.File) (appInstanceInfo, error) {
 	return info, nil
 }
 
-func requestDarwinActivation(parent context.Context, info appInstanceInfo) (bool, error) {
+func requestDarwinActivation(parent context.Context, info appInstanceInfo, paths []string) (bool, error) {
 	ctx, cancel := context.WithTimeout(parent, appInstanceActivationTimeout)
 	defer cancel()
 	dialer := net.Dialer{}
@@ -181,7 +181,7 @@ func requestDarwinActivation(parent context.Context, info appInstanceInfo) (bool
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = connection.SetDeadline(deadline)
 	}
-	if err := json.NewEncoder(connection).Encode(appInstanceRequest{Command: "activate", Token: info.Token}); err != nil {
+	if err := json.NewEncoder(connection).Encode(appInstanceRequest{Command: "activate", Token: info.Token, Paths: paths}); err != nil {
 		return false, err
 	}
 	var response appInstanceResponse
@@ -210,7 +210,7 @@ func (l *darwinInstanceLease) handle(connection net.Conn) {
 		return
 	}
 	provided, err := hex.DecodeString(request.Token)
-	accepted := err == nil && request.Command == "activate" && hmac.Equal(provided, l.token) && !l.closing.Load() && l.activate()
+	accepted := err == nil && request.Command == "activate" && validateInstanceDocumentPaths(request.Paths) == nil && hmac.Equal(provided, l.token) && !l.closing.Load() && l.activate(request.Paths)
 	state := "RUNNING"
 	if !accepted {
 		state = "QUITTING"

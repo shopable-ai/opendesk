@@ -23,6 +23,7 @@ const (
 	ActionProductExamples      = "opendesk.examples"
 	ActionProductAPIDocs       = "opendesk.api-docs"
 	ActionProductAbout         = "opendesk.about"
+	ActionProductInstallFlow   = "opendesk.flow.install"
 
 	ActionLocaleAuto = "opendesk.locale.auto"
 	ActionLocaleZhCN = "opendesk.locale.zh-CN"
@@ -104,6 +105,7 @@ func openDeskProductMenu(manifest Manifest) []nativeMenuItem {
 	preference := localization.GetLocalePreference()
 	items := []nativeMenuItem{
 		{ID: ActionOpen, Label: translatedProductLabel("menu.open", "显示主窗口")},
+		{ID: ActionProductInstallFlow, Label: translatedProductLabel("menu.installFlow", "安装 Flow…")},
 		{Type: "separator"},
 	}
 	items = append(items, nativeMenuItems(manifest.Tray.Menu)...)
@@ -198,7 +200,8 @@ func isProductSystemAction(value string) bool {
 		ActionProductHome,
 		ActionProductHelp,
 		ActionProductCustomize,
-		ActionProductAbout:
+		ActionProductAbout,
+		ActionProductInstallFlow:
 		return true
 	default:
 		return false

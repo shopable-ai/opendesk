@@ -1,5 +1,5 @@
 {
-  "menu.open": "Show OpenDesk",
+  "menu.open": "Show OpenDesk", "menu.installFlow": "Install Flow…",
   "menu.assistant": "AI Assistant",
   "menu.recorder": "Record Automation",
   "menu.schedulerCenter": "Scheduler Center",

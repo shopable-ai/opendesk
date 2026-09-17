@@ -84,6 +84,22 @@ Current Execution / main.js
 1. Tray/Menu action **回到当前 App Mode Execution**，不会因为点击一个菜单项就启动第二个 Runtime。
 2. `automation.app` 只控制当前应用外壳；业务自动化仍继续使用 `UI`、`page`、`App`、`File`、`Command`、`ui` 等普通 OpenDesk API。
 
+## OpenDesk Flow 文件入口
+
+第一方 OpenDesk product App Mode 还提供统一的 Flow 导入入口：macOS Finder
+打开 `.odflow`、OpenDesk/Script Runner 实窗接收 `.odflow`/`.js`/`.mjs` 文件拖放、
+产品菜单中的“安装 Flow…”文件选择器，以及已运行实例收到的 LaunchServices 文档事件，
+都会把参数交给同一个 native `FlowInstallService`。拖放由 AppKit 原生 host 接收
+文件 URL，再以受限内部事件交给 product App Mode；路径不会进入页面 JavaScript，也不会
+拼接成 shell 命令。裸 `.js`/`.mjs` 只支持拖放或文件选择，不注册为系统双击关联。
+Windows 的文件关联沿用同一服务和安全的单实例文档转交协议；当前仓库只做
+source/cross-build 验证，未把 Windows live 行为写成通过。
+
+这些入口只做解析、签名/信任确认、安装和 Runner 刷新，不执行 Flow。未知发布者
+必须经过用户确认；安装完成后仍要在 Runner 中明确点击运行。当前 Windows 只保留
+相同的单实例文档转交/源码边界，文件关联与桌面 live 资格仍需目标系统验收。Flow 的 CLI 合同、
+trust scope 与卸载策略见 [Flow CLI](flow-cli.md) 和 [Flow 包格式与 CLI](flow-packages.md)。
+
 ## 普通 App 开发者的最短路径
 
 已经安装 OpenDesk Runtime 后，应用开发通常只需要：

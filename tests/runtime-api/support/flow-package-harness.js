@@ -44,7 +44,6 @@ File.write(contentKey, '404142434445464748494a4b4c4d4e4f505152535455565758595a5b
   function setupTrust(flowRoot, includeIssuer = false) {
     const trust = File.join(flowRoot, 'trust');
     File.ensureDir(trust);
-    File.copy(publisherPublic, File.join(trust, 'publisher.pub'));
     if (includeIssuer) File.copy(licenseIssuerPublic, File.join(trust, 'license-issuer.pub'));
   }
 
@@ -60,7 +59,7 @@ File.write(contentKey, '404142434445464748494a4b4c4d4e4f505152535455565758595a5b
   }
 
   function tamperStoredASCII(source, target, text) {
-    const bytes = File.readBytes(source);
+    const bytes = new Uint8Array(File.readBytes(source));
     const index = findASCII(bytes, text);
     assert(index >= 0, 'tamper target was not stored verbatim in .odflow');
     bytes[index] ^= 1;
@@ -137,7 +136,7 @@ File.write(contentKey, '404142434445464748494a4b4c4d4e4f505152535455565758595a5b
   }
 
   function tamperEntryByte(source, target, entryName) {
-    const bytes = File.readBytes(source);
+    const bytes = new Uint8Array(File.readBytes(source));
     const local = localEntryData(bytes, entryName);
     const central = centralEntryData(bytes, entryName);
     assert(local && central, 'ZIP entry not found: ' + entryName);

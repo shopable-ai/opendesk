@@ -4,11 +4,36 @@
 #include <string.h>
 #include "native_darwin.h"
 
+@interface ODAppShellApplicationDelegate : NSObject <NSApplicationDelegate>
+@end
+
+@implementation ODAppShellApplicationDelegate
+
+- (void)application:(NSApplication *)application openFiles:(NSArray<NSString *> *)filenames {
+    (void)application;
+    for (NSString *filename in filenames) {
+        if (![filename isKindOfClass:NSString.class] || !filename.length) continue;
+        char *rawPath = strdup(filename.fileSystemRepresentation ?: "");
+        if (!rawPath) continue;
+        opendeskAppShellDarwinOpenDocument(rawPath);
+        free(rawPath);
+    }
+    [NSApp replyToOpenOrPrint:NSApplicationDelegateReplySuccess];
+}
+
+- (BOOL)application:(NSApplication *)application openFile:(NSString *)filename {
+    [self application:application openFiles:filename.length ? @[filename] : @[]];
+    return YES;
+}
+
+@end
+
 @interface ODAppShellStatusController : NSObject
 @property(nonatomic, strong) NSStatusItem *statusItem;
 @property(nonatomic, strong) NSMenu *menu;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSMenuItem *> *items;
 @property(nonatomic, copy) NSString *primaryAction;
+@property(nonatomic, strong) ODAppShellApplicationDelegate *appDelegate;
 - (void)statusPressed:(id)sender;
 - (void)menuPressed:(id)sender;
 @end
@@ -132,6 +157,8 @@ int ODAppShellStart(const char *iconPath, int iconTemplate, const char *tooltip,
             // a 1024-point menu extra extending off-screen.
             image.size = NSMakeSize(18.0, 18.0);
             ODAppShellStatusController *controller = [ODAppShellStatusController new];
+            controller.appDelegate = [ODAppShellApplicationDelegate new];
+            [NSApp setDelegate:controller.appDelegate];
             controller.items = [NSMutableDictionary dictionary];
             controller.primaryAction = primaryAction ? [NSString stringWithUTF8String:primaryAction] : @"";
             controller.statusItem = [NSStatusBar.systemStatusBar statusItemWithLength:NSSquareStatusItemLength];
@@ -189,12 +216,74 @@ void ODAppShellActivate(void) {
     else dispatch_async(dispatch_get_main_queue(), activate);
 }
 
+int ODAppShellPickFlowFiles(char **pathsJSON, char **errorMessage) {
+    __block BOOL success = NO;
+    ODOnMainThread(^{
+        @autoreleasepool {
+            NSOpenPanel *panel = [NSOpenPanel openPanel];
+            panel.canChooseFiles = YES;
+            panel.canChooseDirectories = NO;
+            panel.allowsMultipleSelection = YES;
+            panel.allowedFileTypes = @[@"odflow", @"js", @"mjs"];
+            NSInteger response = [panel runModal];
+            if (response != NSModalResponseOK) {
+                if (pathsJSON) *pathsJSON = strdup("[]");
+                success = pathsJSON != NULL;
+                return;
+            }
+            NSMutableArray *paths = [NSMutableArray arrayWithCapacity:panel.URLs.count];
+            for (NSURL *url in panel.URLs) {
+                if (url.isFileURL && url.path.length) [paths addObject:url.path];
+            }
+            NSError *jsonError = nil;
+            NSData *data = [NSJSONSerialization dataWithJSONObject:paths options:0 error:&jsonError];
+            if (!data) {
+                ODSetError(errorMessage, jsonError.localizedDescription ?: @"cannot encode selected Flow paths");
+                return;
+            }
+            NSString *json = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+            if (pathsJSON) *pathsJSON = strdup(json.UTF8String ?: "[]");
+            success = pathsJSON != NULL && *pathsJSON != NULL;
+        }
+    });
+    return success ? 1 : 0;
+}
+
+int ODAppShellConfirmFlowTrust(const char *flowID, const char *name, const char *publisherID, const char *keyID, const char *fingerprint, int *decision, char **errorMessage) {
+    __block BOOL success = NO;
+    ODOnMainThread(^{
+        @autoreleasepool {
+            NSString *flowName = name ? [NSString stringWithUTF8String:name] : @"Flow";
+            NSString *publisher = publisherID ? [NSString stringWithUTF8String:publisherID] : @"unknown";
+            NSString *key = keyID ? [NSString stringWithUTF8String:keyID] : @"unknown";
+            NSString *finger = fingerprint ? [NSString stringWithUTF8String:fingerprint] : @"unknown";
+            NSString *identifier = flowID ? [NSString stringWithUTF8String:flowID] : @"unknown";
+            NSAlert *alert = [NSAlert new];
+            alert.messageText = [NSString stringWithFormat:@"Unverified publisher: %@", flowName];
+            alert.informativeText = [NSString stringWithFormat:@"Flow ID: %@\nPublisher: %@\nSigning key: %@\nFingerprint: %@\n\nOpenDesk verified the package signature, but this publisher is not trusted yet. Choose the narrowest trust scope.", identifier, publisher, key, finger];
+            [alert addButtonWithTitle:@"Cancel"];
+            [alert addButtonWithTitle:@"Install This Flow"];
+            [alert addButtonWithTitle:@"Trust Publisher & Install"];
+            NSModalResponse response = [alert runModal];
+            if (decision) {
+                if (response == NSAlertSecondButtonReturn) *decision = 1;
+                else if (response == NSAlertThirdButtonReturn) *decision = 2;
+                else *decision = 0;
+            }
+            success = YES;
+        }
+    });
+    if (!success && errorMessage && !*errorMessage) ODSetError(errorMessage, @"Flow trust prompt failed");
+    return success ? 1 : 0;
+}
+
 void ODAppShellTeardown(void) {
     ODOnMainThread(^{
         if (ODAppShellController) {
             ODAppShellController.statusItem.button.target = nil;
             ODClearMenuTargets(ODAppShellController.menu);
             [NSStatusBar.systemStatusBar removeStatusItem:ODAppShellController.statusItem];
+            if (NSApp.delegate == ODAppShellController.appDelegate) [NSApp setDelegate:nil];
             ODAppShellController = nil;
         }
         if (NSApp.running) [NSApp stop:nil];

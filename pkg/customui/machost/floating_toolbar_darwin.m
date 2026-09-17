@@ -45,6 +45,17 @@ BOOL CDIsTrustedToolbarSymbol(NSString *symbol) {
 	return [symbol isKindOfClass:NSString.class] && CDGeneratedToolbarIcons()[symbol] != nil;
 }
 
+NSArray<NSURL *> *CDFileURLsFromDraggingInfo(id<NSDraggingInfo> info) {
+	if (!info) return @[];
+	NSPasteboard *pasteboard = info.draggingPasteboard;
+	if (![pasteboard.types containsObject:NSPasteboardTypeFileURL]) return @[];
+	NSArray *objects = [pasteboard readObjectsForClasses:@[NSURL.class]
+		options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}];
+	NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:objects.count];
+	for (id object in objects) if ([object isKindOfClass:NSURL.class] && [object isFileURL]) [urls addObject:object];
+	return urls.copy;
+}
+
 static NSColor *CDToolbarColor(CGFloat red, CGFloat green, CGFloat blue) {
 	return [NSColor colorWithCalibratedRed:red green:green blue:blue alpha:1.0];
 }
@@ -1272,7 +1283,7 @@ static NSDictionary *CDToolbarLayoutForSpec(NSDictionary *spec, NSString **messa
 	return @{@"rows": rows.copy, @"width": @(width), @"height": @(height), @"structural": @(structural)};
 }
 
-@interface CDToolbarView () <NSTextFieldDelegate>
+@interface CDToolbarView () <NSTextFieldDelegate, NSDraggingDestination>
 @property(nonatomic, strong) NSMutableDictionary<NSString *, CDToolbarButton *> *buttonsByID;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, CDToolbarLabel *> *labelsByID;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, CDToolbarControlView *> *controlsByID;
@@ -1283,6 +1294,25 @@ static NSDictionary *CDToolbarLayoutForSpec(NSDictionary *spec, NSString **messa
 @end
 
 @implementation CDToolbarView
+
+- (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
+	return CDFileURLsFromDraggingInfo(sender).count ? NSDragOperationCopy : NSDragOperationNone;
+}
+
+- (NSDragOperation)draggingUpdated:(id<NSDraggingInfo>)sender {
+	return [self draggingEntered:sender];
+}
+
+- (BOOL)prepareForDragOperation:(id<NSDraggingInfo>)sender {
+	return CDFileURLsFromDraggingInfo(sender).count > 0;
+}
+
+- (BOOL)performDragOperation:(id<NSDraggingInfo>)sender {
+	NSArray<NSURL *> *urls = CDFileURLsFromDraggingInfo(sender);
+	if (!urls.count) return NO;
+	[self.fileDropDelegate fileDropDidReceiveURLs:urls];
+	return YES;
+}
 
 + (NSDictionary *)outerBoundsForSpec:(NSDictionary *)spec position:(NSDictionary *)position {
 	NSString *message = nil;
@@ -1310,6 +1340,7 @@ static NSDictionary *CDToolbarLayoutForSpec(NSDictionary *spec, NSString **messa
 - (instancetype)initWithFrame:(NSRect)frame spec:(NSDictionary *)spec error:(NSError **)error {
 	self = [super initWithFrame:frame];
 	if (!self) return nil;
+	[self registerForDraggedTypes:@[NSPasteboardTypeFileURL]];
 	uint64_t toolbarRevision = [spec[@"revision"] unsignedLongLongValue];
 	NSString *orientation = [spec[@"orientation"] isKindOfClass:NSString.class] ? spec[@"orientation"] : @"";
 	BOOL vertical = [orientation isEqualToString:@"vertical"];

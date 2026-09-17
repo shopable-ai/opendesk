@@ -74,11 +74,11 @@ UI 可以提前完善不依赖商业判断的部分，但 B5 整体完成依赖 
 
 前置：读取两份架构、AGENTS、现有 protected package CLI 和实际命令路由。无需真实客户、支付平台、公开 Market 或桌面输入权限。
 
-- **B0.1 格式与唯一 parser**：冻结 flow.json schema v1 的具体字段、ID 长度、路径规范、文件清单、Runtime／平台要求与 commercial 声明；明确原始字节签名域、大小限制、重复／未知字段行为、safe inspect 输出和错误码。同步签名固定向量；新的通用 proof v2 此批只固定与 Flow 的身份关联／兼容决策，真正 proof 校验代码由 B2 实现，不假装全部授权已经冻结可运行。
-- **B0.2 native writer/reader/verify + CLI**：新增或复用 `pkg/flow` 的格式、签名、受限容器检查；在现有 CLI 组织旁接入实际 `flow pack / inspect / verify` 命令（具体参数按实现一起冻结，不预先虚构）。复用 `.odpkg` 内层校验，不解密／执行业务。签名公钥参数用于开发侧候选校验，不能自动写客户 Trust Store。pack 从显式输入生成清单，签名私钥不进入输入树，既有输出不能静默覆盖。
-- **B0.3 可执行测试与文档**：新增 `tests/runtime-api/flow-package.js`（建议名）使用真实 OpenDesk／Command 接口调用真实 CLI，正向验证普通与受保护包结构、带资源清单，负向覆盖 Manifest／entry／asset／signature 篡改、重复条目、基本路径与上限、同名输出拒绝。必要内部密码／解析 seam 可有 Go 测试，但不能只交 Go 或 Node mock。CLI 先实现再同步 `docs/api/` 与正式测试注册。
+- **B0.1 格式与唯一 parser**：冻结 flow.json schema v1 的具体字段、ID 长度、路径规范、文件清单、Runtime／平台要求与 protected identity；明确原始字节签名域、大小限制、重复／未知字段行为、safe inspect 输出和错误码。同步签名固定向量；新的通用 proof v2 此批只固定与 Flow 的身份关联／兼容决策，真正 proof 校验代码由 B2 实现，不假装全部授权已经冻结可运行。
+- **B0.2 native writer/reader/verify + CLI**：复用 canonical `pkg/flowpackage` 的格式、签名、受限容器检查；在现有 CLI 组织旁接入实际 `flow pack / inspect / verify` 命令。复用 `.odpkg` 内层校验，不解密／执行业务。签名公钥参数用于开发侧候选校验，不能自动写客户 Trust Store。pack 从显式 `--file` 输入生成清单，签名私钥不进入输入树，既有输出不能静默覆盖。
+- **B0.3 可执行测试与文档**：`tests/runtime-api/flow-package.js` 使用真实 OpenDesk／Command 接口调用真实 CLI，正向验证普通与受保护包结构、带资源清单，负向覆盖 Manifest／entry／asset／signature 篡改、重复条目、基本路径与上限、同名输出拒绝。必要内部密码／解析 seam 可有 Go 测试，但不能只交 Go 或 Node mock。CLI 先实现再同步 `docs/api/` 与正式测试注册；安装/运行资格由独立 `tests/runtime-api/flow-distribution.js` gate 负责。
 
-建议改动面：`pkg/flow/{manifest,package,signature,errors}.go`（按实际 owner 收敛）、`schemas/flow/`、`internal/flowcli/`（拟新增，遵循现有 internal/packagecli 组织）、`cmd/opendesk/main.go` 仅路由、`tests/runtime-api/flow-package.js`、`tests/flow-distribution/fixtures/`、对应 API/测试注册。
+建议改动面：`pkg/flowpackage/`（唯一格式 owner）、`schemas/flow/`、`internal/flowcli/`、`cmd/opendesk/main.go` 仅路由、`tests/runtime-api/flow-package.js` 与 `tests/runtime-api/support/`、`examples/flow-distribution/`、对应 API/测试注册。
 
 验收 Oracle：合法包 verify 成功且业务计数为零；篡改任一受保护字节失败且计数仍零；inspect 不写源码／秘密、不把候选验签成功标作发布者已认证或客户已授权。对已加密入口只检验现有内层结构和签名所需材料，不要求商业激活。
 
@@ -94,7 +94,7 @@ UI 可以提前完善不依赖商业判断的部分，但 B5 整体完成依赖 
 - **B1.2 Catalog 和内容／数据分离**：`flows/<installId>/`、flow-data、flow-state 单 owner；本地生成 Manifest 不冒充发布者签名；裸 `.odpkg` 只在有合法可信材料时接入；重启可发现，显示名不承担身份。旧 recipes 作为兼容输入，保存原脚本／旁置资源／顺序／调用映射，不静默改根导致丢失。
 - **B1.3 事务／恢复／更新卸载**：同版同摘要幂等、同版异摘要拒绝、待授权更新不替换可用旧版；journal／staging／短期 rollback，目录与索引故障恢复；建立安装运行租约 seam，B4 接真实 Execution 后补运行期更新验收。卸载不删共享授权或其他 Flow 数据。
 
-建议面：`pkg/flow/{installer,catalog,transaction,trust}.go`，复用 `pkg/licensing` 信任存储／精确定位；`cmd/opendesk/app_paths.go` 只做必要接线；`internal/flowcli` 安装／列表命令；`tests/runtime-api/flow-installation.js`；内部文件系统与事务 seam。
+建议面：`pkg/flowinstall/`，复用 `pkg/licensing` 信任存储／精确定位；`cmd/opendesk/app_paths.go` 只做必要接线；`internal/flowcli` 安装／列表命令；`tests/runtime-api/flow-installation.js`；内部文件系统与事务 seam。
 
 演示：隔离目录内安装→重启/重新枚举→正确条目与锁定状态；重复／失败安装不破坏现有条目。安装失败业务零执行、无越界写入。
 
@@ -139,7 +139,7 @@ UI 可以提前完善不依赖商业判断的部分，但 B5 整体完成依赖 
 - **B4.3 Lease Supervisor**：宿主监督可续期的最早授权截止，复用取消上下文；refresh 后正确重设 timer，不用不可延长的固定 WithDeadline 再假装已经续期；断网不立即取消，硬截止／已知撤销取消目标任务。while(true)、异步与子进程归属验收，不能取消整个 App 或声称已完成外部交易回滚。
 - **B4.4 入口与能力收窄**：实际审查 direct CLI、ai run、App bridge、Scheduler、HTTP/MCP、嵌套模块和调试导出；已支持 .odpkg 的入口不回归，新 Flow 入口未安全接入则显式拒绝。远程传输不获得任意路径／本地权限；高级 capability 使用相同权益判断，不因 Manifest 声明自动授权。
 
-建议面：`pkg/flow` 执行编排，`pkg/scriptloader/{loader,protected,...}.go`，`cmd/opendesk/app_recipe_runner.go`、`main.go`，`internal/aicli`／`internal/protectedcli`，必要 `pkg/execution` 可信输入与取消接线，不复制 Runtime；`tests/runtime-api/flow-execution-entitlement.js`／`entitlement-runtime-deadline.js`／`flow-protected-artifacts.js`（建议名）。
+建议面：`pkg/flowinstall/` 执行编排，`pkg/scriptloader/{loader,protected,...}.go`，`cmd/opendesk/app_recipe_runner.go`、`main.go`，`internal/aicli`／`internal/protectedcli`，必要 `pkg/execution` 可信输入与取消接线，不复制 Runtime；`tests/runtime-api/flow-execution-entitlement.js`／`entitlement-runtime-deadline.js`／`flow-protected-artifacts.js`（建议名）。
 
 演示：同一业务 JS 与授权 .odpkg 读资源输出一致；无权零执行；短 TTL 长任务到点停止，续期可以延长合法运行；直接抽出 .odpkg 不能绕过；所有受控输出无测试秘密标记。
 

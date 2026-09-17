@@ -24,7 +24,14 @@
     const value = String(name || '');
     const parts = value.split(/[\\/]/);
     const base = parts[parts.length - 1] || value;
-    return base.toLowerCase().endsWith('.js') ? base.slice(0, -3) : base;
+    return /\.(?:m?js|odpkg)$/i.test(base) ? base.replace(/\.(?:m?js|odpkg)$/i, '') : base;
+  }
+
+  function displayScript(script) {
+    if (script && typeof script === 'object') {
+      return script.displayName || displayScriptName(script.name);
+    }
+    return displayScriptName(script);
   }
 
   function scriptNames(scripts) {
@@ -108,7 +115,8 @@
       const classes = ['script-row'];
       if (current) classes.push('current');
       if (highlighted) classes.push('highlight');
-      return `<button id="panelScript${index}" class="${classes.join(' ')}" title="${escapeHTML(script.path || script.name)}" aria-label="选择 ${escapeHTML(displayScriptName(script.name))}"${running || loadError ? ' disabled' : ''}><span class="marker" aria-hidden="true"></span><span class="script-name">${escapeHTML(displayScriptName(script.name))}</span></button>`;
+      const displayName = displayScript(script);
+      return `<button id="panelScript${index}" class="${classes.join(' ')}" title="${escapeHTML(script.path || displayName)}" aria-label="选择 ${escapeHTML(displayName)}"${running || loadError ? ' disabled' : ''}><span class="marker" aria-hidden="true"></span><span class="script-name">${escapeHTML(displayName)}</span></button>`;
     });
     const list = all.length
       ? `<div id="panelScriptList" class="script-list" aria-label="脚本列表">${rows.join('\n')}</div>`
@@ -242,7 +250,8 @@
       const readable = !state.loadError && state.configValid !== false;
       const runnable = readable && !!selected && names.includes(selected);
       const displayKey = currentDisplayKey();
-      const label = displayKey ? displayScriptName(displayKey) : state.loadError ? '目录错误' : '暂无脚本';
+      const selectedScript = scripts().find(item => item.name === displayKey);
+      const label = displayKey ? displayScript(selectedScript || displayKey) : state.loadError ? '目录错误' : '暂无脚本';
       await safeToolbar('updateButton', 'run', {disabled: running || !runnable, active: running});
       await safeToolbar('updateButton', 'stop', {disabled: !running, active: false});
       await safeToolbar('updateButton', 'previous', {disabled: running || !readable || index <= 0});

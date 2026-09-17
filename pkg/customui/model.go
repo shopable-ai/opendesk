@@ -225,6 +225,20 @@ type Event struct {
 	Bounds    *Bounds        `json:"bounds,omitempty"`
 	Reason    string         `json:"reason,omitempty"`
 	Fields    map[string]any `json:"fields,omitempty"`
+	// Paths is an internal native-host payload for the fileDrop event. It is
+	// deliberately not a public JavaScript UI event; the first-party App Mode
+	// owner consumes it and routes each path through FlowInstallService.
+	Paths []string `json:"paths,omitempty"`
+}
+
+// FileDropEvent is emitted by the native host when Finder (or another file
+// provider) drops supported files on an OpenDesk custom UI window. The event
+// never enters the public UI event callback; ProcessDriver delivers it only to
+// the explicitly registered product handler.
+type FileDropEvent struct {
+	SessionID string
+	WindowID  string
+	Paths     []string
 }
 
 func IsPublicEventType(eventType string) bool {

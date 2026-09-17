@@ -142,6 +142,7 @@ async function fixture(options = {}) {
   };
   const app = Runner.createApp({
     scriptRoot,
+    flowCatalog: options.flowCatalog === true,
     managedScriptRoot: options.managedScriptRoot !== false,
     openListOnStart: options.openListOnStart !== false,
     hideListOnClose: options.hideListOnClose === true,
@@ -616,6 +617,74 @@ test('toolbar Run executes selected script rather than the first script', async 
     assert.equal(f.calls.length, 1);
     assert.equal(path.basename(f.calls[0].args[1]), 'b.js');
     assert.equal(f.app.state().selectedScriptName, 'b.js');
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('Flow Catalog entries use stable install identity, manifest display name, and explicit flow run', async () => {
+  const installId = 'flow-' + 'a'.repeat(32);
+  const catalog = JSON.stringify({
+    ok: true,
+    command: 'flow.list',
+    result: {flows: [{installId, name: 'Export Orders', state: 'ready'}]},
+  });
+  const fCalls = [];
+  const f = await fixture({
+    flowCatalog: true,
+    scriptNames: [],
+    command: {
+      async run(executable, args, options) {
+        fCalls.push({executable, args, options});
+        if (args[0] === 'flow' && args[1] === 'list') return {exitCode: 0, stdout: catalog, stderr: ''};
+        if (args[0] === 'flow' && args[1] === 'run') return {exitCode: 0, stdout: '', stderr: ''};
+        throw new Error(`unexpected command: ${args.join(' ')}`);
+      },
+    },
+  });
+  try {
+    assert.deepEqual(f.app.scripts().map(script => ({name: script.name, displayName: script.displayName, kind: script.kind})), [
+      {name: `flow:${installId}`, displayName: 'Export Orders', kind: 'flow'},
+    ]);
+    assert.equal(f.app.state().selectedScriptName, `flow:${installId}`);
+    assert.equal(f.toolbar.labels.get('script').text, 'Export Orders');
+    assert.equal(fCalls.filter(call => call.args[0] === 'flow' && call.args[1] === 'run').length, 0);
+    const outcome = await f.toolbar.buttons.get('run').callback();
+    assert.deepEqual(outcome, {status: 'succeeded', completed: 1, total: 1});
+    const flowRun = fCalls.find(call => call.args[0] === 'flow' && call.args[1] === 'run');
+    assert.deepEqual(flowRun.args.slice(0, 3), ['flow', 'run', installId]);
+    assert.equal(flowRun.args.includes('-script'), false);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('Runner keeps bare odpkg on the protected -script path and displays authenticated package metadata', async () => {
+  const fCalls = [];
+  const f = await fixture({
+    flowCatalog: true,
+    scriptNames: ['sealed.odpkg'],
+    command: {
+      async run(executable, args, options) {
+        fCalls.push({executable, args, options});
+        if (args[0] === 'flow' && args[1] === 'list') return {exitCode: 0, stdout: JSON.stringify({ok: true, result: {flows: []}}), stderr: ''};
+        if (args[0] === 'package' && args[1] === 'inspect') {
+          return {exitCode: 0, stdout: JSON.stringify({ok: true, result: {manifest: {packageId: 'protected-export'}}}), stderr: ''};
+        }
+        if (args[0] === '-script') return {exitCode: 0, stdout: '', stderr: ''};
+        throw new Error(`unexpected command: ${args.join(' ')}`);
+      },
+    },
+  });
+  try {
+    assert.equal(f.app.scripts()[0].displayName, 'protected-export');
+    assert.equal(f.toolbar.labels.get('script').text, 'protected-export');
+    assert.equal(fCalls.filter(call => call.args[0] === '-script').length, 0);
+    const outcome = await f.toolbar.buttons.get('run').callback();
+    assert.equal(outcome.status, 'succeeded');
+    const runCall = fCalls.find(call => call.args[0] === '-script');
+    assert(runCall, 'bare odpkg was not sent through -script');
+    assert.equal(runCall.args[1].endsWith('sealed.odpkg'), true);
   } finally {
     await f.cleanup();
   }

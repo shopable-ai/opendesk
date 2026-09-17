@@ -46,7 +46,7 @@ func appModeRuntimeArtifactsRootForPackage(packageRoot, bundledRoot, packageID, 
 }
 
 func appModeDataRoot(packageID string, environment map[string]string) (string, error) {
-	return appdata.Resolve(packageID, environment)
+	return appdata.Root(packageID, environment)
 }
 
 func samePath(left, right string) bool {

@@ -118,6 +118,26 @@ func (h *localizedNativeHost) Teardown(ctx context.Context) error {
 
 func (h *localizedNativeHost) Wait() { h.inner.Wait() }
 
+func (h *localizedNativeHost) SetOpenDocumentHandler(handler func(string)) {
+	if host, ok := h.inner.(OpenDocumentHost); ok {
+		host.SetOpenDocumentHandler(handler)
+	}
+}
+
+func (h *localizedNativeHost) OpenFlowFiles(ctx context.Context) ([]string, error) {
+	if host, ok := h.inner.(FlowInstallHost); ok {
+		return host.OpenFlowFiles(ctx)
+	}
+	return nil, fmt.Errorf("native Flow file picker is unavailable")
+}
+
+func (h *localizedNativeHost) ConfirmFlowTrust(ctx context.Context, prompt FlowTrustPrompt) (FlowTrustDecision, error) {
+	if host, ok := h.inner.(FlowInstallHost); ok {
+		return host.ConfirmFlowTrust(ctx, prompt)
+	}
+	return FlowTrustCancel, fmt.Errorf("native Flow trust prompt is unavailable")
+}
+
 func (h *localizedNativeHost) RunMain(ctx context.Context) error {
 	if host, ok := h.inner.(MainThreadHost); ok {
 		return host.RunMain(ctx)

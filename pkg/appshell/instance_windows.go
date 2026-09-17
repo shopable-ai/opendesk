@@ -20,7 +20,7 @@ type windowsInstanceLease struct {
 	mutex      windows.Handle
 	pipeName   string
 	security   *windows.SecurityAttributes
-	activate   func() bool
+	activate   func([]string) bool
 	closing    atomic.Bool
 	mu         sync.Mutex
 	activePipe windows.Handle
@@ -28,7 +28,7 @@ type windowsInstanceLease struct {
 	wg         sync.WaitGroup
 }
 
-func acquirePlatformSingleInstance(ctx context.Context, key string, activate func() bool) (InstanceLease, bool, error) {
+func acquirePlatformSingleInstance(ctx context.Context, key string, paths []string, activate func([]string) bool) (InstanceLease, bool, error) {
 	security, err := currentUserSecurityAttributes()
 	if err != nil {
 		return nil, false, err
@@ -41,7 +41,7 @@ func acquirePlatformSingleInstance(ctx context.Context, key string, activate fun
 	mutex, mutexErr := windows.CreateMutex(security, false, mutexName)
 	if errors.Is(mutexErr, windows.ERROR_ALREADY_EXISTS) {
 		_ = windows.CloseHandle(mutex)
-		accepted, err := requestWindowsActivation(ctx, `\\.\pipe\OpenDesk.App.`+key)
+		accepted, err := requestWindowsActivation(ctx, `\\.\pipe\OpenDesk.App.`+key, paths)
 		if err != nil {
 			return nil, false, err
 		}
@@ -161,10 +161,10 @@ func (l *windowsInstanceLease) handle(pipe windows.Handle) {
 		return
 	}
 	var request appInstanceRequest
-	if err := json.Unmarshal(bytes.TrimSpace(buffer[:read]), &request); err != nil || request.Command != "activate" {
+	if err := json.Unmarshal(bytes.TrimSpace(buffer[:read]), &request); err != nil || request.Command != "activate" || validateInstanceDocumentPaths(request.Paths) != nil {
 		return
 	}
-	accepted := !l.closing.Load() && l.activate()
+	accepted := !l.closing.Load() && l.activate(request.Paths)
 	state := "RUNNING"
 	if !accepted {
 		state = "QUITTING"
@@ -174,7 +174,7 @@ func (l *windowsInstanceLease) handle(pipe windows.Handle) {
 	_ = windows.WriteFile(pipe, append(data, '\n'), &written, nil)
 }
 
-func requestWindowsActivation(parent context.Context, pipeName string) (bool, error) {
+func requestWindowsActivation(parent context.Context, pipeName string, paths []string) (bool, error) {
 	ctx, cancel := context.WithTimeout(parent, appInstanceActivationTimeout)
 	defer cancel()
 	name, err := windows.UTF16PtrFromString(pipeName)
@@ -198,7 +198,7 @@ func requestWindowsActivation(parent context.Context, pipeName string) (bool, er
 	defer closePipe()
 	stop := context.AfterFunc(ctx, closePipe)
 	defer stop()
-	data, _ := json.Marshal(appInstanceRequest{Command: "activate"})
+	data, _ := json.Marshal(appInstanceRequest{Command: "activate", Paths: paths})
 	var written uint32
 	if err := windows.WriteFile(pipe, append(data, '\n'), &written, nil); err != nil {
 		return false, err

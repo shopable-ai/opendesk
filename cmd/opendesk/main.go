@@ -17,6 +17,7 @@ import (
 	"opendesk/automation"
 	"opendesk/internal/aicli"
 	"opendesk/internal/appcli"
+	"opendesk/internal/flowcli"
 	"opendesk/internal/licensecli"
 	"opendesk/internal/packagecli"
 	pkgContainer "opendesk/pkg/container"
@@ -77,6 +78,43 @@ func isMacOSLaunchServicesPSN(arg string) bool {
 		}
 	}
 	return true
+}
+
+// flowDocumentPaths accepts only explicit file arguments that the native App
+// Mode entry point can install. Paths remain ordinary argv values all the way
+// into the FlowInstallService; no shell command or path concatenation is used.
+func flowDocumentPaths(args []string) []string {
+	seen := make(map[string]struct{})
+	paths := make([]string, 0, len(args))
+	for _, arg := range args {
+		arg = strings.TrimSpace(arg)
+		if arg == "" || arg == "--" || strings.HasPrefix(arg, "-") {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(arg))
+		// Only .odflow is a registered LaunchServices/file-association
+		// document. Plain .js/.mjs stay on their existing -script path; the
+		// native picker and drop-capable future hosts may still pass them to
+		// FlowInstallService explicitly.
+		if ext != ".odflow" {
+			continue
+		}
+		absolute, err := filepath.Abs(arg)
+		if err != nil {
+			continue
+		}
+		info, err := os.Stat(absolute)
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		absolute = filepath.Clean(absolute)
+		if _, ok := seen[absolute]; ok {
+			continue
+		}
+		seen[absolute] = struct{}{}
+		paths = append(paths, absolute)
+	}
+	return paths
 }
 
 func normalizeMacOSLaunchServicesArgs() {
@@ -195,6 +233,7 @@ func appModeRequested(args []string) bool {
 // Config holds the application configuration
 type Config struct {
 	AppPath                               string
+	FlowDocumentPaths                     []string
 	ScriptPath                            string
 	ScriptText                            string
 	ScriptStdin                           bool
@@ -340,6 +379,9 @@ func main() {
 	if packagecli.IsCommand(args) {
 		os.Exit(packagecli.Execute(args, os.Stdout, os.Stderr))
 	}
+	if flowcli.IsCommand(args) {
+		os.Exit(flowcli.Execute(args, os.Stdout, os.Stderr))
+	}
 	if licensecli.IsCommand(args) {
 		os.Exit(licensecli.Execute(args, os.Stdout, os.Stderr))
 	}
@@ -378,7 +420,8 @@ func main() {
 	}()
 
 	config := parseFlags()
-	if config.AppPath == "" && len(commandLineArgs()) == 0 {
+	config.FlowDocumentPaths = flowDocumentPaths(commandLineArgs())
+	if config.AppPath == "" && (len(commandLineArgs()) == 0 || len(config.FlowDocumentPaths) > 0) {
 		if defaultAppMode := bundledAppModePath(); defaultAppMode != "" {
 			config.AppPath = defaultAppMode
 			// A staged App Mode package is the trusted desktop entry point. Keep

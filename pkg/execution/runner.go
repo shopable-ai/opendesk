@@ -12,10 +12,12 @@ import (
 	"opendesk/pkg/nativeextension"
 	"opendesk/pkg/runtimeenv"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/eventloop"
@@ -69,6 +71,9 @@ type Request struct {
 	// Execution.workdir and the shared base for every File method. It never
 	// mutates the process working directory.
 	WorkDir string
+	// Flow is an optional host-bound installed Flow context. Direct legacy
+	// scripts leave it nil; it is never inferred from SourceLabel or cwd.
+	Flow *FlowContext
 	// Environment is a caller-owned snapshot exposed as Execution.env and used
 	// as Command.run's default child environment. Local CLI entrypoints populate
 	// it; remote and scheduled entrypoints deliberately leave it empty.
@@ -181,6 +186,13 @@ type Request struct {
 	Selection TerminalSelection
 }
 
+// FlowContext identifies immutable installed resources and the separate
+// writable business-data directory for one verified Flow execution.
+type FlowContext struct {
+	Root    string
+	DataDir string
+}
+
 // Run 执行脚本并返回结果与摘要。
 func Run(req Request) (ExecutionResult, AgentSummary, error) {
 	startedAt := time.Now()
@@ -216,6 +228,11 @@ func RunWithEmitter(req Request, emitter *Emitter) (ExecutionResult, AgentSummar
 		return ExecutionResult{}, AgentSummary{}, err
 	}
 	req.ScriptPath = scriptPath
+	flowContext, err := normalizeFlowContext(req.Flow)
+	if err != nil {
+		return ExecutionResult{}, AgentSummary{}, err
+	}
+	req.Flow = flowContext
 	environment, err := runtimeenv.Clone(req.Environment)
 	if err != nil {
 		return ExecutionResult{}, AgentSummary{}, fmt.Errorf("normalize execution environment: %w", err)
@@ -442,6 +459,11 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				return
 			}
 			if err := registerExecutionContext(rt, req); err != nil {
+				runtimeErr = err
+				loop.StopNoWait()
+				return
+			}
+			if err := registerFlowContext(rt, req.Flow); err != nil {
 				runtimeErr = err
 				loop.StopNoWait()
 				return
@@ -870,6 +892,113 @@ func registerExecutionContext(rt *goja.Runtime, req Request) error {
 		return err
 	}
 	return freezeExecutionObject(rt, context, "Execution")
+}
+
+func registerFlowContext(rt *goja.Runtime, flow *FlowContext) error {
+	if rt == nil {
+		return fmt.Errorf("runtime is required")
+	}
+	if flow == nil {
+		return nil
+	}
+	object := rt.NewObject()
+	if err := object.Set("root", flow.Root); err != nil {
+		return fmt.Errorf("register Flow.root: %w", err)
+	}
+	if err := object.Set("dataDir", flow.DataDir); err != nil {
+		return fmt.Errorf("register Flow.dataDir: %w", err)
+	}
+	resolve := func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) != 1 {
+			panic(rt.NewGoError(fmt.Errorf("Flow.resolve requires exactly one relative resource path")))
+		}
+		value, ok := call.Argument(0).Export().(string)
+		if !ok {
+			panic(rt.NewGoError(fmt.Errorf("Flow.resolve path must be a string")))
+		}
+		resolved, err := resolveFlowResource(flow.Root, value)
+		if err != nil {
+			panic(rt.NewGoError(err))
+		}
+		return rt.ToValue(resolved)
+	}
+	if err := object.Set("resolve", resolve); err != nil {
+		return fmt.Errorf("register Flow.resolve: %w", err)
+	}
+	if err := rt.Set("Flow", object); err != nil {
+		return err
+	}
+	return freezeExecutionObject(rt, object, "Flow")
+}
+
+func normalizeFlowContext(flow *FlowContext) (*FlowContext, error) {
+	if flow == nil {
+		return nil, nil
+	}
+	normalizeDirectory := func(label, value string) (string, error) {
+		if strings.TrimSpace(value) == "" || !filepath.IsAbs(value) {
+			return "", fmt.Errorf("%s must be an absolute directory", label)
+		}
+		value = filepath.Clean(value)
+		info, err := os.Lstat(value)
+		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return "", fmt.Errorf("%s must be a real directory", label)
+		}
+		return value, nil
+	}
+	root, err := normalizeDirectory("Flow.root", flow.Root)
+	if err != nil {
+		return nil, err
+	}
+	dataDir, err := normalizeDirectory("Flow.dataDir", flow.DataDir)
+	if err != nil {
+		return nil, err
+	}
+	if pathsOverlap(root, dataDir) {
+		return nil, fmt.Errorf("Flow resources and data directory must be separate")
+	}
+	return &FlowContext{Root: root, DataDir: dataDir}, nil
+}
+
+func pathsOverlap(left, right string) bool {
+	inside := func(parent, child string) bool {
+		relative, err := filepath.Rel(parent, child)
+		return err == nil && (relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))))
+	}
+	return inside(left, right) || inside(right, left)
+}
+
+func resolveFlowResource(root, name string) (string, error) {
+	if name == "" || len(name) > 512 || !utf8.ValidString(name) || strings.Contains(name, "\\") || strings.HasPrefix(name, "/") || filepath.VolumeName(name) != "" || strings.Contains(name, ":") {
+		return "", fmt.Errorf("Flow.resolve requires a portable relative resource path")
+	}
+	cleaned := path.Clean(name)
+	if cleaned != name || cleaned == "." {
+		return "", fmt.Errorf("Flow.resolve path is not canonical")
+	}
+	components := strings.Split(cleaned, "/")
+	if len(components) > 32 {
+		return "", fmt.Errorf("Flow.resolve path depth exceeds its limit")
+	}
+	rootHandle, err := os.OpenRoot(root)
+	if err != nil {
+		return "", fmt.Errorf("open Flow resource root: %w", err)
+	}
+	defer rootHandle.Close()
+	for index, component := range components {
+		if component == "" || component == "." || component == ".." || strings.HasSuffix(component, ".") || strings.HasSuffix(component, " ") {
+			return "", fmt.Errorf("Flow.resolve path component is invalid")
+		}
+		partial := filepath.Join(components[:index+1]...)
+		info, err := rootHandle.Lstat(partial)
+		if err != nil {
+			return "", fmt.Errorf("Flow resource is unavailable: %w", err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 || (index < len(components)-1 && !info.IsDir()) || (index == len(components)-1 && info.Mode()&os.ModeType != 0 && !info.IsDir()) {
+			return "", fmt.Errorf("Flow resource path contains a link or special file")
+		}
+	}
+	return filepath.Join(root, filepath.FromSlash(cleaned)), nil
 }
 
 func freezeExecutionObject(rt *goja.Runtime, object *goja.Object, label string) error {

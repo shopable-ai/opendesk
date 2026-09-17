@@ -57,6 +57,12 @@ func Resolve(packageID string, environment map[string]string) (string, error) {
 	return filepath.Clean(root), nil
 }
 
+// Root preserves the original App Mode owner name while delegating to the
+// shared resolver used by both App Mode and Flow installation.
+func Root(packageID string, environment map[string]string) (string, error) {
+	return Resolve(packageID, environment)
+}
+
 func ensureDataRoot(root string) error {
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return err

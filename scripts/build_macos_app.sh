@@ -225,6 +225,46 @@ cat > "${PLIST_PATH}" <<EOF
   <string>${VERSION}</string>
   <key>CFBundleVersion</key>
   <string>1</string>
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>OpenDesk Flow</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>com.opendesk.flow</string>
+      </array>
+      <key>CFBundleTypeExtensions</key>
+      <array>
+        <string>odflow</string>
+      </array>
+    </dict>
+  </array>
+  <key>UTExportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key>
+      <string>com.opendesk.flow</string>
+      <key>UTTypeDescription</key>
+      <string>OpenDesk Flow package</string>
+      <key>UTTypeConformsTo</key>
+      <array>
+        <string>public.data</string>
+        <string>public.archive</string>
+      </array>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key>
+        <array>
+          <string>odflow</string>
+        </array>
+        <key>public.mime-type</key>
+        <string>application/vnd.opendesk.flow</string>
+      </dict>
+    </dict>
+  </array>
   <key>LSMinimumSystemVersion</key>
   <string>${MACOS_DEPLOYMENT_TARGET}</string>
   <key>LSUIElement</key>

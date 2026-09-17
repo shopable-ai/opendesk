@@ -128,7 +128,7 @@
 
   function formatScriptLabelText(value) {
     return typeof value === 'string'
-      ? value.replace(/\.js(?=$|\s*·)/i, '')
+      ? value.replace(/\.(?:m?js|odpkg)(?=$|\s*·)/i, '')
       : value;
   }
 
@@ -473,6 +473,7 @@
       const current = RunnerController.createApp({
         scriptRoot,
         managedScriptRoot: !hasConfiguredRoot,
+        flowCatalog: true,
         file,
         command: productCommand,
         execution: runnerExecution,

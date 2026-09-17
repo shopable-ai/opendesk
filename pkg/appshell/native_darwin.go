@@ -22,12 +22,13 @@ type darwinNativeHost struct {
 	appPackage *Package
 	primaryID  string
 
-	mu       sync.RWMutex
-	handler  func(string, string)
-	started  bool
-	closed   bool
-	done     chan struct{}
-	doneOnce sync.Once
+	mu           sync.RWMutex
+	handler      func(string, string)
+	openDocument func(string)
+	started      bool
+	closed       bool
+	done         chan struct{}
+	doneOnce     sync.Once
 }
 
 var darwinActiveHost struct {
@@ -108,6 +109,61 @@ func (h *darwinNativeHost) Activate(context.Context) error {
 	return nil
 }
 
+func (h *darwinNativeHost) SetOpenDocumentHandler(handler func(string)) {
+	h.mu.Lock()
+	h.openDocument = handler
+	h.mu.Unlock()
+}
+
+func (h *darwinNativeHost) OpenFlowFiles(ctx context.Context) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	var pathsJSON *C.char
+	var nativeError *C.char
+	if C.ODAppShellPickFlowFiles(&pathsJSON, &nativeError) == 0 {
+		return nil, darwinError("open Flow file picker", nativeError)
+	}
+	if pathsJSON == nil {
+		return nil, fmt.Errorf("open Flow file picker: native picker returned no paths")
+	}
+	defer C.ODAppShellFree(pathsJSON)
+	var paths []string
+	if err := json.Unmarshal([]byte(C.GoString(pathsJSON)), &paths); err != nil {
+		return nil, fmt.Errorf("decode Flow file picker paths: %w", err)
+	}
+	return paths, nil
+}
+
+func (h *darwinNativeHost) ConfirmFlowTrust(ctx context.Context, prompt FlowTrustPrompt) (FlowTrustDecision, error) {
+	if err := ctx.Err(); err != nil {
+		return FlowTrustCancel, err
+	}
+	flowID := C.CString(prompt.FlowID)
+	name := C.CString(prompt.Name)
+	publisherID := C.CString(prompt.PublisherID)
+	keyID := C.CString(prompt.PublisherKeyID)
+	fingerprint := C.CString(prompt.PublisherFingerprint)
+	defer C.free(unsafe.Pointer(flowID))
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(publisherID))
+	defer C.free(unsafe.Pointer(keyID))
+	defer C.free(unsafe.Pointer(fingerprint))
+	decision := C.int(0)
+	var nativeError *C.char
+	if C.ODAppShellConfirmFlowTrust(flowID, name, publisherID, keyID, fingerprint, &decision, &nativeError) == 0 {
+		return FlowTrustCancel, darwinError("show Flow trust prompt", nativeError)
+	}
+	switch int(decision) {
+	case 1:
+		return FlowTrustFlow, nil
+	case 2:
+		return FlowTrustPublisher, nil
+	default:
+		return FlowTrustCancel, nil
+	}
+}
+
 func (h *darwinNativeHost) UpdateMenuItem(_ context.Context, id string, patch MenuItemPatch) error {
 	itemID := C.CString(id)
 	defer C.free(unsafe.Pointer(itemID))
@@ -144,6 +200,7 @@ func (h *darwinNativeHost) Teardown(context.Context) error {
 		h.mu.Lock()
 		h.closed = true
 		h.handler = nil
+		h.openDocument = nil
 		h.mu.Unlock()
 		darwinActiveHost.Lock()
 		if darwinActiveHost.host == h {
@@ -192,5 +249,22 @@ func opendeskAppShellDarwinAction(itemID *C.char, source *C.char) {
 	host.mu.RUnlock()
 	if handler != nil && !closed {
 		handler(C.GoString(itemID), C.GoString(source))
+	}
+}
+
+//export opendeskAppShellDarwinOpenDocument
+func opendeskAppShellDarwinOpenDocument(path *C.char) {
+	darwinActiveHost.RLock()
+	host := darwinActiveHost.host
+	darwinActiveHost.RUnlock()
+	if host == nil {
+		return
+	}
+	host.mu.RLock()
+	handler := host.openDocument
+	closed := host.closed
+	host.mu.RUnlock()
+	if handler != nil && !closed {
+		handler(C.GoString(path))
 	}
 }

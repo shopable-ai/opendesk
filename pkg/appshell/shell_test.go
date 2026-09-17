@@ -4,12 +4,37 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 )
+
+func TestValidateInstanceDocumentPathsAllowsOnlyBoundedAbsoluteODFlowPaths(t *testing.T) {
+	root := t.TempDir()
+	first := filepath.Join(root, "中文 flow [1].odflow")
+	second := filepath.Join(root, "second.ODFLOW")
+	if err := validateInstanceDocumentPaths([]string{first, second}); err != nil {
+		t.Fatal(err)
+	}
+	tooMany := make([]string, 33)
+	for index := range tooMany {
+		tooMany[index] = filepath.Join(root, fmt.Sprintf("flow-%02d.odflow", index))
+	}
+	for name, paths := range map[string][]string{
+		"relative":    {"example.odflow"},
+		"plain-script": {filepath.Join(root, "example.js")},
+		"duplicate":   {first, first},
+		"too-long":    {filepath.Join(root, strings.Repeat("a", 4096)+".odflow")},
+		"too-many":    tooMany,
+	} {
+		if err := validateInstanceDocumentPaths(paths); err == nil {
+			t.Fatalf("%s document paths unexpectedly accepted", name)
+		}
+	}
+}
 
 type fakeNative struct {
 	mu          sync.Mutex

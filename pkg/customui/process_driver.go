@@ -32,6 +32,9 @@ type ProcessDriverOptions struct {
 	Platform string
 	// Command is an internal test seam. Production callers leave it nil.
 	Command func(path string) *exec.Cmd
+	// FileDropHandler is an internal first-party hook. Native file URLs are
+	// validated before delivery and are never exposed to page JavaScript.
+	FileDropHandler func(FileDropEvent)
 }
 
 // ProcessDriver speaks versioned NDJSON to a native UI child process. Its
@@ -39,22 +42,23 @@ type ProcessDriverOptions struct {
 type ProcessDriver struct {
 	opts ProcessDriverOptions
 
-	mu            sync.RWMutex
-	process       hostProcess
-	stdin         io.WriteCloser
-	pending       map[string]chan protocolFrame
-	sinks         map[string]func(Event)
-	controls      map[string]map[string]struct{}
-	sequences     map[string]uint64
-	ready         chan struct{}
-	readyOnce     sync.Once
-	exited        chan struct{}
-	startErr      error
-	fatalErr      error
-	helloReceived bool
-	started       bool
-	closed        bool
-	leased        bool
+	mu              sync.RWMutex
+	process         hostProcess
+	stdin           io.WriteCloser
+	pending         map[string]chan protocolFrame
+	sinks           map[string]func(Event)
+	controls        map[string]map[string]struct{}
+	sequences       map[string]uint64
+	ready           chan struct{}
+	readyOnce       sync.Once
+	exited          chan struct{}
+	startErr        error
+	fatalErr        error
+	helloReceived   bool
+	started         bool
+	closed          bool
+	leased          bool
+	fileDropHandler func(FileDropEvent)
 
 	writeMu sync.Mutex
 	nextID  atomic.Uint64
@@ -68,9 +72,18 @@ func NewProcessDriver(opts ProcessDriverOptions) *ProcessDriver {
 		opts.Stderr = os.Stderr
 	}
 	return &ProcessDriver{
-		opts: opts, pending: map[string]chan protocolFrame{}, sinks: map[string]func(Event){},
+		opts: opts, pending: map[string]chan protocolFrame{}, sinks: map[string]func(Event){}, fileDropHandler: opts.FileDropHandler,
 		controls: map[string]map[string]struct{}{}, sequences: map[string]uint64{},
 	}
+}
+
+// SetFileDropHandler installs the first-party native file-drop sink after the
+// driver has been constructed. This keeps App Mode initialization order
+// explicit while preserving one shared native host for the product UI.
+func (d *ProcessDriver) SetFileDropHandler(handler func(FileDropEvent)) {
+	d.mu.Lock()
+	d.fileDropHandler = handler
+	d.mu.Unlock()
 }
 
 func (d *ProcessDriver) Capabilities(context.Context) Capabilities {
@@ -386,10 +399,25 @@ func (d *ProcessDriver) readFrames(reader io.Reader) {
 			sink := d.sinks[key]
 			controls := d.controls[key]
 			lastSequence := d.sequences[key]
+			fileDropHandler := d.fileDropHandler
 			d.mu.RUnlock()
 			if sink == nil {
 				d.failTransport(&Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: frame.Event.WindowID, TargetID: frame.Event.TargetID, Message: "native UI host emitted an event for an unknown window"})
 				return
+			}
+			if frame.Event.Type == "fileDrop" {
+				if err := validateFileDropEvent(*frame.Event, lastSequence); err != nil {
+					d.failTransport(err)
+					return
+				}
+				d.mu.Lock()
+				d.sequences[key] = frame.Event.Sequence
+				d.mu.Unlock()
+				if fileDropHandler != nil {
+					paths := append([]string(nil), frame.Event.Paths...)
+					fileDropHandler(FileDropEvent{SessionID: frame.Event.SessionID, WindowID: frame.Event.WindowID, Paths: paths})
+				}
+				continue
 			}
 			if err := validateHostEvent(*frame.Event, controls, lastSequence); err != nil {
 				d.failTransport(err)
@@ -488,6 +516,34 @@ func validateHostEvent(event Event, controls map[string]struct{}, lastSequence u
 		}
 	default:
 		return &Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: event.WindowID, TargetID: event.TargetID, Message: "native UI host emitted an unsupported event type"}
+	}
+	return nil
+}
+
+func validateFileDropEvent(event Event, lastSequence uint64) error {
+	if event.Sequence == 0 {
+		return &Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: event.WindowID, Message: "native UI file-drop sequence must be positive"}
+	}
+	if event.Sequence <= lastSequence {
+		return &Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: event.WindowID, Message: "native UI file-drop sequence must be strictly increasing"}
+	}
+	if event.TargetID != "" || len(event.Paths) == 0 || len(event.Paths) > 32 {
+		return &Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: event.WindowID, Message: "native UI file-drop paths are invalid"}
+	}
+	seen := make(map[string]struct{}, len(event.Paths))
+	for _, path := range event.Paths {
+		if path == "" || len(path) > 4096 || strings.IndexByte(path, 0) >= 0 || !filepath.IsAbs(path) {
+			return &Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: event.WindowID, Message: "native UI file-drop path must be an absolute bounded path"}
+		}
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext != ".odflow" && ext != ".js" && ext != ".mjs" {
+			return &Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: event.WindowID, Message: "native UI file-drop path has an unsupported extension"}
+		}
+		clean := filepath.Clean(path)
+		if _, exists := seen[clean]; exists {
+			return &Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: event.WindowID, Message: "native UI file-drop paths must be unique"}
+		}
+		seen[clean] = struct{}{}
 	}
 	return nil
 }

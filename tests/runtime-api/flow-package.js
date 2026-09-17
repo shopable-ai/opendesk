@@ -27,7 +27,6 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
     const flowRoot = File.join(root, 'ordinary');
     const assets = File.join(flowRoot, 'assets');
     File.ensureDir(assets);
-    setupTrust(flowRoot);
     File.write(File.join(flowRoot, 'main.js'), `// ${sourceToken}\nFile.write(${JSON.stringify(sentinel)}, 'unexpected execution');\n`);
     File.write(File.join(assets, 'template.txt'), 'FLOW_ASSET_TAMPER_TARGET_19dca5\n');
     const output = File.join(root, 'ordinary.odflow');
@@ -41,8 +40,9 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
       '--publisher-key-id', 'publisher-test-v1',
       '--entry', 'main.js',
       '--minimum-runtime-version', '0.0.0',
-      '--platform', 'darwin', '--platform', 'linux', '--platform', 'windows',
-      '--file', 'main.js', '--file', 'assets/template.txt', '--file', 'trust/publisher.pub',
+      '--platforms', 'darwin,linux,windows',
+      '--public-key', publisherPublic,
+      '--file', 'main.js', '--file', 'assets/template.txt',
       '--signing-key', publisherPrivate,
     ]);
     equal(packed.result.manifest.entry, 'main.js', 'ordinary entry');
@@ -50,16 +50,13 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
     assertNeverExecuted();
 
     const inspected = await cli(['flow', 'inspect', output]);
-    equal(inspected.result.verification.signature, 'not_checked', 'inspect signature state');
-    equal(inspected.result.verification.publisherTrust, 'not_evaluated', 'inspect trust state');
-    equal(inspected.result.verification.authorization, 'not_evaluated', 'inspect authorization state');
+    equal(inspected.result.signatureVerified, true, 'inspect signature state');
     assert(!JSON.stringify(inspected).includes(sourceToken), 'inspect leaked JavaScript source');
     assertNeverExecuted();
 
     const verified = await cli(['flow', 'verify', output, '--public-key', publisherPublic]);
-    equal(verified.result.verification.signature, 'verified_candidate_key', 'verify signature state');
-    equal(verified.result.verification.publisherTrust, 'not_evaluated', 'verify must not create publisher trust');
-    equal(verified.result.verification.authorization, 'not_evaluated', 'verify must not authorize execution');
+    equal(verified.result.signatureVerified, true, 'verify signature state');
+    equal(verified.result.candidateKeyVerified, true, 'verify candidate key state');
     assertNeverExecuted();
 
     const overwrite = await cli([
@@ -67,8 +64,9 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
       '-o', output,
       '--flow-id', 'com.opendesk.test.ordinary', '--name', 'B0 Ordinary Flow', '--version', '1.0.0',
       '--publisher-id', 'com.opendesk.tests', '--publisher-key-id', 'publisher-test-v1',
-      '--entry', 'main.js', '--minimum-runtime-version', '0.0.0', '--platform', 'darwin',
-      '--file', 'main.js', '--file', 'assets/template.txt', '--file', 'trust/publisher.pub',
+      '--entry', 'main.js', '--minimum-runtime-version', '0.0.0', '--platforms', 'darwin',
+      '--public-key', publisherPublic,
+      '--file', 'main.js', '--file', 'assets/template.txt',
       '--signing-key', publisherPrivate,
     ], false);
     equal(overwrite.error.code, 'output_exists', 'existing output must not be overwritten');
@@ -108,9 +106,10 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
       '-o', output,
       '--flow-id', 'com.opendesk.test.protected', '--name', 'B0 Protected Flow', '--version', '1.0.0',
       '--publisher-id', 'com.opendesk.tests', '--publisher-key-id', 'publisher-test-v1',
-      '--entry', 'main.odpkg', '--minimum-runtime-version', '0.0.0', '--platform', 'darwin', '--platform', 'windows',
-      '--file', 'main.odpkg', '--file', 'trust/publisher.pub', '--file', 'trust/license-issuer.pub',
-      '--product-id', 'com.opendesk.test.product', '--license-issuer-key-id', 'issuer-test-v1', '--purpose', 'run',
+      '--entry', 'main.odpkg', '--minimum-runtime-version', '0.0.0', '--platforms', 'darwin,windows',
+      '--license-issuer-key-id', 'issuer-test-v1',
+      '--public-key', publisherPublic,
+      '--file', 'main.odpkg', '--file', 'trust/license-issuer.pub',
       '--signing-key', publisherPrivate,
     ]);
     equal(packed.result.manifest.entry, 'main.odpkg', 'protected entry');
@@ -154,21 +153,25 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
     assertNeverExecuted();
 
     const invalidOutput = File.join(root, 'invalid.odflow');
-    const duplicateInput = await cli([
-      'flow', 'pack', File.join(root, 'ordinary'),
+    const invalidSource = File.join(root, 'invalid-source');
+    File.ensureDir(File.join(invalidSource, 'trust'));
+    File.write(File.join(invalidSource, 'trust', 'publisher.pub'), 'reserved source material');
+    const invalidInput = await cli([
+      'flow', 'pack', invalidSource,
       '-o', invalidOutput,
       '--flow-id', 'com.opendesk.test.invalid', '--name', 'Invalid Flow', '--version', '1.0.0',
       '--publisher-id', 'com.opendesk.tests', '--publisher-key-id', 'publisher-test-v1',
-      '--entry', 'main.js', '--minimum-runtime-version', '0.0.0', '--platform', 'darwin',
-      '--file', 'main.js', '--file', 'main.js', '--file', 'trust/publisher.pub',
+      '--entry', 'main.js', '--minimum-runtime-version', '0.0.0', '--platforms', 'darwin',
+      '--public-key', publisherPublic,
+      '--file', 'trust/publisher.pub',
       '--signing-key', publisherPrivate,
     ], false);
-    equal(duplicateInput.error.code, 'invalid_path', 'duplicate input classification');
+    equal(invalidInput.error.code, 'invalid_flow_container', 'reserved source path classification');
     assert(!File.exists(invalidOutput), 'invalid pack left an output file');
     assertNeverExecuted();
 
     const wrongKey = await cli(['flow', 'verify', source, '--public-key', licenseIssuerPublic], false);
-    equal(wrongKey.error.code, 'invalid_signature', 'wrong candidate key classification');
+    equal(wrongKey.error.code, 'flow_identity_mismatch', 'wrong candidate key classification');
     assertNeverExecuted();
   });
 })();

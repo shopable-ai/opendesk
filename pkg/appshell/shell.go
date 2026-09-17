@@ -50,6 +50,38 @@ type NativeHost interface {
 	Wait()
 }
 
+// OpenDocumentHost is an optional native capability. It carries a single
+// user-selected document path into the App Mode owner without encoding it in
+// a shell command or changing the public Runtime API. The product binds this
+// to the same FlowInstallService used by its other installation entry points.
+type OpenDocumentHost interface {
+	SetOpenDocumentHandler(func(path string))
+}
+
+type FlowTrustDecision string
+
+const (
+	FlowTrustCancel    FlowTrustDecision = "cancel"
+	FlowTrustFlow      FlowTrustDecision = "flow"
+	FlowTrustPublisher FlowTrustDecision = "publisher"
+)
+
+type FlowTrustPrompt struct {
+	FlowID               string
+	Name                 string
+	PublisherID          string
+	PublisherKeyID       string
+	PublisherFingerprint string
+}
+
+// FlowInstallHost contains the native, user-driven install affordances used
+// by the first-party OpenDesk product. It is intentionally optional: ordinary
+// Script Apps do not receive a file picker or trust prompt.
+type FlowInstallHost interface {
+	OpenFlowFiles(context.Context) ([]string, error)
+	ConfirmFlowTrust(context.Context, FlowTrustPrompt) (FlowTrustDecision, error)
+}
+
 // MainThreadHost is implemented by backends such as AppKit whose OS event loop
 // must occupy the primordial process thread while the Execution runs elsewhere.
 type MainThreadHost interface {
@@ -69,6 +101,7 @@ type Shell struct {
 	sink        ActionSink
 	recorder    ActionSink
 	measurement ActionSink
+	flowInstall ActionSink
 	pending     []ActionEvent
 	menuState   map[string]MenuItemPatch
 	started     bool
@@ -269,6 +302,31 @@ func (s *Shell) UnbindMeasurementAction() {
 	s.mu.Unlock()
 }
 
+func (s *Shell) BindFlowInstallAction(sink ActionSink) error {
+	if sink == nil {
+		return errors.New("Flow install action sink is required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.teardown {
+		return ErrTornDown
+	}
+	if s.state != StateRunning {
+		return ErrNotRunning
+	}
+	if s.flowInstall != nil {
+		return errors.New("Flow install action sink already bound")
+	}
+	s.flowInstall = sink
+	return nil
+}
+
+func (s *Shell) UnbindFlowInstallAction() {
+	s.mu.Lock()
+	s.flowInstall = nil
+	s.mu.Unlock()
+}
+
 func (s *Shell) SetQuitHook(hook func()) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -337,6 +395,9 @@ func (s *Shell) DispatchAction(id, source string) error {
 	if id == ActionProductMeasurement {
 		return s.dispatchMeasurement(ActionEvent{ID: id, Source: source})
 	}
+	if id == ActionProductInstallFlow {
+		return s.dispatchFlowInstall(ActionEvent{ID: id, Source: source})
+	}
 	return s.enqueue(ActionEvent{ID: id, Source: source})
 }
 
@@ -351,6 +412,24 @@ func (s *Shell) dispatchMeasurement(event ActionEvent) error {
 		return ErrNotRunning
 	}
 	sink := s.measurement
+	s.mu.Unlock()
+	if sink == nil {
+		return nil
+	}
+	return sink(event)
+}
+
+func (s *Shell) dispatchFlowInstall(event ActionEvent) error {
+	s.mu.Lock()
+	if s.teardown {
+		s.mu.Unlock()
+		return ErrTornDown
+	}
+	if s.state != StateRunning {
+		s.mu.Unlock()
+		return ErrNotRunning
+	}
+	sink := s.flowInstall
 	s.mu.Unlock()
 	if sink == nil {
 		return nil
