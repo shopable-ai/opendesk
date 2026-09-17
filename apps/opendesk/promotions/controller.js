@@ -8,7 +8,7 @@
     if(!o.ui||typeof o.ui.createWindow!=='function')throw new Error('Promotion controller requires ui.createWindow');
     const clock=o.now||Date.now,later=o.setTimeout||root.setTimeout,cancel=o.clearTimeout||root.clearTimeout;
     const getContext=typeof o.getContext==='function'?o.getContext:()=>({});
-    let preferences=core.readPreferences(o.preferences),handle=null,opening=null,creative=null;
+    let preferences=core.readPreferences(o.preferences),handle=null,opening=null,creative=null,placementMode='runner-above';
     let revision=0,phase='idle',displayTimer=null,motionTimer=null,disposed=false,closing=null,blocked=false,menuOpen=false,motionPlayed=false;
     const offs=[];let saveTail=Promise.resolve();
     function context(){try{return getContext()||{};}catch(_){return {};}}
@@ -16,6 +16,13 @@
     function reducedMotion(){try{return typeof o.reducedMotion==='function'?o.reducedMotion()===true:o.reducedMotion===true;}catch(_){return true;}}
     function clearTimers(){if(displayTimer!==null)cancel(displayTimer);if(motionTimer!==null)cancel(motionTimer);displayTimer=motionTimer=null;}
     function offAll(){while(offs.length){try{offs.pop()();}catch(error){log(error);}}}
+    function near(a,b){return Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1;}
+    function exactRunnerAbove(bounds,anchor,size){
+      return core.validBounds(bounds)&&core.validBounds(anchor)
+        &&near(bounds.width,size.width)&&near(bounds.height,size.height)
+        &&near(bounds.x+bounds.width,anchor.x+anchor.width)
+        &&near(bounds.y+bounds.height+core.LIMITS.gap,anchor.y);
+    }
     async function persist(next){preferences=next;if(typeof o.savePreferences!=='function')return;const snapshot=JSON.parse(JSON.stringify(next));try{saveTail=saveTail.then(()=>o.savePreferences(snapshot));await saveTail;}catch(error){preferences.enabled=false;blocked=true;log(error);throw error;}}
     async function close(reason){
       ++revision;clearTimers();menuOpen=false;if(closing)return closing;const current=handle;phase=current?'closing':phase==='opening'?'canceled':'idle';if(!current)return;
@@ -34,6 +41,21 @@
         await new Promise(resolve=>later(resolve,25));
       }
       throw new Error('Promotion image readiness timeout');
+    }
+    async function place(candidate,p,size){
+      if(p.mode==='runner-above'){
+        const state=await candidate.setRelativeTo(p.anchor,{preferredSides:['above'],align:'end',gap:core.LIMITS.gap});
+        if(!state||!exactRunnerAbove(state.bounds,p.anchor,size))return null;
+        return state;
+      }
+      // The corner placement belongs to the display containing the Runner.
+      // Move the still-hidden surface onto that display first, then ask the
+      // native host to resolve the current work area's exact 16-unit corner.
+      if(core.validBounds(p.anchor)){
+        await candidate.setRelativeTo(p.anchor,{preferredSides:['above','below','left','right'],align:'end',gap:0});
+        return candidate.setPlacement({horizontal:'right',vertical:'bottom',margin:core.LIMITS.margin,display:'current'});
+      }
+      return candidate.setPlacement({horizontal:'right',vertical:'bottom',margin:core.LIMITS.margin,display:'active'});
     }
     async function playMotionOnce(candidate,token,value){
       if(!value.media||value.media.kind!=='animated-image'||reducedMotion()||motionPlayed)return true;
@@ -54,16 +76,14 @@
       let value;try{value=core.validateCreative(input);}catch(error){return Promise.reject(error);}const p=placement||{mode:'runner-above'};
       if(!['runner-above','screen-bottom-right'].includes(p.mode))return Promise.reject(new Error('Unknown promotion placement'));if(p.mode==='runner-above'&&!core.validBounds(p.anchor))return Promise.resolve({status:'suppressed',reason:'anchor'});
       const reason=core.eligible(value,context(),preferences,clock());if(reason)return Promise.resolve({status:'suppressed',reason});
-      const token=++revision;phase='opening';creative=value;motionPlayed=false;const valid=()=>token===revision&&!disposed&&!blocked&&!core.contextReason(context())&&(!o.canShow||o.canShow()===true);
+      const token=++revision;phase='opening';creative=value;placementMode=p.mode;motionPlayed=false;const valid=()=>token===revision&&!disposed&&!blocked&&!core.contextReason(context())&&(!o.canShow||o.canShow()===true);
       opening=(async()=>{let candidate=null;try{
-        // Every media surface is born on a static poster. Animated media starts
-        // only after the window is confirmed visible so its single play budget
-        // is not consumed while Native is still creating/placing the surface.
         const content=core.render(value,true);
         candidate=await o.ui.createWindow({id:'opendeskPromotion'+(++sequence),kind:'floating',title:'OpenDesk · 推广',position:{mode:'anchor',size:content.size,horizontal:'right',vertical:'bottom',margin:core.LIMITS.margin,display:'active'},alwaysOnTop:true,draggable:false,keyEvents:true,interactionGroup:o.interactionGroup||'scriptRunnerPlayer',content:{html:content.html,css:content.css}});
         if(!valid()){await candidate.close();return {status:'suppressed',reason:'canceled'};}handle=candidate;
-        const placed=p.mode==='runner-above'?await candidate.setRelativeTo(p.anchor,{preferredSides:['above'],align:'end',gap:core.LIMITS.gap}):await candidate.setPlacement({horizontal:'right',vertical:'bottom',margin:core.LIMITS.margin,display:'active'});
-        if(!placed||!core.validBounds(placed.bounds))throw new Error('Promotion placement not confirmed');if(core.validBounds(p.anchor)&&core.overlaps(placed.bounds,p.anchor)){await close('overlap');return {status:'suppressed',reason:'overlap'};}
+        const placed=await place(candidate,p,content.size);
+        if(!placed||!core.validBounds(placed.bounds)){await close('placement');return {status:'suppressed',reason:'placement'};}
+        if(core.validBounds(p.anchor)&&core.overlaps(placed.bounds,p.anchor)){await close('overlap');return {status:'suppressed',reason:'overlap'};}
         if(!valid()){await close('canceled');return {status:'suppressed',reason:'canceled'};}if(value.media&&!(await awaitImageReady(candidate,token,value.media.poster))){await close('canceled');return {status:'suppressed',reason:'canceled'};}
         listen('promotionClose',()=>close('transient'));listen('promotionMore',()=>setMenu(!menuOpen));listen('promotionToday',()=>dismiss('today'));listen('promotionCampaign',()=>dismiss('campaign'));listen('promotionDisable',()=>dismiss('disable'));
         listen('promotionOpen',async()=>{if(phase!=='visible'||core.contextReason(context())){await close('context');return;}const action=value.action;await close('click');if(core.contextReason(context()))return;if(typeof o.activate==='function')await o.activate(action);});
@@ -77,12 +97,26 @@
       }catch(error){log(error);try{if(handle)await close('error');else if(candidate)await candidate.close();}catch(e){blocked=true;log(e);}return {status:'suppressed',reason:'surface-error',error:String(error&&error.message||error)};}finally{opening=null;if(!handle&&!blocked)phase=disposed?'disposed':'idle';}})();return opening;
     }
     async function refreshContext(){if(core.contextReason(context()))await close('context');}
-    async function reanchor(bounds){if(!handle||phase!=='visible')return;if(!core.validBounds(bounds)||core.contextReason(context())){await close('anchor');return;}const current=handle;try{const state=await current.setRelativeTo(bounds,{preferredSides:['above'],align:'end',gap:core.LIMITS.gap});if(!state||!core.validBounds(state.bounds)||core.overlaps(state.bounds,bounds))await close('overlap');}catch(error){await close('anchor-error');throw error;}}
+    async function reanchor(bounds){
+      if(!handle||phase!=='visible')return;if(!core.validBounds(bounds)||core.contextReason(context())){await close('anchor');return;}
+      const current=handle;try{
+        let state;
+        if(placementMode==='screen-bottom-right'){
+          await current.setRelativeTo(bounds,{preferredSides:['above','below','left','right'],align:'end',gap:0});
+          state=await current.setPlacement({horizontal:'right',vertical:'bottom',margin:core.LIMITS.margin,display:'current'});
+        }else{
+          state=await current.setRelativeTo(bounds,{preferredSides:['above'],align:'end',gap:core.LIMITS.gap});
+          const size=core.sizeFor(creative);
+          if(!state||!exactRunnerAbove(state.bounds,bounds,size)){await close('placement');return;}
+        }
+        if(!state||!core.validBounds(state.bounds)||core.overlaps(state.bounds,bounds))await close('overlap');
+      }catch(error){await close('anchor-error');throw error;}
+    }
     async function waitUntilClosed(){const current=handle;if(current)await current.waitUntilClosed();}
     async function waitUntilHidden(){await close('safety');return !handle;}
     async function restore(){const next=core.dismiss(preferences,creative||{campaignId:'restore'},'restore',clock());await persist(next);blocked=false;return state();}
     async function dispose(){disposed=true;await close('dispose');if(opening)await opening;}
-    function state(){return {phase,visible:phase==='visible',windowId:handle?handle.id:null,menuOpen,motionPlayed,preferences:JSON.parse(JSON.stringify(preferences))};}
+    function state(){return {phase,visible:phase==='visible',windowId:handle?handle.id:null,placementMode,menuOpen,motionPlayed,preferences:JSON.parse(JSON.stringify(preferences))};}
     return Object.freeze({show,close,dismiss,restore,refreshContext,reanchor,waitUntilClosed,waitUntilHidden,dispose,state});
   }
   const api=Object.freeze({create});root.OpenDeskPromotionsController=api;if(typeof module==='object'&&module.exports)module.exports=api;
