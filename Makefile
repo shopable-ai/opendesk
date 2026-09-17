@@ -7,7 +7,7 @@ VERSION_FILE := $(CURDIR)/VERSION
 VERSION ?= $(shell tr -d '[:space:]' < "$(VERSION_FILE)")
 RUNTIME_VERSION_LDFLAGS := -X opendesk/pkg/runtimeversion.Current=$(VERSION)
 
-.PHONY: help doctor setup deps fmt vet test test-core test-icons test-app-package-contract test-runtime-api test-runtime-api-live test-host-api test-host-api-live check-api-docs-contract check-custom-ui-components validate-runtime-version build build-apple-vision-ocr build-macos smoke
+.PHONY: help doctor setup deps fmt vet test test-core test-icons test-app-package-contract test-promotions test-promotions-native test-runtime-api test-runtime-api-live test-host-api test-host-api-live check-api-docs-contract check-custom-ui-components validate-runtime-version build build-apple-vision-ocr build-macos smoke
 
 help:
 	@echo "opendesk development targets:"
@@ -20,6 +20,8 @@ help:
 	@echo "  make test-core   Run core packages (skips known fixture/demo package conflicts)"
 	@echo "  make test-icons  Validate deterministic app icons and macOS bundle injection"
 	@echo "  make test-app-package-contract Build and test the App Package schema and Runtime loading contract"
+	@echo "  make test-promotions Run Promotion v4 pure-JavaScript product contract tests"
+	@echo "  make test-promotions-native Build and verify Custom UI image readiness through the public JavaScript Runtime"
 	@echo "  make test-runtime-api Run JavaScript Runtime API contract, unit, smoke, and acceptance gates"
 	@echo "  make test-runtime-api-live Run Runtime API tests against the Safari Test Lab"
 	@echo "  make check-api-docs-contract Validate canonical API docs and machine-index invariants"
@@ -72,6 +74,17 @@ test-app-package-contract: build
 	./dist/opendesk app validate examples/app-mode/basic --json
 	./dist/opendesk app validate apps/opendesk --json
 	node --test tests/app-package/runtime-contract.test.js
+
+# Promotion policy/model/lifecycle tests are platform-neutral JavaScript and
+# deliberately run without a native host.
+test-promotions:
+	node --test tests/promotions/*.test.js
+
+# Public image readiness must be proven through JavaScript, not a Go white-box
+# test. Windows requires WebView2; unavailable hosts fail this qualification
+# target but must not block normal OpenDesk product startup or automation.
+test-promotions-native: build test-promotions
+	./dist/opendesk -ui -script tests/runtime-api/custom-ui-image-readiness.js -console-mode script
 
 test-runtime-api: build
 	./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
