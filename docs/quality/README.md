@@ -22,6 +22,30 @@ quality/
 
 仓库可以存在其他平台/领域专项目录；它们不因为出现在 `quality/` 下就自动成为全局规范。上面的树只表示本轮已审计的核心角色，不虚构不存在的 `review/` 等目录。
 
+## Desktop Measurement 状态入口
+
+Desktop Measurement 当前产品完成度**不再**从历史 P0–P4、旧 Oracle Gap Matrix 或旧 Qualification 阶段结论推导。唯一 Current Coverage 入口是：
+
+[`../architecture/desktop-automation/desktop-measurement-contract-coverage.md`](../architecture/desktop-automation/desktop-measurement-contract-coverage.md)
+
+当前 UI / Interaction 合同是：
+
+`apps/opendesk/prototypes/desktop-measurement/ORACLE.md`
+
+以下文件保留历史与资格证据价值，但不是当前 Production 状态源：
+
+- `desktop-measurement-oracle-gap-matrix.md`：2026-09-16 pre-fix audit；内部 `MATCH / WRONG / PARTIAL` 只描述当时树。
+- `desktop-measurement-qualification.md`：保留历史 synthetic/native qualification 证据；其中旧的 “OPEN_IMPLEMENTATION / NOT_RUN” 快照必须以 Current Contract Coverage 重新核对后才能引用为当前状态。
+- `desktop-measurement-prototype.md`：Prototype 过程与质量说明，不替代 Current Oracle。
+
+三种状态始终分开：
+
+```text
+AUTOMATED_PASS
+≠ MACOS_QUALIFIED
+≠ WINDOWS_QUALIFIED
+```
+
 ## Agent-driven RPA Competitive Benchmark
 
 [`agent-driven-rpa-competitive-benchmark.md`](agent-driven-rpa-competitive-benchmark.md) 是当前公开 Top 3 / Top 1 竞争结论的 Benchmark 合同入口。

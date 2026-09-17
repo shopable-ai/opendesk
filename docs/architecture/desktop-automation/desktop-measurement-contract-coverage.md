@@ -20,7 +20,7 @@ automated verification
 macOS / Windows native qualification
 ```
 
-`ORACLE.baseline-2026-09-16.md` 与旧 P0–P4 资料不是当前开发入口。
+`ORACLE.baseline-2026-09-16.md`、旧 Gap Matrix 与旧 P0–P4 资料不是当前开发入口。
 
 ## 2. Status vocabulary
 
@@ -48,13 +48,14 @@ macOS / Windows native qualification
 | DM-TOOL-003 Point↔Point | Oracle §5 | PASS | PASS | implemented | existing Go tests | LOCAL_REQUIRED | LOCAL_REQUIRED | AUTOMATED_PASS | `BuildTwoPointResult` + tests | Native interaction qualification |
 | DM-TOOL-004 Region↔Region | Oracle §5 | PASS | PASS | implemented | existing Go tests | LOCAL_REQUIRED | LOCAL_REQUIRED | AUTOMATED_PASS | spacing model + tests | Native interaction qualification |
 | DM-GEO-001 Geometry / Margins | Oracle §7 | PASS | PASS | screen/window/local/ratio/signed margins implemented | mapping/margin tests | LOCAL_REQUIRED | LOCAL_REQUIRED | AUTOMATED_PASS | `product_contract.go`, `capture_mapping_matrix_test.go` | mixed-DPI / monitor-hole native verification |
-| DM-INSP-001 Inspector | Oracle §11 | PASS | PASS | current-result inspector/copy/save exists | existing session tests | LOCAL_REQUIRED | LOCAL_REQUIRED | PARTIAL | `session_view.go`, `oracle_alignment.go` | Inspector 还没有完整 Session Records / reselection workflow |
-| DM-REC-001 Measurement Records | Oracle §9 | PASS | PASS | Production 仍以 mutable `result` 为主，没有 canonical `measurements[]` journal | browser/synthetic only | NOT_RUN | NOT_RUN | OPEN_IMPLEMENTATION | `records.js` vs `activeSession.result` | 需要 immutable multi-record Session owner |
-| DM-REC-002 Multiple records share snapshot | Oracle §9 | PASS | PASS | missing in Native | browser/synthetic only | NOT_RUN | NOT_RUN | OPEN_IMPLEMENTATION | Prototype records tests | 新 Record 不得 Capture；需 Native regression |
-| DM-EXP-001 Session Export | Oracle §9/11 | PASS | PASS | current Evidence copy/save 可复用，但不是 multi-record Session envelope | existing current-result tests | LOCAL_REQUIRED | LOCAL_REQUIRED | PARTIAL | `evidence.go`, `oracle_alignment.go` | versioned Session manifest + atomic save pending |
-| DM-AUTH-001 Automation Authoring handoff | Oracle §11 | N/A | PASS | canonical single-evidence authoring model exists | authoring tests | LOCAL_REQUIRED | LOCAL_REQUIRED | PARTIAL | `authoring.go`, `evidence.go` | importer/handoff 尚不能消费 multi-record Session envelope |
+| DM-INSP-001 Inspector | Oracle §11 | PASS | PASS | current-result inspector/copy/save exists | existing session tests | LOCAL_REQUIRED | LOCAL_REQUIRED | PARTIAL | `session_view.go`, `oracle_alignment.go` | Inspector 还没有 Records 列表 / Record action / reselection workflow |
+| DM-REC-001 Measurement Records | Oracle §9 | PASS | PASS | 已新增 canonical `MeasurementSessionJournal`，Record 由现有 `MeasurementEvidence` 深拷贝并保持 immutable；尚未接入 `activeSession` UI | `session_records_test.go` pending execution | LOCAL_REQUIRED | LOCAL_REQUIRED | PARTIAL | `pkg/measurement/session_records.go` | 需把 Enter/Record 与 journal 绑定，并把 current result 消费后清空 |
+| DM-REC-002 Multiple records share snapshot | Oracle §9 | PASS | PASS | Journal 对相同 snapshotId 去重 Snapshot index，多 Record 保持各自 immutable Evidence；新 Record API 本身不触发 Capture | `TestMeasurementSessionJournalMultipleRecordsShareOneSnapshot` pending execution | LOCAL_REQUIRED | LOCAL_REQUIRED | PARTIAL | `session_records.go` | 还需 Native interaction regression 证明 UI 连续 Record 不 recapture |
+| DM-REC-003 Historical records survive Update | Oracle §9/10 | PASS | PASS | Journal 允许不同 generation/snapshot 并保持旧 token；不跨 snapshot 合并 geometry | historical-snapshot test pending execution | LOCAL_REQUIRED | LOCAL_REQUIRED | IMPLEMENTED_UNVERIFIED | `session_records.go` | `session.refresh()` 尚未持有/保留 journal owner |
+| DM-EXP-001 Session Export | Oracle §9/11 | PASS | PASS | versioned `desktop-measurement-session/v1` envelope 已进入 canonical Go model；current Evidence copy/save 可复用 | envelope validation tests pending execution | LOCAL_REQUIRED | LOCAL_REQUIRED | PARTIAL | `session_records.go`, `evidence.go` | Native atomic manifest + snapshots transaction 尚未接线 |
+| DM-AUTH-001 Automation Authoring handoff | Oracle §11 | N/A | PASS | Journal 可逐 Record 复用现有 `BuildAuthoringMeasurementInput`，保留每条 evidenceRef 与 SnapshotToken | authoring-per-record test pending execution + existing authoring tests | LOCAL_REQUIRED | LOCAL_REQUIRED | PARTIAL | `session_records.go`, `authoring.go`, `evidence.go` | 还需把真实 Session artifact 路径/loader 接到 Authoring task package |
 | DM-RECORDER-001 Recorder integration | Oracle §12 | PASS | PASS | product entry + activity isolation already wired | existing integration tests | LOCAL_REQUIRED | LOCAL_REQUIRED | PARTIAL | `cmd/opendesk/app_mode.go`, Recorder bridge | live selector 与 Recorder native input lease 共存需真机验证 |
-| DM-SESSION-001 Session lifetime / Close | Oracle §12 | PASS | PASS | single active Service + cleanup 已有；selection observer 为短生命周期 lease | existing lifecycle tests + new observer lifecycle test pending execution | LOCAL_REQUIRED | LOCAL_REQUIRED | IMPLEMENTED_UNVERIFIED | `session.go`, `pointer_selection.go` | 选择阶段 Service ownership 尚需内聚 |
+| DM-SESSION-001 Session lifetime / Close | Oracle §12 | PASS | PASS | single active Service + cleanup 已有；selection observer 为短生命周期 lease | existing lifecycle tests + new observer lifecycle test pending execution | LOCAL_REQUIRED | LOCAL_REQUIRED | IMPLEMENTED_UNVERIFIED | `session.go`, `pointer_selection.go` | 选择阶段 Service ownership 尚需内聚；journal 尚未绑定 Close/Exit 行为 |
 | DM-DPI-001 DPI / Coordinate mapping | Oracle §3/7 | PASS | PASS | logical/image mapping implemented | synthetic mixed-scale tests | LOCAL_REQUIRED | LOCAL_REQUIRED | AUTOMATED_PASS | capture mapping tests | Retina / Windows 125% / mixed monitor live qualification |
 | DM-MAC-001 macOS Qualification | Oracle §13 | N/A | PASS | source ready for local test | N/A | LOCAL_REQUIRED | N/A | LOCAL_REQUIRED | no current native evidence | window hover, permissions, z-order, Retina, multi-display, overlay exclusion |
 | DM-WIN-001 Windows Qualification | Oracle §13 | N/A | PASS | source ready for local test | N/A | N/A | LOCAL_REQUIRED | LOCAL_REQUIRED | no current native evidence | UIA/window order, physical/logical point mapping, 125%, multi-display, overlay exclusion |
@@ -65,10 +66,10 @@ PG IDs 是短期 Production Gap，不是新阶段。
 
 | Gap | Current status | Current evidence | Closure condition |
 | --- | --- | --- | --- |
-| PG-01 Live Reference Selection | **PARTIAL** | 产品 initial capture 前已增加 pointer/window confirmation gate；foreground 不再自动作为 initial confirmation | 把 `REFERENCE_SELECTING` 正式提升为 `pkg/measurement.Service` 生命周期 owner；Open/hover snapshot count=0 的 Service-level regression 通过 |
+| PG-01 Live Reference Selection | **PARTIAL** | 产品 initial screenshot 前已增加 pointer/window confirmation gate；foreground 不再自动作为 initial confirmation | 把 `REFERENCE_SELECTING` 正式提升为 `pkg/measurement.Service` 生命周期 owner；Open/hover snapshot count=0 的 Service-level regression 通过 |
 | PG-02 Hover / Candidate Resolver | **PARTIAL** | Live window candidate 采用 bounded 48ms resolver；Frozen candidate stack/provider 已较完整 | 证明平台 z-order、latest-pointer、窗口 move/close、多屏、取消与 worker bounded 行为 |
 | PG-03 Hover HUD / Native Visual Feedback | **OPEN_IMPLEMENTATION** | Prototype 完整；Native measuring HUD 可复用 | Live selection candidate border/weak dim/label 接线，并证明 overlay 不成为 candidate 或 capture source |
-| PG-04 Session Records / Authoring | **OPEN_IMPLEMENTATION** | Prototype + canonical single Evidence/Authoring 已有 | Native immutable records[] + snapshots[] + atomic save + authoring importer/handoff |
+| PG-04 Session Records / Authoring | **PARTIAL** | 新增 immutable `MeasurementSessionJournal`、versioned envelope、snapshot dedupe、durable-save acknowledgement 状态和逐 Record Authoring lowering | 将 journal 接入 `activeSession` 的 Record/Enter/Update/Inspector/Save；实现 atomic Session artifact + loader |
 
 ## 5. Legacy Stage Retirement
 
@@ -108,7 +109,8 @@ PG IDs 是短期 Production Gap，不是新阶段。
 ### HISTORICAL
 
 - `ORACLE.baseline-2026-09-16.md`；
-- `desktop-measurement-amendment-2026-09-17.md` 中的变更过程、旧基准 SHA 与当时 Gap 快照；
+- `docs/quality/desktop-measurement-oracle-gap-matrix.md`：2026-09-16 pre-fix audit，内部 `WRONG/MATCH` 行不得解释为当前状态；
+- `desktop-measurement-amendment-2026-09-17.md`：修订过程、旧基准 SHA 与当时 Gap 快照；
 - 旧 Prompt / P0–P4 implementation plan / qualification notes 中仅用于追溯的阶段描述。
 
 历史文件可以保留，但后续 Agent 不得从它们恢复已被 Current Oracle 推翻的行为。
@@ -122,4 +124,4 @@ source exists
 ≠ Windows qualified
 ```
 
-任何平台资格结果必须记录真实运行命令、当前 HEAD、目标系统、权限状态与可复查证据。没有目标系统证据时保持 `LOCAL_REQUIRED`。
+本轮新增 `pointer_selection*`、`app_measurement_selection_test.go`、`session_records_test.go` 仍必须实际执行后才能从 `IMPLEMENTED_UNVERIFIED` 晋升。任何平台资格结果必须记录真实运行命令、当前 HEAD、目标系统、权限状态与可复查证据。没有目标系统证据时保持 `LOCAL_REQUIRED`。
