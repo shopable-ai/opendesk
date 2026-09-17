@@ -132,6 +132,7 @@ type releaseAttestationClaims struct {
 	ReleaseStatus                  ReleaseStatus     `json:"releaseStatus"`
 	EntitlementPolicy              EntitlementPolicy `json:"entitlementPolicy"`
 	UpdateChannel                  string            `json:"updateChannel,omitempty"`
+	VerifiedPublisher              bool              `json:"verifiedPublisher,omitempty"`
 	ExpiresAt                      string            `json:"expiresAt"`
 }
 
@@ -144,7 +145,7 @@ func ReleaseAttestationMessage(release Release, attestation ReleaseAttestation) 
 		ArtifactDigest: release.ArtifactDigest, ArtifactSize: release.ArtifactSize,
 		MinimumOpenDeskVersion: release.MinimumOpenDeskVersion, PublishedAt: release.PublishedAt,
 		ReleaseStatus: release.ReleaseStatus, EntitlementPolicy: release.EntitlementPolicy,
-		UpdateChannel: release.UpdateChannel, ExpiresAt: attestation.ExpiresAt,
+		UpdateChannel: release.UpdateChannel, VerifiedPublisher: release.VerifiedPublisher, ExpiresAt: attestation.ExpiresAt,
 	}
 	data, err := json.Marshal(claims)
 	if err != nil {
