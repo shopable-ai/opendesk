@@ -3,6 +3,9 @@
 
   const system = global.System;
   const axios = global.axios;
+  const file = global.File;
+  const execution = global.Execution;
+  const productPaths = global.OpenDeskProductPaths;
   const endpoint = system && typeof system.getEnv === 'function'
     ? String(system.getEnv('OPENDESK_APP_SCHEDULER_ENDPOINT') || '').trim()
     : '';
@@ -24,6 +27,36 @@
       const error = new Error('OpenDesk App Scheduler is unavailable in this execution');
       error.code = 'APP_SCHEDULER_UNAVAILABLE';
       throw error;
+    }
+  }
+
+  function publishDiscoveryBridge() {
+    if (!endpoint || !token || !file || !productPaths || !productPaths.appDataRoot) return '';
+    try {
+      const root = file.join(productPaths.appDataRoot, '.runtime', 'scheduler-bridges');
+      file.ensureDir(root);
+      const rawExecutionID = String(execution && (execution.id || execution.executionId) || 'app');
+      const executionID = rawExecutionID.replace(/[^A-Za-z0-9._-]+/g, '-').slice(0, 96) || 'app';
+      const path = file.join(root, `${executionID}.json`);
+      const payload = {
+        schemaVersion: 1,
+        packageId: 'com.opendesk.desktop',
+        executionId: rawExecutionID,
+        endpoint,
+        token,
+        publishedAt: new Date().toISOString(),
+      };
+      // appDataRoot is a private per-user directory. The bridge is intentionally
+      // local-only and is never logged or surfaced through Scheduler responses.
+      // Stale files are harmless because the external CLI must authenticate and
+      // probe every candidate before selecting exactly one live App instance.
+      file.write(path, JSON.stringify(payload, null, 2) + '\n');
+      return path;
+    } catch (error) {
+      if (global.console && typeof global.console.warn === 'function') {
+        global.console.warn('[SCHEDULER_BRIDGE] publish failed: ' + String(error && error.message || error));
+      }
+      return '';
     }
   }
 
@@ -64,6 +97,8 @@
   function encodeID(value) {
     return encodeURIComponent(String(value || '').trim());
   }
+
+  publishDiscoveryBridge();
 
   const client = Object.freeze({
     getCapabilities: capabilities,
