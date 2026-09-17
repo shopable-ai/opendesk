@@ -1,112 +1,147 @@
 ---
 title: Scheduler
-description: OpenDesk 计划任务的用户工作流、时间语义、Execution 行为与桌面/Headless 入口。
+description: OpenDesk 计划任务的用户工作流、真实调度验证、时间语义与 Execution 行为。
 order: 520
 docType: guide
 ---
 
 # Scheduler
 
-Scheduler 用来把普通 OpenDesk JavaScript 保存为持久计划任务，并在未来时间创建标准 Execution 执行。它不是脚本内的 `sleep()` / timer：OpenDesk 重启后，计划和运行历史仍可恢复，并按明确的 misfire 规则处理错过的时间。
+Scheduler 把普通 OpenDesk JavaScript 保存为持久计划，并在未来时间创建标准 Execution。它不是脚本内的 `sleep()` 或前端 timer：真正到期、领取、创建 Run 和 Execution 都由 Scheduler service 完成。
 
-## 先选入口
+## 普通用户入口：计划中心
 
-### OpenDesk 桌面产品
+OpenDesk Desktop 普通用户优先从 **计划中心** 创建、查看和管理计划。
 
-普通桌面用户优先从 OpenDesk 的 **计划中心（Scheduler Center）** 创建、查看和管理计划。
-
-产品层只负责把用户操作连接到 Scheduler service；真正执行仍走：
+产品链路是：
 
 ```text
-Scheduler Service
+计划中心
+→ 当前 App Scheduler
+→ 到期领取
 → standard Execution
 → JavaScript Runtime
 → normal OpenDesk APIs
 ```
 
-因此计划任务不是另一套脚本 Runtime，也不会因为从桌面 UI 创建就获得额外 API 权限。
+关闭计划中心窗口、刷新窗口、关闭后重开，或者隐藏 Runner，都不应停止已经由 App Scheduler 保存的计划。
 
-OpenDesk Desktop 的菜单、窗口生命周期和 Scheduler Center 归属见 [Desktop Product Shell](../architecture/opendesk-desktop-product-shell.md)。
+计划中心不会在打开、刷新或重开时自动创建测试任务。测试任务只有在用户明确点击“添加两条测试计划”时创建。
 
-### Headless / 开发 / 本机集成
+## 创建普通计划
 
-需要长驻 HTTP 进程、开发调试或本机工具集成时，可以从要执行脚本的项目目录启动：
+计划中心当前允许：
 
-```bash
-./opendesk -http -port 60844
-```
+- 从已有可调度 `.js` 脚本下拉框选择；
+- 继续编辑脚本路径；
+- 浏览选择文件；
+- 直接输入 JavaScript 脚本文本。
 
-如果计划脚本要调用小写 `ui`（例如 `ui.notify()`），Custom UI 必须由长驻 owner 明确启用：
+本轮不增加搜索框，也不建立第二套独立 Catalog 页面。
 
-```bash
-./opendesk -http -ui -port 60844
-```
+已有脚本下拉只承担“便于选择当前 Scheduler 能正确调度的对象”。已安装 Flow 仍必须经过 Flow 自己的受控执行链；不能通过直接选择 Flow 内部文件来绕过 Publisher Trust、Permission、Entitlement 或其他 Flow 运行边界。不支持调度的对象应明确不可用，而不是伪装成普通 `.js` 计划。
 
-`-ui` 授权的是 Scheduler 到期后创建的 scheduled Execution；短命的建计划客户端不需要
-也不能靠自己的 `-ui` 为另一个 owner 补授权。完整的两任务自动到期示例见
-[`examples/scheduler/README.md`](../../examples/scheduler/README.md)。
+取消文件选择不会清空用户已经填写的路径。无论下拉选择还是手填路径，最终创建和实际执行前都继续由 Scheduler 做路径、普通文件、扩展名和 script root 边界校验。
 
-本地管理页：
+## 真实调度测试
+
+计划中心提供两个产品级测试操作：
+
+- **添加两条测试计划**；
+- **清理本轮测试**。
+
+添加操作创建真实 Scheduler Job，不调用 Run Now，也不使用 payload sleep 模拟未来执行。
+
+默认同一时间基准：
 
 ```text
-http://127.0.0.1:60844/scheduler
+文本提醒  → 15 秒后
+文件提醒  → 45 秒后
 ```
 
-HTTP endpoint、请求/响应字段和 curl 示例统一见 [Scheduler HTTP API](scheduler-api.md)。Web 管理页是本地协议客户端，不是桌面产品里需要重复暴露的第二个普通用户“计划中心”。
+两条任务都保存为绝对 `at` 时间并采用 `misfirePolicy=skip`。创建完成后客户端可以退出；只要当前 Desktop App Scheduler 仍在运行，到期执行由 Scheduler 自己完成。
 
-## 脚本来源
+每轮测试有自己的 `batchId`，并持久化两个真实 `jobId` 与计划时间。重复请求可使用同一 request ID 获得幂等语义；部分创建失败也保留已经拥有的 job ID，后续只按这些 ID 清理，不按名字扫描删除。
 
-当前任务类型是 `script`，来源有两种。
+文件提醒使用 OpenDesk 为 Scheduler 测试保留的产品内受控文件位置。完全相同的测试文件可以复用；如果保留位置已经存在不同内容，OpenDesk 不会覆盖用户文件。
 
-### 文件脚本
+## 怎样判断定时设置真的生效
 
-file 模式执行当前 Scheduler 工作目录内已经存在的 `.js` 文件：
+倒计时归零、日志出现、payload 自己说“我是 Scheduler”、或者手动点击 Run Now，都不能单独证明自动调度成功。
 
-- 路径不能通过 `..`、绝对路径解析或符号链接逃出工作目录；
-- 每次执行开始时重新读取，因此文件更新会作用于下一次运行；
-- 旧任务和只提供 `scriptPath` 的旧请求保持 file 语义。
+可信事实来自 Scheduler 服务端 JobRun：
 
-### 内联脚本
+| `triggerType` | 含义 |
+| --- | --- |
+| `scheduled` | 到期后由 Scheduler 自动领取创建 |
+| `manual` | Run Now / 立即运行创建 |
+| `unknown` | 历史记录无法证明来源 |
 
-inline 模式保存调用方明确提交的 JavaScript 源码：
+`triggerType` 由服务端写入，payload 无权声明。因此真实调度测试只接受 `triggerType=scheduled`。
 
-- 去除首尾空白后必须非空；
-- 当前正文上限为 256 KiB；
-- 不与有效 `scriptPath` 同时使用；
-- 不从 Markdown/说明文本中提取代码；
-- 普通任务列表和校验错误不回显完整源码。
+完整验证至少核对：
 
-无论来源如何，实际执行都创建标准 Execution，并生成 Execution ID、结构化事件、summary 与 `script_snapshot.js` 等 Evidence。默认执行证据仍位于 `.runtime/runs/` 下对应的 execution artifact 目录。
+- 创建请求的未来时间与重新查询得到的持久化时间一致；
+- 第一条到期前，两条任务都没有运行记录；
+- 自动 Run 的 `scheduledAt` 等于预期绝对时间；
+- `startedAt` 不早于计划时间；
+- `triggerType` 为 `scheduled`；
+- 两条任务拥有不同 Execution ID；
+- stdout 与 artifact 能关联到正确 job / Execution；
+- 正常验收期间每条一次性任务只自动执行一次；
+- 完成后没有下一次自动排期。
+
+应用空闲、设备保持唤醒、系统时间没有调整时，产品验证默认把 **3 秒**作为启动延迟容差。超过容差要如实报告排队、系统调度或环境阻塞，不要把宽容差藏在 UI 倒计时里。
+
+## 通知调用与 Native 可见是不同事实
+
+测试 payload 使用当前 canonical `ui.toast()`。
+
+需要区分三层结果：
+
+```text
+ui.toast() 调用/返回
+≠ Execution 成功
+≠ 用户真实看见 Native 通知
+```
+
+结构化验证可以证明 `ui.toast()` 已调用、返回、关闭，以及 Execution 是否成功；**Native 通知是否真实可见必须由目标平台的真实 UI 验收确认**。
+
+没有执行目标平台 UI 验收时记录 `NOT_RUN`；由于环境或权限阻塞无法完成时记录 `BLOCKED`。不得用 mock、编译通过或日志存在替代 Native `PASS`。
+
+## 计划中心里的运行信息
+
+列表和运行历史应以服务端记录为准，展示或可检查：
+
+- 计划时间；
+- 实际开始时间；
+- 启动延迟；
+- 触发方式；
+- Execution ID；
+- 最终状态 / 错误。
+
+界面可见时可以自动刷新倒计时和运行状态，但倒计时只是显示信息。到点后如果服务端尚未产生 Run，界面应继续显示等待服务端状态，而不是本地推断“已运行”。
+
+一次性任务完成后应显示已结束及真实结果，不应统一显示成“用户暂停”。
+
+## 暂停、删除与到期并发
+
+- **暂停**：阻止未来自动调度；已经开始的 Execution 不会被强制取消。
+- **恢复**：重新建立未来调度；`at + skip` 不会把已经过去的时间重新伪造成未来执行。
+- **立即运行**：创建额外的 `manual` Run，不改写正常计划时间。
+- **删除**：删除任务及未来调度；已经开始的 Execution 不会因此被伪报为停止。
+
+如果在第二条测试任务到期前暂停或删除，应当不再产生未来自动执行；如果操作与 Scheduler 到期领取发生竞态，就以服务端最终 JobRun 状态为准，如实报告任务已经被领取、running 或已经完成。
 
 ## 时间类型
 
 ### 一次 at
 
-指定一个时间点。HTTP/协议层接受 RFC3339 或结合 `timezone` 解释的本地时间，例如：
-
-```json
-{
-  "scheduleType": "at",
-  "scheduleExpression": "2026-09-14 09:00",
-  "timezone": "Asia/Shanghai"
-}
-```
-
-一次任务完成后不再产生下一次自动运行。
+指定一个绝对时间点。协议层接受 RFC3339 或按 `timezone` 解释的本地时间。一次任务完成后不再产生下一次自动运行。
 
 ### 固定间隔 every
 
-使用 duration，例如：
-
-```json
-{
-  "scheduleType": "every",
-  "scheduleExpression": "30m",
-  "timezone": "Asia/Shanghai"
-}
-```
-
-`every` 是 fixed-delay：一次执行结束后，再等待完整 interval 才开始下一次。长任务不会按固定时钟频率叠加自身实例。
+使用 duration，例如 `30m`、`2h`。`every` 是 fixed-delay：一次执行结束后，再等待完整 interval。
 
 ### Cron
 
@@ -116,64 +151,64 @@ inline 模式保存调用方明确提交的 JavaScript 源码：
 分钟 小时 日 月 星期
 ```
 
-例如每天 09:00：
-
-```json
-{
-  "scheduleType": "cron",
-  "scheduleExpression": "0 9 * * *",
-  "timezone": "Asia/Shanghai"
-}
-```
-
 当前不把带秒的六字段 Quartz 表达式当成同一种格式。
 
 ## Misfire
 
-Scheduler 必须明确区分“任务本来应该运行”与“OpenDesk 当时没有运行”。
-
-当前策略：
-
 | 策略 | 行为 |
 | --- | --- |
-| `run_once` | 恢复后最多补执行一次，不把错过的每个间隔全部重放。 |
-| `skip` | 跳过已经错过的发生点并计算下一个未来时间；已经过期的一次任务会停用。 |
+| `run_once` | 恢复后最多补执行一次，不重放所有错过间隔 |
+| `skip` | 跳过已经错过的发生点并计算未来时间；过期一次任务停用 |
 
-`run_once` 不等于 exactly-once。进程崩溃、操作系统终止等情况下，业务脚本仍应使用自己的幂等键、外部状态或 postcondition 防止重复副作用。Scheduler 的多 Runtime ownership、takeover 与 SQLite 并发边界见 [Scheduler Runtime Concurrency](../architecture/scheduler-runtime-concurrency.md)。
+`run_once` 不等于业务 exactly-once。需要跨崩溃防重复副作用的业务脚本仍应有自己的幂等键或业务 postcondition。
 
-## 任务操作语义
+## CLI 与 Runtime examples
 
-- **暂停**：阻止未来自动调度；已运行的 Execution 不因暂停而被强制取消。
-- **恢复**：让任务重新进入调度并计算下一次时间。
-- **立即运行**：额外请求一次运行，不改写正常计划时间；其是否可以被当前 Runtime 接受仍受 Scheduler ownership 规则约束。
-- **删除**：删除任务及未来调度，不把已经生成的 Execution Evidence 当成从未发生。
+当前 Desktop App Scheduler 可以通过薄 CLI 管理，而不要求手工复制动态 endpoint/token：
 
-当前 Scheduler 的桌面型任务默认避免同时争用共享桌面资源。具体 single-active Runner、standby、takeover、DB lock 等实现合同属于架构层，不在本用户 Guide 复制，见 [Scheduler Runtime Concurrency](../architecture/scheduler-runtime-concurrency.md)。
+```bash
+./dist/opendesk scheduler list
+./dist/opendesk scheduler create ...
+./dist/opendesk scheduler runs --job <jobId>
+./dist/opendesk scheduler delete --job <jobId>
+```
 
-## Execution 与权限
+真实两任务测试：
 
-计划任务复用现有 JavaScript Runtime，但 Execution mode 仍然决定权限：
+```bash
+./dist/opendesk scheduler test add
+./dist/opendesk scheduler test verify --batch latest --wait 60s
+./dist/opendesk scheduler test remove --batch latest
+```
 
-- Scheduler 不因为持久化执行而自动获得 `Command`、`SQLite`、Recorder capture 等可信本地能力；
-- 通知、桌面、网络等能力仍遵守各自 API 的 capability/permission contract；
-- “计划已触发”与“业务完成”是不同事实，最终成功应由 Execution 结果和业务 postcondition 判断。
+CLI 完整参数、JSON 输出、错误码和实例发现语义见 [Scheduler CLI](scheduler-cli.md)。
 
-如果脚本需要给用户提示，可以使用当前 Execution 实际可用的通知能力；通知展示本身不能替代成功证据。
+同一批次实现也由 [`examples/scheduler/README.md`](../../examples/scheduler/README.md) 中的 Runtime examples 复用；UI、CLI、examples 不维护三套不同的测试判定逻辑。
 
-## HTTP 安全边界
+## Headless / 开发入口
 
-Headless 管理页和 Scheduler HTTP API 只面向本机 loopback，并校验 `Host` / 浏览器 `Origin`。不要把这套没有公网认证模型的接口通过反向代理暴露到 LAN 或公网。
+独立 Headless 开发仍可以使用：
 
-完整 transport contract 见 [Scheduler HTTP API](scheduler-api.md)。
+```bash
+./opendesk -http -ui -port 60844
+```
 
-## 哪份文档负责什么
+本地管理页：
+
+```text
+http://127.0.0.1:60844/scheduler
+```
+
+这是开发/本机集成入口，不是 Desktop 产品测试时应该偷偷启动的第二个 Scheduler owner。HTTP 字段与 transport contract 见 [Scheduler HTTP API](scheduler-api.md)。
+
+## 文档职责
 
 | 需求 | 文档 |
 | --- | --- |
-| 普通用户如何选择入口、理解时间和操作语义 | 本页 |
-| HTTP endpoint、Job/JobRun 数据模型、curl | [Scheduler HTTP API](scheduler-api.md) |
-| 多 Runtime、Store/Runner ownership、SQLite/WAL/lock、takeover/recovery | [Scheduler Runtime Concurrency](../architecture/scheduler-runtime-concurrency.md) |
-| OpenDesk Desktop 中计划中心和菜单归属 | [Desktop Product Shell](../architecture/opendesk-desktop-product-shell.md) |
+| 普通用户工作流、计划中心、真实调度测试语义 | 本页 |
+| Desktop App Scheduler CLI | [Scheduler CLI](scheduler-cli.md) |
+| HTTP endpoint、Job / JobRun 字段与 triggerType | [Scheduler HTTP API](scheduler-api.md) |
+| ownership、SQLite/WAL、takeover/recovery | [Scheduler Runtime Concurrency](../architecture/scheduler-runtime-concurrency.md) |
 | Execution 生命周期与 evidence | [Execution Context](execution.md) |
 
-不要在本页重新维护内部表结构、SQLite driver、锁文件和迁移实现；这些细节变化不应迫使普通用户重新理解 Scheduler 的产品语义。
+内部数据库 schema、锁文件和迁移实现不属于本用户 Guide 的事实源。
