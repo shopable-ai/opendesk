@@ -1,5 +1,5 @@
 // Package officialconfig owns the ODCFG1 compile, decode, and validation
-// contract for OpenDesk first-party product navigation configuration.
+// contract for OpenDesk first-party product configuration.
 package officialconfig
 
 import (
@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -47,9 +48,41 @@ type Action struct {
 	URL     string `json:"url"`
 }
 
+type AnalyticsQueue struct {
+	MaxEvents   int `json:"maxEvents"`
+	BatchSize   int `json:"batchSize"`
+	MaxRequests int `json:"maxRequests"`
+}
+
+type AnalyticsNetwork struct {
+	RequestTimeoutMs int `json:"requestTimeoutMs"`
+	FlushIntervalMs  int `json:"flushIntervalMs"`
+	MaxRetries       int `json:"maxRetries"`
+	ShutdownTimeoutMs int `json:"shutdownTimeoutMs"`
+}
+
+type AnalyticsSession struct {
+	IdleTimeoutMinutes int `json:"idleTimeoutMinutes"`
+}
+
+// Analytics is publisher-owned product network configuration. ProjectToken is
+// intentionally the public PostHog capture token (phc_), never a Personal API
+// Key, Project Secret API Key, license credential, or other management secret.
+type Analytics struct {
+	Provider      string           `json:"provider"`
+	Endpoint      string           `json:"endpoint"`
+	ProjectToken  string           `json:"projectToken"`
+	Environment   string           `json:"environment"`
+	MaxEventBytes int              `json:"maxEventBytes"`
+	Queue         AnalyticsQueue   `json:"queue"`
+	Network       AnalyticsNetwork `json:"network"`
+	Session       AnalyticsSession `json:"session"`
+}
+
 type Config struct {
 	SchemaVersion int               `json:"schemaVersion"`
 	Actions       map[string]Action `json:"actions"`
+	Analytics     *Analytics        `json:"analytics,omitempty"`
 }
 
 // ParseSource parses the developer-owned plaintext source configuration.
@@ -73,9 +106,8 @@ func ParseSource(data []byte) (Config, error) {
 	return normalize(config), nil
 }
 
-// Validate enforces the public ODCFG1 schema. All official navigation targets,
-// including the homepage used to derive System.product.website, share this
-// publisher-owned configuration source.
+// Validate enforces the public ODCFG1 schema. All publisher-owned network and
+// navigation settings share configs/product.json as their one plaintext source.
 func Validate(config Config) error {
 	if config.SchemaVersion != SchemaVersion {
 		return fmt.Errorf("official config schemaVersion %d is unsupported", config.SchemaVersion)
@@ -116,6 +148,49 @@ func Validate(config Config) error {
 		if coreActions[name] && !action.Visible {
 			return fmt.Errorf("official config core action %q cannot be hidden", name)
 		}
+	}
+	if config.Analytics != nil {
+		if err := validateAnalytics(*config.Analytics); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateAnalytics(config Analytics) error {
+	provider := strings.ToLower(strings.TrimSpace(config.Provider))
+	if provider != "posthog" && provider != "debug" && provider != "disabled" {
+		return fmt.Errorf("official config analytics provider %q is unsupported", config.Provider)
+	}
+	environment := strings.ToLower(strings.TrimSpace(config.Environment))
+	if environment != "production" && environment != "development" && environment != "test" {
+		return fmt.Errorf("official config analytics environment %q is unsupported", config.Environment)
+	}
+	if provider == "debug" && environment == "production" {
+		return fmt.Errorf("official config analytics debug provider is not allowed in production")
+	}
+	endpoint := strings.TrimSpace(config.Endpoint)
+	if provider == "posthog" {
+		parsed, err := url.Parse(endpoint)
+		if err != nil || parsed.Scheme != "https" || parsed.Hostname() == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
+			return fmt.Errorf("official config analytics endpoint must be an https origin")
+		}
+	}
+	token := strings.TrimSpace(config.ProjectToken)
+	if len(token) > 256 || strings.ContainsAny(token, "\r\n\t ") || (token != "" && !strings.HasPrefix(token, "phc_")) {
+		return fmt.Errorf("official config analytics projectToken must be an empty or public phc_ capture token")
+	}
+	if config.MaxEventBytes < 256 || config.MaxEventBytes > 2048 {
+		return fmt.Errorf("official config analytics maxEventBytes must be in [256,2048]")
+	}
+	if config.Queue.MaxEvents < 1 || config.Queue.MaxEvents > 1000 || config.Queue.BatchSize < 1 || config.Queue.BatchSize > 100 || config.Queue.BatchSize > config.Queue.MaxEvents || config.Queue.MaxRequests < 1 || config.Queue.MaxRequests > 16 {
+		return fmt.Errorf("official config analytics queue bounds are invalid")
+	}
+	if config.Network.RequestTimeoutMs < 100 || config.Network.RequestTimeoutMs > 5000 || config.Network.FlushIntervalMs < 100 || config.Network.FlushIntervalMs > 30000 || config.Network.MaxRetries < 0 || config.Network.MaxRetries > 3 || config.Network.ShutdownTimeoutMs < 100 || config.Network.ShutdownTimeoutMs > 1000 {
+		return fmt.Errorf("official config analytics network bounds are invalid")
+	}
+	if config.Session.IdleTimeoutMinutes < 1 || config.Session.IdleTimeoutMinutes > 120 {
+		return fmt.Errorf("official config analytics session idleTimeoutMinutes must be in [1,120]")
 	}
 	return nil
 }
@@ -306,7 +381,16 @@ func normalize(config Config) Config {
 		action.URL = strings.TrimSpace(action.URL)
 		actions[name] = action
 	}
-	return Config{SchemaVersion: SchemaVersion, Actions: actions}
+	var analytics *Analytics
+	if config.Analytics != nil {
+		copy := *config.Analytics
+		copy.Provider = strings.ToLower(strings.TrimSpace(copy.Provider))
+		copy.Endpoint = strings.TrimRight(strings.TrimSpace(copy.Endpoint), "/")
+		copy.ProjectToken = strings.TrimSpace(copy.ProjectToken)
+		copy.Environment = strings.ToLower(strings.TrimSpace(copy.Environment))
+		analytics = &copy
+	}
+	return Config{SchemaVersion: SchemaVersion, Actions: actions, Analytics: analytics}
 }
 
 func checksum16(payload []byte) uint16 {
