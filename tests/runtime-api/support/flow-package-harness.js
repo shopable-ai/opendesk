@@ -82,6 +82,17 @@ File.write(contentKey, '404142434445464748494a4b4c4d4e4f505152535455565758595a5b
     bytes[offset + 3] = (value >>> 24) & 0xff;
   }
 
+  function crc32(bytes, offset, length) {
+    let crc = 0xffffffff;
+    for (let index = 0; index < length; index += 1) {
+      crc ^= bytes[offset + index];
+      for (let bit = 0; bit < 8; bit += 1) {
+        crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+      }
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+  }
+
   function asciiAt(bytes, offset, length) {
     let value = '';
     for (let index = 0; index < length; index += 1) value += String.fromCharCode(bytes[offset + index]);
@@ -99,7 +110,15 @@ File.write(contentKey, '404142434445464748494a4b4c4d4e4f505152535455565758595a5b
       const extraLength = readU16LE(bytes, offset + 28);
       if (offset + 30 + nameLength + extraLength >= bytes.length) continue;
       const name = asciiAt(bytes, offset + 30, nameLength);
-      if (name === wantedName) return { headerOffset: offset, nameOffset: offset + 30, nameLength, dataOffset: offset + 30 + nameLength + extraLength };
+      if (name === wantedName) {
+        return {
+          headerOffset: offset,
+          nameOffset: offset + 30,
+          nameLength,
+          dataOffset: offset + 30 + nameLength + extraLength,
+          compressedSize: readU32LE(bytes, offset + 18),
+        };
+      }
     }
     return null;
   }
@@ -119,9 +138,14 @@ File.write(contentKey, '404142434445464748494a4b4c4d4e4f505152535455565758595a5b
 
   function tamperEntryByte(source, target, entryName) {
     const bytes = File.readBytes(source);
-    const entry = localEntryData(bytes, entryName);
-    assert(entry, 'ZIP local entry not found: ' + entryName);
-    bytes[entry.dataOffset] ^= 1;
+    const local = localEntryData(bytes, entryName);
+    const central = centralEntryData(bytes, entryName);
+    assert(local && central, 'ZIP entry not found: ' + entryName);
+    assert(local.compressedSize > 0, 'ZIP entry has no payload: ' + entryName);
+    bytes[local.dataOffset] ^= 1;
+    const checksum = crc32(bytes, local.dataOffset, local.compressedSize);
+    writeU32LE(bytes, local.headerOffset + 14, checksum);
+    writeU32LE(bytes, central.headerOffset + 16, checksum);
     File.writeBytes(target, bytes);
   }
 
