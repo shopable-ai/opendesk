@@ -28,6 +28,28 @@
 
 @end
 
+@interface ODFlowTrustDetailsController : NSObject
+@property(nonatomic, copy) NSString *flowID;
+@property(nonatomic, copy) NSString *publisher;
+@property(nonatomic, copy) NSString *keyID;
+@property(nonatomic, copy) NSString *fingerprint;
+- (void)showSecurityDetails:(id)sender;
+@end
+
+@implementation ODFlowTrustDetailsController
+
+- (void)showSecurityDetails:(id)sender {
+    (void)sender;
+    NSAlert *details = [NSAlert new];
+    details.alertStyle = NSAlertStyleInformational;
+    details.messageText = @"Security Details";
+    details.informativeText = [NSString stringWithFormat:@"Package signature: Valid\nFlow ID: %@\nPublisher: %@\nSigning key: %@\nFingerprint:\n%@", self.flowID ?: @"unknown", self.publisher ?: @"unknown", self.keyID ?: @"unknown", self.fingerprint ?: @"unknown"];
+    [details addButtonWithTitle:@"Done"];
+    [details runModal];
+}
+
+@end
+
 @interface ODAppShellStatusController : NSObject
 @property(nonatomic, strong) NSStatusItem *statusItem;
 @property(nonatomic, strong) NSMenu *menu;
@@ -258,17 +280,52 @@ int ODAppShellConfirmFlowTrust(const char *flowID, const char *name, const char 
             NSString *key = keyID ? [NSString stringWithUTF8String:keyID] : @"unknown";
             NSString *finger = fingerprint ? [NSString stringWithUTF8String:fingerprint] : @"unknown";
             NSString *identifier = flowID ? [NSString stringWithUTF8String:flowID] : @"unknown";
+
             NSAlert *alert = [NSAlert new];
-            alert.messageText = [NSString stringWithFormat:@"Unverified publisher: %@", flowName];
-            alert.informativeText = [NSString stringWithFormat:@"Flow ID: %@\nPublisher: %@\nSigning key: %@\nFingerprint: %@\n\nOpenDesk verified the package signature, but this publisher is not trusted yet. Choose the narrowest trust scope.", identifier, publisher, key, finger];
+            alert.alertStyle = NSAlertStyleWarning;
+            alert.messageText = [NSString stringWithFormat:@"Install “%@”?", flowName];
+            alert.informativeText = [NSString stringWithFormat:@"Publisher: %@\n\n✓ Package signature is valid.\nPublisher identity is not verified by OpenDesk.\n\nBy default, trust is limited to this Flow. Installing does not run the Flow.", publisher];
+
+            NSButton *trustPublisher = [NSButton checkboxWithTitle:@"Trust this publisher for future Flows" target:nil action:nil];
+            trustPublisher.state = NSControlStateValueOff;
+            trustPublisher.toolTip = @"Optional. Expands trust to other Flows signed by this exact publisher key.";
+
+            NSTextField *scopeHelp = [NSTextField labelWithString:@"Optional. Other Flows signed by this exact publisher key can use publisher-level trust without another publisher trust prompt. Flow permissions and licensing remain separate."];
+            scopeHelp.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
+            scopeHelp.textColor = NSColor.secondaryLabelColor;
+            scopeHelp.maximumNumberOfLines = 0;
+            scopeHelp.lineBreakMode = NSLineBreakByWordWrapping;
+            scopeHelp.preferredMaxLayoutWidth = 380.0;
+
+            ODFlowTrustDetailsController *detailsController = [ODFlowTrustDetailsController new];
+            detailsController.flowID = identifier;
+            detailsController.publisher = publisher;
+            detailsController.keyID = key;
+            detailsController.fingerprint = finger;
+            NSButton *detailsButton = [NSButton buttonWithTitle:@"Security Details…" target:detailsController action:@selector(showSecurityDetails:)];
+            detailsButton.bezelStyle = NSBezelStyleInline;
+            detailsButton.controlSize = NSControlSizeSmall;
+            detailsButton.toolTip = @"Show the Flow ID, signing key, and publisher key fingerprint.";
+
+            NSStackView *accessory = [NSStackView stackViewWithViews:@[trustPublisher, scopeHelp, detailsButton]];
+            accessory.orientation = NSUserInterfaceLayoutOrientationVertical;
+            accessory.alignment = NSLayoutAttributeLeading;
+            accessory.spacing = 6.0;
+            [accessory.widthAnchor constraintGreaterThanOrEqualToConstant:380.0].active = YES;
+            alert.accessoryView = accessory;
+
+            [alert addButtonWithTitle:@"Install"];
             [alert addButtonWithTitle:@"Cancel"];
-            [alert addButtonWithTitle:@"Install This Flow"];
-            [alert addButtonWithTitle:@"Trust Publisher & Install"];
+            alert.buttons.firstObject.keyEquivalent = @"\r";
+            alert.buttons.lastObject.keyEquivalent = @"\e";
+
             NSModalResponse response = [alert runModal];
             if (decision) {
-                if (response == NSAlertSecondButtonReturn) *decision = 1;
-                else if (response == NSAlertThirdButtonReturn) *decision = 2;
-                else *decision = 0;
+                if (response == NSAlertFirstButtonReturn) {
+                    *decision = trustPublisher.state == NSControlStateValueOn ? 2 : 1;
+                } else {
+                    *decision = 0;
+                }
             }
             success = YES;
         }
