@@ -26,6 +26,12 @@
 
 文档已入库不代表功能已实现。基于当前真实源码识别已完成、可复用和缺失部分；复用已有 `.odpkg`、P1/P2、设备身份、授权存储和 Execution/Goja，不重新设计这些基础能力。`Flow.root / Flow.resolve / Flow.dataDir` 是待实现目标，不得当成当前已有 API。
 
+### 订阅／时效商业交付的分批入口
+
+商业权益新增合同见 [订阅会员与统一权益](../architecture/execution/subscription-entitlement.md)，代码分解与唯一接续台账见 [B0～B6 开发计划](../plans/commercialization/subscription-entitlement-delivery.md)，新对话使用[按批次实施提示词](../../prompts/runtime/subscription-entitlement-implementation.md)。
+
+本文件保留原分发闭环和 FLOW-01～FLOW-25 的要求，不删除或降低它们；涉及 30 天授权、自动刷新、到期停止时，按该计划拆批实现，不要求一个会话一次做完全部范围。现有分发实现映射到 B0/B1/B5/B6 并复用，不重新做包系统；商业 evaluator、持久化 issuer、运行期截止与多入口防绕过分别由 B2/B3/B4 补齐。不得把现有 P1/P2 或参考服务当作完整订阅能力，也不得将“打开 .odpkg 后缀限制”与“移除保护源码快照”拆成前者先上线的两个不安全阶段。
+
 ## 本轮执行
 
 直接修改生产代码、补齐必要公开文档，生成并运行真实测试。不要只输出规划、审计报告、伪代码、空壳接口或下一轮提示词。
