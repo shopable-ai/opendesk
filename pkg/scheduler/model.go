@@ -58,14 +58,15 @@ type Job struct {
 }
 
 type JobRun struct {
-	ID          string     `json:"id"`
-	JobID       string     `json:"jobId"`
-	ScheduledAt time.Time  `json:"scheduledAt"`
-	StartedAt   *time.Time `json:"startedAt,omitempty"`
-	FinishedAt  *time.Time `json:"finishedAt,omitempty"`
-	Status      RunStatus  `json:"status"`
-	Error       string     `json:"error,omitempty"`
-	ExecutionID string     `json:"executionId,omitempty"`
+	ID          string      `json:"id"`
+	JobID       string      `json:"jobId"`
+	ScheduledAt time.Time   `json:"scheduledAt"`
+	StartedAt   *time.Time  `json:"startedAt,omitempty"`
+	FinishedAt  *time.Time  `json:"finishedAt,omitempty"`
+	Status      RunStatus   `json:"status"`
+	TriggerType TriggerType `json:"triggerType"`
+	Error       string      `json:"error,omitempty"`
+	ExecutionID string      `json:"executionId,omitempty"`
 }
 
 type CreateJobInput struct {
