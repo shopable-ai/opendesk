@@ -101,9 +101,23 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-      - name: Run core Custom UI tests
+      - name: Run core Custom UI tests without committing unrelated go.mod repair
         shell: bash
-        run: go test ./pkg/customui
+        run: |
+          set -euo pipefail
+          cp go.mod /tmp/opendesk-go.mod
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('go.mod')
+          text = p.read_text()
+          bad = 'github.com/fyne-io/image v0.0.0-20220602074514-4956b0afb3d2 h1 // indirect'
+          good = 'github.com/fyne-io/image v0.0.0-20220602074514-4956b0afb3d2 // indirect'
+          if text.count(bad) != 1:
+              raise SystemExit('pre-existing go.mod blocker changed; refusing to hide a different failure')
+          p.write_text(text.replace(bad, good, 1))
+          PY
+          go test ./pkg/customui
+          mv /tmp/opendesk-go.mod go.mod
       - name: Commit repair and remove one-shot workflow
         shell: bash
         run: |
