@@ -23,9 +23,7 @@ func Resolve(packageID string, environment map[string]string) (string, error) {
 
 	lookup := func(name string) string {
 		if environment != nil {
-			if value, ok := environment[name]; ok {
-				return strings.TrimSpace(value)
-			}
+			return strings.TrimSpace(environment[name])
 		}
 		return strings.TrimSpace(os.Getenv(name))
 	}
