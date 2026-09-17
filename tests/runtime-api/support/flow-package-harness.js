@@ -14,14 +14,16 @@ File.write(publisherPublic, '-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAA6EHv/P
 File.write(licenseIssuerPublic, '-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAKay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=\n-----END PUBLIC KEY-----\n');
 File.write(contentKey, '404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f\n');
 
-  async function cli(args, expectSuccess = true) {
+  async function cli(args, expectSuccess = true, environment = null) {
+    const runOptions = {
+      cwd: Execution.workdir,
+      emitOutput: false,
+      timeout: 30_000,
+      maxOutputBytes: 4 * 1024 * 1024,
+    };
+    if (environment) runOptions.env = environment;
     try {
-      const result = await Command.run(binary, args, {
-        cwd: Execution.workdir,
-        emitOutput: false,
-        timeout: 30_000,
-        maxOutputBytes: 4 * 1024 * 1024,
-      });
+      const result = await Command.run(binary, args, runOptions);
       const body = JSON.parse(result.stdout);
       if (!expectSuccess) throw new Error('command unexpectedly succeeded: ' + JSON.stringify(args));
       assert(body && body.ok === true, result.stdout);
@@ -36,7 +38,7 @@ File.write(contentKey, '404142434445464748494a4b4c4d4e4f505152535455565758595a5b
   }
 
   function assertNeverExecuted() {
-    assert(!File.exists(sentinel), 'pack/inspect/verify executed packaged business JavaScript');
+    assert(!File.exists(sentinel), 'Flow package operation executed packaged business JavaScript');
   }
 
   function setupTrust(flowRoot, includeIssuer = false) {
@@ -73,15 +75,44 @@ File.write(contentKey, '404142434445464748494a4b4c4d4e4f505152535455565758595a5b
     return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)) >>> 0;
   }
 
+  function writeU32LE(bytes, offset, value) {
+    bytes[offset] = value & 0xff;
+    bytes[offset + 1] = (value >>> 8) & 0xff;
+    bytes[offset + 2] = (value >>> 16) & 0xff;
+    bytes[offset + 3] = (value >>> 24) & 0xff;
+  }
+
+  function asciiAt(bytes, offset, length) {
+    let value = '';
+    for (let index = 0; index < length; index += 1) value += String.fromCharCode(bytes[offset + index]);
+    return value;
+  }
+
+  function writeASCIIAt(bytes, offset, value) {
+    for (let index = 0; index < value.length; index += 1) bytes[offset + index] = value.charCodeAt(index);
+  }
+
   function localEntryData(bytes, wantedName) {
     for (let offset = 0; offset + 30 <= bytes.length; offset += 1) {
       if (readU32LE(bytes, offset) !== 0x04034b50) continue;
       const nameLength = readU16LE(bytes, offset + 26);
       const extraLength = readU16LE(bytes, offset + 28);
       if (offset + 30 + nameLength + extraLength >= bytes.length) continue;
-      let name = '';
-      for (let index = 0; index < nameLength; index += 1) name += String.fromCharCode(bytes[offset + 30 + index]);
-      if (name === wantedName) return { offset: offset + 30 + nameLength + extraLength };
+      const name = asciiAt(bytes, offset + 30, nameLength);
+      if (name === wantedName) return { headerOffset: offset, nameOffset: offset + 30, nameLength, dataOffset: offset + 30 + nameLength + extraLength };
+    }
+    return null;
+  }
+
+  function centralEntryData(bytes, wantedName) {
+    for (let offset = 0; offset + 46 <= bytes.length; offset += 1) {
+      if (readU32LE(bytes, offset) !== 0x02014b50) continue;
+      const nameLength = readU16LE(bytes, offset + 28);
+      const extraLength = readU16LE(bytes, offset + 30);
+      const commentLength = readU16LE(bytes, offset + 32);
+      if (offset + 46 + nameLength + extraLength + commentLength > bytes.length) continue;
+      const name = asciiAt(bytes, offset + 46, nameLength);
+      if (name === wantedName) return { headerOffset: offset, nameOffset: offset + 46, nameLength };
     }
     return null;
   }
@@ -90,13 +121,35 @@ File.write(contentKey, '404142434445464748494a4b4c4d4e4f505152535455565758595a5b
     const bytes = File.readBytes(source);
     const entry = localEntryData(bytes, entryName);
     assert(entry, 'ZIP local entry not found: ' + entryName);
-    bytes[entry.offset] ^= 1;
+    bytes[entry.dataOffset] ^= 1;
     File.writeBytes(target, bytes);
   }
 
+  function rewriteZipEntryNameSameLength(source, target, fromName, toName) {
+    assert(fromName.length === toName.length, 'ZIP test rename must preserve byte length');
+    const bytes = File.readBytes(source);
+    const local = localEntryData(bytes, fromName);
+    const central = centralEntryData(bytes, fromName);
+    assert(local && central, 'ZIP entry not found for rename: ' + fromName);
+    writeASCIIAt(bytes, local.nameOffset, toName);
+    writeASCIIAt(bytes, central.nameOffset, toName);
+    File.writeBytes(target, bytes);
+  }
+
+  function markZipEntrySymlink(source, target, entryName) {
+    const bytes = File.readBytes(source);
+    const central = centralEntryData(bytes, entryName);
+    assert(central, 'ZIP central entry not found: ' + entryName);
+    // Creator system = Unix and external mode = symlink (0120777). The payload
+    // bytes and CRC remain untouched; only the archive entry type changes.
+    bytes[central.headerOffset + 5] = 3;
+    writeU32LE(bytes, central.headerOffset + 38, (0xA1FF << 16) >>> 0);
+    File.writeBytes(target, bytes);
+  }
 
 return Object.freeze({
   cli, assertNeverExecuted, setupTrust, tamperStoredASCII, tamperEntryByte,
+  rewriteZipEntryNameSameLength, markZipEntrySymlink,
   publisherPrivate, publisherPublic, licenseIssuerPublic, contentKey,
 });
 })
