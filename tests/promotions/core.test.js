@@ -405,7 +405,6 @@ test('owner persists under appDataRoot and native activity fails closed by kind'
     waitUntilHidden: async () => true,
     refreshContext: async () => {},
     reanchor: async () => {},
-    restore: async () => ({preferences: core.freshPreferences()}),
     dispose: async () => {},
   };
   const owner = ownerAPI.create({
@@ -414,7 +413,14 @@ test('owner persists under appDataRoot and native activity fails closed by kind'
     appDataRoot: '/app-data',
     creative: creative('image'),
     schedulerClient: scheduler,
-    controllerFactory: () => fakeController,
+    controllerFactory: settings => ({
+      ...fakeController,
+      restore: async () => {
+        const preferences = core.freshPreferences();
+        await settings.savePreferences(preferences);
+        return {preferences};
+      },
+    }),
     getRunnerState: () => ({runner: {running: false, player: {panelLifecycle: 'hidden', panelDesiredVisible: false}}}),
   });
   await owner.start();
