@@ -76,17 +76,15 @@ func (installer *Installer) InstallURL(ctx context.Context, rawURL string, optio
 	// Marketplace attestation proves Release identity only. It must never be
 	// translated into flowinstall.AuthorityProof or Local Publisher Trust.
 	// Unknown publishers still go through the same explicit trust approver as
-	// side-loaded .odflow files.
+	// side-loaded .odflow files. Provenance is committed by the same install
+	// transaction as package content and the Local Flow Catalog record.
 	options.AuthorityProof = nil
-	result, err := installer.FlowService.Install(ctx, artifactPath, options)
-	if err != nil {
-		return flowinstall.InstallResult{}, err
-	}
-	return installer.FlowService.MarkMarketplaceInstall(ctx, result, flowinstall.MarketplaceProvenance{
+	options.Marketplace = &flowinstall.MarketplaceProvenance{
 		MarketplaceID: release.MarketplaceID,
 		ReleaseID:     release.ReleaseID,
 		UpdateChannel: release.UpdateChannel,
-	})
+	}
+	return installer.FlowService.Install(ctx, artifactPath, options)
 }
 
 func matchReleasePackage(release Release, flowPackage *flowpackage.Package) error {
