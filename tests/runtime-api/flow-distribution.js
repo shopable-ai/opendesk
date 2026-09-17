@@ -16,17 +16,7 @@ const privateKeyPath = File.join(runDir, 'flow-fixture', 'publisher-test-only.pe
 const archivePath = File.join(runDir, 'flow-fixture', 'resource-flow.odflow');
 const localSourcePath = File.join(runDir, 'flow-fixture', 'local-script.js');
 const runLogRoot = File.join(runDir, 'flow-fixture', 'run-logs');
-
-// These keys are deliberately test-only material. They are written only into
-// the isolated Runtime evidence tree and removed in the finally block.
-const TEST_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----
-MC4CAQAwBQYDK2VwBCIEIJ29PcamQEcZ3Q8oT0aN5IuOUE9C7gM3D1jS+g0Ndmo1
------END PRIVATE KEY-----
-`;
-const TEST_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEA7mlnuwwF7aZizlDlZjxW+G4Sl9Ty5ztP1svQU1GvhRw=
------END PUBLIC KEY-----
-`;
+const opensslBinary = String(Execution.env.OPENDESK_OPENSSL_BINARY || 'openssl');
 
 function fail(message) {
   throw new Error(message);
@@ -78,8 +68,6 @@ async function contextCommand(commandPath, args, options) {
 File.ensureDir(File.join(sourceRoot, 'assets'));
 File.ensureDir(File.join(sourceRoot, 'payload'));
 File.ensureDir(alternateCwd);
-File.write(publicKeyPath, TEST_PUBLIC_KEY);
-File.write(privateKeyPath, TEST_PRIVATE_KEY);
 File.write(File.join(sourceRoot, 'payload', 'main.js'), `
 const resource = File.read(Flow.resolve('assets/value.txt'));
 const record = {root: Flow.root, dataDir: Flow.dataDir, cwd: Execution.workdir, resource};
@@ -88,6 +76,19 @@ File.write(File.join(Flow.dataDir, 'run.json'), JSON.stringify(record));
 File.write(File.join(sourceRoot, 'assets', 'value.txt'), 'resource-ok');
 
 try {
+  let keygen = await contextCommand(opensslBinary, ['genpkey', '-algorithm', 'Ed25519', '-out', privateKeyPath], {
+    cwd: Execution.workdir,
+    timeout: 30_000,
+    maxOutputBytes: 1024 * 1024,
+  });
+  assert(keygen.exitCode === 0, `generate ephemeral Flow signing key failed: ${keygen.stderr || keygen.stdout}`);
+  keygen = await contextCommand(opensslBinary, ['pkey', '-in', privateKeyPath, '-pubout', '-out', publicKeyPath], {
+    cwd: Execution.workdir,
+    timeout: 30_000,
+    maxOutputBytes: 1024 * 1024,
+  });
+  assert(keygen.exitCode === 0, `derive ephemeral Flow public key failed: ${keygen.stderr || keygen.stdout}`);
+
   let result = await command(['flow', 'pack', sourceRoot, '-o', archivePath,
     '--flow-id', 'runtime-flow', '--name', 'Runtime Resource Flow', '--version', '1.0.0',
     '--publisher-id', 'runtime-test-publisher', '--publisher-key-id', 'runtime-test-key',

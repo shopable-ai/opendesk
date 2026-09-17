@@ -1,7 +1,11 @@
 package main
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -25,5 +29,40 @@ func TestStripLeadingMacOSLaunchServicesPSN(t *testing.T) {
 				t.Fatalf("stripLeadingMacOSLaunchServicesPSN(%q) = %q, want %q", test.args, got, test.want)
 			}
 		})
+	}
+}
+
+func TestFlowDocumentPathsRegistersOnlyRealODFlowFiles(t *testing.T) {
+	root := t.TempDir()
+	flowPath := filepath.Join(root, "中文 flow [1] #$.odflow")
+	scriptPath := filepath.Join(root, "plain file.js")
+	for _, path := range []string{flowPath, scriptPath} {
+		if err := os.WriteFile(path, []byte("fixture"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := flowDocumentPaths([]string{scriptPath, flowPath, flowPath, filepath.Join(root, "missing.odflow")})
+	if !reflect.DeepEqual(got, []string{flowPath}) {
+		t.Fatalf("flowDocumentPaths() = %#v, want %#v", got, []string{flowPath})
+	}
+	if normalized, err := normalizeFlowInstallPath(scriptPath); err != nil || normalized != scriptPath {
+		t.Fatalf("native picker/drop JS path = %q, err = %v", normalized, err)
+	}
+	if _, err := normalizeFlowInstallPath(strings.Repeat("x", maxFlowDocumentPathSize+1)); err == nil {
+		t.Fatal("oversized Flow path unexpectedly accepted")
+	}
+}
+
+func TestFlowDocumentPathsIsBounded(t *testing.T) {
+	root := t.TempDir()
+	args := make([]string, maxFlowDocumentPaths+3)
+	for index := range args {
+		args[index] = filepath.Join(root, fmt.Sprintf("flow-%02d.odflow", index))
+		if err := os.WriteFile(args[index], []byte("fixture"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := flowDocumentPaths(args); len(got) != maxFlowDocumentPaths {
+		t.Fatalf("flowDocumentPaths() returned %d paths, want %d", len(got), maxFlowDocumentPaths)
 	}
 }

@@ -130,7 +130,14 @@ File.write(contentKey, '404142434445464748494a4b4c4d4e4f505152535455565758595a5b
       const commentLength = readU16LE(bytes, offset + 32);
       if (offset + 46 + nameLength + extraLength + commentLength > bytes.length) continue;
       const name = asciiAt(bytes, offset + 46, nameLength);
-      if (name === wantedName) return { headerOffset: offset, nameOffset: offset + 46, nameLength };
+      if (name === wantedName) {
+        return {
+          headerOffset: offset,
+          nameOffset: offset + 46,
+          nameLength,
+          compressedSize: readU32LE(bytes, offset + 20),
+        };
+      }
     }
     return null;
   }
@@ -140,10 +147,20 @@ File.write(contentKey, '404142434445464748494a4b4c4d4e4f505152535455565758595a5b
     const local = localEntryData(bytes, entryName);
     const central = centralEntryData(bytes, entryName);
     assert(local && central, 'ZIP entry not found: ' + entryName);
-    assert(local.compressedSize > 0, 'ZIP entry has no payload: ' + entryName);
+    const compressedSize = local.compressedSize || central.compressedSize;
+    assert(compressedSize > 0, 'ZIP entry has no payload: ' + entryName);
     bytes[local.dataOffset] ^= 1;
-    const checksum = crc32(bytes, local.dataOffset, local.compressedSize);
-    writeU32LE(bytes, local.headerOffset + 14, checksum);
+    const checksum = crc32(bytes, local.dataOffset, compressedSize);
+    const usesDataDescriptor = (readU16LE(bytes, local.headerOffset + 6) & 0x0008) !== 0;
+    if (usesDataDescriptor) {
+      const descriptorOffset = local.dataOffset + compressedSize;
+      const checksumOffset = readU32LE(bytes, descriptorOffset) === 0x08074b50
+        ? descriptorOffset + 4 : descriptorOffset;
+      assert(checksumOffset + 4 <= bytes.length, 'ZIP data descriptor is truncated: ' + entryName);
+      writeU32LE(bytes, checksumOffset, checksum);
+    } else {
+      writeU32LE(bytes, local.headerOffset + 14, checksum);
+    }
     writeU32LE(bytes, central.headerOffset + 16, checksum);
     File.writeBytes(target, bytes);
   }

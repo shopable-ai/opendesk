@@ -131,6 +131,7 @@ func executeAppMode(config *Config) error {
 	defer cancelApp()
 	var flowService *flowinstall.Service
 	var flowInstallMu sync.Mutex
+	var flowStateMu sync.RWMutex
 	flowDocumentInstalled := false
 	flowDropSessionID := ""
 	if appshell.IsOpenDeskProduct(appPackage.Manifest) {
@@ -161,10 +162,15 @@ func executeAppMode(config *Config) error {
 		}
 	}
 	installFlowDocument := func(path string, interactive bool) bool {
-		path = strings.TrimSpace(path)
-		if flowService == nil || path == "" {
+		if flowService == nil {
 			return false
 		}
+		validatedPath, pathErr := normalizeFlowInstallPath(path)
+		if pathErr != nil {
+			log.Printf("[FLOW_INSTALL] rejected path=%q error=%v", path, pathErr)
+			return false
+		}
+		path = validatedPath
 		flowInstallMu.Lock()
 		defer flowInstallMu.Unlock()
 		var result flowinstall.InstallResult
@@ -193,22 +199,32 @@ func executeAppMode(config *Config) error {
 		log.Printf("[FLOW_INSTALL] installed path=%q installId=%s idempotent=%t", path, result.Record.InstallID, result.Idempotent)
 		return true
 	}
+	installFlowDocuments := func(paths []string, interactive bool) bool {
+		if len(paths) > maxFlowDocumentPaths {
+			log.Printf("[FLOW_INSTALL] rejected batch count=%d limit=%d", len(paths), maxFlowDocumentPaths)
+			return false
+		}
+		installed := false
+		for _, path := range paths {
+			installed = installFlowDocument(path, interactive) || installed
+		}
+		return installed
+	}
 	if flowService != nil {
 		sharedUIDriver.SetFileDropHandler(func(event customui.FileDropEvent) {
 			// The shared native host also serves Recorder and other product
 			// surfaces. Only the App Mode execution that owns the Runner may
 			// turn a native file URL drop into a Flow installation request.
-			if flowDropSessionID == "" || event.SessionID != flowDropSessionID {
+			flowStateMu.RLock()
+			dropSessionID := flowDropSessionID
+			flowStateMu.RUnlock()
+			if dropSessionID == "" || event.SessionID != dropSessionID {
 				log.Printf("[FLOW_INSTALL] ignored file drop from session=%q window=%q", event.SessionID, event.WindowID)
 				return
 			}
 			paths := append([]string(nil), event.Paths...)
 			go func() {
-				installed := false
-				for _, path := range paths {
-					installed = installFlowDocument(path, true) || installed
-				}
-				if installed {
+				if installFlowDocuments(paths, true) {
 					if activateErr := shell.Activate("flow-file-drop"); activateErr != nil {
 						log.Printf("[FLOW_INSTALL] Runner refresh activation failed after drop: %v", activateErr)
 					}
@@ -218,6 +234,10 @@ func executeAppMode(config *Config) error {
 	}
 	if documentHost, ok := nativeHost.(appshell.OpenDocumentHost); ok {
 		documentHost.SetOpenDocumentHandler(func(path string) {
+			if !strings.EqualFold(filepath.Ext(path), ".odflow") {
+				log.Printf("[FLOW_INSTALL] rejected non-odflow native document path=%q", path)
+				return
+			}
 			go func() {
 				if installFlowDocument(path, true) {
 					_ = shell.Activate("flow-document")
@@ -233,11 +253,7 @@ func executeAppMode(config *Config) error {
 					log.Printf("[FLOW_INSTALL] file picker failed: %v", pickerErr)
 					return
 				}
-				installed := false
-				for _, path := range paths {
-					installed = installFlowDocument(path, true) || installed
-				}
-				if installed {
+				if installFlowDocuments(paths, true) {
 					if err := shell.Activate("flow-file-picker"); err != nil {
 						log.Printf("[FLOW_INSTALL] Runner refresh activation failed: %v", err)
 					}
@@ -276,10 +292,11 @@ func executeAppMode(config *Config) error {
 	stopSignalHook := context.AfterFunc(signalContext, func() { _ = shell.RequestQuit() })
 	defer stopSignalHook()
 	lease, primary, err := appshell.AcquireSingleInstanceWithDocuments(appContext, appPackage.Manifest, config.FlowDocumentPaths, func(paths []string) bool {
-		for _, path := range paths {
-			installFlowDocument(path, true)
+		source := "second-instance"
+		if installFlowDocuments(paths, true) {
+			source = "flow-document-hot"
 		}
-		return shell.Activate("second-instance") == nil
+		return shell.Activate(source) == nil
 	})
 	if err != nil {
 		return err
@@ -287,9 +304,7 @@ func executeAppMode(config *Config) error {
 	if !primary {
 		return nil
 	}
-	for _, path := range config.FlowDocumentPaths {
-		installFlowDocument(path, true)
-	}
+	installFlowDocuments(config.FlowDocumentPaths, true)
 	leaseClosed := false
 	defer func() {
 		if lease != nil && !leaseClosed {
@@ -399,7 +414,9 @@ func executeAppMode(config *Config) error {
 	}
 
 	executionID := pkgExecution.NewExecutionID("app")
+	flowStateMu.Lock()
 	flowDropSessionID = executionID
+	flowStateMu.Unlock()
 	appLogDir := artifactsRoot
 	if !artifactsConfigured {
 		appLogDir = filepath.Join(artifactsRoot, executionID)

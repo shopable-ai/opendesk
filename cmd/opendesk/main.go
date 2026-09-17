@@ -80,15 +80,44 @@ func isMacOSLaunchServicesPSN(arg string) bool {
 	return true
 }
 
-// flowDocumentPaths accepts only explicit file arguments that the native App
-// Mode entry point can install. Paths remain ordinary argv values all the way
-// into the FlowInstallService; no shell command or path concatenation is used.
+const (
+	maxFlowDocumentPaths    = 32
+	maxFlowDocumentPathSize = 4096
+)
+
+// normalizeFlowInstallPath is the common product boundary for picker, native
+// drop, and LaunchServices paths. It accepts only absolute real files with an
+// explicitly supported extension; the validated path is still passed as a
+// normal argument to FlowInstallService and is never composed into a shell
+// command.
+func normalizeFlowInstallPath(path string) (string, error) {
+	if strings.TrimSpace(path) == "" || len(path) > maxFlowDocumentPathSize || strings.IndexByte(path, 0) >= 0 || !filepath.IsAbs(path) {
+		return "", fmt.Errorf("Flow install path must be an absolute bounded path")
+	}
+	path = filepath.Clean(path)
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".odflow", ".js", ".mjs":
+	default:
+		return "", fmt.Errorf("Flow install path has an unsupported extension")
+	}
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return "", fmt.Errorf("Flow install path must be a real regular file")
+	}
+	return path, nil
+}
+
+// flowDocumentPaths accepts only explicit .odflow arguments for the native
+// App Mode document-open path. Plain .js/.mjs deliberately remain available
+// only through native drag/drop and the product file picker.
 func flowDocumentPaths(args []string) []string {
 	seen := make(map[string]struct{})
-	paths := make([]string, 0, len(args))
+	paths := make([]string, 0, min(len(args), maxFlowDocumentPaths))
 	for _, arg := range args {
-		arg = strings.TrimSpace(arg)
-		if arg == "" || arg == "--" || strings.HasPrefix(arg, "-") {
+		if len(paths) >= maxFlowDocumentPaths {
+			break
+		}
+		if strings.TrimSpace(arg) == "" || arg == "--" || strings.HasPrefix(arg, "-") {
 			continue
 		}
 		ext := strings.ToLower(filepath.Ext(arg))
@@ -103,11 +132,10 @@ func flowDocumentPaths(args []string) []string {
 		if err != nil {
 			continue
 		}
-		info, err := os.Stat(absolute)
-		if err != nil || !info.Mode().IsRegular() {
+		absolute, err = normalizeFlowInstallPath(absolute)
+		if err != nil {
 			continue
 		}
-		absolute = filepath.Clean(absolute)
 		if _, ok := seen[absolute]; ok {
 			continue
 		}

@@ -1,6 +1,7 @@
 ---
 title: App Mode 与 App Shell
 description: 从 opendesk -app 启动应用，并理解 Manifest、App Shell、automation.app 与 App API 的职责边界。
+docType: guide
 order: 205
 ---
 
@@ -95,8 +96,16 @@ Current Execution / main.js
 Windows 的文件关联沿用同一服务和安全的单实例文档转交协议；当前仓库只做
 source/cross-build 验证，未把 Windows live 行为写成通过。
 
+所有入口都只接受本机真实普通文件的绝对路径，拒绝相对路径、NUL、符号链接、目录和
+其他扩展名。单批最多 `32` 个路径，每个路径长度最多 `4096`；热启动的单实例文档转交
+还会拒绝重复路径，并且只允许 `.odflow`。macOS bundle 的 LaunchServices / Finder
+文件关联也只声明 `.odflow`：`.js` 与 `.mjs` 原有 `-script` 语义不变，只有用户主动拖放
+或在“安装 Flow…”中选择时才作为 local Flow 安装。
+
 这些入口只做解析、签名/信任确认、安装和 Runner 刷新，不执行 Flow。未知发布者
-必须经过用户确认；安装完成后仍要在 Runner 中明确点击运行。当前 Windows 只保留
+必须经过用户确认；安装成功后 Runner 会重新扫描并显示稳定的 `flow-*` / `local-*`
+安装项，但只有用户明确点击运行才会产生新的 Execution。重启产品后 Runner 仍从安装
+catalog 发现这些项目，卸载则继续走同一 Flow 服务。当前 Windows 只保留
 相同的单实例文档转交/源码边界，文件关联与桌面 live 资格仍需目标系统验收。Flow 的 CLI 合同、
 trust scope 与卸载策略见 [Flow CLI](flow-cli.md) 和 [Flow 包格式与 CLI](flow-packages.md)。
 
