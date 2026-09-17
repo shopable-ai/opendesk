@@ -23,11 +23,11 @@
     }
     async function awaitImageReady(candidate,token){
       if(!creative||!creative.media)return true;const image=candidate.control('promotionImage');
-      for(let i=0;i<80;i+=1){if(token!==revision||core.contextReason(context()))return false;const state=await image.getState();if(state&&state.imageComplete===true){if(Number(state.naturalWidth)>0&&Number(state.naturalHeight)>0)return true;throw new Error('Promotion image decode failed');}await new Promise(resolve=>later(resolve,25));}
+      for(let i=0;i<80;i+=1){if(token!==revision||core.contextReason(context()))return false;const state=await image.getState();if(state&&state.imageComplete===true){if(Number(state.imageNaturalWidth)>0&&Number(state.imageNaturalHeight)>0)return true;throw new Error('Promotion image decode failed');}await new Promise(resolve=>later(resolve,25));}
       throw new Error('Promotion image readiness timeout');
     }
     function listen(id,callback){offs.push(handle.control(id).on('click',()=>Promise.resolve().then(callback).catch(async error=>{log(error);try{await close('handler-error');}catch(e){log(e);}})));}
-    async function setMenu(next){if(!handle||phase!=='visible')return;menuOpen=!!next;await handle.control('promotionMenu').update({className:menuOpen?'menu':'menu hidden'});}
+    async function setMenu(next){if(!handle||phase!=='visible')return;menuOpen=!!next;await handle.control('promotionMenu').update({classes:menuOpen?['menu']:['menu','hidden']});}
     async function dismiss(mode){if(!creative)return;const next=core.dismiss(preferences,creative,mode,clock());const shut=close(mode);try{await persist(next);}finally{await shut;}}
     function show(input,placement){
       if(disposed||blocked)return Promise.resolve({status:'suppressed',reason:disposed?'disposed':'failed'});if(opening)return opening;if(closing)return Promise.resolve({status:'suppressed',reason:'closing'});if(handle)return Promise.resolve({status:phase,windowId:handle.id});
@@ -37,7 +37,7 @@
       const token=++revision;phase='opening';creative=value;const valid=()=>token===revision&&!disposed&&!blocked&&!core.contextReason(context())&&(!o.canShow||o.canShow()===true);
       opening=(async()=>{let candidate=null;try{
         const animate=value.media&&value.media.kind==='animated-image'&&!reducedMotion(),content=core.render(value,!animate);
-        candidate=await o.ui.createWindow({id:'opendeskPromotion'+(++sequence),kind:'floating',title:'OpenDesk · 推广',position:{mode:'anchor',size:content.size,horizontal:'right',vertical:'bottom',margin:core.LIMITS.margin,display:'active'},alwaysOnTop:true,draggable:false,interactionGroup:'opendeskPromotion',activate:false,content:{html:content.html,css:content.css}});
+        candidate=await o.ui.createWindow({id:'opendeskPromotion'+(++sequence),kind:'floating',title:'OpenDesk · 推广',position:{mode:'anchor',size:content.size,horizontal:'right',vertical:'bottom',margin:core.LIMITS.margin,display:'active'},alwaysOnTop:true,draggable:false,keyEvents:true,interactionGroup:'opendeskPromotion',content:{html:content.html,css:content.css}});
         if(!valid()){await candidate.close();return {status:'suppressed',reason:'canceled'};}handle=candidate;
         const placed=p.mode==='runner-above'?await candidate.setRelativeTo(p.anchor,{preferredSides:['above'],align:'end',gap:core.LIMITS.gap}):await candidate.setPlacement({horizontal:'right',vertical:'bottom',margin:core.LIMITS.margin,display:'active'});
         if(!placed||!core.validBounds(placed.bounds))throw new Error('Promotion placement not confirmed');if(core.validBounds(p.anchor)&&core.overlaps(placed.bounds,p.anchor)){await close('overlap');return {status:'suppressed',reason:'overlap'};}
