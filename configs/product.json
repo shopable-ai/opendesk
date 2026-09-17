@@ -29,5 +29,26 @@
       "visible": false,
       "url": "https://github.com/shopable-ai/opendesk#upgrade"
     }
+  },
+  "analytics": {
+    "provider": "posthog",
+    "endpoint": "https://us.i.posthog.com",
+    "projectToken": "",
+    "environment": "production",
+    "maxEventBytes": 2048,
+    "queue": {
+      "maxEvents": 1000,
+      "batchSize": 20,
+      "maxRequests": 4
+    },
+    "network": {
+      "requestTimeoutMs": 3000,
+      "flushIntervalMs": 5000,
+      "maxRetries": 1,
+      "shutdownTimeoutMs": 750
+    },
+    "session": {
+      "idleTimeoutMinutes": 30
+    }
   }
 }
