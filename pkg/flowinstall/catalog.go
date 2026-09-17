@@ -39,9 +39,15 @@ type Record struct {
 	StateReason          string    `json:"stateReason,omitempty"`
 	InstalledAt          time.Time `json:"installedAt"`
 	Origin               string    `json:"origin"`
+	MarketplaceID        string    `json:"marketplaceId,omitempty"`
+	ReleaseID            string    `json:"releaseId,omitempty"`
+	UpdateChannel        string    `json:"updateChannel,omitempty"`
 }
 
-var installIDPattern = regexp.MustCompile(`^(?:flow|local)-[a-f0-9]{32}$`)
+var (
+	installIDPattern     = regexp.MustCompile(`^(?:flow|local)-[a-f0-9]{32}$`)
+	catalogSourcePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
+)
 
 func InstallID(publisherFingerprint, flowID string) string {
 	digest := sha256.Sum256([]byte("OpenDeskFlowInstallID/v1\x00" + publisherFingerprint + "\x00" + flowID))
@@ -132,6 +138,21 @@ func validateRecord(record Record) error {
 	}
 	if record.State != StateReady && record.State != StateNeedsActivation && record.State != StateBlocked {
 		return fmt.Errorf("invalid Flow catalog state")
+	}
+	switch record.Origin {
+	case "js", "odflow":
+		if record.MarketplaceID != "" || record.ReleaseID != "" || record.UpdateChannel != "" {
+			return fmt.Errorf("non-Marketplace Flow catalog record contains Marketplace provenance")
+		}
+	case "marketplace":
+		if !catalogSourcePattern.MatchString(record.MarketplaceID) || !catalogSourcePattern.MatchString(record.ReleaseID) {
+			return fmt.Errorf("Marketplace Flow catalog provenance is invalid")
+		}
+		if record.UpdateChannel != "" && !catalogSourcePattern.MatchString(record.UpdateChannel) {
+			return fmt.Errorf("Marketplace Flow update channel is invalid")
+		}
+	default:
+		return fmt.Errorf("invalid Flow catalog origin")
 	}
 	return nil
 }
