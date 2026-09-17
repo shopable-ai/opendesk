@@ -77,6 +77,10 @@
     listRuns: (id, limit) => request('GET', `/api/scheduler/jobs/${encodeID(id)}/runs`, undefined, {
       limit: Math.max(1, Math.min(100, Number(limit) || 20)),
     }),
+    // Private first-party product lifecycle bridge. These methods are consumed
+    // only by the bundled OpenDesk App owner; they are not Runtime API surface.
+    productActivity: () => request('GET', '/api/product/activity'),
+    acknowledgeProductActivity: () => request('POST', '/api/product/activity/ack', {}),
   });
 
   global.OpenDeskSchedulerClient = client;
