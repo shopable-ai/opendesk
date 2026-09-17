@@ -7,7 +7,6 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
   const { assert, equal, test } = RuntimeAPITest;
   const binary = System.getExecutablePath();
   const root = File.join(Execution.workdir, '.runtime', 'tests', 'flow-package', Execution.id);
-  const fixtures = File.join(Execution.workdir, 'tests', 'flow-distribution', 'fixtures');
   const sentinel = File.join(root, 'BUSINESS_EXECUTED.txt');
   const sourceToken = 'FLOW_SOURCE_MUST_NOT_APPEAR_IN_INSPECT_7f4b8b';
 
@@ -18,7 +17,7 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
   const {
     cli, assertNeverExecuted, setupTrust, tamperStoredASCII, tamperEntryByte,
     publisherPrivate, publisherPublic, licenseIssuerPublic, contentKey,
-  } = createHarness({ assert, binary, root, fixtures, sentinel, sourceToken });
+  } = createHarness({ assert, binary, root, sentinel, sourceToken });
 
   test({
     name: 'flow pack/inspect/verify builds a signed ordinary .odflow without executing business code',

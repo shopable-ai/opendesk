@@ -1,10 +1,18 @@
 (function createFlowPackageHarness(options) {
 'use strict';
-const { assert, binary, root, fixtures, sentinel, sourceToken } = options;
-const publisherPrivate = File.join(fixtures, 'publisher-private.pem');
-const publisherPublic = File.join(fixtures, 'publisher-public.pem');
-const licenseIssuerPublic = File.join(fixtures, 'license-issuer-public.pem');
-const contentKey = File.join(fixtures, 'content-key.hex');
+const { assert, binary, root, sentinel, sourceToken } = options;
+// Deterministic non-production test vectors. Secret-shaped files are materialized
+// only inside the run-scoped .runtime tree; none of these values are production keys.
+const keyRoot = File.join(root, 'keys');
+File.ensureDir(keyRoot);
+const publisherPrivate = File.join(keyRoot, 'publisher-private.pem');
+const publisherPublic = File.join(keyRoot, 'publisher-public.pem');
+const licenseIssuerPublic = File.join(keyRoot, 'license-issuer-public.pem');
+const contentKey = File.join(keyRoot, 'content-key.hex');
+File.write(publisherPrivate, '-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f\n-----END PRIVATE KEY-----\n');
+File.write(publisherPublic, '-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAA6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=\n-----END PUBLIC KEY-----\n');
+File.write(licenseIssuerPublic, '-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAKay64UG8yvCyLhqU000LxzYeUm0L/hLIl5S8kyKWbdc=\n-----END PUBLIC KEY-----\n');
+File.write(contentKey, '404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f\n');
 
   async function cli(args, expectSuccess = true) {
     try {
