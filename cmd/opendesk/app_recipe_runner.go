@@ -12,6 +12,7 @@ import (
 	"opendesk/automation"
 	"opendesk/pkg/customui"
 	pkgExecution "opendesk/pkg/execution"
+	"opendesk/pkg/productanalytics"
 	"opendesk/pkg/runtimeconfig"
 	"opendesk/pkg/scriptloader"
 )
@@ -37,6 +38,7 @@ type appRecipeRunner struct {
 	config      appRecipeRunnerConfig
 	environment map[string]string
 	driver      customui.Driver
+	analytics   *productanalytics.Service
 	run         func(pkgExecution.Request) (pkgExecution.ExecutionResult, pkgExecution.AgentSummary, error)
 
 	mu                    sync.Mutex
@@ -49,7 +51,11 @@ type appRecipeRunner struct {
 
 func newAppRecipeRunner(config appRecipeRunnerConfig, environment map[string]string, driver customui.Driver) *appRecipeRunner {
 	return &appRecipeRunner{
-		config: config, environment: cloneStringMap(environment), driver: driver, run: pkgExecution.Run,
+		config:      config,
+		environment: productanalytics.StripPrivateEnvironment(environment),
+		driver:      driver,
+		analytics:   appProductAnalyticsServiceFromEnvironment(environment),
+		run:         pkgExecution.Run,
 	}
 }
 
@@ -89,7 +95,13 @@ func (r *appRecipeRunner) Run(parent context.Context, input automation.AppOwnedS
 	if err != nil {
 		return result, appRecipeRunError(result, err)
 	}
-	runResult, _, runErr := r.run(request)
+	var runResult pkgExecution.ExecutionResult
+	var runErr error
+	if r.analytics != nil {
+		runResult, _, runErr = runAppRecipeWithProductAnalytics(r.analytics, request)
+	} else {
+		runResult, _, runErr = r.run(request)
+	}
 	result.ExecutionID = runResult.ExecutionID
 	result.Status = string(runResult.Status)
 	result.Error = runResult.Error

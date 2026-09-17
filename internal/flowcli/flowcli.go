@@ -320,7 +320,7 @@ func run(args []string, stdout, _ io.Writer) int {
 	} else if err := os.WriteFile(artifacts.ScriptSnapshotPath, source.Content, 0o600); err != nil {
 		return writeCommandError(stdout, command, err)
 	}
-	result, summary, runErr := pkgExecution.Run(pkgExecution.Request{
+	result, summary, runErr := runInstalledFlowExecution(environment.Values, pkgExecution.Request{
 		Context: ctx, ExecutionID: executionID, SourceLabel: "installed-flow:" + installID,
 		ScriptPath: lease.Entry, Ext: source.Ext, ScriptHash: scriptHash, ScriptContent: source.Content,
 		WorkDir: workDir, Environment: environment.Values, Timeout: *timeout,

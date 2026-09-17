@@ -148,7 +148,15 @@ func startAppSchedulerWithActivity(ctx context.Context, config *Config, packageI
 	mux.HandleFunc("/api/scheduler/jobs/", runtime.authorize(handler.HandleSchedulerJobRoutes))
 	mux.HandleFunc("/api/product/activity", runtime.authorize(runtime.handleProductActivity))
 	mux.HandleFunc("/api/product/activity/ack", runtime.authorize(runtime.handleProductActivityAck))
+	if err := registerAppProductAnalytics(runtime, packageID, appRoot, dataRoot, environment, mux); err != nil {
+		_ = listener.Close()
+		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = service.Close(closeCtx)
+		return nil, err
+	}
 	if err := runtime.attachInspector(packageID, appRoot, scriptRoot, mux); err != nil {
+		_ = closeAppProductAnalytics(runtime)
 		_ = listener.Close()
 		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -174,6 +182,7 @@ func startAppSchedulerWithActivity(ctx context.Context, config *Config, packageI
 		if runtime.inspectorURL != "" {
 			environment[appInspectorURLEnv] = runtime.inspectorURL
 		}
+		injectAppProductAnalyticsEnvironment(runtime, environment)
 	}
 	cleanupStore = false
 	return runtime, nil
@@ -325,7 +334,7 @@ func (r *appSchedulerRuntime) handleProductActivityAck(w http.ResponseWriter, re
 }
 
 func (r *appSchedulerRuntime) Environment(base map[string]string) map[string]string {
-	result := make(map[string]string, len(base)+4)
+	result := make(map[string]string, len(base)+7)
 	for key, value := range base {
 		result[key] = value
 	}
@@ -335,6 +344,7 @@ func (r *appSchedulerRuntime) Environment(base map[string]string) map[string]str
 	if r.inspectorURL != "" {
 		result[appInspectorURLEnv] = r.inspectorURL
 	}
+	injectAppProductAnalyticsEnvironment(r, result)
 	return result
 }
 
@@ -377,6 +387,7 @@ func (r *appSchedulerRuntime) close(ctx context.Context) error {
 		if r.server != nil {
 			serverErr = r.server.Shutdown(ctx)
 		}
+		analyticsErr := closeAppProductAnalytics(r)
 		var inspectorErr error
 		if r.inspector != nil {
 			inspectorErr = r.inspector.Shutdown(ctx)
@@ -396,7 +407,7 @@ func (r *appSchedulerRuntime) close(ctx context.Context) error {
 		if r.store != nil {
 			storeErr = r.store.Close()
 		}
-		r.closeErr = errors.Join(serverErr, inspectorErr, schedulerErr, listenerErr, storeErr)
+		r.closeErr = errors.Join(serverErr, analyticsErr, inspectorErr, schedulerErr, listenerErr, storeErr)
 	})
 	return r.closeErr
 }

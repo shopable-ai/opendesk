@@ -76,6 +76,24 @@ globalThis.OpenDeskScriptRunnerSimple = OpenDeskScriptRunnerPlayer.wrapControlle
   },
 });
 
+// Product Analytics observes the logical Player boundary. It is intentionally
+// outside the generic Runner controller but inside the shortcut decorator, so
+// pointer and keyboard actions each have one owner and screen_viewed follows a
+// successful native show() rather than a menu click or window-create request.
+for (const name of ['client.js', 'integration.js']) {
+  const entry = File.join(Execution.scriptDir, 'product-analytics', name);
+  (0, eval)(File.read(entry) + '\n//# sourceURL=' + entry);
+}
+if (!globalThis.OpenDeskProductAnalytics
+  || !globalThis.OpenDeskProductAnalyticsIntegration
+  || typeof OpenDeskProductAnalyticsIntegration.wrapController !== 'function') {
+  throw new Error('OpenDesk Product Analytics client/integration did not initialize');
+}
+globalThis.OpenDeskScriptRunnerSimple = OpenDeskProductAnalyticsIntegration.wrapController(
+  OpenDeskScriptRunnerSimple,
+  {client: OpenDeskProductAnalytics},
+);
+
 // Add state-scoped keyboard control only after the player surface has been
 // composed. Idle exposes Run; while a recipe is executing it releases Run and
 // owns Stop instead, so both accelerators are never reserved at the same time.
@@ -203,6 +221,12 @@ if (!globalThis.OpenDeskPermissionsCenter
   || typeof OpenDeskPermissionsCenter.create !== 'function') {
   throw new Error('OpenDesk Permissions Center did not initialize');
 }
+const analyticsSettingsEntry = File.join(Execution.scriptDir, 'product-analytics', 'settings.js');
+(0, eval)(File.read(analyticsSettingsEntry) + '\n//# sourceURL=' + analyticsSettingsEntry);
+if (!globalThis.OpenDeskAnalyticsSettings
+  || typeof OpenDeskAnalyticsSettings.create !== 'function') {
+  throw new Error('OpenDesk Analytics Settings did not initialize');
+}
 const aboutEntry = File.join(Execution.scriptDir, 'about.js');
 (0, eval)(File.read(aboutEntry) + '\n//# sourceURL=' + aboutEntry);
 if (!globalThis.OpenDeskAbout || typeof OpenDeskAbout.create !== 'function') {
@@ -225,6 +249,7 @@ if (!globalThis.OpenDeskProductAppController
 const schedulerCenter = OpenDeskSchedulerCenter.create();
 const runtimeLog = OpenDeskRuntimeLog.create({runner});
 const permissionsCenter = OpenDeskPermissionsCenter.create();
+const analyticsSettings = OpenDeskAnalyticsSettings.create({client: OpenDeskProductAnalytics});
 const about = OpenDeskAbout.create({
   file: File,
   packageRoot: Execution.scriptDir,
@@ -256,6 +281,7 @@ const appController = OpenDeskProductAppController.create({
   schedulerCenter,
   runtimeLog,
   permissionsCenter,
+  analyticsSettings,
   about,
   inspectorLauncher,
   developerTools,
@@ -291,6 +317,8 @@ console.log('OPENDESK_PRODUCT_APP_READY=' + JSON.stringify({
   recipeProcessModel: 'app-owned-separate-execution',
   assistant: assistant.state(),
   scheduler: OpenDeskSchedulerClient.getCapabilities(),
+  analytics: OpenDeskProductAnalytics.getCapabilities(),
+  analyticsSettings: analyticsSettings.state(),
   promotions: promotionOwner.state(),
   inspector: inspectorLauncher.getCapabilities(),
   permissions: permissionsCenter.state(),

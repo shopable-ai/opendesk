@@ -123,7 +123,7 @@
 
       function stopFromShortcut() {
         if (!app || typeof app.stopRun !== 'function') return false;
-        return app.stopRun();
+        return app.stopRun('shortcut-stop');
       }
 
       function syncShortcut() {

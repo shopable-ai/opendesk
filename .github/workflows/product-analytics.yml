@@ -1,0 +1,75 @@
+name: Product Analytics
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/product-analytics.yml'
+      - 'go.mod'
+      - 'go.sum'
+      - 'configs/product.json'
+      - 'pkg/productanalytics/**'
+      - 'pkg/officialconfig/**'
+      - 'internal/officialassets/**'
+      - 'internal/flowcli/**'
+      - 'cmd/opendesk/**'
+      - 'apps/opendesk/**'
+      - 'tests/product-analytics/**'
+      - 'tests/runtime-api/product-analytics*.js'
+      - 'tests/app-lifecycle/analytics-settings-controller.test.js'
+      - 'docs/architecture/product-analytics.md'
+  pull_request:
+    paths:
+      - '.github/workflows/product-analytics.yml'
+      - 'go.mod'
+      - 'go.sum'
+      - 'configs/product.json'
+      - 'pkg/productanalytics/**'
+      - 'pkg/officialconfig/**'
+      - 'internal/officialassets/**'
+      - 'internal/flowcli/**'
+      - 'cmd/opendesk/**'
+      - 'apps/opendesk/**'
+      - 'tests/product-analytics/**'
+      - 'tests/runtime-api/product-analytics*.js'
+      - 'tests/app-lifecycle/analytics-settings-controller.test.js'
+      - 'docs/architecture/product-analytics.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  production-contract:
+    name: Production Contract
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Go tests
+        run: >-
+          go test
+          ./pkg/productanalytics
+          ./pkg/officialconfig
+          ./internal/flowcli
+          ./cmd/opendesk
+          ./pkg/execution
+          ./pkg/appshell
+          -count=1
+      - name: Product Analytics JavaScript contracts
+        run: >-
+          node --test
+          tests/product-analytics/runner-ui-dedupe.test.cjs
+          tests/product-analytics/client-settings.test.cjs
+          tests/app-lifecycle/analytics-settings-controller.test.js
+      - name: Build OpenDesk Runtime
+        run: |
+          mkdir -p dist
+          go build -o dist/opendesk ./cmd/opendesk
+      - name: Runtime third-party isolation
+        run: ./dist/opendesk -script tests/runtime-api/product-analytics-isolation.js -console-mode script

@@ -38,7 +38,7 @@ var (
 	allowedInputMethods = map[string]bool{"pointer": true, "keyboard": true, "menu": true}
 	allowedFlowOrigins  = map[string]bool{"local": true, "installed": true, "marketplace": true}
 	allowedRunSources   = map[string]bool{"foreground": true, "background": true}
-	allowedOutcomes     = map[string]bool{"success": true, "failure": true, "cancelled": true, "unknown": true}
+	allowedOutcomes     = map[string]bool{"success": true, "failure": true, "cancelled": true}
 	allowedErrorCodes   = map[string]bool{
 		"": true, "permission_denied": true, "execution_failed": true,
 		"startup_failed": true, "timeout": true, "unknown": true,
