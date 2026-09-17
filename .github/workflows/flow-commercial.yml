@@ -7,6 +7,7 @@ on:
     paths:
       - 'pkg/flowpackage/**'
       - 'pkg/flowinstall/**'
+      - 'pkg/flowmarketplace/**'
       - 'pkg/appdata/**'
       - 'pkg/execution/**'
       - 'internal/flowcli/**'
@@ -35,7 +36,7 @@ concurrency:
 
 jobs:
   owners:
-    name: B0+B1 portable owners
+    name: B0+B1+Marketplace portable owners
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -46,11 +47,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Test canonical package, installer, app-data, execution and CLI owners
-        run: go test ./pkg/flowpackage ./pkg/flowinstall ./pkg/appdata ./pkg/execution ./internal/flowcli ./internal/packagecli -count=1
+      - name: Test canonical package, installer, Marketplace, app-data, execution and CLI owners
+        run: go test ./pkg/flowpackage ./pkg/flowinstall ./pkg/flowmarketplace ./pkg/appdata ./pkg/execution ./internal/flowcli ./internal/packagecli -count=1
 
   macos-runtime:
-    name: B0+B1 / macOS Runtime
+    name: B0+B1+Marketplace / macOS Runtime
     runs-on: macos-latest
     timeout-minutes: 40
     steps:
@@ -61,6 +62,8 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Run Marketplace contract and vertical-slice tests
+        run: go test ./pkg/flowmarketplace -count=1
       - name: Build current OpenDesk through repository build owner
         run: make build
       - name: Run B0 direct Runtime test
@@ -83,7 +86,7 @@ jobs:
           retention-days: 7
 
   windows-runtime:
-    name: B0+B1 / Windows Runtime
+    name: B0+B1+Marketplace / Windows Runtime
     runs-on: windows-latest
     timeout-minutes: 50
     steps:
@@ -98,6 +101,9 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
+      - name: Run Marketplace contract and vertical-slice tests
+        shell: pwsh
+        run: go test ./pkg/flowmarketplace -count=1
       - name: Build current OpenDesk through repository Windows distribution owner
         shell: pwsh
         run: pwsh -NoProfile -File scripts/build_windows_distribution.ps1 -Runtime win-x64
