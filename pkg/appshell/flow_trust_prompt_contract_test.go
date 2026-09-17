@@ -30,11 +30,7 @@ func TestDarwinFlowTrustPromptSourceContract(t *testing.T) {
 		`[alert addButtonWithTitle:@"Cancel"];`,
 		`*decision = trustPublisher.state == NSControlStateValueOn ? 2 : 1;`,
 	}
-	// Raw-string literals above deliberately use the exact Objective-C spelling.
-	// Strip the Go-source escaping introduced by JSON/tool transport before
-	// matching the checked-in .m source.
 	for _, fragment := range required {
-		fragment = strings.ReplaceAll(fragment, `\"`, `"`)
 		if !strings.Contains(source, fragment) {
 			t.Fatalf("native Flow trust prompt is missing contract fragment %q", fragment)
 		}
@@ -46,14 +42,12 @@ func TestDarwinFlowTrustPromptSourceContract(t *testing.T) {
 		`@"Unverified publisher: %@"`,
 	}
 	for _, fragment := range forbidden {
-		fragment = strings.ReplaceAll(fragment, `\"`, `"`)
 		if strings.Contains(source, fragment) {
 			t.Fatalf("native Flow trust prompt reintroduced ambiguous UI %q", fragment)
 		}
 	}
 
-	installAction := strings.ReplaceAll(`[alert addButtonWithTitle:@"Install"]`, `\"`, `"`)
-	if count := strings.Count(source, installAction); count != 1 {
+	if count := strings.Count(source, `[alert addButtonWithTitle:@"Install"]`); count != 1 {
 		t.Fatalf("native Flow trust prompt must expose exactly one Install action, got %d", count)
 	}
 }
