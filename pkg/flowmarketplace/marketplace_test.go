@@ -1,12 +1,16 @@
 package flowmarketplace
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -113,6 +117,56 @@ func TestMarketplaceDigestMismatchDoesNotInstall(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("InstallURL() succeeded with a mismatched artifact digest")
+	}
+	assertCatalogEmpty(t, service)
+	assertNoTrustRecords(t, service)
+}
+
+func TestMarketplaceAttestationTamperStopsBeforeDownload(t *testing.T) {
+	fixture := newMarketplaceFixture(t, EntitlementFree)
+	fixture.attestation.Signature = hex.EncodeToString(make([]byte, ed25519.SignatureSize))
+	server, artifactHits := newMarketplaceServer(t, fixture)
+	defer server.Close()
+	service := newFlowService(t)
+	installer := &Installer{
+		Client: newTestClient(t, server.URL, fixture.marketplaceKey), FlowService: service, TempRoot: t.TempDir(),
+		Confirmer: confirmerFunc(func(context.Context, Release) (bool, error) { return true, nil }),
+	}
+	_, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{
+		Approver: func(context.Context, flowinstall.TrustCandidate) (flowinstall.TrustDecision, error) { return flowinstall.DecisionFlow, nil },
+	})
+	if err == nil {
+		t.Fatal("InstallURL() succeeded with a tampered Marketplace attestation")
+	}
+	if got := artifactHits.Load(); got != 0 {
+		t.Fatalf("artifact requests = %d, want 0 before attestation verification succeeds", got)
+	}
+	assertCatalogEmpty(t, service)
+	assertNoTrustRecords(t, service)
+}
+
+func TestMarketplaceInvalidPublisherSignatureDoesNotInstall(t *testing.T) {
+	fixture := newMarketplaceFixture(t, EntitlementFree)
+	fixture.artifact = corruptPublisherSignature(t, fixture.artifact)
+	digest := sha256.Sum256(fixture.artifact)
+	fixture.release.ArtifactDigest = hex.EncodeToString(digest[:])
+	fixture.release.ArtifactSize = int64(len(fixture.artifact))
+	fixture = resignFixture(t, fixture)
+	server, artifactHits := newMarketplaceServer(t, fixture)
+	defer server.Close()
+	service := newFlowService(t)
+	installer := &Installer{
+		Client: newTestClient(t, server.URL, fixture.marketplaceKey), FlowService: service, TempRoot: t.TempDir(),
+		Confirmer: confirmerFunc(func(context.Context, Release) (bool, error) { return true, nil }),
+	}
+	_, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{
+		Approver: func(context.Context, flowinstall.TrustCandidate) (flowinstall.TrustDecision, error) { return flowinstall.DecisionFlow, nil },
+	})
+	if err == nil {
+		t.Fatal("InstallURL() succeeded with an invalid .odflow Publisher Signature")
+	}
+	if got := artifactHits.Load(); got != 1 {
+		t.Fatalf("artifact requests = %d, want 1 before Publisher Signature rejection", got)
 	}
 	assertCatalogEmpty(t, service)
 	assertNoTrustRecords(t, service)
@@ -243,6 +297,52 @@ func signReleaseAttestation(t *testing.T, release Release, public ed25519.Public
 	return attestation
 }
 
+func corruptPublisherSignature(t *testing.T, artifact []byte) []byte {
+	t.Helper()
+	reader, err := zip.NewReader(bytes.NewReader(artifact), int64(len(artifact)))
+	if err != nil {
+		t.Fatalf("zip.NewReader() error = %v", err)
+	}
+	var output bytes.Buffer
+	writer := zip.NewWriter(&output)
+	foundSignature := false
+	for _, file := range reader.File {
+		entry, err := file.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		content, err := io.ReadAll(entry)
+		_ = entry.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if file.Name == flowpackage.SignatureName {
+			if len(content) == 0 {
+				t.Fatal("Flow package signature is empty")
+			}
+			content[0] ^= 0xff
+			foundSignature = true
+		}
+		header := &zip.FileHeader{Name: file.Name, Method: zip.Store}
+		header.SetMode(0o600)
+		header.Modified = time.Unix(0, 0).UTC()
+		destination, err := writer.CreateHeader(header)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := destination.Write(content); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !foundSignature {
+		t.Fatal("Flow package signature entry was not found")
+	}
+	return output.Bytes()
+}
+
 func newMarketplaceServer(t *testing.T, fixture marketplaceFixture) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
 	artifactHits := &atomic.Int32{}
@@ -285,6 +385,18 @@ func newFlowService(t *testing.T) *flowinstall.Service {
 		t.Fatalf("flowinstall.NewService() error = %v", err)
 	}
 	service.RuntimeVersion = "9.9.9"
+	t.Cleanup(func() {
+		records, err := service.Catalog.List()
+		if err != nil {
+			t.Errorf("Catalog.List() during cleanup error = %v", err)
+			return
+		}
+		for _, record := range records {
+			if err := service.Uninstall(context.Background(), record.InstallID, false); err != nil {
+				t.Errorf("Uninstall(%s) during cleanup error = %v", record.InstallID, err)
+			}
+		}
+	})
 	return service
 }
 
