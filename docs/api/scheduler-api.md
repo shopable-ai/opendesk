@@ -7,17 +7,15 @@ docType: protocol
 
 # Scheduler HTTP API
 
-本文只负责 OpenDesk Scheduler 的本机 HTTP protocol contract：endpoint、请求/响应、公开 Job/JobRun 数据模型与 transport 安全边界。
+本文负责 OpenDesk Scheduler 的本机 HTTP protocol contract：endpoint、请求/响应、公开 Job / JobRun 数据模型与 transport 安全边界。
 
-- 普通用户如何选择桌面 Scheduler Center 或 Headless 入口、理解时间与任务操作语义：见 [Scheduler](scheduler.md)。
-- Store/Runner ownership、SQLite/WAL、锁、takeover 与 recovery：见 [Scheduler Runtime Concurrency](../architecture/scheduler-runtime-concurrency.md)。
-- OpenDesk Desktop 中计划中心的产品窗口与菜单归属：见 [Desktop Product Shell](../architecture/opendesk-desktop-product-shell.md)。
+- 普通用户如何从计划中心创建和验证真实计划：见 [Scheduler](scheduler.md)。
+- 当前桌面 App 的管理命令：见 [Scheduler CLI](scheduler-cli.md)。
+- Store / Runner ownership、SQLite/WAL、takeover 与 recovery：见 [Scheduler Runtime Concurrency](../architecture/scheduler-runtime-concurrency.md)。
 
-不要从本协议页推导内部数据库 schema 或把 `/scheduler` Web 管理页当成桌面产品必须重复展示的第二个普通用户入口。
+## 服务地址与 transport 边界
 
-## Scheduler API：服务地址与边界
-
-先在需要执行 JavaScript 的项目目录启动 OpenDesk：
+Headless / 开发模式可以启动本地 Scheduler owner：
 
 ```bash
 ./opendesk -http -port 60844
@@ -29,27 +27,27 @@ API 基地址：
 http://127.0.0.1:60844/api/scheduler
 ```
 
-Scheduler API 只接受来自本机 loopback 地址的请求，并校验 `Host` 与浏览器发送的
-`Origin`。它不开放跨域访问，也不提供公网认证能力。不要通过反向代理把这些接口
-暴露到局域网或公网。
-
-管理页使用本 API，但 Scheduler 执行任务时不会发 HTTP 请求调用自己。内部执行链路
-是 `Scheduler Service -> Execution Runtime -> JavaScript Runtime`。当前版本通过
-`-http` 模式承载 Scheduler 的长驻生命周期，因此 OpenDesk 进程必须保持运行。
-
-计划脚本需要小写 `ui` 时，启动 owner 的命令必须带 `-ui`：
+如果计划脚本需要 `ui.toast()` 等 Custom UI，长驻 owner 需要启用 `-ui`：
 
 ```bash
 ./opendesk -http -ui -port 60844
 ```
 
-这个 capability 由长驻 Scheduler owner 传给到期后创建的 scheduled Execution。创建计划的
-HTTP/JavaScript 客户端是否带 `-ui` 不会改变服务端任务权限；没有启用时，计划仍会触发，
-但 payload 的 `ui` 调用会按 Custom UI capability contract 失败。
+Headless Scheduler API 只接受本机 loopback 请求并检查 `Host` 与浏览器 `Origin`。不要通过反向代理把它暴露到 LAN 或公网。
 
-## Scheduler API：通用响应
+OpenDesk Desktop App 使用同一 Scheduler service / handler 语义，但 App Mode local bridge 由运行时分配随机 loopback endpoint，并要求 `X-OpenDesk-App-Token`。endpoint/token 是产品私有连接信息，不是需要用户手工复制的公开配置；普通桌面管理优先使用 [Scheduler CLI](scheduler-cli.md) 或计划中心。
 
-成功响应的 HTTP 状态为 `200`，统一格式为：
+Scheduler 到期执行不通过 HTTP 调用自己。内部链路仍然是：
+
+```text
+Scheduler Service
+→ standard Execution
+→ JavaScript Runtime
+```
+
+## 通用响应
+
+成功响应使用 HTTP `200`：
 
 ```json
 {
@@ -59,7 +57,7 @@ HTTP/JavaScript 客户端是否带 `-ui` 不会改变服务端任务权限；没
 }
 ```
 
-错误响应使用对应的 HTTP 状态码，并把同一个状态码写入 `code`：
+错误响应使用对应 HTTP 状态，并把状态码写入 `code`：
 
 ```json
 {
@@ -68,22 +66,19 @@ HTTP/JavaScript 客户端是否带 `-ui` 不会改变服务端任务权限；没
 }
 ```
 
-常见状态码：
+常见状态：
 
 | HTTP 状态 | 含义 |
 | --- | --- |
 | `200` | 请求成功 |
-| `400` | JSON、字段、时间表达式或脚本来源无效，或请求体超限 |
-| `403` | 非本机请求、非法 `Host` 或跨域 `Origin` |
+| `400` | JSON、字段、脚本来源或调度表达式无效 |
+| `403` | 非本机请求、非法 Origin，或 App bridge token 无效 |
 | `404` | 任务不存在或已删除 |
 | `405` | 当前路径不支持该 HTTP 方法 |
 
-所有时间字段在 JSON 中使用 RFC3339 格式。任务 ID、运行 ID 和 Execution ID 都应视为
-不透明字符串，不要解析其内部格式。
+时间字段使用 RFC3339。Job ID、Run ID、Execution ID 都是不透明字符串。
 
-## Scheduler API：数据模型
-
-### Scheduler API：Job 数据模型
+## Job 数据模型
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -91,36 +86,46 @@ HTTP/JavaScript 客户端是否带 `-ui` 不会改变服务端任务权限；没
 | `name` | string | 任务名称，最长 200 字符 |
 | `enabled` | boolean | 是否参与未来自动调度 |
 | `scheduleType` | string | `at`、`every` 或 `cron` |
-| `scheduleExpression` | string | 与时间类型对应的表达式 |
-| `timezone` | string | IANA 时区名，例如 `Asia/Shanghai`；默认 `Local` |
-| `misfirePolicy` | string | `run_once` 或 `skip`；默认 `run_once` |
+| `scheduleExpression` | string | 对应调度表达式 |
+| `timezone` | string | IANA 时区或 `Local` |
+| `misfirePolicy` | string | `run_once` 或 `skip` |
 | `taskType` | string | 当前只支持 `script` |
-| `sourceType` | string | `file` 或 `inline`；旧任务和未传此字段的请求默认为 `file` |
-| `scriptPath` | string | 仅 file 模式返回；相对于 OpenDesk 启动目录的 `.js` 文件路径 |
-| `hasInlineScript` | boolean | 仅 inline 模式返回 `true`，表示正文已持久化；不会返回正文 |
+| `sourceType` | string | `file` 或 `inline` |
+| `scriptPath` | string | file 来源的脚本路径 |
+| `hasInlineScript` | boolean | inline 来源正文已持久化；不会返回正文 |
 | `createdAt` | string | 创建时间 |
-| `updatedAt` | string | 最后更新时间 |
-| `lastRunAt` | string | 可选，上一次开始执行的时间 |
-| `nextRunAt` | string | 可选，下一次自动调度时间；暂停或单次任务完成后省略 |
-| `lastRun` | JobRun | 可选，最近一次运行 |
+| `updatedAt` | string | 最近更新时间 |
+| `lastRunAt` | string | 可选，最近运行完成后的记录时间 |
+| `nextRunAt` | string | 可选，下一次自动调度时间 |
+| `lastRun` | JobRun | 可选，最近一次运行记录 |
 
-### Scheduler API：JobRun 数据模型
+## JobRun 数据模型
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `id` | string | Scheduler 运行记录 ID |
-| `jobId` | string | 所属任务 ID |
-| `scheduledAt` | string | 此次运行计划进入队列的时间 |
+| `id` | string | Scheduler Run ID |
+| `jobId` | string | 所属 Job ID |
+| `scheduledAt` | string | 本次运行的计划时间；手动运行时为服务端创建手动 Run 的时间 |
 | `startedAt` | string | 可选，实际开始时间 |
 | `finishedAt` | string | 可选，完成时间 |
-| `status` | string | `queued`、`running`、`succeeded`、`failed`、`canceled` 或 `skipped` |
-| `error` | string | 可选，失败或取消原因 |
-| `executionId` | string | 可选，对应现有 Execution Runtime 与 `.runtime/runs/` Evidence |
+| `status` | string | `queued`、`running`、`succeeded`、`failed`、`canceled`、`skipped` |
+| `error` | string | 可选，错误或取消原因 |
+| `executionId` | string | 可选，对应标准 Execution |
+| `triggerType` | string | `scheduled`、`manual` 或 `unknown` |
 
-`POST .../run` 返回 `queued` 只表示已经入队。要获取最终结果，应查询任务运行记录，
-直到该记录进入 `succeeded`、`failed`、`canceled` 或 `skipped`。
+### triggerType 的可信语义
 
-## Scheduler API：创建任务
+`triggerType` 由 Scheduler 服务端在创建 JobRun 时写入并持久化：
+
+- `scheduled`：Job 到期后由 Scheduler 领取并创建 Run；
+- `manual`：通过 `POST .../run` / Run Now 创建；
+- `unknown`：历史数据库中的旧记录没有足够事实证明来源。
+
+payload 不能通过提交字段声明 `triggerType`，也不能通过自己的 `Execution.source` 把一次运行提升为 `scheduled`。真实自动调度验收应读取 JobRun 的 `triggerType`。
+
+`POST .../run` 返回 `queued` 只说明手动 Run 已经入队，不是 Execution 成功证据。
+
+## 创建任务
 
 ```http
 POST /api/scheduler/jobs
@@ -129,239 +134,151 @@ Content-Type: application/json
 
 请求字段：
 
-| 字段 | 必填 | 取值与默认值 |
+| 字段 | 必填 | 说明 |
 | --- | --- | --- |
-| `name` | 是 | 非空字符串，最长 200 字符 |
-| `sourceType` | 否 | `file` 或 `inline`；省略时默认 `file`，保持旧请求兼容 |
-| `scriptPath` | file 模式是 | 启动目录内已经存在的普通 `.js` 文件；推荐使用相对路径。绝对路径也必须解析到该目录内，不能通过 `..` 或符号链接逃出目录 |
-| `inlineScript` | inline 模式是 | 要执行的 JavaScript 原文，去除首尾空白后必须非空，UTF-8 字节数最多 262144（256 KiB） |
+| `name` | 是 | 非空，最长 200 字符 |
+| `sourceType` | 否 | `file` / `inline`；省略默认 `file` |
+| `scriptPath` | file 是 | Scheduler script root 内现存普通 `.js` 文件 |
+| `inlineScript` | inline 是 | JavaScript 原文，最多 256 KiB |
 | `scheduleType` | 是 | `at`、`every`、`cron` |
-| `scheduleExpression` | 是 | 见下方三种时间格式 |
+| `scheduleExpression` | 是 | 对应的时间表达式 |
 | `timezone` | 否 | IANA 时区或 `Local`；默认 `Local` |
-| `misfirePolicy` | 否 | `run_once` 或 `skip`；默认 `run_once` |
-| `taskType` | 否 | 只能是 `script`；默认 `script` |
+| `misfirePolicy` | 否 | `run_once` / `skip`；默认 `run_once` |
+| `taskType` | 否 | 当前只能是 `script` |
 
-`scriptPath` 与非空 `inlineScript` 必须恰好提供一个，不能同时提供。inline 模式不会把
-正文当成 Markdown 或模板解析，而是把用户明确提交的 JavaScript 原文持久化并交给
-现有 JavaScript Runtime。请求 JSON 不接受未知字段，也不接受一个请求体中出现多个
-JSON 值；HTTP 请求体上限为 2 MiB，内联正文仍受独立的 256 KiB 上限约束。
+`scriptPath` 与非空 `inlineScript` 必须恰好提供一个。JSON 不接受未知字段；HTTP 请求体有独立上限，inline 正文仍受 256 KiB 限制。
 
-### Scheduler API：脚本文件模式
-
-旧请求可以继续省略 `sourceType`：
+### file 来源
 
 ```json
 {
   "name": "文件任务",
-  "scriptPath": "scripts/report.js",
+  "sourceType": "file",
+  "scriptPath": "report.js",
   "scheduleType": "at",
-  "scheduleExpression": "2026-09-02 09:00",
-  "timezone": "Asia/Shanghai"
+  "scheduleExpression": "2026-09-18T21:00:00+09:00",
+  "timezone": "Asia/Tokyo",
+  "misfirePolicy": "skip"
 }
 ```
 
-也可以显式传 `"sourceType": "file"`。每次执行开始时重新读取文件，并继续执行路径
-规范化、工作目录边界、符号链接和 `.js` 校验。
+文件路径在创建时以及执行前都受 script root、符号链接、普通文件和 `.js` 扩展名校验。非法路径不能先执行再报错。
 
-### Scheduler API：内联模式
+### inline 来源
 
 ```json
 {
-  "name": "内联完成提示",
+  "name": "文本提醒",
   "sourceType": "inline",
-  "inlineScript": "notify({title: 'OpenDesk', message: '定时任务完成'});\nconsole.log(new Date().toISOString());\nreturn {ok: true};",
+  "inlineScript": "await ui.toast({message: 'done', timeoutMs: 2000});",
   "scheduleType": "at",
-  "scheduleExpression": "2026-09-02T09:00:05+08:00",
-  "timezone": "Asia/Shanghai",
-  "misfirePolicy": "run_once",
-  "taskType": "script"
+  "scheduleExpression": "2026-09-18T21:05:00+09:00",
+  "timezone": "Asia/Tokyo",
+  "misfirePolicy": "skip"
 }
 ```
 
-正文持久化在 Scheduler owner 的内部 Store 中，因此 OpenDesk 重启后仍可执行。创建响应、任务列表、
-暂停/恢复响应、普通服务日志与校验错误都不会回显正文；公开 Job 只返回
-`sourceType: "inline"` 与 `hasInlineScript: true`。执行时仍会在该 execution 的受控
-`.runtime/runs/<executionId>/script_snapshot.js` 中生成标准 snapshot 和 Evidence。内部存储 schema 不是本协议的一部分。
+普通 Job 响应不会回传完整 inline 正文。执行时仍创建标准 Execution 与受控 script snapshot。
 
-### Scheduler API：一次任务（at）
+## 时间类型
 
-`scheduleExpression` 接受 RFC3339，或按 `timezone` 解释的本地时间：
+### at
 
-```json
-{
-  "name": "明早生成报告",
-  "scriptPath": "scripts/report.js",
-  "scheduleType": "at",
-  "scheduleExpression": "2026-09-02 09:00",
-  "timezone": "Asia/Shanghai",
-  "misfirePolicy": "run_once",
-  "taskType": "script"
-}
-```
+接受 RFC3339，或结合 `timezone` 解释的本地日期时间。`at + skip` 拒绝已经过去的创建时间；`at + run_once` 可以在恢复规则允许时补跑一次。
 
-本地时间支持 `YYYY-MM-DD HH:MM`、`YYYY-MM-DD HH:MM:SS` 以及使用 `T` 分隔的同类
-格式。`at + skip` 不允许创建已经过去的时间；`at + run_once` 可以在恢复后最多补跑
-一次。
+一次性计划完成后会停用且不再拥有 `nextRunAt`。
 
-### Scheduler API：固定间隔（every）
+### every
 
-`scheduleExpression` 使用 Go duration，例如 `5m`、`30m`、`2h`，最小为一分钟：
+使用 duration，例如 `5m`、`30m`、`2h`。当前最小间隔由 Scheduler 的调度校验规则决定。`every` 为 fixed-delay：本次完成后再等待完整 interval。
 
-```json
-{
-  "name": "每两小时同步",
-  "scriptPath": "scripts/sync.js",
-  "scheduleType": "every",
-  "scheduleExpression": "2h",
-  "timezone": "Asia/Shanghai"
-}
-```
+### cron
 
-`every` 是 fixed-delay：上一次执行完成后，再等待完整 interval。它不会让同一任务
-按固定时钟频率堆积。
-
-### Scheduler API：Cron
-
-Cron 使用 Linux 标准五字段，不含秒：
+使用 Linux 五字段 cron，不包含秒：
 
 ```text
 分钟 小时 日 月 星期
 ```
 
-例如每天 09:00：
+例如每天 09:00：`0 9 * * *`。
 
-```json
-{
-  "name": "每天九点",
-  "scriptPath": "scripts/report.js",
-  "scheduleType": "cron",
-  "scheduleExpression": "0 9 * * *",
-  "timezone": "Asia/Shanghai",
-  "misfirePolicy": "run_once"
-}
-```
-
-完整请求示例：
-
-```bash
-curl --fail-with-body -X POST \
-  http://127.0.0.1:60844/api/scheduler/jobs \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "name": "每天九点",
-    "scriptPath": "scripts/report.js",
-    "scheduleType": "cron",
-    "scheduleExpression": "0 9 * * *",
-    "timezone": "Asia/Shanghai",
-    "misfirePolicy": "run_once",
-    "taskType": "script"
-  }'
-```
-
-成功时，`data` 是创建后的公开 Job；inline 正文不会出现在响应中。
-
-## Scheduler API：列出任务
+## 列出任务
 
 ```http
 GET /api/scheduler/jobs
 ```
 
-```bash
-curl --fail-with-body http://127.0.0.1:60844/api/scheduler/jobs
-```
+成功时 `data` 是 Job 数组。inline 任务只返回来源存在标记，不返回正文。
 
-成功时，`data` 是 Job 数组；没有任务时返回空数组 `[]`。inline 任务只显示来源类型与
-正文存在标记，不显示完整源码。
-
-## Scheduler API：暂停任务
+## 暂停任务
 
 ```http
 POST /api/scheduler/jobs/{id}/pause
 ```
 
-```bash
-curl --fail-with-body -X POST \
-  http://127.0.0.1:60844/api/scheduler/jobs/job-example/pause
-```
+暂停阻止未来自动调度。已经开始运行的 Execution 不会因为 pause 被伪报为已停止。
 
-成功时，`data` 是更新后的 Job，`enabled` 为 `false`。暂停只阻止未来自动调度，保留
-任务和运行历史；已经开始的执行不会被强制取消。
-
-## Scheduler API：恢复任务
+## 恢复任务
 
 ```http
 POST /api/scheduler/jobs/{id}/resume
 ```
 
-```bash
-curl --fail-with-body -X POST \
-  http://127.0.0.1:60844/api/scheduler/jobs/job-example/resume
-```
+恢复后根据任务类型重新建立未来调度；已经过期且 `misfirePolicy=skip` 的一次任务不能被恢复成过去时间的自动执行。
 
-成功时，`data` 是更新后的 Job，`enabled` 为 `true`，并重新计算 `nextRunAt`。
-
-## Scheduler API：立即运行
+## 立即运行
 
 ```http
 POST /api/scheduler/jobs/{id}/run
 ```
 
-```bash
-curl --fail-with-body -X POST \
-  http://127.0.0.1:60844/api/scheduler/jobs/job-example/run
+创建的 JobRun 必须带：
+
+```json
+{
+  "triggerType": "manual"
+}
 ```
 
-成功时，`data` 是新建的 JobRun，初始状态通常为 `queued`。立即运行也适用于暂停的
-任务，并且不会修改原有的下一次自动调度时间。是否立即取得 Runner ownership 由 Scheduler runtime owner 决定；HTTP `200`/queued 不是业务完成证据。
+手动运行不改写原来的未来计划时间，也不能作为自动调度验收的通过证据。
 
-## Scheduler API：查询运行记录
+## 查询运行记录
 
 ```http
-GET /api/scheduler/jobs/{id}/runs?limit=50
+GET /api/scheduler/jobs/{id}/runs?limit=20
 ```
 
-`limit` 可省略，默认 `50`，允许范围为 `1` 到 `100`。
+`limit` 允许 `1` 到 `100`。返回按最近优先排列的 JobRun 数组。
 
-```bash
-curl --fail-with-body \
-  'http://127.0.0.1:60844/api/scheduler/jobs/job-example/runs?limit=20'
-```
+真实自动计划验证至少应比较：`scheduledAt`、`startedAt`、`triggerType`、`status`、`executionId`，而不是只看日志是否存在。
 
-成功时，`data` 是按最近优先排列的 JobRun 数组。
-
-## Scheduler API：删除任务
+## 删除任务
 
 ```http
 DELETE /api/scheduler/jobs/{id}
 ```
 
-```bash
-curl --fail-with-body -X DELETE \
-  http://127.0.0.1:60844/api/scheduler/jobs/job-example
-```
-
-成功响应：
+成功数据：
 
 ```json
 {
-  "code": 0,
-  "message": "success",
-  "data": {
-    "id": "job-example",
-    "deleted": true
-  }
+  "id": "job-example",
+  "deleted": true
 }
 ```
 
-删除会停止未来调度。已经写入 `.runtime/runs/` 的 Evidence 不会被当成从未发生；
-当前 API 不再允许通过已删除任务 ID 查询历史。正在执行的任务不会被强制终止。内部 Store 的保留/清理策略属于 runtime architecture，不属于 HTTP contract。
+删除停止未来调度，但不会强制终止已经进入 running 的 Execution。并发删除/领取时，应以之后查询到的真实 Run 状态为准。
 
-## Scheduler API：与管理页的关系
+## 与桌面计划中心和 CLI 的关系
 
-Headless / 开发 / 本机集成场景可以打开：
+OpenDesk Desktop 的计划中心、Scheduler CLI 和 Runtime examples 都应连接同一个 App Scheduler，不应各自维护第二套数据或通过前端 timer 模拟调度。
+
+产品真实调度测试的 add / verify / remove 命令、15/45 秒默认与 Native 证据边界见 [Scheduler CLI](scheduler-cli.md)。
+
+Headless 本地管理页仍可用于开发：
 
 ```text
 http://127.0.0.1:60844/scheduler
 ```
 
-这个页面只是本协议的本地客户端，通过本页定义的 API 完成创建、列表、暂停、恢复、立即运行、删除和历史查询。OpenDesk Desktop 的普通用户入口是产品 **Scheduler Center**；不要在产品菜单中同时把这个 Web 页面包装成第二个等价的“计划中心”。
+它只是本协议的本机客户端，不是桌面产品需要再包装一次的第二个计划中心。
