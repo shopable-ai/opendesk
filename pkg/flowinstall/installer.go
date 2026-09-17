@@ -200,6 +200,13 @@ func (service *Service) Install(ctx context.Context, packagePath string, options
 	if state == StateBlocked {
 		return InstallResult{}, newError(CodeAuthorizationDenied, "protected Flow authorization is blocked: "+reason, nil)
 	}
+	// A first install may deliberately be registered as needs-activation, but an
+	// update must never replace an already runnable version with one that cannot
+	// run yet. B2 may later add a durable pending-candidate promotion protocol;
+	// until then, fail closed and leave the current ready version untouched.
+	if currentExists && current.State == StateReady && state == StateNeedsActivation {
+		return InstallResult{}, newError(CodeActivationRequired, "Flow update requires activation before it can replace the current ready version", nil)
+	}
 	if err := sealPackageTree(staging); err != nil {
 		return InstallResult{}, err
 	}
@@ -218,7 +225,7 @@ func (service *Service) Install(ctx context.Context, packagePath string, options
 		State: state, StateReason: reason, InstalledAt: time.Now().UTC(), Origin: "odflow",
 	}
 	journal := transactionJournal{
-		SchemaVersion: 1, InstallID: installID, Stage: stagingBase,
+		SchemaVersion: 1, Kind: transactionInstall, InstallID: installID, Stage: stagingBase,
 		Backup: ".rollback-" + installID + "-" + strconv.FormatInt(time.Now().UnixNano(), 36),
 		Phase:  transactionStaged, NewRecord: record,
 	}
@@ -424,23 +431,39 @@ func removePackageTree(root string) error {
 	return os.RemoveAll(root)
 }
 
+type transactionKind string
+
 type transactionPhase string
 
 const (
+	transactionInstall   transactionKind = "install"
+	transactionUninstall transactionKind = "uninstall"
+
 	transactionStaged          transactionPhase = "staged"
 	transactionOldMoved        transactionPhase = "old-moved"
+	transactionDataMoved       transactionPhase = "data-moved"
 	transactionNewCommitted    transactionPhase = "new-committed"
 	transactionRecordCommitted transactionPhase = "record-committed"
 )
 
 type transactionJournal struct {
 	SchemaVersion  int              `json:"schemaVersion"`
+	Kind           transactionKind  `json:"kind,omitempty"`
 	InstallID      string           `json:"installId"`
-	Stage          string           `json:"stage"`
+	Stage          string           `json:"stage,omitempty"`
 	Backup         string           `json:"backup"`
+	DataBackup     string           `json:"dataBackup,omitempty"`
+	RemoveData     bool             `json:"removeData,omitempty"`
 	Phase          transactionPhase `json:"phase"`
 	NewRecord      Record           `json:"newRecord"`
 	PreviousRecord *Record          `json:"previousRecord,omitempty"`
+}
+
+func journalKind(journal transactionJournal) transactionKind {
+	if journal.Kind == "" {
+		return transactionInstall
+	}
+	return journal.Kind
 }
 
 func (service *Service) Recover(ctx context.Context) error {
@@ -483,6 +506,9 @@ func (service *Service) recoverLocked(installID string) error {
 	journal, err := decodeJournal(data)
 	if err != nil || journal.InstallID != installID {
 		return newError(CodeTransactionFailed, "Flow transaction journal is invalid", err)
+	}
+	if journalKind(journal) == transactionUninstall {
+		return service.recoverUninstall(journal)
 	}
 	target := filepath.Join(service.Roots.FlowRoot, installID)
 	stage := filepath.Join(service.Roots.FlowRoot, journal.Stage)
@@ -575,7 +601,19 @@ func (service *Service) rollback(journal transactionJournal, previous bool, caus
 }
 
 func (service *Service) writeJournal(journal transactionJournal) error {
-	if journal.SchemaVersion != 1 || !installIDPattern.MatchString(journal.InstallID) || filepath.Base(journal.Stage) != journal.Stage || filepath.Base(journal.Backup) != journal.Backup {
+	kind := journalKind(journal)
+	valid := journal.SchemaVersion == 1 && installIDPattern.MatchString(journal.InstallID) && filepath.Base(journal.Backup) == journal.Backup
+	if kind == transactionInstall {
+		valid = valid && journal.Stage != "" && filepath.Base(journal.Stage) == journal.Stage
+	} else if kind == transactionUninstall {
+		valid = valid && journal.PreviousRecord != nil && journal.PreviousRecord.InstallID == journal.InstallID
+		if journal.DataBackup != "" {
+			valid = valid && filepath.Base(journal.DataBackup) == journal.DataBackup
+		}
+	} else {
+		valid = false
+	}
+	if !valid {
 		return newError(CodeTransactionFailed, "refusing to write an invalid Flow transaction journal", nil)
 	}
 	data, err := json.Marshal(journal)
@@ -750,6 +788,78 @@ func (lease *RunLease) Close() error {
 	return err
 }
 
+func (service *Service) recoverUninstall(journal transactionJournal) error {
+	target := filepath.Join(service.Roots.FlowRoot, journal.InstallID)
+	backup := filepath.Join(service.Roots.FlowRoot, journal.Backup)
+	dataTarget := filepath.Join(service.Roots.DataRoot, journal.InstallID)
+	dataBackup := ""
+	if journal.DataBackup != "" {
+		dataBackup = filepath.Join(service.Roots.DataRoot, journal.DataBackup)
+	}
+	_, recordErr := service.Catalog.Load(journal.InstallID)
+	catalogGone := CodeOf(recordErr) == CodeNotFound
+	if catalogGone && !pathIsRealDirectory(target) {
+		if err := removePackageTree(backup); err != nil {
+			return newError(CodeTransactionFailed, "cannot finish committed Flow uninstall content cleanup", err)
+		}
+		if journal.RemoveData && dataBackup != "" {
+			if err := os.RemoveAll(dataBackup); err != nil {
+				return newError(CodeTransactionFailed, "cannot finish committed Flow uninstall data cleanup", err)
+			}
+		}
+		if err := os.Remove(service.journalPath(journal.InstallID)); err != nil && !os.IsNotExist(err) {
+			return newError(CodeTransactionFailed, "cannot remove committed Flow uninstall journal", err)
+		}
+		return nil
+	}
+
+	if pathIsRealDirectory(backup) {
+		if pathIsRealDirectory(target) {
+			return newError(CodeTransactionFailed, "Flow uninstall recovery found both active and rollback content", nil)
+		}
+		if err := os.Chmod(backup, 0o700); err != nil {
+			return newError(CodeTransactionFailed, "cannot prepare Flow uninstall rollback content", err)
+		}
+		if err := os.Rename(backup, target); err != nil {
+			return newError(CodeTransactionFailed, "cannot restore Flow content after interrupted uninstall", err)
+		}
+		if err := os.Chmod(target, 0o500); err != nil {
+			return newError(CodeTransactionFailed, "cannot reseal restored Flow after interrupted uninstall", err)
+		}
+	}
+	if journal.RemoveData && dataBackup != "" {
+		if info, err := os.Lstat(dataBackup); err == nil {
+			if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+				return newError(CodeTransactionFailed, "Flow uninstall data rollback is not a real directory", nil)
+			}
+			if _, err := os.Lstat(dataTarget); err == nil {
+				return newError(CodeTransactionFailed, "Flow uninstall recovery found both active and rollback data", nil)
+			} else if !os.IsNotExist(err) {
+				return newError(CodeTransactionFailed, "cannot inspect Flow uninstall data target", err)
+			}
+			if err := os.Rename(dataBackup, dataTarget); err != nil {
+				return newError(CodeTransactionFailed, "cannot restore Flow data after interrupted uninstall", err)
+			}
+		} else if !os.IsNotExist(err) {
+			return newError(CodeTransactionFailed, "cannot inspect Flow uninstall data rollback", err)
+		}
+	}
+	if err := service.restorePreviousRecord(journal); err != nil {
+		return newError(CodeTransactionFailed, "cannot restore Flow catalog after interrupted uninstall", err)
+	}
+	if err := os.Remove(service.journalPath(journal.InstallID)); err != nil && !os.IsNotExist(err) {
+		return newError(CodeTransactionFailed, "cannot remove recovered Flow uninstall journal", err)
+	}
+	return nil
+}
+
+func (service *Service) uninstallFail(journal transactionJournal, cause error) error {
+	if err := service.recoverUninstall(journal); err != nil {
+		return newError(CodeTransactionFailed, "Flow uninstall failed and recovery also failed", fmt.Errorf("cause: %v; recovery: %w", cause, err))
+	}
+	return newError(CodeTransactionFailed, "Flow uninstall transaction rolled back", cause)
+}
+
 func (service *Service) Uninstall(ctx context.Context, installID string, removeData bool) error {
 	lease, err := processlock.Acquire(ctx, filepath.Join(service.Roots.locksRoot(), installID+".lock"), 25*time.Millisecond)
 	if err != nil {
@@ -759,19 +869,74 @@ func (service *Service) Uninstall(ctx context.Context, installID string, removeD
 	if err := service.recoverLocked(installID); err != nil {
 		return err
 	}
-	if _, err := service.Catalog.Load(installID); err != nil {
+	current, err := service.Catalog.Load(installID)
+	if err != nil {
 		return err
 	}
-	if err := removePackageTree(filepath.Join(service.Roots.FlowRoot, installID)); err != nil {
-		return err
-	}
-	if err := service.Catalog.remove(installID); err != nil {
-		return err
+	nonce := strconv.FormatInt(time.Now().UnixNano(), 36)
+	journal := transactionJournal{
+		SchemaVersion: 1, Kind: transactionUninstall, InstallID: installID,
+		Backup: ".rollback-uninstall-" + installID + "-" + nonce,
+		Phase: transactionStaged, PreviousRecord: &current, RemoveData: removeData,
 	}
 	if removeData {
-		if err := os.RemoveAll(filepath.Join(service.Roots.DataRoot, installID)); err != nil {
-			return err
+		journal.DataBackup = ".rollback-data-" + installID + "-" + nonce
+	}
+	if err := service.writeJournal(journal); err != nil {
+		return err
+	}
+
+	target := filepath.Join(service.Roots.FlowRoot, installID)
+	backup := filepath.Join(service.Roots.FlowRoot, journal.Backup)
+	if !pathIsRealDirectory(target) {
+		return service.uninstallFail(journal, newError(CodeTransactionFailed, "installed Flow content is missing or unsafe", nil))
+	}
+	if err := os.Chmod(target, 0o700); err != nil {
+		return service.uninstallFail(journal, err)
+	}
+	if err := os.Rename(target, backup); err != nil {
+		_ = os.Chmod(target, 0o500)
+		return service.uninstallFail(journal, err)
+	}
+	if err := os.Chmod(backup, 0o500); err != nil {
+		return service.uninstallFail(journal, err)
+	}
+	journal.Phase = transactionOldMoved
+	if err := service.writeJournal(journal); err != nil {
+		return service.uninstallFail(journal, err)
+	}
+
+	if removeData {
+		dataTarget := filepath.Join(service.Roots.DataRoot, installID)
+		dataBackup := filepath.Join(service.Roots.DataRoot, journal.DataBackup)
+		if info, statErr := os.Lstat(dataTarget); statErr == nil {
+			if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+				return service.uninstallFail(journal, newError(CodeTransactionFailed, "Flow data root is not a real directory", nil))
+			}
+			if err := os.Rename(dataTarget, dataBackup); err != nil {
+				return service.uninstallFail(journal, err)
+			}
+		} else if !os.IsNotExist(statErr) {
+			return service.uninstallFail(journal, statErr)
+		}
+		journal.Phase = transactionDataMoved
+		if err := service.writeJournal(journal); err != nil {
+			return service.uninstallFail(journal, err)
 		}
 	}
+
+	if err := service.Catalog.remove(installID); err != nil {
+		return service.uninstallFail(journal, err)
+	}
+	journal.Phase = transactionRecordCommitted
+	if err := service.writeJournal(journal); err != nil {
+		return service.uninstallFail(journal, err)
+	}
+	if err := service.recoverUninstall(journal); err != nil {
+		return err
+	}
+	_ = syncDirectory(service.Roots.FlowRoot)
+	_ = syncDirectory(service.Roots.recordsRoot())
+	_ = syncDirectory(service.Roots.DataRoot)
 	return nil
 }
