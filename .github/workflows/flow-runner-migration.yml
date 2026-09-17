@@ -1,0 +1,686 @@
+name: Flow Runner Migration
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/flow-runner-migration.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: flow-runner-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Apply Flow Runner migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+          import subprocess
+
+          SELF = '.github/workflows/flow-runner-migration.yml'
+
+          def run(*args):
+              subprocess.run(args, check=True)
+
+          def tracked_files():
+              raw = subprocess.check_output(['git', 'ls-files', '-z'])
+              return [item.decode() for item in raw.split(b'\0') if item]
+
+          def move(src, dst):
+              src_path = Path(src)
+              dst_path = Path(dst)
+              if not src_path.exists():
+                  return
+              dst_path.parent.mkdir(parents=True, exist_ok=True)
+              if dst_path.exists():
+                  raise RuntimeError(f'migration destination already exists: {dst}')
+              run('git', 'mv', src, dst)
+
+          def historical(path):
+              value = path.lower()
+              if path == SELF:
+                  return True
+              if path.startswith('apps/opendesk/script-runner-v1/'):
+                  return True
+              if value.startswith(('docs/archive/', 'docs/archives/', 'docs/history/', 'docs/research/', 'prompts/archive/')):
+                  return True
+              name = Path(path).name.lower()
+              return name.startswith('changelog') or name in {'history.md'}
+
+          def read_text(path):
+              try:
+                  return Path(path).read_text(encoding='utf-8')
+              except (UnicodeDecodeError, OSError):
+                  return None
+
+          def write_if_changed(path, before, after):
+              if after != before:
+                  Path(path).write_text(after, encoding='utf-8')
+
+          # Canonical source moves. The frozen v1 directory is intentionally untouched.
+          move('apps/opendesk/script-runner', 'apps/opendesk/flow-runner')
+          move('apps/opendesk/script-runner-simple.js', 'apps/opendesk/flow-runner.js')
+          move('docs/architecture/execution/script-runner-simple.md', 'docs/architecture/execution/flow-runner.md')
+
+          # Migrate current test/example/prompt file names that encode the product component slug.
+          for old in sorted(tracked_files(), key=lambda p: (p.count('/'), len(p)), reverse=True):
+              if 'script-runner' not in old or historical(old):
+                  continue
+              if not old.startswith(('tests/', 'docs/architecture/', 'docs/api/', 'docs/plans/', 'prompts/', 'examples/', 'apps/opendesk/')):
+                  continue
+              new = old.replace('script-runner-simple', 'flow-runner').replace('script-runner', 'flow-runner')
+              if new == old or not Path(old).exists():
+                  continue
+              Path(new).parent.mkdir(parents=True, exist_ok=True)
+              if Path(new).exists():
+                  raise RuntimeError(f'cannot rename {old}: {new} already exists')
+              run('git', 'mv', old, new)
+
+          exact_pairs = [
+              ('installOpenDeskScriptRunnerSimple', 'installOpenDeskFlowRunner'),
+              ('OpenDeskScriptRunnerSimple', 'OpenDeskFlowRunner'),
+              ('installOpenDeskScriptRunnerPlayer', 'installOpenDeskFlowRunnerPlayerController'),
+              ('OpenDeskScriptRunnerPlayer', 'OpenDeskFlowRunnerPlayerController'),
+              ('installOpenDeskScriptRunnerShortcuts', 'installOpenDeskFlowRunnerShortcutController'),
+              ('OpenDeskScriptRunnerShortcuts', 'OpenDeskFlowRunnerShortcutController'),
+              ('installOpenDeskProductScriptRunner', 'installOpenDeskProductFlowRunner'),
+              ('OpenDeskProductScriptRunner', 'OpenDeskProductFlowRunner'),
+              ('script-runner-simple.md', 'flow-runner.md'),
+              ('script-runner-simple.js', 'flow-runner.js'),
+              ('script-runner-simple', 'flow-runner'),
+              ('Script Runner Simple', 'Flow Runner'),
+          ]
+
+          semantic_pairs = [
+              ('resolveSelectedScriptName', 'resolveSelectedEntryName'),
+              ('selectedScriptName', 'selectedEntryName'),
+              ('scriptDisplayName', 'entryDisplayName'),
+              ('displayScriptName', 'displayEntryName'),
+              ('displayScript', 'displayEntry'),
+              ('scriptNames', 'entryNames'),
+              ('selectedScript', 'selectedEntry'),
+              ('selectScriptByName', 'selectEntryByName'),
+              ('selectScript', 'selectEntry'),
+              ('setScriptsFromEntries', 'setEntries'),
+              ('setScriptsFromNames', 'setEntriesFromNames'),
+              ('loadAllScripts', 'loadAllEntries'),
+              ('loadScripts', 'loadEntries'),
+              ('refreshScripts', 'refreshEntries'),
+              ('isDirectScriptName', 'isDirectRunnableName'),
+              ('directScriptEntry', 'directRunnableEntry'),
+          ]
+
+          # Protect the deliberately frozen v1 identity if it is referenced by current tests/docs.
+          protected_tokens = {
+              'script-runner-v1': '__ODLEGACYRUNNERV1SLUG__',
+              'ScriptRunnerV1': '__ODLEGACYRUNNERV1CAMEL__',
+              'Script Runner v1': '__ODLEGACYRUNNERV1LABEL__',
+          }
+
+          for path in tracked_files():
+              if historical(path):
+                  continue
+              before = read_text(path)
+              if before is None:
+                  continue
+              text = before
+              for old, marker in protected_tokens.items():
+                  text = text.replace(old, marker)
+              for old, new in exact_pairs:
+                  text = text.replace(old, new)
+              text = text.replace('ScriptRunner', 'FlowRunner')
+              text = text.replace('scriptRunner', 'flowRunner')
+              text = text.replace('Script Runner', 'Flow Runner')
+              text = text.replace('script runner', 'flow runner')
+              text = text.replace('script-runner', 'flow-runner')
+              text = re.sub(r'(?<!OPENDESK_)SCRIPT_RUNNER_', 'FLOW_RUNNER_', text)
+              for old, marker in protected_tokens.items():
+                  text = text.replace(marker, old)
+              write_if_changed(path, before, text)
+
+          # Semantic entry vocabulary is applied only to the component and its direct tests.
+          semantic_paths = {
+              'apps/opendesk/flow-runner/controller.js',
+              'apps/opendesk/flow-runner/player-controller.js',
+              'apps/opendesk/flow-runner/shortcut-controller.js',
+          }
+          for path in list(tracked_files()):
+              if path in semantic_paths or (path.startswith('tests/') and ('flow-runner' in path or 'product-flow-runner' in path)):
+                  before = read_text(path)
+                  if before is None:
+                      continue
+                  text = before
+                  for old, new in semantic_pairs:
+                      text = text.replace(old, new)
+                  # `entries` is the collection of runnable entries; singular `script`
+                  # remains untouched where the code genuinely handles a JS/script payload.
+                  text = re.sub(r'\bscripts\b', 'entries', text)
+                  write_if_changed(path, before, text)
+
+          controller_path = 'apps/opendesk/flow-runner/controller.js'
+          before = read_text(controller_path)
+          if before is None:
+              raise RuntimeError('missing Flow Runner controller after move')
+          text = before
+          text = text.replace("const RUN_LOG_ROOT = ['.runtime', 'examples', 'custom-ui', 'flow-runner', 'runs'];",
+                              "const RUN_LOG_ROOT = ['.runtime', 'flow-runner', 'runs'];")
+          ui_pairs = [
+              ("title: 'OpenDesk Flow Runner'", "title: 'OpenDesk — 自动化'"),
+              ('>Flow Runner</strong>', '>自动化</strong>'),
+              ('暂无可运行脚本', '暂无可运行的流程'),
+              ('当前没有可运行脚本', '暂无可运行的流程'),
+              ('当前脚本', '当前流程'),
+              ('选择脚本', '选择流程'),
+              ('上一个脚本', '上一个流程'),
+              ('下一个脚本', '下一个流程'),
+              ('脚本列表加载失败', '流程列表加载失败'),
+              ('脚本列表', '流程列表'),
+              ('管理脚本', '管理流程'),
+              ('正在加载脚本', '正在加载流程'),
+              ('暂无脚本', '暂无流程'),
+              ('个脚本', '个流程'),
+              ('脚本目录不可用', '自动化目录不可用'),
+              ('脚本目录', '自动化目录'),
+              ('脚本根路径', '自动化根路径'),
+              ('脚本名', '流程条目名'),
+              ('脚本已不存在', '自动化条目已不存在'),
+              ('没有可运行的脚本', '暂无可运行的流程'),
+              ('请先勾选至少一个脚本', '请先勾选至少一个流程'),
+              ('剩余脚本不会继续执行', '剩余流程不会继续执行'),
+              ('正在停止当前脚本', '正在停止当前流程'),
+              ('从 Flow Runner 卸载', '从“自动化”中卸载'),
+              ('已加载脚本，但 Flow Catalog 不可用', '已加载本地自动化，但 Flow Catalog 不可用'),
+              ('已重新扫描；当前没有脚本', '已重新扫描；暂无流程'),
+          ]
+          for old, new in ui_pairs:
+              text = text.replace(old, new)
+          text = text.replace("toolbar.addLabel('script'", "toolbar.addLabel('entry'")
+          text = text.replace("toolbar.updateLabel('script'", "toolbar.updateLabel('entry'")
+          text = text.replace("logRecord('FLOW_RUNNER_SCRIPT_DELETED'", "logRecord('FLOW_RUNNER_ENTRY_DELETED'")
+          write_if_changed(controller_path, before, text)
+
+          player_path = 'apps/opendesk/flow-runner/player-controller.js'
+          before = read_text(player_path)
+          if before is None:
+              raise RuntimeError('missing Flow Runner player controller after move')
+          text = before
+          for old, new in [
+              ("title: 'OpenDesk Flow Runner'", "title: 'OpenDesk — 自动化'"),
+              ('脚本列表', '流程列表'),
+              ('管理脚本', '管理流程'),
+              ('暂无可运行脚本', '暂无可运行的流程'),
+              ('暂无脚本', '暂无流程'),
+              ('当前脚本已不存在', '当前流程已不存在'),
+              ('没有可运行的脚本', '暂无可运行的流程'),
+              ('上一个脚本', '上一个流程'),
+              ('下一个脚本', '下一个流程'),
+          ]:
+              text = text.replace(old, new)
+          text = text.replace("updateLabel', 'script'", "updateLabel', 'entry'")
+          text = text.replace("addLabel('script'", "addLabel('entry'")
+          write_if_changed(player_path, before, text)
+
+          shortcut_path = 'apps/opendesk/flow-runner/shortcut-controller.js'
+          before = read_text(shortcut_path)
+          if before is None:
+              raise RuntimeError('missing Flow Runner shortcut controller after move')
+          text = before
+          text = text.replace('currentScript', 'currentEntry')
+          text = text.replace("typeof app.entries !== 'function'", "typeof app.entries !== 'function'")
+          write_if_changed(shortcut_path, before, text)
+
+          # Product entry: canonical env name with backwards-compatible fallback.
+          entry_path = 'apps/opendesk/flow-runner.js'
+          before = read_text(entry_path)
+          if before is None:
+              raise RuntimeError('missing Flow Runner product entry after move')
+          text = before
+          old_env = "const configuredRoot = readEnv('OPENDESK_SCRIPT_RUNNER_DIR');"
+          new_env = "const configuredRoot = readEnv('OPENDESK_FLOW_RUNNER_DIR') || readEnv('OPENDESK_SCRIPT_RUNNER_DIR');"
+          if old_env in text:
+              text = text.replace(old_env, new_env)
+          text = text.replace("const DEFAULT_WINDOW_TITLE = 'OpenDesk — Flow Runner';", "const DEFAULT_WINDOW_TITLE = 'OpenDesk — 自动化';")
+          text = text.replace('isScriptManagerWindowSpec', 'isFlowManagerWindowSpec')
+          for old, new in [
+              ('剩余脚本不会继续执行', '剩余流程不会继续执行'),
+              ('脚本列表', '流程列表'),
+              ('当前脚本', '当前流程'),
+              ('暂无脚本', '暂无流程'),
+          ]:
+              text = text.replace(old, new)
+          write_if_changed(entry_path, before, text)
+
+          # main.js uses Flow Runner identity end-to-end while preserving generic integration APIs only where explicit.
+          main_path = 'apps/opendesk/main.js'
+          before = read_text(main_path)
+          if before is None:
+              raise RuntimeError('missing apps/opendesk/main.js')
+          text = before
+          main_pairs = [
+              ('runnerControllerEntry', 'flowRunnerControllerEntry'),
+              ('baseRunnerController', 'baseFlowRunnerController'),
+              ('runnerPlayerEntry', 'flowRunnerPlayerEntry'),
+              ('runnerShortcutEntry', 'flowRunnerShortcutEntry'),
+              ('runnerEntry', 'flowRunnerEntry'),
+              ('const runner = OpenDeskProductFlowRunner.create', 'const flowRunner = OpenDeskProductFlowRunner.create'),
+              ('getRunnerState: () => runner.state()', 'getFlowRunnerState: () => flowRunner.state()'),
+              ('const runtimeLog = OpenDeskRuntimeLog.create({runner});', 'const runtimeLog = OpenDeskRuntimeLog.create({flowRunner});'),
+              ('  runner,\n  schedulerClient:', '  flowRunner,\n  schedulerClient:'),
+              ('  runner,\n  assistant,', '  flowRunner,\n  assistant,'),
+              ('await runner.launch()', 'await flowRunner.launch()'),
+          ]
+          for old, new in main_pairs:
+              text = text.replace(old, new)
+          text = text.replace('// Runner composition', '// Flow Runner composition')
+          text = text.replace('// generic Runner never learns', '// generic Flow Runner never learns')
+          text = text.replace('// Flow Runner has no product fullscreen', '// Flow Runner has no product fullscreen')
+          write_if_changed(main_path, before, text)
+
+          # App controller now consumes flowRunner; `runner.open` stays as a legacy action id.
+          app_controller_path = 'apps/opendesk/app-controller.js'
+          before = read_text(app_controller_path)
+          if before is None:
+              raise RuntimeError('missing app controller')
+          text = before
+          text = text.replace('const runner = settings.runner;', 'const flowRunner = settings.flowRunner || settings.runner;')
+          text = text.replace('if (!runner || typeof runner.open', 'if (!flowRunner || typeof flowRunner.open')
+          text = text.replace('await runner.open(source);', 'await flowRunner.open(source);')
+          text = text.replace('requires Flow Runner', 'requires Flow Runner')
+          write_if_changed(app_controller_path, before, text)
+
+          # Developer Tools uses Flow Runner naming in code/UI; it still understands the legacy option key.
+          dev_path = 'apps/opendesk/developer-tools.js'
+          before = read_text(dev_path)
+          if before is not None:
+              text = before
+              text = text.replace('const runner = settings.runner;', 'const flowRunner = settings.flowRunner || settings.runner;')
+              text = text.replace('const runnerState = runner && typeof runner.state === \'function\' ? runner.state() : {};',
+                                  'const flowRunnerState = flowRunner && typeof flowRunner.state === \'function\' ? flowRunner.state() : {};')
+              text = text.replace('id="runner"', 'id="flowRunner"')
+              text = text.replace('runner: runnerState.active ? (runnerState.runner && runnerState.runner.listVisible ? \'已显示\' : \'运行中 / 已隐藏\') : \'未启动\'',
+                                  'flowRunner: flowRunnerState.active ? (flowRunnerState.runner && flowRunnerState.runner.listVisible ? \'已显示\' : \'运行中 / 已隐藏\') : \'未启动\'',)
+              write_if_changed(dev_path, before, text)
+
+          # Runtime Log writes/reads the new root and also reads the legacy root for existing evidence.
+          runtime_log_path = 'apps/opendesk/runtime-log.js'
+          before = read_text(runtime_log_path)
+          if before is not None:
+              text = before
+              text = text.replace("const RUN_LOG_ROOT = ['.runtime', 'examples', 'custom-ui', 'flow-runner', 'runs'];",
+                                  "const RUN_LOG_ROOT = ['.runtime', 'flow-runner', 'runs'];\n  const LEGACY_RUN_LOG_ROOT = ['.runtime', 'examples', 'custom-ui', 'script-runner-simple', 'runs'];")
+              block = re.compile(r"  function runRoot\(\) \{.*?\n  \}\n\n  function latestRunDirectory\(\) \{.*?\n  \}\n\n  async function readTail", re.S)
+              replacement = """  function rootPath(parts) {
+    return file.join.apply(file, [productPaths.appDataRoot].concat(parts));
+  }
+
+  function runRoot() {
+    return rootPath(RUN_LOG_ROOT);
+  }
+
+  function legacyRunRoot() {
+    return rootPath(LEGACY_RUN_LOG_ROOT);
+  }
+
+  function runDirectories(root) {
+    const rootInfo = file.stat(root);
+    if (!rootInfo || rootInfo.type !== 'directory') return [];
+    return file.listDir(root)
+      .filter(name => {
+        const info = file.stat(file.join(root, name));
+        return info && info.type === 'directory';
+      })
+      .map(name => {
+        const directory = file.join(root, name);
+        const info = file.stat(directory) || {};
+        const summary = safeJSON(file.join(directory, 'summary.json')) || {};
+        const agentSummary = safeJSON(file.join(directory, 'agent_summary.json')) || {};
+        const timestamp = Date.parse(summary.started_at || agentSummary.startedAt || info.modifiedAt || '') || 0;
+        return {directory, name, timestamp};
+      });
+  }
+
+  function latestRunDirectory() {
+    const candidates = runDirectories(runRoot()).concat(runDirectories(legacyRunRoot()))
+      .sort((left, right) => right.timestamp - left.timestamp || right.name.localeCompare(left.name));
+    return candidates.length ? candidates[0].directory : '';
+  }
+
+  async function readTail"""
+              text, count = block.subn(replacement, text, count=1)
+              if count != 1:
+                  raise RuntimeError('runtime-log run-root block did not match')
+              text = text.replace('const runner = settings.runner || null;', 'const flowRunner = settings.flowRunner || settings.runner || null;')
+              text = text.replace('function runnerState()', 'function flowRunnerState()')
+              text = text.replace("return runner && typeof runner.state === 'function' ? runner.state() : null;",
+                                  "return flowRunner && typeof flowRunner.state === 'function' ? flowRunner.state() : null;")
+              text = text.replace('runnerState()', 'flowRunnerState()')
+              text = text.replace('currentRunner', 'currentFlowRunner')
+              text = text.replace('selectedIsRunner', 'selectedIsFlowRunner')
+              write_if_changed(runtime_log_path, before, text)
+
+          # Promotions owner callback is a Flow Runner contract. Keep fallback for older injected tests/adapters.
+          owner_path = 'apps/opendesk/promotions/owner.js'
+          before = read_text(owner_path)
+          if before is not None:
+              text = before.replace('settings.getRunnerState', 'settings.getFlowRunnerState || settings.getRunnerState')
+              # If the source binds a local getRunnerState name, keep that local name generic for compatibility.
+              write_if_changed(owner_path, before, text)
+
+          # Canonical module README.
+          Path('apps/opendesk/flow-runner/README.md').write_text("""# Flow Runner
+
+Flow Runner 是 OpenDesk 用于**发现、选择、运行和停止可运行自动化条目**的正式产品组件。
+
+Canonical naming：
+
+- 产品界面：`自动化`
+- 架构组件：`Flow Runner`
+- JavaScript 标识：`FlowRunner` / `flowRunner`
+- 目录：`apps/opendesk/flow-runner/`
+- 产品入口：`apps/opendesk/flow-runner.js`
+
+Flow Runner 的 Runnable Entry 可以是：
+
+- JavaScript：`.js` / `.mjs`
+- Protected Package：`.odpkg`
+- Installed Flow：由 `.odflow` 安装后进入 Flow Catalog 的 Flow
+
+Flow Runner 不定义新的 JavaScript Runtime。普通 JavaScript 继续通过现有 OpenDesk execution/runtime 执行；受保护 Package 和 Installed Flow 继续使用各自已经存在的验证、授权和执行链路。
+
+持久排序/选择配置继续使用 `.opendesk-runner.json`，避免产品升级破坏已有用户状态。新运行证据写入 `.runtime/flow-runner/runs/`；Runtime Log 同时读取旧 `.runtime/examples/custom-ui/script-runner-simple/runs/`，但不会搬迁或删除旧证据。
+
+Recorder 仍然是独立的 `Recorder` 组件。Recorder 负责记录/生成自动化资产，Flow Runner 负责运行；两者不合并命名。
+""", encoding='utf-8')
+
+          # Replace the obsolete Simple-era architecture document with the current contract.
+          Path('docs/architecture/execution/flow-runner.md').write_text("""# Flow Runner
+
+## 1. 定位
+
+Flow Runner 是 OpenDesk 中用于发现、选择、运行和停止**可运行自动化条目**的正式产品组件。产品界面统一显示为「自动化」。
+
+它可以承载普通 JavaScript、受保护 Package 和已安装 Flow，但**不定义新的 JavaScript Runtime**。
+
+```text
+自动化（产品界面）
+  ↓
+Flow Runner（架构组件）
+  ↓
+Runnable Entry
+  ├─ JavaScript (.js / .mjs)
+  ├─ Protected Package (.odpkg)
+  └─ Installed Flow (Flow Catalog)
+  ↓
+现有 OpenDesk execution / package / flow runtime
+```
+
+## 2. Canonical naming
+
+| 层级 | 正式名称 |
+| --- | --- |
+| 用户界面 | 自动化 |
+| 架构组件 | Flow Runner |
+| JavaScript | `FlowRunner` / `flowRunner` |
+| 目录 | `apps/opendesk/flow-runner/` |
+| 产品入口 | `apps/opendesk/flow-runner.js` |
+| 录制组件 | Recorder |
+
+`JavaScript`、`script path`、`script source`、`.js`、`.mjs` 仍然是真实技术概念，不因为组件改名而改写。
+
+## 3. 发现与选择
+
+Flow Runner 合并两类来源：
+
+1. recipes root 中的直接可运行文件：`.js`、`.mjs`、`.odpkg`；
+2. Flow Catalog 中状态允许运行的 Installed Flow。
+
+界面和状态模型以 runnable entry / entry 为主语，不再假设集合里只有脚本。
+
+## 4. 运行与停止
+
+Run / Stop / Previous / Next / List 均作用于当前 runnable entry。JavaScript 继续使用 `-script` execution；`.odpkg` 沿现有 Package 执行；Installed Flow 使用现有 `flow run` 链路。
+
+Stop 保持既有 Abort/取消语义，不创建第二套 Runtime，也不因为命名迁移改变快捷键：
+
+- Run：`CommandOrControl+Alt+R`
+- Stop：`CommandOrControl+Alt+X`
+
+## 5. 持久状态与运行证据
+
+`.opendesk-runner.json` 是既有用户持久状态，文件名保持不变。
+
+新运行记录写入：
+
+```text
+.runtime/flow-runner/runs/
+```
+
+旧证据不删除、不搬迁。Runtime Log 同时读取 legacy root：
+
+```text
+.runtime/examples/custom-ui/script-runner-simple/runs/
+```
+
+以保证升级后仍能查看已有运行证据。
+
+环境变量 canonical 名称为 `OPENDESK_FLOW_RUNNER_DIR`；为兼容已有部署，`OPENDESK_SCRIPT_RUNNER_DIR` 继续作为 fallback 读取。
+
+## 6. Recorder 关系
+
+Recorder 保持独立组件与目录：
+
+```text
+Recorder
+  ↓
+记录操作 / 生成 flow.js 或自动化资产
+  ↓
+Flow Runner
+  ↓
+运行
+```
+
+Recorder 不改名为 Flow Recorder / Workflow Recorder / Automation Recorder。
+
+## 7. 兼容边界
+
+`Script Runner` 是旧产品/组件名称，仅在 frozen v1、历史材料、legacy 环境变量和 legacy runtime-log 路径中保留。当前生产实现、正式入口、UI、错误码和新文档均以 Flow Runner 为 canonical 名称。
+
+Flow 的 `.odflow`、`flow.json`、`flow.sig`、`flowId`、`flows/`、`flow-data/`、`flow-state/`、`main.odpkg`、`assets/`、`trust/` 均不因本迁移改变。
+
+## 8. Migration Contract
+
+自动测试至少保证：
+
+- canonical path/entry 已迁移到 `flow-runner`；
+- `.js` / `.mjs` / `.odpkg` 与 Installed Flow 发现能力仍存在；
+- `.opendesk-runner.json` 继续读取；
+- 新运行目录为 `.runtime/flow-runner/runs/`；
+- Runtime Log 兼容 legacy root；
+- Run / Stop / Previous / Next / List 与快捷键保持；
+- Recorder 目录与身份不变化；
+- 当前生产代码不再依赖旧 `apps/opendesk/script-runner/` 或 `script-runner-simple.js`。
+""", encoding='utf-8')
+
+          # Flow distribution docs should name both architecture and user surface explicitly.
+          flow_dist = Path('docs/architecture/execution/flow-distribution-installation.md')
+          if flow_dist.exists():
+              before = flow_dist.read_text(encoding='utf-8')
+              note = '> Naming: 本文中的 **Flow Runner** 对应产品界面「**自动化**」。\n\n'
+              if note not in before:
+                  lines = before.splitlines(keepends=True)
+                  insert_at = 1 if lines and lines[0].startswith('#') else 0
+                  lines.insert(insert_at, '\n' + note)
+                  flow_dist.write_text(''.join(lines), encoding='utf-8')
+
+          # A static migration contract catches path/name regression without depending on native UI.
+          Path('tests/custom-ui/flow-runner-migration-contract.test.js').write_text(r"""'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const root = path.resolve(__dirname, '..', '..');
+const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
+const exists = relative => fs.existsSync(path.join(root, relative));
+
+test('Flow Runner owns the canonical production paths', () => {
+  assert.equal(exists('apps/opendesk/flow-runner.js'), true);
+  assert.equal(exists('apps/opendesk/flow-runner/controller.js'), true);
+  assert.equal(exists('apps/opendesk/flow-runner/player-controller.js'), true);
+  assert.equal(exists('apps/opendesk/flow-runner/shortcut-controller.js'), true);
+  assert.equal(exists('apps/opendesk/script-runner-simple.js'), false);
+  assert.equal(exists('apps/opendesk/script-runner'), false);
+  assert.equal(exists('apps/opendesk/script-runner-v1'), true);
+});
+
+test('main composes Flow Runner with canonical globals and paths', () => {
+  const source = read('apps/opendesk/main.js');
+  assert.match(source, /flow-runner[\\/]', 'controller\.js'/);
+  assert.match(source, /flow-runner\.js/);
+  assert.match(source, /OpenDeskFlowRunner/);
+  assert.match(source, /OpenDeskProductFlowRunner/);
+  assert.match(source, /const flowRunner =/);
+  assert.doesNotMatch(source, /OpenDeskScriptRunner/);
+  assert.doesNotMatch(source, /script-runner-simple/);
+});
+
+test('Flow Runner preserves real script formats and adds Flow entry semantics', () => {
+  const source = read('apps/opendesk/flow-runner/controller.js');
+  assert.match(source, /\.mjs/);
+  assert.match(source, /\.odpkg/);
+  assert.match(source, /flowCatalogEnabled/);
+  assert.match(source, /kind: 'flow'/);
+  assert.match(source, /isDirectJavaScriptName/);
+  assert.match(source, /isDirectRunnableName/);
+  assert.match(source, /entries: \(\) =>/);
+});
+
+test('legacy runner config and log evidence remain compatible', () => {
+  const controller = read('apps/opendesk/flow-runner/controller.js');
+  const runtimeLog = read('apps/opendesk/runtime-log.js');
+  const entry = read('apps/opendesk/flow-runner.js');
+  assert.match(controller, /\.opendesk-runner\.json/);
+  assert.match(controller, /\['\.runtime', 'flow-runner', 'runs'\]/);
+  assert.match(runtimeLog, /LEGACY_RUN_LOG_ROOT/);
+  assert.match(runtimeLog, /script-runner-simple/);
+  assert.match(entry, /OPENDESK_FLOW_RUNNER_DIR/);
+  assert.match(entry, /OPENDESK_SCRIPT_RUNNER_DIR/);
+});
+
+test('user-visible Runner controls use the automation/flow vocabulary', () => {
+  const controller = read('apps/opendesk/flow-runner/controller.js');
+  const player = read('apps/opendesk/flow-runner/player-controller.js');
+  assert.match(controller, /自动化/);
+  assert.match(controller, /当前流程/);
+  assert.match(player, /上一个流程/);
+  assert.match(player, /下一个流程/);
+  assert.match(player, /流程列表/);
+  assert.doesNotMatch(controller, />Flow Runner<\/strong>/);
+});
+
+test('Recorder remains a separate canonical component', () => {
+  assert.equal(exists('apps/opendesk/recorder'), true);
+  assert.match(read('apps/opendesk/flow-runner/README.md'), /Recorder/);
+});
+""", encoding='utf-8')
+
+          # Update semantic expectations in Flow Runner tests after creating the new contract.
+          for path in tracked_files():
+              if not path.startswith('tests/'):
+                  continue
+              before = read_text(path)
+              if before is None or not ('flow-runner' in path or 'FlowRunner' in before or 'flowRunner' in before):
+                  continue
+              text = before
+              for old, new in semantic_pairs:
+                  text = text.replace(old, new)
+              text = re.sub(r'\bscripts\b', 'entries', text)
+              text = text.replace("'script'", "'entry'") if 'toolbar label' in text.lower() else text
+              write_if_changed(path, before, text)
+
+          print('Migration changed paths:')
+          subprocess.run(['git', 'status', '--short'], check=True)
+          PY
+
+      - name: Static migration audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check apps/opendesk/flow-runner.js
+          node --check apps/opendesk/flow-runner/controller.js
+          node --check apps/opendesk/flow-runner/player-controller.js
+          node --check apps/opendesk/flow-runner/shortcut-controller.js
+          node --check apps/opendesk/main.js
+          git diff --check
+          test ! -e apps/opendesk/script-runner
+          test ! -e apps/opendesk/script-runner-simple.js
+          test -e apps/opendesk/script-runner-v1
+          if git grep -nE 'OpenDeskScriptRunner|installOpenDeskScriptRunner|SCRIPT_RUNNER_|scriptRunner|ScriptRunner|script-runner-simple|apps/opendesk/script-runner/' -- apps/opendesk ':!apps/opendesk/script-runner-v1/**' ':!apps/opendesk/runtime-log.js' ':!apps/opendesk/flow-runner.js'; then
+            echo 'Unexpected legacy Script Runner identity remains in active production source.' >&2
+            exit 1
+          fi
+          # Allowed active compatibility occurrences are explicit and narrow.
+          git grep -nE 'OPENDESK_SCRIPT_RUNNER_DIR|script-runner-simple' -- apps/opendesk/runtime-log.js apps/opendesk/flow-runner.js || true
+
+      - name: Flow Runner JavaScript tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/custom-ui/product-flow-runner.test.js \
+            tests/custom-ui/flow-runner-migration-contract.test.js \
+            tests/app-lifecycle/official-shell.test.js \
+            tests/app-lifecycle/examples-menu-action.test.js
+
+      - name: Go contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test ./internal/appmodepayload ./internal/recorderbundle ./pkg/flow/... ./cmd/opendesk -count=1
+
+      - name: Build OpenDesk
+        shell: bash
+        run: |
+          set -euo pipefail
+          go build -o /tmp/opendesk ./cmd/opendesk
+
+      - name: Commit migration safely to master
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/flow-runner-migration.yml
+          git add -A
+          git diff --cached --check
+          git config user.name 'OpenDesk Migration Bot'
+          git config user.email 'opendesk-migration@users.noreply.github.com'
+          git commit -m 'refactor(opendesk): migrate Script Runner to Flow Runner'
+          git fetch origin master
+          actual="$(git rev-parse origin/master)"
+          if [ "$actual" != "$EXPECTED_HEAD" ]; then
+            echo "master advanced during migration: expected $EXPECTED_HEAD, got $actual" >&2
+            exit 42
+          fi
+          git push origin HEAD:master
