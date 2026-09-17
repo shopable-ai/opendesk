@@ -3,59 +3,22 @@
 
   const CONFIG_MAGIC = 'ODCFG1';
   const CONFIG_SCHEMA_VERSION = 1;
-  // This module owns Official Shell behavior; the file stem describes the
-  // publisher-owned product configuration it loads.
   const CONFIG_BASENAME = 'product';
-  // The basename rename does not introduce a new ODCFG1 wire format.
   const OBFUSCATION_KEY = 'OpenDeskOfficialShell/v1';
   const HTTPS_URL_PATTERN = /^https:\/\/[^\s/?#\\]+(?:[/?#][^\s]*)?$/;
+  const HTTPS_ORIGIN_PATTERN = /^https:\/\/[^\s/?#\\]+\/?$/;
   const CORE_ACTIONS = Object.freeze(['home', 'help', 'customize', 'examples', 'apiDocs']);
   const REQUIRED_CONFIG_ACTIONS = Object.freeze(['home', 'help', 'customize', 'marketplace', 'upgrade']);
   const OPTIONAL_CONFIG_ACTIONS = Object.freeze(['examples', 'apiDocs']);
   const CONFIG_ACTIONS = Object.freeze([...REQUIRED_CONFIG_ACTIONS, ...OPTIONAL_CONFIG_ACTIONS]);
   const ACTION_DEFINITIONS = Object.freeze({
-    home: Object.freeze({
-      id: 'opendesk.home',
-      label: '打开 OpenDesk 官网',
-      title: 'OpenDesk 官网',
-      placeholder: 'OpenDesk 官网暂不可用。',
-    }),
-    help: Object.freeze({
-      id: 'opendesk.help',
-      label: '帮助',
-      title: '帮助与支持',
-      placeholder: '帮助中心待开放。',
-    }),
-    examples: Object.freeze({
-      id: 'opendesk.examples',
-      label: '示例代码',
-      title: '示例代码',
-      placeholder: '示例代码暂不可用。',
-    }),
-    apiDocs: Object.freeze({
-      id: 'opendesk.api-docs',
-      label: 'API 文档',
-      title: 'API 文档',
-      placeholder: 'API 文档暂不可用。',
-    }),
-    customize: Object.freeze({
-      id: 'opendesk.customize',
-      label: '定制',
-      title: '定制自动化',
-      placeholder: '定制自动化服务待开放。',
-    }),
-    marketplace: Object.freeze({
-      id: 'opendesk.marketplace',
-      label: '商店',
-      title: '自动化市场',
-      placeholder: '自动化市场待开放。',
-    }),
-    upgrade: Object.freeze({
-      id: 'opendesk.upgrade',
-      label: '专业版',
-      title: '升级专业版',
-      placeholder: '专业版服务待开放。',
-    }),
+    home: Object.freeze({id: 'opendesk.home', label: '打开 OpenDesk 官网', title: 'OpenDesk 官网', placeholder: 'OpenDesk 官网暂不可用。'}),
+    help: Object.freeze({id: 'opendesk.help', label: '帮助', title: '帮助与支持', placeholder: '帮助中心待开放。'}),
+    examples: Object.freeze({id: 'opendesk.examples', label: '示例代码', title: '示例代码', placeholder: '示例代码暂不可用。'}),
+    apiDocs: Object.freeze({id: 'opendesk.api-docs', label: 'API 文档', title: 'API 文档', placeholder: 'API 文档暂不可用。'}),
+    customize: Object.freeze({id: 'opendesk.customize', label: '定制', title: '定制自动化', placeholder: '定制自动化服务待开放。'}),
+    marketplace: Object.freeze({id: 'opendesk.marketplace', label: '商店', title: '自动化市场', placeholder: '自动化市场待开放。'}),
+    upgrade: Object.freeze({id: 'opendesk.upgrade', label: '专业版', title: '升级专业版', placeholder: '专业版服务待开放。'}),
   });
 
   const FALLBACK_CONFIG = Object.freeze({
@@ -69,13 +32,12 @@
       marketplace: Object.freeze({visible: false, url: ''}),
       upgrade: Object.freeze({visible: false, url: ''}),
     }),
+    analytics: null,
   });
 
   function checksum16(text) {
     let sum = 0;
-    for (let index = 0; index < text.length; index++) {
-      sum = (sum + text.charCodeAt(index)) & 0xffff;
-    }
+    for (let index = 0; index < text.length; index++) sum = (sum + text.charCodeAt(index)) & 0xffff;
     return sum.toString(16).padStart(4, '0');
   }
 
@@ -93,25 +55,72 @@
     return decoded;
   }
 
-  function validateConfig(value) {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      throw new Error('official shell config must be an object');
-    }
+  function requireExactFields(value, expected, prefix) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${prefix} must be an object`);
+    const allowed = new Set(expected);
     for (const name of Object.keys(value)) {
-      if (name !== 'schemaVersion' && name !== 'actions') {
-        throw new Error(`official shell config contains unknown field: ${name}`);
-      }
+      if (!allowed.has(name)) throw new Error(`${prefix} contains unknown field: ${name}`);
     }
-    if (value.schemaVersion !== CONFIG_SCHEMA_VERSION) {
-      throw new Error('official shell config schemaVersion is unsupported');
+    for (const name of expected) {
+      if (!(name in value)) throw new Error(`${prefix} is missing field: ${name}`);
     }
-    if (!value.actions || typeof value.actions !== 'object' || Array.isArray(value.actions)) {
-      throw new Error('official shell config actions must be an object');
+  }
+
+  function validateAnalytics(value) {
+    if (value == null) return null;
+    requireExactFields(value, ['provider', 'endpoint', 'projectToken', 'environment', 'maxEventBytes', 'queue', 'network', 'session'], 'official shell analytics config');
+    const provider = String(value.provider || '').trim().toLowerCase();
+    const endpoint = String(value.endpoint || '').trim().replace(/\/$/, '');
+    const projectToken = String(value.projectToken || '').trim();
+    const environment = String(value.environment || '').trim().toLowerCase();
+    if (!['posthog', 'debug', 'disabled'].includes(provider)) throw new Error('official shell analytics provider is invalid');
+    if (!['production', 'development', 'test'].includes(environment)) throw new Error('official shell analytics environment is invalid');
+    if (provider === 'debug' && environment === 'production') throw new Error('official shell analytics debug provider is not allowed in production');
+    if (provider === 'posthog' && !HTTPS_ORIGIN_PATTERN.test(endpoint)) throw new Error('official shell analytics endpoint must be an https origin');
+    if (projectToken && !/^phc_[^\s]{1,252}$/.test(projectToken)) throw new Error('official shell analytics projectToken must be a public capture token');
+    if (!Number.isInteger(value.maxEventBytes) || value.maxEventBytes < 256 || value.maxEventBytes > 2048) throw new Error('official shell analytics maxEventBytes is invalid');
+
+    requireExactFields(value.queue, ['maxEvents', 'batchSize', 'maxRequests'], 'official shell analytics queue');
+    if (!Number.isInteger(value.queue.maxEvents) || value.queue.maxEvents < 1 || value.queue.maxEvents > 1000
+      || !Number.isInteger(value.queue.batchSize) || value.queue.batchSize < 1 || value.queue.batchSize > 100 || value.queue.batchSize > value.queue.maxEvents
+      || !Number.isInteger(value.queue.maxRequests) || value.queue.maxRequests < 1 || value.queue.maxRequests > 16) {
+      throw new Error('official shell analytics queue bounds are invalid');
     }
+
+    requireExactFields(value.network, ['requestTimeoutMs', 'flushIntervalMs', 'maxRetries', 'shutdownTimeoutMs'], 'official shell analytics network');
+    if (!Number.isInteger(value.network.requestTimeoutMs) || value.network.requestTimeoutMs < 100 || value.network.requestTimeoutMs > 5000
+      || !Number.isInteger(value.network.flushIntervalMs) || value.network.flushIntervalMs < 100 || value.network.flushIntervalMs > 30000
+      || !Number.isInteger(value.network.maxRetries) || value.network.maxRetries < 0 || value.network.maxRetries > 3
+      || !Number.isInteger(value.network.shutdownTimeoutMs) || value.network.shutdownTimeoutMs < 100 || value.network.shutdownTimeoutMs > 1000) {
+      throw new Error('official shell analytics network bounds are invalid');
+    }
+
+    requireExactFields(value.session, ['idleTimeoutMinutes'], 'official shell analytics session');
+    if (!Number.isInteger(value.session.idleTimeoutMinutes) || value.session.idleTimeoutMinutes < 1 || value.session.idleTimeoutMinutes > 120) {
+      throw new Error('official shell analytics session idle timeout is invalid');
+    }
+    return Object.freeze({
+      provider, endpoint, projectToken, environment, maxEventBytes: value.maxEventBytes,
+      queue: Object.freeze({maxEvents: value.queue.maxEvents, batchSize: value.queue.batchSize, maxRequests: value.queue.maxRequests}),
+      network: Object.freeze({
+        requestTimeoutMs: value.network.requestTimeoutMs,
+        flushIntervalMs: value.network.flushIntervalMs,
+        maxRetries: value.network.maxRetries,
+        shutdownTimeoutMs: value.network.shutdownTimeoutMs,
+      }),
+      session: Object.freeze({idleTimeoutMinutes: value.session.idleTimeoutMinutes}),
+    });
+  }
+
+  function validateConfig(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('official shell config must be an object');
+    for (const name of Object.keys(value)) {
+      if (name !== 'schemaVersion' && name !== 'actions' && name !== 'analytics') throw new Error(`official shell config contains unknown field: ${name}`);
+    }
+    if (value.schemaVersion !== CONFIG_SCHEMA_VERSION) throw new Error('official shell config schemaVersion is unsupported');
+    if (!value.actions || typeof value.actions !== 'object' || Array.isArray(value.actions)) throw new Error('official shell config actions must be an object');
     for (const name of Object.keys(value.actions)) {
-      if (!CONFIG_ACTIONS.includes(name)) {
-        throw new Error(`official shell config contains unknown action: ${name}`);
-      }
+      if (!CONFIG_ACTIONS.includes(name)) throw new Error(`official shell config contains unknown action: ${name}`);
     }
 
     const actions = {};
@@ -122,29 +131,20 @@
         throw new Error(`official shell config is missing action: ${name}`);
       }
       for (const field of Object.keys(action)) {
-        if (field !== 'visible' && field !== 'url') {
-          throw new Error(`official shell action contains unknown field: ${name}.${field}`);
-        }
+        if (field !== 'visible' && field !== 'url') throw new Error(`official shell action contains unknown field: ${name}.${field}`);
       }
-      if (typeof action.visible !== 'boolean' || typeof action.url !== 'string') {
-        throw new Error(`official shell action is invalid: ${name}`);
-      }
+      if (typeof action.visible !== 'boolean' || typeof action.url !== 'string') throw new Error(`official shell action is invalid: ${name}`);
       const url = action.url.trim();
-      if (url && !HTTPS_URL_PATTERN.test(url)) {
-        throw new Error(`official shell action only accepts https URL: ${name}`);
-      }
-      if (name === 'home' && !url) {
-        throw new Error('official shell home action requires an https URL');
-      }
-      if (CORE_ACTIONS.includes(name) && action.visible !== true) {
-        throw new Error(`official shell core action cannot be hidden: ${name}`);
-      }
+      if (url && !HTTPS_URL_PATTERN.test(url)) throw new Error(`official shell action only accepts https URL: ${name}`);
+      if (name === 'home' && !url) throw new Error('official shell home action requires an https URL');
+      if (CORE_ACTIONS.includes(name) && action.visible !== true) throw new Error(`official shell core action cannot be hidden: ${name}`);
       actions[name] = Object.freeze({visible: action.visible, url});
     }
 
     return Object.freeze({
       schemaVersion: CONFIG_SCHEMA_VERSION,
       actions: Object.freeze(actions),
+      analytics: validateAnalytics(value.analytics),
     });
   }
 
@@ -152,19 +152,13 @@
     const lines = String(text || '').trim().split(/\r?\n/);
     if (lines.length !== 2) throw new Error('official shell config must contain a header and payload');
     const header = lines[0].split(':');
-    if (header.length !== 2 || header[0] !== CONFIG_MAGIC || !/^[0-9a-f]{4}$/i.test(header[1])) {
-      throw new Error('official shell config header is invalid');
-    }
+    if (header.length !== 2 || header[0] !== CONFIG_MAGIC || !/^[0-9a-f]{4}$/i.test(header[1])) throw new Error('official shell config header is invalid');
     const decoded = decodeHexPayload(lines[1]);
-    if (checksum16(decoded) !== header[1].toLowerCase()) {
-      throw new Error('official shell config checksum mismatch');
-    }
+    if (checksum16(decoded) !== header[1].toLowerCase()) throw new Error('official shell config checksum mismatch');
     return validateConfig(JSON.parse(decoded));
   }
 
-  function parsePlaintextConfig(text) {
-    return validateConfig(JSON.parse(String(text || '')));
-  }
+  function parsePlaintextConfig(text) { return validateConfig(JSON.parse(String(text || ''))); }
 
   function create(options) {
     const settings = options || {};
@@ -175,30 +169,19 @@
     const logger = settings.logger || global.console;
     const packageRoot = settings.packageRoot || (execution && execution.scriptDir);
 
-    if (!file || typeof file.join !== 'function' || typeof file.read !== 'function' || typeof file.exists !== 'function') {
-      throw new Error('official shell requires File.join/read/exists');
-    }
+    if (!file || typeof file.join !== 'function' || typeof file.read !== 'function' || typeof file.exists !== 'function') throw new Error('official shell requires File.join/read/exists');
     if (!command || typeof command.run !== 'function') throw new Error('official shell requires Command.run()');
     if (!system || typeof system.getPlatformInfo !== 'function') throw new Error('official shell requires System.getPlatformInfo()');
-    if (!system.product || typeof system.product.website !== 'string') {
-      throw new Error('official shell requires System.product.website');
-    }
+    if (!system.product || typeof system.product.website !== 'string') throw new Error('official shell requires System.product.website');
     if (!execution || !execution.workdir) throw new Error('official shell requires Execution.workdir');
     if (!packageRoot) throw new Error('official shell requires packageRoot');
 
     const productWebsite = system.product.website.trim();
-    if (!HTTPS_URL_PATTERN.test(productWebsite)) {
-      throw new Error('System.product.website must be an https URL');
-    }
+    if (!HTTPS_URL_PATTERN.test(productWebsite)) throw new Error('System.product.website must be an https URL');
 
-    const configBasePath = settings.configBasePath
-      || file.join(packageRoot, 'assets', CONFIG_BASENAME);
-    const protectedConfigPath = settings.configPath
-      ? String(settings.configPath)
-      : configBasePath + '.odcfg';
-    const plaintextConfigPath = settings.configPath
-      ? ''
-      : configBasePath + '.json';
+    const configBasePath = settings.configBasePath || file.join(packageRoot, 'assets', CONFIG_BASENAME);
+    const protectedConfigPath = settings.configPath ? String(settings.configPath) : configBasePath + '.odcfg';
+    const plaintextConfigPath = settings.configPath ? '' : configBasePath + '.json';
     let config = FALLBACK_CONFIG;
     let configPath = '';
     let configSource = 'fallback';
@@ -209,12 +192,7 @@
       configError = error && error.message ? String(error.message) : String(error || 'unknown config error');
       configPath = path || '';
       if (logger && typeof logger.warn === 'function') {
-        logger.warn('OPENDESK_OFFICIAL_SHELL_CONFIG_FALLBACK=' + JSON.stringify({
-          configPath,
-          protectedConfigPath,
-          plaintextConfigPath,
-          error: configError,
-        }));
+        logger.warn('OPENDESK_OFFICIAL_SHELL_CONFIG_FALLBACK=' + JSON.stringify({configPath, protectedConfigPath, plaintextConfigPath, error: configError}));
       }
     }
 
@@ -225,8 +203,6 @@
         configSource = 'bundle';
         configFormat = CONFIG_MAGIC;
       } catch (error) {
-        // Anti-downgrade rule: if the protected file exists but is invalid, do
-        // not silently continue to a sibling plaintext file.
         warnFallback(protectedConfigPath, error);
       }
     } else if (plaintextConfigPath && file.exists(plaintextConfigPath)) {
@@ -251,9 +227,7 @@
 
     function resolveName(actionId) {
       const id = String(actionId || '');
-      for (const name of Object.keys(ACTION_DEFINITIONS)) {
-        if (ACTION_DEFINITIONS[name].id === id) return name;
-      }
+      for (const name of Object.keys(ACTION_DEFINITIONS)) if (ACTION_DEFINITIONS[name].id === id) return name;
       return '';
     }
 
@@ -262,19 +236,10 @@
       if (!name) return null;
       const definition = ACTION_DEFINITIONS[name];
       const configured = config.actions[name] || FALLBACK_CONFIG.actions[name];
-      return Object.freeze({
-        id: definition.id,
-        label: definition.label,
-        title: definition.title,
-        placeholder: definition.placeholder,
-        visible: configured.visible,
-        url: configured.url,
-      });
+      return Object.freeze({id: definition.id, label: definition.label, title: definition.title, placeholder: definition.placeholder, visible: configured.visible, url: configured.url});
     }
 
-    function listActions() {
-      return Object.keys(ACTION_DEFINITIONS).map(name => getAction(ACTION_DEFINITIONS[name].id));
-    }
+    function listActions() { return Object.keys(ACTION_DEFINITIONS).map(name => getAction(ACTION_DEFINITIONS[name].id)); }
 
     async function openExternal(url) {
       const target = String(url || '').trim();
@@ -289,12 +254,8 @@
     async function activate(actionId) {
       const action = getAction(actionId);
       if (!action) throw new Error(`unknown official action: ${actionId}`);
-      if (!action.visible) {
-        return Object.freeze({status: 'unavailable', actionId: action.id, message: `${action.title}暂未开放。`});
-      }
-      if (!action.url) {
-        return Object.freeze({status: 'pending', actionId: action.id, message: action.placeholder});
-      }
+      if (!action.visible) return Object.freeze({status: 'unavailable', actionId: action.id, message: `${action.title}暂未开放。`});
+      if (!action.url) return Object.freeze({status: 'pending', actionId: action.id, message: action.placeholder});
       await openExternal(action.url);
       return Object.freeze({status: 'opened', actionId: action.id, message: `已打开${action.title}。`});
     }
@@ -303,21 +264,9 @@
       activate,
       getAction,
       listActions,
-      state: () => Object.freeze({
-        configPath,
-        protectedConfigPath,
-        plaintextConfigPath,
-        configSource,
-        configFormat,
-        configError,
-      }),
+      state: () => Object.freeze({configPath, protectedConfigPath, plaintextConfigPath, configSource, configFormat, configError}),
     });
   }
 
-  global.OpenDeskOfficialShell = Object.freeze({
-    create,
-    parseConfig,
-    parsePlaintextConfig,
-    validateConfig,
-  });
+  global.OpenDeskOfficialShell = Object.freeze({create, parseConfig, parsePlaintextConfig, validateConfig});
 })(globalThis);
