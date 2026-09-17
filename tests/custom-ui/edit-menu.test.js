@@ -101,6 +101,7 @@ test('fixture uses a normal native window and leaves editing/IME keys untouched'
     assert.equal(run.shown, true);
     assert.equal(run.spec.kind, 'normal');
     assert.equal(run.spec.keyEvents, undefined);
+    assert.doesNotMatch(run.spec.content.html, /<h[1-6]\b/i, 'fixture must stay within the Custom UI v1 HTML allowlist');
     assert.match(run.spec.content.html, /<p id="sample"/);
     assert.match(run.spec.content.html, /<textarea id="composer"/);
     assert.doesNotMatch(run.spec.content.html, /contenteditable|<script|onkeydown=/i);

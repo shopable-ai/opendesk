@@ -22,7 +22,7 @@
     },
     content: {
       html: `<main>
-        <h2>文字编辑快捷键验收</h2>
+        <p class="heading"><strong>文字编辑快捷键验收</strong></p>
         <p>使用鼠标选择下方只读文本并复制，再到输入框粘贴。此窗口不会连接模型或执行桌面任务。</p>
         <p id="sample" class="sample">${sample}</p>
         <label for="titleInput">对话标题：独立检查焦点与全选范围</label>
@@ -33,7 +33,7 @@
         <div><button id="inspect">读取当前观察结果</button><button id="send">发送（仅计数）</button><button id="close">关闭</button></div>
         <p id="status">尚未验收。窗口打开不代表快捷键已经通过。</p>
       </main>`,
-      css: 'body{font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0}main{padding:20px}h2{margin:0 0 12px}p{line-height:1.5}label{display:block;margin:12px 0 6px}input,textarea{box-sizing:border-box;width:100%;font:inherit;padding:8px}textarea,.sample{white-space:pre-wrap}.sample{padding:10px;border:1px solid #888}button{margin:8px 8px 0 0;padding:8px}#status{white-space:pre-wrap}',
+      css: 'body{font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0}main{padding:20px}.heading{margin:0 0 12px;font-size:1.5em}p{line-height:1.5}label{display:block;margin:12px 0 6px}input,textarea{box-sizing:border-box;width:100%;font:inherit;padding:8px}textarea,.sample{white-space:pre-wrap}.sample{padding:10px;border:1px solid #888}button{margin:8px 8px 0 0;padding:8px}#status{white-space:pre-wrap}',
     },
   });
   const subscriptions = [];
