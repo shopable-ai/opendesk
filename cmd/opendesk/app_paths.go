@@ -1,14 +1,14 @@
 package main
 
 import (
-	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"opendesk/pkg/appdata"
 )
 
-const appDataRootEnv = "OPENDESK_APP_DATA_DIR"
+const appDataRootEnv = appdata.RootEnvironment
 
 // appRecorderWorkDir keeps explicit development -app executions compatible
 // with their historical package-root workspace, while released/bundled App
@@ -46,37 +46,7 @@ func appModeRuntimeArtifactsRootForPackage(packageRoot, bundledRoot, packageID, 
 }
 
 func appModeDataRoot(packageID string, environment map[string]string) (string, error) {
-	packageID = strings.TrimSpace(packageID)
-	if packageID == "" {
-		return "", fmt.Errorf("App Mode package id is required for user data root")
-	}
-
-	if configured := strings.TrimSpace(environment[appDataRootEnv]); configured != "" {
-		root, err := filepath.Abs(configured)
-		if err != nil {
-			return "", fmt.Errorf("resolve %s: %w", appDataRootEnv, err)
-		}
-		if err := os.MkdirAll(root, 0o700); err != nil {
-			return "", fmt.Errorf("create %s: %w", appDataRootEnv, err)
-		}
-		return filepath.Clean(root), nil
-	}
-	home := strings.TrimSpace(environment["HOME"])
-	if home == "" {
-		home = strings.TrimSpace(environment["USERPROFILE"])
-	}
-	if home == "" {
-		var err error
-		home, err = os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("resolve OpenDesk user data home: %w", err)
-		}
-	}
-	root := filepath.Join(home, ".opendesk", "apps", packageID)
-	if err := os.MkdirAll(root, 0o700); err != nil {
-		return "", fmt.Errorf("create OpenDesk App Mode data root: %w", err)
-	}
-	return filepath.Clean(root), nil
+	return appdata.Resolve(packageID, environment)
 }
 
 func samePath(left, right string) bool {
