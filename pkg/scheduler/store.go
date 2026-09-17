@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS job_runs (
     started_at TEXT,
     finished_at TEXT,
     status TEXT NOT NULL,
+    trigger_type TEXT NOT NULL DEFAULT 'unknown',
     error TEXT NOT NULL DEFAULT '',
     execution_id TEXT NOT NULL DEFAULT ''
 );
@@ -157,11 +158,39 @@ CREATE INDEX IF NOT EXISTS idx_job_runs_job_scheduled
 			}
 		}
 	}
+	for _, migration := range []struct {
+		name       string
+		definition string
+	}{
+		{name: "trigger_type", definition: "TEXT NOT NULL DEFAULT 'unknown'"},
+	} {
+		exists, err := s.jobRunsColumnExists(ctx, migration.name)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			statement := fmt.Sprintf("ALTER TABLE job_runs ADD COLUMN %s %s", migration.name, migration.definition)
+			if _, err := s.db.ExecContext(ctx, statement); err != nil {
+				return fmt.Errorf("migrate scheduler run column %s: %w", migration.name, err)
+			}
+		}
+	}
 	return nil
 }
 
 func (s *Store) scheduledJobsColumnExists(ctx context.Context, name string) (bool, error) {
-	rows, err := s.db.QueryContext(ctx, "PRAGMA table_info(scheduled_jobs)")
+	return s.tableColumnExists(ctx, "scheduled_jobs", name)
+}
+
+func (s *Store) jobRunsColumnExists(ctx context.Context, name string) (bool, error) {
+	return s.tableColumnExists(ctx, "job_runs", name)
+}
+
+func (s *Store) tableColumnExists(ctx context.Context, table, name string) (bool, error) {
+	if table != "scheduled_jobs" && table != "job_runs" {
+		return false, fmt.Errorf("unsupported scheduler table %q", table)
+	}
+	rows, err := s.db.QueryContext(ctx, "PRAGMA table_info("+table+")")
 	if err != nil {
 		return false, fmt.Errorf("inspect scheduler database columns: %w", err)
 	}
@@ -371,6 +400,7 @@ WHERE id = ? AND enabled = 1 AND next_run_at = ?`,
 		JobID:       job.ID,
 		ScheduledAt: job.NextRunAt.UTC(),
 		Status:      RunQueued,
+		TriggerType: TriggerScheduled,
 	}
 	if err := insertRun(ctx, tx, run); err != nil {
 		return JobRun{}, false, err
@@ -382,7 +412,13 @@ WHERE id = ? AND enabled = 1 AND next_run_at = ?`,
 }
 
 func (s *Store) CreateManualRun(ctx context.Context, jobID string, now time.Time) (JobRun, error) {
-	run := JobRun{ID: newID("run"), JobID: jobID, ScheduledAt: now.UTC(), Status: RunQueued}
+	run := JobRun{
+		ID:          newID("run"),
+		JobID:       jobID,
+		ScheduledAt: now.UTC(),
+		Status:      RunQueued,
+		TriggerType: TriggerManual,
+	}
 	if _, err := s.GetJob(ctx, jobID); err != nil {
 		return JobRun{}, err
 	}
@@ -483,7 +519,7 @@ timezone, misfire_policy, task_type, source_type, script_path, inline_script, cr
 last_run_at, next_run_at FROM scheduled_jobs`
 
 const runSelect = `SELECT id, job_id, scheduled_at, started_at, finished_at,
-status, error, execution_id FROM job_runs`
+status, trigger_type, error, execution_id FROM job_runs`
 
 type rowScanner interface {
 	Scan(dest ...any) error
@@ -531,9 +567,20 @@ func scanRun(scanner rowScanner) (JobRun, error) {
 		scheduled         string
 		started, finished sql.NullString
 	)
-	if err := scanner.Scan(&run.ID, &run.JobID, &scheduled, &started, &finished, &run.Status, &run.Error, &run.ExecutionID); err != nil {
+	if err := scanner.Scan(
+		&run.ID,
+		&run.JobID,
+		&scheduled,
+		&started,
+		&finished,
+		&run.Status,
+		&run.TriggerType,
+		&run.Error,
+		&run.ExecutionID,
+	); err != nil {
 		return JobRun{}, err
 	}
+	run.TriggerType = normalizeTriggerType(run.TriggerType)
 	var err error
 	run.ScheduledAt, err = parseStoredTime(scheduled)
 	if err != nil {
@@ -563,10 +610,11 @@ type sqlExecer interface {
 }
 
 func insertRun(ctx context.Context, execer sqlExecer, run JobRun) error {
+	run.TriggerType = normalizeTriggerType(run.TriggerType)
 	_, err := execer.ExecContext(ctx, `
-INSERT INTO job_runs (id, job_id, scheduled_at, started_at, finished_at, status, error, execution_id)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, run.ID, run.JobID, formatTime(run.ScheduledAt),
-		nullTimeValue(run.StartedAt), nullTimeValue(run.FinishedAt), run.Status, run.Error, run.ExecutionID)
+INSERT INTO job_runs (id, job_id, scheduled_at, started_at, finished_at, status, trigger_type, error, execution_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, run.ID, run.JobID, formatTime(run.ScheduledAt),
+		nullTimeValue(run.StartedAt), nullTimeValue(run.FinishedAt), run.Status, run.TriggerType, run.Error, run.ExecutionID)
 	if err != nil {
 		return fmt.Errorf("create scheduled run: %w", err)
 	}
