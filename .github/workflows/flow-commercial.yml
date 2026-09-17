@@ -48,7 +48,19 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Test canonical package, installer, Marketplace, app-data, execution and CLI owners
-        run: go test ./pkg/flowpackage ./pkg/flowinstall ./pkg/flowmarketplace ./pkg/appdata ./pkg/execution ./internal/flowcli ./internal/packagecli -count=1
+        shell: bash
+        run: |
+          mkdir -p .runtime/tests
+          set -o pipefail
+          go test ./pkg/flowpackage ./pkg/flowinstall ./pkg/flowmarketplace ./pkg/appdata ./pkg/execution ./internal/flowcli ./internal/packagecli -count=1 2>&1 | tee .runtime/tests/flow-commercial-go-test.log
+      - name: Upload portable Flow evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flow-commercial-portable-evidence
+          path: .runtime/tests/flow-commercial-go-test.log
+          if-no-files-found: warn
+          retention-days: 7
 
   macos-runtime:
     name: B0+B1+Marketplace / macOS Runtime
