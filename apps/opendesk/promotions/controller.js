@@ -9,7 +9,7 @@
     const clock=o.now||Date.now,later=o.setTimeout||root.setTimeout,cancel=o.clearTimeout||root.clearTimeout;
     const getContext=typeof o.getContext==='function'?o.getContext:()=>({});
     let preferences=core.readPreferences(o.preferences),handle=null,opening=null,creative=null;
-    let revision=0,phase='idle',displayTimer=null,motionTimer=null,disposed=false,closing=null,blocked=false,menuOpen=false;
+    let revision=0,phase='idle',displayTimer=null,motionTimer=null,disposed=false,closing=null,blocked=false,menuOpen=false,motionPlayed=false;
     const offs=[];let saveTail=Promise.resolve();
     function context(){try{return getContext()||{};}catch(_){return {};}}
     function log(error){if(o.logger&&typeof o.logger.warn==='function')o.logger.warn('OPENDESK_PROMOTION_ERROR='+String(error&&error.message||error));}
@@ -21,10 +21,30 @@
       ++revision;clearTimers();menuOpen=false;if(closing)return closing;const current=handle;phase=current?'closing':phase==='opening'?'canceled':'idle';if(!current)return;
       closing=(async()=>{try{await current.close();offAll();if(handle===current)handle=null;phase=disposed?'disposed':'idle';}catch(error){blocked=true;phase='failed';log(error);throw error;}finally{closing=null;}})();return closing;
     }
-    async function awaitImageReady(candidate,token){
+    async function awaitImageReady(candidate,token,expectedSource){
       if(!creative||!creative.media)return true;const image=candidate.control('promotionImage');
-      for(let i=0;i<80;i+=1){if(token!==revision||core.contextReason(context()))return false;const state=await image.getState();if(state&&state.imageComplete===true){if(Number(state.imageNaturalWidth)>0&&Number(state.imageNaturalHeight)>0)return true;throw new Error('Promotion image decode failed');}await new Promise(resolve=>later(resolve,25));}
+      for(let i=0;i<80;i+=1){
+        if(token!==revision||core.contextReason(context()))return false;
+        const state=await image.getState();
+        const sourceMatches=!expectedSource||!state||!state.source||state.source===expectedSource;
+        if(state&&sourceMatches&&state.imageComplete===true){
+          if(Number(state.imageNaturalWidth)>0&&Number(state.imageNaturalHeight)>0)return true;
+          throw new Error('Promotion image decode failed');
+        }
+        await new Promise(resolve=>later(resolve,25));
+      }
       throw new Error('Promotion image readiness timeout');
+    }
+    async function playMotionOnce(candidate,token,value){
+      if(!value.media||value.media.kind!=='animated-image'||reducedMotion()||motionPlayed)return true;
+      motionPlayed=true;
+      const image=candidate.control('promotionImage');
+      await image.update({source:value.media.src});
+      motionTimer=later(()=>{
+        motionTimer=null;
+        if(handle===candidate&&phase==='visible')image.update({source:value.media.poster}).catch(log);
+      },Math.min(core.LIMITS.motionMs,5000));
+      return awaitImageReady(candidate,token,value.media.src);
     }
     function listen(id,callback){offs.push(handle.control(id).on('click',()=>Promise.resolve().then(callback).catch(async error=>{log(error);try{await close('handler-error');}catch(e){log(e);}})));}
     async function setMenu(next){if(!handle||phase!=='visible')return;menuOpen=!!next;await handle.control('promotionMenu').update({classes:menuOpen?['menu']:['menu','hidden']});}
@@ -34,19 +54,24 @@
       let value;try{value=core.validateCreative(input);}catch(error){return Promise.reject(error);}const p=placement||{mode:'runner-above'};
       if(!['runner-above','screen-bottom-right'].includes(p.mode))return Promise.reject(new Error('Unknown promotion placement'));if(p.mode==='runner-above'&&!core.validBounds(p.anchor))return Promise.resolve({status:'suppressed',reason:'anchor'});
       const reason=core.eligible(value,context(),preferences,clock());if(reason)return Promise.resolve({status:'suppressed',reason});
-      const token=++revision;phase='opening';creative=value;const valid=()=>token===revision&&!disposed&&!blocked&&!core.contextReason(context())&&(!o.canShow||o.canShow()===true);
+      const token=++revision;phase='opening';creative=value;motionPlayed=false;const valid=()=>token===revision&&!disposed&&!blocked&&!core.contextReason(context())&&(!o.canShow||o.canShow()===true);
       opening=(async()=>{let candidate=null;try{
-        const animate=value.media&&value.media.kind==='animated-image'&&!reducedMotion(),content=core.render(value,!animate);
+        // Every media surface is born on a static poster. Animated media starts
+        // only after the window is confirmed visible so its single play budget
+        // is not consumed while Native is still creating/placing the surface.
+        const content=core.render(value,true);
         candidate=await o.ui.createWindow({id:'opendeskPromotion'+(++sequence),kind:'floating',title:'OpenDesk · 推广',position:{mode:'anchor',size:content.size,horizontal:'right',vertical:'bottom',margin:core.LIMITS.margin,display:'active'},alwaysOnTop:true,draggable:false,keyEvents:true,interactionGroup:'opendeskPromotion',content:{html:content.html,css:content.css}});
         if(!valid()){await candidate.close();return {status:'suppressed',reason:'canceled'};}handle=candidate;
         const placed=p.mode==='runner-above'?await candidate.setRelativeTo(p.anchor,{preferredSides:['above'],align:'end',gap:core.LIMITS.gap}):await candidate.setPlacement({horizontal:'right',vertical:'bottom',margin:core.LIMITS.margin,display:'active'});
         if(!placed||!core.validBounds(placed.bounds))throw new Error('Promotion placement not confirmed');if(core.validBounds(p.anchor)&&core.overlaps(placed.bounds,p.anchor)){await close('overlap');return {status:'suppressed',reason:'overlap'};}
-        if(!valid()){await close('canceled');return {status:'suppressed',reason:'canceled'};}if(value.media&&!(await awaitImageReady(candidate,token))){await close('canceled');return {status:'suppressed',reason:'canceled'};}
+        if(!valid()){await close('canceled');return {status:'suppressed',reason:'canceled'};}if(value.media&&!(await awaitImageReady(candidate,token,value.media.poster))){await close('canceled');return {status:'suppressed',reason:'canceled'};}
         listen('promotionClose',()=>close('transient'));listen('promotionMore',()=>setMenu(!menuOpen));listen('promotionToday',()=>dismiss('today'));listen('promotionCampaign',()=>dismiss('campaign'));listen('promotionDisable',()=>dismiss('disable'));
         listen('promotionOpen',async()=>{if(phase!=='visible'||core.contextReason(context())){await close('context');return;}const action=value.action;await close('click');if(core.contextReason(context()))return;if(typeof o.activate==='function')await o.activate(action);});
         offs.push(candidate.on('interactionOutside',()=>setMenu(false)));offs.push(candidate.on('key',event=>{const key=event&&event.fields&&event.fields.key;if(key==='Escape')return menuOpen?setMenu(false):close('escape');}));offs.push(candidate.on('close',()=>{if(handle===candidate){clearTimers();offAll();handle=null;phase=disposed?'disposed':'idle';}}));
         if(!valid()){await close('canceled');return {status:'suppressed',reason:'canceled'};}const visible=await candidate.show();if(!valid()){await close('canceled');return {status:'suppressed',reason:'canceled'};}if(!visible||visible.visible!==true||visible.onScreen!==true)throw new Error('Promotion not confirmed on-screen');
-        phase='visible';displayTimer=later(()=>void close('timeout').catch(log),core.LIMITS.lifetimeMs);if(animate)motionTimer=later(()=>{if(handle===candidate&&phase==='visible')candidate.control('promotionImage').update({source:value.media.poster}).catch(log);},core.LIMITS.motionMs);
+        phase='visible';displayTimer=later(()=>void close('timeout').catch(log),core.LIMITS.lifetimeMs);
+        if(!(await playMotionOnce(candidate,token,value))){await close('canceled');return {status:'suppressed',reason:'canceled'};}
+        if(!valid()){await close('canceled');return {status:'suppressed',reason:'canceled'};}
         await persist(core.recordShown(preferences,clock()));if(!valid()){await close('canceled');return {status:'suppressed',reason:'canceled'};}return {status:'visible',windowId:candidate.id};
       }catch(error){log(error);try{if(handle)await close('error');else if(candidate)await candidate.close();}catch(e){blocked=true;log(e);}return {status:'suppressed',reason:'surface-error',error:String(error&&error.message||error)};}finally{opening=null;if(!handle&&!blocked)phase=disposed?'disposed':'idle';}})();return opening;
     }
@@ -56,7 +81,7 @@
     async function waitUntilHidden(){if(opening)await opening;await close('safety');return !handle;}
     async function restore(){const next=core.dismiss(preferences,creative||{campaignId:'restore'},'restore',clock());await persist(next);blocked=false;return state();}
     async function dispose(){disposed=true;await close('dispose');if(opening)await opening;}
-    function state(){return {phase,visible:phase==='visible',windowId:handle?handle.id:null,menuOpen,preferences:JSON.parse(JSON.stringify(preferences))};}
+    function state(){return {phase,visible:phase==='visible',windowId:handle?handle.id:null,menuOpen,motionPlayed,preferences:JSON.parse(JSON.stringify(preferences))};}
     return Object.freeze({show,close,dismiss,restore,refreshContext,reanchor,waitUntilClosed,waitUntilHidden,dispose,state});
   }
   const api=Object.freeze({create});root.OpenDeskPromotionsController=api;if(typeof module==='object'&&module.exports)module.exports=api;
