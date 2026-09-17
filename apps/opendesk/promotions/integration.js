@@ -5,6 +5,14 @@
     try { return typeof getOwner === 'function' ? getOwner() : null; } catch (_) { return null; }
   }
 
+  async function noteOwner(getOwner, source) {
+    const owner = ownerOf(getOwner);
+    if (owner && typeof owner.noteOwnerInteraction === 'function') {
+      await owner.noteOwnerInteraction(source);
+    }
+    return owner;
+  }
+
   function wrapRunnerController(BaseController, getOwner) {
     if (!BaseController || typeof BaseController.createApp !== 'function') {
       throw new Error('Promotion runner guard requires a controller');
@@ -28,7 +36,7 @@
         }
       }
       async function openList(...args) {
-        const owner = ownerOf(getOwner);
+        const owner = await noteOwner(getOwner, 'script-runner-manager');
         if (owner && typeof owner.beforeInteraction === 'function') {
           await owner.beforeInteraction('script-runner-manager');
         }
@@ -46,7 +54,7 @@
     return Object.freeze({
       async createWindow(spec) {
         const handle = await baseUI.createWindow(spec);
-        const isPlayerPanel = !!spec && typeof spec.id === 'string' && spec.id.startsWith('scriptRunnerPlayerPanel');
+        const isPlayerPanel = !!spec && typeof spec.id === 'string' && spec.id.startsWith('scriptRunnerPanel');
         if (!isPlayerPanel || !handle) return handle;
         const decorated = {};
         for (const name of [
@@ -61,7 +69,7 @@
           get() { return handle.id; },
         });
         decorated.show = async function show() {
-          const owner = ownerOf(getOwner);
+          const owner = await noteOwner(getOwner, 'script-runner-panel');
           if (owner && typeof owner.beforeInteraction === 'function') {
             await owner.beforeInteraction('script-runner-panel');
           }
@@ -87,13 +95,25 @@
       }
 
       for (const name of [
-        'addButton','addSeparator','addSpacer','addLabel','addSwitch','addCheckbox','addInput','addSelect',
+        'addSeparator','addSpacer','addLabel','addSwitch','addCheckbox','addInput','addSelect',
         'addSlider','addSegmentedControl','addProgress','removeButton','removeLabel','removeControl',
         'updateButton','updateLabel','updateControl','getButtonState','getLabelState','getControlState',
         'onButtonClick','onControlChange','onError','getState','setPosition','setPlacement','setAlwaysOnTop',
         'setDraggable','waitUntilClosed','run',
       ]) {
         if (typeof inner[name] === 'function') wrapper[name] = inner[name].bind(inner);
+      }
+
+      if (typeof inner.addButton === 'function') {
+        wrapper.addButton = function addButton(id, label, icon, callback) {
+          const guarded = typeof callback === 'function'
+            ? async (...args) => {
+              await noteOwner(getOwner, `runner-button:${id}`);
+              return callback(...args);
+            }
+            : callback;
+          return inner.addButton(id, label, icon, guarded);
+        };
       }
 
       wrapper.on = function on(type, callback) {
