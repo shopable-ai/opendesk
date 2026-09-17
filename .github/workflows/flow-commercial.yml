@@ -66,10 +66,12 @@ jobs:
       - name: Run B0 direct Runtime test
         env:
           BINARY: ${{ matrix.binary }}
-        run: "${BINARY}" -script tests/runtime-api/flow-package.js -console-mode script
+        run: |
+          "${BINARY}" -script tests/runtime-api/flow-package.js -console-mode script
 
       - name: Run B0 formal Runtime gate
         env:
           BINARY: ${{ matrix.binary }}
           OPENDESK_RUNTIME_API_MODE: flow-package
-        run: "${BINARY}" -script scripts/test_runtime_apis.js -console-mode script
+        run: |
+          "${BINARY}" -script scripts/test_runtime_apis.js -console-mode script
