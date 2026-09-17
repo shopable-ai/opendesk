@@ -2,6 +2,8 @@
 
 当前设计修订 v0.4，2026-09-18。先读 **[制作、复用与真实调用链](../../../docs/architecture/assistant-script-invocation.md)**，再按需要阅读下表。设计文件不证明生产代码或本机安装包已经更新；真实运行状态须核验实际加载来源和证据。
 
+配图入口：[总体架构图、来源与阅读边界](../../../docs/architecture/assets/assistant/README.md)。原始 PNG 的实际归档状态以该页为准，概念图不表示生产实现已完成。下一轮使用 [任务与资产最小实施提示词](../../../prompts/runtime/assistant-task-assets-implementation.md)，继续代码、测试与文档交付。
+
 ## 一句话方案
 
 **用户从“本次任务＋可选脚本／自动化”开始，不创建项目。系统按需准备任务资料；Codex 用通用 Skill 制作普通 JS；OpenDesk 用现有 Flow／Execution 体系授权、运行并核对结果。**
