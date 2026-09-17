@@ -183,8 +183,8 @@ rejectText('QUICKSTART.md', '它的主要入口不是业务操作窗口', 'obsol
 // Official product code, product-maintainer docs and examples must teach the
 // canonical API. Compatibility aliases remain available for existing user
 // scripts, but new first-party sources must not reintroduce them.
-requireText('apps/opendesk/script-runner-simple.js', 'runtimeUI.toast(', 'canonical ui.toast() in product shell');
-rejectText('apps/opendesk/script-runner-simple.js', 'runtimeUI.notify(', 'ui.notify() compatibility alias in product shell');
+requireText('apps/opendesk/flow-runner.js', 'runtimeUI.toast(', 'canonical ui.toast() in product shell');
+rejectText('apps/opendesk/flow-runner.js', 'runtimeUI.notify(', 'ui.notify() compatibility alias in product shell');
 requireText('apps/opendesk/scheduler-center.js', 'INLINE_TOAST_EXAMPLE', 'canonical Scheduler Center inline template name');
 requireText('apps/opendesk/scheduler-center.js', 'await ui.toast(', 'canonical ui.toast() in Scheduler Center');
 rejectText('apps/opendesk/scheduler-center.js', 'ui.notify', 'ui.notify compatibility alias in Scheduler Center');

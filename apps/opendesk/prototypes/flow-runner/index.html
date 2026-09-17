@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>OpenDesk Script Runner Prototype</title>
+  <title>OpenDesk Flow Runner Prototype</title>
   <style>
     :root {
       color-scheme: dark;
@@ -91,7 +91,7 @@
     .popover-title { font-size: 12px; font-weight: 700; }
     .popover-count { font-size: 11px; color: var(--muted); }
 
-    .script-list {
+    .flow-list {
       max-height: 246px;
       overflow-y: auto;
       overscroll-behavior: contain;
@@ -99,7 +99,7 @@
       scrollbar-width: thin;
     }
 
-    .script-row {
+    .flow-row {
       width: 100%;
       min-height: 45px;
       display: grid;
@@ -115,11 +115,11 @@
       cursor: pointer;
       outline: none;
     }
-    .script-row:hover,
-    .script-row:focus-visible { background: var(--panel-hover); }
-    .script-row.selected { background: rgba(91,140,255,.15); }
-    .script-row.selected:hover,
-    .script-row.selected:focus-visible { background: rgba(91,140,255,.21); }
+    .flow-row:hover,
+    .flow-row:focus-visible { background: var(--panel-hover); }
+    .flow-row.selected { background: rgba(91,140,255,.15); }
+    .flow-row.selected:hover,
+    .flow-row.selected:focus-visible { background: rgba(91,140,255,.21); }
 
     .row-index {
       width: 24px;
@@ -128,7 +128,7 @@
       font-size: 11px;
       font-variant-numeric: tabular-nums;
     }
-    .script-row.selected .row-index { color: #a9c0ff; }
+    .flow-row.selected .row-index { color: #a9c0ff; }
     .row-copy { min-width: 0; }
     .row-name {
       overflow: hidden;
@@ -152,7 +152,7 @@
       font-size: 12px;
       opacity: 0;
     }
-    .script-row.selected .row-check { opacity: 1; }
+    .flow-row.selected .row-check { opacity: 1; }
 
     .popover-foot {
       display: flex;
@@ -166,7 +166,7 @@
 
     .manager-btn,
     .icon-btn,
-    .script-selector {
+    .flow-selector {
       border: 1px solid var(--border);
       background: #2a2b30;
       color: var(--text);
@@ -174,7 +174,7 @@
     }
     .manager-btn:hover,
     .icon-btn:hover:not(:disabled),
-    .script-selector:hover:not(:disabled) {
+    .flow-selector:hover:not(:disabled) {
       background: #34363d;
       border-color: #50535d;
     }
@@ -218,7 +218,7 @@
       padding: 0;
     }
     .icon-btn:disabled,
-    .script-selector:disabled { opacity: .35; cursor: default; }
+    .flow-selector:disabled { opacity: .35; cursor: default; }
     .icon-btn.primary {
       background: var(--accent);
       border-color: #6390ff;
@@ -244,7 +244,7 @@
     .nav-glyph.prev { transform: rotate(-135deg); margin-left: 3px; }
     .nav-glyph.next { transform: rotate(45deg); margin-right: 3px; }
 
-    .script-selector {
+    .flow-selector {
       height: 34px;
       width: 186px;
       min-width: 0;
@@ -284,7 +284,7 @@
       transform: rotate(45deg);
       transition: transform .12s ease, margin .12s ease;
     }
-    .script-selector.open .selector-chevron {
+    .flow-selector.open .selector-chevron {
       margin: 3px auto 0;
       transform: rotate(225deg);
     }
@@ -312,34 +312,34 @@
 <body>
   <main class="desktop" id="desktop">
     <section class="notes">
-      <h1>Script Runner · Compact Selector · Main Prototype</h1>
-      <p><strong>主工具条：</strong><code>运行 → 停止 → 上一个 → 当前脚本 → 下一个</code>。运行/停止保持稳定主操作，脚本导航形成独立一组。</p>
-      <p><strong>选择与执行分离：</strong>点击选择器里的脚本只切换当前脚本，不直接运行；真正执行始终回到工具条“运行”，降低误触错误自动化的风险。</p>
-      <p><strong>视觉消歧：</strong>上一项/下一项使用细线 chevron，不再与“运行”的实心播放三角混淆。完整排序、多选、批量运行继续进入“管理脚本…”。</p>
+      <h1>Flow Runner · Compact Selector · Main Prototype</h1>
+      <p><strong>主工具条：</strong><code>运行 → 停止 → 上一个 → 当前流程 → 下一个</code>。运行/停止保持稳定主操作，流程导航形成独立一组。</p>
+      <p><strong>选择与执行分离：</strong>点击选择器里的流程只切换当前流程，不直接运行；真正执行始终回到工具条“运行”，降低误触错误自动化的风险。</p>
+      <p><strong>视觉消歧：</strong>上一项/下一项使用细线 chevron，不再与“运行”的实心播放三角混淆。完整排序、多选、批量运行继续进入“管理流程…”。</p>
     </section>
 
     <div class="status-toast" id="toast" aria-live="polite"></div>
 
-    <section class="runner-shell" aria-label="OpenDesk Script Runner 原型">
-      <div class="popover" id="popover" role="dialog" aria-label="选择脚本">
+    <section class="runner-shell" aria-label="OpenDesk Flow Runner 原型">
+      <div class="popover" id="popover" role="dialog" aria-label="选择流程">
         <div class="popover-head">
-          <span class="popover-title">选择当前脚本</span>
-          <span class="popover-count" id="scriptCount">8 个脚本</span>
+          <span class="popover-title">选择当前流程</span>
+          <span class="popover-count" id="flowCount">8 个流程</span>
         </div>
-        <div class="script-list" id="scriptList" aria-label="脚本列表"></div>
+        <div class="flow-list" id="flowList" aria-label="流程列表"></div>
         <div class="popover-foot">
           <span class="tip">点击只切换，不会自动运行</span>
-          <button class="manager-btn" id="managerBtn" type="button">管理脚本…</button>
+          <button class="manager-btn" id="managerBtn" type="button">管理流程…</button>
         </div>
       </div>
 
-      <div class="toolbar" aria-label="Script Runner 工具条">
-        <button class="icon-btn primary" id="runBtn" type="button" title="运行当前脚本" aria-label="运行当前脚本"><span class="play-glyph" aria-hidden="true"></span></button>
+      <div class="toolbar" aria-label="Flow Runner 工具条">
+        <button class="icon-btn primary" id="runBtn" type="button" title="运行当前流程" aria-label="运行当前流程"><span class="play-glyph" aria-hidden="true"></span></button>
         <button class="icon-btn stop" id="stopBtn" type="button" title="停止运行" aria-label="停止运行" disabled><span class="stop-glyph" aria-hidden="true"></span></button>
         <span class="toolbar-divider" aria-hidden="true"></span>
-        <button class="icon-btn" id="prevBtn" type="button" title="上一个脚本" aria-label="上一个脚本"><span class="nav-glyph prev" aria-hidden="true"></span></button>
+        <button class="icon-btn" id="prevBtn" type="button" title="上一个流程" aria-label="上一个流程"><span class="nav-glyph prev" aria-hidden="true"></span></button>
 
-        <button class="script-selector" id="selectorBtn" type="button" aria-haspopup="dialog" aria-expanded="false">
+        <button class="flow-selector" id="selectorBtn" type="button" aria-haspopup="dialog" aria-expanded="false">
           <span class="selector-copy">
             <span class="selector-label" id="selectorLabel">daily-report.js</span>
             <span class="selector-state" id="selectorState">1 / 8 · 就绪</span>
@@ -347,13 +347,13 @@
           <span class="selector-chevron" aria-hidden="true"></span>
         </button>
 
-        <button class="icon-btn" id="nextBtn" type="button" title="下一个脚本" aria-label="下一个脚本"><span class="nav-glyph next" aria-hidden="true"></span></button>
+        <button class="icon-btn" id="nextBtn" type="button" title="下一个流程" aria-label="下一个流程"><span class="nav-glyph next" aria-hidden="true"></span></button>
       </div>
     </section>
   </main>
 
   <script>
-    const scripts = [
+    const flows = [
       { name: 'daily-report.js', meta: '日报汇总' },
       { name: 'wechat-customer-followup.js', meta: '微信客户跟进' },
       { name: 'invoice-export.js', meta: '发票导出' },
@@ -371,7 +371,7 @@
     let toastTimer = null;
 
     const popover = document.getElementById('popover');
-    const scriptList = document.getElementById('scriptList');
+    const flowList = document.getElementById('flowList');
     const selectorBtn = document.getElementById('selectorBtn');
     const selectorLabel = document.getElementById('selectorLabel');
     const selectorState = document.getElementById('selectorState');
@@ -381,7 +381,7 @@
     const stopBtn = document.getElementById('stopBtn');
     const managerBtn = document.getElementById('managerBtn');
     const toast = document.getElementById('toast');
-    const scriptCount = document.getElementById('scriptCount');
+    const flowCount = document.getElementById('flowCount');
 
     function showToast(message) {
       toast.textContent = message;
@@ -392,18 +392,18 @@
 
     function selectedStateText() {
       if (runningIndex === currentIndex) return '运行中';
-      if (runningIndex >= 0) return `正在运行 ${runningIndex + 1}/${scripts.length}`;
+      if (runningIndex >= 0) return `正在运行 ${runningIndex + 1}/${flows.length}`;
       return '就绪';
     }
 
     function renderList() {
-      scriptList.innerHTML = '';
-      scripts.forEach((script, index) => {
+      flowList.innerHTML = '';
+      flows.forEach((flow, index) => {
         const row = document.createElement('button');
-        row.className = 'script-row' + (index === currentIndex ? ' selected' : '');
+        row.className = 'flow-row' + (index === currentIndex ? ' selected' : '');
         row.type = 'button';
         row.setAttribute('aria-pressed', String(index === currentIndex));
-        row.title = `切换到 ${script.name}`;
+        row.title = `切换到 ${flow.name}`;
 
         const idx = document.createElement('span');
         idx.className = 'row-index';
@@ -413,10 +413,10 @@
         copy.className = 'row-copy';
         const name = document.createElement('span');
         name.className = 'row-name';
-        name.textContent = script.name;
+        name.textContent = flow.name;
         const meta = document.createElement('span');
         meta.className = 'row-meta';
-        meta.textContent = index === runningIndex ? '正在运行…' : script.meta;
+        meta.textContent = index === runningIndex ? '正在运行…' : flow.meta;
         copy.append(name, meta);
 
         const check = document.createElement('span');
@@ -425,20 +425,20 @@
         check.setAttribute('aria-hidden', 'true');
 
         row.append(idx, copy, check);
-        row.addEventListener('click', () => selectScript(index));
-        scriptList.appendChild(row);
+        row.addEventListener('click', () => selectFlow(index));
+        flowList.appendChild(row);
       });
     }
 
     function render() {
-      const hasScripts = scripts.length > 0;
+      const hasFlows = flows.length > 0;
       const running = runningIndex >= 0;
-      if (hasScripts) {
-        selectorLabel.textContent = scripts[currentIndex].name;
-        selectorLabel.title = scripts[currentIndex].name;
-        selectorState.textContent = `${currentIndex + 1} / ${scripts.length} · ${selectedStateText()}`;
+      if (hasFlows) {
+        selectorLabel.textContent = flows[currentIndex].name;
+        selectorLabel.title = flows[currentIndex].name;
+        selectorState.textContent = `${currentIndex + 1} / ${flows.length} · ${selectedStateText()}`;
       } else {
-        selectorLabel.textContent = '暂无脚本';
+        selectorLabel.textContent = '暂无流程';
         selectorState.textContent = '0 / 0';
       }
 
@@ -447,14 +447,14 @@
       selectorBtn.setAttribute('aria-expanded', String(popoverOpen));
       popover.classList.toggle('open', popoverOpen);
 
-      runBtn.disabled = !hasScripts || running;
+      runBtn.disabled = !hasFlows || running;
       stopBtn.disabled = !running;
       stopBtn.classList.toggle('running', running);
-      prevBtn.disabled = !hasScripts || running || scripts.length < 2;
-      nextBtn.disabled = !hasScripts || running || scripts.length < 2;
-      selectorBtn.disabled = !hasScripts || running;
+      prevBtn.disabled = !hasFlows || running || flows.length < 2;
+      nextBtn.disabled = !hasFlows || running || flows.length < 2;
+      selectorBtn.disabled = !hasFlows || running;
       managerBtn.disabled = false;
-      scriptCount.textContent = `${scripts.length} 个脚本`;
+      flowCount.textContent = `${flows.length} 个流程`;
       renderList();
     }
 
@@ -464,35 +464,35 @@
       render();
       if (open) {
         requestAnimationFrame(() => {
-          const selected = scriptList.querySelector('.script-row.selected');
+          const selected = flowList.querySelector('.flow-row.selected');
           if (selected) selected.scrollIntoView({ block: 'nearest' });
         });
       }
     }
 
-    function selectScript(index) {
-      if (runningIndex >= 0 || index < 0 || index >= scripts.length) return;
+    function selectFlow(index) {
+      if (runningIndex >= 0 || index < 0 || index >= flows.length) return;
       currentIndex = index;
       setPopover(false);
-      showToast(`已选择：${scripts[currentIndex].name}`);
+      showToast(`已选择：${flows[currentIndex].name}`);
     }
 
     function step(delta) {
-      if (runningIndex >= 0 || scripts.length < 2) return;
-      currentIndex = (currentIndex + delta + scripts.length) % scripts.length;
+      if (runningIndex >= 0 || flows.length < 2) return;
+      currentIndex = (currentIndex + delta + flows.length) % flows.length;
       render();
-      showToast(`已选择：${scripts[currentIndex].name}`);
+      showToast(`已选择：${flows[currentIndex].name}`);
     }
 
     function startRun() {
-      if (runningIndex >= 0 || scripts.length === 0) return;
+      if (runningIndex >= 0 || flows.length === 0) return;
       runningIndex = currentIndex;
       setPopover(false);
       render();
-      showToast(`开始运行：${scripts[runningIndex].name}`);
+      showToast(`开始运行：${flows[runningIndex].name}`);
       clearTimeout(runTimer);
       runTimer = setTimeout(() => {
-        const finished = scripts[runningIndex]?.name;
+        const finished = flows[runningIndex]?.name;
         runningIndex = -1;
         render();
         showToast(`运行完成：${finished}`);
@@ -501,7 +501,7 @@
 
     function stopRun() {
       if (runningIndex < 0) return;
-      const stopped = scripts[runningIndex].name;
+      const stopped = flows[runningIndex].name;
       clearTimeout(runTimer);
       runningIndex = -1;
       render();
@@ -515,7 +515,7 @@
     stopBtn.addEventListener('click', stopRun);
     managerBtn.addEventListener('click', () => {
       setPopover(false);
-      showToast('原型：打开现有完整“脚本列表 / 管理脚本”窗口');
+      showToast('原型：打开现有完整“流程列表 / 管理流程”窗口');
     });
 
     document.addEventListener('pointerdown', event => {

@@ -76,7 +76,7 @@ jobs:
           node --test
           tests/app-lifecycle/official-shell.test.js
           tests/app-lifecycle/examples-menu-action.test.js
-          tests/custom-ui/product-script-runner.test.js
+          tests/custom-ui/product-flow-runner.test.js
       - name: Test Recorder JavaScript contracts
         run: >-
           node --test

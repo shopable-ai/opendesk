@@ -11,8 +11,8 @@ on:
       - 'cmd/opendesk-ui-host/**'
       - 'internal/appcli/**'
       - 'apps/opendesk/main.js'
-      - 'apps/opendesk/script-runner-simple.js'
-      - 'apps/opendesk/script-runner/**'
+      - 'apps/opendesk/flow-runner.js'
+      - 'apps/opendesk/flow-runner/**'
       - 'apps/opendesk/permissions-center.js'
       - 'apps/opendesk/.release/**'
       - 'apps/opendesk/recorder/**'
@@ -131,9 +131,9 @@ jobs:
         run: go test ./pkg/customui/...
       - name: Test test-architecture invariants
         run: node scripts/audit_test_architecture.js
-      - name: Test Script Runner controller and product composition
+      - name: Test Flow Runner controller and product composition
         if: ${{ !cancelled() }}
-        run: node --test tests/custom-ui/script-runner-simple.test.js tests/custom-ui/product-script-runner.test.js tests/custom-ui/script-runner-player.test.js
+        run: node --test tests/custom-ui/flow-runner.test.js tests/custom-ui/product-flow-runner.test.js tests/custom-ui/flow-runner-player.test.js
       - name: Test Recorder controller and history
         run: node --test tests/custom-ui/recording-history.test.js tests/custom-ui/recording-history-icon-adapter.test.js tests/custom-ui/recording-history-interaction.test.js tests/custom-ui/recording-history-pagination.test.js tests/custom-ui/recording-history-presentation.test.js
       - name: Build macOS native UI host
@@ -149,12 +149,12 @@ jobs:
       - name: Windows hosted-deterministic native host protocol smoke
         if: runner.os == 'Windows'
         run: node tests/custom-ui/tools/native-host-smoke.cjs dist/ui-host/opendesk-ui-host.exe --profile=hosted-deterministic
-      - name: Script Runner real child stop lifecycle
+      - name: Flow Runner real child stop lifecycle
         if: runner.os != 'Linux'
         shell: bash
         run: |
           if [ "$RUNNER_OS" = Windows ]; then bin=./dist/opendesk.exe; else bin=./dist/opendesk; fi
-          "$bin" -script tests/custom-ui/script-runner-simple-runtime.js -console-mode script -log-dir .runtime/tests/script-runner-simple/runtime-parent
+          "$bin" -script tests/custom-ui/flow-runner-runtime.js -console-mode script -log-dir .runtime/tests/flow-runner/runtime-parent
       - name: Public Runtime notification contract
         if: runner.os != 'Linux'
         shell: bash
@@ -168,6 +168,6 @@ jobs:
           name: native-ui-checks-${{ runner.os }}
           path: |
             .runtime/tests/native-ui
-            .runtime/tests/script-runner-simple
+            .runtime/tests/flow-runner
           if-no-files-found: ignore
           retention-days: 7
