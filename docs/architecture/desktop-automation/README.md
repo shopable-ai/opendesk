@@ -10,7 +10,8 @@
 
 | 文件 | 回答的问题 | 什么时候需要读 |
 | --- | --- | --- |
-| [桌面测量](desktop-measurement.md) | 怎样通过唯一测量会话、透明标注、角落信息和按需详情，完成带明确参照的坐标、取色、区域与距离测量？ | 重构 Measurement 交互、集成 Recorder／快捷键、设计三档导出与原生验收时；浏览器样机不替代真机验证 |
+| [桌面测量](desktop-measurement.md) | Desktop Measurement 当前产品 / Framework 架构是什么？ | 重构 Measurement 交互、集成 Recorder／快捷键、设计导出与原生验收时；UI / Interaction 的唯一当前 Oracle 是 `apps/opendesk/prototypes/desktop-measurement/ORACLE.md` |
+| [桌面测量 Contract Coverage](desktop-measurement-contract-coverage.md) | Current Oracle 的每项能力现在到 Production / Automated / macOS / Windows 哪一步？ | 判断真实完成度、选择下一个 Production Gap、做 qualification 时；禁止再用旧 P0–P4 阶段号代表当前能力 |
 | [Action Target Model](action-target-model.md) | 已经知道要操作某个对象后，怎样形成候选、消歧、动作前后条件和安全失败？ | 设计相对定位、候选消歧、动作保护和结果验证时；一般调用先看公开 API |
 | [窗口作用域与轻量 Locator](ui-scope-locator.md) | 怎样在同一个窗口内用对象查找、等待、点击和读写目标，并在没有 UI 树时保持视觉路径可用？ | 实施 UI.within／Locator L0、统一三类目标的能力与安全边界时；文末有新对话实施提示词，设计不等于 API 已发布 |
 | [Native Accessibility](native-accessibility.md) | macOS AX / Windows UIA 的元素读取、原生动作、引用生命周期、取消和清理怎样闭环？ | 维护 Accessibility 后端、UI 菜单组合或 execution lifecycle 时；脚本调用先看公开 API |
@@ -20,6 +21,10 @@
 | [Agent-first Recorder](agent-first-recorder.md) | 示范采集、Trace、蒸馏、IR、Compiler 与 Replay 怎样组织？ | 明确研究或实施 Recorder／编译路线时；普通 Recipe 不以此为前置条件 |
 | [Recorder Semantic Evidence → Recipe Lowering](recorder-semantic-evidence-lowering.md) | `actions.json` 中的 UI Tree target evidence 怎样决定 `UI.tapTexts`、`UI.tapTargets`、低层 API 或 `GENERATION_BLOCKED`，而不把 evidence source 与公开 API 机械绑定？ | 维护 Recorder semantic generator、设计 actions evidence、排查“为什么生成 tapTexts/tapTargets”或扩展 OCR evidence 时 |
 | [Recorder 与应用运行界面的共存规则](recorder-app-coexistence.md) | Recorder、普通应用界面、系统托盘和运行中的自动化脚本怎样共存，什么时候提醒、什么时候必须阻止？ | 集成 Recorder 产品入口、处理多个窗口与运行冲突、设计托盘入口和 Recorder 生命周期时 |
+
+### Desktop Measurement 历史资料边界
+
+`desktop-measurement-amendment-2026-09-17.md`、`apps/opendesk/prototypes/desktop-measurement/ORACLE.baseline-*` 以及旧 P0–P4 Prompt / qualification 资料只用于历史追溯和复用工程资产。它们不是 Current Oracle，也不能把“打开即 Freeze / foreground 自动 Reference / 单 currentResult”等旧语义重新带回 Production。当前完成度只看 Contract Coverage。
 
 ## 三个容易混淆的问题
 

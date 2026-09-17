@@ -1,107 +1,370 @@
-# Desktop Measurement UI / Interaction Oracle
+# Desktop Measurement Current UI / Interaction Oracle
 
-**ORACLE STATUS: FROZEN — Controlled Amendment `DM-AMEND-2026-09-17-01`.**
+**ORACLE STATUS: CURRENT / FROZEN — 2026-09-17**
 
-Frozen applies to the executable **synthetic** interaction contract, not to Native completion. Production gaps remain open. Read this file before implementation or qualification.
+本文件是 Desktop Measurement 当前唯一 UI / Interaction / State Contract。后续实现、测试和资格验证只需读取本文件，不得再把旧 baseline、旧 P0–P4、旧 Prompt 或旧阶段结论与本文件做“脑内合并”。
 
-## 1. Authority and preserved history
+历史 `ORACLE.baseline-2026-09-16.md` 原样保留，仅用于追溯。它不是当前事实源，其中与本文件冲突的“打开即冻结 / foreground 自动 Reference / 单 currentResult / 无显式 Reference 选择”等语义全部属于 **SUPERSEDED**。
 
-This amendment implements the user's explicit correction: select a Reference Window on a Live desktop **before** creating a Frozen Snapshot; restore hover measurement; bound visual work; collect multiple explicit measurements in one session.
+当前权威链：
 
-The former complete Oracle is preserved byte-for-byte as `ORACLE.baseline-2026-09-16.md`, Git blob `9ea08d96dc00ae40f1eb596b4221626964686245`, read at master `8d4e6a9231ba95c9483b692785305e7e331ec540`. It is an **inherited baseline**, not a competing current Oracle. Its unchanged numbered contracts remain normative. This amendment replaces only the rows and unnumbered boundaries listed below. In particular the old “no user Reference selection”, “only current-result clipboard export”, “no history” and “initial Freeze” statements are superseded, including their repetitions in baseline §§15,18–24 and its traceability/acceptance tables. Do not silently delete or rewrite the archived record.
+```text
+Explicit Current Requirement
+→ Executable Prototype
+→ Current ORACLE.md
+→ Architecture / Contract Coverage
+→ Production
+→ Automated Verification
+→ Native Qualification
+```
 
-Authority: explicit user amendment → executable Prototype → this Oracle plus inherited unchanged contracts → Architecture → Production → tests/qualification. A native implementation must not redefine the Oracle to match its limitations.
+源码证据：`index.html`、`prototype.css`、`model.js`、`interaction-core.js`、`visual-resolver.js`、`records.js`。Prototype 是 synthetic Oracle，不替代真实 macOS / Windows 资格验证。
 
-Sources: `index.html`, `prototype.css`, unchanged `model.js`, `interaction-core.js`, `visual-resolver.js`, `records.js`. `template.html` stays redirect-only. The new modules are prototype helpers, not a second Runtime, Recorder, Geometry or Locator implementation.
+---
 
-## 2. Engineering decision
+## 1. Current lifecycle
 
-| Option | Determinism / evidence | Cost and UX | Decision |
-|---|---|---|---|
-| A: Live Reference selection → Freeze → Measurement | One immutable pixel/geometry source for color, regions, margins and authoring | One capture per confirmation/update; no premature frozen desktop | **Implemented** |
-| B: fully Live measurement | Scrolling, animation, moving windows and colors can disagree across results; every confirmed record still needs an atomic capture | Repeated capture/segmentation, stale async and coordinate races | Not this amendment |
-| C: Live Preview + confirmation Freeze | Preview can be useful, but must never masquerade as evidence | Extra preview/capture consistency machinery | Only its minimal window-preview aspect is included in A; no live pixel segmentation |
-
-A does not pause the target application: it freezes the Measurement source. A suggested foreground window is not a confirmed reference.
-
-## 3. Amended inherited Contract IDs
-
-| IDs | Previous behavior | New binding behavior |
-|---|---|---|
-| DM-LIFECYCLE-002; DM-REFERENCE-001/003/004; DM-FREEZE-003 | Entry captures immediately; no explicit window selection | Entry reaches `REFERENCE_SELECTING`, with no snapshot or source pixel evidence. Pointer previews a window; a valid same-window click locks identity and creates the first snapshot. Update/Continue revalidate the **same** identity; reselection is explicit. |
-| DM-LIFECYCLE-005/006 | Cleanup/current-snapshot invalidation only | Temporary current state is cleaned up; already exported files are not deleted. Historical records keep their original tokens. Async candidates additionally match request epoch, pointer revision and provider configuration. |
-| DM-CANDIDATE-002/005 | Visual single region; >3px movement resets candidate layer | Bounded visual region plus separately proven Window ancestor is allowed; never invent semantic visual parents. Stable containment/cache hits retain the selected layer; entering a different semantic child invalidates the stack instead of sticking to an ancestor. |
-| DM-MARGIN-001/002/004; DM-ERROR-004 | Margin summary is primarily locked-result only | A provisional candidate also shows size, Window margins and one trustworthy Local Reference where available. Preview margins are not formal result evidence. No Local means a disabled Local toggle. |
-| DM-VIS-010/015 | Corner HUD primarily summarizes locked results | Corner HUD distinguishes `候选预览 · 未确认` from `已锁定 · 待记录`, with source/layer, dimensions, ratios and up to two margin rows. Completed RR summary still precedes generic region; Point/PP result priority is preserved. |
-| DM-INSPECTOR-003/005 | Current result/snapshot JSON | Inspector also shows explicit records, label, Copy All and Save Session. Reselection closes Inspector; Update preserves its open state; current and historical JSON are separate. |
-| DM-EXPORT-001/004 | Only current structured clipboard copy; no file flow | Preserve current copy, add Copy All and explicit browser JSON save/download. Only completed writable-close acknowledgement marks captured record IDs `saved`. Download request or clipboard success is not a durable-save acknowledgement. |
-| DM-KEY-001/002 | Tab consumed by measuring page | Tab/Shift+Tab cycle when the Measurement plane owns keyboard input. Label/select/editable fields retain normal text/focus behavior; composition is not hijacked. |
-
-The old unnumbered statement that `pointRelative()` is unused is superseded only for confirmed Point record serialization. Its existing mathematics are unchanged.
-
-## 4. New reference lifecycle contracts
+唯一正常入口链：
 
 ```text
 IDLE
-  → REFERENCE_SELECTING (Live; snapshotId=null)
-  → FREEZING (only after explicit confirmation)
-  → MEASURING (Frozen Snapshot)
-       → Update → FREEZING → MEASURING
-       → Adjust → ADJUSTING → Continue → FREEZING → MEASURING
-       → Inspector / Reselect → REFERENCE_SELECTING
-       → Exit → IDLE
+  → REFERENCE_SELECTING
+  → FREEZING
+  → MEASURING
 ```
 
-| ID | Requirement / executable witness |
-|---|---|
-| DM-SELECT-001 | `begin()` creates/reuses one session without capture; duplicate menu/Recorder/shortcut entries never create a second session or implicitly confirm a suggestion. |
-| DM-SELECT-002 | `windowAt()` + `renderOverlay()/renderHUD()` preview the topmost synthetic window, its label and bounds while the live scene remains mutable. No Micro pixel HUD or frozen mask in this phase. |
-| DM-SELECT-003 | Pointer down/up must name the same existing window, same bounds and a click-size movement. Blank desktop/changed candidate does not freeze. Esc cancels. |
-| DM-SELECT-004 | `confirmReference()` is the only initial capture gate. `captureSnapshot()` rejects absent reference, binds geometry/display mapping/source canvases to a fresh session/generation/snapshot token. |
-| DM-SELECT-005 | Explicit Inspector reselection invalidates current state but retains records. Update never silently substitutes a same-title window; the native identity/revalidation gap is listed in the architecture amendment. |
+必须成立：
 
-The browser draws two **synthetic** windows (chat and notes). This proves selection UX, not real OS window enumeration, transparency or capture permissions.
+```text
+进入 Measurement ≠ 确认 Reference ≠ Freeze
+```
 
-## 5. Resolver / performance contracts
+`REFERENCE_SELECTING` 是 Live Desktop 阶段。此时不得创建 Frozen Snapshot、不得生成 source-pixel evidence、不得提前进入 Measurement Toolbar、不得产生 Measurement Record。
 
-| ID | Binding behavior |
-|---|---|
-| DM-RESOLVE-001 | Resolution order is valid cache → semantic fixture → visual frozen-pixel fixture → manual selection. Semantic and visual provenance remain distinct. A known Window ancestor is not a flood-fill result. |
-| DM-RESOLVE-002 | `visual-resolver.js` owns centralized `DEFAULTS`: 64ms trailing throttle, 7 logical-pixel local negative-cache distance, 768×384 logical-analysis ROI, 60,000 maximum visited pixels, 50,000 maximum bounding-box area and at most 50% Reference area, 12ms cooperative time budget, eight positive cache entries, minimum side 12, fill ratio ≥0.70, opaque seed. Thresholds are calibrated fixture defaults, not universal segmentation guarantees. |
-| DM-RESOLVE-003 | No pointer-driven capture. Analysis pixels are created once per snapshot. Flood fill allocates only bounded ROI/queue buffers; connected component uses 4-neighbours and RGB RMS tolerance (default 8, accepted 0–64), not RGB equality. |
-| DM-RESOLVE-004 | Same-snapshot positive candidate containment + compatible seed color reuses the result. Small same-color failed seeds reuse a local negative result. Semantic stack signatures detect child transitions; Tab-selected ancestors are not blindly retained across different child contexts. |
-| DM-RESOLVE-005 | The latest-pointer trailing timer is not restarted by every event. Continuous movement cannot indefinitely starve resolution. Pointer/Micro HUD updates do not wait for segmentation. |
-| DM-RESOLVE-006 | OFF/Alt/locked Target/non-Measuring/outside Reference ownership means no new visual work. Alt clears preview, not pointer HUD. On release, resolution may resume. |
-| DM-RESOLVE-007 | ROI/source boundary contact, oversized/transparent/small/sparse component, pixel/area/time budget or cancellation returns **no visual candidate**. Never return the whole window as guessed flood-fill output. Irregular gradients/text/shadows may require manual selection. |
-| DM-RESOLVE-008 | Snapshot/generation/epoch/provider/pointer-revision mismatch rejects stale async application; Update/Adjust/reselection/Exit invalidate pending work. Visual work samples source canvases, never HUD/mask pixels. |
-| DM-RESOLVE-009 | Metrics expose pointerMoveCount, semanticResolveCount, visualResolveCount, visualCacheHit/Miss, floodFillRuns, visited/time maxima and rejection reasons. Regression must prove 100 inside pointer events do not cause 100 fills. |
+用户显式确认一个仍然存在且几何未变化的 Reference Window 后，才允许：
 
-Micro HUD remains only Screen/Window/Region coordinates plus source color, pointer-events:none and edge flip. Corner HUD carries the object summary. The main Toolbar retains the original ten controls; Record is a secondary Corner/Inspector action. Window + **one** useful Local Reference, no third margin group; overlay emphasizes exactly one four-edge relation.
+```text
+REFERENCE_SELECTING
+→ FREEZING
+→ capture selected reference/display
+→ snapshot token
+→ MEASURING
+```
 
-## 6. Session record / export contracts
+`PREPARING` 可以作为内部短暂实现细节保留，但它不是独立产品阶段，也绝不能授权确认前截图。
 
-| ID | Binding behavior |
-|---|---|
-| DM-RECORD-001 | Click locks the measurement; it does not append or save. Enter (non-repeat, unmodified, outside editable controls) / Record explicitly appends a completed Region/Point/PP/RR. Preview or incomplete pairs cannot enter records. |
-| DM-RECORD-002 | Successful append deep-copies the confirmed result and source snapshot, then clears only the current result so the next measurement can be collected. Repeated Enter cannot duplicate the consumed result. |
-| DM-RECORD-003 | `desktop-measurement-session/v1` contains sessionId, prototypeOnly, coordinate-space declarations, snapshots[] and measurements[]. Every record has id/type/label/status/token/snapshotId/geometry/coordinates/margins/candidate/sourcePixel/stableRelocationEvidence/runtimeEvidence as applicable. No invented semantic evidence for manual/visual regions. |
-| DM-RECORD-004 | Records are `confirmed` with memory persistence; preview stays outside the journal. Explicit successful file commit may change captured IDs to `saved`. Copy/download does not. Label defaults can be edited before Record. |
-| DM-RECORD-005 | Snapshot sources are retained once per referenced snapshot. Update/Adjust/reselection preserves historical records and their original reference/display mappings; no automatic cross-snapshot relocation or relabeling. |
-| DM-RECORD-006 | Bounds: 100 records, 16 retained snapshots, 20MiB encoded snapshot budget. Invalid geometry/token, retention limit or serialization failure rejects append atomically, preserves prior records and asks the user to save/start a new session. No hidden eviction. |
-| DM-RECORD-007 | Copy All copies the complete session JSON. Clipboard failure leaves full session JSON visibly available in Inspector without replacing current-result JSON. |
-| DM-RECORD-008 | Save uses user-selected browser file where supported, otherwise JSON Blob download. Cancellation/write/close failure does not mark records saved; abort the writable when possible. Plain browser download only becomes `download-requested`. No automatic filesystem writes on hover/click/Record. |
-| DM-RECORD-009 | Exit destroys unsaved memory/current state; visible Record feedback warns “only in memory; copy/save before exit”. Exported files remain. No new Esc confirmation hierarchy or complex Recorder is introduced. |
+重复菜单 / Recorder / 快捷键入口必须 single-flight：已有 Session 时不得创建第二个 Session、不得自动重新选择 Reference、不得无条件生成新 Snapshot。
 
-Prototype snapshots include PNG data URLs to make one exported JSON self-contained. They remain `prototypeOnly:true`. Existing Go `measurement-evidence/v1` / Authoring loaders must not accept these fixtures as native evidence. Production integration must reuse validated canonical Evidence rather than create a second Geometry/Locator model.
+---
 
-## 7. Contracts still frozen and unchanged
+## 2. Live Reference Selection
 
-The inherited baseline remains binding for all contracts not explicitly amended above, including the four measurement tools, valid ≥5×5 drag, signed geometry and 0–100 percentage vs true 0–1 ratios; source-pixel mapping/desktop holes; one Session; Adjust/Continue; Inspector default closed, Details=open and I=toggle; Escape closes Inspector otherwise exits; no Region eight handles/body editing, no Arrow nudge, no intermediate Escape cancel, no fifth margin tool and no standalone Freeze/Unfreeze toolbar toggle. DM-MARGIN-003/005/006/007 remain unchanged. Semantic fixture is not real AX/UIA. Native capture/input/Recorder isolation/platform qualification remains separate.
+### DM-SELECT-001 — entry does not freeze
 
-## 8. Evidence and release gate
+打开 Desktop Measurement 后真实桌面保持 Live。初始 snapshotId 必须为空；没有 Reference Confirmation 就不允许产生正式 Frozen Snapshot。
 
-`tests/desktop-measurement/browser.test.py` exercises the exact checked-in modules via Chromium set_content, including entry/reference selection, hover size/margins, Tab/Alt, cache/throttle, multiple records across snapshots, actual Blob download, mocked picker failure/success, old four-mode/cleanup/geometry cases. File-URI navigation was restricted in the execution environment; this is not a claim of tested native/direct-file permissions.
+### DM-SELECT-002 — hover candidate
 
-Actual run: browser **97/97**, existing geometry **16/16**, new visual/record model **34/34**; no browser page errors. Runtime evidence is under `.runtime/tests/desktop-measurement/`, not in this source directory. Source hashes and scope are in `tests/desktop-measurement/amendment-manifest.json`.
+鼠标经过真实窗口时，解析当前 pointer 下的**最上层可测窗口**作为 Hover Reference Candidate：
 
-Production gates are tracked in `docs/architecture/desktop-automation/desktop-measurement-amendment-2026-09-17.md`. A browser PASS does **not** close native Live Reference selection, production visual scheduling/ROI, Corner HUD or Session Records/Authoring integration. macOS/Windows qualification stays NOT_RUN.
+- 优先系统窗口枚举 / native window hit testing / AX/UIA 等窗口级事实；
+- 不依赖 OCR 选择 Reference Window；
+- 排除 OpenDesk Measurement 自身 overlay / host / Recorder / Runner 等不应被选择的产品窗口；
+- 候选 identity 至少包含稳定的本次运行窗口 ID / PID / native handle 与 bounds；
+- pointer 跨窗口时 candidate 跟随变化；
+- 只有 candidate 变化时才需要视觉重绘。
+
+候选解析必须 bounded / throttled，不能每个 pointermove 做无界窗口重扫或截图。
+
+### DM-SELECT-003 — confirmation gate
+
+Reference Confirmation 是明确的 click-size pointer press/release：
+
+- down / up 必须命中同一窗口 identity；
+- bounds 必须保持一致；
+- 大幅拖动不是 click confirmation；
+- 空白桌面、窗口消失、窗口移动 / resize、identity 变化均不得确认；
+- Esc 取消选择并退出当前选择流程。
+
+前台窗口只能作为候选建议，不能因为它是 foreground 就自动视为已确认。
+
+### DM-SELECT-004 — only confirmation may trigger first capture
+
+首次 `Capture` 的业务含义必须是“已确认 Reference 的冻结”，而不是“打开 Measurement 的副作用”。确认后 Capture 前还要再次核验 exact identity / bounds；同标题替代窗口不能静默接管。
+
+### DM-SELECT-005 — selection visual
+
+REFERENCE_SELECTING 只允许轻量提示：candidate border、弱 overlay / dim、可选 app/window label 与 bounds。不得显示正式 Frozen Micro HUD、正式 Measurement Toolbar 或 Records。
+
+---
+
+## 3. Frozen Snapshot contract
+
+进入 `FREEZING` 后：
+
+```text
+confirmed exact window
+→ exclude/hide Measurement-owned chrome
+→ resolve display + logical/pixel mapping
+→ capture source pixels
+→ revalidate identity / geometry
+→ create sessionId + generation + snapshotId token
+→ MEASURING
+```
+
+Snapshot 是当前测量证据的唯一像素源。目标应用本身没有被暂停；只是 Measurement source 被固定。
+
+`SnapshotToken` 必须包含：
+
+```text
+sessionId
+generation
+snapshotId
+```
+
+异步 AX/UIA/OCR/Vision/Image candidate 结果只有 token 与当前完全一致才可应用；旧 generation / snapshotId 必须直接丢弃。
+
+颜色永远读取 Frozen source pixel，不能读取叠加后的 mask/HUD/overlay 像素。
+
+---
+
+## 4. Measuring surface
+
+MEASURING 默认 Surface：
+
+```text
+Frozen Desktop / Display image
++ outside-window weak mask
++ Reference Window outline
++ Measurement overlay
++ pointer Micro HUD
++ Corner HUD
++ compact Toolbar
++ optional Inspector
+```
+
+主 Toolbar 仍只有四种工具和现有产品控制，不新增独立 Freeze/Unfreeze：
+
+```text
+点 / 区域 / 两点 / 两区域
+|
+磁吸定位 / 边距参照 / 更新画面 / 调整界面 / 详情 / 退出
+```
+
+低频能力（重新选择 Reference、记录名称、Copy All、结构化 Session、保存）属于 Corner HUD 次级动作或 Inspector，不扩张主 Toolbar。
+
+---
+
+## 5. Four measurement tools
+
+### Point
+
+保存：screen logical、window-relative、可靠 local-relative（若存在）、capture pixel、Frozen RGB/HEX、display mapping。
+
+### Region
+
+拖拽区域至少 `5×5 logical px`；保存 absolute bounds、Window/Local relative geometry、percentage geometry、signed margins 与必要派生量。再次开始新 Region 时创建新的 current measurement，不进入旧版八手柄/Arrow 编辑模型。
+
+### Point ↔ Point
+
+依次选择两个点，保存 A/B、ΔX、ΔY、horizontal/vertical distance、Euclidean distance。
+
+### Region ↔ Region
+
+依次选择两个有效 Region，保存 A/B bounds、horizontal/vertical gap、projection overlap、overlap area、center delta 与 B relative to A。
+
+切换工具清除 current transient result / incomplete pair / current candidate lock，但不意味着重新 Capture。
+
+---
+
+## 6. Candidate Resolver / Magnet
+
+正式名称：**磁吸定位**。默认开启；用户可关闭；Alt / Option 临时暂停。
+
+磁吸只改变 Measurement Target / Selection Frame，不移动系统鼠标。
+
+Frozen Snapshot 内候选来源顺序：
+
+```text
+valid current cache
+→ semantic AX/UIA/UI-tree candidate
+→ bounded visual / OCR / perception candidate
+→ manual selection
+```
+
+语义与视觉 provenance 必须分开；visual region 不能冒充 semantic control。
+
+重型视觉工作必须有 bounded ROI、visited/area/time/cancellation 上限和 latest-pointer throttle。禁止每次 pointermove 截图、全窗口 flood fill、无限 worker 堆积。
+
+`Tab / Shift+Tab` 只切换**当前 Frozen Snapshot 内**真实 Candidate Stack 层级，不切换 Target Window、不重新截图。没有真实 stack 时必须安全 no-op 并诚实提示。
+
+---
+
+## 7. Coordinates / margins / references
+
+默认只维护两级有效参照：
+
+```text
+Window Reference
+Local Layout Reference | null
+```
+
+Local Reference 必须有实际布局意义并具备可靠 provenance；技术 wrapper、与 Target 近乎重合的节点、低可靠 visual region 不得自动晋升。
+
+Cursor HUD：
+
+```text
+屏幕 X/Y
+窗口 X/Y
+区域 X/Y | —
+Frozen source color #RRGGBB
+```
+
+没有可靠 Local/Region 时显示 `区域 —`，不得伪造 `(0,0)`。
+
+每组边距固定为 signed `left / top / right / bottom`；允许负值，不 clamp 到 0。默认一次只重点绘制一组四边关系，不能把多层 ancestry 全铺在 overlay 上。
+
+---
+
+## 8. Hover / Corner HUD
+
+Corner HUD 要明确区分：
+
+```text
+候选预览 · 未确认
+已锁定 · 待记录
+已记录
+```
+
+Hover preview 可以显示 source/layer、size、ratio、Window margins，以及最多一个可靠 Local Reference；它不是正式 Measurement Evidence。
+
+Micro HUD 必须保持轻量且与重型 candidate resolver 解耦；pointer movement 不等待 OCR/segmentation。
+
+---
+
+## 9. Measurement Session Records
+
+Measurement Session 不是单一 `currentResult`：
+
+```text
+Session
+├─ Snapshot 1
+│  ├─ Record 1
+│  └─ Record 2
+└─ Snapshot 2
+   └─ Record 3
+```
+
+记录生命周期：
+
+```text
+Hover preview
+→ Click confirmed current measurement
+→ Enter / Record
+→ appended Session Record
+→ continue next measurement on same Frozen Snapshot
+```
+
+新建 Record **不得重新 Capture**。只有显式 Update / Adjust→Continue / Change Reference 才允许新 Snapshot。
+
+每条 Record 至少包含：
+
+```text
+id
+type
+label/status
+reference
+sessionId/generation/snapshotId
+geometry
+coordinateSpaces
+timestamp/source
+candidate provenance
+sourcePixel when applicable
+stableRelocationEvidence
+runtimeEvidence
+```
+
+支持 `point / region / point-to-point / region-to-region / margin` 对应结构。Record append 必须深拷贝 current result 与 Snapshot 引用；追加后清除 current result，历史 Record 不随新测量变化。
+
+Session envelope 使用 versioned JSON，包含 `snapshots[]` 与 `measurements[]`。建议上限沿 Prototype 合同：100 records、16 snapshots、20 MiB encoded snapshot budget；超限 fail closed，不偷偷淘汰仍被 Record 引用的 Snapshot。
+
+---
+
+## 10. Update / Adjust / Reselect
+
+### Update
+
+保持同一 Session、同一已确认 Reference identity，重新 FREEZING，generation 增加并产生新 snapshotId。Current result/candidate 失效；历史 Records 保留原 token。
+
+### Adjust
+
+```text
+MEASURING
+→ ADJUSTING
+```
+
+隐藏 Frozen Snapshot、overlay、HUD、Toolbar、Inspector，让用户真实操作桌面。再次通过统一入口 Continue 时：
+
+```text
+ADJUSTING
+→ FREEZING
+→ MEASURING
+```
+
+### Reselect Reference
+
+Inspector 中显式重选进入 `REFERENCE_SELECTING`。当前 snapshot-bound transient state 失效，但已记录历史 Records 保留。不能通过 target dropdown / same-title lookup 在后台静默替换 Reference。
+
+---
+
+## 11. Inspector / Copy / Save / Authoring
+
+Inspector 默认关闭，`I` 可切换；Esc 在 Inspector 打开时先关闭 Inspector，否则退出 Measurement。
+
+结构化输出必须能直接供 Recorder / Agent-to-Recipe / Automation Authoring 使用，而不是让下游 Agent 从 PNG 猜坐标。
+
+Native 正式证据继续复用 `pkg/measurement` 的 `Result`、`MeasurementEvidence`、`MeasurementProductEvidence`、`BuildAuthoringMeasurementInput` 等 canonical model；Session 只是这些已验证证据的集合/索引，不建立第二套 Geometry/Locator Runtime。
+
+默认存储 owner：
+
+```text
+.runtime/automation-authoring/<task-id>/measurement/sessions/<session-id>/
+```
+
+standalone 可用：
+
+```text
+.runtime/desktop-measurement/<session-id>/
+```
+
+不得写入 `apps/opendesk/**`。显式成功的 durable save 才能把记录状态写成 saved；clipboard / download request 本身不是 durable-save 证明。
+
+---
+
+## 12. Cleanup / isolation
+
+Exit 必须幂等释放：selection input observer、candidate workers、Custom UI session/surface、temporary snapshot/overlay assets、listeners 与当前 transient state。
+
+Measurement 自己的窗口 / host / overlay 必须从 Reference 解析和截图证据中排除。Recorder / Runner 不能被误选为业务 Reference；如果系统无法可靠排除，应 fail closed。
+
+---
+
+## 13. Qualification boundary
+
+以下三种状态不得混写：
+
+```text
+AUTOMATED_PASS
+MACOS_QUALIFIED
+WINDOWS_QUALIFIED
+```
+
+源码存在或 synthetic test PASS 不等于 Native PASS。
+
+需要真机验证的项目包括：真实 topmost window hit-test、真实 hover border/HUD、多显示器、负坐标、Retina / DPI、权限、Z-order、窗口移动/关闭、selection observer 生命周期、overlay exclusion、Recorder 共存与 close/reopen。
+
+Current Production Coverage 与真实 Gap 状态统一维护在：
+
+`docs/architecture/desktop-automation/desktop-measurement-contract-coverage.md`
+
+后续禁止再用“P3 完成 / P4 完成”表示产品能力完成度。

@@ -7,18 +7,24 @@ import (
 	"strings"
 )
 
-// MeasurementPhase is the product-level lifecycle shared by the prototype,
-// Custom UI surface, recorder integration and future native candidate providers.
-// It deliberately describes one Measurement Session rather than a second
-// runtime or replay engine.
+// MeasurementPhase is the current product-level lifecycle vocabulary shared by
+// the executable Prototype, Product integration, Custom UI surface, Recorder
+// handoff and native candidate providers. Historical implementation stages such
+// as P0-P4 are not lifecycle states and must not be inferred from these values.
 type MeasurementPhase string
 
 const (
-	PhaseIdle      MeasurementPhase = "IDLE"
+	PhaseIdle               MeasurementPhase = "IDLE"
+	PhaseReferenceSelecting MeasurementPhase = "REFERENCE_SELECTING"
+	PhaseFreezing           MeasurementPhase = "FREEZING"
+	PhaseMeasuring          MeasurementPhase = "MEASURING"
+	PhaseAdjusting          MeasurementPhase = "ADJUSTING"
+
+	// PhasePreparing and PhaseReview are retained only for compatibility with
+	// existing internal code while Product integration migrates to the Current
+	// Oracle. PREPARING must never authorize capture before explicit Reference
+	// confirmation; REVIEW must never be treated as a required product stage.
 	PhasePreparing MeasurementPhase = "PREPARING"
-	PhaseFreezing  MeasurementPhase = "FREEZING"
-	PhaseMeasuring MeasurementPhase = "MEASURING"
-	PhaseAdjusting MeasurementPhase = "ADJUSTING"
 	PhaseReview    MeasurementPhase = "REVIEW"
 )
 
