@@ -8,8 +8,10 @@
   const DEFAULT_SHOW_DELAY_MS = 1200;
   const DEFAULT_STATE_REFRESH_MS = 1500;
   const SCHEDULER_START_GUARD_MS = 60 * 1000;
+  const NATIVE_START_GUARD_MS = 3000;
   const PREFERENCE_MAX_BYTES = 64 * 1024;
   const RESTORE_MENU_ID = 'restore-promotions';
+  const PLACEMENT_MODES = Object.freeze(['runner-above', 'screen-bottom-right']);
 
   function clone(value) {
     return value == null ? value : JSON.parse(JSON.stringify(value));
@@ -20,6 +22,12 @@
       && value.visible === true
       && value.onScreen !== false
       && core.validBounds(value.bounds);
+  }
+
+  function mediaFailure(result) {
+    if (!result || result.reason !== 'surface-error') return false;
+    const message = String(result.error || '').toLowerCase();
+    return message.includes('promotion image decode') || message.includes('promotion image readiness');
   }
 
   function create(options) {
@@ -38,12 +46,14 @@
     const stateRefreshMs = Number.isFinite(o.stateRefreshMs)
       ? Math.max(500, o.stateRefreshMs)
       : DEFAULT_STATE_REFRESH_MS;
+    const placementMode = o.placementMode == null ? 'runner-above' : String(o.placementMode);
 
     if (!file || typeof file.join !== 'function' || typeof file.readJSON !== 'function' || typeof file.writeJSON !== 'function') {
       throw new Error('Promotion owner requires File.join/readJSON/writeJSON');
     }
     if (!ui || typeof ui.createWindow !== 'function') throw new Error('Promotion owner requires ui.createWindow');
     if (!o.appDataRoot) throw new Error('Promotion owner requires appDataRoot');
+    if (!PLACEMENT_MODES.includes(placementMode)) throw new Error('Promotion owner received an unknown placementMode');
 
     const creative = core.validateCreative(o.creative);
     const preferencePath = o.preferencePath || file.join(o.appDataRoot, 'promotions', 'preferences.json');
@@ -57,9 +67,11 @@
     let runnerSurface = null;
     let ownerEngaged = false;
     let surfaceUnavailable = false;
+    let creativeUnavailable = false;
     let schedulerKnown = schedulerClient == null;
     let schedulerRunning = false;
     let schedulerManualUntil = 0;
+    let nativeStartGuardUntil = 0;
     let nativeActivityKnown = schedulerClient == null || typeof schedulerClient.productActivity !== 'function';
     let nativeActivityActive = false;
     let nativeActivityKinds = [];
@@ -120,11 +132,12 @@
         && !schedulerRunning
         && clock() >= schedulerManualUntil;
       return {
-        ready: initialized && schedulerKnown && nativeActivityKnown && !surfaceUnavailable,
+        ready: initialized && schedulerKnown && nativeActivityKnown && !surfaceUnavailable && !creativeUnavailable,
         ownerVisible: validSurface(runnerSurface) && ownerEngaged && foregroundOverride === true,
         automationIdle: activities.size === 0
           && !runnerBusy(currentRunner)
           && schedulerIdle
+          && clock() >= nativeStartGuardUntil
           && !nativeActivityActive,
         recorderIdle: nativeActivityKnown && !nativeKinds.has('recorder') && recorderOverride === true,
         measurementIdle: nativeActivityKnown && !nativeKinds.has('measurement') && measurementOverride === true,
@@ -172,7 +185,6 @@
           });
           preferences = core.readPreferences(stored);
         } catch (error) {
-          // Corrupt/unreadable preferences fail closed for promotions only.
           preferenceLoadFailed = true;
           preferences = core.freshPreferences();
           preferences.enabled = false;
@@ -217,18 +229,22 @@
         cancel(showTimer);
         showTimer = null;
       }
-      if (!controller) return;
+      if (!controller) return true;
       try {
-        await controller.waitUntilHidden();
+        const hidden = await controller.waitUntilHidden();
+        if (hidden !== true || (controller.state && controller.state().visible === true)) {
+          throw new Error('promotion surface disappearance was not confirmed');
+        }
+        return true;
       } catch (error) {
-        // Promotion teardown failure must never block business automation.
         lastError = String(error && error.message || error);
         log('warn', 'SAFETY_CLOSE_ERROR', {reason, message: lastError});
+        throw error;
       }
     }
 
     function scheduleShow(trigger) {
-      if (!started || disposed || surfaceUnavailable || !controller || showTimer !== null) return;
+      if (!started || disposed || surfaceUnavailable || creativeUnavailable || !controller || showTimer !== null) return;
       if (core.contextReason(context())) return;
       lastTrigger = trigger || 'idle';
       showTimer = later(() => {
@@ -242,8 +258,11 @@
 
     async function maybeShow(trigger) {
       await initialize();
-      if (!started || disposed || surfaceUnavailable) {
-        return {status: 'suppressed', reason: disposed ? 'disposed' : surfaceUnavailable ? 'surface-unavailable' : 'not-started'};
+      if (!started || disposed || surfaceUnavailable || creativeUnavailable) {
+        return {
+          status: 'suppressed',
+          reason: disposed ? 'disposed' : surfaceUnavailable ? 'surface-unavailable' : creativeUnavailable ? 'creative-unavailable' : 'not-started',
+        };
       }
       const currentContext = context();
       const reason = core.contextReason(currentContext);
@@ -252,8 +271,11 @@
         return lastResult;
       }
       lastTrigger = trigger || 'idle';
-      lastResult = await controller.show(creative, {mode: 'runner-above', anchor: runnerSurface.bounds});
-      if (lastResult && lastResult.reason === 'surface-error') {
+      lastResult = await controller.show(creative, {mode: placementMode, anchor: runnerSurface.bounds});
+      if (mediaFailure(lastResult)) {
+        creativeUnavailable = true;
+        log('warn', 'CREATIVE_DISABLED', {error: lastResult.error || 'media decode failed'});
+      } else if (lastResult && lastResult.reason === 'surface-error') {
         surfaceUnavailable = true;
         log('warn', 'SURFACE_DISABLED', {error: lastResult.error || 'native surface unavailable'});
       }
@@ -360,12 +382,27 @@
       return state();
     }
 
+    async function prepareDesktopActivity(source) {
+      await initialize();
+      nativeStartGuardUntil = Math.max(nativeStartGuardUntil, clock() + NATIVE_START_GUARD_MS);
+      if (controller) await controller.refreshContext();
+      await closeForSafety(source || 'native-desktop-activity');
+      return state();
+    }
+
     async function beginAutomation(source) {
       await initialize();
       const token = `activity-${++nextActivityID}`;
       activities.add(token);
-      await closeForSafety(source || token);
-      return token;
+      try {
+        if (controller) await controller.refreshContext();
+        await closeForSafety(source || token);
+        return token;
+      } catch (error) {
+        activities.delete(token);
+        if (controller) await controller.refreshContext();
+        throw error;
+      }
     }
 
     async function endAutomation(token) {
@@ -394,7 +431,7 @@
         return result;
       };
       wrapped.runNow = async id => {
-        await beforeInteraction('scheduler-run-now');
+        await prepareDesktopActivity('scheduler-run-now');
         schedulerManualUntil = Math.max(schedulerManualUntil, clock() + SCHEDULER_START_GUARD_MS);
         if (controller) await controller.refreshContext();
         return client.runNow(id);
@@ -447,9 +484,11 @@
         initialized,
         started,
         disposed,
+        placementMode,
         preferencePath,
         preferenceLoadFailed,
         surfaceUnavailable,
+        creativeUnavailable,
         ownerEngaged,
         preferences: clone(controller ? controller.state().preferences : preferences),
         context: context(),
@@ -458,6 +497,7 @@
         schedulerKnown,
         schedulerRunning,
         schedulerManualUntil,
+        nativeStartGuardUntil,
         nativeActivityKnown,
         nativeActivityActive,
         nativeActivityKinds: nativeActivityKinds.slice(),
@@ -476,6 +516,7 @@
       setRunnerSurface,
       noteOwnerInteraction,
       beforeInteraction,
+      prepareDesktopActivity,
       beginAutomation,
       endAutomation,
       refreshSchedulerGuard,
@@ -491,6 +532,8 @@
     constants: Object.freeze({
       restoreMenuId: RESTORE_MENU_ID,
       schedulerStartGuardMs: SCHEDULER_START_GUARD_MS,
+      nativeStartGuardMs: NATIVE_START_GUARD_MS,
+      placementModes: PLACEMENT_MODES,
     }),
   });
   root.OpenDeskPromotionsOwner = api;
