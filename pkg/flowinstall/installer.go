@@ -47,6 +47,9 @@ type InstallOptions struct {
 	Approver             TrustApprover
 	TrustSource          TrustSource
 	AuthorityProof       *AuthorityProof
+	// Marketplace carries canonical Release provenance only. It never grants
+	// Publisher Trust, capability permission, entitlement, or Runtime authority.
+	Marketplace          *MarketplaceProvenance
 }
 
 type InstallResult struct {
@@ -88,6 +91,11 @@ func (service *Service) Install(ctx context.Context, packagePath string, options
 		return InstallResult{}, err
 	}
 	manifest := flowPackage.Manifest
+	if options.Marketplace != nil {
+		if err := options.Marketplace.validate(); err != nil {
+			return InstallResult{}, newError(CodeTransactionFailed, "Marketplace provenance is invalid", err)
+		}
+	}
 	if !flowpackage.SupportsCurrentPlatform(manifest.Platforms) {
 		return InstallResult{}, newError(CodeIncompatiblePlatform, "Flow does not support "+runtime.GOOS, nil)
 	}
@@ -144,6 +152,16 @@ func (service *Service) Install(ctx context.Context, packagePath string, options
 	}
 	if currentExists {
 		if current.Version == manifest.Version && current.ArchiveDigest == flowPackage.ArchiveDigest {
+			current, provenanceChanged, provenanceErr := applyMarketplaceProvenance(current, options.Marketplace)
+			if provenanceErr != nil {
+				return InstallResult{}, newError(CodeTransactionFailed, "Marketplace provenance is invalid", provenanceErr)
+			}
+			if provenanceChanged {
+				if err := service.Catalog.write(current); err != nil {
+					return InstallResult{}, newError(CodeTransactionFailed, "cannot record Marketplace Flow provenance", err)
+				}
+				_ = syncDirectory(service.Roots.recordsRoot())
+			}
 			return InstallResult{Record: current, Idempotent: true}, nil
 		}
 		if current.Version == manifest.Version {
@@ -223,6 +241,12 @@ func (service *Service) Install(ctx context.Context, packagePath string, options
 		PublisherFingerprint: manifest.PublisherFingerprint, Entry: manifest.Entry,
 		ArchiveDigest: flowPackage.ArchiveDigest, ManifestDigest: flowPackage.ManifestDigest,
 		State: state, StateReason: reason, InstalledAt: time.Now().UTC(), Origin: "odflow",
+	}
+	if options.Marketplace != nil {
+		record, _, err = applyMarketplaceProvenance(record, options.Marketplace)
+		if err != nil {
+			return InstallResult{}, newError(CodeTransactionFailed, "Marketplace provenance is invalid", err)
+		}
 	}
 	journal := transactionJournal{
 		SchemaVersion: 1, Kind: transactionInstall, InstallID: installID, Stage: stagingBase,
