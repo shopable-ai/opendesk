@@ -11,15 +11,24 @@ const Controller = globalThis.OpenDeskAssistantController;
 const CONTROL_IDS = new Set([
   'newConversation', 'recentCount', 'archivedCount', 'recentMore', 'recentOverflow',
   'archivedMore', 'archivedOverflow', 'archivedEmpty', 'currentTitle', 'conversationState',
-  'titleInput', 'renameConversation', 'archiveConversation', 'modelState', 'globalStatus',
+  'titleInput', 'renameConversation', 'archiveConversation', 'deleteConversation', 'modelState', 'globalStatus',
   'modelHelp', 'refreshModel', 'toggleHelp', 'messageEmpty', 'messageTranscript', 'messageOverflow', 'composer',
   'send', 'stop', 'taskStatus', 'taskPreview', 'confirmTask', 'cancelTask', 'composerHint',
 ]);
 for (let index = 0; index < 64; index += 1) {
+  CONTROL_IDS.add(`recentItem${index}`);
   CONTROL_IDS.add(`recent${index}`);
+  CONTROL_IDS.add(`recentDelete${index}`);
+  CONTROL_IDS.add(`archivedItem${index}`);
   CONTROL_IDS.add(`archived${index}`);
+  CONTROL_IDS.add(`archivedDelete${index}`);
 }
 for (let index = 0; index < 120; index += 1) CONTROL_IDS.add(`messageRow${index}`);
+
+const CONTROL_PATCH_FIELDS = new Set([
+  'text', 'icon', 'active', 'busy', 'error', 'value', 'checked', 'disabled',
+  'visible', 'classes', 'source', 'options',
+]);
 
 function clone(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
@@ -57,6 +66,7 @@ function deferred() {
 
 function createFakeUI(options = {}) {
   const controls = new Map();
+  const invalidPatches = [];
   const closed = deferred();
   let closeListener = null;
 
@@ -70,6 +80,11 @@ function createFakeUI(options = {}) {
       updates: [],
       async getState() { return {...state}; },
       async update(patch) {
+        const unknown = Object.keys(patch).filter(field => !CONTROL_PATCH_FIELDS.has(field));
+        if (unknown.length > 0) {
+          invalidPatches.push({id, fields: unknown, patch: clone(patch)});
+          throw Object.assign(new Error(`unknown control patch fields: ${unknown.join(', ')}`), {code: 'INVALID_SPEC'});
+        }
         if (options.failOnceFor === id && !handle.failed) {
           handle.failed = true;
           throw Object.assign(new Error(`driver rejected ${id}`), {code: 'UNSUPPORTED_CAPABILITY'});
@@ -107,6 +122,7 @@ function createFakeUI(options = {}) {
   };
   return {
     controls,
+    invalidPatches,
     async createWindow(spec) {
       assert.match(spec.content.html, /id="messageRow0"/);
       assert.match(spec.content.html, /id="taskPreview"/);
@@ -185,6 +201,23 @@ test('actual Controller render updates supported message rows immediately and ex
   await ui.controls.get('send').emit('click');
   await waitFor(() => /普通回复/.test(ui.controls.get('messageRow0').state.text));
   assert.equal(executions.length, 1, 'ordinary chat must not reach the Calculator executor');
+  await controller.close();
+});
+
+test('assistant rendering only sends fields supported by ControlHandle.update', async () => {
+  const ui = createFakeUI();
+  const controller = Controller.create({
+    ui,
+    file: memoryFile(),
+    appDataRoot: '/data',
+    taskService: taskService([]),
+    llm: {getCapabilities: () => ({supported: true, configured: true}), async generate() { return {data: '回复'}; }},
+    agent: {getCapabilities: () => ({supported: false, configured: false})},
+  });
+  await controller.open('test');
+  assert.deepEqual(ui.invalidPatches, []);
+  assert.equal(ui.controls.get('recentDelete0').state.text, '删除');
+  assert.equal(ui.controls.get('deleteConversation').state.text, '删除当前对话');
   await controller.close();
 });
 

@@ -420,7 +420,6 @@
               visible,
               disabled: !conversation || isActive,
               text: deleteArmed ? '确认删除' : '删除',
-              title: isActive ? '请先停止此对话的请求再删除' : (deleteArmed ? '再次点击确认删除对话' : '删除对话'),
               classes: classes('conversation-delete', visible, deleteArmed ? ['is-armed'] : []),
             });
           }
@@ -444,7 +443,6 @@
               visible,
               disabled: !conversation,
               text: deleteArmed ? '确认删除' : '删除',
-              title: deleteArmed ? '再次点击确认删除对话' : '删除对话',
               classes: classes('conversation-delete', visible, deleteArmed ? ['is-armed'] : []),
             });
           }
@@ -468,7 +466,6 @@
           await update(record, 'deleteConversation', {
             disabled: !selected || selectedActive,
             text: selectedDeleteArmed ? '确认删除' : '删除当前对话',
-            title: selectedActive ? '请先停止当前请求再删除对话' : (selectedDeleteArmed ? '再次点击确认删除当前对话' : '删除当前对话'),
             classes: ['icon-button', 'delete-action', ...(selectedDeleteArmed ? ['is-armed'] : [])],
           });
 
