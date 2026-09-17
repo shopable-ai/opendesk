@@ -5,12 +5,15 @@ on:
     branches:
       - master
     paths:
-      - 'pkg/flow/**'
+      - 'pkg/flowpackage/**'
+      - 'pkg/flowinstall/**'
       - 'pkg/appdata/**'
+      - 'pkg/execution/**'
       - 'internal/flowcli/**'
       - 'internal/packagecli/**'
       - 'cmd/opendesk/**'
       - 'tests/runtime-api/flow-package.js'
+      - 'tests/runtime-api/flow-distribution.js'
       - 'tests/runtime-api/flow-installation.js'
       - 'tests/runtime-api/support/flow-package-harness.js'
       - 'tests/runtime-api/gates/**'
@@ -34,7 +37,7 @@ jobs:
   owners:
     name: B0+B1 portable owners
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout current commit
         uses: actions/checkout@v4
@@ -43,13 +46,13 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Test package, installer, app-data and CLI owners
-        run: go test ./pkg/flow ./pkg/appdata ./internal/flowcli ./internal/packagecli -count=1
+      - name: Test canonical package, installer, app-data, execution and CLI owners
+        run: go test ./pkg/flowpackage ./pkg/flowinstall ./pkg/appdata ./pkg/execution ./internal/flowcli ./internal/packagecli -count=1
 
   macos-runtime:
     name: B0+B1 / macOS Runtime
     runs-on: macos-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
       - name: Checkout current commit
         uses: actions/checkout@v4
@@ -64,6 +67,8 @@ jobs:
         run: ./dist/opendesk -script tests/runtime-api/flow-package.js -console-mode script
       - name: Run B0 formal Runtime gate
         run: OPENDESK_RUNTIME_API_MODE=flow-package ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+      - name: Run existing Flow distribution regression
+        run: ./dist/opendesk -script tests/runtime-api/flow-distribution.js -console-mode script
       - name: Run B1 direct Runtime test
         run: ./dist/opendesk -script tests/runtime-api/flow-installation.js -console-mode script
       - name: Run B1 formal Runtime gate
@@ -80,7 +85,7 @@ jobs:
   windows-runtime:
     name: B0+B1 / Windows Runtime
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     steps:
       - name: Checkout current commit
         uses: actions/checkout@v4
@@ -108,6 +113,12 @@ jobs:
           $runtime = '.\dist\windows\win-x64\opendesk.exe'
           $env:OPENDESK_RUNTIME_API_MODE = 'flow-package'
           & $runtime -script 'scripts/test_runtime_apis.js' -console-mode script
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run existing Flow distribution regression
+        shell: pwsh
+        run: |
+          $runtime = '.\dist\windows\win-x64\opendesk.exe'
+          & $runtime -script 'tests/runtime-api/flow-distribution.js' -console-mode script
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run B1 direct Runtime test
         shell: pwsh
