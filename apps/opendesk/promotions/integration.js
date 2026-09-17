@@ -13,6 +13,22 @@
     return owner;
   }
 
+  async function guardedAutomation(getOwner, source, task) {
+    const owner = ownerOf(getOwner);
+    let token = null;
+    if (owner && typeof owner.beginAutomation === 'function') {
+      token = await owner.beginAutomation(source);
+    }
+    try {
+      return await task();
+    } finally {
+      const current = ownerOf(getOwner);
+      if (current && typeof current.endAutomation === 'function') {
+        await current.endAutomation(token);
+      }
+    }
+  }
+
   function wrapRunnerController(BaseController, getOwner) {
     if (!BaseController || typeof BaseController.createApp !== 'function') {
       throw new Error('Promotion runner guard requires a controller');
@@ -21,19 +37,7 @@
     wrapper.createApp = options => {
       const app = BaseController.createApp(options || {});
       async function requestRun(queue, source) {
-        const owner = ownerOf(getOwner);
-        let token = null;
-        if (owner && typeof owner.beginAutomation === 'function') {
-          token = await owner.beginAutomation(`script-runner:${source || 'run'}`);
-        }
-        try {
-          return await app.requestRun(queue, source);
-        } finally {
-          const current = ownerOf(getOwner);
-          if (current && typeof current.endAutomation === 'function') {
-            await current.endAutomation(token);
-          }
-        }
+        return guardedAutomation(getOwner, `script-runner:${source || 'run'}`, () => app.requestRun(queue, source));
       }
       async function openList(...args) {
         const owner = await noteOwner(getOwner, 'script-runner-manager');
@@ -159,6 +163,14 @@
     };
   }
 
+  function wrapAgent(agent, getOwner) {
+    if (!agent || typeof agent.run !== 'function') return agent;
+    const wrapped = {};
+    if (typeof agent.getCapabilities === 'function') wrapped.getCapabilities = agent.getCapabilities.bind(agent);
+    wrapped.run = async (...args) => guardedAutomation(getOwner, 'assistant:agent', () => agent.run(...args));
+    return Object.freeze(wrapped);
+  }
+
   function wrapCalculator(calculator, getOwner) {
     if (!calculator || typeof calculator.execute !== 'function') {
       throw new Error('Promotion calculator guard requires execute()');
@@ -166,18 +178,7 @@
     return Object.freeze({
       definition: calculator.definition,
       async execute(...args) {
-        const owner = ownerOf(getOwner);
-        let token = null;
-        if (owner && typeof owner.beginAutomation === 'function') {
-          token = await owner.beginAutomation('assistant:calculator');
-        }
-        try { return await calculator.execute(...args); }
-        finally {
-          const current = ownerOf(getOwner);
-          if (current && typeof current.endAutomation === 'function') {
-            await current.endAutomation(token);
-          }
-        }
+        return guardedAutomation(getOwner, 'assistant:calculator', () => calculator.execute(...args));
       },
     });
   }
@@ -186,6 +187,7 @@
     wrapRunnerController,
     createPlayerUI,
     createRunnerFloatingWindow,
+    wrapAgent,
     wrapCalculator,
   });
   if (typeof module === 'object' && module.exports) module.exports = root.OpenDeskPromotionsIntegration;
