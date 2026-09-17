@@ -78,12 +78,15 @@ func (installer *Installer) InstallURL(ctx context.Context, rawURL string, optio
 	// Unknown publishers still go through the same explicit trust approver as
 	// side-loaded .odflow files.
 	options.AuthorityProof = nil
-	options.Marketplace = &flowinstall.MarketplaceProvenance{
+	result, err := installer.FlowService.Install(ctx, artifactPath, options)
+	if err != nil {
+		return flowinstall.InstallResult{}, err
+	}
+	return installer.FlowService.MarkMarketplaceInstall(ctx, result, flowinstall.MarketplaceProvenance{
 		MarketplaceID: release.MarketplaceID,
 		ReleaseID:     release.ReleaseID,
 		UpdateChannel: release.UpdateChannel,
-	}
-	return installer.FlowService.Install(ctx, artifactPath, options)
+	})
 }
 
 func matchReleasePackage(release Release, flowPackage *flowpackage.Package) error {
