@@ -6,8 +6,8 @@
   if (!core || !controllerAPI) throw new Error('Promotion owner requires core and controller');
 
   const DEFAULT_SHOW_DELAY_MS = 1200;
-  const DEFAULT_SCHEDULER_REFRESH_MS = 5000;
-  const SCHEDULER_RUN_BLOCK_MS = 30 * 60 * 1000;
+  const DEFAULT_STATE_REFRESH_MS = 1500;
+  const SCHEDULER_START_GUARD_MS = 60 * 1000;
   const PREFERENCE_MAX_BYTES = 64 * 1024;
   const RESTORE_MENU_ID = 'restore-promotions';
 
@@ -35,9 +35,9 @@
     const cancel = o.clearTimeout || root.clearTimeout;
     const logger = o.logger || root.console;
     const showDelayMs = Number.isFinite(o.showDelayMs) ? Math.max(0, o.showDelayMs) : DEFAULT_SHOW_DELAY_MS;
-    const schedulerRefreshMs = Number.isFinite(o.schedulerRefreshMs)
-      ? Math.max(1000, o.schedulerRefreshMs)
-      : DEFAULT_SCHEDULER_REFRESH_MS;
+    const stateRefreshMs = Number.isFinite(o.stateRefreshMs)
+      ? Math.max(500, o.stateRefreshMs)
+      : DEFAULT_STATE_REFRESH_MS;
 
     if (!file || typeof file.join !== 'function' || typeof file.readJSON !== 'function' || typeof file.writeJSON !== 'function') {
       throw new Error('Promotion owner requires File.join/readJSON/writeJSON');
@@ -56,9 +56,12 @@
     let preferenceLoadFailed = false;
     let runnerSurface = null;
     let schedulerKnown = schedulerClient == null;
-    let schedulerArmed = false;
+    let schedulerRunning = false;
     let schedulerManualUntil = 0;
-    let schedulerRefreshTimer = null;
+    let nativeActivityKnown = schedulerClient == null || typeof schedulerClient.productActivity !== 'function';
+    let nativeActivityActive = false;
+    let nativeActivityKinds = [];
+    let refreshTimer = null;
     let showTimer = null;
     let nextActivityID = 0;
     const activities = new Set();
@@ -72,14 +75,14 @@
       try { target(`OPENDESK_PROMOTION_${code}=` + JSON.stringify(extra || {})); } catch (_) {}
     }
 
-    function providerTrue(provider) {
-      if (typeof provider !== 'function') return false;
-      try { return provider() === true; } catch (_) { return false; }
-    }
-
-    function providerFalse(provider) {
-      if (typeof provider !== 'function') return false;
-      try { return provider() === false; } catch (_) { return false; }
+    function providerBoolean(provider, fallback) {
+      if (typeof provider !== 'function') return fallback;
+      try {
+        const value = provider();
+        return value === true ? true : value === false ? false : null;
+      } catch (_) {
+        return null;
+      }
     }
 
     function runnerState() {
@@ -105,19 +108,27 @@
 
     function context() {
       const currentRunner = runnerState();
+      const foreground = providerBoolean(o.getForegroundIdle, true);
+      const fullscreen = providerBoolean(o.getFullscreen, false);
+      const presentationMode = providerBoolean(o.getPresentationMode, false);
+      const nativeKinds = new Set(nativeActivityKinds);
+      const recorderOverride = providerBoolean(o.getRecorderIdle, true);
+      const measurementOverride = providerBoolean(o.getMeasurementIdle, true);
       const schedulerIdle = schedulerKnown
-        && !schedulerArmed
+        && !schedulerRunning
         && clock() >= schedulerManualUntil;
-      const ownerVisible = validSurface(runnerSurface) && providerTrue(o.getForegroundIdle);
       return {
-        ready: initialized && schedulerKnown,
-        ownerVisible,
-        automationIdle: activities.size === 0 && !runnerBusy(currentRunner) && schedulerIdle,
-        recorderIdle: providerTrue(o.getRecorderIdle),
-        measurementIdle: providerTrue(o.getMeasurementIdle),
+        ready: initialized && schedulerKnown && nativeActivityKnown,
+        ownerVisible: validSurface(runnerSurface) && foreground === true,
+        automationIdle: activities.size === 0
+          && !runnerBusy(currentRunner)
+          && schedulerIdle
+          && !nativeActivityActive,
+        recorderIdle: nativeActivityKnown && !nativeKinds.has('recorder') && recorderOverride === true,
+        measurementIdle: nativeActivityKnown && !nativeKinds.has('measurement') && measurementOverride === true,
         listOpen: runnerListOpen(currentRunner),
-        fullscreen: providerFalse(o.getFullscreen),
-        presentationMode: providerFalse(o.getPresentationMode),
+        fullscreen: fullscreen === null ? true : fullscreen,
+        presentationMode: presentationMode === null ? true : presentationMode,
       };
     }
 
@@ -159,10 +170,7 @@
           });
           preferences = core.readPreferences(stored);
         } catch (error) {
-          // Corrupt/unreadable preferences must never turn into a surprise ad.
-          // Disable only the promotion subsystem for this session; the product
-          // and automation paths continue normally and the tray restore action
-          // can explicitly write a clean preference record.
+          // Corrupt/unreadable preferences fail closed for promotions only.
           preferenceLoadFailed = true;
           preferences = core.freshPreferences();
           preferences.enabled = false;
@@ -197,7 +205,7 @@
       try {
         await controller.waitUntilHidden();
       } catch (error) {
-        // Promotion teardown failure must not block Run/Stop/Agent/Scheduler.
+        // Promotion teardown failure must never block business automation.
         lastError = String(error && error.message || error);
         log('warn', 'SAFETY_CLOSE_ERROR', {reason, message: lastError});
       }
@@ -233,33 +241,69 @@
     async function refreshSchedulerGuard() {
       if (!schedulerClient || typeof schedulerClient.listJobs !== 'function') {
         schedulerKnown = true;
-        schedulerArmed = false;
+        schedulerRunning = false;
         if (controller) await controller.refreshContext();
-        return {known: true, armed: false};
+        return {known: true, running: false};
       }
       try {
         const jobs = await schedulerClient.listJobs();
         schedulerKnown = true;
-        schedulerArmed = Array.isArray(jobs) && jobs.some(job => job && job.enabled === true);
+        schedulerRunning = Array.isArray(jobs) && jobs.some(job => {
+          const last = job && job.lastRun;
+          return last && (last.status === 'queued' || last.status === 'running');
+        });
         if (controller) await controller.refreshContext();
-        if (!schedulerArmed && activities.size === 0) scheduleShow('scheduler-safe');
-        return {known: true, armed: schedulerArmed};
+        return {known: true, running: schedulerRunning};
       } catch (error) {
         schedulerKnown = false;
-        schedulerArmed = true;
+        schedulerRunning = true;
         lastError = String(error && error.message || error);
         if (controller) await controller.refreshContext();
         log('warn', 'SCHEDULER_STATE_ERROR', {message: lastError});
-        return {known: false, armed: true};
+        return {known: false, running: true};
       }
     }
 
-    function armSchedulerRefresh() {
-      if (!started || disposed || schedulerRefreshTimer !== null) return;
-      schedulerRefreshTimer = later(() => {
-        schedulerRefreshTimer = null;
-        void refreshSchedulerGuard().finally(() => armSchedulerRefresh());
-      }, schedulerRefreshMs);
+    async function refreshNativeActivity() {
+      if (!schedulerClient || typeof schedulerClient.productActivity !== 'function') {
+        nativeActivityKnown = true;
+        nativeActivityActive = false;
+        nativeActivityKinds = [];
+        return {known: true, active: false, activeKinds: []};
+      }
+      try {
+        const value = await schedulerClient.productActivity();
+        if (!value || value.available !== true || typeof value.active !== 'boolean' || !Array.isArray(value.activeKinds)) {
+          throw new Error('product activity response is incomplete');
+        }
+        nativeActivityKnown = true;
+        nativeActivityActive = value.active === true;
+        nativeActivityKinds = value.activeKinds.filter(kind => typeof kind === 'string');
+        if (controller) await controller.refreshContext();
+        return {known: true, active: nativeActivityActive, activeKinds: nativeActivityKinds.slice()};
+      } catch (error) {
+        nativeActivityKnown = false;
+        nativeActivityActive = true;
+        nativeActivityKinds = [];
+        lastError = String(error && error.message || error);
+        if (controller) await controller.refreshContext();
+        log('warn', 'ACTIVITY_STATE_ERROR', {message: lastError});
+        return {known: false, active: true, activeKinds: []};
+      }
+    }
+
+    async function refreshGuards() {
+      await Promise.all([refreshSchedulerGuard(), refreshNativeActivity()]);
+      if (!core.contextReason(context())) scheduleShow('state-safe');
+      return state();
+    }
+
+    function armRefresh() {
+      if (!started || disposed || refreshTimer !== null) return;
+      refreshTimer = later(() => {
+        refreshTimer = null;
+        void refreshGuards().finally(() => armRefresh());
+      }, stateRefreshMs);
     }
 
     async function setRunnerSurface(surface) {
@@ -303,44 +347,37 @@
 
     function wrapSchedulerClient(client) {
       if (!client || typeof client !== 'object') return client;
-      const wrapped = {
-        getCapabilities: typeof client.getCapabilities === 'function' ? client.getCapabilities.bind(client) : undefined,
-        status: typeof client.status === 'function' ? client.status.bind(client) : undefined,
-        listJobs: typeof client.listJobs === 'function' ? client.listJobs.bind(client) : undefined,
-        listRuns: typeof client.listRuns === 'function' ? client.listRuns.bind(client) : undefined,
-        async createJob(input) {
-          await beforeInteraction('scheduler-create');
-          schedulerKnown = true;
-          schedulerArmed = true;
-          if (controller) await controller.refreshContext();
-          try { return await client.createJob(input); }
-          catch (error) { await refreshSchedulerGuard(); throw error; }
-        },
-        async resume(id) {
-          await beforeInteraction('scheduler-resume');
-          schedulerKnown = true;
-          schedulerArmed = true;
-          if (controller) await controller.refreshContext();
-          try { return await client.resume(id); }
-          catch (error) { await refreshSchedulerGuard(); throw error; }
-        },
-        async runNow(id) {
-          await beforeInteraction('scheduler-run-now');
-          schedulerKnown = true;
-          schedulerManualUntil = Math.max(schedulerManualUntil, clock() + SCHEDULER_RUN_BLOCK_MS);
-          if (controller) await controller.refreshContext();
-          return client.runNow(id);
-        },
-        async pause(id) {
-          const result = await client.pause(id);
-          await refreshSchedulerGuard();
-          return result;
-        },
-        async delete(id) {
-          const result = await client.delete(id);
-          await refreshSchedulerGuard();
-          return result;
-        },
+      const wrapped = {};
+      for (const name of ['getCapabilities', 'status', 'listJobs', 'listRuns', 'productActivity', 'acknowledgeProductActivity']) {
+        if (typeof client[name] === 'function') wrapped[name] = client[name].bind(client);
+      }
+      wrapped.createJob = async input => {
+        await beforeInteraction('scheduler-create');
+        const result = await client.createJob(input);
+        await refreshSchedulerGuard();
+        return result;
+      };
+      wrapped.resume = async id => {
+        await beforeInteraction('scheduler-resume');
+        const result = await client.resume(id);
+        await refreshSchedulerGuard();
+        return result;
+      };
+      wrapped.runNow = async id => {
+        await beforeInteraction('scheduler-run-now');
+        schedulerManualUntil = Math.max(schedulerManualUntil, clock() + SCHEDULER_START_GUARD_MS);
+        if (controller) await controller.refreshContext();
+        return client.runNow(id);
+      };
+      wrapped.pause = async id => {
+        const result = await client.pause(id);
+        await refreshSchedulerGuard();
+        return result;
+      };
+      wrapped.delete = async id => {
+        const result = await client.delete(id);
+        await refreshSchedulerGuard();
+        return result;
       };
       return Object.freeze(wrapped);
     }
@@ -359,8 +396,8 @@
       await initialize();
       if (disposed) return state();
       started = true;
-      await refreshSchedulerGuard();
-      armSchedulerRefresh();
+      await refreshGuards();
+      armRefresh();
       scheduleShow('startup');
       return state();
     }
@@ -369,8 +406,8 @@
       disposed = true;
       started = false;
       if (showTimer !== null) cancel(showTimer);
-      if (schedulerRefreshTimer !== null) cancel(schedulerRefreshTimer);
-      showTimer = schedulerRefreshTimer = null;
+      if (refreshTimer !== null) cancel(refreshTimer);
+      showTimer = refreshTimer = null;
       if (controller) await controller.dispose();
       return state();
     }
@@ -387,8 +424,11 @@
         runnerSurface: clone(runnerSurface),
         activeActivities: activities.size,
         schedulerKnown,
-        schedulerArmed,
+        schedulerRunning,
         schedulerManualUntil,
+        nativeActivityKnown,
+        nativeActivityActive,
+        nativeActivityKinds: nativeActivityKinds.slice(),
         lastTrigger,
         lastResult: clone(lastResult),
         lastError,
@@ -406,6 +446,8 @@
       beginAutomation,
       endAutomation,
       refreshSchedulerGuard,
+      refreshNativeActivity,
+      refreshGuards,
       wrapSchedulerClient,
       restore,
     });
@@ -415,7 +457,7 @@
     create,
     constants: Object.freeze({
       restoreMenuId: RESTORE_MENU_ID,
-      schedulerRunBlockMs: SCHEDULER_RUN_BLOCK_MS,
+      schedulerStartGuardMs: SCHEDULER_START_GUARD_MS,
     }),
   });
   root.OpenDeskPromotionsOwner = api;
