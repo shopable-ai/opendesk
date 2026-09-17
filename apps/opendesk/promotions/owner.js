@@ -55,6 +55,8 @@
     let disposed = false;
     let preferenceLoadFailed = false;
     let runnerSurface = null;
+    let ownerEngaged = false;
+    let surfaceUnavailable = false;
     let schedulerKnown = schedulerClient == null;
     let schedulerRunning = false;
     let schedulerManualUntil = 0;
@@ -108,7 +110,7 @@
 
     function context() {
       const currentRunner = runnerState();
-      const foreground = providerBoolean(o.getForegroundIdle, true);
+      const foregroundOverride = providerBoolean(o.getForegroundIdle, true);
       const fullscreen = providerBoolean(o.getFullscreen, false);
       const presentationMode = providerBoolean(o.getPresentationMode, false);
       const nativeKinds = new Set(nativeActivityKinds);
@@ -118,8 +120,8 @@
         && !schedulerRunning
         && clock() >= schedulerManualUntil;
       return {
-        ready: initialized && schedulerKnown && nativeActivityKnown,
-        ownerVisible: validSurface(runnerSurface) && foreground === true,
+        ready: initialized && schedulerKnown && nativeActivityKnown && !surfaceUnavailable,
+        ownerVisible: validSurface(runnerSurface) && ownerEngaged && foregroundOverride === true,
         automationIdle: activities.size === 0
           && !runnerBusy(currentRunner)
           && schedulerIdle
@@ -177,6 +179,14 @@
           lastError = String(error && error.message || error);
           log('warn', 'PREFERENCE_LOAD_ERROR', {message: lastError});
         }
+        try {
+          if (typeof ui.getCapabilities === 'function') {
+            const capabilities = ui.getCapabilities();
+            if (capabilities && capabilities.available === false) surfaceUnavailable = true;
+          }
+        } catch (_) {
+          surfaceUnavailable = true;
+        }
         controller = controllerFactory({
           ui,
           preferences,
@@ -184,6 +194,12 @@
           savePreferences,
           activate,
           reducedMotion: o.reducedMotion,
+          interactionGroup: 'scriptRunnerPlayer',
+          onInteractionOutside: async () => {
+            ownerEngaged = false;
+            if (showTimer !== null) cancel(showTimer);
+            showTimer = null;
+          },
           now: clock,
           setTimeout: later,
           clearTimeout: cancel,
@@ -212,7 +228,7 @@
     }
 
     function scheduleShow(trigger) {
-      if (!started || disposed || !controller || showTimer !== null) return;
+      if (!started || disposed || surfaceUnavailable || !controller || showTimer !== null) return;
       if (core.contextReason(context())) return;
       lastTrigger = trigger || 'idle';
       showTimer = later(() => {
@@ -226,7 +242,9 @@
 
     async function maybeShow(trigger) {
       await initialize();
-      if (!started || disposed) return {status: 'suppressed', reason: disposed ? 'disposed' : 'not-started'};
+      if (!started || disposed || surfaceUnavailable) {
+        return {status: 'suppressed', reason: disposed ? 'disposed' : surfaceUnavailable ? 'surface-unavailable' : 'not-started'};
+      }
       const currentContext = context();
       const reason = core.contextReason(currentContext);
       if (reason) {
@@ -235,6 +253,10 @@
       }
       lastTrigger = trigger || 'idle';
       lastResult = await controller.show(creative, {mode: 'runner-above', anchor: runnerSurface.bounds});
+      if (lastResult && lastResult.reason === 'surface-error') {
+        surfaceUnavailable = true;
+        log('warn', 'SURFACE_DISABLED', {error: lastResult.error || 'native surface unavailable'});
+      }
       return lastResult;
     }
 
@@ -308,6 +330,7 @@
 
     async function setRunnerSurface(surface) {
       runnerSurface = surface && core.validBounds(surface.bounds) ? clone(surface) : null;
+      ownerEngaged = validSurface(runnerSurface);
       if (!controller) return state();
       if (!validSurface(runnerSurface)) {
         await controller.refreshContext();
@@ -321,6 +344,13 @@
       } else {
         scheduleShow('runner-visible');
       }
+      return state();
+    }
+
+    async function noteOwnerInteraction(source) {
+      if (validSurface(runnerSurface)) ownerEngaged = true;
+      if (controller) await controller.refreshContext();
+      if (!core.contextReason(context())) scheduleShow(source || 'runner-interaction');
       return state();
     }
 
@@ -419,6 +449,8 @@
         disposed,
         preferencePath,
         preferenceLoadFailed,
+        surfaceUnavailable,
+        ownerEngaged,
         preferences: clone(controller ? controller.state().preferences : preferences),
         context: context(),
         runnerSurface: clone(runnerSurface),
@@ -442,6 +474,7 @@
       state,
       maybeShow,
       setRunnerSurface,
+      noteOwnerInteraction,
       beforeInteraction,
       beginAutomation,
       endAutomation,
