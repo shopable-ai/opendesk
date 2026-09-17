@@ -21,6 +21,11 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
   } = createHarness({ assert, binary, root, sentinel, sourceToken });
 
   const installEnv = (name) => ({ OPENDESK_APP_DATA_DIR: File.join(root, 'app-data', name) });
+  const parentDir = (path) => {
+    const normalized = String(path);
+    const index = Math.max(normalized.lastIndexOf('/'), normalized.lastIndexOf('\\'));
+    return index > 0 ? normalized.slice(0, index) : '.';
+  };
 
   async function packOrdinary(name, options = {}) {
     const flowRoot = File.join(root, 'inputs', name);
@@ -30,7 +35,7 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
     const files = ['main.js'];
     for (const asset of options.assets || []) {
       const assetPath = File.join(flowRoot, asset.path);
-      File.ensureDir(File.dirname(assetPath));
+      File.ensureDir(parentDir(assetPath));
       File.write(assetPath, asset.content);
       files.push(asset.path);
     }
@@ -201,7 +206,7 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
     for (const [suffix, replacement] of [
       ['traversal', '../x.txt'],
       ['reserved', 'NUL.txt'],
-      ['ads', 'a:b.txt'],
+      ['ads', 'a:b.tx'],
       ['unexpected', 'newx.txt'],
     ]) {
       const source = suffix === 'reserved' || suffix === 'ads'
@@ -256,7 +261,7 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
     assert(installedA.result.record.installId !== installedB.result.record.installId, 'display name was used as install identity');
 
     const dataA = File.join(env.OPENDESK_APP_DATA_DIR, 'flow-data', installedA.result.record.installId, 'user-state.txt');
-    File.ensureDir(File.dirname(dataA));
+    File.ensureDir(parentDir(dataA));
     File.write(dataA, 'keep');
     await cli(['flow', 'uninstall', installedA.result.record.installId], true, env);
     assert(File.isFile(dataA), 'default uninstall removed Flow user data');
@@ -269,10 +274,10 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
     equal(installedC.result.record.state, 'ready', 'uninstall removed shared publisher trust');
 
     const dataB = File.join(env.OPENDESK_APP_DATA_DIR, 'flow-data', installedB.result.record.installId, 'delete-me.txt');
-    File.ensureDir(File.dirname(dataB));
+    File.ensureDir(parentDir(dataB));
     File.write(dataB, 'delete');
     await cli(['flow', 'uninstall', installedB.result.record.installId, '--remove-data'], true, env);
-    assert(!File.exists(File.dirname(dataB)), '--remove-data left Flow data root behind');
+    assert(!File.exists(parentDir(dataB)), '--remove-data left Flow data root behind');
     assertNeverExecuted();
   });
 })();
