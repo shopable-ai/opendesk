@@ -16,6 +16,7 @@
     close: 'xmark',
     moveUp: 'square.and.arrow.up',
     moveDown: 'square.and.arrow.down',
+    delete: 'trash',
   });
 
   function clone(value) {
@@ -193,6 +194,7 @@
       const selected = script && state.selectedNames && state.selectedNames.has(script.name) ? ' checked' : '';
       const upDisabled = !script || index === 0 ? ' disabled' : '';
       const downDisabled = !script || index === scripts.length - 1 ? ' disabled' : '';
+      const deleteDisabled = !script || state.running || state.pendingDeleteName ? ' disabled' : '';
       const name = script ? scriptDisplayName(script) : '';
       rowParts.push(
         `<input id="select${index}" class="select${hiddenClass}" type="checkbox" aria-label="选择第 ${index + 1} 个脚本"${selected}>`,
@@ -201,6 +203,7 @@
         `<button id="run${index}" class="run icon-button${hiddenClass}" data-icon="${BUTTON_ICONS.run}" title="运行 ${escapeHTML(name)}" aria-label="运行第 ${index + 1} 个自动化"${script ? '' : ' disabled'}>运行</button>`,
         `<button id="up${index}" class="order icon-button${hiddenClass}" data-icon="${BUTTON_ICONS.moveUp}" title="上移 ${escapeHTML(name)}" aria-label="上移第 ${index + 1} 个自动化"${upDisabled}>上移</button>`,
         `<button id="down${index}" class="order icon-button${hiddenClass}" data-icon="${BUTTON_ICONS.moveDown}" title="下移 ${escapeHTML(name)}" aria-label="下移第 ${index + 1} 个自动化"${downDisabled}>下移</button>`,
+        `<button id="delete${index}" class="delete icon-button${hiddenClass}" data-icon="${BUTTON_ICONS.delete}" title="删除 ${escapeHTML(name)}" aria-label="删除第 ${index + 1} 个自动化"${deleteDisabled}>删除</button>`,
       );
     }
 
@@ -247,6 +250,7 @@
           <p id="colRun" class="column-head${listVisible ? '' : ' is-hidden'}">操作</p>
           <p id="colUp" class="column-head${listVisible ? '' : ' is-hidden'}">排序</p>
           <p id="colDown" class="column-head${listVisible ? '' : ' is-hidden'}"></p>
+          <p id="colDelete" class="column-head${listVisible ? '' : ' is-hidden'}">删除</p>
           ${rowParts.join('\n')}
         </div>
 
@@ -269,8 +273,8 @@
     header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px} .title{display:block;font-size:20px;margin:0 0 5px}.subtle{margin:0;color:#a8a8a8;font-size:12px;max-width:620px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.count{margin:0;color:#b9b9b9;white-space:nowrap}
     .status{margin:0;padding:9px 10px;border:1px solid #3a3a3a;border-radius:7px;background:#202020;color:#d7d7d7;font-size:12px;min-height:36px}
     .state-title{margin:54px 0 0;text-align:center;font-size:18px;font-weight:700}.state-help{margin:0 auto;text-align:center;color:#aaa;max-width:520px;line-height:1.5}.state-action{align-self:center}.error-title{color:#ffb7b7}.error-message{color:#d9a2a2}
-    .list-grid{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:34px 36px minmax(0,1fr) 40px 34px 34px;gap:0 8px;align-content:start;align-items:center}.column-head{margin:0;padding:0 0 6px;color:#8e8e8e;font-size:11px;border-bottom:1px solid #373737}.select{width:16px;height:16px;margin:16px 0 16px 8px}.index,.name{margin:0;min-height:48px;display:flex;align-items:center;border-bottom:1px solid #303030}.index{color:#aaa}.name{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.name[data-icon="doc.text.fill"]::before{content:"";flex:0 0 auto;width:14px;height:17px;margin-right:8px;border:1.5px solid #aab2bd;border-radius:2px;background:linear-gradient(#aab2bd,#aab2bd) 3px 5px/7px 1px no-repeat,linear-gradient(#aab2bd,#aab2bd) 3px 9px/7px 1px no-repeat,linear-gradient(#aab2bd,#aab2bd) 3px 13px/5px 1px no-repeat}.run,.order{margin:7px 0}.order{width:34px;padding:0}
-    button{border:1px solid #505050;border-radius:7px;background:#303030;color:#f4f4f4;padding:7px 10px;font:inherit}button:not(:disabled){cursor:pointer}button:hover:not(:disabled){background:#3b3b3b;border-color:#666}button:disabled{opacity:.38}.icon-button{box-sizing:border-box;width:34px;height:34px;min-width:34px;min-height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:0}.icon-button::before{font-size:16px;line-height:1}.icon-button[data-icon="play.fill"]::before{content:"▶";transform:translateX(1px)}.icon-button[data-icon="stop.fill"]::before{content:"■";font-size:14px}.icon-button[data-icon="arrow.clockwise"]::before{content:"↻"}.icon-button[data-icon="arrow.counterclockwise"]::before{content:"↺"}.icon-button[data-icon="xmark"]::before{content:"×";font-size:20px}.icon-button[data-icon="square.and.arrow.up"]::before{content:"↑"}.icon-button[data-icon="square.and.arrow.down"]::before{content:"↓"}.icon-button[data-icon="folder.fill"]::before{content:"";width:18px;height:13px;border-radius:2px;background:currentColor;clip-path:polygon(0 18%,34% 18%,43% 0,100% 0,100% 100%,0 100%)}.primary{background:#245fbe;border-color:#3474d6}.is-hidden{display:none!important}
+    .list-grid{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:34px 36px minmax(0,1fr) 40px 34px 34px 34px;gap:0 8px;align-content:start;align-items:center}.column-head{margin:0;padding:0 0 6px;color:#8e8e8e;font-size:11px;border-bottom:1px solid #373737}.select{width:16px;height:16px;margin:16px 0 16px 8px}.index,.name{margin:0;min-height:48px;display:flex;align-items:center;border-bottom:1px solid #303030}.index{color:#aaa}.name{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.name[data-icon="doc.text.fill"]::before{content:"";flex:0 0 auto;width:14px;height:17px;margin-right:8px;border:1.5px solid #aab2bd;border-radius:2px;background:linear-gradient(#aab2bd,#aab2bd) 3px 5px/7px 1px no-repeat,linear-gradient(#aab2bd,#aab2bd) 3px 9px/7px 1px no-repeat,linear-gradient(#aab2bd,#aab2bd) 3px 13px/5px 1px no-repeat}.run,.order,.delete{margin:7px 0}.order,.delete{width:34px;padding:0}.delete:hover:not(:disabled){background:#482a2a;border-color:#815050;color:#ffd7d7}
+    button{border:1px solid #505050;border-radius:7px;background:#303030;color:#f4f4f4;padding:7px 10px;font:inherit}button:not(:disabled){cursor:pointer}button:hover:not(:disabled){background:#3b3b3b;border-color:#666}button:disabled{opacity:.38}.icon-button{position:relative;box-sizing:border-box;width:34px;height:34px;min-width:34px;min-height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:0}.icon-button::before{font-size:16px;line-height:1}.icon-button[data-icon="play.fill"]::before{content:"▶";transform:translateX(1px)}.icon-button[data-icon="stop.fill"]::before{content:"■";font-size:14px}.icon-button[data-icon="arrow.clockwise"]::before{content:"↻"}.icon-button[data-icon="arrow.counterclockwise"]::before{content:"↺"}.icon-button[data-icon="xmark"]::before{content:"×";font-size:20px}.icon-button[data-icon="square.and.arrow.up"]::before{content:"↑"}.icon-button[data-icon="square.and.arrow.down"]::before{content:"↓"}.icon-button[data-icon="folder.fill"]::before{content:"";width:18px;height:13px;border-radius:2px;background:currentColor;clip-path:polygon(0 18%,34% 18%,43% 0,100% 0,100% 100%,0 100%)}.icon-button[data-icon="trash"]::before{content:"";width:11px;height:12px;margin-top:3px;border:1.5px solid currentColor;border-top:0;border-radius:0 0 2px 2px}.icon-button[data-icon="trash"]::after{content:"";position:absolute;left:10px;top:9px;width:14px;height:5px;background:linear-gradient(currentColor,currentColor) center top/6px 1.5px no-repeat,linear-gradient(currentColor,currentColor) center 3px/14px 1.5px no-repeat}.primary{background:#245fbe;border-color:#3474d6}.is-hidden{display:none!important}
     footer{display:flex;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #343434}footer button{min-height:34px}
   `;
 
@@ -281,6 +285,7 @@
     const execution = settings.execution || global.Execution;
     const system = settings.system || global.System;
     const ui = settings.ui || global.ui;
+    const dialog = settings.dialog || global.Dialog;
     const Floating = settings.FloatingWindow || global.FloatingWindow;
     const Abort = settings.AbortController || global.AbortController;
     const logger = settings.logger || global.console;
@@ -294,8 +299,8 @@
     if (!file || typeof file.join !== 'function' || typeof file.path !== 'function'
       || typeof file.stat !== 'function' || typeof file.listDir !== 'function'
       || typeof file.read !== 'function' || typeof file.write !== 'function'
-      || typeof file.ensureDir !== 'function') {
-      throw new Error('script runner requires File path/join/stat/listDir/read/write/ensureDir');
+      || typeof file.ensureDir !== 'function' || typeof file.remove !== 'function') {
+      throw new Error('script runner requires File path/join/stat/listDir/read/write/ensureDir/remove');
     }
     if (!command || typeof command.run !== 'function') throw new Error('script runner requires Command.run()');
     if (!execution || !execution.workdir) throw new Error('script runner requires Execution.workdir');
@@ -330,6 +335,7 @@
     let selectorVisible = false;
     let selectorSequence = 0;
     let statusMessage = '';
+    let pendingDeleteName = null;
     let runPromise = null;
     let activeRun = null;
     let closed = false;
@@ -486,7 +492,7 @@
       return payload.flows.map(record => {
         const installId = record && typeof record.installId === 'string' ? record.installId : '';
         const name = record && typeof record.name === 'string' ? record.name.trim() : '';
-        if (!/^flow-[a-f0-9]{32}$/.test(installId) || !name) return null;
+        if (!/^(?:flow|local)-[a-f0-9]{32}$/.test(installId) || !name) return null;
         return {
           name: `flow:${installId}`,
           key: `flow:${installId}`,
@@ -634,6 +640,7 @@
         viewState: viewState(),
         scriptRoot: root,
         statusMessage,
+        pendingDeleteName,
         rowCapacity: listRowCapacity,
       };
     }
@@ -664,7 +671,7 @@
     }
 
     async function updateToolbar() {
-      const busy = !!activeRun;
+      const busy = !!activeRun || !!pendingDeleteName;
       const current = selectedScript();
       const runnable = !loadError && configValid && !!current
         && (current.kind !== 'flow' || current.state === 'ready');
@@ -699,7 +706,7 @@
 
     async function updateListControls() {
       if (!listWindow) return;
-      const busy = !!activeRun;
+      const busy = !!activeRun || !!pendingDeleteName;
       const currentView = viewState();
       const listVisible = currentView === 'ready' || currentView === 'running' || (!loadError && scripts.length > 0 && currentView === 'error');
       const emptyVisible = currentView === 'empty';
@@ -730,7 +737,7 @@
         const message = loadError ? loadError.message : configError || '未知错误';
         await safeControlUpdate('errorMessage', {text: message});
       }
-      for (const id of ['colSelect', 'colIndex', 'colName', 'colRun', 'colUp', 'colDown']) {
+      for (const id of ['colSelect', 'colIndex', 'colName', 'colRun', 'colUp', 'colDown', 'colDelete']) {
         await safeControlUpdate(id, {visible: listVisible, classes: ['column-head']});
       }
 
@@ -767,6 +774,13 @@
           icon: BUTTON_ICONS.moveDown,
           text: script ? `下移 ${displayName}` : '下移自动化',
           classes: ['order', 'icon-button'],
+        });
+        await safeControlUpdate(`delete${index}`, {
+          visible,
+          disabled: busy || !script || !!loadError,
+          icon: BUTTON_ICONS.delete,
+          text: script ? `删除 ${displayName}` : '删除自动化',
+          classes: ['delete', 'icon-button'],
         });
       }
 
@@ -931,6 +945,10 @@
 
     function requestRun(queue, source) {
       if (runPromise) return runPromise;
+      if (pendingDeleteName) {
+        setListStatus('正在确认删除自动化，请先完成或取消该操作。');
+        return Promise.resolve({status: 'blocked', completed: 0, total: 0, reason: 'delete-pending'});
+      }
       if (loadError) {
         setListStatus(`脚本目录不可用：${loadError.message}`);
         return Promise.resolve({status: 'blocked', completed: 0, total: 0, reason: 'script-root-error'});
@@ -976,7 +994,7 @@
     }
 
     async function moveScript(index, delta) {
-      if (runPromise || loadError) return false;
+      if (runPromise || pendingDeleteName || loadError) return false;
       const target = index + delta;
       if (index < 0 || index >= scripts.length || target < 0 || target >= scripts.length) return false;
       if (listWindow) await captureSelection(listWindow);
@@ -991,7 +1009,7 @@
     }
 
     async function restoreDefaultOrder() {
-      if (runPromise) return false;
+      if (runPromise || pendingDeleteName) return false;
       const oldOrder = scripts.map(script => script.name);
       const oldCurrent = selectedScriptName;
       loading = true;
@@ -1018,7 +1036,7 @@
     }
 
     async function rescan() {
-      if (runPromise) return false;
+      if (runPromise || pendingDeleteName) return false;
       if (listWindow) await captureSelection(listWindow);
       const oldOrder = scripts.map(script => script.name);
       const oldCurrent = selectedScriptName;
@@ -1047,7 +1065,7 @@
     }
 
     async function openScriptDirectory() {
-      if (runPromise) return null;
+      if (runPromise || pendingDeleteName) return null;
       ensureManagedRoot();
       if (platform === 'windows') {
         return command.run('explorer.exe', [root], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: MAX_OUTPUT_BYTES, hideWindow: true});
@@ -1056,6 +1074,74 @@
         return command.run('/usr/bin/open', [root], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: MAX_OUTPUT_BYTES, hideWindow: true});
       }
       return command.run('xdg-open', [root], {cwd: execution.workdir, timeout: 10000, maxOutputBytes: MAX_OUTPUT_BYTES, hideWindow: true});
+    }
+
+    async function removeAutomation(index) {
+      if (runPromise || activeRun || pendingDeleteName || loadError) return false;
+      const script = scripts[index];
+      if (!script) return false;
+      if (!dialog || typeof dialog.confirm !== 'function') {
+        throw new Error('删除自动化需要 Dialog.confirm()');
+      }
+
+      const scriptKey = script.name;
+      const displayName = scriptDisplayName(script);
+      const oldOrder = scripts.map(item => item.name);
+      const oldCurrent = selectedScriptName;
+      pendingDeleteName = scriptKey;
+      await syncUI();
+      try {
+        const isFlow = script.kind === 'flow';
+        const accepted = await dialog.confirm({
+          title: isFlow ? '卸载自动化' : '删除自动化',
+          message: isFlow
+            ? `将从 Script Runner 卸载“${displayName}”。\n\n该 Flow 的独立业务数据将保留；此操作不会运行自动化。`
+            : `将永久删除自动化“${displayName}”及其文件：\n${script.path}\n\n此操作不能撤销。`,
+          level: 'warning',
+          confirmText: isFlow ? '卸载' : '永久删除',
+          cancelText: '取消',
+          defaultAction: 'cancel',
+        });
+        if (!accepted) return false;
+        if (runPromise || activeRun) return false;
+
+        const latest = scripts.find(item => item.name === scriptKey);
+        if (!latest || latest.kind !== script.kind || latest.path !== script.path) {
+          throw new Error('自动化列表已变化，请刷新后重试');
+        }
+
+        if (isFlow) {
+          const result = await command.run(executable, ['flow', 'uninstall', latest.installId], {
+            cwd: execution.workdir,
+            timeout: 30000,
+            maxOutputBytes: MAX_OUTPUT_BYTES,
+            hideWindow: true,
+          });
+          decodeCommandJSON(result, 'flow uninstall');
+        } else {
+          const info = file.stat(latest.path);
+          if (!info || info.type !== 'file') throw new Error(`自动化文件已不存在：${latest.path}`);
+          file.remove(latest.path);
+          if (file.stat(latest.path) !== null) throw new Error(`删除后自动化文件仍然存在：${latest.path}`);
+        }
+
+        scripts = scripts.filter(item => item.name !== scriptKey);
+        selectedNames.delete(scriptKey);
+        selectedScriptName = reconcileCurrentAfterRefresh(oldOrder, scripts.map(item => item.name), oldCurrent);
+        await saveCurrentOrder();
+        statusMessage = isFlow
+          ? `已卸载自动化：${displayName}（已保留独立业务数据）`
+          : `已删除自动化：${displayName}`;
+        logRecord(isFlow ? 'SCRIPT_RUNNER_FLOW_UNINSTALLED' : 'SCRIPT_RUNNER_SCRIPT_DELETED', {
+          script: displayName,
+          scriptKey,
+          scriptPath: script.path,
+        });
+        return true;
+      } finally {
+        if (pendingDeleteName === scriptKey) pendingDeleteName = null;
+        await syncUI();
+      }
     }
 
     function bind(window, controlId, action) {
@@ -1197,6 +1283,7 @@
         });
         bind(window, `up${index}`, () => moveScript(index, -1));
         bind(window, `down${index}`, () => moveScript(index, 1));
+        bind(window, `delete${index}`, () => removeAutomation(index));
         window.control(`select${index}`).on('change', async () => {
           try {
             const script = scripts[index];
@@ -1373,6 +1460,7 @@
       rescan,
       stopRun,
       restoreDefaultOrder,
+      removeAutomation,
       requestRun,
       scripts: () => clone(scripts),
       state: () => ({
@@ -1388,6 +1476,7 @@
         scriptCount: scripts.length,
         selectedScriptName,
         selectedNames: Array.from(selectedNames),
+        pendingDeleteName,
         selectorPrepared: !!selectorWindow,
         selectorVisible,
         listPrepared: !!listWindow,

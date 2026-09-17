@@ -516,8 +516,11 @@
       if (opening) return opening;
       lastError = null;
       const task = (async () => {
-        start();
+        const current = start();
         await Promise.resolve();
+        if (String(source || '').startsWith('flow-') && typeof current.rescan === 'function') {
+          await current.rescan();
+        }
         return state();
       })();
       opening = task;

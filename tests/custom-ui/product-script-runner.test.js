@@ -67,6 +67,7 @@ function createHarness(options = {}) {
   let createAppCount = 0;
   let runnerOptions = null;
   let runnerToolbar = null;
+  let rescanCount = 0;
 
   const ui = {
     async createWindow(spec) {
@@ -168,6 +169,7 @@ function createHarness(options = {}) {
           return {message, window};
         },
         async stopRun() { return true; },
+        async rescan() { rescanCount += 1; return true; },
         state() { return {running: true, scriptCount: 1}; },
       };
     },
@@ -216,6 +218,7 @@ function createHarness(options = {}) {
       error(message) { errors.push(String(message)); },
     },
     get createAppCount() { return createAppCount; },
+    get rescanCount() { return rescanCount; },
     File: {
       join: path.join,
       path: value => path.resolve(value),
@@ -287,6 +290,10 @@ test('product Open action keeps the toolbar visible without opening the prepared
   assert.equal(harness.windows[0].showCount, 0, 'repeated OpenDesk menu actions must remain toolbar-only');
   assert.equal(harness.createAppCount, 1, 'reopen must reuse the same shared Runner app');
   assert.equal(harness.floatingWindows.length, 1, 'reopen must not create a second toolbar');
+
+  await runner.open('flow-file-drop');
+  assert.equal(harness.rescanCount, 1, 'successful native Flow installation must rescan the existing Runner');
+  assert.equal(harness.windows[0].showCount, 0, 'Flow refresh must not auto-open or run list content');
 
   await runner.openList('toolbar-list');
   assert.equal(harness.windows[0].showCount, 1, 'the dedicated list action must still open the list window');

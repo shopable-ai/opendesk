@@ -32,6 +32,7 @@ function FileAPI(overrides = {}) {
       fs.writeFileSync(p, content);
     },
     ensureDir: p => fs.mkdirSync(p, {recursive: true}),
+    remove: p => fs.unlinkSync(p),
   };
   return Object.assign(api, overrides);
 }
@@ -134,6 +135,7 @@ async function fixture(options = {}) {
   const ui = FakeUI();
   const toolbarCapture = ToolbarCapture();
   const calls = [];
+  const confirmations = [];
   const command = options.command || {
     async run(executable, args, commandOptions) {
       calls.push({executable, args, options: commandOptions});
@@ -151,6 +153,12 @@ async function fixture(options = {}) {
     execution: {workdir: temp},
     system: {getExecutablePath: () => '/fake/opendesk', getPlatformInfo: () => ({os: 'darwin'})},
     ui,
+    dialog: options.dialog || {
+      async confirm(spec) {
+        confirmations.push(spec);
+        return false;
+      },
+    },
     FloatingWindow: toolbarCapture.FakeToolbar,
     AbortController,
     logger: {log() {}, error() {}},
@@ -165,7 +173,7 @@ async function fixture(options = {}) {
     await appRun;
     fs.rmSync(temp, {recursive: true, force: true});
   }
-  return {temp, scriptRoot, ui, toolbar, calls, app, appRun, cleanup};
+  return {temp, scriptRoot, ui, toolbar, calls, confirmations, app, appRun, cleanup};
 }
 
 async function click(window, id) {
@@ -247,6 +255,7 @@ test('automation list uses compact icon controls with accessible labels', () => 
   assert.match(html, /id="run0"[^>]*class="run icon-button"[^>]*data-icon="play\.fill"[^>]*aria-label="[^"]+"/);
   assert.match(html, /id="up0"[^>]*data-icon="square\.and\.arrow\.up"/);
   assert.match(html, /id="down0"[^>]*data-icon="square\.and\.arrow\.down"/);
+  assert.match(html, /id="delete0"[^>]*class="delete icon-button"[^>]*data-icon="trash"[^>]*aria-label="删除第 1 个自动化"/);
   for (const [id, icon] of [
     ['runSelected', 'play.fill'],
     ['stopRun', 'stop.fill'],
@@ -278,7 +287,7 @@ test('automation list keeps Runtime-hidden icon and grid controls out of layout'
   try {
     const window = f.ui.windows[0];
     assert.match(window.spec.content.css, /\[hidden\]\{display:none!important\}/);
-    for (const id of ['emptyOpenDirectory', 'emptyRefresh', 'errorRefresh', 'name1', 'run1', 'up1', 'down1']) {
+    for (const id of ['emptyOpenDirectory', 'emptyRefresh', 'errorRefresh', 'name1', 'run1', 'up1', 'down1', 'delete1']) {
       assert.equal(window.control(id).state.visible, false, `${id} must stay hidden in the ready layout`);
     }
   } finally {
@@ -361,6 +370,82 @@ test('ready refreshes to empty, clears stale selection, and keeps the same windo
     assert.equal(window.control('name0').state.visible, false);
     assert.equal(window.control('emptyTitle').state.visible, true);
     assert.equal(f.toolbar.buttons.get('run').disabled, true);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('row Delete requires explicit confirmation, removes the local file, and selects the next automation', async () => {
+  let accepted = false;
+  const confirmations = [];
+  const f = await fixture({
+    scriptNames: ['a.js', 'b.js'],
+    dialog: {
+      async confirm(spec) {
+        confirmations.push(spec);
+        return accepted;
+      },
+    },
+  });
+  try {
+    const window = f.ui.windows[0];
+    assert.equal(await click(window, 'delete0'), false);
+    assert.equal(fs.existsSync(path.join(f.scriptRoot, 'a.js')), true);
+    assert.equal(confirmations[0].defaultAction, 'cancel');
+    assert.equal(confirmations[0].confirmText, '永久删除');
+    assert.match(confirmations[0].message, /a\.js/);
+    assert.match(confirmations[0].message, /不能撤销/);
+
+    accepted = true;
+    assert.equal(await click(window, 'delete0'), true);
+    assert.equal(fs.existsSync(path.join(f.scriptRoot, 'a.js')), false);
+    assert.deepEqual(f.app.scripts().map(script => script.name), ['b.js']);
+    assert.equal(f.app.state().selectedScriptName, 'b.js');
+    assert.equal(f.app.state().pendingDeleteName, null);
+    assert.equal(window.control('name0').state.text, 'b.js');
+    assert.equal(window.control('delete0').state.disabled, false);
+    assert.equal(window.control('delete1').state.visible, false);
+    const config = JSON.parse(fs.readFileSync(path.join(f.scriptRoot, '.opendesk-runner.json'), 'utf8'));
+    assert.deepEqual(config.order, ['b.js']);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('row Delete uninstalls a Flow without removing its independent business data', async () => {
+  const installId = 'flow-' + 'd'.repeat(32);
+  const calls = [];
+  const catalog = JSON.stringify({
+    ok: true,
+    result: {flows: [{installId, name: 'Daily Export', state: 'ready'}]},
+  });
+  const f = await fixture({
+    flowCatalog: true,
+    scriptNames: [],
+    dialog: {confirm: async () => true},
+    command: {
+      async run(executable, args, options) {
+        calls.push({executable, args, options});
+        if (args[0] === 'flow' && args[1] === 'list') {
+          return {exitCode: 0, stdout: catalog, stderr: ''};
+        }
+        if (args[0] === 'flow' && args[1] === 'uninstall') {
+          return {exitCode: 0, stdout: JSON.stringify({ok: true, result: {installId}}), stderr: ''};
+        }
+        throw new Error(`unexpected command: ${args.join(' ')}`);
+      },
+    },
+  });
+  try {
+    const window = f.ui.windows[0];
+    assert.equal(await click(window, 'delete0'), true);
+    const uninstall = calls.find(call => call.args[0] === 'flow' && call.args[1] === 'uninstall');
+    assert.deepEqual(uninstall.args, ['flow', 'uninstall', installId]);
+    assert.equal(uninstall.args.includes('--remove-data'), false);
+    assert.deepEqual(f.app.scripts(), []);
+    assert.equal(f.app.state().viewState, 'empty');
+    assert.equal(f.app.state().selectedScriptName, null);
+    assert.equal(window.control('emptyTitle').state.visible, true);
   } finally {
     await f.cleanup();
   }
@@ -654,6 +739,39 @@ test('Flow Catalog entries use stable install identity, manifest display name, a
     const flowRun = fCalls.find(call => call.args[0] === 'flow' && call.args[1] === 'run');
     assert.deepEqual(flowRun.args.slice(0, 3), ['flow', 'run', installId]);
     assert.equal(flowRun.args.includes('-script'), false);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test('plain JS and MJS imports remain discoverable as local Flow records until explicit run', async () => {
+  const installId = 'local-' + 'b'.repeat(32);
+  const calls = [];
+  const f = await fixture({
+    flowCatalog: true,
+    scriptNames: [],
+    command: {
+      async run(executable, args, options) {
+        calls.push({executable, args, options});
+        if (args[0] === 'flow' && args[1] === 'list') {
+          return {
+            exitCode: 0,
+            stdout: JSON.stringify({ok: true, result: {flows: [{installId, name: '本地 MJS Flow', state: 'ready', origin: 'js'}]}}),
+            stderr: '',
+          };
+        }
+        if (args[0] === 'flow' && args[1] === 'run') return {exitCode: 0, stdout: '', stderr: ''};
+        throw new Error(`unexpected command: ${args.join(' ')}`);
+      },
+    },
+  });
+  try {
+    assert.deepEqual(f.app.scripts().map(script => ({name: script.name, displayName: script.displayName})), [
+      {name: `flow:${installId}`, displayName: '本地 MJS Flow'},
+    ]);
+    assert.equal(calls.some(call => call.args[0] === 'flow' && call.args[1] === 'run'), false);
+    await f.toolbar.buttons.get('run').callback();
+    assert.deepEqual(calls.find(call => call.args[0] === 'flow' && call.args[1] === 'run').args.slice(0, 3), ['flow', 'run', installId]);
   } finally {
     await f.cleanup();
   }
