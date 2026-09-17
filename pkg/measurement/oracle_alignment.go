@@ -65,6 +65,15 @@ func (a *activeSession) copyEvidence(ctx context.Context) error {
 }
 
 func (a *activeSession) inspectorEvidence() string {
+	result := any(a.result)
+	if a.result != nil {
+		if outputs, err := a.outputsWithProductEvidence(); err == nil {
+			var structured any
+			if json.Unmarshal([]byte(outputs.JSON), &structured) == nil {
+				result = structured
+			}
+		}
+	}
 	view := map[string]any{
 		"schemaVersion":   "desktop-measurement-session/v1",
 		"phase":           a.phaseValue(),
@@ -74,7 +83,7 @@ func (a *activeSession) inspectorEvidence() string {
 		"localReference":  nil,
 		"pointer":         nil,
 		"candidateStack":  a.service.SnapshotCandidates(),
-		"result":          a.result,
+		"result":          result,
 		"runtimeEvidence": map[string]bool{"absoluteGeometryIsRuntimeEvidenceOnly": true, "sourcePixelsAreFrozenSnapshotOnly": true},
 	}
 	if hasLocalReference(a) {

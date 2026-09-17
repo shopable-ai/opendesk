@@ -35,7 +35,7 @@ func TestRecorderMeasurementControlUsesPauseBoundaryAndNeverAutoResumes(t *testi
 	}
 }
 
-func TestRecorderMeasurementToolbarUsesRulerAndSharedShortcutHint(t *testing.T) {
+func TestRecorderMeasurementToolbarUsesViewfinderAndSharedShortcutHint(t *testing.T) {
 	path := filepath.Join("..", "..", "apps", "opendesk", "recorder", "controller.js")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -43,7 +43,7 @@ func TestRecorderMeasurementToolbarUsesRulerAndSharedShortcutHint(t *testing.T) 
 	}
 	text := string(data)
 	for _, required := range []string{
-		"const MEASUREMENT_ICON = 'ruler'",
+		"const MEASUREMENT_ICON = 'viewfinder'",
 		"settings.measurementShortcut",
 		"measurementLabel",
 		"id === 'measurement'",

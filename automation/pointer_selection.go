@@ -49,6 +49,26 @@ func ObservePointerSelection(ctx context.Context, handler func(PointerSelectionE
 	return observePointerSelectionWithBackend(ctx, newRecorderInputBackend(), handler)
 }
 
+// ListPointerSelectionWindows returns the current front-to-back native window
+// snapshot used while resolving a pointer selection. On macOS this deliberately
+// avoids the Accessibility/JXA enumeration path: pointer motion and click
+// confirmation are synchronous, so a permission prompt or System Events stall
+// must not block every input event before the existing CoreGraphics fallback is
+// reached. This is a host-only Go helper, not a JavaScript Runtime API.
+func ListPointerSelectionWindows(manager *WindowManager) ([]map[string]interface{}, error) {
+	if manager == nil {
+		return nil, errors.New("pointer selection window manager is unavailable")
+	}
+	rows, err := listPointerSelectionWindows(manager)
+	if err != nil {
+		return nil, fmt.Errorf("list pointer selection windows: %w", err)
+	}
+	for _, row := range rows {
+		normalizeWindowRow(row)
+	}
+	return rows, nil
+}
+
 func observePointerSelectionWithBackend(ctx context.Context, backend RecorderInputBackend, handler func(PointerSelectionEvent) bool) error {
 	if ctx == nil {
 		ctx = context.Background()

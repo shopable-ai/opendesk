@@ -441,7 +441,10 @@ func (w *darwinWindowManager) List() ([]map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	return macWindowRows(windows), nil
+}
 
+func macWindowRows(windows []macWindow) []map[string]interface{} {
 	result := make([]map[string]interface{}, 0, len(windows))
 	for _, item := range windows {
 		row := map[string]interface{}{
@@ -462,7 +465,7 @@ func (w *darwinWindowManager) List() ([]map[string]interface{}, error) {
 		}
 		result = append(result, row)
 	}
-	return result, nil
+	return result
 }
 
 func (w *darwinWindowManager) GetFocusWindow() (*WindowInfo, error) {

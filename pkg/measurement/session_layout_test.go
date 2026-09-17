@@ -51,13 +51,13 @@ func TestMeasurementWindowSpecUsesDisplaySizedProductSurface(t *testing.T) {
 	}
 }
 
-func TestHUDPlacementOpposesTargetAndMarksLargeTarget(t *testing.T) {
+func TestHUDPlacementMatchesFrozenOracleAndMarksLargeTarget(t *testing.T) {
 	mapping, err := NewCaptureMapping(Point{X: -100, Y: 20}, Size{Width: 1000, Height: 800}, PixelSize{Width: 2000, Height: 1600}, "display", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	corner, constrained := hudPlacement(mapping, Rect{X: -80, Y: 40, Width: 100, Height: 100})
-	if corner != "bottom-right" || constrained {
+	if corner != "top-right" || constrained {
 		t.Fatalf("top-left target => %q constrained=%v", corner, constrained)
 	}
 	corner, constrained = hudPlacement(mapping, Rect{X: 20, Y: 100, Width: 800, Height: 650})

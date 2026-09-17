@@ -232,7 +232,7 @@ func TestSnapshotCandidateDriverForwardsRegionSnapButNeverSnapsPoint(t *testing.
 	}
 	defer service.Close(context.Background())
 	a := service.active
-	setMeasurementTool(a, "point")
+	setMeasurementTool(a, "region")
 	driver := service.driver.(*snapshotCandidateDriver)
 	driver.handleHostEvent(customui.Event{WindowID: WindowID, Type: "measurement.pointermove", Fields: map[string]any{"u": .4, "v": .4}})
 	view := waitCandidateView(t, service, func(view SnapshotCandidateView) bool { return len(view.Candidates) > 0 })

@@ -78,7 +78,7 @@ test('measurement host bridge forwards the complete session keyboard contract', 
   assert.ok(keyup);
   const cases = [
     ['1'], ['2'], ['3'], ['4'], ['Tab'], ['Tab', {shift: true}], ['Alt'],
-    ['ArrowLeft'], ['ArrowRight', {shift: true}], ['I'], ['Escape'],
+    ['I'], ['Escape'],
   ];
   for (const [key, modifiers] of cases) {
     const event = keyboardEvent(key, modifiers);
@@ -88,16 +88,16 @@ test('measurement host bridge forwards the complete session keyboard contract', 
   const altUp = keyboardEvent('Alt');
   keyup(altUp);
   const forwarded = messages.filter(message => message.type === 'measurement.key').map(message => message.fields);
-  assert.deepEqual(forwarded.map(fields => fields.key), ['1', '2', '3', '4', 'Tab', 'Tab', 'Alt', 'ArrowLeft', 'ArrowRight', 'I', 'Escape', 'Alt']);
+  assert.deepEqual(forwarded.map(fields => fields.key), ['1', '2', '3', '4', 'Tab', 'Tab', 'Alt', 'I', 'Escape', 'Alt']);
   assert.equal(forwarded.at(-1).phase, 'up');
-  assert.equal(forwarded[7].shift, false);
-  assert.equal(forwarded[8].shift, true);
 });
 
 test('Measurement bridge does not hijack deprecated R or system copy chords', () => {
   const {messages, listeners} = bridgeHarness();
   for (const [key, modifiers] of [
     ['R', {}],
+    ['ArrowLeft', {}],
+    ['ArrowRight', {shift: true}],
     ['c', {meta: true}],
     ['c', {meta: true, shift: true}],
     ['c', {meta: true, alt: true}],
@@ -147,7 +147,7 @@ test('Measurement toolbar drag moves only the toolbar and keeps it on-screen', (
 
 test('macOS host relays the Measurement key contract while its nonactivating panel is visible', () => {
   const macHost = fs.readFileSync(path.join(__dirname, '../../pkg/customui/machost/native_darwin.m'), 'utf8');
-  for (const key of ["key==='1'", "key==='2'", "key==='3'", "key==='4'", "key==='Tab'", "key==='Alt'", "key.startsWith('Arrow')", "key.toLowerCase()==='i'", "key==='Escape'"]) {
+  for (const key of ["key==='1'", "key==='2'", "key==='3'", "key==='4'", "key==='Tab'", "key==='Alt'", "key.toLowerCase()==='i'", "key==='Escape'"]) {
     assert.match(macHost, new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
   assert.doesNotMatch(macHost, /key\.toLowerCase\(\)===\'r\'/);
@@ -158,8 +158,21 @@ test('macOS host relays the Measurement key contract while its nonactivating pan
 	assert.match(macHost, /startMeasurementKeyboardMonitor/);
 	assert.match(macHost, /stopMeasurementKeyboardMonitor/);
 	assert.match(macHost, /removeMonitor:self\.measurementKeyboardMonitor/);
+	for (const mapping of ['case 34: return @"i"']) {
+		assert.match(macHost, new RegExp(mapping.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+	}
   assert.match(macHost, /source:el\.tagName === 'IMG'/);
   assert.match(macHost, /Object\.prototype\.hasOwnProperty\.call\(patch,'source'\)/);
   assert.match(macHost, /data-opendesk-measurement-toolbar-drag/);
   assert.match(macHost, /toolbar\.style\.bottom='auto'/);
+	assert.doesNotMatch(macHost, /const lens=document\.createElement/);
+});
+
+test('Measurement overlays do not add a magnifier outside the Frozen Oracle', () => {
+	const windowsHost = fs.readFileSync(path.join(__dirname, '../../pkg/customui/winhost/bridge.js'), 'utf8');
+	const macHost = fs.readFileSync(path.join(__dirname, '../../pkg/customui/machost/native_darwin.m'), 'utf8');
+	for (const host of [windowsHost, macHost]) {
+		assert.doesNotMatch(host, /const lens=document\.createElement/);
+		assert.doesNotMatch(host, /width:96px;height:96px/);
+	}
 });

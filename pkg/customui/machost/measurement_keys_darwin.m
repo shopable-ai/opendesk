@@ -34,7 +34,7 @@ static void CDEmitMeasurementKey(CDMeasurementPanel *panel, NSEvent *event, NSSt
     if (![delegate respondsToSelector:@selector(emitType:target:body:reason:)]) return;
     [(id<CDMeasurementKeyEventSink>)delegate emitType:@"measurement.key"
                                                target:CDMeasurementTargetID
-                                                 body:CDMeasurementKeyFields(event, key, phase)
+                                                 body:@{@"fields": CDMeasurementKeyFields(event, key, phase)}
                                                reason:nil];
 }
 

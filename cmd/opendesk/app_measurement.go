@@ -229,7 +229,7 @@ func (state *measurementReferenceSelectionState) apply(event automation.PointerS
 }
 
 func measurementWindowAtPoint(manager *automation.WindowManager, x, y float64) (measurementWindowRow, bool, error) {
-	rows, err := manager.List()
+	rows, err := automation.ListPointerSelectionWindows(manager)
 	if err != nil {
 		return measurementWindowRow{}, false, fmt.Errorf("resolve live measurement reference: %w", err)
 	}
@@ -268,38 +268,28 @@ func sameMeasurementWindowObservation(first, second measurementWindowRow) bool {
 }
 
 func measurementWindows(manager *automation.WindowManager) ([]measurementWindowRow, error) {
-	rows, err := manager.List()
+	rows, err := automation.ListPointerSelectionWindows(manager)
 	if err != nil {
 		return nil, fmt.Errorf("list target windows: %w", err)
 	}
-	windows := make([]measurementWindowRow, 0, len(rows)+1)
+	windows := make([]measurementWindowRow, 0, len(rows))
 	seen := map[string]bool{}
+	activeID := ""
 	for _, row := range rows {
 		item := measurementWindowFromMap(row)
 		if item.id == "" || strings.TrimSpace(item.title) == "" || item.width <= 0 || item.height <= 0 || seen[item.id] || measurementExcludedWindow(item) {
 			continue
 		}
+		if activeID == "" && (boolValue(row["isForeground"]) || boolValue(row["hasFocus"])) {
+			activeID = item.id
+		}
 		seen[item.id] = true
 		windows = append(windows, item)
-	}
-	active, activeErr := manager.GetActiveWindow()
-	activeID := ""
-	if activeErr == nil && active != nil && active.Width > 0 && active.Height > 0 {
-		activeID = active.ID
-		if !seen[active.ID] {
-			item := measurementWindowFromInfo(active)
-			if !measurementExcludedWindow(item) {
-				windows = append(windows, item)
-			}
-		}
 	}
 	for index := range windows {
 		windows[index].isActive = windows[index].id == activeID
 	}
 	if len(windows) == 0 {
-		if activeErr != nil {
-			return nil, fmt.Errorf("resolve active target window: %w", activeErr)
-		}
 		return nil, fmt.Errorf("no measurable target window is available")
 	}
 	sort.SliceStable(windows, func(i, j int) bool {
@@ -330,17 +320,6 @@ func measurementWindowFromMap(row map[string]interface{}) measurementWindowRow {
 		x: numberValue(row["x"]), y: numberValue(row["y"]), width: numberValue(row["width"]), height: numberValue(row["height"]),
 		raw: measurementWindowExactTarget(row),
 	}
-}
-
-func measurementWindowFromInfo(info *automation.WindowInfo) measurementWindowRow {
-	if info == nil {
-		return measurementWindowRow{}
-	}
-	return measurementWindowFromMap(map[string]interface{}{
-		"id": info.ID, "title": info.Title, "pid": info.ProcessID, "handle": info.Handle,
-		"x": info.X, "y": info.Y, "width": info.Width, "height": info.Height,
-		"exeName": info.ExeName, "exePath": info.ExePath,
-	})
 }
 
 // measurementWindowExactTarget keeps the existing WindowInfo contract intact:
