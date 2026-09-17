@@ -111,11 +111,9 @@ func newRecorderWriter(workDir, outputDir string, manifest recorderManifest, fac
 	if err := os.Mkdir(recordingDir, 0700); err != nil {
 		return nil, recorderError(RecorderStorageFailed, operation, "could not create a unique recording directory", err)
 	}
-	rawDir := filepath.Join(recordingDir, "raw")
-	if err := os.Mkdir(rawDir, 0700); err != nil {
-		return nil, recorderError(RecorderStorageFailed, operation, "could not create the raw recording directory", err)
-	}
-	rawPath := filepath.Join(rawDir, "events.ndjson")
+	// Recording artifacts live directly in the recording directory. The former
+	// raw/ wrapper contained only events.ndjson and added no semantic boundary.
+	rawPath := filepath.Join(recordingDir, "events.ndjson")
 	if factory == nil {
 		factory = func(path string, flags int, mode os.FileMode) (recorderFile, error) {
 			return os.OpenFile(path, flags, mode)
@@ -123,11 +121,11 @@ func newRecorderWriter(workDir, outputDir string, manifest recorderManifest, fac
 	}
 	file, err := factory(rawPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
-		return nil, recorderError(RecorderStorageFailed, operation, "could not create raw/events.ndjson", err)
+		return nil, recorderError(RecorderStorageFailed, operation, "could not create events.ndjson", err)
 	}
 	writer := &recorderWriter{
 		recordingID: manifest.RecordingID, recordingDir: recordingDir,
-		rawPath: rawPath, manifestPath: filepath.Join(recordingDir, "manifest.json"), rawRelative: filepath.Join("raw", "events.ndjson"),
+		rawPath: rawPath, manifestPath: filepath.Join(recordingDir, "manifest.json"), rawRelative: "events.ndjson",
 		file: file, buffer: bufio.NewWriterSize(file, 64*1024),
 		manifest: manifest, writeManifest: recorderWriteJSONAtomic,
 	}
