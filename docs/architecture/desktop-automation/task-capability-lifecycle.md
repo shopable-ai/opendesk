@@ -1,332 +1,210 @@
 ---
 title: "Automation Capability Lifecycle｜运行、生产、资格与复用"
-description: "用户资产与产品核心分离；固定及参数化 Recipe 共用本地 Catalog、独立资格、发布和 App-owned 执行生命周期。"
+description: "Agent/Human/已有资产生产普通 JS；能力合同投影到唯一 Flow Catalog；制作、安装、启用和运行分别授权。"
 ---
 
 # Automation Capability Lifecycle
 
-状态：架构与实施合同 v0.2，2026-09-16。用户脚本调用修订的源码基线为 `master@d7bfffacb59b5f5c557aa47561e4af262d37d86c`。本次整合原 v0.1 的生命周期、安全、作者来源、资格、失败接续和实施边界；原文及其 2026-09-13 基线通过 Git 历史保留。
+架构与实施合同 v0.3，2026-09-18。文档核对起点为 `master@a1a02edab815567bd1a10e869adee50081c05af1`，写入按当前目标 SHA 核对。本轮是文档修订，不修改 Runtime、安装器、Recipe 或 UI，不运行测试；旧源码快照的 NOT RUN/PENDING 不推断当前实现状态。
 
-**本次是文档修订，不表示通用 Catalog、发布器、结构化 input/result、独立 recipe-qualify Skill、跨入口桌面锁或真实 UI 验收已经完成。没有修改 Runtime、搬迁 Calculator 或运行测试。**
-
-本次明确取代旧版两项限制：不再把“仅随产品内置条目”作为本地固定用户任务接入的前提；不再要求顶层业务 JS 必须先函数化才能调用。用户固定脚本接入列入最小闭环，但来源审阅、独立验证、发布及单次授权仍不可省略。
+本次在 v0.2 基础上同步三项决定：制作绑定项目，使用绑定 Flow 范围；能力目录是唯一 Local Flow Catalog 的调用投影，不另建物理安装库；本地 Codex 与后期助手内 Codex 共用制作任务包。固定顶层 JS 继续是一等对象，不恢复“必须先函数化/参数化”的旧限制。
 
 ## 1. 最终架构决定
 
-**一个可信任务目录、一条受管执行服务、两条保留来源差异的作者链和 Existing Assets 接续；用户任务存放在应用核心之外。固定任务与参数化任务同等正式，参数化是按业务需要进行的可选演进。**
+**一个 Flow 安装/Catalog/执行体系、两种用户模式、保留来源的作者工作流、精确候选与独立资格。**
 
-```text
-普通请求 → 对话/明确任务引用 → Task Intent
-→ Resolver 查询本地已发布能力
-  ├─ 当前可用：核对固定行为/可变参数 → 预检/预览/确认
-  │            → App-owned 独立任务 Execution → 实际观察/验证
-  ├─ 有能力但受阻：澄清/准备/重验/维修/扩展
-  └─ 无能力：Gap → 用户明确进入作者态
-               → Agent-to-Recipe / Human-to-Recipe / Existing Assets
-               → 冻结 Candidate → 独立资格 → 明确发布
-               → 新的运行预览与确认，不自动重跑旧请求
-失败 → Failure Package → 定向修复/重验 → 新版本或新资格
-```
+制作：真实目标 → 用户工作区/制作任务 → 获准操作并同步留证 → 业务结果核验 → 提炼普通 JS → 冻结候选 → 独立验证 → 明确发布/安装/启用。
 
-Normal Mode 消费可信已发布且当前适用的 Qualified Capability。普通开发者通过 Script Runner/CLI 使用自己的 JS 不被全局禁止；其手动开发者授权不自动变成助手可发现/可自动选择的资格。
+使用：允许 Flow 范围 → 符合请求的固定行为/可变参数 → 可信预览与确认 → 共同执行 owner → 当次结果与证据。Gap 只有在用户明确同意后才进入制作，不隐式提升模型工具权限，不自动重跑已完成的真实业务。
 
-Chat Runner 是产品状态机，不新增 `workflows/conversational-task-runner/`、`workflows/capability-resolver/` 或另一套 Workflow IR。Qualification/Publish 是作者态通向目录的出口，不另造第四套开发系统。
+Normal Mode 的自动选择需符合可信来源、启用、资格和当前可用条件；普通开发者直接运行自己的 JS 的既有方式不因此全局禁止。独立 Execution 仍使用既有 Runtime；不新建聊天专用 Runtime、Workflow IR、可执行 DSL 或递归启动器。
 
 ## 2. 三层责任与唯一真相
 
 | 层 | 拥有 | 不拥有 |
 | --- | --- | --- |
-| Runtime Execution Plane | 请求身份、输入/固定约束校验、预检、确认、任务 Execution、停止、资源仲裁、实际结果 | 修改业务代码、扩大资格、模型自授权 |
-| Capability Resolution / Catalog Plane | 可信描述符索引、固定候选/资格引用、发布/撤销、适用性与 Gap | 执行脚本探测 metadata、任意路径运行、模型签发权限 |
-| Capability Authoring Plane | 来源、业务合同、应用规则、普通 JS 候选、独立验证与发布请求 | 在普通运行确认内隐式开发、热改生产版本、自述通过 |
+| Runtime Execution Plane | 请求/运行身份、输入和固定约束、确认、执行/取消、资源仲裁、真实结果 | 修改业务代码、扩大资格、模型自授权 |
+| Capability Resolution / Catalog Plane | 唯一 Flow Catalog 的授权投影、候选/资格引用、支持范围、澄清/Gap | 第二安装库、Trust Store、执行源码探测 metadata |
+| Capability Authoring Plane | TaskContract、来源、应用规则、普通 JS 候选、独立资格、发布请求 | 热改已安装/运行版本，继承普通运行授权后自由开发 |
 
-文档职责：
+[制作与复用主方案](../assistant-script-invocation.md) 拥有总体结构、历史调用链、迁移和阶段顺序；[入口绑定合同](../assistant-workspace-bindings.md) 拥有会话/项目/范围/任务/Codex 关系；本文拥有跨作者/资格/发布/运行/维修的生命周期。
 
-- 本文：跨 Runtime/Catalog/Authoring 生命周期、发布/资格/失效/维修和信任边界的总纲。
-- [AI 助手真实调用链与用户脚本设计](../assistant-script-invocation.md)：当前源代码地图、用户目录、固定/参数化接入、调用机制、迁移和验收的阅读入口。
-- [对话工作台](../conversational-task-workspace.md)：用户会话、对话优先、任务详情；不强制增加任务商城、脚本选择器或参数表单。
-- [Calculator Chat P0](../conversational-task-runner.md)：历史示例的合同、命令、证据边界，不证明通用目录已完成。
-- [共享 Skill 合同](../../frameworks/agent-to-recipe-skill-contract.md)：TaskContract、AppProfile、SemanticProcedure、CandidateManifest、QualificationRecord、request/handoff；不复制同义 schema。
-- [Agent 链路](../../../workflows/agent-to-recipe/design/chain-design.md)与 [Human 入口](../../../workflows/human-to-recipe/README.md)：S/H 内部职责和来源。
-- [Gates](../../quality/gates-and-evidence.md)、[Failure Taxonomy](../../quality/failure-taxonomy.md)：继续沿用 G0—G7、F0—F10。
+[Flow 分发安装模型](../execution/flow-distribution-installation.md) 拥有格式、安装、信任、授权和物理根；[共享 Skill 合同](../../frameworks/agent-to-recipe-skill-contract.md) 拥有既有 TaskContract/AppProfile/SemanticProcedure/CandidateManifest/QualificationRecord；[Agent 链](../../../workflows/agent-to-recipe/design/chain-design.md)、[Human 链](../../../workflows/human-to-recipe/README.md) 保留来源方法。G0—G7 与 F0—F10 继续分别由既有 [Gates](../../quality/gates-and-evidence.md) 与 [Failure Taxonomy](../../quality/failure-taxonomy.md) 维护。
 
-业务定义是搜索说明的权威源；Catalog 只是版本绑定的索引投影；AppProfile 拥有应用规则；QualificationRecord 拥有资格与证据；Recipe 是真实执行代码。聊天 UI 不复制应用规则或独立业务任务清单。
+不新增同义 Program/Skill 注册、第二份商业 B0—B6 台账或 `workflows/conversational-task-runner/`。描述/索引只读投影绑定来源摘要，AppProfile 是应用规则权威，Recipe 是实际代码，Qualification 是验证记录；不能双向独立编辑成多套事实。
 
 ## 3. 真实基线与缺口
 
-### 2026-09-16 本次复核
+2026-09-16 的正式助手 Calculator 专用注入、固定 envelope、产品 Runner 用户目录及 App-owned execution 接缝已保存于 [主方案历史快照](../assistant-script-invocation.md#3-已保存的真实调用链2026-09-16-源码快照)。这些代码引用不能替代 2026-09-18 真实构建核验。
 
-| 范围 | 源码事实 | 仍不能推断 |
-| --- | --- | --- |
-| 正式 AI 助手 | main.js 直接注入 `capabilities/calculator.js`，两个固定 task；模型只生成 envelope | 用户业务应放该目录、通用目录已完成 |
-| 产品用户目录 | Script Runner 使用 `OPENDESK_APP_DATA_DIR`/用户 home 下的 appDataRoot；scriptRoot 可由 `OPENDESK_SCRIPT_RUNNER_DIR` 指定，默认 `recipes` | 目录里每个 JS 都有助手可调用资格 |
-| 产品执行器 | `cmd/opendesk/app_recipe_runner.go` 为 JS 创建新 Runtime/Execution，同 App host 进程；有 BUSY、Recorder 检查、取消和入口快照 | 第三方沙箱、全局原子桌面锁、结构化业务 input/result、依赖闭包或 `.odpkg` 已支持 |
-| 助手接线 | 当前仍在助手已有上下文调用 Calculator 模块 | 已经复用上述用户任务执行器 |
-| 调用历史 | request/message/终态存在 | 完整的候选、参数来源、版本与步骤审计记录 |
+2026-09-17 的 Flow 分发合同已经选定 `flows/<installId>/`、安装内容/数据/状态分离和共享安全链；本修订必须接续它，不能继续建设旧能力目录。具体 parser/install/catalog/context 完成度需读真实源码与既有交付报告，不能从历史文档 Pending 从零重做。
 
-源码定位见 [阅读入口第 2 节](../assistant-script-invocation.md#2-当前真实调用链两条路径尚未统一)。没有核验用户本机正在运行的具体构建。
-
-### 2026-09-13 历史检查的保留边界
-
-旧记录中的 Calculator Chat 纯 JS/mock 12/12，不是本次重跑或真实模型/桌面 PASS。Agent 当时只有正式 application-engineer 入口，不能凭 task-demonstrate/trace-distill 等职责名称推断可调用 Skill 已安装；不得恢复已删除的历史占位目录。Human 的 human-to-recipe、recorder-script-refiner、SemanticBuildPlan 及 Calculator golden 属于既有资产，但不证明通用业务 renderer、用户安装或整链自动调度已完成。
-
-actions-first refiner 已有编译/静态保真能力，与“通用业务 renderer 尚未落地”不同。历史录制/回放资格不自动转移到新 Chat 模块、新输入域、平台或布局。上述作者链历史状态本次没有全量重审，实施以当前源码为准。
+早期 Chat mock 12/12、历史 Recorder/golden 和静态 refiner 记录继续保留其原范围，不是本轮重跑或当前业务资格。曾设计的 task-demonstrate/trace-distill 等职责名称不证明同名 Skill 已安装；application-engineer 等现有资产以当前目录为准，不恢复旧占位 Skill。
 
 ## 4. 最小 Automation Capability Contract
 
 ### 4.1 不可变对象与发布条目
 
 ```text
-CapabilityDefinition：业务说明、固定效果、输入输出、支持范围、安全合同
-CandidateManifest：固定 Definition、真实入口、依赖闭包、适配器和作者来源
-QualificationRecord：精确 Candidate、预定标准/范围、独立验证与证据
-CatalogEntry：汇总引用及受控发布/暂停/撤销状态
+CapabilityDefinition：用途、固定行为、输入输出、支持范围、安全合同
+CandidateManifest：固定 Definition、入口/适配器、真实依赖、来源
+QualificationRecord：精确 Candidate、预定标准与独立证据
+CatalogEntry：上述记录到 Local Flow Catalog 确定内容的受控关联/投影
 ```
 
-引用无环：Definition 不引用 Candidate/Qualification；Candidate 不引用 Qualification；CatalogEntry 检查各引用的一致性。Definition 的 executor 是逻辑入口，实际路径/导出/字节摘要由 Candidate 固定。已有 schema 不支持新增表达时，做有版本的兼容增量或外部发布清单，不把未知字段/枚举强塞旧结构。
+引用无环：Definition 不回指 Candidate/Qualification；Candidate 不回指 Qualification。实际入口及摘要由 Candidate 固定，不能由模型给路径。现有严格 schema/签名 Manifest 不支持的表达需版本化映射及兼容测试，不偷加字段。
 
-本地登记必须显式批准；查目录只读可信 metadata，不扫描后 import/eval 任意脚本探测用途。用户自己编写或已审阅信任的本地固定 JS 可以在验证后进入最小目录；任意第三方自动安装、远程 Registry 与复杂签名分发后置，不能把本地自有任务也全部阻塞到市场完成以后。
+能力描述不是新的分发格式。Flow 的已验证来源/flowId、installId、内容摘要/版本和必要逻辑 operation 与候选/资格关联。CatalogEntry 若历史独立存在，迁移为唯一目录的记录或投影，不另建能力安装区，也不修改原始签名 Manifest 字节。未知描述符不能靠“本地文件”自获信任。
 
 ### 4.2 Definition 最小信息
 
-| 信息组 | 必须表达 |
-| --- | --- |
-| 身份 | schemaVersion、命名空间下稳定 capabilityId、version、显示名称及用途 |
-| 业务效果 | 固定应用/对象/影响、禁止项和实际成功条件；不能只写模糊 description |
-| 输入输出 | 严格 inputSchema/resultSchema 或引用；无参数明确只接受空对象，无结构化业务结果明确声明 |
-| 适用范围 | 应用身份、平台、经过验证的版本/layout/locale、输入子域、必要当前状态 |
-| 入口 | script 或 module 的逻辑入口策略；真实文件/adapter/dependencies 属于 Candidate |
-| 现场检查 | 只读 preflight、Permission/Runtime 要求、准备动作边界 |
-| 授权 | 实际副作用、确认政策、宿主可信预览，默认每次确认 |
-| 执行政策 | 超时、取消、桌面排他、重试/未知效果、输出与证据边界 |
-| 配置/模型 | 业务输入、机器配置、Secret 引用、允许模型节点及外发/预算分离 |
+身份与用途；固定业务效果及禁止项；严格输入/输出或明确无业务参数/无结构化结果；平台/应用/版本/layout/locale/账号等相关范围；逻辑入口与实际候选关联；只读预检和权限；副作用、可信预览、超时/取消/重试；配置/Secret/模型外发政策。
 
-资格和发布引用不是模型可写的 `qualified: true`。实际允许域是业务声明、资格、当前策略、环境和本次授权的交集。图标、作者联系信息、计费和流行度不是执行放行条件。
+qualification 和发布不是模型可写的 `qualified:true`。允许域是声明、资格、当前环境/策略与本次授权的交集。图标、热度或高相似度不提供执行资格。助手调用集合只是已授权条目的过滤/索引，不强制用户选择源码项目。
 
 ### 4.3 固定/参数化是输入维度，不是代码形态要求
 
-固定录制或顶层业务 JS 可直接作为 script entry；无需为了进入助手强制提取函数/参数。其固定行为必须可理解、可验证、与用户请求一致。用户要求改变未开放字段时返回澄清/扩展，不能丢掉要求后传空对象。
+固定顶层 JS 可以直接作为 entry，不为接入强制改函数。零参数只允许空业务输入，但固定门店、收件人、输出和副作用必须满足本次完整请求；不支持变化就澄清/扩展，不能吞掉用户限制。
 
-参数化只开放代码真实消费且已经验证的业务字段；只改 metadata 不改硬编码行为不得发布。参数提取在作者态进行，产生新 Candidate 和扩域资格。已保存参数预设是精确版本的参数绑定，不复制 JS；锁定字段和升级兼容必须明确。
-
-固定流程仍可能读取当前账号、剪贴板、选中对象或系统日期，这些是隐式输入而非“无依赖”；声明和验证关键上下文，未知则阻止。业务参数、机器配置、Secret、定位常量和 Observation 数据依赖相互区分。
+参数化只有在代码实际消费且扩域验证后启用；预设绑定确定内容和锁定/可变字段，不复制 JS。业务输入、环境配置、Secret、定位常量与 Observation 分开。当前账号、窗口、剪贴板、选中对象和日期也可能是隐式输入，必要未知则停止。
 
 ### 4.4 Executor 仍是普通 JS
 
-复用 App-owned execution owner，让每次用户任务拥有独立 Runtime/Execution；禁止把用户业务 eval 进常驻助手会话。独立 Execution 不要求独立 OS 进程，不给任意用户 Recipe 新建递归 executor API，也不把同进程 Runtime 说成沙箱。
+共用正式 Flow/Recipe 执行 owner，助手、Runner 和受支持 CLI/调度入口只是适配，不模拟点击 UI、不向常驻助手 eval 用户脚本、不新造另一套 Runtime。
 
-script entry 由 production loader 在获准任务中直接运行；module entry 可由作者/发布时固定的启动入口调用模块。一个业务内部组合多个模块仍在该任务 Execution 内完成，不为每个 helper 创建运行实例。静态 launcher 计入依赖闭包，不由模型每轮生成代码。
+script 在获准任务 Execution 中由 loader 执行；module 通过预先固定的启动入口调用，launcher 同样进入依赖。一个业务内部组合 helper 不需要为每个 helper 新 Execution，也不开放任意 DAG 自动组合。
 
-当前内部桥 `{scriptPath, workdir, logDir, signal}` 不能冒充已支持业务 input/result。后续由原生 owner 提供 per-run 数据输入/结果及期限，初始化时绑定只读输入，具体公共 API 要实现、类型、文档和 JS 测试同步后公布。旧零参数脚本可先接入；不通过字符串替换、共享全局/配置或任意环境变量绕过输入合同。
+结构化 per-run input/result、期限或事件能力不足时扩展既有 owner 并同步类型/API/JS 测试，不在文档虚构可用 global。禁止字符串替换、共享状态、模型写 launcher 或任意 Shell/代码路径；业务文件输入沿 schema 与资源授权解析。
 
-P0 不允许临时拼任意能力 DAG；已编写组合业务可以是普通 JS Recipe，但整个组合仍需验证，子模块分别通过不证明组合副作用/数据顺序通过。
+独立 Runtime 不等于进程或 OS 沙箱。没有强制限制的第三方脚本不得被描述为按 metadata 自动安全；native 调用、网络/文件权限和崩溃边界需分别核验。保留现有 App 身份/权限模型，不为每个 Flow 自动另起主 App。
 
 ### 4.5 Planner / Resolver
 
-宿主先过滤有权访问的发布条目；模型只提议 capabilityId 与业务输入或澄清/不支持，不签发版本、路径、权限、资格、风险和执行器。稳定 ID 不是显示文件名，重复 ID+version 不同内容必须拒绝。
+候选来自唯一目录的授权投影，先约束再召回/排序；模型只提议允许集合中的逻辑 Flow/operation 和业务输入，宿主固定版本、路径、资格、权限与授权。
 
-Resolver 区分 runnable、clarify、blocked、requalification-needed、repair-needed、extension-needed、gap 等语义；实际 enum 在版本化合同落地时确定。先检验固定效果与显式约束，再排序；相关但受阻的任务不能被无声替换为另一个语义不符的任务。
+区分 runnable、clarify、blocked、待重验/维修/扩展和 Gap 的语义，不强行以某套新 enum 修改旧接口。已明确选定的 Flow 和会话修订不再模糊匹配全库，未知 ID 拒绝；同 ID/version 不同内容隔离，重名按来源/对象消歧。索引可重建，更新失效，查索引零业务执行。
 
 ## 5. 普通用户 Runtime 状态机
 
-```text
-本轮目标 + 明确的任务 draft/revision
-→ 可信目录与固定候选/资格引用
-→ 固定行为/业务输入语义校验
-→ 只读现场预检
-→ 必要准备动作单独受限授权
-→ 宿主预览并冻结 RunBinding
-→ 用户确认
-→ 原子获得执行/桌面操作权并重查绑定、撤销和现场
-→ 普通 JS 执行；仅声明节点允许模型调用
-→ 真实 Observation / postcondition / result validation
-→ completed / failed / canceled / outcome-unknown
-```
+目标/上下文修订 → 可信条目与固定候选/资格 → 固定行为/输入校验 → 只读 preflight → 必要准备单独受限授权 → 宿主预览/RunBinding → 用户确认 → 原子取得执行权并重查 → JS → Observation/业务验证 → 真实终态。
 
-先校验候选可信性与完整性，再允许执行受信的 preflight/preview/validator。它们也是代码依赖，不因名为 preflight 就允许任意导入。预检不隐式打开、切前台、滚动、清空、发送或反复弹权限窗；需要准备时明确取得授权。
+在加载 preflight/preview/verifier 代码之前先校验信任与内容，它们也属于候选依赖。预检不能隐式打开、清空、发送、登录或反复弹权限窗；动作型准备要有相应授权。
 
-预览显示真实应用、账号/对象、固定效果、参数来源、清空/覆盖/发送、模型外发、读取内容和停止限制。模型 prose 不能扩大宿主授权。
+确认固定请求 revision、候选/安装内容摘要、资格、输入/固定影响、相关配置、目标账号/对象、策略和有效期。范围、内容、参数或目标改变使旧确认失效；不相关目录新增仅在可证绑定不变时可不影响本次确认。
 
-确认绑定请求修订、Definition/Candidate/依赖摘要、资格、固定行为/参数、相关配置和环境/目标、策略/时效。进入执行锁后及关键副作用前再次核验。相关变更令旧确认失效；目录增加无关条目仅在能证明本次绑定未变时不必全局作废。
+同一桌面操作权由实际共同 owner 仲裁；UI 单活动请求不证明外部 CLI/Recorder/其他 Runtime 互斥。未覆盖的执行者按受监督单操作者范围说明。BUSY 不建隐形队列；后续计划运行重新核查时效和授权。
 
-重复确认最多启动一次。取消阻止后续动作，但不撤销已提交动作；崩溃/迟到结果不能显示成安全完成，也不自动恢复执行。第一阶段 BUSY 明确拒绝，不建隐形队列；后续队列/计划运行必须重新核对时效与授权。
-
-一个 ChatSession 单活动请求不等于全桌面单执行者。助手、Runner、Scheduler、Recorder 和外部 Runtime 需要共同资源仲裁及接管规则。现有检查不证明原子全局锁；未强制覆盖的外部执行者只能列为受监督单操作者限制，不宣称无人值守并发安全。
+重复确认最多启动一次，stopping 等待实际收口，迟到事件不能复活旧任务。关闭窗口、进程崩溃、断连不能伪装业务安全完成。取消不撤销已提交的外部效果，不承诺 exactly-once。
 
 ## 6. 能力解析与 Gap 路由
 
 | 情况 | 处置 |
 | --- | --- |
-| 已发布、已验证、当前适用 | 固定行为/参数校验、确认、执行，不改代码 |
-| 意图、固定对象、参数歧义 | 本会话澄清，不能猜默认目标或跨会话借参数 |
-| 固定任务与用户变更要求冲突 | 明确不能按新要求执行；选择另一真实适用任务或进入作者态扩展 |
-| 权限/认证/依赖/应用状态受阻 | 具体 guidance 或受限准备，不重新开发脚本 |
-| Candidate 合格但未发布 | 核对证据和发布批准，不必重新生成 |
-| 代码未变、证据缺失或新环境未验证 | requalification，不先强迫 repair |
-| locator/layout/过程/代码错误 | 定向修复，新 Candidate 与必要回归 |
-| 相似能力需要新输入域 | 明确变更合同，qualification delta，不靠相似度继承资格 |
-| 没有能力 | Gap → 优先查 Existing Assets → 用户选择 Agent/Human/Recorder |
-| Runtime primitive 缺失 | 证据化 gap → [扩展框架](../../frameworks/runtime-api-extension-framework.md) → 回到原作者工作包 |
-| 授权/政策禁止或控制不可实现 | 明确 blocked，不自动提权、安装或开发绕过 |
-| 外部效果未知 | 核对/人工接管，不自动重复发送、支付或删除 |
+| 已启用且当前适用 | 校验/确认/执行，不改代码 |
+| 意图/参数/固定对象不清 | 本会话澄清，不跨会话借参数 |
+| 用户要求改变固定效果 | 拒绝错跑，选择真实适用任务或明确作者态扩展 |
+| 未激活、权限/认证/依赖/状态受阻 | 具体 guidance/受限准备，不静默换另一个任务 |
+| 候选已合格未发布或未启用 | 核对证据和相应批准，不强制重新生成 |
+| 代码未变，证据不足或新环境未验证 | 重验，不先强迫修复代码 |
+| 应用/定位/过程/代码失效 | 定向维修，新候选和必要回归 |
+| 无能力 | Gap → Existing Assets 优先 → 用户选择 Agent/Human/Recorder |
+| primitive 缺失 | 证据化 gap → 原 Runtime 扩展 owner → 回到原任务 |
+| 政策/权限禁止或控制不能实现 | blocked，不自动提权/安装绕过 |
+| 外部效果未知 | 核对/人工接管，不自动重试 |
 
-Gap 保存 request/taskRef、脱敏目标和成功标准、候选及拒绝原因、已知/未知环境、可复用资产、缺操作/primitive 证据、建议入口、权限与预算。它不是执行或对外泄露全量聊天/截图的授权。
-
-发送类业务必须明确收件人的唯一身份、账号、文件/正文版本与日期时区；示范用已授权测试对象或停在发送前。作者态许可不自动授权真实业务发送，发布后仍需新预览和确认。
+Gap 保存原请求和修订、脱敏目标/标准、候选拒绝原因、已知/未知环境、可复用资产、缺失能力、建议入口、权限与预算。它不是扩大模型外发范围的许可。收件人、正文/文件和日期时区须在实际发送前明确；作者/验证授权不自动批准真实客户发送。
 
 ## 7. 两条作者链共享结果，不伪造相同来源
 
-```text
-Agent：TaskContract/WorkPlan → application-engineer
-  → 真实 Dossier → DistilledSteps → SemanticProcedure
-  → 普通 JS Candidate → 可选 code-rebuild → 独立资格
+Agent：TaskContract/WorkPlan → 最小应用认识 → 获准真实 Dossier → DistilledSteps → SemanticProcedure → 普通 JS Candidate → 独立资格。
 
-Human：Recorder raw/actions/JS + 人工审阅
-  → 静态保真：recorder-script-refiner → refined Candidate（不是业务资格）
-  → 固定业务已清楚且可靠：原 JS 冻结 → 固定范围验证
-  → 需业务改进：human-to-recipe 的 disposition/Episode/SemanticBuildPlan
-       ↔ application-engineer → JS Candidate → 独立资格
+Human：Recorder 原始记录与审阅 → 仅保真时 recorder-script-refiner；固定业务足够可靠时直接冻结验证；需要行为修改/参数化时走 human-to-recipe 的 disposition/Episode/SemanticBuildPlan，按缺口调用 application-engineer。
 
-Existing Assets：冻结已有资产/证据 → 只补缺口 → 独立资格
-共同出口：发布规格 + 精确 Candidate + 可复核 Qualification → 明确发布
-```
+Existing Assets：固定已有资产与有效证据，只补当前缺口。三者共用 TaskContract、AppProfile、SemanticProcedure、Candidate、Qualification 的既有结构，不强制六份重复 JSON。完整新示范不能用接续例外绕过要求，已有证据也不该因换入口而无故清零。
 
-共同逻辑成果包括 TaskContract、AppProfile、SemanticProcedure、Recipe Candidate、QualificationRecord 和 Capability，但不强制六份重复 JSON。来源通过版本化 ref/只读投影适配，保留 sourceRef/hash、source format、mappingVersion、字段来源和 unknown；不双向独立修改投影与原资料。
-
-QualificationRecord 的 lineage 继续区分 reference-only、continuation-chain、new-generation-chain，不把 Human/Agent 来源类型塞入该枚举。来源种类与资格链类型正交，需扩 schema 时做版本化兼容；不能把 Human 录制冒充新 Agent 示范。
+来源适配保留 sourceRef/hash/source format/mappingVersion 和字段 unknown；共享 Qualification 的 lineage 与 Human/Agent 来源种类正交，不伪造枚举。taskId/产物/阶段/下一缺口必须持久，Codex thread 可替换且不充当任务包。正常同一 Agent 可连续工作，不要求每个职责另起模型。
 
 ## 8. application-engineer 的共享位置
 
-保留 `workflows/agent-to-recipe/skills/application-engineer/`，供 Agent、Human、Failure repair 共享，不复制第二套应用规则。
+保留既有 `workflows/agent-to-recipe/skills/application-engineer/`，Agent/Human/失败修复共同使用。
 
-discover 用于缺必要认识的新应用/页面；harden 用于已有认识但操作缺定位/等待/读取/后置保障；repair 消费精确 Failure Package 定向修复。按证据缺口选择，不为每个新操作普查整个应用。
+discover 只补当前任务必要的应用认识；harden 补定位、等待、读取和后置保障；repair 消费精确失败现场定向修复。交付身份/locator/geometry/guard、来源、unknown、局部验证与范围建议，不拥有业务成功标准、整份 Recipe 资格或发布批准。
 
-它交付应用身份、locator/geometry/guard、来源、unknown、局部验证和范围建议；不拥有业务成功标准、整份 Recipe 资格或发布批准。Calculator/微信/Excel/ERP 应不同在应用规则和业务脚本，不各建权限/窗口/Chat Runtime。
+业务脚本复用应用 helper；共享 helper/Profile 变化纳入所有消费者影响分析。不为 Calculator/微信/Excel/ERP 分别建第二套权限、窗口或执行服务。
 
 ## 9. Independent Qualification 与发布
 
-独立性至少包含：候选及依赖冻结；业务标准/场景预先确定；fresh run 和独立 Observation/Oracle；验收期间不改候选或降低标准。不是“第二个模型说通过”，也不要求每阶段另起模型。同一人员可启动固定 Gate，但记录真实执行者和独立性边界。
+独立性包含冻结候选/依赖、预先确定标准/场景、获准 fresh run 与独立 Observation/Oracle、验收中不改候选或降标准。不是另一个模型说 PASS，也不强制每阶段另开 Agent。
 
-QualificationRecord 绑定 Candidate/hash、Runtime/UI-host provenance、平台/应用版本/locale/layout、固定业务范围或参数域、实际入口/工作目录、requested/exercised/qualified/excluded、结果/证据与 NOT RUN。Gate 执行真实 production 文件，不再写第二份动作实现冒充资格。
+Qualification 固定实际代码/适配器/依赖摘要、Runtime/UI-host 来源、相关平台/版本/locale/layout、固定范围/参数域、实际入口/workdir、requested/exercised/qualified/excluded、证据和未运行项。Gate 执行真正候选，不写第二份动作替身，不用模型临时补做。
 
-```text
-定义固定行为或参数范围 → 冻结 Candidate/依赖
-→ 固定成功标准、场景与权限
-→ 获准 fresh run、独立验证、反例、取消、回归
-→ pass/fail/not-run/blocked
-→ 覆盖明确发布范围 + 可信来源 + 发布批准
-→ staging 校验 → 原子激活 Catalog revision
-```
+先按明确测试对象与恢复策略获得测试授权，再运行、反例、取消和必要回归。固定任务无需先参数化；有效旧证据可按精确内容和范围复用，扩域不能复制旧 PASS 到新 hash。缩小发布范围须显式变更且保留原失败。
 
-固定任务也要验证，但不得强迫先参数化。已有仍对应本次候选/范围的有效证据可以复用；扩域形成新资格，不复制旧 pass 到新 hash。关键失败不能靠事后缩小原要求伪装通过；变更发布范围需显式记录，保留原失败。
+发布、安装和启用到助手分开：`.odflow` 复用既有 parser/signature/Trust/Entitlement/install/transaction owner，`.js` 走已有轻量本地导入；本地生成记录不伪称发布者签名。声明合格不替代签名/信任/权益，安装成功也不自动获得业务资格。
 
-发布记录与必要证据保存到用户数据内的持久发布区；临时运行日志、截图仍归 `.runtime`/Execution artifacts。`.runtime` 可清理，不能是发布资格唯一证据库。缺持久证据则阻止相应资格放行；摘要只能证明字节身份，不证明发布者可信或业务正确。
+内容只进入既有 `flows/<installId>/`，无正式 version 子目录；数据和状态分离。不建设 capability-catalog/capability-releases。版本身份通过内容摘要和发布引用固定，运行中安装更新/删除由原 owner 协调。投影加入调用说明不能改签名 Manifest，未知 schema 采用有版本的显式映射。
 
-本地自有脚本显式接入不需要远程平台，但依然拒绝半写入、未知 schema、重复身份、缺失依赖/资格、过宽范围、路径穿越、符号链接逃逸。并行发布按 revision/hash 比较更新；受管理发布内容不可就地编辑。
+必要长期资格证据保存在现有持久发布/证据设施，临时 `.runtime/` 不是唯一证据库；若设施不足，在已有 owner 内补齐并阻止相应范围放行，不再造可执行发布仓库。索引可清理重建，用户源文件/唯一证据不可按缓存删除。
 
-工作区、发布区、可重建索引、运行记录和业务输出职责分开。撤销不篡改旧资格，只阻止后续放行；运行中版本与必要证据不能被垃圾回收。回退只选择仍可信、适用且未撤销的版本，不静默改绑历史请求。App Package/`.odpkg` 的打包或授权不是业务资格。
+拒绝半写入、重复身份指向不同内容、越界/符号链接逃逸、缺失依赖/证据/引用、过宽范围。并行发布按 revision/hash 比较更新。撤销是策略事件，不篡改历史；回退只选仍可信适用版本，不偷偷改绑当前请求。包哈希只证明字节身份，不证明发布者可信或业务正确。
 
 ## 10. App 版本与资格失效
 
-可运行必须同时满足：
+放行同时要求：可信且启用条目、实际使用内容一致、资格可复核未撤销、固定效果/输入符合请求与验证域、当前相关应用/平台/版本/layout/locale/账号适用、Runtime/权限/权益/策略/本次授权满足。
 
-```text
-可信且已发布条目
-AND 实际加载入口/依赖与候选一致
-AND 资格有效、可复核、未撤销
-AND 固定效果或本次参数与用户要求一致且在验证范围内
-AND 当前应用/平台/版本/layout/locale/账号与前提适用
-AND Runtime、权限、配置、策略和本次授权满足
-```
+与任务无关维度可用证据说明不适用，不要求纯文件任务都校验 UI 布局。相关关键未知则阻塞；产品支持 Windows 不代表每个脚本跨平台。允许平移不等于 resize/DPI/reflow 都兼容。
 
-平台支持不是产品级全局开关。只验证 macOS Calculator 不代表 Windows 或其他布局可用；只观察一个应用版本不声明任意新版兼容。允许窗口平移不等于允许 resize/reflow/DPI 变化。
-
-脚本不受某环境维度影响时可以用证据说明不适用，不机械要求每个纯文件脚本都核对 UI layout。关键相关维度未知则阻塞。旧环境仍适用时旧版本不必全局撤销；新环境用待重验，已证实安全问题才按影响范围暂停/撤销。
-
-代码与依赖在加载点固定，不能只先 hash 再读可能已被替换的内容。配置/Secret 身份变化需按影响检查；运行输出与可变业务数据不能伪装成不可变代码依赖。
+旧环境仍适用的旧版本不必全局撤销；新环境先重验，已证实安全缺陷才按影响范围暂停/撤销。加载点固定真实内容，不能先 hash 后重新读已变文件；业务可变数据、配置和 Secret 身份分别按影响管理。
 
 ## 11. Runtime Failure → Repair → Requalification
 
-Failure Package 复用 F0—F10，最少保存 task/run/step、能力/候选/资格/Profile 身份、脱敏参数和固定约束、授权、实际环境、最后关键 Observation、原始错误/原因与 unknown、已尝试恢复、证据及保留权限。
+Failure Package 继续用 F0—F10，保存 task/run/step、Flow/候选/资格/Profile 身份、固定约束/脱敏输入、授权/环境、最后 Observation、原始错误/原因/unknown、已尝试恢复与证据保留权限。
 
-附实际动作后果：未提交、提交待核对、效果已确认或未知。provider 不能确认时就是 unknown，不补造 exactly-once。关键动作正常留证，不能在失败后猜造现场。
+明确动作未提交、提交待核对、效果已确认或未知。没有证据就 unknown，不补造现场或 exactly-once。
 
-| 原因 | owner/修复方向 |
-| --- | --- |
-| 请求理解/参数/固定约束 | 澄清或 Planner 修正；不因用户变更就热改生产脚本 |
-| 权限/认证/应用准备 | 原 Permission/Runtime/preflight owner |
-| 观察缺失/歧义 | 有界只读复查或 application-engineer，不猜结果 |
-| 应用/layout/locator | application-engineer harden/repair，保留有效规则 |
-| 业务顺序/数据依赖 | procedure/业务作者；Human 修改原 plan，不复制第二套步骤事实 |
-| JS/API/异步缺陷 | recipe-build；独立代码质量目标才用 code-rebuild |
-| Runtime primitive | 原 Runtime owner，不靠自由 Agent/Shell 绕过 |
-| Gate/证据缺陷 | qualification/evidence owner，不自动判业务本身错误 |
-| 外部效果未知 | 停止并核对/人工接管，禁止盲重放 |
+理解/参数错回澄清；权限/准备错归原 owner；观察/定位错回 application-engineer；业务顺序/数据流错回原作者过程；代码错修 Recipe；primitive 缺陷归 Runtime；Gate/证据错修验证；外部未知先核对。不要一律重新认识应用或重录任务。
 
-修复生成新 Candidate，新资格和发布版本。代码未改而只是重验时可以增加资格记录/目录 revision，不伪造代码修改。共享 helper/Profile 变化要做依赖影响分析。只有事先声明、已验证、有界且未越权的恢复可以在运行中执行；无新证据的相同失败停止重复尝试。
+修复产生新 Candidate 与对应资格；纯重验同一代码可追加资格，不伪造代码改动。仅事先声明、已验证、有界、未越权的恢复可在运行中执行；无新证据的相同失败停止重复。共享依赖改动验证受影响消费者。
 
 ## 12. 混合 JS + LLM + Agent Recipe
 
-任务不必是纯坐标宏，也不能是自由 Agent 会话。需要模型时保持：
+真实 JS 读取 → 合同内模型节点 → 输出结构/语义校验 → 有界参数或枚举 → 已验证 JS 分支 → 实际 Observation/业务验证。
 
-```text
-JS 读取本次真实内容
-→ 已声明节点调用 LLM.generate()/受控 Agent.run()
-→ 输出结构/语义校验
-→ 严格枚举或有界参数
-→ JS 选择已验证分支
-→ 实际观察与业务验证
-```
+模型的 backend/profile、prompt/schema/validator、允许工具/外发、版本/预算/期限和拒绝/歧义/不可用处理纳入候选。远端模型行为不能保证不变；保留评测集、配置身份及变化时重验规则。
 
-backend/profile、prompt/schema/validator、工具限制、外发范围、预算/期限、拒绝/歧义/不可用行为纳入候选与资格。远程模型行为不能保证永久不变，保留配置可观测性和回归集合，变化按影响重验。
+网页、邮件、控件、录制注释、任务说明仅作数据，不升格为指令、权限或可信目录事实。模型结果不是任意代码/路径/Shell；未知则停。外发内容/对象初始未知时，在最终副作用前展示实际内容并确认，初始流程总确认不能替代。
 
-网页、邮件、控件、录制注释、脚本说明是数据，不升格为权限、目录事实或指令。模型结果不能作为任意代码/路径/Shell 运行。涉及尚未知的外发正文、收件人或文件时，最终副作用前展示真实对象与内容并确认；流程开始的总确认不代替该次实际内容授权。
-
-模型注解和 read-only 描述不能代替宿主强制限制或当前 CLI 的真实兼容/安全验证。未知判断停止/人工处理，不凭猜测继续高风险分支。
+Codex 接入在适配器验证实际版本/认证/审批/中断和上下文隔离，不把当前只读 Planner 扩权为作者态。上游协议可用不等于 OpenDesk 集成完成，官方依据与实验性限制见 [研究记录](../../research/rpa-authoring-reuse-design.md)。
 
 ## 13. 统一任务分解树
 
 ```text
-A 接住请求：会话/任务修订、目标、固定约束、输入来源、运行与作者态分离
-B 判断能力：可信目录、候选/资格、语义与当前环境、具体 blocked/Gap
-C 受管执行：预检、必要准备授权、确认绑定、原子仲裁、独立 Execution
-D 真实结果：步骤/观察/验证、取消/未知效果、持久运行身份
-E 接续资产：Existing Assets 优先，Agent/Human 来源保留，只补缺口
-F 候选生产：固定脚本可直接冻结；按需要参数化或修复；Profile/helper 共享
-G 独立资格：预定标准、精确候选、fresh run、反例/取消/回归、范围边界
-H 发布复用：用户持久发布区、原子索引、明确批准、更新/暂停/撤销
-I 定向维修：失败分类、有效证据复用、依赖影响、重验、不覆盖旧版本
-J 贯穿治理：信任、Secret、隐私、目录边界、预算、保留/删除、真实完成度
+A 接住目标：模式、范围/项目、任务修订、输入/固定约束和预算
+B 查找能力：唯一目录投影、资格/环境、适用/澄清/阻塞/Gap
+C 受管执行：预检、准备、确认、共同资源仲裁、独立任务 Execution
+D 真实结果：实际动作/观察/验证、停止/未知效果、可核对运行身份
+E 接续资产：Existing Assets 优先，Agent/Human 来源不混同
+F 生产候选：固定 JS 可直接冻结，按需提炼/参数化/应用补强
+G 独立资格：明确标准、精确候选、fresh run、反例/取消/回归
+H 安装与启用：既有 Flow owner、持久证据、明确批准、不自动运行
+I 定向维修：失败分类、依赖影响、保留有效证据、新候选/重验
+J 贯穿治理：信任/权益、Secret/隐私、并行写入、保留/删除和真实状态
 ```
 
-该树不替代既有 S1—S12/Human 内部树，不要求每项对应一个新 Skill 或多份 JSON 文件。
+保留 S1—S12/Human 内部方法树，不把该树当作新 Skill 安装列表。
 
 ## 14. P0 / P1 / Later
 
-### P0：用户固定任务的最小完整闭环
+近期按 [主方案第 9 节](../assistant-script-invocation.md#9-分阶段推进不重做已有-flow-能力) 推进：先本地制作、独立验证和可接续任务包，再闭合两个用户 Flow 的对话复用，然后接助手内 Codex；相关宿主接口可并行完善，已有资产从对应缺口继续。
 
-1. 以用户目录中的一个低风险顶层 JS 为对象，明确固定业务合同；不修改应用主程序、不强制函数化/参数化。
-2. 最小本地 Definition/Candidate/Qualification/Catalog 发布门和持久证据；可复用有效既有资产，但未验证不得被助手自动选择。
-3. 助手经同一受管执行 owner 启动独立任务 Runtime，补齐身份/停止/期限/仲裁必要边界；导入和匹配阶段零业务动作。
-4. 确认固定效果与实际代码版本，保存 run/Execution、入口/工作目录、步骤/观察/验证；未知结果不伪造成功。
-5. Gap/Failure 接续、撤销/版本漂移/重复确认/目录越界和固定约束反例测试；真实入口与视觉证据独立记录。
+原 P0/P1 是历史排期，不要求重建已经完成的 Flow 安装/上下文/Catalog。安装验证仍使用原商业交付台账；本合同不再复制开发进度。Calculator 新路径通过后才去掉旧注入，不先搬必需文件，黄金样本保持其证据范围。
 
-### P1：可选参数化、预设与通用性
-
-补齐 per-run input/result 通道与公共合同后，开放确实被代码消费的参数；参数预设绑定精确版本；本会话修订使旧确认失效。将 Calculator 经同一用户任务路径迁移为可安装示例再移除旧专用注入，不先搬文件破坏启动。
-
-使用第二个真实业务及固定/参数变体验证通用性，增加规模检索/语义反例和跨平台范围。逐步补有消费者的作者方法、qualification delta 与共享依赖回归，不恢复历史空 Skill、不强迫重新生产所有录制。
-
-### Later
-
-远程市场/Registry、自动安装任意第三方、计费评分、复杂依赖求解、任意 DAG、Workflow IR/Compiler 必经路径、独立 Replay Runtime、无人审自主发布均不作为当前前提。
-
-“一键接入”只压缩用户操作，不省略内部信任、候选、独立资格、发布与单次授权。需要高强度第三方隔离时单独建设，并明确现有同进程模型的局限。
+大规模语义检索、任意 DAG/DSL、第二 Runtime、第三方强沙箱、无人审发布不作为当前前置。已有 Marketplace 项目保持独立进度并复用同一安装链，不因本助手排期被撤销；Remote Catalog 不是本机可运行集合。
 
 ## 15. 实施验收用例与评分边界
 
-本次没有测试 PASS 数量。验收至少覆盖：应用外资产且新增任务无需重编；未参数化旧脚本可调用；要求改变固定效果时拒绝错跑；参数真实生效；目录发现零执行；版本/依赖/配置/预设漂移；缺资格与撤销拒绝；多轮/跨会话隔离；重复确认/停止/并发；无结构化结果的诚实展示；未知效果不重试；证据保留与删除互不混淆；当前真实入口、构建与视觉。
+唯一验收与设计评分源为 [制作与复用验收合同](../../quality/assistant-authoring-reuse-acceptance.md)：A 真实完成、B 脚本独立复用、C 助手正确选择运行三份证明；28 项覆盖行、误命中/规模评测、96/100 设计自评及硬否决。
 
-原始静态 refiner、历史 golden、mock、应用局部验证、真实 Runtime、模型和业务资格分别记账，不能互相代替。用户可观察的契约用 `.js` 测试；新增 Runtime 接口先核对并按 `docs/api/.rules.md` 更新类型/实现/文档，不用 Go 白盒代替公共 JS 验收。
+这些是本轮未执行的测试要求，不是实际 PASS。mock/静态/应用局部/真实模型/Runtime/业务/视觉分层留证。公共 Runtime 行为使用 `.js`，新增 API 按现有规范同步类型/实现/文档。缺目标平台实机按项目阶段规则如实标注，不伪造通过或自动启动未授权 VM。
 
-本修订的设计自评 **96/100**，权重、扣分与硬否决项统一维护在 [阅读入口第 11 节](../assistant-script-invocation.md#11-验收标准与评分)，不复制一套平行评分。它不是独立专家认证、不是产品完成率，也不是任何应用的运行资格。用户资产进核心、发现即执行、错绑代码、忽略固定约束、未确认执行或未知副作用自动重试，任一发生都不得验收。
+本页记录合同，不输出实现已经 95 分以上的声明。未确认执行、跨会话/版本错绑、丢弃固定约束、绕过信任/权益、未知效果盲重试和未验证声称成功都是实施硬失败。
