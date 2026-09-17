@@ -2,6 +2,18 @@
 
 本目录保存面向真实桌面应用的 canonical public examples。与 `examples/desktop/` 的通用窗口/输入 API 不同，这里的脚本包含具体应用名称、平台或业务上下文，因此统一在 Example Explorer 中作为 `Applications` 分类展示，并默认保持 `manual`。
 
+## Promotion Preview
+
+从仓库根目录运行当前 OpenDesk 官方推广的原生视觉预览：
+
+```bash
+./dist/opendesk -ui -script examples/app/promotion-preview.js -console-mode script
+```
+
+该脚本直接加载正式 `apps/opendesk/promotions/core.js`、`controller.js` 与 `official-creative.js`，使用生产 Renderer 和当前官方 Creative，在活动屏幕右下角显示推广。它使用独立的内存偏好与安全的预览上下文，不读取或写入产品 `promotions/preferences.json`，因此不会消耗正式每日次数、30 分钟冷却或改变“今天不再显示 / 7 天不再显示 / 关闭所有推广”的产品状态。
+
+CTA 点击只输出 `PROMOTION_PREVIEW_ACTION=...`，不会执行正式跳转；成功显示会输出 `PROMOTION_PREVIEW_RESULT={"status":"visible",...}`。可点击 `×`、按 Escape、点击 CTA/菜单，或等待生产 Renderer 当前 15 秒生命周期自动关闭。该脚本用于开发视觉 smoke test，不替代 Promotion policy / lifecycle 的正式测试。
+
 ## Running Applications Overview
 
 ```bash
