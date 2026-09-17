@@ -22,9 +22,11 @@
 
   <main id="stage" class="stage" aria-label="桌面测量交互画布">
     <canvas id="desktop" class="desktop-layer" aria-hidden="true"></canvas>
+    <div id="live-source-probe" aria-hidden="true" style="position:absolute;left:14px;bottom:14px;z-index:0;padding:4px 7px;border-radius:6px;background:rgba(16,26,34,.72);color:#c7f8e8;font:10px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace;pointer-events:none">LIVE source · 0</div>
     <div id="scene" class="snapshot-layer" aria-hidden="true"></div>
     <svg id="overlay" class="overlay" tabindex="0" aria-label="Measurement overlay"></svg>
 
+    <div id="selection-instruction" role="status" style="position:absolute;left:50%;bottom:18px;transform:translateX(-50%);z-index:8;padding:7px 11px;border:1px solid rgba(255,255,255,.28);border-radius:8px;background:rgba(17,26,34,.88);color:#e4f2f5;font-size:12px;pointer-events:none;white-space:nowrap">移动鼠标选择窗口 · 单击开始测量 · Esc 取消</div>
     <div id="micro" class="micro" hidden></div>
     <section id="hud" class="corner-hud top-right" aria-label="当前测量信息">
       <div class="hud-title"><span id="hud-title">桌面测量</span><span id="hud-source">磁吸定位 · 开</span></div>
@@ -99,12 +101,13 @@
       <select id="display-mode"><option value="retina">单屏 2×</option><option value="negative">负坐标 1.25×</option><option value="mixed">双屏 1× + 2×</option></select>
       <label>视觉容差</label><select id="tolerance"><option>4</option><option selected>8</option><option>14</option></select>
     </div>
-    <div class="legend"><span class="key">Tab / Shift+Tab</span> 候选层级　<span class="key">Alt</span> 暂停磁吸　<span class="key">1–4</span> 工具　<span class="key">I</span> 详情</div>
+    <div class="legend"><span id="oracle-observer">Prototype observer · live=0 · frozenAt=none · snapshot=none</span>　<span class="key">Tab / Shift+Tab</span> 候选层级　<span class="key">Alt</span> 暂停磁吸　<span class="key">1–4</span> 工具　<span class="key">I</span> 详情</div>
   </footer>
 
   <script src="model.js"></script>
   <script src="visual-resolver.js"></script>
   <script src="records.js"></script>
   <script src="interaction-core.js"></script>
+  <script src="selection-lifecycle.js"></script>
 </body>
 </html>
