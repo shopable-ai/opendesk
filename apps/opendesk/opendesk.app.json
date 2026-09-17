@@ -55,6 +55,12 @@
         "action": "runtime.log"
       },
       {
+        "id": "restore-promotions",
+        "label": "恢复推广",
+        "action": "promotions.restore",
+        "visible": false
+      },
+      {
         "type": "separator"
       },
       {
