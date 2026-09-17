@@ -20,6 +20,8 @@
     const inspectorLauncher = settings.inspectorLauncher;
     const developerTools = settings.developerTools;
     const officialShell = settings.officialShell;
+    const promotions = settings.promotions || null;
+    const productActivityClient = settings.productActivityClient || null;
     const logger = settings.logger || global.console;
     let started = false;
     let handledActions = 0;
@@ -43,38 +45,71 @@
       throw new Error('OpenDesk product controller requires About');
     }
 
+    async function beforeProductSurface(reason) {
+      if (promotions && typeof promotions.beforeInteraction === 'function') {
+        await promotions.beforeInteraction(reason);
+      }
+    }
+
+    async function acknowledgeNativeActivity() {
+      if (productActivityClient && typeof productActivityClient.acknowledgeProductActivity === 'function') {
+        await productActivityClient.acknowledgeProductActivity();
+      }
+    }
+
     async function dispatch(event) {
       if (!event || !event.id) return false;
       const source = event.source || event.id;
       switch (event.id) {
+        case 'opendesk.activity.suspend':
+          // Native Recorder / Measurement / Scheduler waits briefly for this
+          // acknowledgement before it starts desktop-affecting work. The
+          // promotion owner closes any in-flight create/show race first.
+          try {
+            await beforeProductSurface(`native:${source}`);
+          } finally {
+            await acknowledgeNativeActivity();
+          }
+          return true;
+        case 'promotions.restore':
+          if (!promotions || typeof promotions.restore !== 'function') return false;
+          await promotions.restore();
+          return true;
         case 'opendesk.open':
         case 'runner.open':
           await runner.open(source);
           return true;
         case 'assistant.open':
         case 'opendesk.assistant.open':
+          await beforeProductSurface('assistant-window');
           await assistant.open(source);
           return true;
         case 'scheduler.open':
         case 'scheduler.center':
+          await beforeProductSurface('scheduler-window');
           await schedulerCenter.open(source);
           return true;
         case 'scheduler.new':
+          await beforeProductSurface('scheduler-create-window');
           await schedulerCenter.openCreate(source);
           return true;
         case 'inspector.open':
           if (!inspectorLauncher || typeof inspectorLauncher.open !== 'function') return false;
+          await beforeProductSurface('inspector-window');
           await inspectorLauncher.open(source);
           return true;
         case 'runtime.log':
           if (!runtimeLog || typeof runtimeLog.open !== 'function') return false;
+          await beforeProductSurface('runtime-log-window');
           await runtimeLog.open(source);
           return true;
         case 'permissions.open':
           if (!permissionsCenter || typeof permissionsCenter.open !== 'function') return false;
+          await beforeProductSurface('permissions-window');
           await permissionsCenter.open(source);
           return true;
         case 'opendesk.about':
+          await beforeProductSurface('about-window');
           await about.open(source);
           return true;
         default:
@@ -87,6 +122,7 @@
               'opendesk.debug.normal',
               'opendesk.debug.detailed',
             ].includes(event.id)) {
+            await beforeProductSurface('developer-tool');
             await developerTools.activate(event.id, source);
             return true;
           }
@@ -121,6 +157,8 @@
           if (action === 'scheduler.open' || action === 'scheduler.new') prefix = '[SCHEDULER_CENTER]';
           if (action === 'inspector.open' || action === 'opendesk.inspector.open') prefix = '[INSPECTOR]';
           if (action === 'opendesk.about') prefix = '[ABOUT]';
+          if (action === 'opendesk.activity.suspend') prefix = '[PRODUCT_ACTIVITY]';
+          if (action === 'promotions.restore') prefix = '[PROMOTIONS]';
           logger.error(`${prefix} action=${action} stage=dispatch message=${JSON.stringify(details.message)} stack=${JSON.stringify(details.stack)}`);
         }
         return false;
