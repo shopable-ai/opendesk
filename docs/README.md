@@ -86,6 +86,8 @@ OpenDesk 长期使用的核心开发框架，是桌面自动化开发的重要�
 
 Research 中的方案比较、评审或竞品材料不能替代本目录中的正式架构。
 
+产品统计决策：[Product Analytics：PostHog 现成服务接入](architecture/product-analytics.md)（设计合同，待实现）；对应 [执行提示词](../prompts/runtime/product-analytics-implementation.md)。
+
 ### `implementation/`
 
 当前实现机制、平台实现说明和排障资料。
