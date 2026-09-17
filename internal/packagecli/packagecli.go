@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"opendesk/internal/flowcli"
 	"opendesk/pkg/scriptpackage"
 )
 
@@ -25,11 +26,16 @@ type envelope struct {
 	Error   *errorBody `json:"error,omitempty"`
 }
 
+// packagecli is the existing pre-flag packaging gateway used by cmd/opendesk.
+// flowcli owns the top-level `flow` grammar; this dispatch keeps one CLI entry path.
 func IsCommand(args []string) bool {
-	return len(args) > 0 && args[0] == "package"
+	return len(args) > 0 && (args[0] == "package" || flowcli.IsCommand(args))
 }
 
 func Execute(args []string, stdout, stderr io.Writer) int {
+	if flowcli.IsCommand(args) {
+		return flowcli.Execute(args, stdout, stderr)
+	}
 	if len(args) < 2 || args[0] != "package" {
 		return writeError(stdout, "package", "invalid_command", "package requires protect, inspect, or verify", 2)
 	}
