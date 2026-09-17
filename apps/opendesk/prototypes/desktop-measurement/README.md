@@ -8,33 +8,71 @@
 open apps/opendesk/prototypes/desktop-measurement/index.html
 ```
 
-无需 npm install 或 HTTP Server。依次体验：进入 Live 窗口选择 → 移动到聊天窗口或备忘录窗口 → 单击确认后冻结 → Hover 看 Candidate 尺寸/边距 → Tab 换层 → 点击锁定 → Enter／记录 → 继续下一个 → 测量记录 → 复制全部／保存 JSON。
+无需 npm install 或 HTTP Server。当前主链：
 
-“Live”场景、窗口、UI Tree 和源像素全部是浏览器合成测试替身，不是实际 macOS/Windows 桌面。
+```text
+进入 Live 窗口选择
+→ Hover 聊天窗口 / 备忘录窗口，仅预选
+→ primary click 确认 Reference
+→ 可观察 FREEZING
+→ 成功后才出现 Frozen Snapshot 与正式 Measurement Toolbar
+→ Hover / Tab / 点击锁定 Target
+→ Enter / 记录
+→ 在同一 Snapshot 上继续下一条测量
+```
+
+选择阶段提示固定为：
+
+```text
+移动鼠标选择窗口 · 单击开始测量 · Esc 取消
+```
+
+页面左下角 `LIVE source` 和底部 `Prototype observer` 是原型观测器：用于看见 Live source 继续变化，以及成功确认后 `frozenAt` / snapshotId 固定。它们不是 Production Toolbar。
+
+“Live”场景、窗口、UI Tree、故障注入和源像素全部是浏览器合成测试替身，不是实际 macOS / Windows 桌面。
 
 ## 唯一维护关系
 
-`index.html` 只保留 DOM 与相对资源引用；`prototype.css` 是唯一样式；`model.js` 保留原数学模型；`interaction-core.js` 是唯一状态/交互 owner；`visual-resolver.js` 提供有预算的 Snapshot 局部像素分析；`records.js` 只负责本 Session 的显式记录。`template.html` 仅跳转，不维护第二套页面。
+- `index.html`：DOM、统一入口和 Prototype observer。
+- `prototype.css`：共享样式。
+- `model.js`：数学 / geometry model。
+- `interaction-core.js`：既有 Snapshot、Measurement、Records 交互主实现。
+- `selection-lifecycle.js`：仅补充 `REFERENCE_SELECTING → FREEZING → MEASURING` 的确认输入门、取消/迟到结果保护、失败恢复和 test-only fixture；不建立第二套 Measurement Runtime。
+- `visual-resolver.js`：Frozen Snapshot 内有预算的局部像素分析。
+- `records.js`：Session Records。
+- `template.html`：仅跳转，不维护第二套页面。
 
-当前合同入口是 `ORACLE.md`。`ORACLE.baseline-2026-09-16.md` 是本轮保存的原始冻结文档，必须结合当前 Amendment 阅读，不能用其旧的“没有窗口选择／没有历史／只有当前结果复制”否决本轮用户修订。
+当前唯一合同入口是 `ORACLE.md`。`ORACLE.baseline-2026-09-16.md` 只用于历史追溯，不能恢复旧“打开即冻结 / foreground 自动 Reference”等语义。
 
 ## 关键边界
 
-进入不截图；窗口建议不是确认。只有确认／更新／继续测量才创建 Snapshot；正式颜色、坐标、区域与边距绑定该帧。Micro HUD 只承载指针信息，Corner HUD 区分候选预览与已锁定。最多 Window + 一个 Local Reference，Overlay 同时一组四边距；原十项 Toolbar 保持。
+进入不截图；Hover 建议不是确认；Hover 不激活、置顶、锁定或截图。有效 Reference Confirmation 必须是 primary、同 pointerId、同 window identity、稳定 bounds、完整 down/up 且在 click tolerance 内。右键、中键、拖动、跨窗口 down/up、pointercancel、blur、window move/close 均不得确认。
 
-磁吸关闭／Alt 暂停不运行视觉解析。缓存、64ms trailing throttle、有限 ROI、像素/面积/时间上限保护 pointermove；透明、背景连接、截断、不可靠轮廓拒绝候选并允许人工框选。Visual 永远不是 semantic control。
+Reference click 只消费“选择窗口”意图，不触发底层业务，也不成为第一条 Measurement 输入。只有确认成功、更新画面、调整界面后继续测量才创建新 Snapshot。正式颜色、坐标、区域与边距绑定 Frozen Snapshot。
 
-点击锁定 ≠ 记录 ≠ 保存。Enter／记录仅追加已确认结果到内存，随后继续测量；Update/Adjust/重选不删除历史。退出会销毁未保存内存，先复制全部或保存。浏览器下载请求不冒充文件已落盘；选择器写入并关闭成功才标记 saved。快照源图在首次 Record 时纳入 Session JSON，多个记录共享同一快照。
+点击锁定 Target ≠ Record ≠ Save。Enter／记录只追加已确认结果到内存；Update/Adjust/重选不删除历史。退出会销毁未保存内存，先复制全部或保存。浏览器下载请求不冒充文件已落盘。
 
 ## 测试与正式实现
+
+基础模型与既有回归：
 
 ```bash
 node --test tests/desktop-measurement/model.test.js tests/desktop-measurement/amendment.test.js
 python tests/desktop-measurement/browser.test.py
 ```
 
-Browser harness 读取并内联完全相同的模块源码，不复制另一套交互。合成测试不代替 Native 权限、窗口捕获、输入、剪切板、多屏/DPI、Recorder 隔离或实际加载产物验收。
+本轮 Reference Selection 聚焦回归：
 
-正式合同：`docs/architecture/desktop-automation/desktop-measurement.md`；当前差距：同目录 `desktop-measurement-amendment-2026-09-17.md`；正式实现仍由 `pkg/measurement/**`、`pkg/customui/**`、`cmd/opendesk/**measurement**` 和现有 Recorder 集成承担。当前 Amendment 不等于这些 Native 能力已经全部同步。
+```bash
+python tests/desktop-measurement/reference-selection.test.py
+```
 
-截图、日志、导出的 JSON 和测试报告只放 `.runtime/`。生产任务产物优先复用 `.runtime/automation-authoring/<task-id>/measurement/`，不得写入 `apps/opendesk/**`。浏览器样机不能替用户决定仓库文件系统路径。
+`browser.test.py` 继续覆盖既有 Measurement/Records/Geometry 主链；`reference-selection.test.py` 会把 `selection-lifecycle.js` 与其余 Prototype modules 一起内联，并用 Playwright 的真实 mouse/pointer/keyboard 事件验证确认链。window move/close 与 freeze failure 通过显式 test-only fixture 注入，只代表 synthetic Oracle。
+
+Browser PASS 不代替 Native 权限、真实 topmost/z-order、窗口移动/关闭、输入、截图、overlay exclusion、多屏/DPI、Recorder 隔离或实际加载产物验收。最新实施/资格边界见：
+
+`docs/architecture/desktop-automation/desktop-measurement-contract-coverage.md`
+
+正式实现仍由 `pkg/measurement/**`、`pkg/customui/**`、`cmd/opendesk/**measurement**` 和现有 Recorder 集成承担。本 Prototype 变更不等于这些 Native 能力已同步。
+
+截图、日志、导出的 JSON 和测试报告只放 `.runtime/`。生产任务产物优先复用 `.runtime/automation-authoring/<task-id>/measurement/`，不得写入 `apps/opendesk/**`。

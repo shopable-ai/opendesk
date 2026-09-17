@@ -159,7 +159,7 @@
 
   window.addEventListener('blur', cancelPending, true);
   window.addEventListener('keydown', event => {
-    if (event.key !== 'Escape' || demo.state.phase !== 'FREEZING') return;
+    if (event.key !== 'Escape' || !['REFERENCE_SELECTING', 'FREEZING'].includes(demo.state.phase)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     freezeVersion += 1;
@@ -189,7 +189,7 @@
     closeWindow(id) { fixture.hidden.add(id); },
     moveWindow(id, dx, dy) { fixture.offsets.set(id, {x: Number(dx) || 0, y: Number(dy) || 0}); },
     restoreWindows() { fixture.hidden.clear(); fixture.offsets.clear(); },
-    cancelFreeze() { freezeVersion += 1; cancelPending(); if (demo.state.active) demo.exitMeasurement(); },
+    cancelFreeze() { freezeVersion += 1; cancelPending(); if (demo.state.active) demo.exitMeasurement(); hideSelectionPrompt(); },
   });
 
   root.MeasureReferenceSelection = Object.freeze({

@@ -155,6 +155,11 @@ with sync_playwright() as p:
         page.wait_for_timeout(360)
         check("late freeze completion cannot revive session", not state("active") and state("phase") == "IDLE" and state("snapshotId") is None)
 
+        page.click("#entry-rec")
+        check("new entry returns to Live selection", state("active") and state("phase") == "REFERENCE_SELECTING" and state("snapshotId") is None)
+        page.keyboard.press("Escape")
+        check("Esc cancels Live selection and clears prompt", not state("active") and state("phase") == "IDLE" and state("snapshotId") is None and page.locator("#selection-instruction").is_hidden())
+
         check("no browser script exceptions", not errors, str(errors))
         page.screenshot(path=str(out / "reference-selection-final.png"))
     except Exception as exc:
