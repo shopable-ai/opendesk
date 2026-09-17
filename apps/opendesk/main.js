@@ -126,6 +126,10 @@ const promotionAwareCalculator = OpenDeskPromotionsIntegration.wrapCalculator(
   OpenDeskCalculatorCapability,
   promotionOwnerRef,
 );
+const promotionAwareAgent = OpenDeskPromotionsIntegration.wrapAgent(
+  globalThis.Agent,
+  promotionOwnerRef,
+);
 
 const assistantEntries = [
   ['store.js', 'OpenDeskAssistantStore'],
@@ -140,7 +144,7 @@ for (const [name, globalName] of assistantEntries) {
   if (!globalThis[globalName]) throw new Error(`OpenDesk AI assistant module did not initialize: ${name}`);
 }
 const assistantTaskService = OpenDeskAssistantTaskService.create({
-  agent: globalThis.Agent,
+  agent: promotionAwareAgent,
   calculator: promotionAwareCalculator,
 });
 const assistant = OpenDeskAssistantController.create({
