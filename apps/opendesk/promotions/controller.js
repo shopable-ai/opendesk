@@ -60,14 +60,15 @@
         // only after the window is confirmed visible so its single play budget
         // is not consumed while Native is still creating/placing the surface.
         const content=core.render(value,true);
-        candidate=await o.ui.createWindow({id:'opendeskPromotion'+(++sequence),kind:'floating',title:'OpenDesk · 推广',position:{mode:'anchor',size:content.size,horizontal:'right',vertical:'bottom',margin:core.LIMITS.margin,display:'active'},alwaysOnTop:true,draggable:false,keyEvents:true,interactionGroup:'opendeskPromotion',content:{html:content.html,css:content.css}});
+        candidate=await o.ui.createWindow({id:'opendeskPromotion'+(++sequence),kind:'floating',title:'OpenDesk · 推广',position:{mode:'anchor',size:content.size,horizontal:'right',vertical:'bottom',margin:core.LIMITS.margin,display:'active'},alwaysOnTop:true,draggable:false,keyEvents:true,interactionGroup:o.interactionGroup||'scriptRunnerPlayer',content:{html:content.html,css:content.css}});
         if(!valid()){await candidate.close();return {status:'suppressed',reason:'canceled'};}handle=candidate;
         const placed=p.mode==='runner-above'?await candidate.setRelativeTo(p.anchor,{preferredSides:['above'],align:'end',gap:core.LIMITS.gap}):await candidate.setPlacement({horizontal:'right',vertical:'bottom',margin:core.LIMITS.margin,display:'active'});
         if(!placed||!core.validBounds(placed.bounds))throw new Error('Promotion placement not confirmed');if(core.validBounds(p.anchor)&&core.overlaps(placed.bounds,p.anchor)){await close('overlap');return {status:'suppressed',reason:'overlap'};}
         if(!valid()){await close('canceled');return {status:'suppressed',reason:'canceled'};}if(value.media&&!(await awaitImageReady(candidate,token,value.media.poster))){await close('canceled');return {status:'suppressed',reason:'canceled'};}
         listen('promotionClose',()=>close('transient'));listen('promotionMore',()=>setMenu(!menuOpen));listen('promotionToday',()=>dismiss('today'));listen('promotionCampaign',()=>dismiss('campaign'));listen('promotionDisable',()=>dismiss('disable'));
         listen('promotionOpen',async()=>{if(phase!=='visible'||core.contextReason(context())){await close('context');return;}const action=value.action;await close('click');if(core.contextReason(context()))return;if(typeof o.activate==='function')await o.activate(action);});
-        offs.push(candidate.on('interactionOutside',()=>setMenu(false)));offs.push(candidate.on('key',event=>{const key=event&&event.fields&&event.fields.key;if(key==='Escape')return menuOpen?setMenu(false):close('escape');}));offs.push(candidate.on('close',()=>{if(handle===candidate){clearTimers();offAll();handle=null;phase=disposed?'disposed':'idle';}}));
+        offs.push(candidate.on('interactionOutside',event=>Promise.resolve().then(async()=>{if(typeof o.onInteractionOutside==='function')await o.onInteractionOutside(event);await close('interaction-outside');}).catch(log)));
+        offs.push(candidate.on('key',event=>{const key=event&&event.fields&&event.fields.key;if(key==='Escape')return menuOpen?setMenu(false):close('escape');}));offs.push(candidate.on('close',()=>{if(handle===candidate){clearTimers();offAll();handle=null;phase=disposed?'disposed':'idle';}}));
         if(!valid()){await close('canceled');return {status:'suppressed',reason:'canceled'};}const visible=await candidate.show();if(!valid()){await close('canceled');return {status:'suppressed',reason:'canceled'};}if(!visible||visible.visible!==true||visible.onScreen!==true)throw new Error('Promotion not confirmed on-screen');
         phase='visible';displayTimer=later(()=>void close('timeout').catch(log),core.LIMITS.lifetimeMs);
         if(!(await playMotionOnce(candidate,token,value))){await close('canceled');return {status:'suppressed',reason:'canceled'};}
@@ -78,7 +79,7 @@
     async function refreshContext(){if(core.contextReason(context()))await close('context');}
     async function reanchor(bounds){if(!handle||phase!=='visible')return;if(!core.validBounds(bounds)||core.contextReason(context())){await close('anchor');return;}const current=handle;try{const state=await current.setRelativeTo(bounds,{preferredSides:['above'],align:'end',gap:core.LIMITS.gap});if(!state||!core.validBounds(state.bounds)||core.overlaps(state.bounds,bounds))await close('overlap');}catch(error){await close('anchor-error');throw error;}}
     async function waitUntilClosed(){const current=handle;if(current)await current.waitUntilClosed();}
-    async function waitUntilHidden(){if(opening)await opening;await close('safety');return !handle;}
+    async function waitUntilHidden(){await close('safety');return !handle;}
     async function restore(){const next=core.dismiss(preferences,creative||{campaignId:'restore'},'restore',clock());await persist(next);blocked=false;return state();}
     async function dispose(){disposed=true;await close('dispose');if(opening)await opening;}
     function state(){return {phase,visible:phase==='visible',windowId:handle?handle.id:null,menuOpen,motionPlayed,preferences:JSON.parse(JSON.stringify(preferences))};}
