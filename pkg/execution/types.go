@@ -66,29 +66,29 @@ type RunEvent struct {
 
 // ExecutionArtifacts 记录本次执行的产物路径。
 type ExecutionArtifacts struct {
-	ExecutionID       string `json:"executionId,omitempty"`
-	RunDir            string `json:"runDir,omitempty"`
-	StdoutPath        string `json:"stdoutPath,omitempty"`
-	StderrPath        string `json:"stderrPath,omitempty"`
+	ExecutionID        string `json:"executionId,omitempty"`
+	RunDir             string `json:"runDir,omitempty"`
+	StdoutPath         string `json:"stdoutPath,omitempty"`
+	StderrPath         string `json:"stderrPath,omitempty"`
 	ScriptSnapshotPath string `json:"scriptSnapshotPath,omitempty"`
-	SummaryPath       string `json:"summaryPath,omitempty"`
-	AgentSummaryPath  string `json:"agentSummaryPath,omitempty"`
-	EventLogPath      string `json:"eventLogPath,omitempty"`
+	SummaryPath        string `json:"summaryPath,omitempty"`
+	AgentSummaryPath   string `json:"agentSummaryPath,omitempty"`
+	EventLogPath       string `json:"eventLogPath,omitempty"`
 }
 
 // ExecutionResult 是执行状态快照。
 type ExecutionResult struct {
-	ExecutionID string            `json:"executionId"`
-	Source      string            `json:"source,omitempty"`
-	Ext         string            `json:"ext,omitempty"`
-	ScriptHash  string            `json:"scriptHash,omitempty"`
-	Status      ExecutionStatus   `json:"status"`
-	StartedAt   string            `json:"startedAt,omitempty"`
-	FinishedAt  string            `json:"finishedAt,omitempty"`
-	DurationMs  int64             `json:"durationMs,omitempty"`
-	Error       string            `json:"error,omitempty"`
+	ExecutionID string             `json:"executionId"`
+	Source      string             `json:"source,omitempty"`
+	Ext         string             `json:"ext,omitempty"`
+	ScriptHash  string             `json:"scriptHash,omitempty"`
+	Status      ExecutionStatus    `json:"status"`
+	StartedAt   string             `json:"startedAt,omitempty"`
+	FinishedAt  string             `json:"finishedAt,omitempty"`
+	DurationMs  int64              `json:"durationMs,omitempty"`
+	Error       string             `json:"error,omitempty"`
 	Artifacts   ExecutionArtifacts `json:"artifacts,omitempty"`
-	Counters    map[string]int64  `json:"counters,omitempty"`
+	Counters    map[string]int64   `json:"counters,omitempty"`
 }
 
 // AgentLogItem 是给 Agent 的脚本日志条目。

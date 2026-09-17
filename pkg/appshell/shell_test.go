@@ -24,11 +24,11 @@ func TestValidateInstanceDocumentPathsAllowsOnlyBoundedAbsoluteODFlowPaths(t *te
 		tooMany[index] = filepath.Join(root, fmt.Sprintf("flow-%02d.odflow", index))
 	}
 	for name, paths := range map[string][]string{
-		"relative":    {"example.odflow"},
+		"relative":     {"example.odflow"},
 		"plain-script": {filepath.Join(root, "example.js")},
-		"duplicate":   {first, first},
-		"too-long":    {filepath.Join(root, strings.Repeat("a", 4096)+".odflow")},
-		"too-many":    tooMany,
+		"duplicate":    {first, first},
+		"too-long":     {filepath.Join(root, strings.Repeat("a", 4096)+".odflow")},
+		"too-many":     tooMany,
 	} {
 		if err := validateInstanceDocumentPaths(paths); err == nil {
 			t.Fatalf("%s document paths unexpectedly accepted", name)
