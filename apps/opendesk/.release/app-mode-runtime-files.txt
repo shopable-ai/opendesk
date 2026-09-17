@@ -27,6 +27,7 @@ script-runner/controller.js
 script-runner/player-controller.js
 script-runner/shortcut-controller.js
 assets/product.odcfg
+assets/help-questionmark.png
 assets/opendesk-logo.png
 assets/script-previous.png
 assets/script-next.png
