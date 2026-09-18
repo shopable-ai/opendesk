@@ -32,7 +32,7 @@
       return {
         get id() { return inner.id; },
         addButton(id, label, icon, callback) {
-          const actionId = ACTION_BY_BUTTON[id];
+          const actionId = id === 'run' || id === 'stop' ? null : ACTION_BY_BUTTON[id];
           return inner.addButton(id, label, icon, actionId && typeof callback === 'function'
             ? (...args) => {
                 safelyTrack(client, actionId, 'pointer');
@@ -69,23 +69,21 @@
       const settings = Object.assign({}, options || {});
       const injected = defaults || {};
       const client = injected.client || settings.productAnalytics || global.OpenDeskProductAnalytics || null;
+      const previousLogicalAction = typeof settings.onLogicalAction === 'function'
+        ? settings.onLogicalAction : null;
+      settings.onLogicalAction = (action, source) => {
+        if (previousLogicalAction) {
+          try { previousLogicalAction(action, source); } catch (_) {}
+        }
+        const actionId = action === 'run' ? 'flow.run' : action === 'stop' ? 'flow.stop' : '';
+        const inputMethod = source === 'shortcut-run' || source === 'shortcut-stop'
+          ? 'keyboard'
+          : ['toolbar', 'toolbar-player', 'row', 'selected', 'list'].includes(source)
+            ? 'pointer' : '';
+        if (actionId && inputMethod) safelyTrack(client, actionId, inputMethod);
+      };
       settings.FloatingWindow = wrapFloatingWindow(settings.FloatingWindow, client);
-      const app = BaseController.createApp(settings);
-      const decorated = Object.assign({}, app);
-
-      if (typeof app.requestRun === 'function') {
-        decorated.requestRun = (queue, source) => {
-          if (source === 'shortcut-run') safelyTrack(client, 'flow.run', 'keyboard');
-          return app.requestRun(queue, source);
-        };
-      }
-      if (typeof app.stopRun === 'function') {
-        decorated.stopRun = source => {
-          if (source === 'shortcut-stop') safelyTrack(client, 'flow.stop', 'keyboard');
-          return app.stopRun(source);
-        };
-      }
-      return Object.freeze(decorated);
+      return BaseController.createApp(settings);
     };
     return Object.freeze(wrapper);
   }
