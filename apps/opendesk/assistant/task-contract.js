@@ -181,16 +181,42 @@
   function createStore(options) {
     const settings = options || {};
     const file = settings.file;
-    const rootDir = normalizePath(settings.rootDir);
+    const requestedRootDir = normalizePath(settings.rootDir);
     const clock = settings.clock || (() => new Date());
     if (!file || typeof file.join !== 'function' || typeof file.ensureDir !== 'function'
       || typeof file.exists !== 'function' || typeof file.listDir !== 'function'
-      || typeof file.readJSON !== 'function' || typeof file.writeNew !== 'function') {
-      fail('INVALID_STORE', 'task contract store requires join/ensureDir/exists/listDir/readJSON/writeNew');
+      || typeof file.readJSON !== 'function' || typeof file.writeNew !== 'function'
+      || typeof file.realPath !== 'function') {
+      fail('INVALID_STORE', 'task contract store requires join/ensureDir/exists/listDir/readJSON/writeNew/realPath');
     }
-    const tasksRoot = file.join(rootDir, 'tasks');
-    file.ensureDir(tasksRoot);
+    file.ensureDir(requestedRootDir);
+    const rootDir = normalizePath(file.realPath(requestedRootDir));
+    const requestedTasksRoot = file.join(rootDir, 'tasks');
+    file.ensureDir(requestedTasksRoot);
+    const tasksRoot = normalizePath(file.realPath(requestedTasksRoot));
     const chains = new Map();
+
+    function samePath(left, right) {
+      return isWithin(left, right) && isWithin(right, left);
+    }
+
+    function assertDirectory(path, allowMissing) {
+      const expected = normalizePath(path);
+      if (!file.exists(expected)) {
+        if (allowMissing === true) return expected;
+        fail('TASK_STORAGE_MISSING', 'task storage directory is missing');
+      }
+      let actual;
+      try {
+        actual = normalizePath(file.realPath(expected));
+      } catch (error) {
+        fail('TASK_STORAGE_REDIRECTED', 'task storage directory cannot be resolved safely', {cause: error});
+      }
+      if (!samePath(expected, actual)) {
+        fail('TASK_STORAGE_REDIRECTED', 'task storage directory resolves through an unexpected alias');
+      }
+      return expected;
+    }
 
     function taskDir(taskId) {
       return file.join(tasksRoot, identifier(taskId, 'taskId', true));
@@ -199,6 +225,7 @@
     function versions(taskId) {
       const dir = taskDir(taskId);
       if (!file.exists(dir)) return [];
+      assertDirectory(dir, false);
       return file.listDir(dir).map(String).filter(name => /^\d{8}\.json$/.test(name)).sort();
     }
 
@@ -210,6 +237,7 @@
 
     async function list() {
       if (!file.exists(tasksRoot)) return [];
+      assertDirectory(tasksRoot, false);
       const items = [];
       for (const name of file.listDir(tasksRoot).map(String).sort()) {
         if (!SAFE_ID.test(name)) continue;
@@ -238,6 +266,7 @@
         }));
         const dir = taskDir(next.taskId);
         file.ensureDir(dir);
+        assertDirectory(dir, false);
         const target = file.join(dir, String(revision).padStart(8, '0') + '.json');
         try {
           await Promise.resolve(file.writeNew(target, JSON.stringify(next) + '\n'));
@@ -253,7 +282,7 @@
       return operation;
     }
 
-    return Object.freeze({load, list, save, rootDir: tasksRoot});
+    return Object.freeze({load, list, save, rootDir: tasksRoot, assertDirectory});
   }
 
   function createCandidateService(options) {
