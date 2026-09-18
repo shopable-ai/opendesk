@@ -31,7 +31,7 @@ var accessibilityDefaultProperties = []string{
 
 var accessibilityRoles = map[string]bool{
 	"application": true, "window": true, "button": true, "checkbox": true,
-	"radioButton": true, "textField": true, "staticText": true, "menuBar": true,
+	"radioButton": true, "textField": true, "popUpButton": true, "staticText": true, "menuBar": true,
 	"menu": true, "menuItem": true, "group": true, "list": true,
 	"listItem": true, "table": true, "row": true, "cell": true,
 	"unknown": true,

@@ -346,7 +346,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
          "const element = (id) => { if (!allowed.has(id)) throw new Error('unknown custom UI control: ' + id); return document.getElementById(id); };\n"
          "const typeFor = (id) => config.types[id] || 'unknown';\n"
          "const dragRects = () => Array.from(document.querySelectorAll('[data-clawdesk-drag],[data-opendesk-drag]')).map(el => { const r=el.getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height}; }).filter(r => r.width>0 && r.height>0);\n"
-	         "const state = (id) => { const el = element(id); const r = el.getBoundingClientRect(); return {id, type:typeFor(id), text:el.textContent || '', icon:el.dataset.icon || '', source:el.tagName === 'IMG' ? (el.getAttribute('src') || '') : '', value:('value' in el ? el.value : null), checked:('checked' in el ? !!el.checked : null), active:el.getAttribute('aria-pressed') === 'true', disabled:!!el.disabled, readOnly:!!el.readOnly, accessibilityName:el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.textContent || '', busy:el.getAttribute('aria-busy') === 'true', error:el.dataset.error || '', visible:!!(el.offsetWidth || el.offsetHeight || el.getClientRects().length), classes:Array.from(el.classList), imageComplete:el.tagName === 'IMG' ? !!el.complete : null, imageNaturalWidth:el.tagName === 'IMG' ? Number(el.naturalWidth || 0) : null, imageNaturalHeight:el.tagName === 'IMG' ? Number(el.naturalHeight || 0) : null, localBounds:{x:r.x,y:r.y,width:r.width,height:r.height}, screenBounds:{x:window.screenX+r.x,y:window.screenY+r.y,width:r.width,height:r.height}}; };\n"
+	         "const state = (id) => { const el = element(id); const r = el.getBoundingClientRect(); return {id, type:typeFor(id), inputType:el.tagName === 'INPUT' ? String(el.type || '').toLowerCase() : '', text:el.textContent || '', icon:el.dataset.icon || '', source:el.tagName === 'IMG' ? (el.getAttribute('src') || '') : '', value:('value' in el ? el.value : null), checked:('checked' in el ? !!el.checked : null), active:el.getAttribute('aria-pressed') === 'true', disabled:!!el.disabled, readOnly:!!el.readOnly, accessibilityName:el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.textContent || '', busy:el.getAttribute('aria-busy') === 'true', error:el.dataset.error || '', visible:!!(el.offsetWidth || el.offsetHeight || el.getClientRects().length), classes:Array.from(el.classList), imageComplete:el.tagName === 'IMG' ? !!el.complete : null, imageNaturalWidth:el.tagName === 'IMG' ? Number(el.naturalWidth || 0) : null, imageNaturalHeight:el.tagName === 'IMG' ? Number(el.naturalHeight || 0) : null, localBounds:{x:r.x,y:r.y,width:r.width,height:r.height}, screenBounds:{x:window.screenX+r.x,y:window.screenY+r.y,width:r.width,height:r.height}}; };\n"
 	         "const toolbarState = (id) => { const value=state(id); const el=element(id); if (el.dataset.opendeskIconOnly === 'true') { value.accessibilityName=el.getAttribute('aria-label') || ''; value.iconPresentation={systemSymbol:el.dataset.iconSymbol || '',scale:Number(el.dataset.iconScale || 1),offsetX:Number(el.dataset.iconOffsetX || 0),offsetY:Number(el.dataset.iconOffsetY || 0)}; } return value; };\n"
 	         "const states = () => config.ids.map(toolbarState);\n"
 	         "const px = value => { const number=Number.parseFloat(value); return Number.isFinite(number) ? number : 0; };\n"
@@ -591,7 +591,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 @end
 
 @protocol CDWebAccessibilityInputProxyDelegate <NSObject>
-- (void)accessibilityInputDidSetValue:(NSString *)targetID value:(NSString *)value;
+- (void)accessibilityInputDidSetValue:(NSString *)targetID value:(id)value priorValue:(id)priorValue inputKind:(NSString *)inputKind;
 @end
 
 // A native, non-drawing Accessibility peer for a validated DOM button. Pointer
@@ -633,15 +633,17 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 @end
 
 // WKWebView does not reliably export editable DOM controls from an
-// accessory-process host. Mirror only declared Custom UI input controls as
-// non-drawing native AXTextField peers, so assistive clients can use the same
-// bounded value-change bridge as a user typing in the WebView.
+// accessory-process host. Mirror declared Custom UI text inputs, selects, and
+// checkboxes as non-drawing native peers, so assistive clients can use the
+// same bounded value-change bridge as a user interacting in the WebView.
 @interface CDWebAccessibilityInputProxy : NSView
 @property(nonatomic, copy) NSString *targetID;
 @property(nonatomic, weak) id<CDWebAccessibilityInputProxyDelegate> eventDelegate;
 @property(nonatomic, copy) NSString *value;
 @property(nonatomic) BOOL enabled;
 @property(nonatomic) BOOL readOnly;
+@property(nonatomic, copy) NSString *inputKind;
+@property(nonatomic) BOOL checked;
 @end
 
 @implementation CDWebAccessibilityInputProxy
@@ -654,6 +656,8 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 }
 
 - (NSString *)accessibilityRole {
+	if ([self.inputKind isEqualToString:@"checkbox"]) return NSAccessibilityCheckBoxRole;
+	if ([self.inputKind isEqualToString:@"select"]) return NSAccessibilityPopUpButtonRole;
 	return NSAccessibilityTextFieldRole;
 }
 
@@ -662,6 +666,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 }
 
 - (id)accessibilityValue {
+	if ([self.inputKind isEqualToString:@"checkbox"]) return @(self.checked);
 	return self.value ?: @"";
 }
 
@@ -681,20 +686,32 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 }
 
 - (BOOL)accessibilityIsAttributeSettable:(NSAccessibilityAttributeName)attribute {
-	if ([attribute isEqualToString:NSAccessibilityValueAttribute]) return self.enabled && !self.readOnly;
+	if ([attribute isEqualToString:NSAccessibilityValueAttribute]) {
+		return self.enabled && (![self.inputKind isEqualToString:@"text"] || !self.readOnly);
+	}
 	return [super accessibilityIsAttributeSettable:attribute];
 }
 
 - (void)setAccessibilityValue:(id)value {
-	if (!self.enabled || self.readOnly) return;
+	if (!self.enabled || ([self.inputKind isEqualToString:@"text"] && self.readOnly)) return;
+	if ([self.inputKind isEqualToString:@"checkbox"]) {
+		if (![value isKindOfClass:NSNumber.class]) return;
+		BOOL next = [(NSNumber *)value boolValue];
+		if (self.checked == next) return;
+		BOOL prior = self.checked;
+		self.checked = next;
+		[self.eventDelegate accessibilityInputDidSetValue:self.targetID value:@(next) priorValue:@(prior) inputKind:self.inputKind];
+		return;
+	}
 	NSString *next = nil;
 	if ([value isKindOfClass:NSString.class]) next = (NSString *)value;
 	else if ([value isKindOfClass:NSAttributedString.class]) next = [(NSAttributedString *)value string];
 	else if (value != nil && value != NSNull.null) next = [value description];
 	if (next == nil) return;
 	if ([self.value isEqualToString:next]) return;
+	NSString *prior = self.value ?: @"";
 	self.value = next;
-	[self.eventDelegate accessibilityInputDidSetValue:self.targetID value:next];
+	[self.eventDelegate accessibilityInputDidSetValue:self.targetID value:next priorValue:prior inputKind:self.inputKind ?: @"text"];
 }
 
 - (void)accessibilitySetValue:(id)value forAttribute:(NSAccessibilityAttributeName)attribute {
@@ -950,7 +967,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 - (void)setDragRegionsFromValue:(id)value;
 - (void)syncAccessibilityControlsFromValue:(id)value;
 - (void)syncAccessibilityControlFromState:(NSDictionary *)state;
-- (void)syncAccessibilityInputValue:(id)value targetID:(NSString *)targetID;
+- (void)syncAccessibilityInputValue:(id)value checked:(id)checked targetID:(NSString *)targetID;
 - (void)startMeasurementKeyboardMonitor;
 - (void)stopMeasurementKeyboardMonitor;
 - (BOOL)fitHostDialogToContentLayout:(NSDictionary *)layout;
@@ -1072,7 +1089,7 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
 	NSString *type = state[@"type"];
 	NSString *targetID = state[@"id"];
 	if (![targetID isKindOfClass:NSString.class] || ![self.controlIDs containsObject:targetID]) return;
-	if ([type isEqualToString:@"input"]) {
+	if ([type isEqualToString:@"input"] || [type isEqualToString:@"select"]) {
 		CDWebAccessibilityInputProxy *input = self.webAccessibilityInputs[targetID];
 		if (!input) {
 			input = [[CDWebAccessibilityInputProxy alloc] initWithFrame:NSZeroRect];
@@ -1085,11 +1102,15 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
 		NSString *label = [state[@"accessibilityName"] isKindOfClass:NSString.class] ? state[@"accessibilityName"] : @"";
 		input.accessibilityLabel = label;
 		input.toolTip = label;
+		NSString *inputType = [state[@"inputType"] isKindOfClass:NSString.class] ? state[@"inputType"] : @"";
+		input.inputKind = [type isEqualToString:@"select"] ? @"select" : ([inputType isEqualToString:@"checkbox"] ? @"checkbox" : @"text");
 		input.readOnly = [state[@"readOnly"] boolValue];
 		input.enabled = ![state[@"disabled"] boolValue];
 		input.hidden = state[@"visible"] && ![state[@"visible"] boolValue];
 		id value = state[@"value"];
 		input.value = [value isKindOfClass:NSString.class] ? value : @"";
+		id checked = state[@"checked"];
+		input.checked = [checked isKindOfClass:NSNumber.class] && [checked boolValue];
 		NSDictionary *bounds = state[@"localBounds"];
 		if ([bounds isKindOfClass:NSDictionary.class]) {
 			double x = [bounds[@"x"] doubleValue];
@@ -1146,7 +1167,7 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
 		if (![rawState isKindOfClass:NSDictionary.class]) continue;
 		NSDictionary *state = (NSDictionary *)rawState;
 		NSString *type = state[@"type"];
-		if (![type isEqualToString:@"button"] && ![type isEqualToString:@"input"]) continue;
+		if (![type isEqualToString:@"button"] && ![type isEqualToString:@"input"] && ![type isEqualToString:@"select"]) continue;
 		[self syncAccessibilityControlFromState:state];
 		if ([type isEqualToString:@"button"]) {
 			CDWebAccessibilityButtonProxy *button = self.webAccessibilityButtons[state[@"id"]];
@@ -1171,18 +1192,27 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
 	[self emitType:@"click" target:targetID body:@{} reason:nil];
 }
 
-- (void)syncAccessibilityInputValue:(id)value targetID:(NSString *)targetID {
+- (void)syncAccessibilityInputValue:(id)value checked:(id)checked targetID:(NSString *)targetID {
 	CDWebAccessibilityInputProxy *input = self.webAccessibilityInputs[targetID];
-	if (!input || ![value isKindOfClass:NSString.class]) return;
-	input.value = value;
+	if (!input) return;
+	if ([input.inputKind isEqualToString:@"checkbox"]) {
+		if (![checked isKindOfClass:NSNumber.class]) return;
+		input.checked = [checked boolValue];
+	} else {
+		if (![value isKindOfClass:NSString.class]) return;
+		input.value = value;
+	}
 	NSAccessibilityPostNotification(input, NSAccessibilityValueChangedNotification);
 }
 
-- (void)accessibilityInputDidSetValue:(NSString *)targetID value:(NSString *)value {
-	if (self.closed || ![self.controlIDs containsObject:targetID] || ![value isKindOfClass:NSString.class]) return;
+- (void)accessibilityInputDidSetValue:(NSString *)targetID value:(id)value priorValue:(id)priorValue inputKind:(NSString *)inputKind {
+	if (self.closed || ![self.controlIDs containsObject:targetID]) return;
 	CDWebAccessibilityInputProxy *input = self.webAccessibilityInputs[targetID];
-	if (!input || !input.enabled || input.readOnly) return;
-	NSString *script = [NSString stringWithFormat:@"window.__opendesk.update(%@, %@)", CDJSONString(targetID), CDJSONString(@{@"value": value})];
+	if (!input || !input.enabled || ([inputKind isEqualToString:@"text"] && input.readOnly)) return;
+	BOOL checkbox = [inputKind isEqualToString:@"checkbox"];
+	if ((checkbox && ![value isKindOfClass:NSNumber.class]) || (!checkbox && ![value isKindOfClass:NSString.class])) return;
+	NSDictionary *patch = checkbox ? @{@"checked": @([(NSNumber *)value boolValue])} : @{@"value": value};
+	NSString *script = [NSString stringWithFormat:@"window.__opendesk.update(%@, %@)", CDJSONString(targetID), CDJSONString(patch)];
 	__weak CDWindowController *weakSelf = self;
 	[self.webView evaluateJavaScript:script inFrame:nil inContentWorld:WKContentWorld.defaultClientWorld completionHandler:^(id result, NSError *error) {
 		CDWindowController *controller = weakSelf;
@@ -1193,8 +1223,20 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
 			}];
 			return;
 		}
-		[controller syncAccessibilityControlFromState:(NSDictionary *)result];
-		[controller emitType:@"input" target:targetID body:@{@"value": value} reason:nil];
+		NSDictionary *state = (NSDictionary *)result;
+		BOOL accepted = checkbox
+			? ([state[@"checked"] isKindOfClass:NSNumber.class] && [state[@"checked"] boolValue] == [(NSNumber *)value boolValue])
+			: ([state[@"value"] isKindOfClass:NSString.class] && [state[@"value"] isEqualToString:(NSString *)value]);
+		if (!accepted) {
+			NSDictionary *restore = checkbox ? @{@"checked": @([priorValue boolValue])} : @{@"value": ([priorValue isKindOfClass:NSString.class] ? priorValue : @"")};
+			NSString *restoreScript = [NSString stringWithFormat:@"window.__opendesk.update(%@, %@)", CDJSONString(targetID), CDJSONString(restore)];
+			[controller.webView evaluateJavaScript:restoreScript inFrame:nil inContentWorld:WKContentWorld.defaultClientWorld completionHandler:^(id restored, NSError *restoreError) {
+				if (!restoreError && [restored isKindOfClass:NSDictionary.class]) [controller syncAccessibilityControlFromState:(NSDictionary *)restored];
+			}];
+			return;
+		}
+		[controller syncAccessibilityControlFromState:state];
+		[controller emitType:([inputKind isEqualToString:@"text"] ? @"input" : @"change") target:targetID body:(checkbox ? @{@"checked": value} : @{@"value": value}) reason:nil];
 	}];
 }
 
@@ -1374,7 +1416,7 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
 		NSString *targetID = body[@"targetId"];
 		if (![targetID isKindOfClass:NSString.class] || ![self.controlIDs containsObject:targetID]) return;
 		if ([type isEqualToString:@"input"] || [type isEqualToString:@"change"]) {
-			[self syncAccessibilityInputValue:body[@"value"] targetID:targetID];
+			[self syncAccessibilityInputValue:body[@"value"] checked:body[@"checked"] targetID:targetID];
 		}
 		[self emitType:type target:targetID body:body reason:nil];
 		return;

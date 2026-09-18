@@ -606,6 +606,8 @@ func normalizeDarwinAXRole(nativeRole string) string {
 		return "radioButton"
 	case "AXTextField", "AXTextArea":
 		return "textField"
+	case "AXPopUpButton":
+		return "popUpButton"
 	case "AXStaticText":
 		return "staticText"
 	case "AXList":
@@ -656,7 +658,7 @@ func (inspection darwinAXInspection) publicActions() []string {
 	if !inspection.Secure {
 		if role == "checkbox" && (inspection.ValueSettable || inspection.supportsNativeAction("AXPress")) {
 			actions = appendUniqueAccessibilityAction(actions, "setChecked")
-		} else if role == "textField" && inspection.ValueSettable {
+		} else if (role == "textField" || role == "popUpButton") && inspection.ValueSettable {
 			actions = appendUniqueAccessibilityAction(actions, "setValue")
 		}
 	}
@@ -1143,8 +1145,9 @@ func (b *darwinAccessibilityBackend) Perform(ctx context.Context, handle uint64,
 		if inspection.Secure {
 			return AccessibilityActionData{}, darwinAXTypedError(AccessibilityPermissionDenied, "action_check", "protected accessibility values cannot be modified", nil, AccessibilityActionNotStarted)
 		}
-		if !inspection.ValueSettable || normalizeDarwinAXRole(darwinAXString(inspection.NativeRole)) != "textField" {
-			return AccessibilityActionData{}, darwinAXTypedError(AccessibilityActionUnsupported, "action_check", "element value is not writable as text", nil, AccessibilityActionNotStarted)
+		role := normalizeDarwinAXRole(darwinAXString(inspection.NativeRole))
+		if !inspection.ValueSettable || (role != "textField" && role != "popUpButton") {
+			return AccessibilityActionData{}, darwinAXTypedError(AccessibilityActionUnsupported, "action_check", "element value is not writable as text or an explicitly writable pop-up selection", nil, AccessibilityActionNotStarted)
 		}
 		return b.setStringValue(ctx, entry.element, action.Value)
 	case "expand":

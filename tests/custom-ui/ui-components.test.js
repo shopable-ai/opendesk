@@ -84,3 +84,12 @@ test('theme guide documents both surfaces and the select/input/button matrix', (
   assert.match(guide, /视觉验收清单/);
   assert.match(guide, /ui-components\.js/);
 });
+
+test('macOS Web UI accessibility bridge preserves semantic select and checkbox controls', () => {
+  const macHost = fs.readFileSync(path.join(repoRoot, 'pkg', 'customui', 'machost', 'native_darwin.m'), 'utf8');
+  assert.match(macHost, /inputType:el\.tagName === 'INPUT'/);
+  assert.match(macHost, /\[type isEqualToString:@"input"\] \|\| \[type isEqualToString:@"select"\]/);
+  assert.match(macHost, /return NSAccessibilityPopUpButtonRole/);
+  assert.match(macHost, /return NSAccessibilityCheckBoxRole/);
+  assert.match(macHost, /\[inputKind isEqualToString:@"text"\] \? @"input" : @"change"/);
+});

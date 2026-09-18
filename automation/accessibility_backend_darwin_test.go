@@ -22,3 +22,25 @@ func TestDarwinSetValueAcceptsMissingEnabledOnlyAsNotExplicitlyDisabled(t *testi
 		t.Fatalf("disabled text input error=%#v", err)
 	}
 }
+
+func TestDarwinPopUpButtonIsSelectableThroughAnExplicitWritableValue(t *testing.T) {
+	if got := normalizeDarwinAXRole("AXPopUpButton"); got != "popUpButton" {
+		t.Fatalf("normalized popup role = %q", got)
+	}
+	valueSettable := true
+	nativeRole := "AXPopUpButton"
+	node := (darwinAXInspection{NativeRole: &nativeRole, ValueSettable: valueSettable}).node()
+	if node.Role != "popUpButton" {
+		t.Fatalf("node role = %q", node.Role)
+	}
+	seen := false
+	for _, action := range node.Actions {
+		if action == "setValue" {
+			seen = true
+			break
+		}
+	}
+	if !seen {
+		t.Fatalf("writable popup actions = %#v", node.Actions)
+	}
+}

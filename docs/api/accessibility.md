@@ -53,7 +53,7 @@ interface OpenDeskAccessibilitySelector {
 
 所有给出的字段按 AND 精确匹配。`name` / `identifier` 不做模糊匹配、翻译或忽略大小写。
 
-常用规范化 role 包括：`application`、`window`、`menuBar`、`menu`、`menuItem`、`button`、`checkbox`、`radioButton`、`textField`、`staticText`、`group`、`list`、`listItem`、`table`、`row`、`cell`。无法安全映射时返回 `unknown` 并保留 `nativeRole`。
+常用规范化 role 包括：`application`、`window`、`menuBar`、`menu`、`menuItem`、`button`、`checkbox`、`radioButton`、`textField`、`popUpButton`、`staticText`、`group`、`list`、`listItem`、`table`、`row`、`cell`。无法安全映射时返回 `unknown` 并保留 `nativeRole`。
 
 ### ElementRef
 
@@ -300,7 +300,7 @@ Accessibility.perform(
 
 **行为与错误**
 
-执行前重新验证 ref、identity、enabled/readonly 状态和实际原生能力。macOS 的标准可写 `AXTextArea` 可能不提供 `AXEnabled`；对 `setValue`，此时以非安全元素且 `AXValue` 可写作为能力证明，显式 `AXEnabled: false` 仍抛 `ELEMENT_DISABLED`，只读值仍抛 `ACTION_NOT_SUPPORTED`。`setChecked` 已满足目标值时可返回 `not_needed`。其他动作无法可靠读取必需状态时可抛 `STATE_UNKNOWN`。一旦动作可能已经提交，错误必须通过 `actionState: 'unknown'` 表达，调用方不得自动重做。
+执行前重新验证 ref、identity、enabled/readonly 状态和实际原生能力。macOS 的标准可写 `AXTextArea` 可能不提供 `AXEnabled`；对 `setValue`，此时以非安全元素且 `AXValue` 可写作为能力证明，显式 `AXEnabled: false` 仍抛 `ELEMENT_DISABLED`，只读值仍抛 `ACTION_NOT_SUPPORTED`。`setValue` 也适用于明确暴露可写字符串 `AXValue` 的 `popUpButton`，调用方仍须独立回读所选值。`setChecked` 已满足目标值时可返回 `not_needed`。其他动作无法可靠读取必需状态时可抛 `STATE_UNKNOWN`。一旦动作可能已经提交，错误必须通过 `actionState: 'unknown'` 表达，调用方不得自动重做。
 
 **示例**
 
