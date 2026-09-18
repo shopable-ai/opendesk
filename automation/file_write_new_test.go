@@ -45,10 +45,15 @@ func TestFileRealPathReturnsCanonicalAbsolutePath(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil { t.Fatal(err) }
 	got, err := fs.RealPath("real")
 	if err != nil { t.Fatal(err) }
-	want, err := filepath.Abs(dir)
+	if !filepath.IsAbs(got) {
+		t.Fatalf("realPath must be absolute: %q", got)
+	}
+	gotInfo, err := os.Stat(got)
 	if err != nil { t.Fatal(err) }
-	if filepath.Clean(got) != filepath.Clean(want) {
-		t.Fatalf("realPath=%q want=%q", got, want)
+	wantInfo, err := os.Stat(dir)
+	if err != nil { t.Fatal(err) }
+	if !os.SameFile(gotInfo, wantInfo) {
+		t.Fatalf("realPath=%q does not identify %q", got, dir)
 	}
 
 	if runtime.GOOS != "windows" {
@@ -56,8 +61,10 @@ func TestFileRealPathReturnsCanonicalAbsolutePath(t *testing.T) {
 		if err := os.Symlink(dir, alias); err != nil { t.Fatal(err) }
 		resolved, err := fs.RealPath(alias)
 		if err != nil { t.Fatal(err) }
-		if filepath.Clean(resolved) != filepath.Clean(want) {
-			t.Fatalf("symlink realPath=%q want=%q", resolved, want)
+		resolvedInfo, err := os.Stat(resolved)
+		if err != nil { t.Fatal(err) }
+		if !os.SameFile(resolvedInfo, wantInfo) {
+			t.Fatalf("symlink realPath=%q does not identify %q", resolved, dir)
 		}
 	}
 }

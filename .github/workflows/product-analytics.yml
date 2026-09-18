@@ -27,6 +27,9 @@ on:
       - 'cmd/opendesk/app_product_analytics_http_test.go'
       - 'apps/opendesk/main.js'
       - 'apps/opendesk/app-controller.js'
+      - 'apps/opendesk/assistant/task-contract.js'
+      - 'apps/opendesk/assistant/task-runtime.js'
+      - 'tests/runtime-api/seams/assistant-installed-flow-use.js'
       - 'apps/opendesk/product-analytics/**'
       - 'apps/opendesk/script-runner/**'
       - 'apps/opendesk/script-runner-simple.js'
@@ -45,6 +48,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: product-analytics-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   module-and-js-contract:

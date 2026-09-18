@@ -124,6 +124,16 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Install Linux desktop build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev \
+            libx11-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            libxtst-dev \
+            libxinerama-dev
       - name: Test assistant JavaScript contracts
         run: >-
           node --test
@@ -135,7 +145,7 @@ jobs:
       - name: Test assistant host and File safety seams
         run: >-
           go test ./automation ./cmd/opendesk
-          -run 'TestFileWriteNew|TestFileRealPath|TestAppRecipeRunner|TestAssistantInstalledFlowVerticalRuntime|TestLoadAppFlowInvocation'
+          -run 'TestFileWriteNew|TestFileRealPath|TestConfigureOfficialAppOwnedExecution|TestAppRecipeRunner|TestAssistantInstalledFlowVerticalRuntime|TestLoadAppFlowInvocation'
           -count=1
       - name: Build direct Runtime for assistant gate
         run: |
@@ -161,7 +171,7 @@ jobs:
         run: node --test tests/assistant/assistant.test.js tests/assistant/task-runtime.test.js tests/assistant/product-wiring.test.js tests/assistant/controller.test.js tests/assistant/model-channel-source.test.js
       - name: Test assistant host and File safety seams
         shell: pwsh
-        run: go test ./automation ./cmd/opendesk -run 'TestFileWriteNew|TestFileRealPath|TestAppRecipeRunner|TestAssistantInstalledFlowVerticalRuntime|TestLoadAppFlowInvocation' -count=1
+        run: go test ./automation ./cmd/opendesk -run 'TestFileWriteNew|TestFileRealPath|TestConfigureOfficialAppOwnedExecution|TestAppRecipeRunner|TestAssistantInstalledFlowVerticalRuntime|TestLoadAppFlowInvocation' -count=1
       - name: Build direct Runtime for assistant gate
         shell: pwsh
         run: |

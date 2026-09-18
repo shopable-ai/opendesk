@@ -260,14 +260,16 @@ Diagnostics
 | --- | --- |
 | Production implementation | IMPLEMENTED |
 | Automated test coverage | IMPLEMENTED — 测试代码已加入 |
-| Module / JS contract | PASS — 最近完成的 Product Analytics gate 已通过 read-only module graph 与 Runner UI JS contracts；当前 HEAD 仍需最终 gate 复核 |
-| Go tests execution | PARTIAL PASS — 最近完整 macOS run 中 `pkg/productanalytics`、`pkg/officialconfig`、`internal/flowcli`、`pkg/execution`、`pkg/appshell` 均 PASS；当时 `cmd/opendesk` 被并行 Assistant/Flow 新测试阻塞，当前 HEAD 需重新执行 |
-| Runtime JS execution | 待当前 HEAD 的 `./dist/opendesk -script tests/runtime-api/product-analytics-isolation.js -console-mode script` 证据 |
-| Local build | 待当前 HEAD 构建证据 |
+| Module / JS contract | PASS — Product Analytics workflow run #161 在 `afd929ac62a1ab7682f2a82328c9a3dee7b926b9` 通过 read-only module graph 与 Runner UI JavaScript contract。 |
+| Go tests execution | PASS — 同一 macOS Production Contract 中 `pkg/productanalytics`、`pkg/officialconfig`、`internal/flowcli`、`cmd/opendesk`、`pkg/execution`、`pkg/appshell` 全部通过。 |
+| Runtime JS execution | PASS — 同一 Production Contract 使用正式 `dist/opendesk` 执行 `tests/runtime-api/product-analytics-isolation.js` 通过。 |
+| Local build | PASS — 同一 Production Contract 的 `go build -o dist/opendesk ./cmd/opendesk` 通过。 |
 | Native product qualification | NOT RUN in this implementation environment |
 | PostHog Cloud ingestion | **BLOCKED — repository does not contain a real project capture configuration.** |
 
 Cloud HTTP 2xx 只能证明 capture endpoint 接收请求。只有能够在 PostHog 查询到事件，并核对 Dashboard 过滤/计数，才能把 Cloud ingestion 标为 PASS。
+
+2026-09-18 最终生产 gate 证据：Product Analytics workflow run #161 在 macOS 上完成 Module / JavaScript Contract、Go tests、Runtime build 与正式 third-party isolation，结论为 PASS。该证据不等于完整 Native 产品窗口验收，也不解除真实 PostHog Cloud 配置缺口。
 
 ## 12. V1 不做的事情
 

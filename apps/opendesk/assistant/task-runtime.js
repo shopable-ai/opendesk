@@ -148,7 +148,9 @@
     async function loadCandidate(taskId, candidateId) {
       const names = candidateVersions(taskId, candidateId);
       if (!names.length) return null;
-      return deepFreeze(await file.readJSON(file.join(candidateDir(taskId, candidateId), names[names.length - 1]), {maxBytes: 2 * 1024 * 1024}));
+      const dir = candidateDir(taskId, candidateId);
+      const target = taskStore.assertFile(file.join(dir, names[names.length - 1]), dir);
+      return deepFreeze(await file.readJSON(target, {maxBytes: 2 * 1024 * 1024}));
     }
 
     async function persistCandidate(item) {
@@ -397,6 +399,14 @@
       if (selected && selected.clarify) {
         task = await updateTask(task, {status:'clarification-needed'});
         return deepFreeze({kind:'clarify', task, message:selected.clarify});
+      }
+      if (task.asset.kind === 'automation-directory') {
+        task = await updateTask(task, {status:'blocked-dependency-closure'});
+        return deepFreeze({
+          kind:'clarify',
+          task,
+          message:'已记录明确目录入口，但当前宿主还不能冻结并在执行前重新验证 helper／资源依赖闭包，因此不会仅凭入口文件 hash 运行目录自动化。',
+        });
       }
       if (!recipeBridge || typeof recipeBridge.inspect !== 'function' || typeof recipeBridge.run !== 'function') {
         fail('SCRIPT_HOST_INSPECT_UNAVAILABLE', 'host script inspection/run seam is unavailable');

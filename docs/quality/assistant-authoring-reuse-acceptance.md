@@ -1,6 +1,6 @@
 # AI 助手：制作与复用闭环验收合同
 
-修订 v0.4，2026-09-18。状态：DESIGN_REVIEWED / IMPLEMENTATION_UNVERIFIED。已做范围限定的源码与官方文档核验；本次未运行模型、Runtime、业务、构建、桌面或视觉测试。下列 NOT RUN 表示本轮未执行，不推断所有相关功能均未实现。
+修订 v0.6，2026-09-18。状态：DESIGN_REVIEWED / CORE_IMPLEMENTED / AUTOMATED_CORE_QUALIFIED / LOCAL_LIVE_QUALIFICATION_PENDING。当前 master 已有任务／资产／候选／JS+Flow App-owned 接线和正式发行加载；验收按证据层分别记账，不把代码存在、模型文案或设计评分当 PASS。核心自动化资格已经取得：App Mode run `35333465261`（`b84711dd…`）的 Linux/Windows `AI Assistant Core` 均 PASS，覆盖 assistant Node contracts、Go host/File 安全 seam、Runtime build 和 direct Runtime acceptance，Linux 还执行 formal Runtime gate；run `35333154910`（`afd929ac…`）的 macOS/Windows 产品包 build、assistant direct Runtime、精确 payload 均 PASS，macOS formal Runtime gate PASS。Windows formal catalog gate 不适用，因为其 harness 使用 POSIX-only 工具；Windows 用同一生产 Runtime JS asset 做 direct acceptance。整体 App Mode workflow 仍可能因 Recorder bundle 漂移等并行问题显示失败，但不把这些红灯误算成助手核心失败。下列 NOT RUN/BLOCKED 仅表示真实 Codex、真实桌面业务效果、视觉体验或完整目录依赖闭包尚无足够当前证据。
 
 主方案：[任务与脚本资产中心的 Codex 接入](../architecture/assistant-script-invocation.md)。入口合同：[任务、资产、授权与接续](../architecture/assistant-workspace-bindings.md)。沿用既有 G0—G7 和 F0—F10；AR 编号只是本方案的需求覆盖行，不另建质量等级、安装测试框架或商业开发台账。
 
@@ -31,25 +31,25 @@ Existing Assets／Recorder 可引用有效旧证据，不强迫重做 A，但须
 | 编号 | 行为及成功标准 | 本轮运行状态 |
 | --- | --- | --- |
 | AR-01 | 普通问答不要求项目，不取得文件写入／桌面权限，不建制作目录 | NOT RUN |
-| AR-02 | 无资产、单 JS、目录自动化、已安装 Flow 均无需 projectId；工作资料按需生成 | NOT RUN |
+| AR-02 | 无资产、单 JS、目录自动化、已安装 Flow 均无需 projectId；工作资料按需生成 | PASS（Node contract：35327276308，四类入口与无 projectId） |
 | AR-03 | 本地 Codex 真实制作，工具发生时同步留证，不依赖事后回忆 | NOT RUN |
 | AR-04 | 冻结普通 JS 独立执行通过；Agent 不补做、不改候选、不复用旧读值 | NOT RUN |
 | AR-05 | 核心目录外固定顶层 JS 原样接入，不强制函数化／参数化 | NOT RUN |
-| AR-06 | 外部参数确由实际代码消费；变更输入得到相应真实结果 | NOT RUN |
-| AR-07 | 固定门店／对象／副作用与请求冲突时拒绝错跑，不吞要求传空对象 | NOT RUN |
+| AR-06 | 外部参数确由实际代码消费；变更输入得到相应真实结果 | PASS（非 Calculator installed Flow vertical Runtime：真实 `Execution.input` 写入隔离业务输出；Go host seam + Runtime 资格） |
+| AR-07 | 固定门店／对象／副作用与请求冲突时拒绝错跑，不吞要求传空对象 | PASS（signed Flow invocation contract：fixedInputs/unknown/required/type 反例；Node 35327276308） |
 | AR-08 | 账号、窗口、剪贴板、选中项、日期等必要隐式输入被核验 | NOT RUN |
 | AR-09 | 发现、列目录、入口识别、说明和匹配零业务代码执行 | NOT RUN |
 | AR-10 | 同名／相似不同效果、未知 ID、未激活、权限不足和无匹配各自正确处理 | NOT RUN |
-| AR-11 | 多轮改参数绑定同会话 draft/revision；切会话或 Runner 选择不污染目标 | NOT RUN |
+| AR-11 | 多轮改参数绑定同会话 draft/revision；切会话或 Runner 选择不污染目标 | PASS（Node：Runner 一次性 handoff 快照、会话切换和 revision 隔离；Linux/Windows core） |
 | AR-12 | 关联、解释、候选编辑、真实测试、保存、安装、启用、运行权限分离 | NOT RUN |
-| AR-13 | 确认绑定最终输入、目标、内容与有效期；重复点击只启动一次；旧确认拒绝 | NOT RUN |
+| AR-13 | 确认绑定最终输入、目标、内容与有效期；重复点击只启动一次；旧确认拒绝 | PASS（Node confirmation registry／并发重复确认反例：35327276308） |
 | AR-14 | 源码／helper／配置／安装内容变化时冻结或失效，实际执行与预览一致 | NOT RUN |
-| AR-15 | 只用一个 Local Flow Catalog，不建设 capability-catalog／capability-releases | NOT RUN |
+| AR-15 | 只用一个 Local Flow Catalog，不建设 capability-catalog／capability-releases | PASS（installed Flow vertical 使用 `flowinstall.Service` / canonical installId / RunLease，无第二 Catalog） |
 | AR-16 | 已安装、信任、权益、资格、助手启用与本次授权分别判断，模型不能覆盖 | NOT RUN |
 | AR-17 | 任务目录、源码、入口、业务 cwd、安装资源、可写数据和状态不混用 | NOT RUN |
 | AR-18 | 助手、Runner、Agent、Recorder、调度争用由真实共同 owner 仲裁；未覆盖范围明示 | NOT RUN |
-| AR-19 | 停止同时涉及 Codex 和实际工具／Execution；实际收口前不显示 stopped | NOT RUN |
-| AR-20 | 外部效果未知不自动重试；恢复会话／线程、安装或发布不重放业务 | NOT RUN |
+| AR-19 | 停止同时涉及 Codex 和实际工具／Execution；实际收口前不显示 stopped | PASS（Session stop/late-result contract；host/desktop live stop 仍由本机资格补证） |
+| AR-20 | 外部效果未知不自动重试；恢复会话／线程、安装或发布不重放业务 | PASS（reserved execution unknown-effect / canceled terminal Node cases：35327276308） |
 | AR-21 | 从原任务包、有效候选和最后证据接续；不从零重做，也不跳过未知效果核对 | NOT RUN |
 | AR-22 | 计划、实际步骤、代码位置、Observation 可核对；无业务验证明确未验证 | NOT RUN |
 | AR-23 | Secret、受保护源码、私密截图不意外外发／进入产品统计，必要外发有范围 | NOT RUN |
@@ -57,23 +57,23 @@ Existing Assets／Recorder 可引用有效旧证据，不强迫重做 A，但须
 | AR-25 | 受支持 API／CLI／助手共用正式执行合同，不模拟点击按钮或另造 Runtime | NOT RUN |
 | AR-26 | 固定真实 Codex 版本、有效配置、认证、许可和中断；上游可用不冒充已接线 | NOT RUN |
 | AR-27 | 两个真实用户任务新增接入均不修改主程序业务 if/else；Calculator 最后迁移 | NOT RUN |
-| AR-28 | 真实 Runtime／UI-host／发行包加载来源可证；功能、加载和视觉分别判定 | NOT RUN |
-| AR-29 | 选单个 JS 后，父目录兄弟文件／AGENTS／秘密文件读取全部被真实工具拒绝 | NOT RUN |
-| AR-30 | 目录含多个入口、缺资源或动态依赖时澄清／阻塞；不执行配置脚本探测入口 | NOT RUN |
-| AR-31 | 受保护 Flow 无源码仍可依法运行；解释仅允许元信息；改进不写安装区或解密外发 | NOT RUN |
+| AR-28 | 真实 Runtime／UI-host／发行包加载来源可证；功能、加载和视觉分别判定 | PARTIAL PASS（macOS/Windows 产品包 build、payload 与 assistant Runtime 已 PASS；视觉／真实交互仍 LOCAL NOT RUN） |
+| AR-29 | 选单个 JS 后，父目录兄弟文件／AGENTS／秘密文件读取全部被真实工具拒绝 | PASS（host-owned exact-file/scope reader：无父目录扫描；双重 consent 前不读取／不外发；Go + Node） |
+| AR-30 | 目录含多个入口、缺资源或动态依赖时澄清／阻塞；不执行配置脚本探测入口 | PASS（未解析入口与依赖闭包均 fail closed；当前目录 use/improve 不猜测执行） |
+| AR-31 | 受保护 Flow 无源码仍可依法运行；解释仅允许元信息；改进不写安装区或解密外发 | PASS for use/explain boundary（host inspection 白名单＋canonical installId；不返回 entry/root/source；改进仍需合法可编辑来源） |
 | AR-32 | 有相对 helper／资源／输出的脚本在 Agent cwd 改变后仍保持经过审阅的执行语义 | NOT RUN |
-| AR-33 | 候选生成默认不改源；源摘要变化／并行写入报冲突；目录无事务时另存而非假原子回写 | NOT RUN |
-| AR-34 | 链接逃逸、reparse point、目标替换、大小写／Unicode 冲突、半写入均不能越权 | NOT RUN |
+| AR-33 | 候选生成默认不改源；源摘要变化／并行写入报冲突；目录无事务时另存而非假原子回写 | PASS within single-file scope；directory authoring BLOCKED（exclusive `writeNew`、source digest recheck、immutable revisions） |
+| AR-34 | 链接逃逸、reparse point、目标替换、大小写／Unicode 冲突、半写入均不能越权 | PARTIAL PASS（symlink/reparse/target replacement/Windows short-path/half-write 已覆盖；Unicode-specific alias set 仍 LOCAL/fixture TODO） |
 | AR-35 | 关联恶意 AGENTS／Skill／hook／`.codex` 目录不加载执行、不扩权；HOME／系统加载层同样核验 | NOT RUN |
 | AR-36 | 两个通用 Skill 来源／解析路径／摘要固定；同名冲突或活动任务版本变化不静默替换 | NOT RUN |
 | AR-37 | OpenDesk JSON profile 与官方 CLI profile 不混用；按真实版本检测旧语法和未知参数，失败不放宽策略 | NOT RUN |
 | AR-38 | 现有 analysis 通道仍无作者工具；改变 Skill 名或关联资产不能提升权限 | NOT RUN |
 | AR-39 | 官方 CLI／认证／Skill 的一次性准备不要求普通用户手工复制内部文件或初始化 Git | NOT RUN |
 | AR-40 | 移除 Codex 可用性后，已确定且自身无模型依赖的 Flow 仍可由 Runner／CLI／调度正常运行 | NOT RUN |
-| AR-41 | 无 projectId 的新任务与有可选 projectRef 的旧记录均可读；迁移不放大读取范围、不丢证据 | NOT RUN |
+| AR-41 | 无 projectId 的新任务与有可选 projectRef 的旧记录均可读；迁移不放大读取范围、不丢证据 | PASS（legacy optional project reference Node case：35327276308） |
 | AR-42 | 未另存唯一候选、未完成交接、未知效果和有效资格引用阻止缓存清理；容量不足明确处理 | NOT RUN |
 | AR-43 | 必需工具服务失联／范围不足时阻塞，非交互 CLI 不自动审批，不回退任意 Shell／JS | NOT RUN |
-| AR-44 | Codex 已退出但服务动作未收口、迟到／缺失事件、跨任务 resume、授权撤销均不伪装成功 | NOT RUN |
+| AR-44 | Codex 已退出但服务动作未收口、迟到／缺失事件、跨任务 resume、授权撤销均不伪装成功 | PASS（迟到事件与 unknown-effect deterministic cases；真实外部 Codex/服务断连仍在本机资格矩阵） |
 
 Flow 包、安装、信任、事务和授权详细测试继续使用原 FLOW 编号及商业交付台账。AR-15—17／31 只验证助手没有绕过这些门，不复制安装器测试实现。
 
@@ -137,7 +137,9 @@ AR-29、34、35、38、43、44 是作者模式首批放行门，必须针对实�
 | --- | --- | --- |
 | 用户实际 Codex 版本、登录、官方配置／profile 兼容 | 真实版本探测、受管配置生效与无副作用连接检查 | UNVERIFIED，不以 getCapabilities 代替 |
 | 两个通用 Skill 的实际部署／发现／唯一来源 | 产品自动部署，实际来源和摘要可核验；冲突拒绝 | PROPOSED，未宣称已安装 |
-| 作者模式任务级文件／动作授权 | 真实工具拒绝单文件父目录越权、错 task/revision、已撤销 grant | 未达到则 BLOCKED |
+| 单 JS 源码解释／改进授权 | 产品双重 consent + host-owned exact-file reader；目标替换／scope／大小／UTF-8 反例 | 自动化核心资格 PASS：Linux/Windows Node+Go seam；关联仍不自动升级为读取／外发 |
+| 目录型作者／执行依赖闭包 | 冻结并在执行前重验 helper／资源闭包，目录回写具备可靠事务或明确另存语义 | BLOCKED；当前目录 use/improve fail closed |
+| 通用 Codex 作者工具／动作授权 | 真实工具拒绝错 task/revision、撤销 grant、未授权命令／桌面操作 | BLOCKED；analysis-only 模型通道未扩权 |
 | AGENTS／Skills／hooks／配置／插件加载隔离 | 对真实 CLI 的全加载层反例，未知源不能自动加载 | 未达到则 BLOCKED |
 | Agent cwd 与业务 cwd／资源／输出兼容 | 相对与绝对路径样本、依赖冻结、真实正常入口验证 | NOT RUN |
 | 增量留证、双侧停止、跨入口仲裁 | 模型退出而工具延迟、断连、超时、迟到事件和其他执行者竞争测试 | NOT RUN；范围须明示 |

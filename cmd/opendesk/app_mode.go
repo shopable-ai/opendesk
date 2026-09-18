@@ -67,6 +67,20 @@ func validateAppModeHelperConflict(args []string) error {
 	return nil
 }
 
+const officialOpenDeskAppID = "com.opendesk.desktop"
+
+func configureOfficialAppOwnedExecution(packageID string, request *pkgExecution.Request, runner *appRecipeRunner) {
+	if request == nil || runner == nil || strings.TrimSpace(packageID) != officialOpenDeskAppID {
+		return
+	}
+	request.AppOwnedScriptInspect = runner.InspectScript
+	request.AppOwnedScriptRead = runner.ReadScript
+	request.AppOwnedScriptRun = runner.Run
+	request.AppOwnedExecutionID = runner.ReserveExecutionID
+	request.AppOwnedFlowInspect = runner.InspectFlow
+	request.AppOwnedFlowRun = runner.RunFlow
+}
+
 type appModeExecutionResult struct {
 	result  pkgExecution.ExecutionResult
 	summary pkgExecution.AgentSummary
@@ -518,12 +532,6 @@ func executeAppMode(config *Config) error {
 		CustomUIDriver:                  customui.NewSessionScopedDriverForSession(sharedUIDriver, executionID),
 		CustomUIBaseDir:                 appPackage.Root,
 		AppShell:                        shell,
-		AppOwnedScriptInspect:           recipeRunner.InspectScript,
-		AppOwnedScriptRead:              recipeRunner.ReadScript,
-		AppOwnedScriptRun:               recipeRunner.Run,
-		AppOwnedExecutionID:             recipeRunner.ReserveExecutionID,
-		AppOwnedFlowInspect:             recipeRunner.InspectFlow,
-		AppOwnedFlowRun:                 recipeRunner.RunFlow,
 		GracefulCancellation: func() bool {
 			state := shell.State()
 			return shell.TerminalError() == nil && (state == appshell.StateQuitting || state == appshell.StateStopped)
@@ -536,6 +544,7 @@ func executeAppMode(config *Config) error {
 			ColorMode:    selection.ColorMode,
 		},
 	}
+	configureOfficialAppOwnedExecution(appPackage.Manifest.ID, &request, recipeRunner)
 
 	runResult := make(chan appModeExecutionResult, 1)
 	go func() {

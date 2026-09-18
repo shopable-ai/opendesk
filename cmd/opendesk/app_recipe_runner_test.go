@@ -170,10 +170,52 @@ func TestAppRecipeRunnerInstalledFlowUsesCanonicalCatalogAndExecutionInput(t *te
 	if err != nil { t.Fatalf("run installed Flow: %v", err) }
 	if result.Status != string(pkgExecution.ExecutionStatusSucceeded) || result.ExecutionID == "" { t.Fatalf("result=%+v", result) }
 	stdout, err := os.ReadFile(filepath.Join(logDir, "stdout.log")); if err != nil { t.Fatal(err) }
-	if !strings.Contains(string(stdout), `FLOW_INPUT={"amount":17,"nested":{"ok":true}}`) { t.Fatalf("stdout=%q", stdout) }
+	stdoutText := string(stdout)
+	marker := "FLOW_INPUT="
+	start := strings.Index(stdoutText, marker)
+	if start < 0 { t.Fatalf("stdout=%q", stdout) }
+	payload := stdoutText[start+len(marker):]
+	if end := strings.Index(payload, ` {"consoleMethod":`); end >= 0 {
+		payload = payload[:end]
+	} else if end := strings.IndexByte(payload, '\n'); end >= 0 {
+		payload = payload[:end]
+	}
+	var actualInput map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(payload)), &actualInput); err != nil {
+		t.Fatalf("decode Flow input from stdout: %v; stdout=%q", err, stdout)
+	}
+	if actualInput["amount"] != float64(17) { t.Fatalf("Flow input amount=%v", actualInput["amount"]) }
+	nested, ok := actualInput["nested"].(map[string]any)
+	if !ok || nested["ok"] != true { t.Fatalf("Flow nested input=%v", actualInput["nested"]) }
 	_, err = runner.RunFlow(context.Background(), automation.AppOwnedFlowRunRequest{InstallID: installed.Record.InstallID, WorkDir: workDir, LogDir: filepath.Join(workDir, ".runtime", "changed"), InputJSON: `{"amount":18}`, ExpectedArchiveDigest: "stale", ExpectedManifestDigest: installed.Record.ManifestDigest})
 	var flowErr *automation.AppOwnedFlowRunError
 	if !errors.As(err, &flowErr) || flowErr.Code != "FLOW_CHANGED" { t.Fatalf("changed Flow error=%T %v", err, err) }
+}
+
+func TestConfigureOfficialAppOwnedExecutionRejectsThirdPartyAppModePackages(t *testing.T) {
+	runner := newAppRecipeRunner(appRecipeRunnerConfig{}, nil, nil)
+
+	var thirdParty pkgExecution.Request
+	configureOfficialAppOwnedExecution("com.example.third-party", &thirdParty, runner)
+	if thirdParty.AppOwnedScriptInspect != nil ||
+		thirdParty.AppOwnedScriptRead != nil ||
+		thirdParty.AppOwnedScriptRun != nil ||
+		thirdParty.AppOwnedExecutionID != nil ||
+		thirdParty.AppOwnedFlowInspect != nil ||
+		thirdParty.AppOwnedFlowRun != nil {
+		t.Fatal("third-party App Mode package received private App-owned product bridges")
+	}
+
+	var official pkgExecution.Request
+	configureOfficialAppOwnedExecution(officialOpenDeskAppID, &official, runner)
+	if official.AppOwnedScriptInspect == nil ||
+		official.AppOwnedScriptRead == nil ||
+		official.AppOwnedScriptRun == nil ||
+		official.AppOwnedExecutionID == nil ||
+		official.AppOwnedFlowInspect == nil ||
+		official.AppOwnedFlowRun == nil {
+		t.Fatal("official OpenDesk package did not receive required private App-owned bridges")
+	}
 }
 
 func TestAppRecipeRunnerAssistantInspectBindsScopeHashInputAndReservedIdentity(t *testing.T) {
@@ -215,8 +257,28 @@ func TestAppRecipeRunnerAssistantInspectBindsScopeHashInputAndReservedIdentity(t
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(stdout), `ASSISTANT_INPUT={"amount":17,"nested":{"target":"A"}}`) {
+	stdoutText := string(stdout)
+	marker := "ASSISTANT_INPUT="
+	start := strings.Index(stdoutText, marker)
+	if start < 0 {
 		t.Fatalf("stdout=%q", stdout)
+	}
+	payload := stdoutText[start+len(marker):]
+	if end := strings.Index(payload, ` {"consoleMethod":`); end >= 0 {
+		payload = payload[:end]
+	} else if end := strings.IndexByte(payload, '\n'); end >= 0 {
+		payload = payload[:end]
+	}
+	var actualInput map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(payload)), &actualInput); err != nil {
+		t.Fatalf("decode assistant input from stdout: %v; stdout=%q", err, stdout)
+	}
+	if actualInput["amount"] != float64(17) {
+		t.Fatalf("assistant input amount=%v", actualInput["amount"])
+	}
+	nested, ok := actualInput["nested"].(map[string]any)
+	if !ok || nested["target"] != "A" {
+		t.Fatalf("assistant nested input=%v", actualInput["nested"])
 	}
 
 	if err := os.WriteFile(scriptPath, []byte(`console.log("changed");`), 0o600); err != nil {
@@ -386,6 +448,10 @@ func TestAssistantInstalledFlowVerticalRuntimeUsesCanonicalCatalogAndRealExecuti
 	if err := os.MkdirAll(businessDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	businessDir, err = filepath.EvalSymlinks(businessDir)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	service, err := flowinstall.NewService(flowinstall.Roots{
 		FlowRoot: filepath.Join(root, "flows"),
@@ -404,7 +470,7 @@ func TestAssistantInstalledFlowVerticalRuntimeUsesCanonicalCatalogAndRealExecuti
 	flowSource := filepath.Join(flowSourceRoot, "payload", "main.js")
 	if err := os.WriteFile(flowSource, []byte(
 		`const resultPath = File.join(Execution.workdir, "assistant-flow-result.json");
-File.writeNew(resultPath, JSON.stringify({executionId: Execution.id, input: Execution.input}) + "\\n");
+File.writeNew(resultPath, JSON.stringify({executionId: Execution.id, input: Execution.input}) + "\n");
 console.log("ASSISTANT_FLOW_BUSINESS_OUTPUT=" + resultPath);`,
 	), 0o600); err != nil {
 		t.Fatal(err)

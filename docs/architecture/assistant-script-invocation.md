@@ -5,9 +5,9 @@ description: "以本次任务和可选脚本资产为中心，复用官方 Codex
 
 # AI 助手：制作、复用与真实调用链
 
-设计修订 v0.4，2026-09-18。源码核查基线：`master@a3ad21f2699f4b56db50dea959d5a20ba95f573e`；首次写入前 HEAD 已前进到 `31b1a1428d29a1427d79ed92aca393fb25b64b83`，目标文档 blob 未变。后续写入逐文件检查当前 SHA，不覆盖并行修改。
+实现修订 v0.6，2026-09-18。历史设计／源码核查基线仍保留在第 3—5 节；当前状态以第 0 节、当前 `master` 和验收合同为准。实施过程中始终逐文件检查目标 SHA 并保护并行修改，没有以 reset／force push 回退其他会话。
 
-**本轮是设计、官方机制核验和文档纠偏，不修改生产代码，不搬迁源码或安装目录，不运行真实业务、模型、Runtime、构建或桌面测试。** 第 3 节保留历史调用链；第 4 节是本次有限范围源码核查，不是安装包验收。当前合同取代 v0.3 的“制作必须绑定用户项目／主工作区”，但保留开发者已有工程的可选关联。
+本轮已经从设计推进到生产实现：任务／资产／候选／App-owned JS+Flow 使用链、正式加载、发行 payload 和针对性测试均已写入 `master`。真实模型登录、Codex 作者工具、目录依赖闭包、真实桌面业务效果和视觉体验仍按证据层单独验收，不能由代码存在或 Runtime 退出 0 自动推出。
 
 ## 0. 2026-09-18 当前生产实现状态
 
@@ -19,7 +19,7 @@ description: "以本次任务和可选脚本资产为中心，复用官方 Codex
 - `assistant/task-runtime.js`：负责当前对话的持久任务、候选版本、接续、可信 use 预览和 confirmation registry。候选生成、候选另存和独立验证是三个分离状态；验证必须绑定当前 candidate digest、真实 executionId、criteriaId、observedAt 和 `passed`。
 - `assistant/controller.js → session.js → task-runtime.js`：现有助手 UI 已增加“普通聊天／解释／使用／制作／改进”和“无资产／单 JS／自动化目录／已安装 Flow”入口。目录没有唯一入口时保存任务并明确澄清，不运行探测脚本。
 - `File.writeNew`：候选另存和不可变 task revision 使用独占创建。目标已存在时不覆盖；父目录若解析为 symlink／reparse-point 别名，或授权核对期间目录身份发生变化，则拒绝。
-- 单 JS／目录 use：App-owned 私有宿主先对真实入口做路径、real-file、目录边界和 script hash 核验；确认后再次核验 hash，结构化参数进入正式 `pkg/execution.Request.Input → Execution.input`。
+- 单 JS use：App-owned 私有宿主通过 traversal-resistant root handle 对真实入口做路径／real-file／最终文件身份和 script hash 核验；确认后再次读取并核验 hash，结构化参数进入正式 `pkg/execution.Request.Input → Execution.input`。目录型 use 不假装只校验入口文件即可代表完整自动化，依赖闭包未可冻结时明确阻塞。
 - Installed Flow use：助手只持有 canonical installId；宿主从唯一 `flowinstall.Service` 获取 Catalog/RunLease，预览与执行前分别核验当前状态，最终 run 再绑定 archive/manifest digest；受保护源码不通过助手 inspection 暴露。
 - confirmation：宿主侧 task runtime 保存 canonical input/inspection snapshot；一次性 token 在任何异步最终检查之前先消费，因此并发双击不能同时越过“未消费”检查。
 - stop：UI 请求停止后先进入 `stopping`；AbortSignal 继续传到模型和 App-owned Execution。模型返回、Abort 发出或已有 executionId 本身都不单独证明业务已停止；迟到结果不会把新任务覆盖为成功。
@@ -27,22 +27,22 @@ description: "以本次任务和可选脚本资产为中心，复用官方 Codex
 
 当前仍保持明确 BLOCKED／未完成资格的范围：
 
-- 已关联 JS／目录的 **作者源码读取和“改进已有源码”** 尚未获得任务级 native 文件授权 owner；因此不会把关联路径、`readSource` 字段或 analysis-only Agent 自动升级为作者权限。当前 `improve` 源码通道会 fail closed。
-- 目录候选的多文件事务回写没有可靠 owner；当前只正式支持单文件候选安全另存，不宣称目录原子回写。
+- 单个 JS 的源码解释／改进已经具备**窄只读宿主 owner**：关联本身仍不授权，用户必须分别开启“允许读取已关联源码”和“允许将读取源码发送给当前模型”；App host 只允许经真实路径／scope 校验后的指定 .js/.mjs 入口，限制 1 MiB、UTF-8，并返回内容摘要。模型仍无 Command/File/Desktop 工具，源码按不可信数据处理；候选另存前重新由宿主检查 source digest。
+- 自动化目录的依赖闭包仍明确 BLOCKED：当前可以保存、澄清和在双重授权后解释明确入口；但在无法冻结并于执行前重新验证 helper／资源依赖闭包时，目录 `use` 只保存并展示阻塞，不会仅凭入口 hash 运行；`improve` 返回 `DIRECTORY_AUTHORING_DEPENDENCIES_UNRESOLVED`。当前只正式支持单文件候选安全另存，不宣称目录原子回写。
 - Runner → 助手已有显式一次性 handoff：用户在助手中点击“从 Runner 带入”，产品读取当前 Runner 选中的 JS 或 canonical installed Flow 身份并复制到任务草稿；受保护 `.odpkg` 不投影为源码资产。任务一旦建立只使用 task contract 中冻结的资产身份，不轮询 Runner 当前选择，之后播放器切换条目不会重定向旧任务。
 - Runtime 成功终态默认记录为 `execution-finished-unverified`；没有独立业务 observer 时不升级为业务成功。
-- macOS/Windows 真实 App Mode、真实模型/Codex、真实桌面副作用与发行包视觉验收必须由当前 CI 和后续本机资格给证据；未运行前继续是 NOT RUN。
+- 自动化核心资格已有真实 CI 证据：App Mode run `35333465261`（`b84711dd…`）的 Linux/Windows `AI Assistant Core` 均 PASS，覆盖 Node 合同、Go host/File 安全 seam、Runtime build、direct Runtime acceptance，Linux 还覆盖 formal Runtime gate；run `35333154910`（`afd929ac…`）的 macOS／Windows 产品包 build、assistant direct Runtime 与精确 payload 均 PASS，macOS formal Runtime gate 也 PASS。整体 workflow 的 Recorder bundle 漂移等红灯与本助手核心分开记账。真实模型/Codex 登录、真实桌面业务副作用、视觉交互和业务 observer 仍由本机资格补证。
 
 正式可重复测试入口：
 
 ```text
-node --test tests/assistant/assistant.test.js tests/assistant/task-runtime.test.js tests/assistant/product-wiring.test.js
-go test ./cmd/opendesk -run 'TestAppRecipeRunner' -count=1
+node --test tests/assistant/assistant.test.js tests/assistant/task-runtime.test.js tests/assistant/product-wiring.test.js tests/assistant/controller.test.js tests/assistant/model-channel-source.test.js
+go test ./automation ./cmd/opendesk -run 'TestFileWriteNew|TestFileRealPath|TestConfigureOfficialAppOwnedExecution|TestAppRecipeRunner|TestAssistantInstalledFlowVerticalRuntime|TestLoadAppFlowInvocation' -count=1
 ./dist/opendesk -script tests/runtime-api/assistant-task-core.js -console-mode script
 OPENDESK_RUNTIME_API_MODE=assistant-task-core ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
 ```
 
-App Mode CI 在 macOS 和 Windows 构建完成后执行最后两条 Runtime 测试；测试未完成时，不以文件存在代替执行证据。
+formal Runtime gate harness 使用 POSIX 工具，因此 Linux/macOS 运行；Windows 使用同一生产 `assistant-task-core.js` direct Runtime acceptance。测试状态必须引用具体 commit/run/job，不能以文件存在代替执行证据。
 
 ## 1. 一屏看懂最终方案
 

@@ -1,6 +1,6 @@
 # OpenDesk AI 助手：制作与复用阅读入口
 
-当前实现修订 v0.5，2026-09-18。先读 **[制作、复用与真实调用链](../../../docs/architecture/assistant-script-invocation.md)**，再按需要阅读下表。任务/资产、候选安全另存、App-owned JS/Flow 使用接缝和正式发行加载已经写入生产代码；真实 Runtime、模型、桌面和发行包资格仍以 CI／本机证据分别判定。
+当前实现修订 v0.6，2026-09-18。先读 **[制作、复用与真实调用链](../../../docs/architecture/assistant-script-invocation.md)**，再按需要阅读下表。任务/资产、候选安全另存、App-owned JS/Flow 使用接缝和正式发行加载已经写入生产代码；Linux/Windows assistant-core 自动化资格已 PASS，macOS/Windows 产品包与 assistant Runtime 也已有真实 CI PASS。真实模型/Codex、桌面业务效果和视觉体验继续由本机资格单独判定。
 
 配图入口：[总体架构图、来源与阅读边界](../../../docs/architecture/assets/assistant/README.md)。原始 PNG 的实际归档状态以该页为准，概念图不代替运行证据。本轮实现与待本机资格的准确边界由主方案第 0 节和验收合同维护，不再把旧“最小实施提示词”当作当前代码状态。
 
@@ -72,7 +72,7 @@
 | `task-contract.js` | 持久 task revision、四类资产、候选绑定、一次性确认和 signed Flow invocation 合同 |
 | `task-runtime.js` | 任务/候选接续、safe save、JS/目录/installed Flow 使用链和证据持久化 |
 | `task-service.js` | 既有 Calculator 专用路由、Planner、参数校验、执行适配和文案；保留回归路径 |
-| `model-channel.js` | 普通聊天及无源码 make 的 analysis-only 候选生成通道；不授予作者文件工具 |
+| `model-channel.js` | 普通聊天、无源码 make，以及经双重授权后由 host reader 提供的单 JS 解释／候选生成；源码作为不可信数据且不授予模型文件／命令／桌面工具 |
 | `store.js` | 会话、草稿、request/message 状态；持久 task 由 TaskContract/TaskRuntime 另按 task identity 维护 |
 | `../capabilities/calculator.js` | 演示业务代码，不是要求用户照搬的业务目录 |
 | `../main.js` | 官方产品接线，不随新增用户业务脚本增加业务分支 |
@@ -87,8 +87,8 @@ App-owned 执行接缝的历史与当前局部核查同样在主方案中；后�
 
 用户业务不进入应用核心。只保留唯一 Flow Catalog、安装器、Trust／Entitlement 和执行体系；不创建 capability-catalog／capability-releases。安装遵守 flows/installId，不加 version 子目录，也不拿安装树当作者目录。
 
-发现不执行，关联不授权，编辑默认候选，源变化报冲突；保存、安装、启用和运行不互相推出。脚本独立验证不由 Agent 临时补做，不盲目重复第一次任务已经造成的效果。计划与实际轨迹分开，保护源码不因解释／追溯泄露。
+发现不执行，关联不授权，编辑默认候选，源变化报冲突；保存、安装、启用和运行不互相推出。单 JS 的 host inspect/read/run 使用 traversal-resistant 目录句柄并核对最终文件身份，防止授权后目标替换；模型只在双重授权后接收 basename＋digest＋源码内容，不接收本机绝对路径。脚本独立验证不由 Agent 临时补做，不盲目重复第一次任务已经造成的效果。计划与实际轨迹分开，保护源码不因解释／追溯泄露。
 
 停止以 Codex 与实际工具／Execution 收口为准，未知不冒充成功。切会话不污染原任务；清理缓存不删除用户唯一脚本、未完成任务资料或有效证据。保留既有 UI，不重做一套低代码编辑器或项目管理界面。
 
-当前生产代码已经修改 JS／Go／发行 payload，并新增 Node、Go 与正式 OpenDesk Runtime gate。网页环境不能直接运行本机桌面/Codex；CI 或本机尚未产生证据的条目继续标为 CI PENDING / NOT RUN，不能以代码存在或设计评分替代运行验收。源码型 improve 仍因缺少任务级 host-owned 作者文件授权而明确 BLOCKED，不通过放宽 analysis 通道制造“已接通”。
+当前生产代码已经修改 JS／Go／发行 payload，并新增 Node、Go 与正式 OpenDesk Runtime gate。App Mode run `35333465261` 的 Linux/Windows assistant-core 已完整 PASS；run `35333154910` 的 macOS/Windows 产品包 build、assistant direct Runtime 和精确 payload 已 PASS，macOS formal Runtime gate 也 PASS。单 JS explain/improve 已通过显式 read＋model-share 双授权和私有 host reader 接线；目录型 use/improve 在依赖闭包未冻结前明确 BLOCKED，通用 Codex 作者工具及目录事务回写也未开放。真实 Codex 登录、实际桌面副作用、视觉体验与业务 observer 仍需本地资格，不能以自动化核心 PASS 冒充业务成功。
