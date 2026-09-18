@@ -63,6 +63,7 @@ jobs:
           mkdir -p .runtime/tests/api-docs
           node --test tests/api-docs/discovery.test.js | tee .runtime/tests/api-docs/ci-discovery.tap
       - name: Verify catalog regeneration is deterministic
+        if: always()
         run: |
           node scripts/api-docs.js generate
           git diff --exit-code -- docs/api/agent
