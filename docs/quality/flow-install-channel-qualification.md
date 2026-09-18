@@ -219,7 +219,7 @@ OPENDESK_RUNTIME_API_BINARY="$PWD/dist/opendesk" OPENDESK_RUNTIME_API_RUN_DIR="$
 - side-load 与 Marketplace 对同一 artifact 收敛到同一个 Catalog `installId`；
 - Marketplace 只追加 provenance，不复制 install owner。
 
-这些源码在本轮远程写入环境没有实际执行，因此不能在第 4 节矩阵写 PASS。
+Marketplace vertical slice 的上一版同源测试已在 Flow Commercial run `35297242961` 的 macOS 与 Windows runner 实际 PASS；当前源码新增了“安装后 marker/result/run.json 必须不存在”的业务结果级断言，这部分的新 run 尚未完成。因此第 4 节真实 Web / In-App Channel 仍不能写 PASS，也不能把 test backend 描述成 Production Marketplace。
 
 ## 6. 场景状态
 
