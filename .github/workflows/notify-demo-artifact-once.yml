@@ -13,8 +13,8 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -23,7 +23,7 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Build current OpenDesk
+      - name: Build current OpenDesk through the repository build owner
         run: make build
 
       - name: Build verify and install Notify Demo without running it
@@ -55,10 +55,8 @@ jobs:
           unzip -p "$work/notify-demo.odflow" flow.json > "$work/flow.json"
 
           echo "ODFLOW_BASE64_BEGIN"
-          base64 -w0 "$work/notify-demo.odflow"
-          echo
+          python3 -c 'import base64,sys; print(base64.b64encode(open(sys.argv[1],"rb").read()).decode())' "$work/notify-demo.odflow"
           echo "ODFLOW_BASE64_END"
           echo "FLOW_JSON_BASE64_BEGIN"
-          base64 -w0 "$work/flow.json"
-          echo
+          python3 -c 'import base64,sys; print(base64.b64encode(open(sys.argv[1],"rb").read()).decode())' "$work/flow.json"
           echo "FLOW_JSON_BASE64_END"
