@@ -67,11 +67,3 @@ func writeAtomic(path string, data []byte, mode os.FileMode) error {
 	return syncDirectory(directory)
 }
 
-func syncDirectory(path string) error {
-	directory, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer directory.Close()
-	return directory.Sync()
-}
