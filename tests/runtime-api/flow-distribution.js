@@ -95,7 +95,7 @@ try {
     '--flow-id', 'opendesk-install-test', '--name', 'OpenDesk Install Test', '--version', '1.0.0',
     '--publisher-id', 'opendesk-install-test-publisher', '--publisher-key-id', 'opendesk-install-test-key',
     '--entry', 'payload/main.js', '--public-key', publicKeyPath, '--signing-key', privateKeyPath,
-    '--platforms', 'darwin', '--file', 'payload/main.js', '--file', 'assets/value.txt']);
+    '--file', 'payload/main.js', '--file', 'assets/value.txt']);
   parseEnvelope(result, 'flow pack');
 
   parseEnvelope(await command(['flow', 'inspect', archivePath]), 'flow inspect');
