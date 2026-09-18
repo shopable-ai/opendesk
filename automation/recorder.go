@@ -1032,7 +1032,7 @@ func newRecorderManifest(executionID string, options recorderStartOptions, capab
 	manifest.Queue.Capacity = recorderQueueCapacity
 	manifest.Queue.ContextCapacity = recorderContextQueueCapacity
 	manifest.Storage.State = "open"
-	manifest.Storage.RawFile = "raw/events.ndjson"
+	manifest.Storage.RawFile = "events.ndjson"
 	manifest.Storage.ManifestFile = "manifest.json"
 	return manifest
 }
