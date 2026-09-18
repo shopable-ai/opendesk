@@ -23,7 +23,7 @@ OpenDesk 按“框架分类 → 任务求解方法 → 解题模式 → 案例 �
 
 ### 路线 A 的执行资产：独立 Skill 与交接
 
-明确选择 Agent-to-Recipe 开发链时，进入[独立 Skill 与成果交接合同](agent-to-recipe-skill-contract.md)，再按需加载[六个独立 Skill](../../prompts/automation/agent-to-recipe/README.md)。它们把上述方法映射到规划、应用工程、示范、提炼、生成和验收，不另建第二套阶段或 Runtime。
+明确选择 Agent-to-Recipe 开发链时，从[当前执行规程](../../workflows/agent-to-recipe/WORKFLOW.md)接续，并按需读取[独立 Skill 与成果交接合同](agent-to-recipe-skill-contract.md)。当前正式专业方法入口是 [application-engineer](../../workflows/agent-to-recipe/skills/application-engineer/SKILL.md)；其他目标职责不因名称存在就成为已安装 Skill，不另建第二套阶段或 Runtime。
 
 后续运行计算器基本测试或完整开发链验证，使用[计算器验证规程](../quality/agent-to-recipe/calculator-validation.md)。规程写入不等于测试已执行；基本参考脚本通过不等于跨 Skill 交接链通过。
 
@@ -36,7 +36,8 @@ OpenDesk 按“框架分类 → 任务求解方法 → 解题模式 → 案例 �
 | 多应用 Recipe 反复出现的窗口、控件、坐标和等待代码应怎样进入框架？ | [多应用自动化高频框架能力](multi-application-automation-primitives.md) | 设计公共原语、减少生成代码样板或安排 Runtime 实施批次时阅读 |
 | 怎样实现录制、蒸馏、编译和回放？ | [Agent-first Recorder](../architecture/desktop-automation/agent-first-recorder.md) | 仅在明确研究或实施 Recorder／编译路线时深入阅读；普通 Recipe 可以跳过 |
 | 能力应该在哪一层扩展？ | [Runtime API 扩展与定制框架](runtime-api-extension-framework.md) | 选择 Recipe、JS helper、外置服务、Native Extension 或 native owner 时阅读 |
-| 当前该验证到什么程度？ | [能力开发与成熟度路径](capability-development.md) | 确定受控、集成、真机与业务验证范围时阅读 |
+| 当前该验证到什么程度？ | [能力开发与成熟度路径](capability-development.md) | 确定受控、集成、真机和业务验证范围时阅读 |
+| Agent 怎样发现合适的已有能力并在探索时使用？ | [能力发现与代码提炼](../../workflows/agent-to-recipe/design/capability-discovery.md) | 在 S2／S3—S6 获取能力，在 S10／S11 复核复用；按需读取当前 Markdown 契约，不整包加载大 JSON |
 | 某个方法现在怎样调用？ | [用户 API 文档](../api/README.md) | 编写实际调用时核对签名、结果、错误与平台限制 |
 
 剩余桌面专项文件及边界见[桌面自动化架构导航](../architecture/desktop-automation/README.md)。方法指导选择，架构解释设计，当前 API 才定义实际可调用合同。
@@ -67,7 +68,7 @@ OpenDesk 按“框架分类 → 任务求解方法 → 解题模式 → 案例 �
 
 这里的 Skill 首先表示有明确目标、输入输出和验证方式的业务能力；它不自动意味着必须新增 `skill.md`、Go package 或新的运行时。复杂任务可以拆成独立步骤，但步骤怎样落成文件或工具要由实际复用和交接需求决定。
 
-明确选择六个 Agent Skill 的开发链时，则使用独立 `SKILL.md` 与版本化输入输出；这是专业作业资产的组织方式，不改变上述业务 Skill 或普通 JS 的执行语义，也不强迫每个短脚本走完整任务包。
+明确选择 Agent 专业作业开发链时，沿用现有方法入口及版本化输入输出；这是专业作业资产的组织方式，不改变普通 JS 的执行语义，也不强迫每个短脚本走完整任务包。规划中的职责必须在方法、宿主加载及验证实际完成后，才可称为可调用 Skill。
 
 ## 四、单一维护位置
 
@@ -77,7 +78,7 @@ OpenDesk 按“框架分类 → 任务求解方法 → 解题模式 → 案例 �
 | 六类解题模式、业务步骤交接 | `automation-problem-solving-framework.md` | 应用开发与主流程文档链接此处 |
 | 千牛源码事实与案例反向校准 | [主流程文档第 10 节](demonstration-to-automation-pipeline.md#10-qianniujs-真实案例反向校准) | 方法文档只保留必要摘取和改进假设，不复制完整案例 |
 | 示范的阶段门、Recorder 工件链 | 主流程文档；Recorder 专项文档 | 普通 Recipe 路线注明适用边界 |
-| Agent-to-Recipe 的 Skill 调用、交接、接续与控制 | [共享合同](agent-to-recipe-skill-contract.md) | 六个 Skill 引用；不复制六套字段或把合同变成可执行 IR |
+| Agent-to-Recipe 的 Skill 调用、交接、接续与控制 | [共享合同](agent-to-recipe-skill-contract.md) | 现有方法及目标职责引用；不复制多套字段或把合同变成可执行 IR |
 | Target、Adapter 的设计模型 | [Action Target Model](../architecture/desktop-automation/action-target-model.md)、[App Adapter Contract](../architecture/desktop-automation/app-adapter-contract.md) | 区分架构模型与已公开 API |
 | 当前接口合同 | `docs/api/`，结合当前源码、类型和 Runtime 验证核对 | 框架文档不另行定义同名公开 API |
 | 能力成熟度 | `capability-development.md` | 引用受控、集成、真机和业务验证要求 |

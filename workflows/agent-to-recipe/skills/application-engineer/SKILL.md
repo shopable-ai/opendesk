@@ -23,6 +23,8 @@ description: 为 OpenDesk 桌面自动化认识应用界面、审阅纠错并补
 
 按当前问题读取，不要求一次加载所有长文：
 
+- 在 discover、harden、repair 的操作前／中按[能力发现与代码提炼](../../design/capability-discovery.md)选择现有能力和实际入口；先读相关 Markdown 方法概览，再核对选中契约，不通读大 JSON 或全部类型文件。所用方法、入口、依据和证据留在原工作包，不新建 Skill／Registry。
+
 - 认识、审阅、纠错和操作方法：[唯一专业正文](../../design/application-operations.md)。
 - 应进入哪个环节、怎样返回：[链路设计](../../design/chain-design.md)。
 - 本次需要哪些证据与测试：[验证计划](../../design/validation-plan.md)，沿用已有 G0—G7／F0—F10，并在集合任务中执行 SC-A—SC-P 适用项。
@@ -167,6 +169,8 @@ CollectionProfile 发布前至少回答：适用 window/page/region、collection
 输入过期、关键证据缺失、规则超范围、身份歧义、权限不足或预算耗尽时，保留真实局部成果并报告对应 fail／not-run／blocked；不缩小原请求来换 pass。分批实施和正式验收以验证计划为唯一依据，当前未运行项目不得预填通过率或 95 分以上的能力结论。
 
 ## Recorder 语义生成与 Runtime 定位协作
+
+本节只约束已有 Recorder 语义生成，不把录制映射规则推广为一般业务任务的 API／backend 优先级。一般任务按上面的能力发现规程选择。
 
 按 `docs/frameworks/ui-locator-repair.md` 的同名合同执行。`actions.json` 保留录制事实，不绑定某个 API；简单文字优先 `UI.tapTexts`，必要的逐步身份约束使用 `UI.tapTargets`，特殊动作保留已有低层 API。不得在生成代码中复制 Runtime 默认 auto 的定位算法。
 

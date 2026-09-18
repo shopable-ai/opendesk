@@ -90,6 +90,21 @@ node --test tests/workflows/handoff-integrity.test.js
 
 网页环境止于能够完成的源文件、离线检查和明确交接；本地再补当前主程序／UI host 的构建与加载证明、真实窗口／业务结果、视觉及平台资格。macOS 通过不外推 Windows 通过；缺设备的项目标未测，不补写通过。需要安装 Skill、统一调度或 Catalog 发布时仍须单独实现与验证，本规程不宣称这些能力已经落地。
 
+## 能力发现与实际调用：两个接入位置
+
+**执行决定：先按业务步骤发现框架能力，再用现有入口做有界操作；生成时复核复用机会。** 不必先增加 Runtime、CLI 子命令或完整 Skill 调度。可直接使用的两段提示词及取证规程集中在[能力发现与代码提炼](design/capability-discovery.md)，不从历史对话拼接。
+
+| 接入位置 | 当前 Agent 必须做什么 | 留在现有工作包中的最低记录 |
+| --- | --- | --- |
+| S2、S3—S6 的操作前／中 | 按业务意图读相关模块概览及方法契约；选择实际可用入口；执行一个有界片段并观察 | 候选与选择依据、契约来源、实际入口、真实读值与证据、未决副作用 |
+| S10—S11 的补强／生成 | 再查框架可复用能力；保留必要业务约束；改变策略后形成新候选并交 S12 重验 | 保留／替换理由、过程与代码对应、候选版本、受影响验证范围 |
+
+默认读取链是：最小运行规则 → [API Markdown 导航](../../docs/api/README.md) → 相关类的“API 一览” → 选中方法及公共约定 → 必要关联类型。只有冲突、缺口或失败时定向深入实现和测试；[框架导航](../../docs/frameworks/README.md)负责方法选择，不是全部可调用 API 清单。`runtime-api.ai.json` 不作为必读整包，`keyMethods` 和 `ai schema` 的遗漏不能证明 Runtime 能力不存在。
+
+具体职责仍由当前外部 Coding Agent 手工协调：读取文件、编写短普通 JS、调用适用的 `ai run`／`-script`、读取返回的 artifacts；不假设 Runtime 内部 `Agent.run()` 拥有同样工具权限。可共享原生引用的操作留在同一 Execution；跨 Execution 只传普通数据与证据，并重新解析目标。
+
+从已有任务包接续，不重复加载全部资料或重做已完成业务。资料版本可复用不等于现场状态可复用；源码、实际二进制、平台和权限分别核对。`UI.tapTexts` 等只是候选，不指定全局方法或 backend 优先顺序；使用某个方法时仍遵守该方法自己的 Runtime 默认策略与约束。
+
 ## 与普通任务运行及能力发布的交接
 
 跨层唯一架构见 [Automation Capability Lifecycle](../../docs/architecture/desktop-automation/task-capability-lifecycle.md)。本工作流负责生产/维修自动化，不是用户每次自然语言任务的运行链；Chat Runner 的 Runtime 状态机不另建平行 Workflow 目录。
