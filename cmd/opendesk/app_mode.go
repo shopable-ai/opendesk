@@ -458,6 +458,7 @@ func executeAppMode(config *Config) error {
 		CustomUIBaseDir:                 appPackage.Root,
 		AppShell:                        shell,
 		AppOwnedScriptInspect:           recipeRunner.InspectScript,
+		AppOwnedScriptRead:              recipeRunner.ReadScript,
 		AppOwnedScriptRun:               recipeRunner.Run,
 		AppOwnedExecutionID:             recipeRunner.ReserveExecutionID,
 		AppOwnedFlowInspect:             recipeRunner.InspectFlow,
