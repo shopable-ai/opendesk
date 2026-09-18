@@ -27,7 +27,6 @@ on:
       - 'cmd/opendesk/app_product_analytics_http_test.go'
       - 'apps/opendesk/main.js'
       - 'apps/opendesk/app-controller.js'
-      - 'apps/opendesk/settings.js'
       - 'apps/opendesk/product-analytics/**'
       - 'apps/opendesk/script-runner/**'
       - 'apps/opendesk/script-runner-simple.js'
