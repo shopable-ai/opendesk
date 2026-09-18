@@ -78,7 +78,6 @@ func registerAppProductAnalytics(owner *appSchedulerRuntime, packageID, appRoot,
 	service.Start()
 
 	mux.HandleFunc("/api/product/analytics/status", analyticsRuntime.authorize(analyticsRuntime.handleStatus))
-	mux.HandleFunc("/api/product/analytics/diagnostics", analyticsRuntime.authorize(analyticsRuntime.handleDiagnostics))
 	mux.HandleFunc("/api/product/analytics/enabled", analyticsRuntime.authorize(analyticsRuntime.handleEnabled))
 	mux.HandleFunc("/api/product/analytics/screen", analyticsRuntime.authorize(analyticsRuntime.handleScreen))
 	mux.HandleFunc("/api/product/analytics/action", analyticsRuntime.authorize(analyticsRuntime.handleAction))
@@ -237,21 +236,6 @@ func (r *appProductAnalyticsRuntime) handleStatus(w http.ResponseWriter, request
 		return
 	}
 	r.writeStatus(w, true, nil)
-}
-
-func (r *appProductAnalyticsRuntime) handleDiagnostics(w http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if r == nil || r.service == nil {
-		http.Error(w, "product analytics unavailable", http.StatusServiceUnavailable)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"code": 0, "message": "success", "data": r.service.Diagnostics(),
-	})
 }
 
 func (r *appProductAnalyticsRuntime) handleEnabled(w http.ResponseWriter, request *http.Request) {
