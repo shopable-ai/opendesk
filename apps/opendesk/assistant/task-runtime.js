@@ -152,8 +152,11 @@
     }
 
     async function persistCandidate(item) {
+      const taskDir = file.join(taskStore.rootDir, Contract.normalizePath('/' + item.taskId).slice(1));
+      taskStore.assertDirectory(taskDir, false);
       const dir = candidateDir(item.taskId, item.candidateId);
       file.ensureDir(dir);
+      taskStore.assertDirectory(taskDir, false);
       taskStore.assertDirectory(dir, false);
       const names = candidateVersions(item.taskId, item.candidateId);
       const revision = names.length + 1;
