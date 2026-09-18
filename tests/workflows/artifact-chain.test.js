@@ -157,6 +157,13 @@ test('accepts a legacy Procedure/Candidate pair without inventing capability pro
   assert.ok(report.notEvaluated.some(item => item.includes('legacy Procedure/Candidate')));
 });
 
+test('requires modern Business Steps to expose input, execution, observation, stop and consumer contracts', t => {
+  const f = fixture(t, source => {
+    delete source.procedure.businessSteps.find(step => step.stepId === 'B025').observation;
+  });
+  rejects(f.check(), 'BUSINESS_STEP_CONTRACT');
+});
+
 test('keeps capability discovery separate from method selection', t => {
   const f = fixture(t, source => {
     source.procedure.capabilityDecisions[0].discoveryPath = ['docs/api/window.md'];
