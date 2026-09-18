@@ -39,6 +39,12 @@ type AppOwnedScriptInspection struct {
 	Ext        string `json:"ext"`
 }
 
+type AppOwnedScriptSource struct {
+	ScriptHash string `json:"scriptHash"`
+	Ext        string `json:"ext"`
+	Content    string `json:"content"`
+}
+
 type AppOwnedScriptRunRequest struct {
 	ExecutionID       string
 	ScriptPath        string
@@ -59,6 +65,7 @@ type AppOwnedScriptRunResult struct {
 }
 
 type AppOwnedScriptInspector func(context.Context, AppOwnedScriptInspectRequest) (AppOwnedScriptInspection, error)
+type AppOwnedScriptReader func(context.Context, AppOwnedScriptInspectRequest) (AppOwnedScriptSource, error)
 type AppOwnedScriptRunner func(context.Context, AppOwnedScriptRunRequest) (AppOwnedScriptRunResult, error)
 type AppOwnedExecutionIDAllocator func(kind string) string
 
@@ -199,7 +206,7 @@ func registerAppShell(runtime *goja.Runtime, opts InitJSOptions, ui *CustomUIRun
 		return nil, err
 	}
 	if opts.AppOwnedScriptRun != nil {
-		if err := bridge.attachAppOwnedScriptRunner(opts.AppOwnedScriptInspect, opts.AppOwnedExecutionID, opts.AppOwnedScriptRun); err != nil {
+		if err := bridge.attachAppOwnedScriptRunner(opts.AppOwnedScriptInspect, opts.AppOwnedScriptRead, opts.AppOwnedExecutionID, opts.AppOwnedScriptRun); err != nil {
 			opts.AppShell.UnbindActionSink()
 			return nil, err
 		}
@@ -217,7 +224,7 @@ func registerAppShell(runtime *goja.Runtime, opts InitJSOptions, ui *CustomUIRun
 	return bridge, nil
 }
 
-func (a *AppShellRuntime) attachAppOwnedScriptRunner(inspect AppOwnedScriptInspector, reserve AppOwnedExecutionIDAllocator, run AppOwnedScriptRunner) error {
+func (a *AppShellRuntime) attachAppOwnedScriptRunner(inspect AppOwnedScriptInspector, read AppOwnedScriptReader, reserve AppOwnedExecutionIDAllocator, run AppOwnedScriptRunner) error {
 	object := a.runtime.NewObject()
 	if err := object.Set("inspect", func(call goja.FunctionCall) goja.Value {
 		request, signal, err := decodeAppOwnedScriptInspectRequest(call.Argument(0))
@@ -229,6 +236,19 @@ func (a *AppShellRuntime) attachAppOwnedScriptRunner(inspect AppOwnedScriptInspe
 		return a.startAsyncWithSignal("inspectScript", signal, func(ctx context.Context) (any, error) { return inspect(ctx, request) })
 	}); err != nil {
 		return fmt.Errorf("register internal App-owned Script inspector: %w", err)
+	}
+	if read != nil {
+		if err := object.Set("read", func(call goja.FunctionCall) goja.Value {
+			request, signal, err := decodeAppOwnedScriptInspectRequest(call.Argument(0))
+			if err != nil {
+				promise, _, reject := a.runtime.NewPromise()
+				_ = reject(appShellJSError(a.runtime, "INVALID_ARGUMENT", "readScript", err.Error()))
+				return a.runtime.ToValue(promise)
+			}
+			return a.startAsyncWithSignal("readScript", signal, func(ctx context.Context) (any, error) { return read(ctx, request) })
+		}); err != nil {
+			return fmt.Errorf("register internal App-owned Script reader: %w", err)
+		}
 	}
 	if reserve != nil {
 		if err := object.Set("reserve", func(goja.FunctionCall) goja.Value {
