@@ -65,3 +65,34 @@ func TestProductAnalyticsPreferenceFailureIsReportedAsFailure(t *testing.T) {
 		t.Fatalf("preference failure was reported as success: %s", response.Body.String())
 	}
 }
+
+
+func TestProductAnalyticsDiagnosticsRouteIsSanitized(t *testing.T) {
+	service := newDebugProductAnalytics(t)
+	if !service.ScreenViewed("flow_runner") {
+		t.Fatal("expected debug screen event")
+	}
+	runtime := &appProductAnalyticsRuntime{
+		service: service,
+		token:   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	}
+	request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/product/analytics/diagnostics", nil)
+	request.RemoteAddr = "127.0.0.1:43210"
+	request.Header.Set(productanalytics.LocalHeader, runtime.token)
+	response := httptest.NewRecorder()
+	runtime.authorize(runtime.handleDiagnostics)(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("diagnostics status=%d body=%s", response.Code, response.Body.String())
+	}
+	body := response.Body.String()
+	for _, expected := range []string{`"recentEvents"`, `"screen_viewed"`, `"queueMode"`, `"lastSendResult"`} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf("diagnostics missing %s: %s", expected, body)
+		}
+	}
+	for _, forbidden := range []string{"flow_runner", "distinct_id", "properties", "install_id", "session_id"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("diagnostics leaked event payload field %q: %s", forbidden, body)
+		}
+	}
+}
