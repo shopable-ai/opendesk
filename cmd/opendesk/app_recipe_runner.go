@@ -24,7 +24,10 @@ const (
 	appRecipeRunBusyCode     = "BUSY"
 	appRecipeRunCanceledCode = "CANCELED"
 	appRecipeRunFailedCode   = "EXECUTION_FAILED"
+	appRecipeChangedCode     = "SCRIPT_CHANGED"
 )
+
+var errAppRecipeChanged = errors.New("Recipe changed after confirmation")
 
 type appRecipeRunnerConfig struct {
 	StackMode                             string
@@ -63,6 +66,45 @@ func newAppRecipeRunner(config appRecipeRunnerConfig, environment map[string]str
 	}
 }
 
+func (r *appRecipeRunner) ReserveExecutionID(kind string) string {
+	if strings.EqualFold(strings.TrimSpace(kind), "flow") {
+		return pkgExecution.NewExecutionID("app-flow")
+	}
+	return pkgExecution.NewExecutionID("app-recipe")
+}
+
+func appOwnedExecutionID(requested, prefix string) (string, error) {
+	id := strings.TrimSpace(requested)
+	if id == "" {
+		return pkgExecution.NewExecutionID(prefix), nil
+	}
+	if !strings.HasPrefix(id, prefix+"-") || len(id) > 160 || strings.ContainsAny(id, "/\\\x00\r\n\t ") {
+		return "", fmt.Errorf("invalid reserved Execution identity")
+	}
+	return id, nil
+}
+
+func (r *appRecipeRunner) InspectScript(ctx context.Context, input automation.AppOwnedScriptInspectRequest) (automation.AppOwnedScriptInspection, error) {
+	if r == nil {
+		return automation.AppOwnedScriptInspection{}, errors.New("App Recipe Runner is unavailable")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	scriptPath, err := validatedAssistantScriptPath(input.ScriptPath, input.ScopeRoot)
+	if err != nil {
+		return automation.AppOwnedScriptInspection{}, err
+	}
+	source, err := scriptloader.NewProductionFileLoader().Load(ctx, scriptPath)
+	if err != nil {
+		return automation.AppOwnedScriptInspection{}, err
+	}
+	return automation.AppOwnedScriptInspection{
+		ScriptHash: pkgExecution.ComputeScriptHash(source.Content),
+		Ext: source.Ext,
+	}, nil
+}
+
 func (r *appRecipeRunner) Run(parent context.Context, input automation.AppOwnedScriptRunRequest) (automation.AppOwnedScriptRunResult, error) {
 	if r == nil {
 		return automation.AppOwnedScriptRunResult{}, errors.New("App Recipe Runner is unavailable")
@@ -76,7 +118,10 @@ func (r *appRecipeRunner) Run(parent context.Context, input automation.AppOwnedS
 		}
 	}
 
-	executionID := pkgExecution.NewExecutionID("app-recipe")
+	executionID, identityErr := appOwnedExecutionID(input.ExecutionID, "app-recipe")
+	if identityErr != nil {
+		return automation.AppOwnedScriptRunResult{}, identityErr
+	}
 	ctx, cancel := context.WithCancel(parent)
 	done := make(chan struct{})
 	r.mu.Lock()
@@ -97,6 +142,9 @@ func (r *appRecipeRunner) Run(parent context.Context, input automation.AppOwnedS
 
 	request, result, err := r.request(ctx, executionID, input)
 	if err != nil {
+		if errors.Is(err, errAppRecipeChanged) {
+			return result, &automation.AppOwnedScriptRunError{Code: appRecipeChangedCode, Result: result, Cause: err}
+		}
 		return result, appRecipeRunError(result, err)
 	}
 	var runResult pkgExecution.ExecutionResult
@@ -129,15 +177,24 @@ func (r *appRecipeRunner) request(ctx context.Context, executionID string, input
 	if err != nil {
 		return pkgExecution.Request{}, result, fmt.Errorf("resolve Recipe path: %w", err)
 	}
-	if !strings.EqualFold(filepath.Ext(scriptPath), ".js") {
-		return pkgExecution.Request{}, result, errors.New("App Recipe Runner accepts JavaScript .js files only")
+	if strings.TrimSpace(input.ScopeRoot) != "" || strings.TrimSpace(input.ExpectedScriptHash) != "" {
+		scriptPath, err = validatedAssistantScriptPath(scriptPath, input.ScopeRoot)
+	} else {
+		info, statErr := os.Lstat(scriptPath)
+		if statErr != nil {
+			err = fmt.Errorf("inspect Recipe: %w", statErr)
+		} else if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			err = errors.New("Recipe path must be a real regular file")
+		}
+		if err == nil {
+			ext := strings.ToLower(filepath.Ext(scriptPath))
+			if ext != ".js" && ext != ".mjs" {
+				err = errors.New("App Recipe Runner accepts JavaScript .js/.mjs files only")
+			}
+		}
 	}
-	info, err := os.Stat(scriptPath)
 	if err != nil {
-		return pkgExecution.Request{}, result, fmt.Errorf("inspect Recipe: %w", err)
-	}
-	if !info.Mode().IsRegular() {
-		return pkgExecution.Request{}, result, errors.New("Recipe path must be a regular file")
+		return pkgExecution.Request{}, result, err
 	}
 
 	workDir, err := filepath.Abs(strings.TrimSpace(input.WorkDir))
@@ -161,9 +218,17 @@ func (r *appRecipeRunner) request(ctx context.Context, executionID string, input
 	}
 	result.LogDir = logDir
 
+	inputValue, err := decodeAppExecutionInput(input.InputJSON)
+	if err != nil {
+		return pkgExecution.Request{}, result, err
+	}
 	source, err := scriptloader.NewProductionFileLoader().Load(ctx, scriptPath)
 	if err != nil {
 		return pkgExecution.Request{}, result, err
+	}
+	scriptHash := pkgExecution.ComputeScriptHash(source.Content)
+	if expected := strings.TrimSpace(input.ExpectedScriptHash); expected != "" && !strings.EqualFold(scriptHash, expected) {
+		return pkgExecution.Request{}, result, errAppRecipeChanged
 	}
 	artifacts, err := pkgExecution.PrepareArtifacts(logDir, executionID, source.Ext)
 	if err != nil {
@@ -184,10 +249,12 @@ func (r *appRecipeRunner) request(ctx context.Context, executionID string, input
 		SourceLabel:                     source.Source,
 		ScriptPath:                      scriptPath,
 		Ext:                             source.Ext,
+		ScriptHash:                      scriptHash,
 		StackMode:                       r.config.StackMode,
 		ScriptContent:                   source.Content,
 		WorkDir:                         workDir,
 		Environment:                     cloneStringMap(r.environment),
+		Input:                           inputValue,
 		TimeoutMinutes:                  0,
 		EnableNativeExtensions:          true,
 		EnableUnsafeNativeExtensionCall: r.config.ExperimentalUnsafeNativeExtensionCall,
@@ -213,6 +280,64 @@ func (r *appRecipeRunner) request(ctx context.Context, executionID string, input
 	return request, result, nil
 }
 
+func validatedAssistantScriptPath(scriptValue, scopeValue string) (string, error) {
+	scriptPath, err := filepath.Abs(strings.TrimSpace(scriptValue))
+	if err != nil {
+		return "", fmt.Errorf("resolve Recipe path: %w", err)
+	}
+	info, err := os.Lstat(scriptPath)
+	if err != nil {
+		return "", fmt.Errorf("inspect Recipe: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return "", errors.New("assistant Recipe entry must be a real regular file")
+	}
+	ext := strings.ToLower(filepath.Ext(scriptPath))
+	if ext != ".js" && ext != ".mjs" {
+		return "", errors.New("App Recipe Runner accepts JavaScript .js/.mjs files only")
+	}
+	resolvedScript, err := filepath.EvalSymlinks(scriptPath)
+	if err != nil {
+		return "", fmt.Errorf("resolve Recipe target: %w", err)
+	}
+	resolvedScript, err = filepath.Abs(resolvedScript)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(scopeValue) == "" {
+		if filepath.Clean(resolvedScript) != filepath.Clean(scriptPath) {
+			return "", errors.New("single-file Recipe path resolves through a symbolic-link alias")
+		}
+		return filepath.Clean(resolvedScript), nil
+	}
+	scopeRoot, err := filepath.Abs(strings.TrimSpace(scopeValue))
+	if err != nil {
+		return "", fmt.Errorf("resolve Recipe scope: %w", err)
+	}
+	rootInfo, err := os.Lstat(scopeRoot)
+	if err != nil {
+		return "", fmt.Errorf("inspect Recipe scope: %w", err)
+	}
+	if rootInfo.Mode()&os.ModeSymlink != 0 || !rootInfo.IsDir() {
+		return "", errors.New("Recipe scope must be a real directory")
+	}
+	resolvedRoot, err := filepath.EvalSymlinks(scopeRoot)
+	if err != nil {
+		return "", fmt.Errorf("resolve Recipe scope target: %w", err)
+	}
+	if filepath.Clean(resolvedRoot) != filepath.Clean(scopeRoot) {
+		return "", errors.New("Recipe scope resolves through a symbolic-link alias")
+	}
+	relative, err := filepath.Rel(resolvedRoot, resolvedScript)
+	if err != nil {
+		return "", fmt.Errorf("compare Recipe scope: %w", err)
+	}
+	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+		return "", errors.New("Recipe entry resolves outside the authorized automation directory")
+	}
+	return filepath.Clean(resolvedScript), nil
+}
+
 func (r *appRecipeRunner) InspectFlow(ctx context.Context, input automation.AppOwnedFlowInspectRequest) (automation.AppOwnedFlowInspection, error) {
 	if r == nil || r.flowService == nil { return automation.AppOwnedFlowInspection{}, errors.New("App Flow service is unavailable") }
 	if ctx == nil { ctx = context.Background() }
@@ -234,7 +359,8 @@ func (r *appRecipeRunner) RunFlow(parent context.Context, input automation.AppOw
 	if r == nil || r.flowService == nil { return automation.AppOwnedFlowRunResult{}, errors.New("App Flow service is unavailable") }
 	if parent == nil { parent = context.Background() }
 	if r.recorderCaptureActive != nil && r.recorderCaptureActive() { return automation.AppOwnedFlowRunResult{}, &automation.AppOwnedFlowRunError{Code: appRecipeRunBusyCode, Cause: errors.New(recorderConflictRecording)} }
-	executionID := pkgExecution.NewExecutionID("app-flow")
+	executionID, identityErr := appOwnedExecutionID(input.ExecutionID, "app-flow")
+	if identityErr != nil { return automation.AppOwnedFlowRunResult{}, identityErr }
 	ctx, cancel := context.WithCancel(parent); done := make(chan struct{})
 	r.mu.Lock()
 	if r.running { r.mu.Unlock(); cancel(); return automation.AppOwnedFlowRunResult{}, &automation.AppOwnedFlowRunError{Code: appRecipeRunBusyCode, Cause: errors.New(recorderConflictScript)} }
@@ -265,7 +391,7 @@ func (r *appRecipeRunner) flowRequest(ctx context.Context, executionID string, l
 	logDir := strings.TrimSpace(input.LogDir); if !filepath.IsAbs(logDir) { logDir = filepath.Join(workDir, logDir) }
 	logDir, err = filepath.Abs(logDir); if err != nil { return pkgExecution.Request{}, result, fmt.Errorf("resolve Flow log directory: %w", err) }
 	result.LogDir = logDir
-	inputValue, err := decodeAppFlowInput(input.InputJSON); if err != nil { return pkgExecution.Request{}, result, err }
+	inputValue, err := decodeAppExecutionInput(input.InputJSON); if err != nil { return pkgExecution.Request{}, result, err }
 	source, err := scriptloader.NewProductionFileLoader().Load(ctx, lease.Entry); if err != nil { return pkgExecution.Request{}, result, err }
 	protected := source.Protection.Mode == scriptloader.ProtectionProtected; if protected { defer wipeAppFlowBytes(source.Content) }
 	artifacts, err := pkgExecution.PrepareArtifacts(logDir, executionID, source.Ext); if err != nil { return pkgExecution.Request{}, result, err }
@@ -292,7 +418,7 @@ func appFlowInspection(record flowinstall.Record) automation.AppOwnedFlowInspect
 		PublisherID: record.PublisherID, PublisherFingerprint: record.PublisherFingerprint, State: string(record.State), StateReason: record.StateReason,
 		Origin: record.Origin, ArchiveDigest: record.ArchiveDigest, ManifestDigest: record.ManifestDigest}
 }
-func decodeAppFlowInput(raw string) (any, error) {
+func decodeAppExecutionInput(raw string) (any, error) {
 	if len(raw) > 256<<10 { return nil, errors.New("Flow input exceeds 256 KiB") }
 	decoder := json.NewDecoder(strings.NewReader(raw)); decoder.UseNumber(); var value any
 	if err := decoder.Decode(&value); err != nil { return nil, fmt.Errorf("decode Flow input: %w", err) }
