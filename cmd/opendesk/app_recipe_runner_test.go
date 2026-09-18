@@ -156,6 +156,11 @@ func TestAppRecipeRunnerInstalledFlowUsesCanonicalCatalogAndExecutionInput(t *te
 	sourcePath := filepath.Join(sourceDir, "business-sample.js")
 	if err := os.WriteFile(sourcePath, []byte(`console.log("FLOW_INPUT=" + JSON.stringify(Execution.input));`), 0o600); err != nil { t.Fatal(err) }
 	installed, err := service.InstallScript(context.Background(), sourcePath); if err != nil { t.Fatal(err) }
+	t.Cleanup(func() {
+		if err := service.Uninstall(context.Background(), installed.Record.InstallID, true); err != nil {
+			t.Errorf("cleanup installed Flow %s: %v", installed.Record.InstallID, err)
+		}
+	})
 	runner := newAppRecipeRunner(appRecipeRunnerConfig{}, map[string]string{"APP_FLOW_TEST":"1"}, nil); runner.flowService = service
 	inspection, err := runner.InspectFlow(context.Background(), automation.AppOwnedFlowInspectRequest{InstallID: installed.Record.InstallID})
 	if err != nil { t.Fatalf("inspect installed Flow: %v", err) }
@@ -269,6 +274,11 @@ func TestAppRecipeRunnerFlowUsesReservedExecutionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		if err := service.Uninstall(context.Background(), installed.Record.InstallID, true); err != nil {
+			t.Errorf("cleanup installed Flow %s: %v", installed.Record.InstallID, err)
+		}
+	})
 	runner := newAppRecipeRunner(appRecipeRunnerConfig{}, nil, nil)
 	runner.flowService = service
 	reserved := runner.ReserveExecutionID("flow")
@@ -372,6 +382,11 @@ console.log("ASSISTANT_FLOW_BUSINESS_OUTPUT=" + resultPath);`,
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		if err := service.Uninstall(context.Background(), installed.Record.InstallID, true); err != nil {
+			t.Errorf("cleanup installed Flow %s: %v", installed.Record.InstallID, err)
+		}
+	})
 
 	runner := newAppRecipeRunner(appRecipeRunnerConfig{}, nil, nil)
 	runner.flowService = service
