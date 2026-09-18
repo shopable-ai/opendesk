@@ -85,6 +85,96 @@ func appOwnedExecutionID(requested, prefix string) (string, error) {
 	return id, nil
 }
 
+type appAssistantScriptSource struct {
+	Path    string
+	Ext     string
+	Content []byte
+}
+
+func readAssistantScriptSource(input automation.AppOwnedScriptInspectRequest, maxBytes int64) (appAssistantScriptSource, error) {
+	scriptPath, err := validatedAssistantScriptPath(input.ScriptPath, input.ScopeRoot)
+	if err != nil {
+		return appAssistantScriptSource{}, err
+	}
+
+	rootPath := filepath.Dir(scriptPath)
+	if strings.TrimSpace(input.ScopeRoot) != "" {
+		scopeRoot, err := filepath.Abs(strings.TrimSpace(input.ScopeRoot))
+		if err != nil {
+			return appAssistantScriptSource{}, fmt.Errorf("resolve Recipe scope: %w", err)
+		}
+		rootPath, err = filepath.EvalSymlinks(scopeRoot)
+		if err != nil {
+			return appAssistantScriptSource{}, fmt.Errorf("resolve Recipe scope target: %w", err)
+		}
+		rootPath, err = filepath.Abs(rootPath)
+		if err != nil {
+			return appAssistantScriptSource{}, err
+		}
+	}
+	relative, err := filepath.Rel(rootPath, scriptPath)
+	if err != nil {
+		return appAssistantScriptSource{}, fmt.Errorf("resolve Recipe entry relative to authorized root: %w", err)
+	}
+	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+		return appAssistantScriptSource{}, errors.New("Recipe entry resolves outside the authorized root")
+	}
+
+	root, err := os.OpenRoot(rootPath)
+	if err != nil {
+		return appAssistantScriptSource{}, fmt.Errorf("open authorized Recipe root: %w", err)
+	}
+	defer root.Close()
+
+	before, err := root.Lstat(relative)
+	if err != nil {
+		return appAssistantScriptSource{}, fmt.Errorf("inspect authorized Recipe entry: %w", err)
+	}
+	if before.Mode()&os.ModeSymlink != 0 || !before.Mode().IsRegular() {
+		return appAssistantScriptSource{}, errors.New("assistant Recipe entry must remain a real regular file")
+	}
+
+	file, err := root.Open(relative)
+	if err != nil {
+		return appAssistantScriptSource{}, fmt.Errorf("open authorized Recipe entry: %w", err)
+	}
+	defer file.Close()
+
+	opened, err := file.Stat()
+	if err != nil {
+		return appAssistantScriptSource{}, fmt.Errorf("inspect opened Recipe entry: %w", err)
+	}
+	if !os.SameFile(before, opened) {
+		return appAssistantScriptSource{}, errors.New("assistant Recipe entry changed during authorization")
+	}
+
+	var reader io.Reader = file
+	if maxBytes > 0 {
+		reader = io.LimitReader(file, maxBytes+1)
+	}
+	content, err := io.ReadAll(reader)
+	if err != nil {
+		return appAssistantScriptSource{}, fmt.Errorf("read authorized Recipe entry: %w", err)
+	}
+	if maxBytes > 0 && int64(len(content)) > maxBytes {
+		return appAssistantScriptSource{}, errors.New("assistant source read exceeds 1 MiB")
+	}
+
+	after, err := file.Stat()
+	if err != nil {
+		return appAssistantScriptSource{}, fmt.Errorf("reinspect opened Recipe entry: %w", err)
+	}
+	if !os.SameFile(before, after) || before.Size() != after.Size() || !before.ModTime().Equal(after.ModTime()) {
+		return appAssistantScriptSource{}, errors.New("assistant Recipe entry changed while being read")
+	}
+
+	return appAssistantScriptSource{
+		Path:    scriptPath,
+		Ext:     strings.ToLower(filepath.Ext(scriptPath)),
+		Content: content,
+	}, nil
+}
+
 func (r *appRecipeRunner) InspectScript(ctx context.Context, input automation.AppOwnedScriptInspectRequest) (automation.AppOwnedScriptInspection, error) {
 	if r == nil {
 		return automation.AppOwnedScriptInspection{}, errors.New("App Recipe Runner is unavailable")
@@ -92,17 +182,18 @@ func (r *appRecipeRunner) InspectScript(ctx context.Context, input automation.Ap
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	scriptPath, err := validatedAssistantScriptPath(input.ScriptPath, input.ScopeRoot)
-	if err != nil {
-		return automation.AppOwnedScriptInspection{}, err
+	select {
+	case <-ctx.Done():
+		return automation.AppOwnedScriptInspection{}, ctx.Err()
+	default:
 	}
-	source, err := scriptloader.NewProductionFileLoader().Load(ctx, scriptPath)
+	source, err := readAssistantScriptSource(input, 0)
 	if err != nil {
 		return automation.AppOwnedScriptInspection{}, err
 	}
 	return automation.AppOwnedScriptInspection{
 		ScriptHash: pkgExecution.ComputeScriptHash(source.Content),
-		Ext: source.Ext,
+		Ext:        source.Ext,
 	}, nil
 }
 
@@ -113,16 +204,14 @@ func (r *appRecipeRunner) ReadScript(ctx context.Context, input automation.AppOw
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	scriptPath, err := validatedAssistantScriptPath(input.ScriptPath, input.ScopeRoot)
+	select {
+	case <-ctx.Done():
+		return automation.AppOwnedScriptSource{}, ctx.Err()
+	default:
+	}
+	source, err := readAssistantScriptSource(input, 1024*1024)
 	if err != nil {
 		return automation.AppOwnedScriptSource{}, err
-	}
-	source, err := scriptloader.NewProductionFileLoader().Load(ctx, scriptPath)
-	if err != nil {
-		return automation.AppOwnedScriptSource{}, err
-	}
-	if len(source.Content) > 1024*1024 {
-		return automation.AppOwnedScriptSource{}, errors.New("assistant source read exceeds 1 MiB")
 	}
 	if !utf8.Valid(source.Content) {
 		return automation.AppOwnedScriptSource{}, errors.New("assistant source read requires UTF-8 JavaScript")
@@ -251,19 +340,39 @@ func (r *appRecipeRunner) request(ctx context.Context, executionID string, input
 	if err != nil {
 		return pkgExecution.Request{}, result, err
 	}
-	source, err := scriptloader.NewProductionFileLoader().Load(ctx, scriptPath)
-	if err != nil {
-		return pkgExecution.Request{}, result, err
+	var sourceContent []byte
+	var sourceExt string
+	var sourceLabel string
+	if strings.TrimSpace(input.ScopeRoot) != "" || strings.TrimSpace(input.ExpectedScriptHash) != "" {
+		assistantSource, sourceErr := readAssistantScriptSource(automation.AppOwnedScriptInspectRequest{
+			ScriptPath: scriptPath,
+			ScopeRoot:  input.ScopeRoot,
+		}, 0)
+		if sourceErr != nil {
+			return pkgExecution.Request{}, result, sourceErr
+		}
+		scriptPath = assistantSource.Path
+		sourceContent = assistantSource.Content
+		sourceExt = assistantSource.Ext
+		sourceLabel = "assistant-script:" + scriptPath
+	} else {
+		source, sourceErr := scriptloader.NewProductionFileLoader().Load(ctx, scriptPath)
+		if sourceErr != nil {
+			return pkgExecution.Request{}, result, sourceErr
+		}
+		sourceContent = source.Content
+		sourceExt = source.Ext
+		sourceLabel = source.Source
 	}
-	scriptHash := pkgExecution.ComputeScriptHash(source.Content)
+	scriptHash := pkgExecution.ComputeScriptHash(sourceContent)
 	if expected := strings.TrimSpace(input.ExpectedScriptHash); expected != "" && !strings.EqualFold(scriptHash, expected) {
 		return pkgExecution.Request{}, result, errAppRecipeChanged
 	}
-	artifacts, err := pkgExecution.PrepareArtifacts(logDir, executionID, source.Ext)
+	artifacts, err := pkgExecution.PrepareArtifacts(logDir, executionID, sourceExt)
 	if err != nil {
 		return pkgExecution.Request{}, result, err
 	}
-	if err := persistExecutionSnapshots("", artifacts.ScriptSnapshotPath, source.Content); err != nil {
+	if err := persistExecutionSnapshots("", artifacts.ScriptSnapshotPath, sourceContent); err != nil {
 		return pkgExecution.Request{}, result, err
 	}
 	activation, err := runtimeconfig.ResolveUI(runtimeconfig.UIResolveOptions{ScriptPath: scriptPath})
@@ -275,12 +384,12 @@ func (r *appRecipeRunner) request(ctx context.Context, executionID string, input
 		Context:                         ctx,
 		ExpectedCancellation:            func() bool { return ctx.Err() != nil },
 		ExecutionID:                     executionID,
-		SourceLabel:                     source.Source,
+		SourceLabel:                     sourceLabel,
 		ScriptPath:                      scriptPath,
-		Ext:                             source.Ext,
+		Ext:                             sourceExt,
 		ScriptHash:                      scriptHash,
 		StackMode:                       r.config.StackMode,
-		ScriptContent:                   source.Content,
+		ScriptContent:                   sourceContent,
 		WorkDir:                         workDir,
 		Environment:                     cloneStringMap(r.environment),
 		Input:                           inputValue,
@@ -334,9 +443,6 @@ func validatedAssistantScriptPath(scriptValue, scopeValue string) (string, error
 		return "", err
 	}
 	if strings.TrimSpace(scopeValue) == "" {
-		if filepath.Clean(resolvedScript) != filepath.Clean(scriptPath) {
-			return "", errors.New("single-file Recipe path resolves through a symbolic-link alias")
-		}
 		return filepath.Clean(resolvedScript), nil
 	}
 	scopeRoot, err := filepath.Abs(strings.TrimSpace(scopeValue))
