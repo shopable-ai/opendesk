@@ -22,3 +22,22 @@ jobs:
         run: |
           node --check apps/opendesk/script-runner-simple.js
           node --check apps/opendesk/scheduler-center.js
+      - name: Retain documentation verification inputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-doc-consumption-inputs
+          retention-days: 3
+          include-hidden-files: true
+          path: |
+            AGENTS.md
+            docs/api/
+            docs/frameworks/
+            docs/architecture/runtime-capability-contract.md
+            docs/implementation/runtime/runtime-api-composition.md
+            types/
+            workflows/
+            prompts/
+            scripts/
+            automation/file*.go
+            polyfills/
