@@ -59,6 +59,20 @@ func (fs *FileSystem) Path(relativePath string) (string, error) {
 	return filepath.Join(fs.workingDir, relativePath), nil
 }
 
+// RealPath resolves a path through the host filesystem and returns its canonical absolute path.
+// It does not create or modify filesystem state and fails when the target does not exist.
+func (fs *FileSystem) RealPath(path string) (string, error) {
+	absPath, err := fs.Path(path)
+	if err != nil { return "", err }
+	absPath, err = filepath.Abs(absPath)
+	if err != nil { return "", err }
+	resolved, err := filepath.EvalSymlinks(absPath)
+	if err != nil { return "", err }
+	resolved, err = filepath.Abs(resolved)
+	if err != nil { return "", err }
+	return filepath.Clean(resolved), nil
+}
+
 // Cwd returns the current working directory
 func (fs *FileSystem) Cwd() string {
 	return fs.workingDir
