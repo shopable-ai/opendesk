@@ -106,8 +106,7 @@ globalThis.OpenDeskScriptRunnerSimple = OpenDeskScriptRunnerShortcuts.wrapContro
   OpenDeskScriptRunnerSimple,
   {
     globalShortcut: globalThis.globalShortcut,
-    system: System,
-    console: globalThis.console,
+      console: globalThis.console,
   },
 );
 
@@ -222,12 +221,6 @@ if (!globalThis.OpenDeskPermissionsCenter
   || typeof OpenDeskPermissionsCenter.create !== 'function') {
   throw new Error('OpenDesk Permissions Center did not initialize');
 }
-const settingsEntry = File.join(Execution.scriptDir, 'settings.js');
-(0, eval)(File.read(settingsEntry) + '\n//# sourceURL=' + settingsEntry);
-if (!globalThis.OpenDeskSettings
-  || typeof OpenDeskSettings.create !== 'function') {
-  throw new Error('OpenDesk Settings did not initialize');
-}
 const aboutEntry = File.join(Execution.scriptDir, 'about.js');
 (0, eval)(File.read(aboutEntry) + '\n//# sourceURL=' + aboutEntry);
 if (!globalThis.OpenDeskAbout || typeof OpenDeskAbout.create !== 'function') {
@@ -250,7 +243,6 @@ if (!globalThis.OpenDeskProductAppController
 const schedulerCenter = OpenDeskSchedulerCenter.create();
 const runtimeLog = OpenDeskRuntimeLog.create({runner});
 const permissionsCenter = OpenDeskPermissionsCenter.create();
-const settingsCenter = OpenDeskSettings.create({client: OpenDeskProductAnalytics});
 const about = OpenDeskAbout.create({
   file: File,
   packageRoot: Execution.scriptDir,
@@ -283,7 +275,6 @@ const appController = OpenDeskProductAppController.create({
   schedulerCenter,
   runtimeLog,
   permissionsCenter,
-  settingsCenter,
   about,
   inspectorLauncher,
   developerTools,
@@ -320,7 +311,6 @@ console.log('OPENDESK_PRODUCT_APP_READY=' + JSON.stringify({
   assistant: assistant.state(),
   scheduler: OpenDeskSchedulerClient.getCapabilities(),
   analytics: OpenDeskProductAnalytics.getCapabilities(),
-  settings: settingsCenter.state(),
   promotions: promotionOwner.state(),
   inspector: inspectorLauncher.getCapabilities(),
   permissions: permissionsCenter.state(),
