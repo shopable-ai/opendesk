@@ -1,6 +1,6 @@
 # OpenDesk 商业化研究
 
-更新时间：2026-09-16
+更新时间：2026-09-18
 
 本目录保存 OpenDesk 的**市场、竞品、收费方式、行业机会和商业模式研究**。
 
@@ -23,6 +23,17 @@
   - 覆盖 Agent-driven RPA、Computer Use → RPA、Codex / Claude / MCP、Recorder、Verification、Repair、Commercial Delivery、行业现金流等搜索意图；
   - 给出 Cua / Peekaboo / OpenAdapt / ADH / Codex / UiPath / Power Automate 竞品比较关键词；
   - 先冻结 Blog 标题和每篇要证明的主张，再写正文，避免 Blog 反向成为工程事实源。
+
+## 2026-09-18 早期现金流与执行面商业化收口
+
+本轮把“技术能力、商业市场和早期现金流”进一步分开，避免把某一种实现方式直接写成商业定位：
+
+- **自然语言、人工录制、Agent-to-Recipe 是自动化资产的生产方式和效率优势，不等于最终商业定位。** 商业验证首先回答谁愿意为什么业务结果付钱、交付成本是否收敛、同类需求能否复用。
+- **近期经营路线采用 Service-led Productization。** 先用有边界的自动化定制项目取得真实付费与需求证据，再把重复需求沉淀为 Automation Package / Product；只有供给、复用、维护和购买证据成立后，才扩大 Creator / Marketplace。
+- **执行 Surface 与商业领域分开。** 电商、客服、财务、Back Office 等是商业领域；Browser、Desktop、Android、移动投屏视觉、HTTP/API 等是可组合执行方式。商业方案可以组合其他独立项目中已经验证的 Browser / Android 能力，但不能因此把它们写成当前 OpenDesk 仓库已经提供的 API。
+- **OpenDesk 当前普通 HTTP 请求能力与未来协议适配分开。** HTTP/API 是当前可调用能力之一；对获准软件的本地协议、IPC 或通信接口做捕获、分析与适配，只作为未来按真实需求触发的扩展方向，不设为默认优先路径，也不是当前商业化前置条件。
+- **移动投屏视觉路径保持受限表述。** macOS 上通过投屏窗口结合视觉 / OCR / 点击输入可以作为特定任务的候选执行面，但在形成独立、可复核的产品验收前，不把它扩大为通用 iOS 自动化产品承诺。
+- **不新增平行“早期现金流”Research 文档。** 0→1 获客、报价、付费试点、需求记录和产品化门槛统一进入现有 [商业验证推进计划](../../plans/commercialization/business-validation-roadmap.md)，Research 继续负责市场事实、商业模式和机会判断。
 
 ## 当前研究文件
 
@@ -116,7 +127,8 @@
 → Content / Benchmark：关键词、竞品、同任务证明
 → 12 个月战略：有限资源只押哪些方向
 → 验证计划：首批客户和 1—3 个场景
-→ 报价、最小交付、真实付费、可靠性、成本与复用证据
+→ 早期现金流：有边界定制小单、报价、成交与真实收款
+→ 最小交付、可靠性、成本、维护与跨客户复用证据
 → 再决定标准包、伙伴、返还、托管、Team、Enterprise 或 Marketplace
 ```
 
@@ -268,7 +280,7 @@ Action / Automation 本体
 → C1 商家真实人工 Workflow
 → C2 现有 SaaS 未覆盖缺口
 → 选择 1—3 个可收费 Action / Workflow
-→ API / Browser / OpenDesk 最小组合验证
+→ 按任务选择已验证的 Browser / Desktop / Mobile / HTTP / AI 执行组合；不设全局固定优先级
 → Verify + Evidence
 → 真实用户 / 真实付费验证
 → 端到端 Business Agent 闭环
