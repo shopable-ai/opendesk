@@ -1,14 +1,11 @@
 name: API docs contract
-
 on:
   pull_request:
   push:
     branches: [master]
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
   api-doc-contract:
     name: Canonical API docs and machine index
@@ -22,10 +19,9 @@ jobs:
         run: |
           node --check apps/opendesk/script-runner-simple.js
           node --check apps/opendesk/scheduler-center.js
-  prepare-agent-catalog:
+  prepare-final-links:
     if: >-
-      github.event_name == 'push' && github.ref == 'refs/heads/master' && github.event.head_commit.message == 'ci(docs): prepare verified Agent API catalog blobs'
-    name: One-time verified documentation objects
+      github.event_name == 'push' && github.ref == 'refs/heads/master' && github.event.head_commit.message == 'ci(docs): prepare final reading entry links'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -34,66 +30,34 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Apply guarded navigation patches and generate catalogs
+      - name: Prepare guarded documentation blobs only
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p .runtime/tests/api-docs
+          mkdir -p .runtime/tests/api-docs-final-links
           python3 - <<'PY'
-          import os,json,base64,hashlib,pathlib,urllib.request,subprocess
-          root=pathlib.Path.cwd()
-          api='https://api.github.com/repos/'+os.environ['GITHUB_REPOSITORY']
-          headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'}
-          req=urllib.request.Request(api+'/git/blobs/f846d96b1e37a2630aedc1b0def7b4d108b68f52',headers=headers)
-          patch=json.loads(base64.b64decode(json.load(urllib.request.urlopen(req))['content']))
-          for item in patch:
-            p=root/item['path']; raw=p.read_bytes()
-            sha=hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
-            if sha!=item['expected']: raise RuntimeError('Concurrent source change: '+item['path'])
-            lines=raw.decode('utf8').splitlines(keepends=True)
-            for change in reversed(item['patches']): lines[change['start']:change['end']]=change['lines']
-            p.write_text(''.join(lines),encoding='utf8')
-          (root/'.runtime/tests/api-docs/navigation-patches.json').write_text(json.dumps(patch,ensure_ascii=False,indent=2))
-          PY
-          node scripts/api-docs.js generate
-          node scripts/api-docs.js check > .runtime/tests/api-docs/ci-check.json
-          node --test tests/api-docs/reader.test.js > .runtime/tests/api-docs/ci-tests.tap
-          git diff --check
-      - name: Collect current repository evidence
-        if: always()
-        run: |
-          mkdir -p .runtime/tests/api-docs
-          git rev-parse HEAD > .runtime/tests/api-docs/source-head.txt
-          git status --short > .runtime/tests/api-docs/worktree-status.txt
-          git diff --stat > .runtime/tests/api-docs/changed-stat.txt
-          git grep -n -F 'runtime-api.ai.json' > .runtime/tests/api-docs/json-consumers.txt || test $? = 1
-          git grep -n -E 'runtime-api.ai.json|preferredForAI' -- '*.go' '*.js' '*.json' > .runtime/tests/api-docs/program-consumers.txt || test $? = 1
-          tar -czf .runtime/api-docs-verified-inputs.tar.gz AGENTS.md docs/api types scripts/api-docs.js scripts/api-docs-map.js tests/api-docs workflows docs/frameworks prompts automation/file*.go polyfills
-          mv .runtime/api-docs-verified-inputs.tar.gz .runtime/tests/api-docs/verified-inputs.tar.gz
-      - name: Store verified blobs without changing any branch
-        if: success()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          python3 - <<'PY'
-          import os,json,pathlib,subprocess,urllib.request,hashlib
-          root=pathlib.Path.cwd(); out=root/'.runtime/tests/api-docs'
-          patches=json.loads((out/'navigation-patches.json').read_text())
-          paths=[p['path'] for p in patches]+[str(p) for p in pathlib.Path('docs/api/agent').glob('*.md') if p.name!='README.md']
-          headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'}
+          import pathlib,os,json,urllib.request,hashlib,subprocess
+          root=pathlib.Path.cwd();out=root/'.runtime/tests/api-docs-final-links';items=[]
+          old='```text\ndocs/api/index.md\ndocs/api/cookbook.md\ndocs/api/runtime-api.ai.json\n```'
+          new='```text\ndocs/api/agent/README.md\ndocs/api/index.md\ndocs/api/cookbook.md\n```\n\nAgent 从 `docs/api/agent/README.md` 按当前业务步骤展开；用户总导航与 Cookbook 按需读取，不是顺序必读清单。`docs/api/runtime-api.ai.json` 保留程序解析与校验用途，不作为默认全文阅读输入。'
           api='https://api.github.com/repos/'+os.environ['GITHUB_REPOSITORY']+'/git/blobs'
-          items=[]
-          for rel in sorted(paths):
-            raw=(root/rel).read_bytes(); text=raw.decode('utf8')
+          headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'}
+          for rel,expected in [('README.md','c2e85af8a903cea0a9e78f85100bba63814038ab'),('QUICKSTART.md','df26074cc5441d435303e821f452aa56efe3bc94')]:
+            p=root/rel;raw=p.read_bytes();actual=hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+            if actual!=expected:raise RuntimeError('Concurrent source change: '+rel)
+            text=raw.decode('utf8')
+            if text.count(old)!=1:raise RuntimeError('Reading list not unique: '+rel)
+            text=text.replace(old,new);p.write_text(text,encoding='utf8');(out/rel).write_text(text,encoding='utf8')
             request=urllib.request.Request(api,data=json.dumps({'content':text,'encoding':'utf-8'}).encode(),headers=headers,method='POST')
             response=json.load(urllib.request.urlopen(request))
-            expected=next((p['expected'] for p in patches if p['path']==rel),None)
-            items.append({'path':rel,'mode':'100644','type':'blob','sha':response['sha'],'expected':expected,'sha256':hashlib.sha256(raw).hexdigest(),'bytes':len(raw)})
-          (out/'blob-manifest.json').write_text(json.dumps({'base':subprocess.check_output(['git','rev-parse','HEAD']).decode().strip(),'entries':items},ensure_ascii=False,indent=2))
+            items.append({'path':rel,'mode':'100644','type':'blob','sha':response['sha'],'expected':expected,'sha256':hashlib.sha256(text.encode()).hexdigest()})
+          (out/'blob-manifest.json').write_text(json.dumps({'base':subprocess.check_output(['git','rev-parse','HEAD']).decode().strip(),'entries':items},indent=2))
           PY
+          git diff --check
+          git diff > .runtime/tests/api-docs-final-links/change.diff
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: agent-api-catalog-review
-          path: .runtime/tests/api-docs/
+          name: agent-api-final-links
+          path: .runtime/tests/api-docs-final-links/
           retention-days: 3
