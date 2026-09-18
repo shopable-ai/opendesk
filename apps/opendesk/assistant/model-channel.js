@@ -104,8 +104,10 @@
       if (content.length > 256 * 1024) {
         throw new AssistantModelError('SOURCE_TOO_LARGE', 'source content exceeds the 256 KiB model-sharing limit');
       }
+      const rawRef = String(input && input.sourceRef || '').replace(/\\/g, '/');
+      const displayRef = rawRef.split('/').filter(Boolean).pop() || 'source.js';
       return Object.freeze({
-        ref: String(input && input.sourceRef || ''),
+        ref: displayRef,
         digest: String(input && input.sourceDigest || ''),
         content,
       });
