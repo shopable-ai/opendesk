@@ -295,7 +295,15 @@ func (s *Service) captureLocked(name string, fields map[string]any, foreground b
 	if foreground {
 		sessionID = s.ensureSessionLocked(now)
 		if sessionID == "" {
-			s.rejectLocked("session_unavailable")
+			// Preserve the root failure from session creation (for example a
+			// provider enqueue failure or identity generation failure) instead of
+			// hiding it behind the secondary fact that no foreground session was
+			// available. The parent event is still counted as dropped.
+			if s.lastErrorCode == "" {
+				s.rejectLocked("session_unavailable")
+			} else {
+				s.dropped++
+			}
 			return false
 		}
 	}
