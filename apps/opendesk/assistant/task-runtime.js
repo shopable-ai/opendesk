@@ -86,13 +86,22 @@
     const candidateVerifier = typeof settings.verifyCandidate === 'function' ? settings.verifyCandidate : null;
     if (!Contract || typeof Contract.createStore !== 'function') fail('TASK_CONTRACT_UNAVAILABLE', 'task contract module is not loaded');
     if (!file || typeof file.join !== 'function' || typeof file.ensureDir !== 'function' || typeof file.readJSON !== 'function'
-      || typeof file.writeNew !== 'function' || typeof file.exists !== 'function' || typeof file.listDir !== 'function') {
-      fail('TASK_IO_UNAVAILABLE', 'task runtime requires safe File persistence operations');
+      || typeof file.writeNew !== 'function' || typeof file.realPath !== 'function'
+      || typeof file.exists !== 'function' || typeof file.listDir !== 'function') {
+      fail('TASK_IO_UNAVAILABLE', 'task runtime requires safe File persistence and canonical-path operations');
     }
     if (!rootDir || !randomUUID) fail('TASK_RUNTIME_UNAVAILABLE', 'task runtime requires a root directory and random UUID source');
 
     const taskStore = Contract.createStore({file, rootDir, clock});
-    const protectedRoots = Array.isArray(settings.protectedRoots) ? settings.protectedRoots : [];
+    const protectedRoots = [];
+    for (const rawRoot of Array.isArray(settings.protectedRoots) ? settings.protectedRoots : []) {
+      const normalized = Contract.normalizePath(rawRoot);
+      if (!protectedRoots.includes(normalized)) protectedRoots.push(normalized);
+      if (file.exists(normalized)) {
+        const canonical = Contract.normalizePath(file.realPath(normalized));
+        if (!protectedRoots.includes(canonical)) protectedRoots.push(canonical);
+      }
+    }
     const candidateService = Contract.createCandidateService({file, digest: sha256, protectedRoots});
     const flowUse = flowBridge ? Contract.createFlowUseService({
       gateway: {
