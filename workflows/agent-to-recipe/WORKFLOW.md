@@ -14,7 +14,7 @@ order: 10
 
 ### 1. 固定入口与本轮边界
 
-先读根 `AGENTS.md`、本入口、[共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)第 4—8 节；需要发现或调用 API 时从 [Agent API 短入口](../../docs/api/agent/README.md) 按当前步骤取得方法正文与必要公共约束，不默认通读机器索引、全部类型或历史案例；定位代码还须读下文的定位修复方法。再按真实来源选择：
+先读根 `AGENTS.md`、本入口、当前任务包，确认本轮目标、授权、已有成果及首个真实缺口；没有任务包时从用户业务目标进入 S1，不凭空补造历史记录。需要发现或调用 API 时从 [Agent API 短入口](../../docs/api/agent/README.md) 进入相关能力目录，比较候选并取得选中方法的完整正文与必要公共约束，不默认通读机器索引、全部类型或历史案例。[共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)第 4—8 节按当前阶段的字段与交接需要读取，不能跳过适用门禁；定位代码还须读下文的定位修复方法。再按真实来源选择：
 
 | 当前任务 | 从哪里继续 | 不允许偷换为 |
 | --- | --- | --- |
@@ -56,7 +56,7 @@ order: 10
 
 S8—S11 必须保留跨步骤真实数据依赖。例如当前计算器案例的第二次计算只能消费第一次从 UI 实际读取的 `firstResult`，不能用 expected 或 JS 算术替代。helper 可以表达业务语义，但不能隐式清空状态、偷偷补点或改变用户要求的操作方式。
 
-Measurement／Recorder／Accessibility／OCR 等都只是依据或实现选择。先核对当前 `docs/api/` 和真实实现，再消费已有证据；不因架构文档出现某个名称就生成未知 API。应用限定的替代定位遵守现有安全模型；任何动作可能已发生或结果未知时立即停止重复输入。
+Measurement／Recorder／Accessibility／OCR 等都只是依据或实现选择。按短入口定位当前方法契约，仅在冲突、缺口或失败时定向核对实现，再消费已有适用证据；不因架构文档出现某个名称就生成未知 API。应用限定的替代定位遵守现有安全模型；任何动作可能已发生或结果未知时立即停止重复输入。
 
 ### 4. 交接完整性检查：可执行，但不替代资格
 
@@ -99,7 +99,7 @@ node --test tests/workflows/handoff-integrity.test.js
 | S2、S3—S6 的操作前／中 | 按业务意图读相关模块概览及方法契约；选择实际可用入口；执行一个有界片段并观察 | 候选与选择依据、契约来源、实际入口、真实读值与证据、未决副作用 |
 | S10—S11 的补强／生成 | 再查框架可复用能力；保留必要业务约束；改变策略后形成新候选并交 S12 重验 | 保留／替换理由、过程与代码对应、候选版本、受影响验证范围 |
 
-默认读取链是：最小运行规则 → [Agent API 短入口](../../docs/api/agent/README.md) → 按能力分组的方法目录 → 选中方法正文与明确公共依赖 → 必要关联类型。只有冲突、缺口或失败时定向深入实现和测试；[框架导航](../../docs/frameworks/README.md)负责方法选择，不是全部可调用 API 清单。`runtime-api.ai.json` 不作为必读整包，`keyMethods` 和 `ai schema` 的遗漏不能证明 Runtime 能力不存在。
+默认读取链是：`AGENTS.md` → 本 `WORKFLOW.md` → 当前任务包 → [Agent API 短入口](../../docs/api/agent/README.md) → 当前业务需要的一个或少数能力目录 → 选中方法的完整 canonical Reference 与必要公共约束 → 必要关联类型。只有冲突、缺口或失败时定向深入实现和测试；[框架导航](../../docs/frameworks/README.md)负责方法选择，不是全部可调用 API 清单。[用户 API 总导航](../../docs/api/README.md)仍保留给全部用户，但不是 Coding Agent 日常能力发现的首个详细入口。`runtime-api.ai.json` 不作为必读整包，`keyMethods` 和 `ai schema` 的遗漏不能证明 Runtime 能力不存在。
 
 具体职责仍由当前外部 Coding Agent 手工协调：读取文件、编写短普通 JS、调用适用的 `ai run`／`-script`、读取返回的 artifacts；不假设 Runtime 内部 `Agent.run()` 拥有同样工具权限。可共享原生引用的操作留在同一 Execution；跨 Execution 只传普通数据与证据，并重新解析目标。
 
