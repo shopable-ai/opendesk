@@ -198,7 +198,6 @@ func TestOpenDeskProductReleasePolicy(t *testing.T) {
 		"official-shell.js",
 		"product-analytics/client.js",
 		"product-analytics/integration.js",
-		"settings.js",
 		"scheduler-client.js",
 		"scheduler-center.js",
 		"permissions-center.js",
