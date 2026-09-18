@@ -23,7 +23,7 @@ description: 为 OpenDesk 桌面自动化认识应用界面、审阅纠错并补
 
 按当前问题读取，不要求一次加载所有长文：
 
-- 在 discover、harden、repair 的操作前／中按[能力发现与代码提炼](../../design/capability-discovery.md)选择现有能力和实际入口；先读相关 Markdown 方法概览，再核对选中契约，不通读大 JSON 或全部类型文件。所用方法、入口、依据和证据留在原工作包，不新建 Skill／Registry。
+- 在 discover、harden、repair 的操作前／中按[能力发现与代码提炼](../../design/capability-discovery.md)选择现有能力和实际入口；先读相关 Markdown 方法概览，再核对选中契约，不通读大 JSON 或全部类型文件。临时候选、入口、依据和验证证据先留在原工作包；最终被 Recipe 消费的选择由 S8—S9 收敛进 `SemanticProcedure.capabilityDecisions`。不新建 Skill／Registry，也不把当前成功代码倒推成未发生的历史验证。
 
 - 认识、审阅、纠错和操作方法：[唯一专业正文](../../design/application-operations.md)。
 - 应进入哪个环节、怎样返回：[链路设计](../../design/chain-design.md)。
