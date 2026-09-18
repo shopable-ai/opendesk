@@ -146,6 +146,48 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
   });
 
   test({
+    name: 'checked-in Notify Demo package matches its public main.js and installs without an implicit run',
+    tier: 'unit',
+    covers: ['Command.run', 'File.read'],
+  }, async () => {
+    const env = installEnv('notify-demo-example');
+    const exampleRoot = File.join(Execution.workdir, 'examples', 'flow-distribution', 'notify-demo');
+    const sourcePath = File.join(exampleRoot, 'main.js');
+    const manifestPath = File.join(exampleRoot, 'flow.json');
+    const packagePath = File.join(exampleRoot, 'notify-demo.odflow');
+
+    assert(File.isFile(sourcePath), 'Notify Demo main.js is missing');
+    assert(File.isFile(manifestPath), 'Notify Demo flow.json is missing');
+    assert(File.isFile(packagePath), 'Notify Demo .odflow is missing');
+
+    const inspected = await cli(['flow', 'inspect', packagePath]);
+    equal(inspected.result.manifest.flowId, 'com.example.opendesk.notify-demo', 'Notify Demo flowId');
+    equal(inspected.result.manifest.name, 'Notify Demo', 'Notify Demo display name');
+    equal(inspected.result.manifest.entry, 'main.js', 'Notify Demo entry');
+    equal(JSON.stringify(inspected.result.manifest), File.read(manifestPath), 'checked-in flow.json differs from packaged manifest');
+
+    const installed = await cli(['flow', 'install', packagePath, '--trust-flow'], true, env);
+    equal(installed.result.record.state, 'ready', 'Notify Demo installed state');
+    equal(installed.result.record.name, 'Notify Demo', 'Notify Demo Catalog name');
+    equal(installed.result.record.origin, 'odflow', 'Notify Demo Catalog origin');
+
+    const installedSource = File.join(
+      env.OPENDESK_APP_DATA_DIR,
+      'flows',
+      installed.result.record.installId,
+      'main.js',
+    );
+    equal(File.read(installedSource), File.read(sourcePath), 'packaged Notify Demo main.js differs from public source');
+
+    const listed = await cli(['flow', 'list'], true, env);
+    equal(listed.result.flows.length, 1, 'Notify Demo install did not create exactly one Catalog record');
+    equal(listed.result.flows[0].installId, installed.result.record.installId, 'Notify Demo Catalog identity changed');
+    assertNeverExecuted();
+
+    await cli(['flow', 'uninstall', installed.result.record.installId, '--remove-data'], true, env);
+  });
+
+  test({
     name: 'first protected install can wait for activation but an update cannot replace a ready version while activation is missing',
     tier: 'unit',
     covers: ['Command.run', 'File.read'],
