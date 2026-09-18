@@ -224,6 +224,29 @@ test('candidate store rejects a redirected candidate directory on resume', async
   file.redirect(path, '/outside/candidate');
   await assert.rejects(() => runtime.loadCandidate(task.taskId, generated.candidate.candidateId), {code:'TASK_STORAGE_REDIRECTED'});
 });
+
+
+test('candidate save protection includes canonical aliases of protected roots', async () => {
+  const file = memoryFile();
+  file.redirect('/protected-alias', '/protected-real');
+  const runtime = TaskRuntime.create({
+    file, rootDir:'/data/assistant', randomUUID:uuids(), clock:clock(),
+    protectedRoots:['/protected-alias'],
+    modelChannel:{
+      async draftCandidate(){ return {text:'console.log("candidate");'}; },
+      async send(){ return {text:'unused'}; },
+    },
+  });
+  const task = await runtime.startTask({
+    taskId:'protected-candidate', conversationId:'conv-a', requestId:'req-a',
+    userGoal:'make a candidate', intent:'make', asset:{kind:'none'},
+  });
+  const generated = await runtime.generateCandidate(task.taskId);
+  await assert.rejects(
+    () => runtime.saveCandidateAs(task.taskId, generated.candidate.candidateId, '/protected-real/candidate.js'),
+    {code:'PROTECTED_DESTINATION'},
+  );
+});
 test('candidate verification is unavailable without a host-owned verifier', async () => {
   const file = memoryFile();
   const runtime = TaskRuntime.create({
