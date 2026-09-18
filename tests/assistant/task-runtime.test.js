@@ -124,6 +124,23 @@ test('task store rejects a task directory redirected through a symlink or repars
   await assert.rejects(() => store.load('task-a'), {code:'TASK_STORAGE_REDIRECTED'});
 });
 
+test('legacy optional project references survive revisions without expanding source authorization', async () => {
+  const file = memoryFile();
+  const store = Contract.createStore({file, rootDir:'/data/assistant', clock:clock()});
+  const first = await store.save(Contract.create(baseTask({
+    taskId:'legacy-project-task',
+    projectId:'legacy-project',
+    projectRecordRef:'/legacy/project-record.json',
+    asset:{kind:'js-file', ref:'/work/legacy.js'},
+    authorizations:{readSource:false, shareSourceWithModel:false},
+  })), {expectedRevision:0});
+  const second = await store.save(Contract.create({...first, sessionId:'session-new', status:'resumed'}), {expectedRevision:1});
+  assert.equal(second.projectId, 'legacy-project');
+  assert.equal(second.projectRecordRef, '/legacy/project-record.json');
+  assert.equal(second.asset.ref, '/work/legacy.js');
+  assert.throws(() => Contract.assertReadable(second, '/work/legacy.js'), {code:'SOURCE_READ_NOT_AUTHORIZED'});
+});
+
 test('all four asset entry shapes persist without projectId and unresolved directory remains a clarification state', async () => {
   const file = memoryFile();
   const runtime = TaskRuntime.create({
