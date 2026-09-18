@@ -67,7 +67,7 @@ python tests/prototypes/marketplace-smoke.py
 
 运行证据写入 `.runtime/tests/marketplace-prototype/`，不提交运行截图或日志。
 
-此前 v1 证据记录为：28 项模型测试与 19 组 Chromium DOM 交互检查通过。v1.1 已新增第 29 项侧栏静态合同，并在既有 320 / 390 / 768 / 1280 响应式 smoke 中增加贴底、去 Card、标题同行和移动端非 fixed 断言；**这些 v1.1 改动必须重新运行后才能记为新的 PASS 证据**。
+v1.1 已重新完成真实资格：Flow Commercial Qualification run `35300159654` 的 `Marketplace prototype` job 中，29 项模型/静态合同通过，Chromium DOM 交互 smoke 通过；响应式检查覆盖 320 / 390 / 768 / 1280 像素，并验证帮助区桌面贴底、帮助区自身四边 `margin = 0`、去 Card、图标标题同行以及移动端非 fixed。运行证据由 CI 上传为 `marketplace-prototype-evidence`。
 
 当前执行环境的浏览器策略阻止 `file://` 和本地 HTTP 导航，因此本轮浏览器命令为：
 
@@ -75,4 +75,4 @@ python tests/prototypes/marketplace-smoke.py
 python tests/prototypes/marketplace-smoke.py --set-content --browser-executable /usr/bin/chromium
 ```
 
-该模式将同一 HTML 字节内容载入 Chromium DOM 后实际点击、检查和截图，**不证明本地 URL 导航、文件双击打开或浏览器持久存储端到端通过**。持久存储逻辑单独由模型测试验证。即使 v1.1 smoke 重新通过，也不能替代 macOS / Windows Native UI、真实下载、支付、OS 唤起或签名校验。
+该模式将同一 HTML 字节内容载入 Chromium DOM 后实际点击、检查和截图，**不证明本地 URL 导航、文件双击打开或浏览器持久存储端到端通过**。持久存储逻辑单独由模型测试验证。当前 v1.1 smoke 已通过，但仍不能替代 macOS / Windows Native UI、真实下载、支付、OS 唤起或签名校验。
