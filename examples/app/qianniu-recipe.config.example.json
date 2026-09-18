@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "mode": "inspect",
+  "windows": {
+    "notificationTitle": "",
+    "receptionTitle": ""
+  },
+  "task": {
+    "allowDraft": false,
+    "allowProductQuery": false
+  },
+  "api": {
+    "endpoint": "",
+    "contentPostfix": ""
+  },
+  "layout": {
+    "qualified": false,
+    "evidence": "",
+    "exclusiveInteraction": false,
+    "notification": {
+      "minWidth": null,
+      "maxWidth": null,
+      "minHeight": null,
+      "maxHeight": null,
+      "recipient": {
+        "left": null,
+        "top": null,
+        "width": null,
+        "height": null
+      },
+      "status": {
+        "left": null,
+        "top": null,
+        "width": null,
+        "height": null
+      },
+      "contact": {
+        "left": null,
+        "top": null,
+        "width": null,
+        "height": null
+      }
+    },
+    "reception": {
+      "minWidth": null,
+      "maxWidth": null,
+      "minHeight": null,
+      "maxHeight": null,
+      "recipient": {
+        "left": null,
+        "top": null,
+        "width": null,
+        "height": null
+      },
+      "orders": {
+        "left": null,
+        "top": null,
+        "width": null,
+        "height": null
+      }
+    },
+    "orderCard": {
+      "aboveStatusPercent": null,
+      "heightPercent": null,
+      "title": {
+        "left": null,
+        "top": null,
+        "width": null,
+        "height": null
+      }
+    }
+  },
+  "draftLocator": {
+    "role": "textField",
+    "identifier": ""
+  }
+}
