@@ -326,6 +326,73 @@ test('Flow use fails closed without signed invocation metadata and rejects unkno
   assert.deepEqual(prepared.prepared.preview.input, {account:'sandbox',amount:17});
 });
 
+test('reserved execution with uncertain host failure persists unknown effect instead of success or stopped', async () => {
+  const file = memoryFile();
+  const recipeBridge = {
+    async inspect(){ return {scriptHash:'hash-a',ext:'.js'}; },
+    async reserve(){ return 'app-recipe-unknown-1'; },
+    async run(){
+      const error = new Error('connection lost after execution reservation');
+      error.executionId = 'app-recipe-unknown-1';
+      throw error;
+    },
+  };
+  const runtime = TaskRuntime.create({
+    file, rootDir:'/data/assistant', defaultBusinessCwd:'/business',
+    randomUUID:uuids(), clock:clock(), recipeBridge,
+  });
+  const task = await runtime.startTask({
+    taskId:'unknown-run',conversationId:'conv-a',requestId:'req-unknown',
+    userGoal:'run selected script',intent:'use',
+    asset:{kind:'js-file',ref:'/work/script.js'},
+  });
+  const prepared = await runtime.prepareUse(task.taskId, {});
+  await assert.rejects(
+    () => runtime.confirmUse(task.taskId, prepared.prepared, prepared.prepared.confirmationToken),
+    /connection lost/,
+  );
+  const stored = await runtime.loadTask(task.taskId);
+  assert.equal(stored.status, 'execution-effect-unknown');
+  const unknown = stored.evidence.find(item => item.type === 'execution-unknown');
+  assert.equal(unknown.executionId, 'app-recipe-unknown-1');
+  assert.equal(unknown.status, 'unknown');
+  assert.equal(unknown.businessVerified, false);
+});
+
+test('host-canceled execution persists canceled only when the host supplies a canceled terminal status', async () => {
+  const file = memoryFile();
+  const recipeBridge = {
+    async inspect(){ return {scriptHash:'hash-a',ext:'.js'}; },
+    async reserve(){ return 'app-recipe-canceled-1'; },
+    async run(){
+      const error = new Error('canceled');
+      error.code = 'CANCELED';
+      error.status = 'canceled';
+      error.executionId = 'app-recipe-canceled-1';
+      throw error;
+    },
+  };
+  const runtime = TaskRuntime.create({
+    file, rootDir:'/data/assistant', defaultBusinessCwd:'/business',
+    randomUUID:uuids(), clock:clock(), recipeBridge,
+  });
+  const task = await runtime.startTask({
+    taskId:'canceled-run',conversationId:'conv-a',requestId:'req-canceled',
+    userGoal:'run selected script',intent:'use',
+    asset:{kind:'js-file',ref:'/work/script.js'},
+  });
+  const prepared = await runtime.prepareUse(task.taskId, {});
+  await assert.rejects(
+    () => runtime.confirmUse(task.taskId, prepared.prepared, prepared.prepared.confirmationToken),
+    /canceled/,
+  );
+  const stored = await runtime.loadTask(task.taskId);
+  assert.equal(stored.status, 'canceled');
+  const terminal = stored.evidence.find(item => item.type === 'execution-terminal' && item.executionId === 'app-recipe-canceled-1');
+  assert.equal(terminal.status, 'canceled');
+  assert.equal(terminal.businessVerified, false);
+});
+
 test('script use binds host hash and refuses a changed entry before run', async () => {
   const file = memoryFile();
   let hash = 'hash-a';
