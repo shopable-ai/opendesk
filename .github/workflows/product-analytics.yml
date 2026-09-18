@@ -41,7 +41,7 @@ on:
 
 concurrency:
   group: product-analytics-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
