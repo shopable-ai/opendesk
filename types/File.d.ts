@@ -74,6 +74,8 @@ declare global {
     readJSON(filePath: string, options?: OpenDeskFileJSONReadOptions): Promise<unknown>;
     readBytes(path: string): ArrayBuffer;
     write(path: string, text: string, encoding?: string): void;
+    /** Exclusively creates one new regular text file. Never replaces an existing target and rejects redirected parent aliases. */
+    writeNew(path: string, text: string, encoding?: string): void;
     writeJSON(filePath: string, value: unknown, options?: OpenDeskFileJSONWriteOptions): Promise<void>;
     append(path: string, text: string, encoding?: string): void;
     writeBytes(path: string, bytes: OpenDeskByteInput): void;
