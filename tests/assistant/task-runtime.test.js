@@ -1,0 +1,266 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+await import('../../apps/opendesk/assistant/task-contract.js');
+await import('../../apps/opendesk/assistant/task-runtime.js');
+
+const Contract = globalThis.OpenDeskAssistantTaskContract;
+const TaskRuntime = globalThis.OpenDeskAssistantTaskRuntime;
+
+function clone(value) {
+  return value == null ? value : JSON.parse(JSON.stringify(value));
+}
+
+function memoryFile() {
+  const files = new Map();
+  const dirs = new Set(['/data', '/data/assistant']);
+  const normalize = (...parts) => {
+    const joined = parts.join('/').replace(/\\/g, '/').replace(/\/+/g, '/');
+    return joined.startsWith('/') ? joined.replace(/\/$/, '') || '/' : '/' + joined.replace(/\/$/, '');
+  };
+  return {
+    files,
+    dirs,
+    join: normalize,
+    cwd: () => '/product',
+    ensureDir(path) { dirs.add(normalize(path)); },
+    exists(path) { return files.has(normalize(path)) || dirs.has(normalize(path)); },
+    listDir(path) {
+      const root = normalize(path).replace(/\/$/, '') + '/';
+      const names = new Set();
+      for (const key of [...files.keys(), ...dirs]) {
+        if (!key.startsWith(root)) continue;
+        const rest = key.slice(root.length);
+        if (rest && !rest.includes('/')) names.add(rest);
+      }
+      return [...names];
+    },
+    read(path) {
+      const key = normalize(path);
+      if (!files.has(key)) throw Object.assign(new Error('not found'), {code:'ENOENT'});
+      return String(files.get(key));
+    },
+    async readJSON(path) {
+      const key = normalize(path);
+      if (!files.has(key)) throw Object.assign(new Error('not found'), {code:'FILE_NOT_FOUND'});
+      return JSON.parse(String(files.get(key)));
+    },
+    writeNew(path, value) {
+      const key = normalize(path);
+      if (files.has(key)) throw Object.assign(new Error('file exists'), {code:'EEXIST'});
+      dirs.add(key.slice(0, key.lastIndexOf('/')) || '/');
+      files.set(key, String(value));
+    },
+  };
+}
+
+function uuids() {
+  let n = 0;
+  return () => '00000000-0000-4000-8000-' + String(++n).padStart(12, '0');
+}
+
+function clock() {
+  let n = Date.parse('2026-09-18T00:00:00Z');
+  return () => new Date(n += 1000);
+}
+
+function baseTask(overrides = {}) {
+  return {
+    taskId: 'task-a',
+    conversationId: 'conv-a',
+    sessionId: 'session-old',
+    requestId: 'req-a',
+    userGoal: 'do something useful',
+    intent: 'explain',
+    asset: {kind:'none'},
+    ...overrides,
+  };
+}
+
+test('task store uses expected revision and persistent task identity is not owned by a session', async () => {
+  const file = memoryFile();
+  const store = Contract.createStore({file, rootDir:'/data/assistant', clock:clock()});
+  const first = await store.save(Contract.create(baseTask()), {expectedRevision:0});
+  assert.equal(first.revision, 1);
+
+  const resumedFromNewSession = Contract.create({...first, sessionId:'session-new', status:'resumed'});
+  const second = await store.save(resumedFromNewSession, {expectedRevision:1});
+  assert.equal(second.sessionId, 'session-new');
+  assert.equal(second.revision, 2);
+
+  await assert.rejects(
+    () => store.save(Contract.create({...first, status:'stale-write'}), {expectedRevision:1}),
+    {code:'TASK_REVISION_CONFLICT'},
+  );
+  const loaded = await store.load(first.taskId);
+  assert.equal(loaded.status, 'resumed');
+  assert.equal(loaded.revision, 2);
+});
+
+test('all four asset entry shapes persist without projectId and unresolved directory remains a clarification state', async () => {
+  const file = memoryFile();
+  const runtime = TaskRuntime.create({
+    file, rootDir:'/data/assistant', randomUUID:uuids(), clock:clock(),
+    modelChannel:{async send(){return {text:'ok'};}, async draftCandidate(){return {text:'console.log("candidate");'};}},
+  });
+  const entries = [
+    {kind:'none'},
+    {kind:'js-file', ref:'/work/a.js'},
+    {kind:'automation-directory', ref:'/work/auto', boundaryResolved:false},
+    {kind:'installed-flow', installId:'local-1234567890abcdef1234567890abcdef'},
+  ];
+  for (let index=0; index<entries.length; index++) {
+    const task = await runtime.startTask({
+      taskId:'asset-' + index,
+      conversationId:'conv-a',
+      requestId:'req-' + index,
+      userGoal:'goal-' + index,
+      intent:index === 2 ? 'use' : 'explain',
+      asset:entries[index],
+    });
+    assert.equal(task.projectId, '');
+    assert.equal(task.asset.kind, entries[index].kind);
+  }
+  const prepared = await runtime.prepareUse('asset-2', {});
+  assert.equal(prepared.kind, 'clarify');
+  assert.match(prepared.message, /不会猜测入口/);
+});
+
+test('candidate make is reviewable, save-as is exclusive, and verification must bind the exact candidate digest', async () => {
+  const file = memoryFile();
+  const runtime = TaskRuntime.create({
+    file, rootDir:'/data/assistant', randomUUID:uuids(), clock:clock(),
+    protectedRoots:['/data/assistant/protected'],
+    modelChannel:{
+      async draftCandidate(){ return {text:'console.log("candidate");'}; },
+      async send(){ return {text:'unused'}; },
+    },
+  });
+  const task = await runtime.startTask({
+    taskId:'make-a', conversationId:'conv-a', requestId:'req-a',
+    userGoal:'make a harmless script', intent:'make', asset:{kind:'none'},
+  });
+  const generated = await runtime.generateCandidate(task.taskId);
+  assert.equal(generated.candidate.status, 'candidate-pending');
+  assert.equal(generated.candidate.independentlyVerified, false);
+
+  await assert.rejects(
+    () => runtime.recordCandidateVerification(task.taskId, generated.candidate.candidateId, {
+      candidateDigest:'wrong', executionId:'exec-1', criteriaId:'criteria-1', observedAt:'2026-09-18T00:00:00Z', status:'passed',
+    }),
+    {code:'VERIFICATION_MISMATCH'},
+  );
+
+  const saved = await runtime.saveCandidateAs(task.taskId, generated.candidate.candidateId, '/exports/candidate.js');
+  assert.equal(saved.candidate.status, 'saved');
+  assert.equal(file.read('/exports/candidate.js'), 'console.log("candidate");');
+  await assert.rejects(
+    () => runtime.saveCandidateAs(task.taskId, generated.candidate.candidateId, '/exports/candidate.js'),
+    {code:'DESTINATION_EXISTS'},
+  );
+
+  const verified = await runtime.recordCandidateVerification(task.taskId, generated.candidate.candidateId, {
+    candidateDigest:saved.candidate.contentDigest,
+    executionId:'exec-real-1',
+    criteriaId:'candidate-runtime-smoke-v1',
+    observedAt:'2026-09-18T00:01:00Z',
+    status:'passed',
+  });
+  assert.equal(verified.candidate.independentlyVerified, true);
+  assert.equal(verified.candidate.verificationEvidence.executionId, 'exec-real-1');
+});
+
+test('source improvement stays blocked rather than upgrading association into model/file authority', async () => {
+  const file = memoryFile();
+  file.writeNew('/work/source.js', 'console.log("source");');
+  const runtime = TaskRuntime.create({
+    file, rootDir:'/data/assistant', randomUUID:uuids(), clock:clock(),
+    modelChannel:{async draftCandidate(){throw new Error('must not call model');}},
+  });
+  const task = await runtime.startTask({
+    taskId:'improve-a', conversationId:'conv-a', requestId:'req-a',
+    userGoal:'improve it', intent:'improve',
+    asset:{kind:'js-file',ref:'/work/source.js'},
+    authorizations:{readSource:true,shareSourceWithModel:true},
+  });
+  await assert.rejects(() => runtime.generateCandidate(task.taskId), {code:'AUTHOR_SOURCE_READ_BLOCKED'});
+});
+
+test('Flow confirmation uses frozen canonical input, consumes before async recheck, and runs the canonical installId', async () => {
+  const file = memoryFile();
+  const seenRuns = [];
+  let releaseInspect;
+  let inspectCalls = 0;
+  const inspection = {
+    installId:'local-1234567890abcdef1234567890abcdef',
+    flowId:'sample.flow',
+    name:'Business Sample',
+    version:'1.0.0',
+    publisherId:'local',
+    state:'ready',
+    runnable:true,
+    protected:false,
+    archiveDigest:'archive-a',
+    manifestDigest:'manifest-a',
+  };
+  const flowBridge = {
+    async inspect() {
+      inspectCalls += 1;
+      if (inspectCalls === 2) await new Promise(resolve => { releaseInspect = resolve; });
+      return clone(inspection);
+    },
+    async reserve(){ return 'app-flow-real-1'; },
+    async run(options){ seenRuns.push(clone(options)); return {executionId:options.executionId,status:'succeeded'}; },
+  };
+  const runtime = TaskRuntime.create({
+    file, rootDir:'/data/assistant', defaultBusinessCwd:'/business',
+    randomUUID:uuids(), clock:clock(), flowBridge,
+  });
+  let task = await runtime.startTask({
+    taskId:'flow-a',conversationId:'conv-a',requestId:'req-a',userGoal:'run it',intent:'use',
+    asset:{kind:'installed-flow',installId:inspection.installId},
+  });
+  const input = {amount:17,nested:{target:'A'}};
+  const prepared = await runtime.prepareUse(task.taskId, input);
+  assert.equal(Object.isFrozen(prepared.prepared.preview.input), true);
+  input.nested.target = 'MUTATED';
+
+  const first = runtime.confirmUse(task.taskId, prepared.prepared, prepared.prepared.confirmationToken);
+  while (!releaseInspect) await new Promise(resolve => setImmediate(resolve));
+  await assert.rejects(
+    () => runtime.confirmUse(task.taskId, prepared.prepared, prepared.prepared.confirmationToken),
+    {code:'STALE_CONFIRMATION'},
+  );
+  releaseInspect();
+  const result = await first;
+  assert.equal(result.run.executionId, 'app-flow-real-1');
+  assert.equal(seenRuns.length, 1);
+  assert.deepEqual(JSON.parse(seenRuns[0].inputJSON), {amount:17,nested:{target:'A'}});
+  assert.equal(seenRuns[0].expectedArchiveDigest, 'archive-a');
+});
+
+test('script use binds host hash and refuses a changed entry before run', async () => {
+  const file = memoryFile();
+  let hash = 'hash-a';
+  let runCalls = 0;
+  const recipeBridge = {
+    async inspect(){ return {scriptHash:hash,ext:'.js'}; },
+    async reserve(){ return 'app-recipe-real-1'; },
+    async run(){ runCalls += 1; return {executionId:'app-recipe-real-1',status:'succeeded'}; },
+  };
+  const runtime = TaskRuntime.create({
+    file, rootDir:'/data/assistant', defaultBusinessCwd:'/business',
+    randomUUID:uuids(), clock:clock(), recipeBridge,
+  });
+  const task = await runtime.startTask({
+    taskId:'script-a',conversationId:'conv-a',requestId:'req-a',userGoal:'run script',intent:'use',
+    asset:{kind:'js-file',ref:'/work/script.js'},
+  });
+  const prepared = await runtime.prepareUse(task.taskId, {key:'value'});
+  hash = 'hash-b';
+  await assert.rejects(
+    () => runtime.confirmUse(task.taskId, prepared.prepared, prepared.prepared.confirmationToken),
+    {code:'SCRIPT_CHANGED_AFTER_PREVIEW'},
+  );
+  assert.equal(runCalls, 0);
+});
