@@ -30,8 +30,10 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Validate workflow checker syntax
-        run: node --check workflows/agent-to-recipe/scripts/check-artifact-chain.js
+      - name: Validate workflow and golden Recipe syntax
+        run: |
+          node --check workflows/agent-to-recipe/scripts/check-artifact-chain.js
+          node --check examples/agent-to-recipe/calculator.js
       - name: Test handoff and artifact-chain relationships
         run: node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-chain.test.js
   agent-api-reading:
