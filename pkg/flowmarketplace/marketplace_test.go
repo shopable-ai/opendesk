@@ -75,6 +75,7 @@ func TestMarketplaceInstallVerticalSlice(t *testing.T) {
 	if loaded.Origin != "marketplace" || loaded.ReleaseID != fixture.release.ReleaseID {
 		t.Fatalf("catalog did not persist Marketplace provenance: %+v", loaded)
 	}
+	assertInstallFixtureNotExecuted(t, service, result.Record.InstallID)
 	assertTrustSource(t, service, "user")
 	assertTrustScope(t, service, "flow")
 }
@@ -263,6 +264,7 @@ func TestMarketplaceAndSideLoadConvergeOnSameCatalogIdentity(t *testing.T) {
 	if sideLoaded.Record.Origin != "odflow" {
 		t.Fatalf("side-load origin = %q, want odflow", sideLoaded.Record.Origin)
 	}
+	assertInstallFixtureNotExecuted(t, service, sideLoaded.Record.InstallID)
 
 	server, artifactHits := newMarketplaceServer(t, fixture)
 	defer server.Close()
@@ -286,6 +288,7 @@ func TestMarketplaceAndSideLoadConvergeOnSameCatalogIdentity(t *testing.T) {
 	if fromMarketplace.Record.Origin != "marketplace" || fromMarketplace.Record.ReleaseID != fixture.release.ReleaseID {
 		t.Fatalf("Marketplace provenance was not applied to the canonical record: %+v", fromMarketplace.Record)
 	}
+	assertInstallFixtureNotExecuted(t, service, fromMarketplace.Record.InstallID)
 	records, err := service.Catalog.List()
 	if err != nil {
 		t.Fatal(err)
@@ -518,6 +521,17 @@ func newFlowService(t *testing.T) *flowinstall.Service {
 		}
 	})
 	return service
+}
+
+func assertInstallFixtureNotExecuted(t *testing.T, service *flowinstall.Service, installID string) {
+	t.Helper()
+	dataRoot := filepath.Join(service.Roots.DataRoot, installID)
+	for _, name := range []string{"install-test.marker", "result.json", "run.json"} {
+		path := filepath.Join(dataRoot, name)
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("Marketplace/side-load install executed business payload; %s stat error = %v", path, err)
+		}
+	}
 }
 
 func assertCatalogEmpty(t *testing.T, service *flowinstall.Service) {
