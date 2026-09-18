@@ -524,7 +524,7 @@ test('brand home is the first icon and official actions stay independent from ru
   const help = toolbar.controls.find(control => control.id === 'officialHelp');
   assert.equal(home.label, '打开 OpenDesk 官网');
   assert.deepEqual(home.icon, {
-    path: '/bundle/apps/opendesk/assets/opendesk-logo.png',
+    path: path.join('/bundle/apps/opendesk', 'assets', 'opendesk-logo.png'),
     renderingMode: 'original',
   });
   assert.equal(customize.icon, 'ai.assistant');
