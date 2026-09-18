@@ -241,8 +241,28 @@ func TestAppRecipeRunnerAssistantInspectBindsScopeHashInputAndReservedIdentity(t
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(stdout), `ASSISTANT_INPUT={"amount":17,"nested":{"target":"A"}}`) {
+	stdoutText := string(stdout)
+	marker := "ASSISTANT_INPUT="
+	start := strings.Index(stdoutText, marker)
+	if start < 0 {
 		t.Fatalf("stdout=%q", stdout)
+	}
+	payload := stdoutText[start+len(marker):]
+	if end := strings.Index(payload, ` {"consoleMethod":`); end >= 0 {
+		payload = payload[:end]
+	} else if end := strings.IndexByte(payload, '\n'); end >= 0 {
+		payload = payload[:end]
+	}
+	var actualInput map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(payload)), &actualInput); err != nil {
+		t.Fatalf("decode assistant input from stdout: %v; stdout=%q", err, stdout)
+	}
+	if actualInput["amount"] != float64(17) {
+		t.Fatalf("assistant input amount=%v", actualInput["amount"])
+	}
+	nested, ok := actualInput["nested"].(map[string]any)
+	if !ok || nested["target"] != "A" {
+		t.Fatalf("assistant nested input=%v", actualInput["nested"])
 	}
 
 	if err := os.WriteFile(scriptPath, []byte(`console.log("changed");`), 0o600); err != nil {
