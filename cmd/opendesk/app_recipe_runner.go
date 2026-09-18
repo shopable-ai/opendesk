@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"opendesk/automation"
 	"opendesk/pkg/customui"
@@ -102,6 +103,34 @@ func (r *appRecipeRunner) InspectScript(ctx context.Context, input automation.Ap
 	return automation.AppOwnedScriptInspection{
 		ScriptHash: pkgExecution.ComputeScriptHash(source.Content),
 		Ext: source.Ext,
+	}, nil
+}
+
+func (r *appRecipeRunner) ReadScript(ctx context.Context, input automation.AppOwnedScriptInspectRequest) (automation.AppOwnedScriptSource, error) {
+	if r == nil {
+		return automation.AppOwnedScriptSource{}, errors.New("App Recipe Runner is unavailable")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	scriptPath, err := validatedAssistantScriptPath(input.ScriptPath, input.ScopeRoot)
+	if err != nil {
+		return automation.AppOwnedScriptSource{}, err
+	}
+	source, err := scriptloader.NewProductionFileLoader().Load(ctx, scriptPath)
+	if err != nil {
+		return automation.AppOwnedScriptSource{}, err
+	}
+	if len(source.Content) > 1024*1024 {
+		return automation.AppOwnedScriptSource{}, errors.New("assistant source read exceeds 1 MiB")
+	}
+	if !utf8.Valid(source.Content) {
+		return automation.AppOwnedScriptSource{}, errors.New("assistant source read requires UTF-8 JavaScript")
+	}
+	return automation.AppOwnedScriptSource{
+		ScriptHash: pkgExecution.ComputeScriptHash(source.Content),
+		Ext:        source.Ext,
+		Content:    string(source.Content),
 	}, nil
 }
 
