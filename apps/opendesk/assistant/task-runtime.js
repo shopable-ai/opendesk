@@ -268,7 +268,15 @@
         if (!flowUse) fail('FLOW_GATEWAY_UNAVAILABLE', 'installed Flow gateway is unavailable');
         task = await updateTask(task, {status:'awaiting-confirmation'});
         const prepared = await flowUse.prepare(task, input || {}, context || {});
-        return deepFreeze({kind:'prepared', task, prepared, preview:'将运行已安装 Flow：' + prepared.preview.name + (prepared.preview.version ? ' ' + prepared.preview.version : '') + '\n实际输入：' + JSON.stringify(prepared.preview.input)});
+        return deepFreeze({
+          kind:'prepared',
+          task,
+          prepared,
+          preview:'将运行已安装 Flow：' + prepared.preview.name
+            + (prepared.preview.version ? ' ' + prepared.preview.version : '')
+            + '\n已签名影响说明：' + prepared.preview.effectSummary
+            + '\n实际输入：' + JSON.stringify(prepared.preview.input),
+        });
       }
       const selected = scriptAssetEntry(task);
       if (selected && selected.clarify) {
