@@ -16,6 +16,7 @@ on:
       - 'tests/runtime-api/flow-package.js'
       - 'tests/runtime-api/flow-distribution.js'
       - 'tests/runtime-api/flow-installation.js'
+      - 'tests/fixtures/flow-install-test/**'
       - 'tests/runtime-api/support/flow-package-harness.js'
       - 'tests/runtime-api/gates/**'
       - 'scripts/test_runtime_apis.js'
