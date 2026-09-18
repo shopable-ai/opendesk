@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 await import('../../apps/opendesk/assistant/store.js');
+await import('../../apps/opendesk/assistant/task-contract.js');
 await import('../../apps/opendesk/assistant/model-channel.js');
+await import('../../apps/opendesk/assistant/task-runtime.js');
 await import('../../apps/opendesk/assistant/session.js');
 await import('../../apps/opendesk/assistant/controller.js');
 
@@ -13,7 +15,9 @@ const CONTROL_IDS = new Set([
   'archivedMore', 'archivedOverflow', 'archivedEmpty', 'currentTitle', 'conversationState',
   'titleInput', 'renameConversation', 'archiveConversation', 'deleteConversation', 'modelState', 'globalStatus',
   'modelHelp', 'refreshModel', 'toggleHelp', 'messageEmpty', 'messageTranscript', 'messageOverflow', 'composer',
+  'taskIntent', 'assetKind', 'importRunnerAsset', 'assetRef', 'assetEntry', 'businessCwd', 'taskInput',
   'send', 'stop', 'taskStatus', 'taskPreview', 'confirmTask', 'cancelTask', 'composerHint',
+  'candidateSaveRow', 'candidateSavePath', 'saveCandidate',
 ]);
 for (let index = 0; index < 64; index += 1) {
   CONTROL_IDS.add(`recentItem${index}`);
@@ -43,6 +47,11 @@ function memoryFile() {
   }
   return {
     join: normalize,
+    realPath(target) {
+      const key = normalize(target);
+      if (!files.has(key) && !dirs.has(key)) throw Object.assign(new Error('not found'), {code: 'ENOENT'});
+      return key;
+    },
     ensureDir(dir) { dirs.add(normalize(dir)); },
     exists(target) { return files.has(normalize(target)) || dirs.has(normalize(target)); },
     listDir(dir) {
@@ -54,6 +63,17 @@ function memoryFile() {
       const key = normalize(target);
       if (files.has(key)) throw Object.assign(new Error('immutable write'), {code: 'ATOMIC_REPLACE_UNSUPPORTED'});
       files.set(key, clone(value));
+    },
+    writeNew(target, value) {
+      const key = normalize(target);
+      if (files.has(key)) throw Object.assign(new Error('file exists'), {code: 'EEXIST'});
+      dirs.add(key.slice(0, key.lastIndexOf('/')) || '/');
+      files.set(key, String(value));
+    },
+    read(target) {
+      const key = normalize(target);
+      if (!files.has(key)) throw Object.assign(new Error('not found'), {code:'ENOENT'});
+      return String(files.get(key));
     },
   };
 }
@@ -173,6 +193,7 @@ test('actual Controller render updates supported message rows immediately and ex
     ui,
     file: memoryFile(),
     appDataRoot: '/data',
+    execution: {id: 'app-test', workdir: '/data', scriptDir: '/bundle/opendesk'},
     taskService: taskService(executions),
     llm: {getCapabilities: () => ({supported: true, configured: true}), async generate() { return {data: '普通回复'}; }},
     agent: {getCapabilities: () => ({supported: false, configured: false})},
@@ -210,6 +231,7 @@ test('assistant rendering only sends fields supported by ControlHandle.update', 
     ui,
     file: memoryFile(),
     appDataRoot: '/data',
+    execution: {id: 'app-test', workdir: '/data', scriptDir: '/bundle/opendesk'},
     taskService: taskService([]),
     llm: {getCapabilities: () => ({supported: true, configured: true}), async generate() { return {data: '回复'}; }},
     agent: {getCapabilities: () => ({supported: false, configured: false})},
@@ -228,6 +250,7 @@ test('a real-time Custom UI control update failure is surfaced in the assistant 
     ui,
     file: memoryFile(),
     appDataRoot: '/data',
+    execution: {id: 'app-test', workdir: '/data', scriptDir: '/bundle/opendesk'},
     taskService: taskService([]),
     logger: {error: value => logs.push(value), log() {}},
     llm: {getCapabilities: () => ({supported: true, configured: true}), async generate() { return {data: '回复'}; }},
