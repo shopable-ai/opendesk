@@ -87,7 +87,7 @@ globalThis.RuntimeAPIObjects = {
     'join', 'resolve', 'normalize', 'dirname', 'basename', 'extname', 'relative', 'isAbsolute',
   ], properties: ['sep', 'delimiter'] },
   File: { docs: 'docs/api/file.md', types: 'types/File.d.ts', source: 'automation/file.go + automation/file_stat.go + automation/file_json.go + automation/file_json_io.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
-    'path', 'cwd', 'create', 'createIfNotExists', 'createWithDirs', 'exists', 'stat', 'ensureDir',
+    'path', 'realPath', 'cwd', 'create', 'createIfNotExists', 'createWithDirs', 'exists', 'stat', 'ensureDir',
     'read', 'readBytes', 'write', 'writeNew', 'append', 'writeBytes', 'appendBytes', 'copy',
     'renameWithoutExtension', 'rename', 'move', 'getExtension', 'getName',
     'getNameWithoutExtension', 'remove', 'removeDir', 'listDir', 'isFile', 'isDir',
