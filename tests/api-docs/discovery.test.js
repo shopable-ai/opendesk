@@ -107,6 +107,16 @@ test('Agent-to-Recipe consumers use one short API entry with valid links', () =>
   const discovery = text('workflows/agent-to-recipe/design/capability-discovery.md');
   assert.doesNotMatch(discovery, /源码核验基线为\s+[0-9a-f]{7,40}/);
   for (const rule of ['S1', 'S2', 'S7', 'S8', 'S10', 'S12', '执行时', '实际读值', '跨 Execution', 'ai schema']) assert.ok(discovery.includes(rule), rule);
+  for (const rel of [
+    'AGENTS.md',
+    'docs/api/agent/README.md',
+    'docs/api/README.md',
+    'docs/api/index.md',
+    'workflows/agent-to-recipe/WORKFLOW.md',
+    'workflows/agent-to-recipe/design/capability-discovery.md',
+  ]) {
+    assert.doesNotMatch(text(rel), /runtime-api\.ai\.json|\bkeyMethods\b/, `${rel} 不应把旧机器索引暴露给普通 Agent`);
+  }
 });
 
 test('normal CI checks repository content, with no catalog blob transit jobs', () => {
