@@ -258,9 +258,11 @@ test('duplicate submit is rejected, stop aborts the real request, and late reply
   assert.equal(channel.calls, 1);
   await session.stop();
   assert.equal(observedSignal.aborted, true);
-  assert.equal(session.getConversation(conversationId).requests[0].status, 'stopped');
+  assert.equal(session.getConversation(conversationId).requests[0].status, 'stopping',
+    'stop request is not a terminal execution proof');
   gate.resolve({text: '迟到但应丢弃的回复'});
   await waitFor(() => session.snapshot().activeRequest === null);
+  assert.equal(session.getConversation(conversationId).requests[0].status, 'stopped');
   const assistant = session.getConversation(conversationId).messages.find(message => message.id === ids.assistantMessageId);
   assert.equal(assistant.status, 'stopped');
   assert.notEqual(assistant.text, '迟到但应丢弃的回复');
