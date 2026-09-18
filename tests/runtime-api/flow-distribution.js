@@ -13,7 +13,9 @@ const sourceRoot = File.join(runDir, 'flow-fixture', 'source');
 const alternateCwd = File.join(runDir, 'flow-fixture', 'alternate-cwd');
 const publicKeyPath = File.join(runDir, 'flow-fixture', 'publisher-test-only.pub');
 const privateKeyPath = File.join(runDir, 'flow-fixture', 'publisher-test-only.pem');
-const archivePath = File.join(runDir, 'flow-fixture', 'resource-flow.odflow');
+const archiveDir = File.join(runDir, 'flow-fixture', '深层 路径', '二级', '安装包');
+const archivePath = File.join(archiveDir, 'OpenDesk 安装测试.odflow');
+const explicitRunText = 'OpenDesk Install Test: explicit run succeeded';
 const localSourcePath = File.join(runDir, 'flow-fixture', 'local-script.js');
 const runLogRoot = File.join(runDir, 'flow-fixture', 'run-logs');
 const opensslBinary = String(Execution.env.OPENDESK_OPENSSL_BINARY || 'openssl');
@@ -67,10 +69,14 @@ async function contextCommand(commandPath, args, options) {
 
 File.ensureDir(File.join(sourceRoot, 'assets'));
 File.ensureDir(File.join(sourceRoot, 'payload'));
+File.ensureDir(archiveDir);
 File.ensureDir(alternateCwd);
 File.write(File.join(sourceRoot, 'payload', 'main.js'), `
 const resource = File.read(Flow.resolve('assets/value.txt'));
-const record = {root: Flow.root, dataDir: Flow.dataDir, cwd: Execution.workdir, resource};
+const message = 'OpenDesk Install Test: explicit run succeeded';
+const record = {message, root: Flow.root, dataDir: Flow.dataDir, cwd: Execution.workdir, resource};
+File.write(File.join(Flow.dataDir, 'install-test.marker'), message + '\n');
+File.write(File.join(Flow.dataDir, 'result.json'), JSON.stringify(record));
 File.write(File.join(Flow.dataDir, 'run.json'), JSON.stringify(record));
 `);
 File.write(File.join(sourceRoot, 'assets', 'value.txt'), 'resource-ok');
@@ -90,8 +96,8 @@ try {
   assert(keygen.exitCode === 0, `derive ephemeral Flow public key failed: ${keygen.stderr || keygen.stdout}`);
 
   let result = await command(['flow', 'pack', sourceRoot, '-o', archivePath,
-    '--flow-id', 'runtime-flow', '--name', 'Runtime Resource Flow', '--version', '1.0.0',
-    '--publisher-id', 'runtime-test-publisher', '--publisher-key-id', 'runtime-test-key',
+    '--flow-id', 'opendesk-install-test', '--name', 'OpenDesk Install Test', '--version', '1.0.0',
+    '--publisher-id', 'opendesk-install-test-publisher', '--publisher-key-id', 'opendesk-install-test-key',
     '--entry', 'payload/main.js', '--public-key', publicKeyPath, '--signing-key', privateKeyPath,
     '--platforms', 'darwin', '--file', 'payload/main.js', '--file', 'assets/value.txt']);
   parseEnvelope(result, 'flow pack');
@@ -109,13 +115,27 @@ try {
   assert(record && /^flow-[0-9a-f]{32}$/.test(record.installId), 'install did not return a Flow installId');
   const installId = record.installId;
   const dataDir = File.join(appData, 'flow-data', installId);
+  const markerPath = File.join(dataDir, 'install-test.marker');
+  const resultPath = File.join(dataDir, 'result.json');
+  assert(!File.exists(markerPath), 'install created the business marker before explicit run');
+  assert(!File.exists(resultPath), 'install created the business result before explicit run');
   assert(!File.exists(File.join(dataDir, 'run.json')), 'install executed the Flow before explicit run');
+
+  const repeated = parseEnvelope(await command(['flow', 'install', archivePath, '--trust-flow']), 'idempotent flow install');
+  assert(repeated.result && repeated.result.idempotent === true, 'same artifact reinstall was not idempotent');
+  assert(repeated.result.record && repeated.result.record.installId === installId, 'idempotent reinstall changed Catalog identity');
+  assert(!File.exists(markerPath) && !File.exists(resultPath), 'idempotent reinstall executed business JavaScript');
 
   const listed = parseEnvelope(await command(['flow', 'list']), 'flow list');
   assert(Array.isArray(listed.result.flows) && listed.result.flows.length === 1, 'flow list did not contain exactly one Flow');
-  assert(listed.result.flows[0].name === 'Runtime Resource Flow', 'flow list exposed the wrong display name');
+  assert(listed.result.flows[0].name === 'OpenDesk Install Test', 'flow list exposed the wrong display name');
+  assert(listed.result.flows[0].version === '1.0.0', 'flow list exposed the wrong version');
+  assert(listed.result.flows[0].publisherId === 'opendesk-install-test-publisher', 'flow list exposed the wrong publisher');
 
   parseEnvelope(await command(['flow', 'run', installId, '-log-dir', runLogRoot]), 'flow run from repository cwd');
+  assert(File.read(markerPath) === explicitRunText + '\n', 'explicit run did not create the expected marker text');
+  const businessResult = JSON.parse(File.read(resultPath));
+  assert(businessResult.message === explicitRunText, 'explicit run did not create the expected business result');
   const first = JSON.parse(File.read(File.join(dataDir, 'run.json')));
   assert(first.resource === 'resource-ok', 'Flow.resolve returned the wrong resource');
   assert(first.root === File.join(appData, 'flows', installId), 'Flow.root was not bound to the installed Flow');
@@ -147,7 +167,25 @@ File.write(File.join(Flow.dataDir, 'local-ran.txt'), JSON.stringify({root: Flow.
   parseEnvelope(await command(['flow', 'uninstall', localRecord.installId, '--remove-data']), 'local Flow uninstall');
   assert(!File.exists(localDataDir), 'local Flow data survived uninstall');
   File.write(File.join(runDir, 'results', 'flow.json'), JSON.stringify({
-    status: 'passed', installId, first, second, localInstallId: localRecord.installId, localRun, signatureVerified: true,
+    status: 'passed',
+    fixture: {
+      flowId: 'opendesk-install-test',
+      name: 'OpenDesk Install Test',
+      version: '1.0.0',
+      publisherId: 'opendesk-install-test-publisher',
+      archivePath,
+      markerPath,
+      explicitRunText,
+    },
+    installId,
+    installAutorun: false,
+    idempotentReinstallAutorun: false,
+    explicitRunObserved: true,
+    first,
+    second,
+    localInstallId: localRecord.installId,
+    localRun,
+    signatureVerified: true,
   }));
 } finally {
   if (File.exists(privateKeyPath)) File.remove(privateKeyPath);
