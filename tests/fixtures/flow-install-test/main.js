@@ -10,6 +10,7 @@ const record = {
   resource,
 };
 
+console.log(message);
 File.write(File.join(Flow.dataDir, 'install-test.marker'), message + '\n');
 File.write(File.join(Flow.dataDir, 'result.json'), JSON.stringify(record));
 File.write(File.join(Flow.dataDir, 'run.json'), JSON.stringify(record));
