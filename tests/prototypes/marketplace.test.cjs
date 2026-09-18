@@ -52,11 +52,13 @@ test('static artifact has no external scripts, native launch, or network client'
 
 test('desktop sidebar guide is docked, flat, and mobile-safe',()=>{
   assert.match(html,/\.sidebar\{[^}]*display:flex;flex-direction:column;min-height:0/);
-  assert.match(html,/\.side-guide\{[^}]*border:0;border-top:1px solid var\(--line\);border-radius:0;background:transparent;[^}]*margin:auto 0 0/);
+  assert.match(html,/\.categories\{display:grid;gap:5px;margin-bottom:auto/);
+  assert.match(html,/\.side-guide\{[^}]*border:0;border-top:1px solid var\(--line\);border-radius:0;background:transparent;[^}]*margin:0/);
   assert.match(html,/<div class="side-guide-title"><span class="guide-icon" id="guide-icon"><\/span><h3>第一次使用？<\/h3><\/div>/);
   assert.match(html,/在 OpenDesk 中确认安装。<br>是否运行，由你决定。/);
   assert.match(html,/>查看安装指南 →<\/button>/);
   assert.doesNotMatch(html,/\.side-guide\{border:1px solid var\(--line\);border-radius:12px;background:#fff/);
-  assert.match(html,/@media\(max-width:740px\)[\s\S]*?\.side-guide\{display:flex;align-items:center;gap:10px;margin:10px 0 0;padding:10px 0 0;border-top:1px solid var\(--line\)/);
+  assert.match(html,/@media\(max-width:740px\)[\s\S]*?\.categories\{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px/);
+  assert.match(html,/@media\(max-width:740px\)[\s\S]*?\.side-guide\{display:flex;align-items:center;gap:10px;margin:0;padding:10px 0 0;border-top:1px solid var\(--line\)/);
   assert.doesNotMatch(html,/@media\(max-width:740px\)[\s\S]*?\.side-guide\{[^}]*position:fixed/);
 });
