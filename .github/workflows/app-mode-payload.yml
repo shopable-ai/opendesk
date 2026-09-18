@@ -110,6 +110,69 @@ jobs:
           tests/custom-ui/recording-history-pagination.test.js
           tests/custom-ui/recording-history-presentation.test.js
 
+  assistant-core:
+    name: AI Assistant Core / Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test assistant JavaScript contracts
+        run: >-
+          node --test
+          tests/assistant/assistant.test.js
+          tests/assistant/task-runtime.test.js
+          tests/assistant/product-wiring.test.js
+      - name: Test assistant host and File safety seams
+        run: >-
+          go test ./automation ./cmd/opendesk
+          -run 'TestFileWriteNew|TestFileRealPath|TestAppRecipeRunner|TestAssistantInstalledFlowVerticalRuntime|TestLoadAppFlowInvocation'
+          -count=1
+      - name: Build direct Runtime for assistant gate
+        run: |
+          mkdir -p .runtime/assistant-ci
+          go build -trimpath -o .runtime/assistant-ci/opendesk ./cmd/opendesk
+      - name: Run assistant direct Runtime acceptance
+        run: ./.runtime/assistant-ci/opendesk -script tests/runtime-api/assistant-task-core.js -console-mode script
+      - name: Run assistant formal Runtime gate
+        run: OPENDESK_RUNTIME_API_MODE=assistant-task-core ./.runtime/assistant-ci/opendesk -script scripts/test_runtime_apis.js -console-mode script
+
+  assistant-core-windows:
+    name: AI Assistant Core / Windows
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test assistant JavaScript contracts
+        shell: pwsh
+        run: node --test tests/assistant/assistant.test.js tests/assistant/task-runtime.test.js tests/assistant/product-wiring.test.js
+      - name: Test assistant host and File safety seams
+        shell: pwsh
+        run: go test ./automation ./cmd/opendesk -run 'TestFileWriteNew|TestFileRealPath|TestAppRecipeRunner|TestAssistantInstalledFlowVerticalRuntime|TestLoadAppFlowInvocation' -count=1
+      - name: Build direct Runtime for assistant gate
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path .runtime/assistant-ci | Out-Null
+          go build -trimpath -o .runtime/assistant-ci/opendesk.exe ./cmd/opendesk
+      - name: Run assistant direct Runtime acceptance
+        shell: pwsh
+        run: |
+          & .\.runtime\assistant-ci\opendesk.exe -script tests/runtime-api/assistant-task-core.js -console-mode script
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run assistant formal Runtime gate
+        shell: pwsh
+        run: |
+          $env:OPENDESK_RUNTIME_API_MODE = 'assistant-task-core'
+          & .\.runtime\assistant-ci\opendesk.exe -script scripts/test_runtime_apis.js -console-mode script
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
   macos-package:
     name: macOS App Mode Payload
     runs-on: macos-latest
