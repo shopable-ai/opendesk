@@ -77,6 +77,14 @@ jobs:
           tests/app-lifecycle/official-shell.test.js
           tests/app-lifecycle/examples-menu-action.test.js
           tests/custom-ui/product-script-runner.test.js
+      - name: Test AI assistant task and product contracts
+        run: >-
+          node --test
+          tests/assistant/assistant.test.js
+          tests/assistant/task-runtime.test.js
+          tests/assistant/product-wiring.test.js
+      - name: Test App-owned assistant execution seams
+        run: go test ./cmd/opendesk -run 'TestAppRecipeRunner' -count=1
       - name: Test Recorder JavaScript contracts
         run: >-
           node --test
@@ -99,6 +107,12 @@ jobs:
       - name: Build product app without release signing
         shell: bash
         run: APP_MODE_PACKAGE="$PWD/apps/opendesk" SKIP_CODESIGN=1 ./scripts/build_macos_app.sh
+      - name: Run AI assistant direct Runtime acceptance
+        shell: bash
+        run: ./dist/opendesk -script tests/runtime-api/assistant-task-core.js -console-mode script
+      - name: Run AI assistant formal Runtime gate
+        shell: bash
+        run: OPENDESK_RUNTIME_API_MODE=assistant-task-core ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
       - name: Verify exact macOS App Mode payload
         shell: bash
         run: |
@@ -149,6 +163,19 @@ jobs:
       - name: Build portable product distribution
         shell: pwsh
         run: pwsh -NoProfile -File scripts/build_windows_distribution.ps1 -Runtime win-x64 -AppModePackage apps/opendesk
+      - name: Run AI assistant direct Runtime acceptance
+        shell: pwsh
+        run: |
+          $runtime = '.\dist\windows\win-x64\opendesk.exe'
+          & $runtime -script 'tests/runtime-api/assistant-task-core.js' -console-mode script
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run AI assistant formal Runtime gate
+        shell: pwsh
+        run: |
+          $runtime = '.\dist\windows\win-x64\opendesk.exe'
+          $env:OPENDESK_RUNTIME_API_MODE = 'assistant-task-core'
+          & $runtime -script 'scripts/test_runtime_apis.js' -console-mode script
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify exact Windows App Mode payload
         shell: pwsh
         run: |
