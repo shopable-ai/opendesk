@@ -294,8 +294,8 @@
     const file = settings.file;
     const digest = settings.digest;
     const protectedRoots = Array.isArray(settings.protectedRoots) ? settings.protectedRoots.map(normalizePath) : [];
-    if (!file || typeof file.read !== 'function' || typeof file.writeNew !== 'function' || typeof file.exists !== 'function') {
-      fail('INVALID_CANDIDATE_IO', 'candidate service requires read/writeNew/exists file operations');
+    if (!file || typeof file.writeNew !== 'function' || typeof file.exists !== 'function') {
+      fail('INVALID_CANDIDATE_IO', 'candidate service requires writeNew/exists file operations');
     }
     if (typeof digest !== 'function') fail('INVALID_DIGEST', 'candidate service requires a digest function');
 
@@ -303,14 +303,21 @@
       const task = create(input.contract);
       if (task.intent !== 'improve' && task.intent !== 'make') fail('INVALID_CANDIDATE_INTENT', 'candidate generation is only valid for make/improve');
       const sourceRef = input.sourceRef ? assertReadable(task, input.sourceRef) : '';
-      const sourceContent = sourceRef ? String(file.read(sourceRef)) : '';
+      let sourceDigest = '';
+      if (sourceRef) {
+        const snapshot = input.sourceSnapshot && typeof input.sourceSnapshot === 'object' ? input.sourceSnapshot : null;
+        if (!snapshot || normalizePath(snapshot.ref) !== sourceRef) {
+          fail('INVALID_SOURCE_SNAPSHOT', 'candidate source requires a host-validated snapshot for the exact authorized path');
+        }
+        sourceDigest = text(snapshot.digest, 'sourceSnapshot.digest', 256, true);
+      }
       const proposedContent = String(input.content == null ? '' : input.content);
       if (!proposedContent) fail('EMPTY_CANDIDATE', 'candidate content is empty');
       return deepFreeze({
         candidateId: identifier(input.candidateId, 'candidateId', true),
         taskId: task.taskId,
         sourceRef,
-        sourceDigest: sourceRef ? String(digest(sourceContent)) : '',
+        sourceDigest,
         content: proposedContent,
         contentDigest: String(digest(proposedContent)),
         status: 'candidate-pending',
@@ -319,21 +326,18 @@
       });
     }
 
-    function assertSourceUnchanged(item) {
-      if (!item.sourceRef) return;
-      const current = String(file.read(item.sourceRef));
-      if (String(digest(current)) !== item.sourceDigest) {
-        fail('SOURCE_CONFLICT', 'source changed after the candidate was created');
-      }
-    }
-
     function saveAs(input) {
       const item = input && input.candidate;
       if (!item || !['candidate-pending', 'verified'].includes(item.status)) fail('INVALID_CANDIDATE', 'candidate is not reviewable');
       if (input.authorized !== true) fail('WRITE_NOT_AUTHORIZED', 'save-as requires an explicit user-authorized destination');
       const destination = normalizePath(input.destination);
       const sourceRef = item.sourceRef ? normalizePath(item.sourceRef) : '';
-      assertSourceUnchanged(item);
+      if (sourceRef) {
+        const currentSourceDigest = text(input.currentSourceDigest, 'currentSourceDigest', 256, true);
+        if (currentSourceDigest !== String(item.sourceDigest || '')) {
+          fail('SOURCE_CONFLICT', 'source changed after the candidate was created');
+        }
+      }
       if (sourceRef && destination === sourceRef) fail('OVERWRITE_NOT_SUPPORTED', 'candidate save-as cannot overwrite the source file');
       for (const root of protectedRoots) {
         if (isWithin(root, destination)) fail('PROTECTED_DESTINATION', 'candidate cannot be saved into a protected product/install directory');
