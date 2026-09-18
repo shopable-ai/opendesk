@@ -898,9 +898,7 @@
                 throw new Error('运行输入必须是 JSON 对象。');
               }
             }
-            let businessCwd = String(record.taskDraft.businessCwd || '').trim();
-            if (!businessCwd && assetKind === 'automation-directory') businessCwd = ref;
-            if (!businessCwd && assetKind === 'js-file') businessCwd = file.join(ref, '..');
+            const businessCwd = String(record.taskDraft.businessCwd || '').trim();
             taskOptions = {
               intent,
               asset,
@@ -991,7 +989,9 @@
           modelChannel: channel,
           recipeBridge: global.__opendeskRecipeExecution || null,
           flowBridge: global.__opendeskFlowExecution || null,
-          defaultBusinessCwd: execution.workdir,
+          // Match the existing Script/Flow Runner execution cwd. The assistant
+          // must not silently switch a selected script to its parent/source directory.
+          defaultBusinessCwd: appDataRoot,
           protectedRoots: [execution.scriptDir, file.join(appDataRoot, 'flows')],
         });
         const record = {
