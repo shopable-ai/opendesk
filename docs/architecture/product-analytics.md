@@ -260,10 +260,10 @@ Diagnostics
 | --- | --- |
 | Production implementation | IMPLEMENTED |
 | Automated test coverage | IMPLEMENTED — 测试代码已加入 |
-| Module / JS contract | 待当前提交 CI 证据 |
-| Go tests execution | 待当前提交 CI / 本地仓库执行证据 |
-| Runtime JS execution | 待 `./dist/opendesk -script tests/runtime-api/product-analytics-isolation.js -console-mode script` 执行证据 |
-| Local build | 待当前提交构建证据 |
+| Module / JS contract | PASS — 最近完成的 Product Analytics gate 已通过 read-only module graph 与 Runner UI JS contracts；当前 HEAD 仍需最终 gate 复核 |
+| Go tests execution | PARTIAL PASS — 最近完整 macOS run 中 `pkg/productanalytics`、`pkg/officialconfig`、`internal/flowcli`、`pkg/execution`、`pkg/appshell` 均 PASS；当时 `cmd/opendesk` 被并行 Assistant/Flow 新测试阻塞，当前 HEAD 需重新执行 |
+| Runtime JS execution | 待当前 HEAD 的 `./dist/opendesk -script tests/runtime-api/product-analytics-isolation.js -console-mode script` 证据 |
+| Local build | 待当前 HEAD 构建证据 |
 | Native product qualification | NOT RUN in this implementation environment |
 | PostHog Cloud ingestion | **BLOCKED — repository does not contain a real project capture configuration.** |
 
