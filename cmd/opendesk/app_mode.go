@@ -457,7 +457,9 @@ func executeAppMode(config *Config) error {
 		CustomUIDriver:                  customui.NewSessionScopedDriverForSession(sharedUIDriver, executionID),
 		CustomUIBaseDir:                 appPackage.Root,
 		AppShell:                        shell,
+		AppOwnedScriptInspect:           recipeRunner.InspectScript,
 		AppOwnedScriptRun:               recipeRunner.Run,
+		AppOwnedExecutionID:             recipeRunner.ReserveExecutionID,
 		AppOwnedFlowInspect:             recipeRunner.InspectFlow,
 		AppOwnedFlowRun:                 recipeRunner.RunFlow,
 		GracefulCancellation: func() bool {
