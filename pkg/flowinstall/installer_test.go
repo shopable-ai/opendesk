@@ -72,6 +72,39 @@ func TestInstallRequiresExplicitTrustAndDoesNotExecute(t *testing.T) {
 	}
 }
 
+func TestInstallRejectsIncompatiblePlatformAndRuntimeBeforeTrust(t *testing.T) {
+	fixture := newFlowFixture(t, "publisher-a", "key-a")
+
+	t.Run("platform", func(t *testing.T) {
+		service := newTestService(t)
+		unsupported := "darwin"
+		if runtime.GOOS == "darwin" {
+			unsupported = "windows"
+		}
+		packagePath, _ := fixture.buildCompatible(t, "platform-blocked", "Platform Blocked", "1.0.0", []byte("never run"), "0.0.0", []string{unsupported})
+		if _, err := service.Install(context.Background(), packagePath, InstallOptions{}); CodeOf(err) != CodeIncompatiblePlatform {
+			t.Fatalf("Install() incompatible platform code = %q, error = %v", CodeOf(err), err)
+		}
+		records, err := service.Catalog.List()
+		if err != nil || len(records) != 0 {
+			t.Fatalf("incompatible platform changed catalog: %#v, error=%v", records, err)
+		}
+	})
+
+	t.Run("runtime", func(t *testing.T) {
+		service := newTestService(t)
+		service.RuntimeVersion = "1.0.0"
+		packagePath, _ := fixture.buildCompatible(t, "runtime-blocked", "Runtime Blocked", "1.0.0", []byte("never run"), "999.0.0", []string{runtime.GOOS})
+		if _, err := service.Install(context.Background(), packagePath, InstallOptions{}); CodeOf(err) != CodeIncompatibleRuntime {
+			t.Fatalf("Install() incompatible Runtime code = %q, error = %v", CodeOf(err), err)
+		}
+		records, err := service.Catalog.List()
+		if err != nil || len(records) != 0 {
+			t.Fatalf("incompatible Runtime changed catalog: %#v, error=%v", records, err)
+		}
+	})
+}
+
 func TestTrustScopesAndSameNameDifferentKey(t *testing.T) {
 	roots := RootsFromAppData(t.TempDir())
 	if err := roots.Ensure(); err != nil {
@@ -793,6 +826,11 @@ func cleanupInstalledTestFlows(t *testing.T, service *Service) {
 
 func (fixture flowFixture) build(t *testing.T, flowID, name, version string, source []byte) (string, *flowpackage.BuildResult) {
 	t.Helper()
+	return fixture.buildCompatible(t, flowID, name, version, source, "0.0.0", []string{runtime.GOOS})
+}
+
+func (fixture flowFixture) buildCompatible(t *testing.T, flowID, name, version string, source []byte, minimumRuntime string, platforms []string) (string, *flowpackage.BuildResult) {
+	t.Helper()
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "payload"), 0o700); err != nil {
 		t.Fatal(err)
@@ -803,7 +841,7 @@ func (fixture flowFixture) build(t *testing.T, flowID, name, version string, sou
 	result, err := flowpackage.Build(flowpackage.BuildOptions{
 		SourceRoot: root, FlowID: flowID, Name: name, Version: version,
 		PublisherID: fixture.publisher, PublisherKeyID: fixture.keyID, Entry: "payload/main.js",
-		MinimumRuntimeVersion: "0.0.0", Platforms: []string{runtime.GOOS},
+		MinimumRuntimeVersion: minimumRuntime, Platforms: platforms,
 		Files: []string{"payload/main.js"},
 		PublisherPublicKey: fixture.publicKey, PublisherPrivateKey: fixture.privateKey,
 	})
