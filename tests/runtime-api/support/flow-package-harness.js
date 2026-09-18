@@ -102,33 +102,38 @@ File.write(contentKey, '404142434445464748494a4b4c4d4e4f505152535455565758595a5b
     for (let index = 0; index < value.length; index += 1) bytes[offset + index] = value.charCodeAt(index);
   }
 
-  function localEntryData(bytes, wantedName) {
-    for (let offset = 0; offset + 30 <= bytes.length; offset += 1) {
-      if (readU32LE(bytes, offset) !== 0x04034b50) continue;
-      const nameLength = readU16LE(bytes, offset + 26);
-      const extraLength = readU16LE(bytes, offset + 28);
-      if (offset + 30 + nameLength + extraLength >= bytes.length) continue;
-      const name = asciiAt(bytes, offset + 30, nameLength);
-      if (name === wantedName) {
-        return {
-          headerOffset: offset,
-          nameOffset: offset + 30,
-          nameLength,
-          dataOffset: offset + 30 + nameLength + extraLength,
-          compressedSize: readU32LE(bytes, offset + 18),
-        };
-      }
+  function endOfCentralDirectory(bytes) {
+    // A classic .odflow v1 archive is intentionally bounded well below ZIP64
+    // limits. Resolve its central directory from EOCD instead of scanning every
+    // byte for header signatures; payload bytes can legally contain signature-
+    // shaped sequences and must never be treated as ZIP structure.
+    const minOffset = Math.max(0, bytes.length - (0xffff + 22));
+    for (let offset = bytes.length - 22; offset >= minOffset; offset -= 1) {
+      if (readU32LE(bytes, offset) !== 0x06054b50) continue;
+      const commentLength = readU16LE(bytes, offset + 20);
+      if (offset + 22 + commentLength !== bytes.length) continue;
+      const entryCount = readU16LE(bytes, offset + 10);
+      const centralSize = readU32LE(bytes, offset + 12);
+      const centralOffset = readU32LE(bytes, offset + 16);
+      if (centralOffset + centralSize > offset) continue;
+      return { offset, entryCount, centralSize, centralOffset };
     }
     return null;
   }
 
   function centralEntryData(bytes, wantedName) {
-    for (let offset = 0; offset + 46 <= bytes.length; offset += 1) {
-      if (readU32LE(bytes, offset) !== 0x02014b50) continue;
+    const eocd = endOfCentralDirectory(bytes);
+    assert(eocd, 'ZIP end of central directory not found');
+    let offset = eocd.centralOffset;
+    const centralEnd = eocd.centralOffset + eocd.centralSize;
+    for (let index = 0; index < eocd.entryCount; index += 1) {
+      assert(offset + 46 <= centralEnd && readU32LE(bytes, offset) === 0x02014b50,
+        'ZIP central directory is malformed');
       const nameLength = readU16LE(bytes, offset + 28);
       const extraLength = readU16LE(bytes, offset + 30);
       const commentLength = readU16LE(bytes, offset + 32);
-      if (offset + 46 + nameLength + extraLength + commentLength > bytes.length) continue;
+      const nextOffset = offset + 46 + nameLength + extraLength + commentLength;
+      assert(nextOffset <= centralEnd, 'ZIP central directory entry is truncated');
       const name = asciiAt(bytes, offset + 46, nameLength);
       if (name === wantedName) {
         return {
@@ -136,10 +141,32 @@ File.write(contentKey, '404142434445464748494a4b4c4d4e4f505152535455565758595a5b
           nameOffset: offset + 46,
           nameLength,
           compressedSize: readU32LE(bytes, offset + 20),
+          localHeaderOffset: readU32LE(bytes, offset + 42),
         };
       }
+      offset = nextOffset;
     }
     return null;
+  }
+
+  function localEntryData(bytes, wantedName) {
+    const central = centralEntryData(bytes, wantedName);
+    if (!central) return null;
+    const offset = central.localHeaderOffset;
+    if (offset + 30 > bytes.length || readU32LE(bytes, offset) !== 0x04034b50) return null;
+    const nameLength = readU16LE(bytes, offset + 26);
+    const extraLength = readU16LE(bytes, offset + 28);
+    const dataOffset = offset + 30 + nameLength + extraLength;
+    if (dataOffset > bytes.length) return null;
+    const name = asciiAt(bytes, offset + 30, nameLength);
+    if (name !== wantedName) return null;
+    return {
+      headerOffset: offset,
+      nameOffset: offset + 30,
+      nameLength,
+      dataOffset,
+      compressedSize: readU32LE(bytes, offset + 18),
+    };
   }
 
   function tamperEntryByte(source, target, entryName) {
