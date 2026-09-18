@@ -419,7 +419,8 @@ func appFlowInspection(record flowinstall.Record) automation.AppOwnedFlowInspect
 		Origin: record.Origin, ArchiveDigest: record.ArchiveDigest, ManifestDigest: record.ManifestDigest}
 }
 func decodeAppExecutionInput(raw string) (any, error) {
-	if len(raw) > 256<<10 { return nil, errors.New("Flow input exceeds 256 KiB") }
+	if strings.TrimSpace(raw) == "" { raw = "{}" }
+	if len(raw) > 256<<10 { return nil, errors.New("Execution input exceeds 256 KiB") }
 	decoder := json.NewDecoder(strings.NewReader(raw)); decoder.UseNumber(); var value any
 	if err := decoder.Decode(&value); err != nil { return nil, fmt.Errorf("decode Flow input: %w", err) }
 	if _, ok := value.(map[string]any); !ok { return nil, errors.New("Flow input must be a JSON object") }
