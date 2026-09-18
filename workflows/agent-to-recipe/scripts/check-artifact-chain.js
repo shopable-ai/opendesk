@@ -44,6 +44,10 @@ function referencedSteps(value) {
   return String(value || '').match(/\bB\d+\b/g) || [];
 }
 
+function refIdentity(ref) {
+  return object(ref) ? [ref.rootId, ref.path, ref.sha256, ref.schemaVersion].join('\u0000') : '';
+}
+
 function callSegments(source, functionName) {
   const calls = [];
   const marker = functionName + '(';
@@ -87,6 +91,7 @@ function checkArtifactChain(options) {
   const evaluated = new Set(['bindings']);
   let referenceCount = 0;
   let roots;
+  const capabilityDecisionById = new Map();
 
   const record = (boundary, location, code, message) => errors.push({ boundary, location, code, message });
   const attempt = (boundary, location, action) => {
@@ -326,6 +331,60 @@ function checkArtifactChain(options) {
           'OBSERVATION_BECAME_PARAMETER', 'An observed runtime value cannot become a reusable input default.'));
       }
     }
+
+    const capabilityDecisions = array(procedure.capabilityDecisions, 'CAPABILITY_DECISION_REQUIRED',
+      'Procedure requires capabilityDecisions for Recipe-driving OpenDesk capability choices.');
+    requireCheck(capabilityDecisions.length > 0, 'CAPABILITY_DECISION_REQUIRED',
+      'At least one Recipe-driving capability choice must be traceable.');
+    for (const [index, decision] of capabilityDecisions.entries()) {
+      const base = 'procedure.capabilityDecisions[' + index + ']';
+      attempt('procedure-synthesize', base, () => {
+        requireCheck(object(decision) && text(decision.decisionId) && !capabilityDecisionById.has(decision.decisionId),
+          'CAPABILITY_DECISION', 'Each capability decision needs a unique decisionId.');
+        requireCheck(text(decision.capabilityNeed), 'CAPABILITY_DECISION', 'Each capability decision needs a business capability need.');
+        const stepRefs = array(decision.businessStepRefs, 'CAPABILITY_DECISION', 'businessStepRefs must be an array.');
+        requireCheck(stepRefs.length > 0 && stepRefs.every(stepId => businessById.has(stepId)),
+          'CAPABILITY_DECISION', 'Capability decisions must cite existing Business Steps.');
+        const discoveryPath = array(decision.discoveryPath, 'DISCOVERY_PATH', 'discoveryPath must be an array.');
+        requireCheck(discoveryPath[0] === 'docs/api/agent/README.md'
+          && discoveryPath.slice(1).some(item => /^docs\/api\/agent\/[^/]+\.md$/.test(item)),
+        'DISCOVERY_PATH', 'Capability discovery must start at the Agent API short entry and include a capability catalog.');
+        const candidates = array(decision.candidates, 'METHOD_SELECTION', 'candidates must be an array.');
+        requireCheck(candidates.length > 0, 'METHOD_SELECTION', 'Capability discovery must leave at least one method candidate.');
+        const selected = candidates.filter(item => object(item) && item.disposition === 'selected');
+        requireCheck(selected.length === 1 && text(decision.selectedMethod)
+          && selected[0].method === decision.selectedMethod, 'METHOD_SELECTION',
+        'Method selection must name exactly one selected candidate.');
+        for (const [candidateIndex, candidateChoice] of candidates.entries()) {
+          requireCheck(object(candidateChoice) && text(candidateChoice.method)
+            && ['selected', 'rejected', 'failed', 'not-run'].includes(candidateChoice.disposition)
+            && text(candidateChoice.reason), 'METHOD_SELECTION',
+          'Every method candidate needs method, disposition and concise reason.');
+          if (candidateChoice.disposition === 'failed') {
+            inspectRefs(candidateChoice.validationEvidenceRefs, 'procedure-synthesize',
+              base + '.candidates[' + candidateIndex + '].validationEvidenceRefs', true);
+          }
+        }
+        inspectRefs(selected[0].canonicalContractRefs, 'procedure-synthesize',
+          base + '.selected.canonicalContractRefs', true);
+        inspectRefs(decision.sharedConstraintRefs, 'procedure-synthesize', base + '.sharedConstraintRefs');
+        requireCheck(object(decision.runtimeValidation)
+          && ['pass', 'fail', 'partial', 'not-run'].includes(decision.runtimeValidation.status),
+        'METHOD_VALIDATION', 'runtimeValidation needs an explicit status.');
+        requireCheck(decision.runtimeValidation.status === 'pass',
+          'METHOD_NOT_VALIDATED', 'A successful Recipe chain may only consume a method validated in the recorded environment.');
+        requireCheck(text(decision.runtimeValidation.environmentScope),
+          'METHOD_VALIDATION', 'Runtime validation needs an environment scope.');
+        inspectRefs(decision.runtimeValidation.evidenceRefs, 'procedure-synthesize',
+          base + '.runtimeValidation.evidenceRefs', true);
+        requireCheck(array(decision.recipeConsumers, 'CAPABILITY_DECISION', 'recipeConsumers must be an array.')
+          .every(text) && decision.recipeConsumers.length > 0,
+        'CAPABILITY_DECISION', 'A capability decision needs at least one Recipe consumer.');
+        requireCheck(array(decision.revalidateWhen, 'CAPABILITY_DECISION', 'revalidateWhen must be an array.').every(text),
+          'CAPABILITY_DECISION', 'revalidateWhen entries must be strings.');
+        capabilityDecisionById.set(decision.decisionId, decision);
+      });
+    }
   });
 
   let scriptSource;
@@ -334,10 +393,35 @@ function checkArtifactChain(options) {
     bind(candidate.procedureRef, 'procedure', 'bindings', 'candidate.procedureRef');
     const script = inspectRef(candidate.scriptRef, 'candidate', 'candidate.scriptRef');
     if (script) scriptSource = script.bytes.toString('utf8');
-    const mappedSteps = new Set((candidate.sourceMapping || []).flatMap(mapping => referencedSteps(mapping.step)));
+    const sourceMapping = array(candidate.sourceMapping, 'SOURCE_MAPPING', 'Candidate sourceMapping must be an array.');
+    const mappedSteps = new Set(sourceMapping.flatMap(mapping => referencedSteps(mapping.step)));
     attempt('candidate', 'candidate.sourceMapping', () => requireCheck(
       (procedure.businessSteps || []).every(step => mappedSteps.has(step.stepId)),
       'SOURCE_MAPPING', 'Candidate sourceMapping must cover every Business Step.'));
+
+    const apiRefs = array(candidate.apiRefs, 'API_REF_MISMATCH', 'Candidate apiRefs must be an array.');
+    inspectRefs(apiRefs, 'candidate', 'candidate.apiRefs', true);
+    const apiRefKeys = new Set(apiRefs.map(refIdentity));
+    const mappedDecisionIds = new Set();
+    for (const [index, mapping] of sourceMapping.entries()) {
+      for (const decisionId of mapping.capabilityDecisionRefs || []) {
+        attempt('candidate', 'candidate.sourceMapping[' + index + '].capabilityDecisionRefs', () => {
+          requireCheck(capabilityDecisionById.has(decisionId), 'CAPABILITY_SOURCE_MAPPING',
+            'Candidate sourceMapping cites an unknown capability decision.');
+          mappedDecisionIds.add(decisionId);
+        });
+      }
+    }
+    for (const [decisionId, decision] of capabilityDecisionById) {
+      attempt('candidate', 'candidate.capabilityDecision.' + decisionId, () => {
+        requireCheck(mappedDecisionIds.has(decisionId), 'CAPABILITY_SOURCE_MAPPING',
+          'Every Procedure capability decision must be consumed by Candidate sourceMapping.');
+        const selected = decision.candidates.find(item => item.disposition === 'selected');
+        const requiredRefs = [...(selected && selected.canonicalContractRefs || []), ...(decision.sharedConstraintRefs || [])];
+        requireCheck(requiredRefs.length > 0 && requiredRefs.every(ref => apiRefKeys.has(refIdentity(ref))),
+          'API_REF_MISMATCH', 'Candidate apiRefs must bind the selected canonical contract and required shared constraints.');
+      });
+    }
     for (const dependency of procedure.dataDependencies || []) {
       const producerMapping = (candidate.sourceMapping || []).find(mapping => referencedSteps(mapping.step).includes(dependency.producer));
       const consumerMapping = (candidate.sourceMapping || []).find(mapping => referencedSteps(mapping.step).includes(dependency.consumer));
@@ -413,10 +497,13 @@ function checkArtifactChain(options) {
       boundaries: status, checkedFiles: new Set([...verified.values()].map(value => value.filename)).size,
       readBytes: budget.bytes, errors,
       proves: ['exact-byte bindings', 'raw-action disposition coverage', 'runtime-value producer/consumer declarations',
+        'capability discovery → method selection → canonical contract → recorded runtime validation linkage',
+        'selected API contract refs carried into Candidate source mapping',
         'Procedure-to-Candidate direct await/spread source pattern', 'Candidate-to-Qualification declared scope binding'],
       scope: 'Calculator-shaped v1 successful artifact slice; selected stage refs, not a complete schema or dependency closure',
       notEvaluated: ['truth of historical observations beyond bound evidence', 'desktop actions or OS input events',
         'visual correctness', 'human acceptance', 'host skill discovery/loading', 'blind-context model performance',
+        'semantic correctness of a catalog/contract beyond its bound bytes or of runtime evidence beyond its cited record',
         'JavaScript reachability, aliasing, shadowing or general data-flow correctness',
         'transitive dependency closure, arbitrary trace formats or business semantics',
         'unsupported inputs, platforms or layouts'],
