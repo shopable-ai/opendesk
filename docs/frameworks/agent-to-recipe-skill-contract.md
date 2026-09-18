@@ -197,7 +197,7 @@ WorkPlan 包含 `revision / contractRef / businessTaskTree / operationPlan / che
 | 内容 | 归属与最小含义 | 消费与失效 |
 | --- | --- | --- |
 | 本次观察 | observationRefs 指向不可变观察记录：截图引用、来源、采集时间或未知、应用／窗口／页面范围、imageSize、裁剪缩放 mapping 或未知、原始文字／原生属性及完整性 | 支持当时可见事实；未知映射不阻止认识，但阻止依赖其的桌面坐标操作。新页面／时刻是新观察 |
-| 界面认识 | states／regions／targets 保存稳定本地 ID、类型／名称／parentRegionId、必要状态与 observationId 关联；一次 textBounds、controlBounds、safeActionRegion 分开，注明坐标空间，未知用 null 加原因 | 图片矩形只属对应观察，不作永久目标；动态业务值和记录实例不写成以后运行的固定答案 |
+| 界面认识 | states／regions／targets 保存稳定本地 ID、类型／名称／parentRegionId、必要状态与 observationId 关联；一次 textBounds、controlBounds、safeActionRegion 分开，注明坐标空间，未知用 null 加原因。若 S10 实际采用 geometry/coordinate 规则，`geometryRules` 还要能追到 sourceObservation/referenceRegion、window bounds 或 `safeSize`、`displayRegion`/`keyPoints` 等实际来源、`image / screen / relative / percent` 空间、percent 的 parent region、容差／安全边界、校准证据和 `revalidateWhen`；没有用到的字段不为完整而伪造 | 图片矩形只属对应观察，不作永久目标；动态业务值和记录实例不写成以后运行的固定答案 |
 | 关系 | relations 每项有 id、kind、from、to、来源及未知说明；父子用 parentRegionId；标签—输入、Tab—面板、记录—动作明确对应 | ID 唯一、引用存在、父关系无环；字段形式合法不证明关系语义正确 |
 | 主张来源 | claimSources 按对象 ID 和字段路径关联 evidenceRefs、观察事实／模型解释／假设／人工修订的来源类型与简短依据 | 模型分类、置信度及算法结果不自动成为实测事实；没有读到状态不等于 false |
 | 候选规则 | 在 targets 的定位描述、geometryRules、operations 和 verifiers 内记录实际条件、环境范围、必要依赖和失败去向；不新建并行规则注册表 | 同屏坐标、人审标注、模型候选不自动升级成熟度；布局／环境变化重新核对 |
