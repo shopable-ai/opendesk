@@ -7,13 +7,24 @@ package inspector
 #include <CoreGraphics/CoreGraphics.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <ImageIO/ImageIO.h>
+#include <dlfcn.h>
 
 static int inspector_screen_capture_allowed(void) {
 	return CGPreflightScreenCaptureAccess() ? 1 : 0;
 }
 
+typedef CGImageRef (*inspector_window_capture_fn)(
+	CGRect, CGWindowListOption, CGWindowID, CGWindowImageOption
+);
+
 static CFDataRef inspector_capture_window_png(uint32_t window_id, size_t *width, size_t *height) {
-	CGImageRef image = CGWindowListCreateImage(
+	// CGWindowListCreateImage is marked unavailable by the macOS 15+ SDK even
+	// though older supported systems may still provide the symbol. Resolve it
+	// dynamically so current SDKs compile; when the symbol is absent, Go falls
+	// back to the existing visible-bounds capture path and reports occlusion risk.
+	inspector_window_capture_fn capture = (inspector_window_capture_fn)dlsym(RTLD_DEFAULT, "CGWindowListCreateImage");
+	if (capture == NULL) return NULL;
+	CGImageRef image = capture(
 		CGRectNull,
 		kCGWindowListOptionIncludingWindow,
 		(CGWindowID)window_id,
