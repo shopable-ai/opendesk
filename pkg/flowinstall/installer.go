@@ -385,11 +385,8 @@ func extractPackage(staging string, flowPackage *flowpackage.Package) error {
 			return newError(CodeTransactionFailed, "cannot close Flow staging file", err)
 		}
 	}
-	if directory, err := root.Open("."); err == nil {
-		defer directory.Close()
-		if err := directory.Sync(); err != nil {
-			return newError(CodeTransactionFailed, "cannot sync Flow staging directory", err)
-		}
+	if err := syncDirectory(staging); err != nil {
+		return newError(CodeTransactionFailed, "cannot sync Flow staging directory", err)
 	}
 	return nil
 }
