@@ -57,5 +57,6 @@ test('desktop sidebar guide is docked, flat, and mobile-safe',()=>{
   assert.match(html,/在 OpenDesk 中确认安装。<br>是否运行，由你决定。/);
   assert.match(html,/>查看安装指南 →<\/button>/);
   assert.doesNotMatch(html,/\.side-guide\{border:1px solid var\(--line\);border-radius:12px;background:#fff/);
-  assert.match(html,/@media\(max-width:740px\)[\s\S]*?\.side-guide\{display:flex;align-items:center;gap:10px;margin:10px 0 0;[^}]*position:(?:static|relative)/);
+  assert.match(html,/@media\(max-width:740px\)[\s\S]*?\.side-guide\{display:flex;align-items:center;gap:10px;margin:10px 0 0;padding:10px 0 0;border-top:1px solid var\(--line\)/);
+  assert.doesNotMatch(html,/@media\(max-width:740px\)[\s\S]*?\.side-guide\{[^}]*position:fixed/);
 });
