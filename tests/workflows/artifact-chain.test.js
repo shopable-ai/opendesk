@@ -135,6 +135,72 @@ test('rejects a runtime value without critical evidence', t => {
   rejects(f.check(), 'MISSING_EVIDENCE');
 });
 
+test('rejects a Procedure that omits Recipe-driving capability decisions', t => {
+  const f = fixture(t, source => { delete source.procedure.capabilityDecisions; });
+  rejects(f.check(), 'CAPABILITY_DECISION_REQUIRED');
+});
+
+test('keeps capability discovery separate from method selection', t => {
+  const f = fixture(t, source => {
+    source.procedure.capabilityDecisions[0].discoveryPath = ['docs/api/window.md'];
+  });
+  rejects(f.check(), 'DISCOVERY_PATH');
+});
+
+test('rejects ambiguous method selection with two selected candidates', t => {
+  const f = fixture(t, source => {
+    source.procedure.capabilityDecisions.find(item => item.decisionId === 'CD-input')
+      .candidates[1].disposition = 'selected';
+  });
+  rejects(f.check(), 'METHOD_SELECTION');
+});
+
+test('requires a content-bound canonical contract for the selected method', t => {
+  const f = fixture(t, source => {
+    delete source.procedure.capabilityDecisions.find(item => item.decisionId === 'CD-read')
+      .candidates[0].contract;
+  });
+  rejects(f.check(), 'MISSING_EVIDENCE');
+});
+
+test('does not upgrade documentation existence into runtime validation', t => {
+  const f = fixture(t, source => {
+    source.procedure.capabilityDecisions.find(item => item.decisionId === 'CD-input')
+      .runtimeValidation.status = 'not-run';
+  });
+  rejects(f.check(), 'METHOD_NOT_VALIDATED');
+});
+
+test('requires evidence for a candidate recorded as failed', t => {
+  const f = fixture(t, source => {
+    delete source.procedure.capabilityDecisions.find(item => item.decisionId === 'CD-input')
+      .candidates[1].validationEvidence;
+  });
+  rejects(f.check(), 'MISSING_EVIDENCE');
+});
+
+test('requires Candidate sourceMapping to consume every capability decision', t => {
+  const f = fixture(t, source => {
+    for (const mapping of source.candidate.sourceMapping) {
+      mapping.capabilityDecisionRefs = (mapping.capabilityDecisionRefs || [])
+        .filter(id => id !== 'CD-window-activate');
+    }
+  });
+  rejects(f.check(), 'CAPABILITY_SOURCE_MAPPING');
+});
+
+test('requires Candidate apiRefs to carry selected canonical contracts', t => {
+  const f = fixture(t, () => {}, state => {
+    const candidate = JSON.parse(fs.readFileSync(state.file('candidate.json'), 'utf8'));
+    candidate.apiRefs = candidate.apiRefs.filter(ref => !ref.path.endsWith('ui-read-text.md'));
+    state.write('candidate.json', candidate);
+    const qualification = JSON.parse(fs.readFileSync(state.file('qualification.json'), 'utf8'));
+    qualification.candidateRef = state.ref('candidate.json', 'CandidateManifest');
+    state.write('qualification.json', qualification);
+  });
+  rejects(f.check(), 'API_REF_MISMATCH');
+});
+
 test('rejects a qualification from another attempt or revision', t => {
   const f = fixture(t, source => { source.qualification.revision = 'fixture-q999'; });
   rejects(f.check(), 'MIXED_ATTEMPT');
