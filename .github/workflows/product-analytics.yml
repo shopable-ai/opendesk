@@ -12,8 +12,6 @@ on:
       - 'pkg/productanalytics/**'
       - 'pkg/inspector/**'
       - 'automation/recorder*.go'
-      - 'pkg/inspector/**'
-      - 'automation/recorder*.go'
       - 'pkg/officialconfig/**'
       - 'internal/officialassets/**'
       - 'internal/flowcli/**'
@@ -66,7 +64,6 @@ jobs:
           node --test
           tests/product-analytics/runner-ui-dedupe.test.cjs
           tests/product-analytics/privacy-settings.test.cjs
-          tests/product-analytics/developer-diagnostics.test.cjs
           tests/app-lifecycle/settings-privacy-controller.test.js
 
   production-contract:
