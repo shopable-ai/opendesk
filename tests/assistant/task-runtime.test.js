@@ -88,6 +88,13 @@ function baseTask(overrides = {}) {
   };
 }
 
+test('path normalization preserves Windows drive roots and applies case-insensitive containment', () => {
+  assert.equal(Contract.normalizePath('C:\\'), 'c:/');
+  assert.equal(Contract.normalizePath('C:\\Work\\Task\\..\\script.js'), 'c:/Work/script.js');
+  assert.equal(Contract.isWithin('C:\\Work', 'c:\\work\\child\\script.js'), true);
+  assert.throws(() => Contract.normalizePath('C:\\..\\escape.js'), {code:'ASSET_PATH_ESCAPE'});
+});
+
 test('task store uses expected revision and persistent task identity is not owned by a session', async () => {
   const file = memoryFile();
   const store = Contract.createStore({file, rootDir:'/data/assistant', clock:clock()});
