@@ -36,12 +36,18 @@ jobs:
         run: |
           mkdir -p .runtime/tests/api-docs
           node scripts/api-docs.js check | tee .runtime/tests/api-docs/ci-check.json
-      - name: Test reading dependencies and discovery demonstrations
+      - name: Test canonical reading dependencies
         if: always()
         shell: bash
         run: |
           mkdir -p .runtime/tests/api-docs
-          node --test tests/api-docs/*.test.js | tee .runtime/tests/api-docs/ci-tests.tap
+          node --test tests/api-docs/reader.test.js | tee .runtime/tests/api-docs/ci-reader.tap
+      - name: Test task-first discovery and local repair
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p .runtime/tests/api-docs
+          node --test tests/api-docs/discovery.test.js | tee .runtime/tests/api-docs/ci-discovery.tap
       - name: Verify catalog regeneration is deterministic
         run: |
           node scripts/api-docs.js generate
