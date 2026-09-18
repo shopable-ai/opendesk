@@ -140,6 +140,16 @@ test('rejects a Procedure that omits Recipe-driving capability decisions', t => 
   rejects(f.check(), 'CAPABILITY_DECISION_REQUIRED');
 });
 
+test('accepts a legacy Procedure/Candidate pair without inventing capability provenance', t => {
+  const f = fixture(t, source => {
+    delete source.procedure.capabilityDecisions;
+    for (const mapping of source.candidate.sourceMapping) delete mapping.capabilityDecisionRefs;
+  });
+  const report = f.check();
+  assert.equal(report.verdict, 'pass');
+  assert.ok(report.notEvaluated.some(item => item.includes('legacy Procedure/Candidate')));
+});
+
 test('keeps capability discovery separate from method selection', t => {
   const f = fixture(t, source => {
     source.procedure.capabilityDecisions[0].discoveryPath = ['docs/api/window.md'];
