@@ -23,7 +23,8 @@ jobs:
           node --check apps/opendesk/script-runner-simple.js
           node --check apps/opendesk/scheduler-center.js
   prepare-agent-catalog:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.event.head_commit.message == 'ci(docs): prepare verified Agent API catalog blobs'
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/master' && github.event.head_commit.message == 'ci(docs): prepare verified Agent API catalog blobs'
     name: One-time verified documentation objects
     runs-on: ubuntu-latest
     timeout-minutes: 5
