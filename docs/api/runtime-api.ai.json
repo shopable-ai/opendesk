@@ -749,12 +749,14 @@
       "keyMethods": [
         "readJSON",
         "writeJSON",
-        "writeNew"
+        "writeNew",
+        "realPath"
       ],
       "workdir": "File.cwd and every relative File path use the normalized Execution.workdir for this execution.",
       "open": "File.open returns a constrained synchronous FileHandle (close, read/readBytes, write/writeBytes, seek, truncate, sync), never a raw host file descriptor. Runtime teardown closes unclosed handles.",
       "json": "readJSON and writeJSON are Promise-based; JSON uses Runtime JSON.parse/stringify semantics, has an 8 MiB maximum per operation and 128 container nesting limit.",
-      "writeSafety": "writeNew exclusively creates a new regular text file through an opened parent directory, rejects an existing final target and symbolic-link/reparse-point parent aliases, rechecks parent identity, and never truncates an existing file. writeJSON remains the existing-file JSON replacement API and has platform-specific atomic-replace support."
+      "writeSafety": "writeNew exclusively creates a new regular text file through an opened parent directory, rejects an existing final target and symbolic-link/reparse-point parent aliases, rechecks parent identity, and never truncates an existing file. writeJSON remains the existing-file JSON replacement API and has platform-specific atomic-replace support.",
+      "realPath": "File.realPath resolves an existing path through symlinks/reparse points and returns the canonical absolute host path. It performs no mutation and is used by task persistence to detect redirected internal directories."
     },
     {
       "name": "SQLite",
