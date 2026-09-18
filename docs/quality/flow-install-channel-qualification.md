@@ -161,6 +161,7 @@ Chromium v1.1 smoke 已进入 `Flow Commercial Qualification`，但对应最新 
 - Windows UI Host 的 `Form.ActiveForm` 遮蔽编译错误改为 `System.Windows.Forms.Form.ActiveForm`；旧 run 中 Marketplace Go test 在该编译错误之前已经 PASS。
 - Marketplace prototype 新增独立 Node + Chromium smoke CI job，并上传 `.runtime/tests/marketplace-prototype/`。
 - 最新 Marketplace Go vertical slice 又新增业务结果级断言：安装完成后 `install-test.marker / result.json / run.json` 必须全部不存在。
+- canonical side-load cancel 零副作用测试也已加入现有 `pkg/flowinstall` suite。
 
 后两项新增断言与修复后的 Runtime distribution gate 对应的新 Actions run 尚未执行完成，因此保持 NOT_RUN；不继承旧 run 的结果。
 
@@ -215,7 +216,8 @@ OPENDESK_RUNTIME_API_BINARY="$PWD/dist/opendesk" OPENDESK_RUNTIME_API_RUN_DIR="$
 - Marketplace Verified 不绕过 Local Trust；
 - entitlement deny 在 artifact download 前停止；
 - invalid publisher signature 不安装；
-- local install confirmation cancel 后不下载、不写 Catalog、不写 Trust；
+- Marketplace local install confirmation cancel 后不下载、不写 Catalog、不写 Trust；
+- canonical side-load installer 的 Trust cancel 也必须保持 Catalog / Trust / business marker 零变化（`TestInstallCancelLeavesCatalogTrustAndBusinessEffectsUntouched`）；
 - side-load 与 Marketplace 对同一 artifact 收敛到同一个 Catalog `installId`；
 - Marketplace 只追加 provenance，不复制 install owner。
 
