@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -23,8 +23,13 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Build current OpenDesk through the repository build owner
-        run: make build
+      - name: Build current OpenDesk CLI with the Makefile-equivalent version ldflag
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          version="$(tr -d '[:space:]' < VERSION)"
+          go build -ldflags "-X opendesk/pkg/runtimeversion.Current=$version" -o dist/opendesk ./cmd/opendesk
 
       - name: Build verify and install Notify Demo without running it
         shell: bash
