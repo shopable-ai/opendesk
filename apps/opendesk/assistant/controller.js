@@ -67,7 +67,12 @@
     if (phase === 'candidateReview') return '候选已生成，等待审阅或安全另存；尚未独立验证。';
     if (phase === 'clarify') return '任务已保存，但执行前仍需要补充明确入口或资产。';
     if (phase === 'awaitingConfirmation') return '已生成可信执行预览；确认前不会启动新的业务 Execution。';
-    if (phase === 'starting') return '已确认，正在开始受控自动化…';
+    if (phase === 'starting') {
+      if (progress && progress.phase === 'reserved' && progress.executionId) {
+        return '已预留实际 Execution 身份：' + progress.executionId + '；宿主仍在做最终一致性检查并启动，不能据此判断业务已开始。';
+      }
+      return '已确认，宿主正在做最终一致性检查并准备启动受控自动化…';
+    }
     if (phase === 'stopping') return '正在停止；不会提交新的桌面动作。';
     if (phase === 'running') {
       if (!progress) return '正在执行受控自动化…';
