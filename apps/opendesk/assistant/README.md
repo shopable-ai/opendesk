@@ -52,7 +52,7 @@
 | `task-contract.js` | 持久 task revision、四类资产、候选绑定、一次性确认和 signed Flow invocation 合同 |
 | `task-runtime.js` | 任务/候选接续、safe save、JS/目录/installed Flow 使用链和证据持久化 |
 | `task-service.js` | 既有 Calculator 专用路由、Planner、参数校验、执行适配和文案；保留回归路径 |
-| `model-channel.js` | 普通聊天及无源码 make 的 analysis-only 候选生成通道；不授予作者文件工具 |
+| `model-channel.js` | 普通聊天、无源码 make，以及经双重授权后由 host reader 提供的单 JS 解释／候选生成；源码作为不可信数据且不授予模型文件／命令／桌面工具 |
 | `store.js` | 会话、草稿、request/message 状态；持久 task 由 TaskContract/TaskRuntime 另按 task identity 维护 |
 | `../capabilities/calculator.js` | 演示业务代码，不是要求用户照搬的业务目录 |
 | `../main.js` | 官方产品接线，不随新增用户业务脚本增加业务分支 |
@@ -71,4 +71,4 @@ App-owned 执行接缝的历史与当前局部核查同样在主方案中；后�
 
 停止以 Codex 与实际工具／Execution 收口为准，未知不冒充成功。切会话不污染原任务；清理缓存不删除用户唯一脚本、未完成任务资料或有效证据。保留既有 UI，不重做一套低代码编辑器或项目管理界面。
 
-当前生产代码已经修改 JS／Go／发行 payload，并新增 Node、Go 与正式 OpenDesk Runtime gate。网页环境不能直接运行本机桌面/Codex；CI 或本机尚未产生证据的条目继续标为 CI PENDING / NOT RUN，不能以代码存在或设计评分替代运行验收。源码型 improve 仍因缺少任务级 host-owned 作者文件授权而明确 BLOCKED，不通过放宽 analysis 通道制造“已接通”。
+当前生产代码已经修改 JS／Go／发行 payload，并新增 Node、Go 与正式 OpenDesk Runtime gate。网页环境不能直接运行本机桌面/Codex；CI 或本机尚未产生证据的条目继续标为 CI PENDING / NOT RUN，不能以代码存在或设计评分替代运行验收。单 JS explain/improve 已通过显式 read＋model-share 双授权和私有 host reader 接线；目录型多文件 improve、通用 Codex 作者工具及目录事务回写仍保持 BLOCKED，不通过放宽 analysis 通道制造“已接通”。
