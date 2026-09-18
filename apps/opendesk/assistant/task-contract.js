@@ -328,9 +328,14 @@
 
     function saveAs(input) {
       const item = input && input.candidate;
-      if (!item || !['candidate-pending', 'verified'].includes(item.status)) fail('INVALID_CANDIDATE', 'candidate is not reviewable');
+      if (!item) fail('INVALID_CANDIDATE', 'candidate is not reviewable');
       if (input.authorized !== true) fail('WRITE_NOT_AUTHORIZED', 'save-as requires an explicit user-authorized destination');
       const destination = normalizePath(input.destination);
+      if (item.status === 'saved') {
+        if (file.exists(destination)) fail('DESTINATION_EXISTS', 'save-as destination already exists');
+        fail('INVALID_CANDIDATE', 'a saved candidate is immutable; create or review a new candidate before another save');
+      }
+      if (!['candidate-pending', 'verified'].includes(item.status)) fail('INVALID_CANDIDATE', 'candidate is not reviewable');
       const sourceRef = item.sourceRef ? normalizePath(item.sourceRef) : '';
       if (sourceRef) {
         const currentSourceDigest = text(input.currentSourceDigest, 'currentSourceDigest', 256, true);
