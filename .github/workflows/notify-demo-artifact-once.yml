@@ -52,6 +52,20 @@ jobs:
             exit 1
           fi
 
+          raw_data="$work/raw-app-data"
+          mkdir -p "$raw_data"
+          export OPENDESK_APP_DATA_DIR="$raw_data"
+          ./dist/opendesk flow install examples/flow-distribution/notify-demo/main.js > "$work/raw-install.json"
+          ./dist/opendesk flow list > "$work/raw-list.json"
+          grep -F '"origin":"local-script"' "$work/raw-list.json"
+          if grep -Fq 'OpenDesk Notify Demo: notification requested after explicit run.' "$work/raw-install.json" "$work/raw-list.json"; then
+            echo "Raw JavaScript import/list unexpectedly executed the business entry point." >&2
+            exit 1
+          fi
+
+          ./dist/opendesk -script tests/runtime-api/flow-installation.js -console-mode script > "$work/flow-installation-runtime.log"
+          grep -F 'RUNTIME-API-FLOW-INSTALLATION' "$work/flow-installation-runtime.log"
+
           unzip -p "$work/notify-demo.odflow" flow.json > "$work/flow.json"
 
           echo "ODFLOW_BASE64_BEGIN"
