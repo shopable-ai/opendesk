@@ -393,7 +393,30 @@
         "outputs": [
           "cleanCalculator"
         ],
-        "classification": "preparation"
+        "classification": "preparation",
+        "purpose": "prepare a verified zero state before the first expression",
+        "inputSources": [],
+        "preconditions": [
+          "exact Calculator window is current and focused",
+          "clear control identity is unique"
+        ],
+        "execution": "bounded semantic clear operation",
+        "observation": "read the actual Calculator display after clear",
+        "postconditions": [
+          "actual display is 0"
+        ],
+        "verification": "scoped UI read equals 0",
+        "stopConditions": [
+          "window identity or focus changed",
+          "clear action state is unknown",
+          "display is not 0 after the bounded clear attempts"
+        ],
+        "consumers": [
+          "B020"
+        ],
+        "sideEffects": [
+          "Calculator display may be cleared"
+        ]
       },
       {
         "stepId": "B020",
@@ -404,7 +427,32 @@
           "firstExpression"
         ],
         "outputs": [],
-        "classification": "business-action"
+        "classification": "business-action",
+        "purpose": "enter and submit the first business expression",
+        "inputSources": [
+          "TaskContract.firstExpression"
+        ],
+        "preconditions": [
+          "B010 verified zero state",
+          "all required semantic button targets passed preflight"
+        ],
+        "execution": "ordered semantic button operation for the first expression",
+        "observation": "capture per-step framework completion receipts",
+        "postconditions": [
+          "the first expression has been submitted"
+        ],
+        "verification": "all requested semantic targets report completed without unknown action state",
+        "stopConditions": [
+          "window revalidation fails",
+          "target becomes ambiguous or disabled",
+          "any action result is partial or unknown"
+        ],
+        "consumers": [
+          "B025"
+        ],
+        "sideEffects": [
+          "Calculator input state changes"
+        ]
       },
       {
         "stepId": "B025",
@@ -415,7 +463,31 @@
         "outputs": [
           "firstResult"
         ],
-        "classification": "runtime-read"
+        "classification": "runtime-read",
+        "purpose": "obtain the actual first Calculator result for downstream business use",
+        "inputSources": [
+          "current Calculator display produced by B020"
+        ],
+        "preconditions": [
+          "B020 completed",
+          "display channel remains unique and within the same window"
+        ],
+        "execution": "scoped display read",
+        "observation": "save the stable actual display string as firstResult",
+        "postconditions": [
+          "firstResult is a supported digit string from the UI"
+        ],
+        "verification": "two bounded UI reads agree on the same supported value",
+        "stopConditions": [
+          "display read fails",
+          "reads disagree",
+          "value format is unsupported"
+        ],
+        "consumers": [
+          "B030",
+          "B040"
+        ],
+        "sideEffects": []
       },
       {
         "stepId": "B030",
@@ -428,7 +500,33 @@
         "outputs": [
           "cleanCalculator"
         ],
-        "classification": "preparation"
+        "classification": "preparation",
+        "purpose": "prepare a verified zero state for the second calculation without losing firstResult",
+        "inputSources": [
+          "B025.firstResult"
+        ],
+        "preconditions": [
+          "firstResult is retained as task data",
+          "exact Calculator window is current and focused"
+        ],
+        "execution": "bounded semantic clear operation",
+        "observation": "read the actual Calculator display after clear while retaining firstResult in task data",
+        "postconditions": [
+          "actual display is 0",
+          "firstResult remains available to B040"
+        ],
+        "verification": "scoped UI read equals 0 and firstResult still comes from B025",
+        "stopConditions": [
+          "window identity or focus changed",
+          "clear action state is unknown",
+          "display is not 0 after the bounded clear attempts"
+        ],
+        "consumers": [
+          "B040"
+        ],
+        "sideEffects": [
+          "Calculator display may be cleared"
+        ]
       },
       {
         "stepId": "B040",
@@ -440,7 +538,35 @@
           "firstResult"
         ],
         "outputs": [],
-        "classification": "business-action"
+        "classification": "business-action",
+        "purpose": "enter the second calculation using the actual firstResult",
+        "inputSources": [
+          "TaskContract.secondMultiplier",
+          "B025.firstResult actual UI observation"
+        ],
+        "preconditions": [
+          "B030 verified zero state",
+          "firstResult is a supported runtime digit string",
+          "all required semantic button targets passed preflight"
+        ],
+        "execution": "ordered semantic button operation using secondMultiplier, multiply, character-expanded firstResult and equals",
+        "observation": "capture per-step framework completion receipts; do not replace firstResult with an expected constant",
+        "postconditions": [
+          "the second expression has been submitted"
+        ],
+        "verification": "all requested semantic targets report completed and source mapping still references B025.firstResult",
+        "stopConditions": [
+          "firstResult is missing or unsupported",
+          "window revalidation fails",
+          "target becomes ambiguous or disabled",
+          "any action result is partial or unknown"
+        ],
+        "consumers": [
+          "B050"
+        ],
+        "sideEffects": [
+          "Calculator input state changes"
+        ]
       },
       {
         "stepId": "B050",
@@ -451,7 +577,30 @@
         "outputs": [
           "finalResult"
         ],
-        "classification": "runtime-read"
+        "classification": "runtime-read",
+        "purpose": "obtain and return the final actual Calculator result",
+        "inputSources": [
+          "current Calculator display produced by B040"
+        ],
+        "preconditions": [
+          "B040 completed",
+          "display channel remains unique and within the same window"
+        ],
+        "execution": "scoped display read",
+        "observation": "save the stable actual display string as finalResult",
+        "postconditions": [
+          "finalResult is a supported digit string from the UI"
+        ],
+        "verification": "two bounded UI reads agree; independent qualification may compare the value with the test Oracle",
+        "stopConditions": [
+          "display read fails",
+          "reads disagree",
+          "value format is unsupported"
+        ],
+        "consumers": [
+          "output"
+        ],
+        "sideEffects": []
       }
     ],
     "parameters": {
