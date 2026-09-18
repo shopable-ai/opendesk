@@ -561,6 +561,7 @@ test('official App Shell routes exactly one assistant action and keeps Script Ru
     runner: {async open(source) { calls.push(['runner', source]); }},
     assistant: {async open(source) { calls.push(['assistant', source]); }},
     schedulerCenter: {async open() {}, async openCreate() {}},
+    about: {async open() {}},
   });
   assert.equal(await controller.dispatch({id: 'assistant.open', source: 'tray'}), true);
   assert.deepEqual(calls, [['assistant', 'tray']]);
