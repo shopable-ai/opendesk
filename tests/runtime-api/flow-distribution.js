@@ -10,6 +10,7 @@ File.ensureDir(runDir);
 File.ensureDir(File.join(runDir, 'results'));
 const appData = File.join(runDir, 'flow-fixture', 'app-data');
 const sourceRoot = File.join(runDir, 'flow-fixture', 'source');
+const fixtureRoot = File.join(Execution.workdir, 'tests', 'fixtures', 'flow-install-test');
 const alternateCwd = File.join(runDir, 'flow-fixture', 'alternate-cwd');
 const publicKeyPath = File.join(runDir, 'flow-fixture', 'publisher-test-only.pub');
 const privateKeyPath = File.join(runDir, 'flow-fixture', 'publisher-test-only.pem');
@@ -71,15 +72,10 @@ File.ensureDir(File.join(sourceRoot, 'assets'));
 File.ensureDir(File.join(sourceRoot, 'payload'));
 File.ensureDir(archiveDir);
 File.ensureDir(alternateCwd);
-File.write(File.join(sourceRoot, 'payload', 'main.js'), `
-const resource = File.read(Flow.resolve('assets/value.txt'));
-const message = 'OpenDesk Install Test: explicit run succeeded';
-const record = {message, root: Flow.root, dataDir: Flow.dataDir, cwd: Execution.workdir, resource};
-File.write(File.join(Flow.dataDir, 'install-test.marker'), message + '\n');
-File.write(File.join(Flow.dataDir, 'result.json'), JSON.stringify(record));
-File.write(File.join(Flow.dataDir, 'run.json'), JSON.stringify(record));
-`);
-File.write(File.join(sourceRoot, 'assets', 'value.txt'), 'resource-ok');
+assert(File.exists(File.join(fixtureRoot, 'main.js')), 'OpenDesk Install Test fixture main.js is missing');
+assert(File.exists(File.join(fixtureRoot, 'assets', 'value.txt')), 'OpenDesk Install Test fixture resource is missing');
+File.copy(File.join(fixtureRoot, 'main.js'), File.join(sourceRoot, 'payload', 'main.js'));
+File.copy(File.join(fixtureRoot, 'assets', 'value.txt'), File.join(sourceRoot, 'assets', 'value.txt'));
 
 try {
   let keygen = await contextCommand(opensslBinary, ['genpkey', '-algorithm', 'Ed25519', '-out', privateKeyPath], {
