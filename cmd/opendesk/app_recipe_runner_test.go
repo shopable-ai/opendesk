@@ -399,9 +399,10 @@ console.log("ASSISTANT_FLOW_BUSINESS_OUTPUT=" + resultPath);`,
 
 	var evidence struct {
 		Prepared struct {
-			TaskID       string         `json:"taskId"`
-			Revision     int            `json:"revision"`
-			PreviewInput map[string]any `json:"previewInput"`
+			TaskID        string         `json:"taskId"`
+			Revision      int            `json:"revision"`
+			EffectSummary string         `json:"effectSummary"`
+			PreviewInput  map[string]any `json:"previewInput"`
 		} `json:"prepared"`
 		Run struct {
 			ExecutionID     string `json:"executionId"`
@@ -448,6 +449,9 @@ console.log("ASSISTANT_FLOW_BUSINESS_OUTPUT=" + resultPath);`,
 
 	if evidence.Prepared.TaskID != "vertical-installed-flow" || evidence.Run.ExecutionID == "" {
 		t.Fatalf("vertical evidence=%+v", evidence)
+	}
+	if evidence.Prepared.EffectSummary != "Write one isolated JSON result file in the selected business working directory." {
+		t.Fatalf("signed effect summary=%q", evidence.Prepared.EffectSummary)
 	}
 	if evidence.Run.Status != string(pkgExecution.ExecutionStatusSucceeded) {
 		t.Fatalf("run=%+v", evidence.Run)
