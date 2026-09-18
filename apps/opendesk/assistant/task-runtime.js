@@ -148,7 +148,9 @@
     async function loadCandidate(taskId, candidateId) {
       const names = candidateVersions(taskId, candidateId);
       if (!names.length) return null;
-      return deepFreeze(await file.readJSON(file.join(candidateDir(taskId, candidateId), names[names.length - 1]), {maxBytes: 2 * 1024 * 1024}));
+      const dir = candidateDir(taskId, candidateId);
+      const target = taskStore.assertFile(file.join(dir, names[names.length - 1]), dir);
+      return deepFreeze(await file.readJSON(target, {maxBytes: 2 * 1024 * 1024}));
     }
 
     async function persistCandidate(item) {
