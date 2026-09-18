@@ -19,6 +19,26 @@ order: 40
 - 正式 WORKFLOW 按本次范围组合专业方法；每个 SKILL.md 只负责自己的步骤，长细节按需参考，不复制三套完整指令。
 - 需求 Function、业务 Capability、Agent Skill 与 JS 函数不一一对应；先选已有 API／普通 JS／Agent／人工，再决定是否需要独立 Skill。
 - S1—S12 沿用原方法和合同；R1—R13 只是任务树中保留的讨论视图；八项目标专业职责不是新编号的运行阶段，也不表示八个 SKILL.md 已经存在。
+
+当前面向 Agent 的压缩主链如下；只是现有 S1—S12 的交接视图，不增加阶段：
+
+```text
+业务任务 / 事实与授权
+  → 能力需求
+  → Capability Discovery
+  → Method Selection
+  → Canonical Contract Reading
+  → 真实操作 / Runtime Validation
+  → Observation / Evidence
+  → S7 DistilledSteps
+  → S8—S9 SemanticProcedure（业务步骤 + 数据依赖 + capabilityDecisions）
+  → S10 Locator / Stability
+  → S11 普通 JavaScript + CandidateManifest
+  → S12 QualificationRecord
+  → Run Summary / Handoff
+```
+
+Discovery、Selection、Contract 与 Runtime Validation 是四个不同事实；目录命中不代表已选择，选择不代表已正确调用，合同可读不代表当前应用已验证。最终 Recipe-driving 选择由 Procedure 固定，Candidate 通过 `apiRefs` 与 `sourceMapping.capabilityDecisionRefs` 消费它；旧历史工件缺此字段时保持 provenance unknown，不倒填成当时已发生的事实。
 - Structured Collection Reading 作为既有职责间的数据/能力链，不增加第九个开发职责或新的 S13：application-engineer 生产结构知识，Runtime working primitive 读取 generic item，Recipe/Adapter 做业务 Mapping，recipe-qualify 分层验收。
 - 默认同一个 Agent 按工作流连续推进；协调、专业作业、生成和检查是职责，不强制创建多个 Agent 或隔离上下文。独立评测是另外的验证条件，不能混为正常运行前提。
 
@@ -32,7 +52,7 @@ order: 40
 | 认识和补强应用：application-engineer | S2／S10 | 所需操作、当前观察、已有 AppProfile；harden 再加确认过程，repair 再加失败依据 | AppProfile、同版审阅／验证、必要 CollectionProfile、helper、操作合同、范围与证据；供示范、提炼、生成和验收按范围使用 |
 | 真实尝试与同步留证：task-demonstrate | S3—S6 | 合同、操作计划、最小应用认识、实际输入和桌面操作授权 | planned／actual 对应、节点事实、实际值及消费者、viewport/scroll 等真实副作用、完整或限定范围 Dossier；供提炼或诊断使用 |
 | 重建与提炼必要路径：trace-distill（方法已实现） | S7 | 冻结合同／计划、Dossier／Raw Trace、必要 AppProfile 和证据 | DistilledSteps、action retain／merge／omit／recovery／unresolved 取舍与来源；供过程提炼、步骤试执行或诊断使用 |
-| 语义化与泛化过程：procedure-synthesize | S8—S9 | DistilledSteps、合同、应用资料和补证结果 | SemanticProcedure、Business Step、参数、generic→business 数据依赖、traversal need、来源与未决项；供应用补强和生成使用 |
+| 语义化与泛化过程：procedure-synthesize | S8—S9 | DistilledSteps、合同、应用资料、前序 capability 选择／验证证据和补证结果 | SemanticProcedure、Business Step、参数、generic→business 数据依赖、`capabilityDecisions`、traversal need、来源与未决项；供应用补强和生成使用 |
 | 生成或登记普通 JS：recipe-build | S11 | 已确认过程、所需操作、实际 API；原样接续按旧合同例外处理 | 实际 JS 与 CandidateManifest；只使用当前真实 API，交按需改进或独立验收 |
 | 独立改善已有代码：code-rebuild（方法已实现） | S11 内可选工作／独立入口 | 代码基线、明确需求与改进目标、相关应用规则、允许变更范围 | 原样保留结论，或新候选、变更理由、检查结果和重验范围；交独立验收 |
 | 独立资格验收：recipe-qualify | S12 | 冻结候选及依赖、成功标准、获准场景、真实运行条件 | QualificationRecord、collection/runtime/business 分层证据和修复请求；交协调者或交付者 |
@@ -57,7 +77,7 @@ order: 40
 
 `ui-understanding` 仅指内部认识子作业，不新增独立 Skill。Structured Collection 同样不创建第二个 VLM/collection Skill。工作包可只要求认识与审阅，不增加第四种模式。任务驱动与能力建设是范围选择，不改变职责数量。
 
-S8／S9 由过程提炼明确业务步骤、参数、数据流、所需应用操作及复用条件；S2 可以提供初步定位/CollectionProfile 候选，S10 将确认要求落实为有依据的应用规则。应用定位与 collection profile 知识唯一维护在 AppProfile／必要 helper，不在 S9 复制第二套规则。
+S8／S9 由过程提炼明确业务步骤、参数、数据流、所需应用操作及复用条件，并把此前已经发生、最终仍被 Recipe 消费的 Capability Discovery / Method Selection / Canonical Contract / Runtime Validation 事实收敛进 `capabilityDecisions`；不复制 API 正文，也不补造未发生的失败。S2 可以提供初步定位/CollectionProfile 候选，S10 将确认要求落实为有依据的应用规则。应用定位与 collection profile 知识唯一维护在 AppProfile／必要 helper，不在 S9 复制第二套规则。
 
 ### Structured Collection 的消费链
 
@@ -194,7 +214,7 @@ Human 来源继续进入[Human-to-Recipe](../../human-to-recipe/README.md)，其
 - 认识输出使用共享合同定义的 AppProfile 增量版本；新消费者对旧资料缺失项保持未知，旧消费者不认识新版本时拒绝消费，不静默丢失约束。CollectionProfile 是结构知识，不是新增公共 Runtime schema 或第二份 AppProfile。
 - 示范过程中逐节点保存 planned step、真实动作、实际读值、来源、消费者、前后状态、验证和副作用；collection scroll 还保存 viewport/continuity/mutation 事实；S6 才发布完整 Dossier。失败或局部包可以诊断，但不能作为成功全链输入。
 - S7 发布 versioned DistilledSteps 及同版可读视图：记录必要步骤、sourceActionRefs、依赖、retain／merge／omit／recovery／unresolved 取舍和证据。原始 Dossier／Raw Trace 不被修改；步骤试执行产生新的 execution 事实，不反写成旧示范。
-- S8—S9 保留 Business Step、泛化分析与草案，最终发布完整的 procedure.json 及同版可读视图；Procedure 引用实际消费的 DistilledSteps 版本，视图不成为第二份可执行规格，版本冲突则阻塞消费。
+- S8—S9 保留 Business Step、泛化分析与草案，最终发布完整的 procedure.json 及同版可读视图；Procedure 引用实际消费的 DistilledSteps 版本，并对新生成／策略改变的 Recipe-driving API 选择保留轻量 `capabilityDecisions`。视图不成为第二份可执行规格，版本冲突则阻塞消费；历史 Procedure 缺能力选择追溯时明确 unknown，不为兼容而倒填。
 - 生成发布实际 JS、入口、工作目录、依赖、支持范围、来源映射和 candidate.json；接口或依赖不存在就返回缺口，不保留貌似可执行的 `UI.readCollection()`/`UI.collectCollection()` 占位调用。
 - 代码改进消费候选 A；无需改动继续引用 A，有修改发布候选 B 及差异理由，验收引用 B。不能 B 的代码搭配 A 的 helper hash 或旧资格。
 - 验收发布指定候选的场景、实际命令、环境、观察、证据、pass／fail／not-run／blocked 和修复请求；collection 结构读取、collector 和业务 parser 的结论分别记录；正确拒绝的测试通过不能改写业务失败事实。
