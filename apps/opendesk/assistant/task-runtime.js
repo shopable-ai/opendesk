@@ -132,6 +132,7 @@
     function candidateVersions(taskId, candidateId) {
       const dir = candidateDir(taskId, candidateId);
       if (!file.exists(dir)) return [];
+      taskStore.assertDirectory(dir, false);
       return file.listDir(dir).map(String).filter(name => /^\d{8}\.json$/.test(name)).sort();
     }
 
@@ -144,6 +145,7 @@
     async function persistCandidate(item) {
       const dir = candidateDir(item.taskId, item.candidateId);
       file.ensureDir(dir);
+      taskStore.assertDirectory(dir, false);
       const names = candidateVersions(item.taskId, item.candidateId);
       const revision = names.length + 1;
       const target = file.join(dir, String(revision).padStart(8, '0') + '.json');
