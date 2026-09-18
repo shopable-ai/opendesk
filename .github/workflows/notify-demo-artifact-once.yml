@@ -1,0 +1,64 @@
+name: Notify Demo Artifact Build Once
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'examples/flow-distribution/notify-demo/main.js'
+      - '.github/workflows/notify-demo-artifact-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build current OpenDesk
+        run: make build
+
+      - name: Build verify and install Notify Demo without running it
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$PWD/.runtime/examples/notify-demo"
+          rm -rf "$work"
+          mkdir -p "$work/keys" "$work/app-data"
+
+          openssl genpkey -algorithm Ed25519 -out "$work/keys/publisher-private.pem" >/dev/null 2>&1
+          openssl pkey -in "$work/keys/publisher-private.pem" -pubout -out "$work/keys/publisher-public.pem" >/dev/null 2>&1
+
+          ./dist/opendesk flow pack examples/flow-distribution/notify-demo             -o "$work/notify-demo.odflow"             --flow-id com.example.opendesk.notify-demo             --name "Notify Demo"             --version 1.0.0             --publisher-id com.example.opendesk.example-publisher             --publisher-key-id example-notify-demo-ed25519-2026             --entry main.js             --public-key "$work/keys/publisher-public.pem"             --signing-key "$work/keys/publisher-private.pem"             --platforms darwin,linux,windows             --file main.js
+
+          ./dist/opendesk flow inspect "$work/notify-demo.odflow" > "$work/inspect.json"
+          ./dist/opendesk flow verify "$work/notify-demo.odflow" --public-key "$work/keys/publisher-public.pem" > "$work/verify.json"
+
+          export OPENDESK_APP_DATA_DIR="$work/app-data"
+          ./dist/opendesk flow install "$work/notify-demo.odflow" --trust-flow > "$work/install.json"
+          ./dist/opendesk flow list > "$work/list.json"
+
+          grep -F '"name":"Notify Demo"' "$work/list.json"
+          if grep -Fq 'OpenDesk Notify Demo: notification requested after explicit run.' "$work/install.json" "$work/list.json"; then
+            echo "Install/list unexpectedly executed the business entry point." >&2
+            exit 1
+          fi
+
+          unzip -p "$work/notify-demo.odflow" flow.json > "$work/flow.json"
+
+          echo "ODFLOW_BASE64_BEGIN"
+          base64 -w0 "$work/notify-demo.odflow"
+          echo
+          echo "ODFLOW_BASE64_END"
+          echo "FLOW_JSON_BASE64_BEGIN"
+          base64 -w0 "$work/flow.json"
+          echo
+          echo "FLOW_JSON_BASE64_END"
