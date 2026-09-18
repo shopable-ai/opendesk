@@ -151,7 +151,9 @@ const promotionAwareAgent = OpenDeskPromotionsIntegration.wrapAgent(
 
 const assistantEntries = [
   ['store.js', 'OpenDeskAssistantStore'],
+  ['task-contract.js', 'OpenDeskAssistantTaskContract'],
   ['model-channel.js', 'OpenDeskAssistantModelChannel'],
+  ['task-runtime.js', 'OpenDeskAssistantTaskRuntime'],
   ['task-service.js', 'OpenDeskAssistantTaskService'],
   ['session.js', 'OpenDeskAssistantSession'],
   ['controller.js', 'OpenDeskAssistantController'],
