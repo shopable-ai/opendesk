@@ -4,6 +4,7 @@ const privateGlobals = [
   'OpenDeskProductAnalytics',
   'OpenDeskProductAnalyticsIntegration',
   'OpenDeskAnalyticsSettings',
+  'OpenDeskSettings',
 ];
 for (const name of privateGlobals) {
   if (typeof globalThis[name] !== 'undefined') {
