@@ -332,8 +332,27 @@ func newMarketplaceFixtureWithVerifiedPublisher(t *testing.T) marketplaceFixture
 
 func buildMarketplaceFixture(t *testing.T, entitlement EntitlementPolicy, verified bool) marketplaceFixture {
 	t.Helper()
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("cannot locate Marketplace test fixture source")
+	}
+	fixtureRoot := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", "..", "tests", "fixtures", "flow-install-test"))
+	mainSource, err := os.ReadFile(filepath.Join(fixtureRoot, "main.js"))
+	if err != nil {
+		t.Fatalf("read OpenDesk Install Test main.js: %v", err)
+	}
+	resourceSource, err := os.ReadFile(filepath.Join(fixtureRoot, "assets", "value.txt"))
+	if err != nil {
+		t.Fatalf("read OpenDesk Install Test resource: %v", err)
+	}
 	source := t.TempDir()
-	if err := os.WriteFile(filepath.Join(source, "main.js"), []byte(`throw new Error("install must never execute Flow code");`), 0o600); err != nil {
+	if err := os.MkdirAll(filepath.Join(source, "assets"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "main.js"), mainSource, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "assets", "value.txt"), resourceSource, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	publisherPublic, publisherPrivate, err := ed25519.GenerateKey(rand.Reader)
@@ -343,7 +362,7 @@ func buildMarketplaceFixture(t *testing.T, entitlement EntitlementPolicy, verifi
 	built, err := flowpackage.Build(flowpackage.BuildOptions{
 		SourceRoot: source, FlowID: "opendesk-install-test", Name: "OpenDesk Install Test", Version: "1.0.0",
 		PublisherID: "opendesk-install-test-publisher", PublisherKeyID: "opendesk-install-test-key", Entry: "main.js",
-		MinimumRuntimeVersion: "0.0.0", Platforms: []string{runtime.GOOS}, Files: []string{"main.js"},
+		MinimumRuntimeVersion: "0.0.0", Platforms: []string{runtime.GOOS}, Files: []string{"main.js", "assets/value.txt"},
 		PublisherPublicKey: publisherPublic, PublisherPrivateKey: publisherPrivate,
 	})
 	if err != nil {
