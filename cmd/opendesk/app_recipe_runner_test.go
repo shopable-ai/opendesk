@@ -11,6 +11,7 @@ import (
 
 	"opendesk/automation"
 	pkgExecution "opendesk/pkg/execution"
+	"opendesk/pkg/flowinstall"
 )
 
 func TestAppRecipeRunnerUsesASeparateInProcessExecutionAndArtifacts(t *testing.T) {
@@ -139,4 +140,27 @@ func TestAppRecipeRunnerRejectsWhileRecorderCaptureIsActive(t *testing.T) {
 	if !errors.As(err, &typed) || typed.Code != appRecipeRunBusyCode || typed.Error() != recorderConflictRecording {
 		t.Fatalf("conflict error=%T %v", err, err)
 	}
+}
+
+func TestAppRecipeRunnerInstalledFlowUsesCanonicalCatalogAndExecutionInput(t *testing.T) {
+	root := t.TempDir()
+	service, err := flowinstall.NewService(flowinstall.Roots{FlowRoot: filepath.Join(root, "flows"), DataRoot: filepath.Join(root, "flow-data"), StateRoot: filepath.Join(root, "flow-state"), TrustRoot: filepath.Join(root, "flow-state", "trust")})
+	if err != nil { t.Fatal(err) }
+	sourceDir := t.TempDir()
+	sourcePath := filepath.Join(sourceDir, "business-sample.js")
+	if err := os.WriteFile(sourcePath, []byte(`console.log("FLOW_INPUT=" + JSON.stringify(Execution.input));`), 0o600); err != nil { t.Fatal(err) }
+	installed, err := service.InstallScript(context.Background(), sourcePath); if err != nil { t.Fatal(err) }
+	runner := newAppRecipeRunner(appRecipeRunnerConfig{}, map[string]string{"APP_FLOW_TEST":"1"}, nil); runner.flowService = service
+	inspection, err := runner.InspectFlow(context.Background(), automation.AppOwnedFlowInspectRequest{InstallID: installed.Record.InstallID})
+	if err != nil { t.Fatalf("inspect installed Flow: %v", err) }
+	if !inspection.Runnable || inspection.InstallID != installed.Record.InstallID || inspection.ManifestDigest != installed.Record.ManifestDigest { t.Fatalf("inspection=%+v", inspection) }
+	workDir := t.TempDir(); logDir := filepath.Join(workDir, ".runtime", "flow")
+	result, err := runner.RunFlow(context.Background(), automation.AppOwnedFlowRunRequest{InstallID: installed.Record.InstallID, WorkDir: workDir, LogDir: logDir, InputJSON: `{"amount":17,"nested":{"ok":true}}`, ExpectedArchiveDigest: installed.Record.ArchiveDigest, ExpectedManifestDigest: installed.Record.ManifestDigest})
+	if err != nil { t.Fatalf("run installed Flow: %v", err) }
+	if result.Status != string(pkgExecution.ExecutionStatusSucceeded) || result.ExecutionID == "" { t.Fatalf("result=%+v", result) }
+	stdout, err := os.ReadFile(filepath.Join(logDir, "stdout.log")); if err != nil { t.Fatal(err) }
+	if !strings.Contains(string(stdout), `FLOW_INPUT={"amount":17,"nested":{"ok":true}}`) { t.Fatalf("stdout=%q", stdout) }
+	_, err = runner.RunFlow(context.Background(), automation.AppOwnedFlowRunRequest{InstallID: installed.Record.InstallID, WorkDir: workDir, LogDir: filepath.Join(workDir, ".runtime", "changed"), InputJSON: `{"amount":18}`, ExpectedArchiveDigest: "stale", ExpectedManifestDigest: installed.Record.ManifestDigest})
+	var flowErr *automation.AppOwnedFlowRunError
+	if !errors.As(err, &flowErr) || flowErr.Code != "FLOW_CHANGED" { t.Fatalf("changed Flow error=%T %v", err, err) }
 }

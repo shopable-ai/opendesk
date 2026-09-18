@@ -144,7 +144,9 @@ type Request struct {
 	// AppOwnedScriptRun is the bundled product's private bridge for launching a
 	// separate Recipe Execution without leaving the App host process identity.
 	// Ordinary and nested Recipe executions leave it nil.
-	AppOwnedScriptRun automation.AppOwnedScriptRunner
+	AppOwnedScriptRun   automation.AppOwnedScriptRunner
+	AppOwnedFlowInspect automation.AppOwnedFlowInspector
+	AppOwnedFlowRun     automation.AppOwnedFlowRunner
 	// CustomUIDriver is an internal dependency seam used by Runtime API tests.
 	CustomUIDriver customui.Driver
 	// OnCustomUISession is an internal lifecycle hook for App Mode owners that
@@ -434,6 +436,8 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				CustomUIBaseDir:                 customUIBaseDir(req),
 				AppShell:                        req.AppShell,
 				AppOwnedScriptRun:               req.AppOwnedScriptRun,
+				AppOwnedFlowInspect:             req.AppOwnedFlowInspect,
+				AppOwnedFlowRun:                 req.AppOwnedFlowRun,
 				GlobalShortcutBackendFactory:    req.GlobalShortcutBackendFactory,
 				DesktopEventBackendFactory:      req.DesktopEventBackendFactory,
 				AudioCaptureBackendFactory:      req.AudioCaptureBackendFactory,

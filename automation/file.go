@@ -153,6 +153,28 @@ func (fs *FileSystem) Write(path string, text string, encoding ...string) error 
 	return os.WriteFile(absPath, []byte(text), 0644)
 }
 
+// WriteNew creates one new regular file without replacing an existing path.
+// The parent directory is opened as an os.Root before the final O_EXCL open,
+// so a later parent-path replacement cannot redirect the create operation.
+func (fs *FileSystem) WriteNew(path string, text string, encoding ...string) error {
+	absPath, err := fs.Path(path)
+	if err != nil { return err }
+	absPath, err = filepath.Abs(absPath)
+	if err != nil { return err }
+	absPath = filepath.Clean(absPath)
+	parent := filepath.Dir(absPath)
+	base := filepath.Base(absPath)
+	if base == "." || base == string(filepath.Separator) || base == "" { return errors.New("File.writeNew requires a file path") }
+	root, err := os.OpenRoot(parent)
+	if err != nil { return err }
+	defer root.Close()
+	file, err := root.OpenFile(base, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil { return err }
+	if _, err := io.WriteString(file, text); err != nil { _ = file.Close(); return err }
+	if err := file.Sync(); err != nil { _ = file.Close(); return err }
+	return file.Close()
+}
+
 // Append appends text to a file
 func (fs *FileSystem) Append(path string, text string, encoding ...string) error {
 	absPath, err := fs.Path(path)

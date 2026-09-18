@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +13,7 @@ import (
 
 	"opendesk/automation"
 	"opendesk/pkg/customui"
+	"opendesk/pkg/flowinstall"
 	pkgExecution "opendesk/pkg/execution"
 	"opendesk/pkg/productanalytics"
 	"opendesk/pkg/runtimeconfig"
@@ -39,6 +42,7 @@ type appRecipeRunner struct {
 	environment map[string]string
 	driver      customui.Driver
 	analytics   *productanalytics.Service
+	flowService *flowinstall.Service
 	run         func(pkgExecution.Request) (pkgExecution.ExecutionResult, pkgExecution.AgentSummary, error)
 
 	mu                    sync.Mutex
@@ -207,6 +211,101 @@ func (r *appRecipeRunner) request(ctx context.Context, executionID string, input
 		request.CustomUIDriver = customui.NewSessionScopedDriverForSession(r.driver, executionID)
 	}
 	return request, result, nil
+}
+
+func (r *appRecipeRunner) InspectFlow(ctx context.Context, input automation.AppOwnedFlowInspectRequest) (automation.AppOwnedFlowInspection, error) {
+	if r == nil || r.flowService == nil { return automation.AppOwnedFlowInspection{}, errors.New("App Flow service is unavailable") }
+	if ctx == nil { ctx = context.Background() }
+	record, err := r.flowService.Catalog.Load(strings.TrimSpace(input.InstallID)); if err != nil { return automation.AppOwnedFlowInspection{}, err }
+	inspection := appFlowInspection(record)
+	if record.State != flowinstall.StateReady { return inspection, nil }
+	lease, err := r.flowService.AcquireRun(ctx, record.InstallID)
+	if err != nil { inspection.StateReason = "Flow failed current host availability checks"; return inspection, nil }
+	defer lease.Close()
+	source, err := scriptloader.NewProductionFileLoader().Load(ctx, lease.Entry)
+	if err != nil { inspection.StateReason = "Flow content is not currently loadable"; return inspection, nil }
+	inspection.Protected = source.Protection.Mode == scriptloader.ProtectionProtected
+	if inspection.Protected { wipeAppFlowBytes(source.Content) }
+	inspection.Runnable = true
+	return inspection, nil
+}
+
+func (r *appRecipeRunner) RunFlow(parent context.Context, input automation.AppOwnedFlowRunRequest) (automation.AppOwnedFlowRunResult, error) {
+	if r == nil || r.flowService == nil { return automation.AppOwnedFlowRunResult{}, errors.New("App Flow service is unavailable") }
+	if parent == nil { parent = context.Background() }
+	if r.recorderCaptureActive != nil && r.recorderCaptureActive() { return automation.AppOwnedFlowRunResult{}, &automation.AppOwnedFlowRunError{Code: appRecipeRunBusyCode, Cause: errors.New(recorderConflictRecording)} }
+	executionID := pkgExecution.NewExecutionID("app-flow")
+	ctx, cancel := context.WithCancel(parent); done := make(chan struct{})
+	r.mu.Lock()
+	if r.running { r.mu.Unlock(); cancel(); return automation.AppOwnedFlowRunResult{}, &automation.AppOwnedFlowRunError{Code: appRecipeRunBusyCode, Cause: errors.New(recorderConflictScript)} }
+	r.running, r.executionID, r.cancel, r.done = true, executionID, cancel, done
+	r.mu.Unlock()
+	defer func() { cancel(); close(done); r.clear(executionID) }()
+	result := automation.AppOwnedFlowRunResult{ExecutionID: executionID, Status: "failed"}
+	lease, err := r.flowService.AcquireRun(ctx, strings.TrimSpace(input.InstallID)); if err != nil { return result, appFlowRunError(result, err) }
+	defer lease.Close()
+	if lease.Record.ArchiveDigest != strings.TrimSpace(input.ExpectedArchiveDigest) || lease.Record.ManifestDigest != strings.TrimSpace(input.ExpectedManifestDigest) {
+		return result, &automation.AppOwnedFlowRunError{Code: "FLOW_CHANGED", Result: result, Cause: errors.New("installed Flow changed after confirmation")}
+	}
+	request, result, err := r.flowRequest(ctx, executionID, lease, input); if err != nil { return result, appFlowRunError(result, err) }
+	runResult, _, runErr := r.run(request)
+	result.ExecutionID = runResult.ExecutionID; result.Status = string(runResult.Status); result.Error = runResult.Error; result.LogDir = runResult.Artifacts.RunDir
+	if runErr != nil || runResult.Status != pkgExecution.ExecutionStatusSucceeded {
+		if runErr == nil { if runResult.Error != "" { runErr = errors.New(runResult.Error) } else { runErr = fmt.Errorf("Flow execution ended with status %s", runResult.Status) } }
+		return result, appFlowRunError(result, runErr)
+	}
+	return result, nil
+}
+
+func (r *appRecipeRunner) flowRequest(ctx context.Context, executionID string, lease *flowinstall.RunLease, input automation.AppOwnedFlowRunRequest) (pkgExecution.Request, automation.AppOwnedFlowRunResult, error) {
+	result := automation.AppOwnedFlowRunResult{ExecutionID: executionID, Status: "failed"}
+	workDir, err := filepath.Abs(strings.TrimSpace(input.WorkDir)); if err != nil { return pkgExecution.Request{}, result, fmt.Errorf("resolve Flow workdir: %w", err) }
+	workInfo, err := os.Stat(workDir); if err != nil { return pkgExecution.Request{}, result, fmt.Errorf("inspect Flow workdir: %w", err) }
+	if !workInfo.IsDir() { return pkgExecution.Request{}, result, errors.New("Flow workdir must be a directory") }
+	logDir := strings.TrimSpace(input.LogDir); if !filepath.IsAbs(logDir) { logDir = filepath.Join(workDir, logDir) }
+	logDir, err = filepath.Abs(logDir); if err != nil { return pkgExecution.Request{}, result, fmt.Errorf("resolve Flow log directory: %w", err) }
+	result.LogDir = logDir
+	inputValue, err := decodeAppFlowInput(input.InputJSON); if err != nil { return pkgExecution.Request{}, result, err }
+	source, err := scriptloader.NewProductionFileLoader().Load(ctx, lease.Entry); if err != nil { return pkgExecution.Request{}, result, err }
+	protected := source.Protection.Mode == scriptloader.ProtectionProtected; if protected { defer wipeAppFlowBytes(source.Content) }
+	artifacts, err := pkgExecution.PrepareArtifacts(logDir, executionID, source.Ext); if err != nil { return pkgExecution.Request{}, result, err }
+	scriptHash := pkgExecution.ComputeScriptHash(source.Content); meta := map[string]any{"flow": lease.Record}
+	if protected { artifacts.ScriptSnapshotPath = ""; scriptHash = source.Protection.PackageDigest; meta["protection"] = source.Protection
+	} else if err := persistExecutionSnapshots("", artifacts.ScriptSnapshotPath, source.Content); err != nil { return pkgExecution.Request{}, result, err }
+	activation, err := runtimeconfig.ResolveUI(runtimeconfig.UIResolveOptions{ScriptPath: lease.Entry}); if err != nil { return pkgExecution.Request{}, result, err }
+	request := pkgExecution.Request{
+		Context: ctx, ExpectedCancellation: func() bool { return ctx.Err() != nil }, ExecutionID: executionID,
+		SourceLabel: "installed-flow:" + lease.Record.InstallID, ScriptPath: lease.Entry, Ext: source.Ext, ScriptHash: scriptHash,
+		ScriptContent: source.Content, WorkDir: workDir, Environment: cloneStringMap(r.environment), Input: inputValue,
+		Flow: &pkgExecution.FlowContext{Root: lease.Root, DataDir: lease.DataDir}, TimeoutMinutes: 0,
+		EnableNativeExtensions: true, EnableUnsafeNativeExtensionCall: r.config.ExperimentalUnsafeNativeExtensionCall,
+		EnableCommand: true, EnableDownload: true, EnableWebhook: true, EnableAccessibility: true, EnableSQLite: true,
+		EnableRecorderCapture: false, SQLiteProtectedPaths: append([]string(nil), r.config.SQLiteProtectedPaths...),
+		EnableCustomUI: activation.Enabled, CustomUIActivationSource: activation.Source, CustomUIHostPath: r.config.CustomUIHostPath,
+		CustomUIBaseDir: lease.Root, Meta: meta, Artifacts: artifacts, Selection: pkgExecution.TerminalSelection{Mode: "quiet", Categories: map[string]bool{}},
+	}
+	if activation.Enabled { request.CustomUIDriver = customui.NewSessionScopedDriverForSession(r.driver, executionID) }
+	return request, result, nil
+}
+func appFlowInspection(record flowinstall.Record) automation.AppOwnedFlowInspection {
+	return automation.AppOwnedFlowInspection{InstallID: record.InstallID, FlowID: record.FlowID, Name: record.Name, Version: record.Version,
+		PublisherID: record.PublisherID, PublisherFingerprint: record.PublisherFingerprint, State: string(record.State), StateReason: record.StateReason,
+		Origin: record.Origin, ArchiveDigest: record.ArchiveDigest, ManifestDigest: record.ManifestDigest}
+}
+func decodeAppFlowInput(raw string) (any, error) {
+	if len(raw) > 256<<10 { return nil, errors.New("Flow input exceeds 256 KiB") }
+	decoder := json.NewDecoder(strings.NewReader(raw)); decoder.UseNumber(); var value any
+	if err := decoder.Decode(&value); err != nil { return nil, fmt.Errorf("decode Flow input: %w", err) }
+	if _, ok := value.(map[string]any); !ok { return nil, errors.New("Flow input must be a JSON object") }
+	var trailing any; if err := decoder.Decode(&trailing); err != io.EOF { return nil, errors.New("Flow input contains trailing JSON data") }
+	return value, nil
+}
+func wipeAppFlowBytes(value []byte) { for index := range value { value[index] = 0 } }
+func appFlowRunError(result automation.AppOwnedFlowRunResult, cause error) error {
+	code := appRecipeRunFailedCode
+	if result.Status == string(pkgExecution.ExecutionStatusCanceled) || errors.Is(cause, context.Canceled) || errors.Is(cause, context.DeadlineExceeded) { code = appRecipeRunCanceledCode; result.Status = string(pkgExecution.ExecutionStatusCanceled)
+	} else if flowCode := flowinstall.CodeOf(cause); flowCode != "" { code = string(flowCode) }
+	return &automation.AppOwnedFlowRunError{Code: code, Result: result, Cause: cause}
 }
 
 func appRecipeRunError(result automation.AppOwnedScriptRunResult, cause error) error {

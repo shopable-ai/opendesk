@@ -46,6 +46,47 @@ type AppOwnedScriptRunResult struct {
 
 type AppOwnedScriptRunner func(context.Context, AppOwnedScriptRunRequest) (AppOwnedScriptRunResult, error)
 
+type AppOwnedFlowInspection struct {
+	InstallID string `json:"installId"`
+	FlowID string `json:"flowId"`
+	Name string `json:"name"`
+	Version string `json:"version"`
+	PublisherID string `json:"publisherId"`
+	PublisherFingerprint string `json:"publisherFingerprint"`
+	State string `json:"state"`
+	StateReason string `json:"stateReason,omitempty"`
+	Origin string `json:"origin"`
+	ArchiveDigest string `json:"archiveDigest"`
+	ManifestDigest string `json:"manifestDigest"`
+	Runnable bool `json:"runnable"`
+	Protected bool `json:"protected"`
+}
+type AppOwnedFlowInspectRequest struct { InstallID string }
+type AppOwnedFlowRunRequest struct {
+	InstallID string
+	WorkDir string
+	LogDir string
+	InputJSON string
+	ExpectedArchiveDigest string
+	ExpectedManifestDigest string
+}
+type AppOwnedFlowRunResult struct {
+	ExecutionID string `json:"executionId"`
+	Status string `json:"status"`
+	Error string `json:"error,omitempty"`
+	LogDir string `json:"logDir"`
+}
+type AppOwnedFlowInspector func(context.Context, AppOwnedFlowInspectRequest) (AppOwnedFlowInspection, error)
+type AppOwnedFlowRunner func(context.Context, AppOwnedFlowRunRequest) (AppOwnedFlowRunResult, error)
+type AppOwnedFlowRunError struct { Code string; Result AppOwnedFlowRunResult; Cause error }
+func (e *AppOwnedFlowRunError) Error() string {
+	if e == nil { return "App-owned Flow execution failed" }
+	if e.Cause != nil { return e.Cause.Error() }
+	if e.Result.Error != "" { return e.Result.Error }
+	return "App-owned Flow execution failed"
+}
+func (e *AppOwnedFlowRunError) Unwrap() error { if e == nil { return nil }; return e.Cause }
+
 // AppOwnedScriptRunError preserves a stable product-facing failure category
 // without turning the internal host bridge into a public Runtime API.
 type AppOwnedScriptRunError struct {
@@ -132,6 +173,16 @@ func registerAppShell(runtime *goja.Runtime, opts InitJSOptions, ui *CustomUIRun
 			return nil, err
 		}
 	}
+	if (opts.AppOwnedFlowInspect == nil) != (opts.AppOwnedFlowRun == nil) {
+		opts.AppShell.UnbindActionSink()
+		return nil, errors.New("App-owned Flow bridge requires inspect and run together")
+	}
+	if opts.AppOwnedFlowInspect != nil {
+		if err := bridge.attachAppOwnedFlowRunner(opts.AppOwnedFlowInspect, opts.AppOwnedFlowRun); err != nil {
+			opts.AppShell.UnbindActionSink()
+			return nil, err
+		}
+	}
 	return bridge, nil
 }
 
@@ -157,6 +208,45 @@ func (a *AppShellRuntime) attachAppOwnedScriptRunner(run AppOwnedScriptRunner) e
 		goja.FLAG_FALSE,
 		goja.FLAG_FALSE,
 	)
+}
+
+func (a *AppShellRuntime) attachAppOwnedFlowRunner(inspect AppOwnedFlowInspector, run AppOwnedFlowRunner) error {
+	object := a.runtime.NewObject()
+	if err := object.Set("inspect", func(call goja.FunctionCall) goja.Value {
+		request, signal, err := decodeAppOwnedFlowInspectRequest(call.Argument(0))
+		if err != nil { promise, _, reject := a.runtime.NewPromise(); _ = reject(appShellJSError(a.runtime, "INVALID_ARGUMENT", "inspectFlow", err.Error())); return a.runtime.ToValue(promise) }
+		return a.startAsyncWithSignal("inspectFlow", signal, func(ctx context.Context) (any, error) { return inspect(ctx, request) })
+	}); err != nil { return fmt.Errorf("register internal App-owned Flow inspector: %w", err) }
+	if err := object.Set("run", func(call goja.FunctionCall) goja.Value {
+		request, signal, err := decodeAppOwnedFlowRunRequest(call.Argument(0))
+		if err != nil { promise, _, reject := a.runtime.NewPromise(); _ = reject(appShellJSError(a.runtime, "INVALID_ARGUMENT", "runFlow", err.Error())); return a.runtime.ToValue(promise) }
+		return a.startAsyncWithSignal("runFlow", signal, func(ctx context.Context) (any, error) { return run(ctx, request) })
+	}); err != nil { return fmt.Errorf("register internal App-owned Flow runner: %w", err) }
+	return a.runtime.GlobalObject().DefineDataProperty("__opendeskFlowExecution", object, goja.FLAG_FALSE, goja.FLAG_FALSE, goja.FLAG_FALSE)
+}
+func appOwnedRequiredString(object *goja.Object, name string) (string, error) {
+	field := object.Get(name)
+	if field == nil || goja.IsUndefined(field) || goja.IsNull(field) { return "", fmt.Errorf("options.%s is required", name) }
+	exported, ok := field.Export().(string)
+	if !ok || strings.TrimSpace(exported) == "" { return "", fmt.Errorf("options.%s must be a non-empty string", name) }
+	return strings.TrimSpace(exported), nil
+}
+func decodeAppOwnedFlowInspectRequest(value goja.Value) (AppOwnedFlowInspectRequest, goja.Value, error) {
+	object, ok := value.(*goja.Object); if !ok { return AppOwnedFlowInspectRequest{}, nil, errors.New("inspect options must be an object") }
+	installID, err := appOwnedRequiredString(object, "installId"); if err != nil { return AppOwnedFlowInspectRequest{}, nil, err }
+	return AppOwnedFlowInspectRequest{InstallID: installID}, object.Get("signal"), nil
+}
+func decodeAppOwnedFlowRunRequest(value goja.Value) (AppOwnedFlowRunRequest, goja.Value, error) {
+	object, ok := value.(*goja.Object); if !ok { return AppOwnedFlowRunRequest{}, nil, errors.New("run options must be an object") }
+	installID, err := appOwnedRequiredString(object, "installId"); if err != nil { return AppOwnedFlowRunRequest{}, nil, err }
+	workDir, err := appOwnedRequiredString(object, "workdir"); if err != nil { return AppOwnedFlowRunRequest{}, nil, err }
+	logDir, err := appOwnedRequiredString(object, "logDir"); if err != nil { return AppOwnedFlowRunRequest{}, nil, err }
+	archiveDigest, err := appOwnedRequiredString(object, "expectedArchiveDigest"); if err != nil { return AppOwnedFlowRunRequest{}, nil, err }
+	manifestDigest, err := appOwnedRequiredString(object, "expectedManifestDigest"); if err != nil { return AppOwnedFlowRunRequest{}, nil, err }
+	inputJSON := "{}"
+	if field := object.Get("inputJSON"); field != nil && !goja.IsUndefined(field) && !goja.IsNull(field) { exported, ok := field.Export().(string); if !ok { return AppOwnedFlowRunRequest{}, nil, errors.New("options.inputJSON must be a string") }; inputJSON = exported }
+	if len(inputJSON) > 256<<10 { return AppOwnedFlowRunRequest{}, nil, errors.New("options.inputJSON is too large") }
+	return AppOwnedFlowRunRequest{InstallID: installID, WorkDir: workDir, LogDir: logDir, InputJSON: inputJSON, ExpectedArchiveDigest: archiveDigest, ExpectedManifestDigest: manifestDigest}, object.Get("signal"), nil
 }
 
 func decodeAppOwnedScriptRunRequest(value goja.Value) (AppOwnedScriptRunRequest, goja.Value, error) {
@@ -703,18 +793,20 @@ func appShellJSError(runtime *goja.Runtime, code, operation, message string) *go
 
 func appShellAsyncJSError(runtime *goja.Runtime, operation string, operationErr error) *goja.Object {
 	var scriptErr *AppOwnedScriptRunError
-	if !errors.As(operationErr, &scriptErr) {
-		return appShellJSError(runtime, "APP_SHELL_ERROR", operation, operationErr.Error())
+	if errors.As(operationErr, &scriptErr) {
+		code := strings.TrimSpace(scriptErr.Code); if code == "" { code = "EXECUTION_FAILED" }
+		object := appShellJSError(runtime, code, operation, scriptErr.Error())
+		_ = object.Set("executionId", scriptErr.Result.ExecutionID); _ = object.Set("status", scriptErr.Result.Status); _ = object.Set("logDir", scriptErr.Result.LogDir)
+		return object
 	}
-	code := strings.TrimSpace(scriptErr.Code)
-	if code == "" {
-		code = "EXECUTION_FAILED"
+	var flowErr *AppOwnedFlowRunError
+	if errors.As(operationErr, &flowErr) {
+		code := strings.TrimSpace(flowErr.Code); if code == "" { code = "EXECUTION_FAILED" }
+		object := appShellJSError(runtime, code, operation, flowErr.Error())
+		_ = object.Set("executionId", flowErr.Result.ExecutionID); _ = object.Set("status", flowErr.Result.Status); _ = object.Set("logDir", flowErr.Result.LogDir)
+		return object
 	}
-	object := appShellJSError(runtime, code, operation, scriptErr.Error())
-	_ = object.Set("executionId", scriptErr.Result.ExecutionID)
-	_ = object.Set("status", scriptErr.Result.Status)
-	_ = object.Set("logDir", scriptErr.Result.LogDir)
-	return object
+	return appShellJSError(runtime, "APP_SHELL_ERROR", operation, operationErr.Error())
 }
 
 type customUIAppWindowEvent struct {
