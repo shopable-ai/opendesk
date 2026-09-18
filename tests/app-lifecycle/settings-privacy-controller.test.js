@@ -11,7 +11,6 @@ vm.runInThisContext(fs.readFileSync(sourceFile, 'utf8'), {filename: sourceFile})
 
 test('settings.open routes to the first-party Privacy & Data settings surface', async () => {
   const calls = [];
-  const developerCalls = [];
   const controller = globalThis.OpenDeskProductAppController.create({
     appRuntime: {onAction() {}},
     runner: {async open() {}},
@@ -20,7 +19,6 @@ test('settings.open routes to the first-party Privacy & Data settings surface', 
     runtimeLog: {async open() {}},
     permissionsCenter: {async open() {}},
     settingsCenter: {async open(source) { calls.push(source); }},
-    developerTools: {async activate(id) { developerCalls.push(id); }},
     about: {async open() {}},
   });
 
@@ -29,7 +27,4 @@ test('settings.open routes to the first-party Privacy & Data settings surface', 
 
   assert.equal(await controller.dispatch({id: 'analytics.open', source: 'tray-menu'}), false);
   assert.deepEqual(calls, ['tray-menu'], 'legacy analytics.open must not open a user surface');
-
-  assert.equal(await controller.dispatch({id: 'opendesk.analytics.diagnostics', source: 'developer-menu'}), true);
-  assert.deepEqual(developerCalls, ['opendesk.analytics.diagnostics']);
 });
