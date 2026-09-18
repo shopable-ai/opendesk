@@ -19,7 +19,7 @@ OpenDesk 按“框架分类 → 任务求解方法 → 解题模式 → 案例 �
 | 3. 认识软件 | [应用自动化开发框架](app-development-framework.md) | 任务所需的窗口、状态、区域和应用专属知识 |
 | 4. 从示范到复用 | [示范到自动化执行方法](demonstration-to-automation-pipeline.md) | 从真实执行、复盘、泛化到验证的阶段与成果交接；第 10 节为千牛案例 |
 
-这是学习顺序，不是要求每个任务开始前都重新读完四份文件。已有任务合同和应用认识可以在有效条件满足时复用。
+这是学习顺序，不是要求每个任务开始前都重新读完四份文件。已有任务合同和应用认识可以在有效条件满足时复用。Coding Agent 的日常能力发现直接从 [Agent API 短入口](../api/agent/README.md) 按业务意图展开，不把本页的学习顺序或用户 API 总导航作为每次调用前的必读流程。
 
 ### 路线 A 的执行资产：独立 Skill 与交接
 
@@ -37,8 +37,9 @@ OpenDesk 按“框架分类 → 任务求解方法 → 解题模式 → 案例 �
 | 怎样实现录制、蒸馏、编译和回放？ | [Agent-first Recorder](../architecture/desktop-automation/agent-first-recorder.md) | 仅在明确研究或实施 Recorder／编译路线时深入阅读；普通 Recipe 可以跳过 |
 | 能力应该在哪一层扩展？ | [Runtime API 扩展与定制框架](runtime-api-extension-framework.md) | 选择 Recipe、JS helper、外置服务、Native Extension 或 native owner 时阅读 |
 | 当前该验证到什么程度？ | [能力开发与成熟度路径](capability-development.md) | 确定受控、集成、真机和业务验证范围时阅读 |
-| Agent 怎样发现合适的已有能力并在探索时使用？ | [能力发现与代码提炼](../../workflows/agent-to-recipe/design/capability-discovery.md) | 在 S2／S3—S6 获取能力，在 S10／S11 复核复用；按需读取当前 Markdown 契约，不整包加载大 JSON |
-| 某个方法现在怎样调用？ | [用户 API 文档](../api/README.md) | 编写实际调用时核对签名、结果、错误与平台限制 |
+| Agent 在什么阶段发现能力、怎样观察与提炼？ | [能力发现与代码提炼](../../workflows/agent-to-recipe/design/capability-discovery.md) | 在 S2／S3—S6 获取能力，在 S10／S11 复核复用；只负责工作流接线，不维护另一份 API 目录 |
+| Coding Agent 当前业务需要哪些方法、怎样调用？ | [Agent API 短入口](../api/agent/README.md) | 相关能力目录 → 候选比较 → 完整 canonical contract → 必要类型；只在冲突、缺口或失败时深入实现／测试 |
+| 全部用户的 API、Guide、CLI 总导航在哪里？ | [用户 API 文档](../api/README.md) | 保留通用查阅入口，不作为 Coding Agent 日常能力发现的首个详细导航 |
 
 剩余桌面专项文件及边界见[桌面自动化架构导航](../architecture/desktop-automation/README.md)。方法指导选择，架构解释设计，当前 API 才定义实际可调用合同。
 
@@ -50,7 +51,7 @@ OpenDesk 按“框架分类 → 任务求解方法 → 解题模式 → 案例 �
 | --- | --- | --- | --- |
 | A. 系统一级架构 | 系统有哪些能力，怎样协作？ | `automation-framework.md` | 不代替逐步解题或 API 教程 |
 | B. 执行与解题方法 | 先判断什么，为什么采取下一步？ | 任务求解、应用开发、示范到自动化方法 | 不凭方法名声明 Runtime 已实现 |
-| C. 知识与工件生命周期 | 每步留下什么，怎样交接和失效？ | 主流程文档的工件生命周期；任务求解文档的步骤交接 | 不强迫普通 Recipe 先建设工件管理系统 |
+| C. 知识与工件生命周期 | 每步留下什么，怎样交接和失效？ | 主流程文档的工件生命周期；任务求解文档的输入输出 | 不强迫普通 Recipe 先建设工件管理系统 |
 | D. 技术实现机制 | 定位、坐标、动作、接口怎样落地？ | 专项架构、扩展框架、`implementation/`、`api/` | 不内置某个应用的业务决策 |
 | E. 开发与验证路线 | 怎样逐级增加不确定性并证明成熟？ | `capability-development.md`；对应质量文档 | 不把一次成功当通用能力验证 |
 | F. 横切约束 | 权限、隐私、取消、副作用、成本和漂移怎样控制？ | 各方法合同与质量要求 | 不仅在文末提醒，而要进入各步骤的完成门槛 |
