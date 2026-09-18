@@ -104,7 +104,7 @@
           let executionId = '';
           if (typeof flowBridge.reserve === 'function') {
             executionId = String(await flowBridge.reserve({installId: input.installId}) || '');
-            if (executionId && typeof input.onStarted === 'function') await input.onStarted(executionId);
+            if (executionId && typeof input.onReserved === 'function') await input.onReserved(executionId);
           }
           const result = await flowBridge.run({
             installId: input.installId,
@@ -300,50 +300,131 @@
       let task = await taskStore.load(taskId);
       if (!task) fail('TASK_NOT_FOUND', 'task was not found');
       if (task.intent !== 'use') fail('INVALID_TASK_INTENT', 'task is not a use task');
-      if (task.asset.kind === 'installed-flow') {
-        const run = await flowUse.confirmAndRun(task, prepared, confirmationToken, Object.assign({}, context || {}, {
-          onStarted: async executionId => {
-            task = await updateTask(task, {status:'running', evidence:(task.evidence || []).concat([{type:'execution-started',executionId,at:clock().toISOString()}])});
-            if (context && typeof context.onStarted === 'function') await context.onStarted(executionId);
-          },
-        }));
-        const finalStatus = run.businessVerified ? 'business-complete' : 'execution-finished-unverified';
-        task = await updateTask(task, {status:finalStatus, evidence:(task.evidence || []).concat([{type:'execution-terminal',executionId:run.executionId,status:run.status,businessVerified:run.businessVerified,at:clock().toISOString()}])});
-        return deepFreeze({task, run});
+      let reservedExecutionId = '';
+
+      async function recordReserved(executionId) {
+        const id = String(executionId || '');
+        if (!id) return;
+        reservedExecutionId = id;
+        task = await updateTask(task, {
+          status: 'execution-reserved',
+          evidence: (task.evidence || []).concat([{
+            type: 'execution-reserved',
+            executionId: id,
+            at: clock().toISOString(),
+          }]),
+        });
+        if (context && typeof context.onReserved === 'function') await context.onReserved(id);
       }
+
+      async function recordRunFailure(error) {
+        const executionId = String(error && error.executionId || reservedExecutionId || '');
+        const runtimeStatus = String(error && error.status || '').toLowerCase();
+        const terminal = runtimeStatus === 'failed' || runtimeStatus === 'canceled';
+        const nextStatus = terminal
+          ? (runtimeStatus === 'canceled' ? 'canceled' : 'failed')
+          : 'execution-effect-unknown';
+        task = await updateTask(task, {
+          status: nextStatus,
+          evidence: (task.evidence || []).concat([{
+            type: terminal ? 'execution-terminal' : 'execution-unknown',
+            executionId,
+            status: runtimeStatus || 'unknown',
+            businessVerified: false,
+            at: clock().toISOString(),
+          }]),
+        });
+      }
+
+      if (task.asset.kind === 'installed-flow') {
+        try {
+          const run = await flowUse.confirmAndRun(task, prepared, confirmationToken, Object.assign({}, context || {}, {
+            onReserved: recordReserved,
+          }));
+          const finalStatus = run.businessVerified ? 'business-complete' : 'execution-finished-unverified';
+          task = await updateTask(task, {
+            status: finalStatus,
+            evidence: (task.evidence || []).concat([{
+              type: 'execution-terminal',
+              executionId: run.executionId,
+              status: run.status,
+              businessVerified: run.businessVerified,
+              at: clock().toISOString(),
+            }]),
+          });
+          return deepFreeze({task, run});
+        } catch (error) {
+          if (reservedExecutionId || (error && error.executionId)) {
+            try { await recordRunFailure(error); } catch (_) {}
+          }
+          throw error;
+        }
+      }
+
       const token = String(confirmationToken || '');
       const canonical = scriptConfirmations.get(token);
       if (!canonical) fail('STALE_CONFIRMATION', 'confirmation is unknown or already consumed');
       scriptConfirmations.delete(token);
-      if (!prepared || prepared.confirmationToken !== token || canonical.taskId !== task.taskId || canonical.taskRevision !== task.revision) {
+      if (!prepared || prepared.confirmationToken !== token
+        || canonical.taskId !== task.taskId || canonical.taskRevision !== task.revision) {
         fail('STALE_CONFIRMATION', 'confirmation belongs to a different task revision');
       }
-      const inspected = await recipeBridge.inspect({scriptPath:canonical.scriptPath,scopeRoot:canonical.scopeRoot,signal:context && context.signal || null});
-      if (!inspected || String(inspected.scriptHash || '') !== canonical.scriptHash) fail('SCRIPT_CHANGED_AFTER_PREVIEW', 'script content changed after preview');
+
+      const inspected = await recipeBridge.inspect({
+        scriptPath: canonical.scriptPath,
+        scopeRoot: canonical.scopeRoot,
+        signal: context && context.signal || null,
+      });
+      if (!inspected || String(inspected.scriptHash || '') !== canonical.scriptHash) {
+        fail('SCRIPT_CHANGED_AFTER_PREVIEW', 'script content changed after preview');
+      }
+
       let executionId = '';
       if (typeof recipeBridge.reserve === 'function') {
-        executionId = String(await recipeBridge.reserve({kind:'recipe'}) || '');
-        if (executionId) {
-          task = await updateTask(task, {status:'running', evidence:(task.evidence || []).concat([{type:'execution-started',executionId,at:clock().toISOString()}])});
-          if (context && typeof context.onStarted === 'function') await context.onStarted(executionId);
-        }
+        executionId = String(await recipeBridge.reserve({kind: 'recipe'}) || '');
+        if (executionId) await recordReserved(executionId);
       }
+
       const businessCwd = task.businessCwd || defaultBusinessCwd || rootDir;
       const logDir = file.join(rootDir, 'runs', task.taskId, randomUUID());
-      const result = await recipeBridge.run({
-        scriptPath:canonical.scriptPath,
-        scopeRoot:canonical.scopeRoot,
-        expectedScriptHash:canonical.scriptHash,
-        executionId,
-        workdir:businessCwd,
-        logDir,
-        inputJSON:JSON.stringify(canonical.input || {}),
-        signal:context && context.signal || null,
-      });
-      const actualExecutionId = String(result && result.executionId || executionId || '');
-      if (!actualExecutionId) fail('EXECUTION_ID_MISSING', 'host did not return the real Execution identity');
-      task = await updateTask(task, {status:'execution-finished-unverified', evidence:(task.evidence || []).concat([{type:'execution-terminal',executionId:actualExecutionId,status:String(result.status || 'unknown'),businessVerified:false,at:clock().toISOString()}])});
-      return deepFreeze({task, run:{executionId:actualExecutionId,status:String(result.status || 'unknown'),businessVerified:false,verification:null}});
+      try {
+        const result = await recipeBridge.run({
+          scriptPath: canonical.scriptPath,
+          scopeRoot: canonical.scopeRoot,
+          expectedScriptHash: canonical.scriptHash,
+          executionId,
+          workdir: businessCwd,
+          logDir,
+          inputJSON: JSON.stringify(canonical.input || {}),
+          signal: context && context.signal || null,
+        });
+        const actualExecutionId = String(result && result.executionId || executionId || '');
+        if (!actualExecutionId) fail('EXECUTION_ID_MISSING', 'host did not return the real Execution identity');
+        task = await updateTask(task, {
+          status: 'execution-finished-unverified',
+          evidence: (task.evidence || []).concat([{
+            type: 'execution-terminal',
+            executionId: actualExecutionId,
+            status: String(result.status || 'unknown'),
+            businessVerified: false,
+            at: clock().toISOString(),
+          }]),
+        });
+        return deepFreeze({
+          task,
+          run: {
+            executionId: actualExecutionId,
+            status: String(result.status || 'unknown'),
+            businessVerified: false,
+            verification: null,
+          },
+        });
+      } catch (error) {
+        if (reservedExecutionId || (error && error.executionId)) {
+          try { await recordRunFailure(error); } catch (_) {}
+        }
+        throw error;
+      }
     }
 
     async function resume(taskId) {
