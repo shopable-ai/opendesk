@@ -45,10 +45,6 @@ on:
     paths: *analytics_paths
   workflow_dispatch:
 
-concurrency:
-  group: product-analytics-${{ github.ref }}
-  cancel-in-progress: false
-
 permissions:
   contents: read
 
