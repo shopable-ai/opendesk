@@ -351,6 +351,13 @@ func (r *appRecipeRunner) InspectFlow(ctx context.Context, input automation.AppO
 	if err != nil { inspection.StateReason = "Flow content is not currently loadable"; return inspection, nil }
 	inspection.Protected = source.Protection.Mode == scriptloader.ProtectionProtected
 	if inspection.Protected { wipeAppFlowBytes(source.Content) }
+	invocation, invocationErr := loadAppFlowInvocation(lease)
+	if invocationErr != nil {
+		inspection.StateReason = "Flow assistant invocation contract is invalid"
+		inspection.Runnable = false
+		return inspection, nil
+	}
+	inspection.Invocation = invocation
 	inspection.Runnable = true
 	return inspection, nil
 }
