@@ -220,6 +220,21 @@
       return expected;
     }
 
+    function assertFile(path, parent) {
+      const expected = normalizePath(path);
+      const parentPath = assertDirectory(parent, false);
+      let actual;
+      try {
+        actual = normalizePath(file.realPath(expected));
+      } catch (error) {
+        fail('TASK_STORAGE_REDIRECTED', 'task storage file cannot be resolved safely', {cause: error});
+      }
+      if (!samePath(expected, actual) || !isWithin(parentPath, actual)) {
+        fail('TASK_STORAGE_REDIRECTED', 'task storage file resolves through an unexpected alias');
+      }
+      return expected;
+    }
+
     function taskDir(taskId) {
       return file.join(tasksRoot, identifier(taskId, 'taskId', true));
     }
@@ -234,7 +249,9 @@
     async function load(taskId) {
       const names = versions(taskId);
       if (!names.length) return null;
-      return create(await file.readJSON(file.join(taskDir(taskId), names[names.length - 1]), {maxBytes: 1024 * 1024}));
+      const dir = taskDir(taskId);
+      const target = assertFile(file.join(dir, names[names.length - 1]), dir);
+      return create(await file.readJSON(target, {maxBytes: 1024 * 1024}));
     }
 
     async function list() {
@@ -286,7 +303,7 @@
       return operation;
     }
 
-    return Object.freeze({load, list, save, rootDir: tasksRoot, assertDirectory});
+    return Object.freeze({load, list, save, rootDir: tasksRoot, assertDirectory, assertFile});
   }
 
   function createCandidateService(options) {
