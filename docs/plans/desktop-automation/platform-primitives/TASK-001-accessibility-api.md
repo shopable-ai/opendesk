@@ -103,7 +103,7 @@ decrement
 - 有正式实现而非仅文档。
 - JS 用户 API 可调用。
 - 单元 + macOS integration/smoke 通过。
-- API 文档、`runtime-api.ai.json`、`.d.ts` 同步。
+- canonical API 文档、`.d.ts`、Runtime manifest/tests 同步；Agent 导航通过 `scripts/api-docs.js check/generate` 更新。
 - 明确列出仍未覆盖的平台与控件类型。
 
 ## Execution record — 2026-09-02

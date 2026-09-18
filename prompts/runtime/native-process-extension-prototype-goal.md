@@ -173,7 +173,7 @@ error.evidence
 
 使用手写 Goja wrapper 保留结构化字段；不要使用会丢失字段的通用 reflection wrapper。传入 execution context 和 EventSink。这个 process-launching global 必须默认关闭：只有受信任的本机 CLI script 通过 `-experimental-native-extension` 显式 opt-in；HTTP execution 不提供远程开关，MCP 若是独立 direct wrapper 也不接入。即使 CLI 与 HTTP 共享 Runtime 初始化，也不能共享 enablement。
 
-同步更新 `docs-user-api/`、`runtime-api.ai.json`、`types/`、`tests/runtime-api/manifest.js` 和正式 JS Runtime unit。
+同步更新 canonical `docs/api/`、`types/`、`tests/runtime-api/manifest.js` 和正式 JS Runtime unit；能力导航通过 `scripts/api-docs.js check/generate` 更新。
 
 ## Independent extensions
 

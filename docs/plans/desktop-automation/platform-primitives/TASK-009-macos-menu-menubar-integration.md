@@ -127,5 +127,5 @@ Remaining / unblock condition:
   handshake，并把 provider typed errors 映射为 OpenDesk error model；传统 app menu 与右侧 system
   menu bar 必须保持不同 capability。
 - 完成 TextEdit/Finder 等标准菜单、多级 submenu、disabled、missing、动态/本地化、menu-bar item、
-  provider unavailable 和 timeout 的 contract + real smoke evidence 后，再同步 JS API、docs、types 和
-  `runtime-api.ai.json`。Peekaboo 当前 nested menu-extra item selection 仍需明确标为 unsupported。
+  provider unavailable 和 timeout 的 contract + real smoke evidence 后，再同步 JS API、canonical docs、types、
+  Runtime manifest/tests，并通过 `scripts/api-docs.js check/generate` 更新 Agent 导航。Peekaboo 当前 nested menu-extra item selection 仍需明确标为 unsupported。

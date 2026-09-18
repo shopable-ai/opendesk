@@ -67,7 +67,7 @@
 5. Unit tests。
 6. Integration / smoke test。
 7. Evidence：保存真实运行证据或说明无法获得真实 evidence 的原因。
-8. Documentation：同步 `docs/api`、`runtime-api.ai.json`、`.d.ts`、examples（仅在公共 API 变化时）。
+8. Documentation：公共 API 变化时同步 canonical `docs/api`、`.d.ts`、`tests/runtime-api/manifest.js` 与 examples，并运行 `scripts/api-docs.js check/generate` 更新 Agent 导航。
 9. Regression：至少运行相关测试和 `go test ./...`，不得隐瞒已有失败与新增失败的区别。
 10. Update Task Card：状态、实现决策、Evidence、剩余风险。
 11. Commit：提交本任务的改动，并记录最终 commit SHA。

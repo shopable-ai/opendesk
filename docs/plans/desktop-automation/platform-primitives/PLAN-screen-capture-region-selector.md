@@ -470,7 +470,7 @@ playback/readback success
 - screenshot 无回归；
 - 没有新增第二套 Recorder / Audio / Drawing 系统；
 - macOS 有真实 Evidence；
-- 公共 API 同步 docs、types、`runtime-api.ai.json`；
+- 公共 API 同步 canonical docs、types、Runtime manifest/tests，并通过 `scripts/api-docs.js check/generate` 同步 Agent 导航；
 - 不成熟能力明确保持 Experimental。
 
 ## 16. Execution order
