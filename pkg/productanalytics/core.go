@@ -168,38 +168,46 @@ func New(options Options) (*Service, error) {
 	}
 	service := &Service{
 		config: config, runtime: runtimeInfo, dataRoot: root, now: options.Now,
-		transport: options.Transport, makeProvider: maker, consent: ConsentUnknown,
+		transport: options.Transport, makeProvider: maker, consent: ConsentGranted,
 		runs: map[string]runContext{}, debugCapacity: options.DebugCapacity,
 	}
 	persisted, readErr := readConsent(service.consentPath())
 	if readErr != nil {
-		// Corrupt or unreadable consent fails closed. Do not manufacture an identity.
+		// Corrupt or unreadable analytics state fails closed. Do not manufacture an
+		// unstable identity or send events until the local state can be repaired.
+		service.consent = ConsentUnknown
 		service.lastErrorCode = "consent_read_failed"
 		return service, nil
 	}
 	switch persisted.State {
+	case ConsentDenied:
+		// Preserve an explicit legacy opt-out. Fresh installs are default-on, but
+		// OpenDesk must not silently reverse a choice already made by the user.
+		service.consent = ConsentDenied
+		return service, nil
 	case ConsentGranted:
-		if !validID(persisted.InstallID) {
-			// Consent exists, so a new random analytics identity is allowed, but it
-			// must be durably saved before capture can start.
-			persisted.InstallID = randomID()
-			if persisted.InstallID == "" {
+		service.installID = persisted.InstallID
+	}
+
+	// Product Analytics is default-on for fresh installations. The anonymous
+	// install identity is created only when a capture provider is actually
+	// configured; an empty PostHog token therefore performs no persistence and
+	// no network activity.
+	if service.captureConfiguredLocked() {
+		if !validID(service.installID) {
+			service.installID = randomID()
+			if service.installID == "" {
 				service.lastErrorCode = "identity_generation_failed"
 				return service, nil
 			}
 			if writeErr := writeConsent(service.consentPath(), persistedConsent{
-				SchemaVersion: SchemaVersion, State: ConsentGranted, InstallID: persisted.InstallID,
+				SchemaVersion: SchemaVersion, State: ConsentGranted, InstallID: service.installID,
 			}); writeErr != nil {
+				service.installID = ""
 				service.lastErrorCode = "consent_write_failed"
 				return service, nil
 			}
 		}
-		service.consent = ConsentGranted
-		service.installID = persisted.InstallID
-	case ConsentDenied:
-		service.consent = ConsentDenied
-	}
-	if service.consent == ConsentGranted && service.captureConfiguredLocked() {
 		if err := service.ensureProviderLocked(); err != nil {
 			service.lastErrorCode = "provider_init_failed"
 		}
