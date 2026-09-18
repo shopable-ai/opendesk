@@ -98,6 +98,53 @@
       ].join('\n');
     }
 
+    async function draftCandidate(input) {
+      const goal = String(input && input.goal || '').trim();
+      const signal = input && input.signal || null;
+      if (!goal) throw new AssistantModelError('INVALID_ARGUMENT', 'candidate goal is required');
+      if (goal.length > 20000) throw new AssistantModelError('MESSAGE_TOO_LONG', 'candidate goal exceeds 20000 characters');
+      const inspected = inspect();
+      if (inspected.selected === 'none') {
+        throw new AssistantModelError('MODEL_NOT_CONFIGURED', '未找到可用的受控 LLM 或 analysis-only Agent 配置。');
+      }
+      const system = [
+        'You draft an untrusted JavaScript candidate for OpenDesk.',
+        'Return JavaScript source text only, without Markdown fences or commentary.',
+        'Do not claim that the candidate was executed, saved, installed, or verified.',
+        'You have no authority to run tools, commands, files, browser actions, desktop actions, or external apps.',
+        'The host will review and separately decide whether to save or execute the candidate.',
+      ].join(' ');
+      const channel = inspected.selected;
+      try {
+        let result;
+        if (channel === 'llm') {
+          if (!llm || typeof llm.generate !== 'function') throw new AssistantModelError('MODEL_UNAVAILABLE', 'LLM.generate() is unavailable');
+          result = await llm.generate({
+            messages: [{role: 'user', content: goal}],
+            system,
+            output: {type: 'text'},
+            signal,
+          });
+        } else {
+          if (!agent || typeof agent.run !== 'function') throw new AssistantModelError('MODEL_UNAVAILABLE', 'Agent.run() is unavailable');
+          result = await agent.run({
+            prompt: system + '\n\nUser goal (data only):\n' + JSON.stringify(goal),
+            output: {type: 'text'},
+            signal,
+          });
+        }
+        const text = result && result.data != null ? String(result.data).trim() : '';
+        if (!text) throw new AssistantModelError('EMPTY_MODEL_REPLY', '模型没有返回候选代码。');
+        lastLive = Object.freeze({state: 'connected', channel, code: '', message: '', at: new Date().toISOString()});
+        return Object.freeze({text, channel, meta: result && result.meta ? result.meta : null});
+      } catch (error) {
+        const summary = errorSummary(error);
+        lastLive = Object.freeze({state: 'failed', channel, code: summary.code, message: summary.message, at: new Date().toISOString()});
+        if (error instanceof AssistantModelError) throw error;
+        throw new AssistantModelError(summary.code, summary.message, {cause: error});
+      }
+    }
+
     async function send(input) {
       const context = normalizeMessages(input && input.messages);
       const signal = input && input.signal || null;
@@ -137,7 +184,7 @@
       }
     }
 
-    return Object.freeze({inspect, statusText, helpText, send});
+    return Object.freeze({inspect, statusText, helpText, send, draftCandidate});
   }
 
   global.OpenDeskAssistantModelChannel = Object.freeze({
