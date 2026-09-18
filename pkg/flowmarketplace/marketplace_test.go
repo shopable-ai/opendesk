@@ -194,6 +194,81 @@ func TestMarketplacePaidEntitlementDenialStopsBeforeDownload(t *testing.T) {
 	assertCatalogEmpty(t, service)
 }
 
+
+func TestMarketplaceCancelLeavesCatalogAndTrustUntouched(t *testing.T) {
+	fixture := newMarketplaceFixture(t, EntitlementFree)
+	server, artifactHits := newMarketplaceServer(t, fixture)
+	defer server.Close()
+	service := newFlowService(t)
+	installer := &Installer{
+		Client: newTestClient(t, server.URL, fixture.marketplaceKey), FlowService: service, TempRoot: t.TempDir(),
+		Confirmer: confirmerFunc(func(context.Context, Release) (bool, error) { return false, nil }),
+	}
+	if _, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{
+		Approver: func(context.Context, flowinstall.TrustCandidate) (flowinstall.TrustDecision, error) {
+			t.Fatal("trust approver must not be reached after install cancellation")
+			return flowinstall.DecisionCancel, nil
+		},
+	}); err == nil {
+		t.Fatal("InstallURL() succeeded after local installation cancellation")
+	}
+	if got := artifactHits.Load(); got != 0 {
+		t.Fatalf("artifact requests = %d, want 0 after local installation cancellation", got)
+	}
+	assertCatalogEmpty(t, service)
+	assertNoTrustRecords(t, service)
+}
+
+func TestMarketplaceAndSideLoadConvergeOnSameCatalogIdentity(t *testing.T) {
+	fixture := newMarketplaceFixture(t, EntitlementFree)
+	packagePath := filepath.Join(t.TempDir(), "OpenDesk Install Test.odflow")
+	if err := os.WriteFile(packagePath, fixture.artifact, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	service := newFlowService(t)
+	sideLoaded, err := service.Install(context.Background(), packagePath, flowinstall.InstallOptions{
+		Approver: func(context.Context, flowinstall.TrustCandidate) (flowinstall.TrustDecision, error) {
+			return flowinstall.DecisionFlow, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("side-load Install() error = %v", err)
+	}
+	if sideLoaded.Record.Origin != "odflow" {
+		t.Fatalf("side-load origin = %q, want odflow", sideLoaded.Record.Origin)
+	}
+
+	server, artifactHits := newMarketplaceServer(t, fixture)
+	defer server.Close()
+	installer := &Installer{
+		Client: newTestClient(t, server.URL, fixture.marketplaceKey), FlowService: service, TempRoot: t.TempDir(),
+		Confirmer: confirmerFunc(func(context.Context, Release) (bool, error) { return true, nil }),
+	}
+	fromMarketplace, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{})
+	if err != nil {
+		t.Fatalf("Marketplace InstallURL() error = %v", err)
+	}
+	if got := artifactHits.Load(); got != 1 {
+		t.Fatalf("artifact requests = %d, want 1", got)
+	}
+	if !fromMarketplace.Idempotent {
+		t.Fatal("same artifact through Marketplace was not idempotent")
+	}
+	if fromMarketplace.Record.InstallID != sideLoaded.Record.InstallID {
+		t.Fatalf("Catalog identity diverged: side-load=%s marketplace=%s", sideLoaded.Record.InstallID, fromMarketplace.Record.InstallID)
+	}
+	if fromMarketplace.Record.Origin != "marketplace" || fromMarketplace.Record.ReleaseID != fixture.release.ReleaseID {
+		t.Fatalf("Marketplace provenance was not applied to the canonical record: %+v", fromMarketplace.Record)
+	}
+	records, err := service.Catalog.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 1 || records[0].InstallID != sideLoaded.Record.InstallID {
+		t.Fatalf("channels created divergent Catalog records: %+v", records)
+	}
+}
+
 func TestParseInstallURLRejectsExecutableInputs(t *testing.T) {
 	valid := InstallIntentRef{FlowID: "invoice-export", ReleaseID: "rel-1", InstallIntentID: "intent-1"}
 	deepLink, err := BuildInstallURL(valid)
@@ -240,8 +315,8 @@ func buildMarketplaceFixture(t *testing.T, entitlement EntitlementPolicy, verifi
 		t.Fatal(err)
 	}
 	built, err := flowpackage.Build(flowpackage.BuildOptions{
-		SourceRoot: source, FlowID: "invoice-export", Name: "Invoice Export", Version: "1.2.3",
-		PublisherID: "publisher-acme", PublisherKeyID: "publisher-key-1", Entry: "main.js",
+		SourceRoot: source, FlowID: "opendesk-install-test", Name: "OpenDesk Install Test", Version: "1.0.0",
+		PublisherID: "opendesk-install-test-publisher", PublisherKeyID: "opendesk-install-test-key", Entry: "main.js",
 		MinimumRuntimeVersion: "0.0.0", Platforms: []string{runtime.GOOS}, Files: []string{"main.js"},
 		PublisherPublicKey: publisherPublic, PublisherPrivateKey: publisherPrivate,
 	})
