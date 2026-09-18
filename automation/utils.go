@@ -130,6 +130,7 @@ type InitJSOptions struct {
 	// host process so protected desktop operations retain the App's OS identity.
 	// It is deliberately not exposed through the public automation.app object.
 	AppOwnedScriptInspect AppOwnedScriptInspector
+	AppOwnedScriptRead    AppOwnedScriptReader
 	AppOwnedScriptRun     AppOwnedScriptRunner
 	AppOwnedExecutionID   AppOwnedExecutionIDAllocator
 	// AppOwnedFlowInspect/AppOwnedFlowRun are private product bridges used by
