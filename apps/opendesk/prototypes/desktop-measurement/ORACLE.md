@@ -66,7 +66,7 @@ REFERENCE_SELECTING
 **可见反馈**：真实桌面保持 Live；显示轻量候选边框、窗口提示和选择说明：
 
 ```text
-移动鼠标选择窗口 · 单击开始测量 · Esc 取消
+移动鼠标选择窗口 · 目标保持清晰，周围变暗 · 单击开始测量 · Esc 取消
 ```
 
 **状态迁移**：`IDLE → REFERENCE_SELECTING`。重复入口保持同一 Session。
@@ -85,17 +85,17 @@ REFERENCE_SELECTING
 
 **前置**：选择 observer 有效，尚未存在 Frozen Snapshot。
 
-**可见反馈**：pointer 下最上层可测窗口显示候选边框 / label / bounds；移动到另一窗口时 Candidate 跟随变化；离开窗口时清除 Candidate。
+**可见反馈**：pointer 下最上层可测窗口进入类似微信截图选窗的 **spotlight focus**：Candidate Window 自身保持 Live 原始像素与原始亮度，只在窗口边缘显示候选边框 / label / bounds；Candidate 之外的桌面区域使用中性深色蒙版压暗。移动到另一窗口时，蒙版开孔与 Candidate 必须一起原子切换；离开可测窗口时清除 Candidate 与对应聚焦蒙版，不能留下旧窗口的 stale focus。
 
 **状态迁移**：保持 `REFERENCE_SELECTING`。
 
-**允许副作用**：更新 `referenceCandidate` 与轻量视觉反馈。
+**允许副作用**：更新 `referenceCandidate` 与轻量视觉反馈。视觉反馈可以使用全屏输入 Overlay，但视觉蒙版必须采用“外侧遮罩 + Candidate 开孔”的语义。
 
-**禁止副作用**：Hover 不激活、不置顶、不锁定窗口，不自动切换应用，不截图，不创建 Reference，不创建 Snapshot。
+**禁止副作用**：Hover 不激活、不置顶、不锁定窗口，不自动切换应用，不截图，不创建 Reference，不创建 Snapshot。尤其禁止在 Candidate Window 内部叠加白色 / 灰色 / 半透明填充、blur、opacity、背景替换或任何会遮挡业务内容的视觉层；Candidate 内部必须是视觉“空洞”，看到的仍是原 Live Window。
 
 候选 identity 至少需要本次运行稳定窗口身份与 bounds；生产实现优先 native window hit-test / AX/UIA 等窗口级事实，不依赖 OCR 选择 Reference Window。解析必须 bounded / throttled，不能每个 pointermove 做无界重扫或截图。
 
-**验证**：Hover A/B 只改变 Candidate；snapshotId/reference 保持空。HTML 中的 Tab/窗口切换只代表 synthetic 场景，不得写成 Native 已验证。
+**验证**：Hover A/B 只改变 Candidate 与 spotlight cutout；同一时刻最多一块外侧蒙版与一个 Candidate 边框；蒙版使用 even-odd / equivalent cutout，Candidate outline 必须 `fill:none`；snapshotId/reference 保持空。HTML 中的 Tab/窗口切换只代表 synthetic 场景，不得写成 Native 已验证。
 
 ### DM-SELECT-003 — confirmation gate
 
@@ -135,7 +135,7 @@ REFERENCE_SELECTING
 
 **前置**：exact Candidate identity/bounds 已通过 down/up gate。
 
-**可见反馈**：先进入可观察 `FREEZING`，显示“正在冻结参照窗口”，正式测量 Toolbar 仍隐藏。
+**可见反馈**：先进入可观察 `FREEZING`，显示“正在冻结参照窗口”，正式测量 Toolbar 仍隐藏。允许短暂保留刚确认窗口的 spotlight 作为状态连续反馈，但 Capture 的源像素必须排除 / 隐藏该 Overlay，绝不能把 dim、边框或 HUD 烧进 Snapshot。
 
 **状态迁移**：
 
@@ -156,7 +156,7 @@ Capture 前生产实现必须再次核验 exact identity / bounds；同标题替
 
 ### DM-SELECT-005 — selection visual boundary
 
-`REFERENCE_SELECTING` 只允许轻量候选边框、弱 overlay / dim、窗口提示、Live 状态和取消说明。不得显示正式 Frozen Micro HUD、Measurement Toolbar 或 Records。
+`REFERENCE_SELECTING` 的视觉合同固定为 **Live Spotlight Selection**：Candidate Window 内容完全保持原样，Candidate 外部才允许出现中性深色 dim / scrim，形成类似前端模态背景或微信截图选窗的聚焦感；候选边框只描边，不得填充 Candidate 内部。不得把“弱 overlay / dim”解释成覆盖 Candidate 本身，也不得使用白色蒙层把关键内容洗掉。窗口名称 / bounds / 说明尽量放在窗口外缘或独立 HUD，不应遮挡候选窗口中心内容。不得显示正式 Frozen Micro HUD、Measurement Toolbar 或 Records。
 
 Prototype 的 `LIVE source` 与 `Prototype observer` 是**测试/演示观测器**，用于证明 Live 与 Frozen 的隔离，不是 Production 产品 Toolbar。
 
