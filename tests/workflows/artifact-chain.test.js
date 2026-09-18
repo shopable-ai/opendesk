@@ -31,6 +31,7 @@ function fixture(t, mutate = () => {}, afterWrite = () => {}) {
   });
 
   for (const [name, value] of Object.entries(source.evidence)) write('evidence/' + name, value);
+  for (const [name, value] of Object.entries(source.apiContracts || {})) write('api/' + name, value);
   write('contract.json', source.contract);
   write('plan.json', source.plan);
   write('actions.json', source.actions);
@@ -55,12 +56,42 @@ function fixture(t, mutate = () => {}, afterWrite = () => {}) {
 
   const procedure = source.procedure;
   procedure.distilledStepsRef = ref('distilled.json', 'DistilledSteps');
+  for (const decision of procedure.capabilityDecisions || []) {
+    for (const candidateChoice of decision.candidates || []) {
+      if (candidateChoice.contract) {
+        candidateChoice.canonicalContractRefs = [ref('api/' + candidateChoice.contract, 'CanonicalAPIContract', 'text/markdown')];
+        delete candidateChoice.contract;
+      }
+      if (candidateChoice.validationEvidence) {
+        candidateChoice.validationEvidenceRefs = [ref('evidence/' + candidateChoice.validationEvidence, 'evidence', 'text/plain')];
+        delete candidateChoice.validationEvidence;
+      }
+    }
+    if (Array.isArray(decision.sharedConstraints)) {
+      decision.sharedConstraintRefs = decision.sharedConstraints
+        .map(name => ref('api/' + name, 'SharedAPIConstraint', 'text/markdown'));
+      delete decision.sharedConstraints;
+    }
+    if (decision.runtimeValidation && decision.runtimeValidation.evidence) {
+      decision.runtimeValidation.evidenceRefs =
+        [ref('evidence/' + decision.runtimeValidation.evidence, 'evidence', 'text/plain')];
+      delete decision.runtimeValidation.evidence;
+    }
+  }
   write('procedure.json', procedure);
   write('candidate.js', source.candidateSource);
 
   const candidate = source.candidate;
   candidate.procedureRef = ref('procedure.json', 'SemanticProcedure');
   candidate.scriptRef = ref('candidate.js', 'script', 'text/javascript');
+  const apiRefMap = new Map();
+  for (const decision of procedure.capabilityDecisions || []) {
+    const selected = (decision.candidates || []).find(item => item.disposition === 'selected');
+    for (const apiRef of [...(selected && selected.canonicalContractRefs || []), ...(decision.sharedConstraintRefs || [])]) {
+      apiRefMap.set([apiRef.rootId, apiRef.path, apiRef.sha256].join('\u0000'), apiRef);
+    }
+  }
+  candidate.apiRefs = [...apiRefMap.values()];
   write('candidate.json', candidate);
 
   const qualification = source.qualification;
