@@ -2,7 +2,72 @@
 
 最终程序仍是 [examples/agent-to-recipe/calculator.js](../../examples/agent-to-recipe/calculator.js)。本轮没有改变它的字节或桌面行为；`code-rebuild` 结论为 **baseline-retained**。Skill、过程工件、fixture、测试和资格证据用于分层判断这份 JS，不是第二个可执行业务成品，也没有新增 Engine／DSL／Compiler。
 
-需求来源：本任务用户委派“继续完善工作流、直接使用当前 checkout 和未提交修改、不重做 Calculator”；业务原始输入和七类历史产物沿用 [r003 报告](agent-to-recipe-calculator-r003.md#人工可审核的完整本轮要求)。本轮保持 S1—S12／G0—G7，在 `master`／`bd7dcf0d727450a9444cb85b8cc1d11d4e9b8dc2` 上修改与检查，没有提交、推送、切换分支或重跑桌面。评审者是本任务同一 Agent，不是人类评审或盲上下文评测。
+## 2026-09-19 当前续作｜Run Summary
+
+本次续作从远端 `master@64872b6642d32588cbe3a3fabaaedfff7c5d54f7` 开始，直接反向验收既有 r003 黄金 Recipe，没有重做 Calculator、没有修改生产 `calculator.js`、没有恢复 `runtime-api.ai.json`。当前执行环境能够修改并检查 GitHub 仓库，但不能读取用户本机被 `.gitignore` 排除的 `.runtime/automation-authoring/**` 或运行 macOS `./dist/opendesk`；因此历史 q002 live 证据只按已经提交的质量报告／来源关系复用，不伪装成本轮重新读取或重新执行。
+
+| 项目 | 当前结论 | 关键入口 |
+| --- | --- | --- |
+| 任务 | 用成功 Calculator Recipe 反向证明 Agent-to-Recipe 的能力发现与生成链 | [Calculator 案例](../../workflows/agent-to-recipe/cases/calculator.md#2026-09-19从-r003-反向验收能力发现链) |
+| S1—S7 | 复用历史 TaskContract / WorkPlan / Dossier / DistilledSteps；本轮不重做示范 | [r003 报告](agent-to-recipe-calculator-r003.md) |
+| S8—S9 | 新合同把最终 Recipe-driving 选择收敛进 `SemanticProcedure.capabilityDecisions`；旧 r003 缺字段时保持 unknown，不倒填 | [共享合同](../frameworks/agent-to-recipe-skill-contract.md)、[procedure-synthesize](../../workflows/agent-to-recipe/skills/procedure-synthesize/SKILL.md) |
+| S10 | 仍由 application-engineer 负责 locator / stability；Calculator 当前使用 exact window + AX semantic preflight + Runtime scoped UI API，不留下裸坐标 | [application-engineer](../../workflows/agent-to-recipe/skills/application-engineer/SKILL.md) |
+| S11 | 生产 Recipe baseline-retained；Candidate 对新链路用 `apiRefs` + `sourceMapping.capabilityDecisionRefs` 固定选择关系 | [calculator.js](../../examples/agent-to-recipe/calculator.js) |
+| S12 | 历史 q002 固定范围资格继续是历史 PASS；本轮当前 HEAD 的 macOS live 没有重跑，保持 **not-run** | [r003 Qualification 说明](agent-to-recipe-calculator-r003.md) |
+| 最终汇总 | 本页即 Run Summary 投影；权威状态仍来自 progress / handoff / QualificationRecord，不新增平行状态文件 | [WORKFLOW](../../workflows/agent-to-recipe/WORKFLOW.md) |
+
+### 反向闭环结论
+
+```text
+业务步骤
+→ 能力需求
+→ docs/api/agent/README.md
+→ targets.md / elements.md
+→ 候选方法
+→ 选中方法的 canonical contract / shared constraints
+→ 当前环境 Runtime Validation
+→ Observation / Evidence
+→ DistilledSteps
+→ SemanticProcedure（dataDependencies + capabilityDecisions）
+→ AppProfile / Locator / Stability
+→ 普通 JavaScript + CandidateManifest
+→ QualificationRecord
+→ Run Summary / Handoff
+```
+
+Calculator 当前代码可以从短入口发现并追到 `window.get / window.activate / window.current`、`Accessibility.snapshot`、`UI.tapTargets`、`UI.readText`；同一 catalog 也能看到 `App.launch`、`UI.tapText`、`UI.tapTexts` 等候选。现在明确区分“能发现”“决定选择”“读过合同”“在现场验证通过”，失败候选必须留证；已知不合适但未运行的候选使用 `rejected/not-run`，不为了填表制造副作用失败。选中的 canonical contract 以内容绑定进入 Candidate，不能只留一个 API 名称。
+
+### Calculator 关键事实
+
+| 必须回答的问题 | 当前可复核结论 |
+| --- | --- |
+| `firstResult` 从哪里来 | `readCalculatorResult()` 的 `UI.readText({within: win})` 实际返回；Procedure 数据依赖为第一次 runtime read → 第二段业务输入 |
+| 为什么不是 expected | 生产源码不包含 110 / 660 Oracle；第二次调用展开 `...firstResult`，工件检查器会拒绝“先读再固定写 110” |
+| 按钮如何动作 | 语义 role/name 预检后用 `UI.tapTargets`；当前 fixed scope 不把 `UI.tapTexts` 或 Accessibility-first 推广为全局优先级 |
+| 窗口变化如何处理 | 每个受保护操作前用 `window.current` 重验同一 PID/native handle、焦点和 Basic bounds；不持久化旧 ref / 裸坐标 |
+| `× / * / x` 怎么处理 | 当前生产只支持真实语义名 `×`；没有证据就不做隐式别名。未来增加别名属于策略变更，需要新候选和重验 |
+| Recipe 如何进入最终结论 | S12 固定 Candidate 后产生 QualificationRecord；本页只汇总，不把历史 PASS 提升为当前 HEAD 新 PASS |
+
+### Recipe Review / Qualification 结论
+
+生产 Recipe 字节没有变化，所以先前 validation-plan 权重下的固定候选 **88/100** 不能因为工作流文档更完整就被抬高。其主要强项是业务数据链、框架能力复用、普通函数职责、fail-fast 与固定场景的历史真实验证；主要扣分仍是当前 HEAD 未重新 live、变化／故障场景有限、跨布局／语言／Windows／更广参数域未资格化。**本轮不虚报 ≥95。**
+
+| 维度 | 结论 | 剩余边界 |
+| --- | --- | --- |
+| 业务正确性 / 真实 UI 数据依赖 | PASS（历史 fixed scope） | 当前 HEAD live 未重跑 |
+| 框架能力复用 / 可读性 / 可维护性 | PASS | 不因一个 Calculator 抽成应用类或全局策略 |
+| 参数化 / 可复用性 | LIMITED-BY-DESIGN | 当前只资格化固定正整数链和指定运算符 |
+| Locator / Stability | PASS（声明范围） | 其他布局、语言、平台未测 |
+| 错误处理 | PASS（源码/既有资格） | unknown / partial 故障注入仍有限 |
+| 验证充分性 | PARTIAL（当前续作） | 正式 Runtime contract/unit 与当前 HEAD macOS live 为 UNRUN |
+
+因此可以继续复用的是“历史已资格化的 fixed-scope Recipe + 已绑定证据”；不能从本轮得出“当前任意环境生产级 95+”或“Windows/其他布局已通过”。这不是代码必须重写的信号，而是后续资格证据边界。
+
+### 新增结构门禁
+
+当前 frozen fixture 明确为 synthetic，只验证检查器能否识别断链。它现在覆盖：缺 capability decision、绕过短入口、双 selected、selected 无 canonical contract、文档存在但 Runtime not-run、failed 无 evidence、Candidate 丢 decision mapping、Candidate 丢 selected API ref，以及旧 Procedure/Candidate 不含新字段时保持 provenance unknown。fixture 不执行 Calculator，也不把合成 110/660 冒充历史 observation。
+
+以下原有评审段落记录较早的 2026-09-19 本地切片，其中当时的 HEAD、测试次数和“未提交”状态只对那个时点成立；本次续作以上面的 Run Summary 为当前状态，不改写旧执行证据。评审者始终是任务 Agent，不是人类评审或盲上下文评测。
 
 ## 要求如何落到证据
 
