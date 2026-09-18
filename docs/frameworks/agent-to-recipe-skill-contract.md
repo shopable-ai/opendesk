@@ -249,7 +249,7 @@ DistilledSteps 只对原始事实做有来源的重建、分段和取舍，不�
 
 包含 `distilledStepsRef / businessSteps / parameters / config / secretRefs / runtimeValues / dataDependencies / capabilityDecisions / retainedReasons / omittedReasons / recoveryCandidates / supportedScope / unresolved / evidenceRefs`。若当前实现尚无 `distilledStepsRef` 字段，可由 inputRefs／sourceMapping／handoff 固定实际消费版本，正式 schema 升级另行实施；不能因此重新读取不受约束的 Raw Trace 作为隐式输入。
 
-每个 Business Step 定义业务目的、输入、前后条件、输出、验证与副作用；区分事实、解释和待测规则。S8 将 DistilledSteps 的必要操作片段组织成业务步骤，S9 再确认参数、数据角色、分支、循环、Recovery 和支持范围。未证明分支只作为候选或补采请求，不进入支持声明。
+每个新生成或有策略修订的 Business Step 至少定义 `stepId / purpose / sourceStepRefs / inputs / inputSources / preconditions / execution / observation / outputs / postconditions / verification / stopConditions / consumers / sideEffects`。`execution` 表达业务层执行方式或 operation/helper 意图；具体 OpenDesk 方法选择由 `capabilityDecisions` 追溯，避免把 API 名称复制成第二份真相。`inputSources` 必须区分参数、配置、Secret、前序实际 observation/runtime value 与常量；`observation` 说明本步实际要读取/保存什么；`stopConditions` 明确何时不得继续副作用；`consumers` 说明输出被谁使用。S8 将 DistilledSteps 的必要操作片段组织成业务步骤，S9 再确认参数、数据角色、分支、循环、Recovery 和支持范围。未证明分支只作为候选或补采请求，不进入支持声明。历史 Procedure 缺这些新增字段时保持未知并按旧版本兼容消费，不事后倒填。
 
 为兼容既有消费者，`retainedReasons / omittedReasons` 可以保留摘要，但原始 action 的 retain／merge／omit／recovery／unresolved 权威取舍属于 DistilledSteps；Procedure 不维护第二套互相漂移的 action disposition。若 Procedure 发现上游取舍错误，应提出 trace-distill 修订并消费新版本。
 
