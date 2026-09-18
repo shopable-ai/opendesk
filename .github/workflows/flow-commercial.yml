@@ -10,6 +10,7 @@ on:
       - 'pkg/flowmarketplace/**'
       - 'pkg/appdata/**'
       - 'pkg/execution/**'
+      - 'pkg/customui/winhost/**'
       - 'internal/flowcli/**'
       - 'internal/packagecli/**'
       - 'cmd/opendesk/**'
@@ -18,9 +19,13 @@ on:
       - 'tests/runtime-api/flow-installation.js'
       - 'tests/fixtures/flow-install-test/**'
       - 'tests/runtime-api/support/flow-package-harness.js'
+      - 'tests/prototypes/marketplace.test.cjs'
+      - 'tests/prototypes/marketplace-smoke.py'
+      - 'apps/opendesk/prototypes/marketplace/**'
       - 'tests/runtime-api/gates/**'
       - 'scripts/test_runtime_apis.js'
       - 'scripts/build_windows_distribution.ps1'
+      - 'scripts/build_windows_ui.ps1'
       - 'VERSION'
       - 'go.mod'
       - 'go.sum'
@@ -36,6 +41,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  marketplace-prototype:
+    name: Marketplace prototype
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout current commit
+        uses: actions/checkout@v4
+      - name: Run Marketplace model and sidebar contract tests
+        run: node --test tests/prototypes/marketplace.test.cjs
+      - name: Install browser smoke dependency
+        run: python -m pip install --disable-pip-version-check playwright
+      - name: Run Marketplace Chromium smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$browser" ]; then
+            echo "No system Chromium/Chrome found on runner" >&2
+            exit 1
+          fi
+          python tests/prototypes/marketplace-smoke.py --set-content --browser-executable "$browser"
+      - name: Upload Marketplace prototype evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marketplace-prototype-evidence
+          path: .runtime/tests/marketplace-prototype
+          if-no-files-found: warn
+          retention-days: 7
+
   owners:
     name: B0+B1+Marketplace portable owners
     runs-on: ubuntu-latest
