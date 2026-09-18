@@ -63,7 +63,7 @@ with sync_playwright() as p:
 
         check("entry stays Live without snapshot", state("phase") == "REFERENCE_SELECTING" and state("snapshotId") is None)
         check("formal measurement toolbar hidden before freeze", page.locator("#tools").is_hidden())
-        check("selection instruction exact", page.locator("#selection-instruction").inner_text() == "移动鼠标选择窗口 · 单击开始测量 · Esc 取消")
+        check("selection instruction exact", page.locator("#selection-instruction").inner_text() == "移动鼠标选择窗口 · 目标保持清晰，周围变暗 · 单击开始测量 · Esc 取消")
         tick0 = page.evaluate("MeasureReferenceSelection.state.liveTick")
         page.wait_for_timeout(320)
         tick1 = page.evaluate("MeasureReferenceSelection.state.liveTick")
@@ -71,9 +71,22 @@ with sync_playwright() as p:
 
         move("window", 100, 24)
         first_candidate = state("referenceCandidate.id")
+        first_mask = page.locator("#overlay .selection-focus-mask")
+        first_mask_d = first_mask.get_attribute("d")
+        check(
+            "hover focus uses outside-only even-odd spotlight",
+            first_mask.count() == 1
+            and first_mask.get_attribute("fill-rule") == "evenodd"
+            and first_mask_d is not None
+            and first_mask_d.count("M") == 2
+            and page.locator("#overlay .window-preview").count() == 1
+            and page.locator("#overlay .window-preview").evaluate("e => getComputedStyle(e).fill") == "none",
+        )
         move("notes-window", 90, 24)
         second_candidate = state("referenceCandidate.id")
+        second_mask_d = page.locator("#overlay .selection-focus-mask").get_attribute("d")
         check("hover A/B changes candidate only", first_candidate == "window" and second_candidate == "notes-window" and state("snapshotId") is None and state("reference") is None)
+        check("spotlight cutout follows current candidate without stale mask", second_mask_d is not None and second_mask_d != first_mask_d and page.locator("#overlay .selection-focus-mask").count() == 1)
         page.click("#live-tab")
         check("simulated app content can switch while selecting", state("live.tab") == 1 and state("phase") == "REFERENCE_SELECTING" and state("snapshotId") is None)
         page.click("#live-tab")
