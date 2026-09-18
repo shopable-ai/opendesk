@@ -503,23 +503,27 @@ func (r *RecorderRuntime) buildActionsFile(input string) (recorderActionsResult,
 	if err != nil {
 		return recorderActionsResult{}, recorderError(RecorderInvalidRecording, operation, "manifest.json contains invalid recording facts", err)
 	}
-	if manifest.Storage.RawFile != filepath.ToSlash(filepath.Join("raw", "events.ndjson")) && manifest.Storage.RawFile != filepath.Join("raw", "events.ndjson") {
-		return recorderActionsResult{}, recorderError(RecorderInvalidRecording, operation, "manifest rawFile must be raw/events.ndjson", nil)
+	rawRelative := "events.ndjson"
+	if manifest.FormatVersion == recorderLegacyRecordingFormatVersion {
+		rawRelative = filepath.ToSlash(filepath.Join("raw", "events.ndjson"))
 	}
-	rawPath := filepath.Join(recordingDir, "raw", "events.ndjson")
+	if filepath.ToSlash(manifest.Storage.RawFile) != rawRelative {
+		return recorderActionsResult{}, recorderError(RecorderInvalidRecording, operation, "manifest rawFile does not match the recording format", nil)
+	}
+	rawPath := filepath.Join(recordingDir, filepath.FromSlash(rawRelative))
 	rawBytes, err := recorderReadRegular(rawPath, recorderMaxRawBytes)
 	if err != nil {
-		return recorderActionsResult{}, recorderWrapFileError(operation, "raw/events.ndjson", err)
+		return recorderActionsResult{}, recorderWrapFileError(operation, rawRelative, err)
 	}
 	rawHash := recorderSHA256(rawBytes)
 	events, parseIssues, err := recorderParseRawEvents(rawBytes, !terminal || manifest.Storage.State != "saved")
 	if err != nil {
-		return recorderActionsResult{}, recorderError(RecorderInvalidRecording, operation, "raw/events.ndjson is invalid", err)
+		return recorderActionsResult{}, recorderError(RecorderInvalidRecording, operation, rawRelative+" is invalid", err)
 	}
 	actions := recorderActions{
 		FormatVersion: recorderActionsFormatVersion, RecordingID: manifest.RecordingID,
 		CreatedAt:   manifest.StoppedAt,
-		Raw:         recorderRawReference{File: filepath.ToSlash(filepath.Join("raw", "events.ndjson")), SHA256: rawHash, Bytes: int64(len(rawBytes))},
+		Raw:         recorderRawReference{File: rawRelative, SHA256: rawHash, Bytes: int64(len(rawBytes))},
 		Environment: recorderActionEnvironment{Platform: manifest.Capture.Platform, CoordinateSpace: manifest.Capture.CoordinateSpace, Within: manifest.Within, InitialWindow: manifest.InitialWindow},
 		Actions:     []recorderAction{}, EventDisposition: []recorderEventDisposition{}, Issues: append(make([]recorderIssue, 0), parseIssues...),
 	}
@@ -3511,7 +3515,7 @@ func recorderValidateActions(actions recorderActions, actionsPath, recordingDir 
 		}
 	}
 	rawPath := filepath.Join(recordingDir, filepath.FromSlash(actions.Raw.File))
-	if actions.Raw.File != "raw/events.ndjson" || !recorderPathWithin(recordingDir, rawPath) || len(actions.Raw.SHA256) != 64 || actions.Raw.Bytes < 0 {
+	if actions.Raw.File != "events.ndjson" || !recorderPathWithin(recordingDir, rawPath) || len(actions.Raw.SHA256) != 64 || actions.Raw.Bytes < 0 {
 		return recorderError(RecorderInvalidRecording, operation, "actions raw reference is invalid", nil)
 	}
 	rawBytes, err := recorderReadRegular(rawPath, recorderMaxRawBytes)
