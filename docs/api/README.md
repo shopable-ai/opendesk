@@ -39,6 +39,8 @@ opendesk ...
 
 ### Coding Agent 操作桌面
 
+先从 [Agent API 短入口](agent/README.md) 按业务步骤发现能力；下列 CLI 只是现有调用入口，不是能力全集，也不要求任务开始先通读机器索引或全部 Reference。
+
 ```bash
 opendesk ai capabilities
 opendesk ai windows

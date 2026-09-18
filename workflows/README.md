@@ -70,7 +70,7 @@ node --test tests/workflows/handoff-integrity.test.js
   [`build-script-app`](script-app-packaging/skills/build-script-app/SKILL.md) 把已经写好并验证过的 OpenDesk JavaScript
   组织为 App Mode package，建立或检查 `opendesk.app.json`，再按需装入 macOS `.app` 或 Windows portable distribution。
 - 普通用户和开发者查看公开目录结构、`-app` 命令、Manifest、平台 staging 与验证边界时，阅读
-  [Script App Packaging 用户文档](../docs/api/script-app-packaging.md)；App Mode 内的 `automation.app` 方法、Tray/Menu、Single Instance 与退出语义仍以 [automation.app API](../docs/api/app-shell.md) 为准。
+  [Script App Packaging 用户文档](../docs/api/script-app-packaging.md)；App Mode 内的 `automation.app` 方法、Tray/Menu、Single Instance 与退出语义仍以 [automation.app API](../docs/api/automation-app.md) 为准。
 - Script App Packaging 解决桌面交付形态，不等于 `.odpkg` 源码保护或 License，也不把当前未实现的 MSI/MSIX、自动快捷方式、文件关联或固定端口字段写成已支持能力。
 
 ## 人工 Recorder：从这里开始
@@ -106,7 +106,7 @@ node --test tests/workflows/handoff-integrity.test.js
 - [框架导航](../docs/frameworks/README.md)、[示范方法](../docs/frameworks/demonstration-to-automation-pipeline.md)与[任务求解](../docs/frameworks/automation-problem-solving-framework.md)提供依据；不复制成新的总框架。
 - [应用开发](../docs/frameworks/app-development-framework.md)、[能力成熟度](../docs/frameworks/capability-development.md)和[扩展框架](../docs/frameworks/runtime-api-extension-framework.md)继续负责原有领域。
 - [共享合同](../docs/frameworks/agent-to-recipe-skill-contract.md)继续维护公共字段、权限、版本、交接和资格范围；尚未实施的目标职责不表示当前存在或已加载实现。
-- [当前 API](../docs/api/README.md)决定真正可调用能力；优先框架 API 和必要普通函数，不强制 calc 对象，不虚构 UI.tap 或新 Runtime。
+- [Agent API 短入口](../docs/api/agent/README.md)决定真正可调用能力；优先框架 API 和必要普通函数，不强制 calc 对象，不虚构 UI.tap 或新 Runtime。
 - 普通 JS 路线不以前置 Recorder Session、Compiler、可执行 IR、独立 Replay Runtime、LangGraph 或平台为条件；明确选择完整 Recorder 专项时仍执行对应门槛。
 - 近期先交付可调用、可配置、可验证、可维护的成果；未来按需求考虑共享与平台化，不把平台延期误解为不需要资产复用。
 

@@ -36,7 +36,7 @@ description: 从 OpenDesk Recorder actions.json 权威动作数据确定性编�
 
 3. 只有结果 `valid: true` 才继续。inspector 从 sibling candidate 安全定位当前包内 actions、manifest 和 raw，并核对 recording ID、revision、readiness、字节数、hash 与 action mapping；candidate 中的旧机器绝对路径只作 provenance。
 4. 完整读取 [references/refinement-contract.md](references/refinement-contract.md)。逐个分析 action 的 source/timing/position、target scope、`semanticStatus`、窗口或显示器 identity，以及 element role/name/identifier/enabled/nativeActions/bounds/point/ancestors。不得只看 action 数量或生成脚本；不要人工从 basic JavaScript 写 refined block。
-5. 阅读本次会调用的 `docs/api/` 当前文档。语义定位或坐标转换涉及 Experimental/平台能力时，还要核对当前实现和正式测试；路线图、旧文档和其他 recipe 不能证明 API 可用。
+5. 需要核对调用时，从 [Agent API 短入口](../../../../docs/api/agent/README.md) 定位本次方法正文及必要公共约束，不要求通读全部 API、类型或机器索引。语义定位或坐标转换涉及 Experimental/平台能力时，还要核对当前实现和正式测试；路线图、旧文档和其他 recipe 不能证明 API 可用。
 
 来源缺失、漂移、路径越界、candidate 不唯一或映射冲突时停止并报告，不重新生成、不猜测、不改绑其他录制包。
 

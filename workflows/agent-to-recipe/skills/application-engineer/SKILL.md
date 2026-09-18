@@ -30,7 +30,7 @@ description: 为 OpenDesk 桌面自动化认识应用界面、审阅纠错并补
 - 本次需要哪些证据与测试：[验证计划](../../design/validation-plan.md)，沿用已有 G0—G7／F0—F10，并在集合任务中执行 SC-A—SC-P 适用项。
 - 判断多个应用重复的窗口、控件、坐标、等待代码是否应上升为公共能力时，读取[多应用自动化高频框架能力](../../../../docs/frameworks/multi-application-automation-primitives.md)；只按其中已实现并有当前 API 文档的能力编写 Recipe，路线图中的工作名不能当作可调用接口。
 - 遇到重复 UI Collection、无 usable UI tree、VLM grouping、virtualized list 或 scroll traversal 时，读取[Structured UI Collection Reading](../../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)；`UI.readCollection()`、`UI.collectCollection()`、`SemanticVisionProvider` 当前若未出现在 API/类型/实现/测试闭环中，只能作为 Target contract。
-- 真正准备使用工具时，再读取对应[当前 API](../../../../docs/api/README.md)，核对类型、实现和当前环境。出现冲突要记录、补证，不自行采用最方便的解释。
+- 真正准备使用工具时，从 [Agent API 短入口](../../../../docs/api/agent/README.md) 发现相关能力并取得选中方法的完整正文与公共约束，再按需核对精确类型、实现和当前环境。出现冲突要记录、补证，不自行采用最方便的解释。
 
 ## 入口、输入与完成范围
 

@@ -14,7 +14,7 @@ order: 10
 
 ### 1. 固定入口与本轮边界
 
-先读根 `AGENTS.md`、本入口、[共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)第 4—8 节及相关当前 API；定位代码还须读下文的定位修复方法。再按真实来源选择：
+先读根 `AGENTS.md`、本入口、[共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)第 4—8 节；需要发现或调用 API 时从 [Agent API 短入口](../../docs/api/agent/README.md) 按当前步骤取得方法正文与必要公共约束，不默认通读机器索引、全部类型或历史案例；定位代码还须读下文的定位修复方法。再按真实来源选择：
 
 | 当前任务 | 从哪里继续 | 不允许偷换为 |
 | --- | --- | --- |
@@ -99,7 +99,7 @@ node --test tests/workflows/handoff-integrity.test.js
 | S2、S3—S6 的操作前／中 | 按业务意图读相关模块概览及方法契约；选择实际可用入口；执行一个有界片段并观察 | 候选与选择依据、契约来源、实际入口、真实读值与证据、未决副作用 |
 | S10—S11 的补强／生成 | 再查框架可复用能力；保留必要业务约束；改变策略后形成新候选并交 S12 重验 | 保留／替换理由、过程与代码对应、候选版本、受影响验证范围 |
 
-默认读取链是：最小运行规则 → [API Markdown 导航](../../docs/api/README.md) → 相关类的“API 一览” → 选中方法及公共约定 → 必要关联类型。只有冲突、缺口或失败时定向深入实现和测试；[框架导航](../../docs/frameworks/README.md)负责方法选择，不是全部可调用 API 清单。`runtime-api.ai.json` 不作为必读整包，`keyMethods` 和 `ai schema` 的遗漏不能证明 Runtime 能力不存在。
+默认读取链是：最小运行规则 → [Agent API 短入口](../../docs/api/agent/README.md) → 按能力分组的方法目录 → 选中方法正文与明确公共依赖 → 必要关联类型。只有冲突、缺口或失败时定向深入实现和测试；[框架导航](../../docs/frameworks/README.md)负责方法选择，不是全部可调用 API 清单。`runtime-api.ai.json` 不作为必读整包，`keyMethods` 和 `ai schema` 的遗漏不能证明 Runtime 能力不存在。
 
 具体职责仍由当前外部 Coding Agent 手工协调：读取文件、编写短普通 JS、调用适用的 `ai run`／`-script`、读取返回的 artifacts；不假设 Runtime 内部 `Agent.run()` 拥有同样工具权限。可共享原生引用的操作留在同一 Execution；跨 Execution 只传普通数据与证据，并重新解析目标。
 

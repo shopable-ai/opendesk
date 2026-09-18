@@ -91,7 +91,8 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 - 读取 Execution ID、输入和 artifact 上下文：[Execution Context](execution.md)
 - 理解 JavaScript 生命周期与取消：[JavaScript Runtime](runtime.md)
 - 直接拿范例：[Cookbook](cookbook.md)
-- 给 Agent / 工具读取：[runtime-api.ai.json](runtime-api.ai.json)
+- Agent 按需阅读：[分层 Markdown 短入口](agent/README.md)
+- 程序解析与一致性检查：[runtime-api.ai.json](runtime-api.ai.json)（非默认全文上下文）
 
 ## 目录按五条用户任务带排列，页面不因实现细节拆散
 
@@ -186,4 +187,4 @@ OpenDesk 让你用 JavaScript 或 Agent CLI 操作真实桌面：先确定应用
 - `Accessibility` 与 `UI` 菜单方法仅在可信本地 execution 启用；HTTP、MCP、Scheduler 当前只看到禁用 capability，不会读取目标。
 - Scheduler 的产品能力与生命周期见 `scheduler.md`；HTTP 字段和响应合同见 `scheduler-api.md`。
 
-`runtime-api.ai.json` 是给 Agent 的紧凑机器索引，不替代本目录各页面的用户调用契约。Runtime 内部注入与 polyfill 组成见 [Runtime API composition](../implementation/runtime/runtime-api-composition.md)，文档与类型同步规则见 [docs/api editme-cli TOC maintenance](../maintenance/docs-user-api-editme-toc-maintenance.md)。
+Agent 日常能力发现从 [Markdown 短入口](agent/README.md) 开始。`runtime-api.ai.json` 保留给程序解析和一致性检查，不默认全文返回给模型，也不替代 canonical Reference。Runtime 内部注入与 polyfill 组成见 [Runtime API composition](../implementation/runtime/runtime-api-composition.md)，文档与类型同步规则见 [docs/api editme-cli TOC maintenance](../maintenance/docs-user-api-editme-toc-maintenance.md)。
