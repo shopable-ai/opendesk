@@ -43,7 +43,11 @@ test('controller exposes no-project task intent, four asset forms, candidate sav
   assert.match(controller, /protectedRoots:\s*\[execution\.scriptDir, file\.join\(appDataRoot, 'flows'\)\]/);
   assert.match(controller, /defaultBusinessCwd:\s*appDataRoot/);
   assert.doesNotMatch(controller, /businessCwd\s*=\s*file\.join\(ref,\s*['"]\.\.['"]\)/);
-  assert.match(controller, /authorizations:\s*\{readSource:\s*false, shareSourceWithModel:\s*false\}/);
+  assert.match(controller, /id="allowSourceRead"/);
+  assert.match(controller, /id="allowModelShare"/);
+  assert.match(controller, /readSource:\s*record\.taskDraft\.readSource === true/);
+  assert.match(controller, /shareSourceWithModel:\s*record\.taskDraft\.shareSourceWithModel === true/);
+  assert.match(controller, /if \(!record\.taskDraft\.readSource\) record\.taskDraft\.shareSourceWithModel = false/);
   assert.doesNotMatch(controller, /projectId\s*:\s*['"][^'"]+/);
 });
 
