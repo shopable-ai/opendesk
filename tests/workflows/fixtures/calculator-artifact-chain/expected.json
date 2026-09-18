@@ -1,6 +1,10 @@
 {
   "fixtureStatus": "fixture-only",
-  "positive": {"firstResult":"110","finalResult":"660","verdict":"pass"},
+  "positive": {
+    "firstResult": "110",
+    "finalResult": "660",
+    "verdict": "pass"
+  },
   "negativeCodes": [
     "MISSING_EVIDENCE",
     "MIXED_ATTEMPT",
@@ -9,7 +13,13 @@
     "NECESSARY_ACTION_OMITTED",
     "DATA_DEPENDENCY_BROKEN",
     "HISTORICAL_FACT_UNBOUND",
-    "HASH_MISMATCH"
+    "HASH_MISMATCH",
+    "CAPABILITY_DECISION_REQUIRED",
+    "DISCOVERY_PATH",
+    "METHOD_SELECTION",
+    "METHOD_NOT_VALIDATED",
+    "CAPABILITY_SOURCE_MAPPING",
+    "API_REF_MISMATCH"
   ],
   "note": "Expected values are test Oracles and are never read by the candidate source or used as producer data."
 }
