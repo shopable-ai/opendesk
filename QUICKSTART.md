@@ -576,10 +576,12 @@ docs/quality/testing-guide.md
 脚本/API 使用：
 
 ```text
+docs/api/agent/README.md
 docs/api/index.md
 docs/api/cookbook.md
-docs/api/runtime-api.ai.json
 ```
+
+Agent 从 `docs/api/agent/README.md` 按当前业务步骤展开；用户总导航与 Cookbook 按需读取，不是顺序必读清单。`docs/api/runtime-api.ai.json` 保留程序解析与校验用途，不作为默认全文阅读输入。
 
 项目工程文档：
 
