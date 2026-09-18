@@ -8,7 +8,11 @@
   "contract": {
     "schemaVersion": "agent-to-recipe/v1",
     "taskId": "fixture-calculator-chain",
-    "successCriteria": ["first actual read", "second input consumes first read", "final actual read"]
+    "successCriteria": [
+      "first actual read",
+      "second input consumes first read",
+      "final actual read"
+    ]
   },
   "plan": {
     "schemaVersion": "agent-to-recipe/v1",
@@ -16,99 +20,819 @@
     "revision": "fixture-r001"
   },
   "actions": [
-    {"actionId":"A001","kind":"window","data":{"scope":"synthetic Calculator fixture"}},
-    {"actionId":"A002","kind":"actual-input","data":{"stepId":"clear-first","names":["AC"],"receipt":{"ok":true,"completed":[{"ok":true,"actionState":"acknowledged"}]}}},
-    {"actionId":"A003","kind":"actual-read","data":{"label":"clean","raw":"0"}},
-    {"actionId":"A004","kind":"actual-input","data":{"stepId":"first-expression","names":["2","5","×","4","+","1","0","="],"receipt":{"ok":true,"completed":[{"ok":true,"actionState":"acknowledged"}]}}},
-    {"actionId":"A005","kind":"actual-read","data":{"label":"first-result","first":"110","second":"110","source":"UI.readText"}},
-    {"actionId":"A006","kind":"screenshot","data":{"label":"first-result","fixture":true}},
-    {"actionId":"A007","kind":"actual-input","data":{"stepId":"clear-second","names":["AC"],"receipt":{"ok":true,"completed":[{"ok":true,"actionState":"acknowledged"}]}}},
-    {"actionId":"A008","kind":"actual-read","data":{"label":"second-clean","raw":"0"}},
-    {"actionId":"A009","kind":"actual-input","data":{"stepId":"second-expression","names":["6","×","1","1","0","="],"receipt":{"ok":true,"completed":[{"ok":true,"actionState":"acknowledged"}]}}},
-    {"actionId":"A010","kind":"actual-read","data":{"label":"final-result","first":"660","second":"660","source":"UI.readText"}}
+    {
+      "actionId": "A001",
+      "kind": "window",
+      "data": {
+        "scope": "synthetic Calculator fixture"
+      }
+    },
+    {
+      "actionId": "A002",
+      "kind": "actual-input",
+      "data": {
+        "stepId": "clear-first",
+        "names": [
+          "AC"
+        ],
+        "receipt": {
+          "ok": true,
+          "completed": [
+            {
+              "ok": true,
+              "actionState": "acknowledged"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "actionId": "A003",
+      "kind": "actual-read",
+      "data": {
+        "label": "clean",
+        "raw": "0"
+      }
+    },
+    {
+      "actionId": "A004",
+      "kind": "actual-input",
+      "data": {
+        "stepId": "first-expression",
+        "names": [
+          "2",
+          "5",
+          "×",
+          "4",
+          "+",
+          "1",
+          "0",
+          "="
+        ],
+        "receipt": {
+          "ok": true,
+          "completed": [
+            {
+              "ok": true,
+              "actionState": "acknowledged"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "actionId": "A005",
+      "kind": "actual-read",
+      "data": {
+        "label": "first-result",
+        "first": "110",
+        "second": "110",
+        "source": "UI.readText"
+      }
+    },
+    {
+      "actionId": "A006",
+      "kind": "screenshot",
+      "data": {
+        "label": "first-result",
+        "fixture": true
+      }
+    },
+    {
+      "actionId": "A007",
+      "kind": "actual-input",
+      "data": {
+        "stepId": "clear-second",
+        "names": [
+          "AC"
+        ],
+        "receipt": {
+          "ok": true,
+          "completed": [
+            {
+              "ok": true,
+              "actionState": "acknowledged"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "actionId": "A008",
+      "kind": "actual-read",
+      "data": {
+        "label": "second-clean",
+        "raw": "0"
+      }
+    },
+    {
+      "actionId": "A009",
+      "kind": "actual-input",
+      "data": {
+        "stepId": "second-expression",
+        "names": [
+          "6",
+          "×",
+          "1",
+          "1",
+          "0",
+          "="
+        ],
+        "receipt": {
+          "ok": true,
+          "completed": [
+            {
+              "ok": true,
+              "actionState": "acknowledged"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "actionId": "A010",
+      "kind": "actual-read",
+      "data": {
+        "label": "final-result",
+        "first": "660",
+        "second": "660",
+        "source": "UI.readText"
+      }
+    }
   ],
   "dossier": {
     "schemaVersion": "agent-to-recipe/v1",
     "planRevision": "fixture-r001",
     "runtimeValues": [
-      {"name":"firstResult","type":"digit-string","observedValue":"110","origin":"A005 actual UI read","evidence":"first-read.txt","consumers":["A009"],"validity":"fixture execution only","reacquireOnFreshRun":true},
-      {"name":"finalResult","type":"digit-string","observedValue":"660","origin":"A010 actual UI read","evidence":"final-read.txt","consumers":["final output"],"validity":"fixture execution only","reacquireOnFreshRun":true}
+      {
+        "name": "firstResult",
+        "type": "digit-string",
+        "observedValue": "110",
+        "origin": "A005 actual UI read",
+        "evidence": "first-read.txt",
+        "consumers": [
+          "A009"
+        ],
+        "validity": "fixture execution only",
+        "reacquireOnFreshRun": true
+      },
+      {
+        "name": "finalResult",
+        "type": "digit-string",
+        "observedValue": "660",
+        "origin": "A010 actual UI read",
+        "evidence": "final-read.txt",
+        "consumers": [
+          "final output"
+        ],
+        "validity": "fixture execution only",
+        "reacquireOnFreshRun": true
+      }
     ],
-    "actualInputs":{"first":["2","5","×","4","+","1","0","="],"second":["6","×","1","1","0","="]},
-    "sideEffects":{"inputState":"confirmed","finalActual":"660"},
-    "provenanceNote":"Frozen fixture assembled for validator tests; never a historical execution record."
+    "actualInputs": {
+      "first": [
+        "2",
+        "5",
+        "×",
+        "4",
+        "+",
+        "1",
+        "0",
+        "="
+      ],
+      "second": [
+        "6",
+        "×",
+        "1",
+        "1",
+        "0",
+        "="
+      ]
+    },
+    "sideEffects": {
+      "inputState": "confirmed",
+      "finalActual": "660"
+    },
+    "provenanceNote": "Frozen fixture assembled for validator tests; never a historical execution record."
   },
   "distilled": {
     "schemaVersion": "agent-to-recipe/v1",
     "planRevision": "fixture-r001",
     "steps": [
-      {"stepId":"D010","purpose":"prepare first expression","sourceActionRefs":["A001","A002","A003"],"inputs":[],"outputs":["cleanCalculator"],"dependencies":[],"classification":"preparation"},
-      {"stepId":"D020","purpose":"enter first expression","sourceActionRefs":["A004"],"inputs":["firstExpression"],"outputs":[],"dependencies":["D010"],"classification":"business-action"},
-      {"stepId":"D030","purpose":"read actual first result","sourceActionRefs":["A005","A006"],"inputs":[],"outputs":["firstResult"],"dependencies":["D020"],"classification":"runtime-read"},
-      {"stepId":"D040","purpose":"prepare second expression","sourceActionRefs":["A007","A008"],"inputs":["firstResult"],"outputs":["cleanCalculator"],"dependencies":["D030"],"classification":"preparation"},
-      {"stepId":"D050","purpose":"consume actual first result","sourceActionRefs":["A009"],"inputs":["secondMultiplier","firstResult"],"outputs":[],"dependencies":["D040"],"classification":"business-action"},
-      {"stepId":"D060","purpose":"read final result","sourceActionRefs":["A010"],"inputs":[],"outputs":["finalResult"],"dependencies":["D050"],"classification":"runtime-read"}
+      {
+        "stepId": "D010",
+        "purpose": "prepare first expression",
+        "sourceActionRefs": [
+          "A001",
+          "A002",
+          "A003"
+        ],
+        "inputs": [],
+        "outputs": [
+          "cleanCalculator"
+        ],
+        "dependencies": [],
+        "classification": "preparation"
+      },
+      {
+        "stepId": "D020",
+        "purpose": "enter first expression",
+        "sourceActionRefs": [
+          "A004"
+        ],
+        "inputs": [
+          "firstExpression"
+        ],
+        "outputs": [],
+        "dependencies": [
+          "D010"
+        ],
+        "classification": "business-action"
+      },
+      {
+        "stepId": "D030",
+        "purpose": "read actual first result",
+        "sourceActionRefs": [
+          "A005",
+          "A006"
+        ],
+        "inputs": [],
+        "outputs": [
+          "firstResult"
+        ],
+        "dependencies": [
+          "D020"
+        ],
+        "classification": "runtime-read"
+      },
+      {
+        "stepId": "D040",
+        "purpose": "prepare second expression",
+        "sourceActionRefs": [
+          "A007",
+          "A008"
+        ],
+        "inputs": [
+          "firstResult"
+        ],
+        "outputs": [
+          "cleanCalculator"
+        ],
+        "dependencies": [
+          "D030"
+        ],
+        "classification": "preparation"
+      },
+      {
+        "stepId": "D050",
+        "purpose": "consume actual first result",
+        "sourceActionRefs": [
+          "A009"
+        ],
+        "inputs": [
+          "secondMultiplier",
+          "firstResult"
+        ],
+        "outputs": [],
+        "dependencies": [
+          "D040"
+        ],
+        "classification": "business-action"
+      },
+      {
+        "stepId": "D060",
+        "purpose": "read final result",
+        "sourceActionRefs": [
+          "A010"
+        ],
+        "inputs": [],
+        "outputs": [
+          "finalResult"
+        ],
+        "dependencies": [
+          "D050"
+        ],
+        "classification": "runtime-read"
+      }
     ],
     "actionDecisions": [
-      {"actionRef":"A001","decision":"retain","stepRef":"D010","reason":"scope"},
-      {"actionRef":"A002","decision":"retain","stepRef":"D010","reason":"state preparation"},
-      {"actionRef":"A003","decision":"retain","stepRef":"D010","reason":"clean-state read"},
-      {"actionRef":"A004","decision":"retain","stepRef":"D020","reason":"business input"},
-      {"actionRef":"A005","decision":"retain","stepRef":"D030","reason":"runtime producer"},
-      {"actionRef":"A006","decision":"retain","stepRef":"D030","reason":"fixture evidence boundary"},
-      {"actionRef":"A007","decision":"retain","stepRef":"D040","reason":"state preparation"},
-      {"actionRef":"A008","decision":"retain","stepRef":"D040","reason":"clean-state read"},
-      {"actionRef":"A009","decision":"retain","stepRef":"D050","reason":"runtime consumer"},
-      {"actionRef":"A010","decision":"retain","stepRef":"D060","reason":"final runtime read"}
+      {
+        "actionRef": "A001",
+        "decision": "retain",
+        "stepRef": "D010",
+        "reason": "scope"
+      },
+      {
+        "actionRef": "A002",
+        "decision": "retain",
+        "stepRef": "D010",
+        "reason": "state preparation"
+      },
+      {
+        "actionRef": "A003",
+        "decision": "retain",
+        "stepRef": "D010",
+        "reason": "clean-state read"
+      },
+      {
+        "actionRef": "A004",
+        "decision": "retain",
+        "stepRef": "D020",
+        "reason": "business input"
+      },
+      {
+        "actionRef": "A005",
+        "decision": "retain",
+        "stepRef": "D030",
+        "reason": "runtime producer"
+      },
+      {
+        "actionRef": "A006",
+        "decision": "retain",
+        "stepRef": "D030",
+        "reason": "fixture evidence boundary"
+      },
+      {
+        "actionRef": "A007",
+        "decision": "retain",
+        "stepRef": "D040",
+        "reason": "state preparation"
+      },
+      {
+        "actionRef": "A008",
+        "decision": "retain",
+        "stepRef": "D040",
+        "reason": "clean-state read"
+      },
+      {
+        "actionRef": "A009",
+        "decision": "retain",
+        "stepRef": "D050",
+        "reason": "runtime consumer"
+      },
+      {
+        "actionRef": "A010",
+        "decision": "retain",
+        "stepRef": "D060",
+        "reason": "final runtime read"
+      }
     ],
-    "dataDependency":"D030 firstResult -> D050 digit expansion",
-    "recoveryCandidates":[],
-    "unresolved":[]
+    "dataDependency": "D030 firstResult -> D050 digit expansion",
+    "recoveryCandidates": [],
+    "unresolved": []
   },
   "procedure": {
-    "schemaVersion":"agent-to-recipe/v1",
-    "businessSteps":[
-      {"stepId":"B010","sourceStepRefs":["D010"],"inputs":[],"outputs":["cleanCalculator"],"classification":"preparation"},
-      {"stepId":"B020","sourceStepRefs":["D020"],"inputs":["firstExpression"],"outputs":[],"classification":"business-action"},
-      {"stepId":"B025","sourceStepRefs":["D030"],"inputs":[],"outputs":["firstResult"],"classification":"runtime-read"},
-      {"stepId":"B030","sourceStepRefs":["D040"],"inputs":["firstResult"],"outputs":["cleanCalculator"],"classification":"preparation"},
-      {"stepId":"B040","sourceStepRefs":["D050"],"inputs":["secondMultiplier","firstResult"],"outputs":[],"classification":"business-action"},
-      {"stepId":"B050","sourceStepRefs":["D060"],"inputs":[],"outputs":["finalResult"],"classification":"runtime-read"}
+    "schemaVersion": "agent-to-recipe/v1",
+    "businessSteps": [
+      {
+        "stepId": "B010",
+        "sourceStepRefs": [
+          "D010"
+        ],
+        "inputs": [],
+        "outputs": [
+          "cleanCalculator"
+        ],
+        "classification": "preparation"
+      },
+      {
+        "stepId": "B020",
+        "sourceStepRefs": [
+          "D020"
+        ],
+        "inputs": [
+          "firstExpression"
+        ],
+        "outputs": [],
+        "classification": "business-action"
+      },
+      {
+        "stepId": "B025",
+        "sourceStepRefs": [
+          "D030"
+        ],
+        "inputs": [],
+        "outputs": [
+          "firstResult"
+        ],
+        "classification": "runtime-read"
+      },
+      {
+        "stepId": "B030",
+        "sourceStepRefs": [
+          "D040"
+        ],
+        "inputs": [
+          "firstResult"
+        ],
+        "outputs": [
+          "cleanCalculator"
+        ],
+        "classification": "preparation"
+      },
+      {
+        "stepId": "B040",
+        "sourceStepRefs": [
+          "D050"
+        ],
+        "inputs": [
+          "secondMultiplier",
+          "firstResult"
+        ],
+        "outputs": [],
+        "classification": "business-action"
+      },
+      {
+        "stepId": "B050",
+        "sourceStepRefs": [
+          "D060"
+        ],
+        "inputs": [],
+        "outputs": [
+          "finalResult"
+        ],
+        "classification": "runtime-read"
+      }
     ],
-    "parameters":{"firstExpression":{"source":"fixture input","value":"25×4+10"},"secondMultiplier":{"source":"fixture input","value":"6"}},
-    "runtimeValues":[{"name":"firstResult","source":"B025 actual read","consumers":["B040"]},{"name":"finalResult","source":"B050 actual read","consumers":["output"]}],
-    "dataDependencies":[{"producer":"B025","value":"firstResult","consumer":"B040","transform":"character expansion only"}],
-    "supportedScope":"fixture-only fixed chain",
-    "unresolved":[]
+    "parameters": {
+      "firstExpression": {
+        "source": "fixture input",
+        "value": "25×4+10"
+      },
+      "secondMultiplier": {
+        "source": "fixture input",
+        "value": "6"
+      }
+    },
+    "runtimeValues": [
+      {
+        "name": "firstResult",
+        "source": "B025 actual read",
+        "consumers": [
+          "B040"
+        ]
+      },
+      {
+        "name": "finalResult",
+        "source": "B050 actual read",
+        "consumers": [
+          "output"
+        ]
+      }
+    ],
+    "dataDependencies": [
+      {
+        "producer": "B025",
+        "value": "firstResult",
+        "consumer": "B040",
+        "transform": "character expansion only"
+      }
+    ],
+    "supportedScope": "fixture-only fixed chain",
+    "unresolved": [],
+    "capabilityDecisions": [
+      {
+        "decisionId": "CD-window-resolve",
+        "businessStepRefs": [
+          "B010"
+        ],
+        "capabilityNeed": "resolve the exact Calculator window without expanding task scope",
+        "discoveryPath": [
+          "docs/api/agent/README.md",
+          "docs/api/agent/targets.md"
+        ],
+        "candidates": [
+          {
+            "method": "window.get",
+            "disposition": "selected",
+            "reason": "matches the existing-window identity requirement",
+            "contract": "window-get.md"
+          },
+          {
+            "method": "App.launch",
+            "disposition": "rejected",
+            "reason": "launch would add a side effect; this fixed Recipe declares Calculator-open as a precondition"
+          }
+        ],
+        "selectedMethod": "window.get",
+        "runtimeValidation": {
+          "status": "pass",
+          "environmentScope": "synthetic Calculator fixture",
+          "evidence": "window-resolve.txt"
+        },
+        "recipeConsumers": [
+          "main"
+        ],
+        "revalidateWhen": [
+          "window identity changes",
+          "fresh run"
+        ]
+      },
+      {
+        "decisionId": "CD-window-activate",
+        "businessStepRefs": [
+          "B010"
+        ],
+        "capabilityNeed": "focus the already resolved Calculator window",
+        "discoveryPath": [
+          "docs/api/agent/README.md",
+          "docs/api/agent/targets.md"
+        ],
+        "candidates": [
+          {
+            "method": "window.activate",
+            "disposition": "selected",
+            "reason": "bounded activation of the exact WindowInfo",
+            "contract": "window-activate.md"
+          }
+        ],
+        "selectedMethod": "window.activate",
+        "runtimeValidation": {
+          "status": "pass",
+          "environmentScope": "synthetic Calculator fixture",
+          "evidence": "window-activate.txt"
+        },
+        "recipeConsumers": [
+          "main"
+        ],
+        "revalidateWhen": [
+          "foreground or focus changes",
+          "fresh run"
+        ]
+      },
+      {
+        "decisionId": "CD-window-refresh",
+        "businessStepRefs": [
+          "B010",
+          "B020",
+          "B025",
+          "B030",
+          "B040",
+          "B050"
+        ],
+        "capabilityNeed": "revalidate the same window before observation and input",
+        "discoveryPath": [
+          "docs/api/agent/README.md",
+          "docs/api/agent/targets.md"
+        ],
+        "candidates": [
+          {
+            "method": "window.current",
+            "disposition": "selected",
+            "reason": "refreshes the exact window instead of trusting stale geometry",
+            "contract": "window-current.md"
+          }
+        ],
+        "selectedMethod": "window.current",
+        "runtimeValidation": {
+          "status": "pass",
+          "environmentScope": "synthetic Calculator fixture",
+          "evidence": "window-current.txt"
+        },
+        "recipeConsumers": [
+          "currentCalculator"
+        ],
+        "revalidateWhen": [
+          "every guarded operation",
+          "window replacement"
+        ]
+      },
+      {
+        "decisionId": "CD-preflight",
+        "businessStepRefs": [
+          "B010",
+          "B020",
+          "B030",
+          "B040"
+        ],
+        "capabilityNeed": "verify unique enabled semantic buttons and a display channel before input",
+        "discoveryPath": [
+          "docs/api/agent/README.md",
+          "docs/api/agent/elements.md"
+        ],
+        "candidates": [
+          {
+            "method": "Accessibility.snapshot",
+            "disposition": "selected",
+            "reason": "bounded read-only semantic tree supports exact role/name/action preflight",
+            "contract": "accessibility-snapshot.md"
+          }
+        ],
+        "selectedMethod": "Accessibility.snapshot",
+        "runtimeValidation": {
+          "status": "pass",
+          "environmentScope": "synthetic Calculator fixture",
+          "evidence": "snapshot-preflight.txt"
+        },
+        "recipeConsumers": [
+          "inspectCalculator"
+        ],
+        "revalidateWhen": [
+          "layout changes",
+          "target ambiguity",
+          "fresh run"
+        ]
+      },
+      {
+        "decisionId": "CD-input",
+        "businessStepRefs": [
+          "B010",
+          "B020",
+          "B030",
+          "B040"
+        ],
+        "capabilityNeed": "perform ordered Calculator button actions with per-step semantic identity",
+        "discoveryPath": [
+          "docs/api/agent/README.md",
+          "docs/api/agent/elements.md"
+        ],
+        "candidates": [
+          {
+            "method": "UI.tapTargets",
+            "disposition": "selected",
+            "reason": "preserves role/name targets and ordered native completion receipts",
+            "contract": "ui-tap-targets.md"
+          },
+          {
+            "method": "UI.tapTexts",
+            "disposition": "failed",
+            "reason": "fixture models a scoped symbol/OCR failure; failure does not set a global API priority",
+            "validationEvidence": "tap-texts-failure.txt"
+          }
+        ],
+        "selectedMethod": "UI.tapTargets",
+        "sharedConstraints": [
+          "desktop-ui-scope.md"
+        ],
+        "runtimeValidation": {
+          "status": "pass",
+          "environmentScope": "synthetic Calculator fixture",
+          "evidence": "tap-targets-validation.txt"
+        },
+        "recipeConsumers": [
+          "clearCalculator",
+          "clickCalculatorButtons"
+        ],
+        "revalidateWhen": [
+          "backend availability changes",
+          "layout/locale changes",
+          "actionState is unknown"
+        ]
+      },
+      {
+        "decisionId": "CD-read",
+        "businessStepRefs": [
+          "B025",
+          "B050"
+        ],
+        "capabilityNeed": "read the actual Calculator display value for downstream business data",
+        "discoveryPath": [
+          "docs/api/agent/README.md",
+          "docs/api/agent/elements.md"
+        ],
+        "candidates": [
+          {
+            "method": "UI.readText",
+            "disposition": "selected",
+            "reason": "returns the actual scoped display string used by the next business step",
+            "contract": "ui-read-text.md"
+          },
+          {
+            "method": "Accessibility.snapshot",
+            "disposition": "rejected",
+            "reason": "kept for preflight; the final Recipe uses UI.readText as the business value channel"
+          }
+        ],
+        "selectedMethod": "UI.readText",
+        "sharedConstraints": [
+          "desktop-ui-scope.md"
+        ],
+        "runtimeValidation": {
+          "status": "pass",
+          "environmentScope": "synthetic Calculator fixture",
+          "evidence": "read-text-validation.txt"
+        },
+        "recipeConsumers": [
+          "readCalculatorResult"
+        ],
+        "revalidateWhen": [
+          "display channel changes",
+          "fresh run"
+        ]
+      }
+    ]
   },
   "candidateSource": "'use strict';\nasync function main(win) {\n  await clearCalculator(win);\n  await clickCalculatorButtons(win, ['2', '5', '×', '4', '+', '1', '0', '=']);\n  const firstResult = await readCalculatorResult(win);\n  await clearCalculator(win);\n  await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);\n  const finalResult = await readCalculatorResult(win);\n  return {firstResult, finalResult};\n}\n",
   "candidate": {
-    "schemaVersion":"agent-to-recipe/v1",
-    "taskId":"fixture-calculator-chain",
-    "revision":"fixture-q001",
-    "sourceMapping":[
-      {"step":"B010/B030","function":"clearCalculator","source":"explicit calls"},
-      {"step":"B020/B040","function":"clickCalculatorButtons","source":"button calls"},
-      {"step":"B025/B050","function":"readCalculatorResult","source":"actual return values"}
+    "schemaVersion": "agent-to-recipe/v1",
+    "taskId": "fixture-calculator-chain",
+    "revision": "fixture-q001",
+    "sourceMapping": [
+      {
+        "step": "B010/B030",
+        "function": "clearCalculator",
+        "source": "explicit calls",
+        "capabilityDecisionRefs": [
+          "CD-preflight",
+          "CD-input"
+        ]
+      },
+      {
+        "step": "B020/B040",
+        "function": "clickCalculatorButtons",
+        "source": "button calls",
+        "capabilityDecisionRefs": [
+          "CD-preflight",
+          "CD-input"
+        ]
+      },
+      {
+        "step": "B025/B050",
+        "function": "readCalculatorResult",
+        "source": "actual return values",
+        "capabilityDecisionRefs": [
+          "CD-read",
+          "CD-window-refresh"
+        ]
+      },
+      {
+        "step": "B010",
+        "function": "main",
+        "source": "window resolution and activation",
+        "capabilityDecisionRefs": [
+          "CD-window-resolve",
+          "CD-window-activate"
+        ]
+      },
+      {
+        "step": "B020/B030/B040/B050",
+        "function": "currentCalculator",
+        "source": "guarded window refresh",
+        "capabilityDecisionRefs": [
+          "CD-window-refresh"
+        ]
+      }
     ],
-    "supportedScope":"fixture-only fixed chain",
-    "limitations":["not a desktop execution"]
+    "supportedScope": "fixture-only fixed chain",
+    "limitations": [
+      "not a desktop execution"
+    ]
   },
   "qualification": {
-    "schemaVersion":"agent-to-recipe/v1",
-    "taskId":"fixture-calculator-chain",
-    "revision":"fixture-q001",
-    "qualificationScope":{"requested":["fixed-chain","runtime-value-flow"],"exercised":["fixed-chain","runtime-value-flow"],"qualified":["fixed-chain","runtime-value-flow"],"excluded":["desktop-runtime"]},
-    "scenarios":[{"id":"fixture-chain","verdict":"pass","evidence":"qualification.txt"}],
-    "failedCriteria":[],
-    "skipped":[],
-    "verdict":"pass",
-    "limits":["fixture-only; no live Calculator claim"]
+    "schemaVersion": "agent-to-recipe/v1",
+    "taskId": "fixture-calculator-chain",
+    "revision": "fixture-q001",
+    "qualificationScope": {
+      "requested": [
+        "fixed-chain",
+        "runtime-value-flow"
+      ],
+      "exercised": [
+        "fixed-chain",
+        "runtime-value-flow"
+      ],
+      "qualified": [
+        "fixed-chain",
+        "runtime-value-flow"
+      ],
+      "excluded": [
+        "desktop-runtime"
+      ]
+    },
+    "scenarios": [
+      {
+        "id": "fixture-chain",
+        "verdict": "pass",
+        "evidence": "qualification.txt"
+      }
+    ],
+    "failedCriteria": [],
+    "skipped": [],
+    "verdict": "pass",
+    "limits": [
+      "fixture-only; no live Calculator claim"
+    ]
   },
   "evidence": {
-    "first-read.txt":"fixture observation: firstResult=110",
-    "final-read.txt":"fixture observation: finalResult=660",
-    "distillation.txt":"fixture-only distillation evidence",
-    "qualification.txt":"fixture-only consumer result"
+    "first-read.txt": "fixture observation: firstResult=110",
+    "final-read.txt": "fixture observation: finalResult=660",
+    "distillation.txt": "fixture-only distillation evidence",
+    "qualification.txt": "fixture-only consumer result",
+    "window-resolve.txt": "fixture validation: exact Calculator window resolved",
+    "window-activate.txt": "fixture validation: resolved Calculator window focused",
+    "window-current.txt": "fixture validation: same synthetic window revalidated",
+    "snapshot-preflight.txt": "fixture validation: required semantic targets and display channel unique",
+    "tap-targets-validation.txt": "fixture validation: selected semantic input candidate passed",
+    "tap-texts-failure.txt": "fixture-only failed candidate evidence: simulated scoped OCR/symbol mismatch",
+    "read-text-validation.txt": "fixture validation: selected actual display read passed"
+  },
+  "apiContracts": {
+    "window-get.md": "fixture canonical contract: window.get resolves one exact current window snapshot.",
+    "window-activate.md": "fixture canonical contract: window.activate activates the same exact window and verifies foreground state.",
+    "window-current.md": "fixture canonical contract: window.current refreshes the same PID/native handle before reuse.",
+    "accessibility-snapshot.md": "fixture canonical contract: Accessibility.snapshot reads a bounded ordinary-data tree within an explicit scope.",
+    "ui-tap-targets.md": "fixture canonical contract: UI.tapTargets performs ordered semantic targets and reports per-step completion.",
+    "ui-read-text.md": "fixture canonical contract: UI.readText returns the actual unique native/OCR text in the requested scope.",
+    "desktop-ui-scope.md": "fixture shared constraint: scope/within remains bound to the verified window; unknown side effects stop."
   }
 }
