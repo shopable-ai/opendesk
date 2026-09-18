@@ -267,7 +267,9 @@
           updatedAt: clock().toISOString(),
         }));
         const dir = taskDir(next.taskId);
+        assertDirectory(tasksRoot, false);
         file.ensureDir(dir);
+        assertDirectory(tasksRoot, false);
         assertDirectory(dir, false);
         const target = file.join(dir, String(revision).padStart(8, '0') + '.json');
         try {
