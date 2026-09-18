@@ -184,10 +184,6 @@ func registerAppShell(runtime *goja.Runtime, opts InitJSOptions, ui *CustomUIRun
 		opts.AppShell.UnbindActionSink()
 		return nil, err
 	}
-	if (opts.AppOwnedScriptInspect == nil) != (opts.AppOwnedScriptRun == nil) {
-		opts.AppShell.UnbindActionSink()
-		return nil, errors.New("App-owned Script bridge requires inspect and run together")
-	}
 	if opts.AppOwnedScriptRun != nil {
 		if err := bridge.attachAppOwnedScriptRunner(opts.AppOwnedScriptInspect, opts.AppOwnedExecutionID, opts.AppOwnedScriptRun); err != nil {
 			opts.AppShell.UnbindActionSink()
