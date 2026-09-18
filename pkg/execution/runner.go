@@ -149,7 +149,7 @@ type Request struct {
 	AppOwnedScriptRun     automation.AppOwnedScriptRunner
 	AppOwnedExecutionID   automation.AppOwnedExecutionIDAllocator
 	AppOwnedFlowInspect   automation.AppOwnedFlowInspector
-	AppOwnedFlowRun     automation.AppOwnedFlowRunner
+	AppOwnedFlowRun       automation.AppOwnedFlowRunner
 	// CustomUIDriver is an internal dependency seam used by Runtime API tests.
 	CustomUIDriver customui.Driver
 	// OnCustomUISession is an internal lifecycle hook for App Mode owners that
@@ -1051,7 +1051,11 @@ func normalizeExecutionWorkDir(workDir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("normalize execution working directory: %w", err)
 	}
-	return filepath.Clean(abs), nil
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return "", fmt.Errorf("resolve execution working directory: %w", err)
+	}
+	return filepath.Clean(resolved), nil
 }
 
 func normalizeExecutionScriptPath(scriptPath, workDir string) (string, error) {

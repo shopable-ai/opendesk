@@ -15,6 +15,10 @@ func TestFileJSONUsesExecutionWorkDirAndDrainsUnawaitedWrite(t *testing.T) {
 		if err := os.MkdirAll(workDir, 0o750); err != nil {
 			t.Fatal(err)
 		}
+		canonicalWorkDir, err := filepath.EvalSymlinks(workDir)
+		if err != nil {
+			t.Fatal(err)
+		}
 		artifacts, err := PrepareArtifacts(filepath.Join(root, "artifacts", filepath.Base(workDir)), "file-json-"+filepath.Base(workDir), ".js")
 		if err != nil {
 			t.Fatal(err)
@@ -31,8 +35,8 @@ File.writeJSON("same.json", { workdir: Execution.workdir });
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(data), workDir) {
-			t.Fatalf("relative JSON write did not use %s: %s", workDir, data)
+		if !strings.Contains(string(data), canonicalWorkDir) {
+			t.Fatalf("relative JSON write did not use canonical workdir %s: %s", canonicalWorkDir, data)
 		}
 	}
 	if data, err := os.ReadFile(filepath.Join(workOne, "same.json")); err != nil || strings.Contains(string(data), workTwo) {
