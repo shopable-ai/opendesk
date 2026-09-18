@@ -44,8 +44,12 @@ func NewFileSystemWithWorkDir(workingDir string) (*FileSystem, error) {
 	if err != nil {
 		return nil, fmt.Errorf("normalize working directory: %w", err)
 	}
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return nil, fmt.Errorf("resolve working directory: %w", err)
+	}
 	return &FileSystem{
-		workingDir: filepath.Clean(abs),
+		workingDir: filepath.Clean(resolved),
 		handles:    make(map[*FileHandle]struct{}),
 	}, nil
 }

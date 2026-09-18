@@ -101,7 +101,7 @@ test('Flow use requires signed effect/input metadata and candidate verification 
 
 
 test('Runner handoff is a one-time asset snapshot API, not a live task dependency', () => {
-  const runner = read('apps/opendesk/script-runner-simple.js');
+  const runner = read('apps/opendesk/flow-runner.js');
   assert.match(runner, /function currentAsset\(\)/);
   assert.match(runner, /kind: 'installed-flow'/);
   assert.match(runner, /kind: 'js-file'/);

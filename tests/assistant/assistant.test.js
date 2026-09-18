@@ -553,12 +553,12 @@ test('assistant UI source uses scrollable chat history and progressive conversat
   assert.ok(controller.indexOf('await renderRequestControls(record, state);') < controller.indexOf("await update(record, 'recentCount'"));
 });
 
-test('official App Shell routes exactly one assistant action and keeps Script Runner as default primary flow', async () => {
+test('official App Shell routes exactly one assistant action and keeps Flow Runner as default primary flow', async () => {
   await import('../../apps/opendesk/app-controller.js');
   const calls = [];
   const controller = globalThis.OpenDeskProductAppController.create({
     appRuntime: {onAction() {}},
-    runner: {async open(source) { calls.push(['runner', source]); }},
+    flowRunner: {async open(source) { calls.push(['flow-runner', source]); }},
     assistant: {async open(source) { calls.push(['assistant', source]); }},
     schedulerCenter: {async open() {}, async openCreate() {}},
     about: {async open() {}},
@@ -576,6 +576,6 @@ test('official App Shell routes exactly one assistant action and keeps Script Ru
 
   const main = readFileSync(path.resolve(here, '../../apps/opendesk/main.js'), 'utf8');
   assert.match(main, /OpenDeskAssistantController\.create/);
-  assert.match(main, /await runner\.launch\(\)/);
+  assert.match(main, /await flowRunner\.launch\(\)/);
   assert.doesNotMatch(main, /await assistant\.open\(/);
 });
