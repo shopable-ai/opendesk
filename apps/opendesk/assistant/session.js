@@ -514,8 +514,53 @@
           await performChatRequest(entry, messages);
         }
       } catch (error) {
-        if (entry.stopRequested || entry.controller.signal.aborted || isCanceled(error)) {
-          await finishRequest(entry, {status: 'stopped', text: entry.taskState ? '自动化任务已停止。' : '请求已停止。'});
+        if (entry.taskState && taskRuntime) {
+          try { await refreshTaskWorkspace(entry.conversationId); } catch (_) {}
+        }
+        const workspaceTask = taskWorkspace && taskWorkspace.task
+          && taskWorkspace.task.conversationId === entry.conversationId ? taskWorkspace.task : null;
+        const hostCanceled = !!(workspaceTask && workspaceTask.status === 'canceled');
+        const effectUnknown = !!(workspaceTask && workspaceTask.status === 'execution-effect-unknown');
+
+        if (effectUnknown && entry.executionId) {
+          const details = publicError(error);
+          entry.taskState.phase = 'unknown';
+          entry.taskState.error = Object.freeze(details);
+          entry.taskState.progress = Object.freeze({
+            phase: 'unknown',
+            executionId: entry.executionId,
+            effect: 'unknown',
+          });
+          await publish();
+          await finishRequest(entry, {
+            status: 'interrupted',
+            text: '停止请求后无法证明实际 Execution 已安全终止。Execution：'
+              + entry.executionId + '。业务效果保持未知，不会自动重试。',
+            error: {code: 'EXECUTION_EFFECT_UNKNOWN', message: details.message},
+          });
+        } else if (entry.stopRequested || entry.controller.signal.aborted || isCanceled(error)) {
+          if (!entry.executionId || hostCanceled || !entry.taskState) {
+            await finishRequest(entry, {
+              status: 'stopped',
+              text: entry.taskState ? '自动化任务已停止；没有把迟到结果当作成功。' : '请求已停止。',
+            });
+          } else {
+            const details = publicError(error);
+            entry.taskState.phase = 'unknown';
+            entry.taskState.error = Object.freeze(details);
+            entry.taskState.progress = Object.freeze({
+              phase: 'unknown',
+              executionId: entry.executionId,
+              effect: 'unknown',
+            });
+            await publish();
+            await finishRequest(entry, {
+              status: 'interrupted',
+              text: '已请求停止 Execution ' + entry.executionId
+                + '，但当前没有宿主终态证明。业务效果保持未知，不会自动重试。',
+              error: {code: 'EXECUTION_TERMINAL_UNVERIFIED', message: details.message},
+            });
+          }
         } else {
           const details = publicError(error);
           lastError = details;
@@ -527,7 +572,7 @@
           }
           await finishRequest(entry, {
             status: 'failed',
-            text: `${entry.taskState ? '任务失败' : '请求失败'}：${details.code}: ${details.message}`,
+            text: (entry.taskState ? '任务失败' : '请求失败') + '：' + details.code + ': ' + details.message,
             error: details,
           });
         }
