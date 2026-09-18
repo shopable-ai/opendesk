@@ -65,45 +65,73 @@ func names(events []Event) []string {
 	return out
 }
 
-func TestConsentDefaultsClosedAndDoesNotReplayHistory(t *testing.T) {
+func TestFreshInstallDefaultsOnWithoutUserSettings(t *testing.T) {
 	now := time.Date(2026, 9, 18, 0, 0, 0, 0, time.UTC)
 	var provider *fakeProvider
 	service := testService(t, &now, &provider)
-	service.Start()
-	if service.ScreenViewed("flow_runner") {
-		t.Fatal("screen should be rejected before consent")
-	}
-	if service.UIAction("flow_runner", "flow.run", "pointer") {
-		t.Fatal("action should be rejected before consent")
-	}
 	status := service.Status()
-	if status.Consent != ConsentUnknown || status.InstallIDSet || status.CaptureEnabled {
-		t.Fatalf("unexpected pre-consent status: %+v", status)
+	if status.Consent != ConsentGranted || !status.InstallIDSet || !status.CaptureEnabled {
+		t.Fatalf("fresh Product Analytics must default on when configured: %+v", status)
 	}
-	if provider != nil {
-		t.Fatal("provider must not be created before consent")
+	if provider == nil {
+		t.Fatal("configured default-on analytics did not initialize provider")
 	}
 
-	status, err := service.SetConsent(true)
+	service.Start()
+	if !service.ScreenViewed("flow_runner") {
+		t.Fatal("screen_viewed rejected under default-on analytics")
+	}
+	if !service.UIAction("flow_runner", "flow.run", "pointer") {
+		t.Fatal("ui_action rejected under default-on analytics")
+	}
+	events := provider.snapshot()
+	if len(events) != 4 || events[0].Name != "app_started" || events[1].Name != "app_session_started" ||
+		events[2].Name != "screen_viewed" || events[3].Name != "ui_action" {
+		t.Fatalf("unexpected default-on events: %v", names(events))
+	}
+}
+
+func TestDefaultOnWithoutProjectTokenDoesNotCreateIdentityOrSend(t *testing.T) {
+	now := time.Date(2026, 9, 18, 0, 0, 0, 0, time.UTC)
+	service, err := New(Options{
+		DataRoot: t.TempDir(),
+		Config: Config{Provider: ProviderPostHog, Endpoint: "https://us.i.posthog.com", ProjectToken: "", Environment: "test"},
+		Runtime: RuntimeInfo{AppVersion: "2.0.1", Platform: "darwin", Arch: "arm64"},
+		Now: func() time.Time { return now },
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !status.CaptureEnabled || !status.InstallIDSet {
-		t.Fatalf("expected enabled status: %+v", status)
+	service.Start()
+	status := service.Status()
+	if status.Consent != ConsentGranted || status.InstallIDSet || status.CaptureEnabled {
+		t.Fatalf("unconfigured default-on analytics must remain inert: %+v", status)
 	}
-	if provider == nil {
-		t.Fatal("provider was not created")
+	if service.ScreenViewed("flow_runner") {
+		t.Fatal("unconfigured analytics accepted a product event")
 	}
-	if got := len(provider.snapshot()); got != 0 {
-		t.Fatalf("grant must not backfill history or app_started, got %d events", got)
-	}
+}
 
-	if !service.ScreenViewed("flow_runner") {
-		t.Fatal("screen was not accepted after consent")
+func TestLegacyDeniedStateRemainsDenied(t *testing.T) {
+	root := t.TempDir()
+	if err := writeConsent(root+"/analytics/consent.json", persistedConsent{SchemaVersion: SchemaVersion, State: ConsentDenied}); err != nil {
+		t.Fatal(err)
 	}
-	events := provider.snapshot()
-	if len(events) != 2 || events[0].Name != "app_session_started" || events[1].Name != "screen_viewed" {
-		t.Fatalf("unexpected post-consent events: %v", names(events))
+	service, err := New(Options{
+		DataRoot: root,
+		Config: Config{Provider: ProviderDebug, Environment: "test"},
+		Runtime: RuntimeInfo{AppVersion: "2.0.1", Platform: "darwin", Arch: "arm64"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.Start()
+	status := service.Status()
+	if status.Consent != ConsentDenied || status.InstallIDSet || status.CaptureEnabled {
+		t.Fatalf("legacy denied analytics state was not preserved: %+v", status)
+	}
+	if service.UIAction("flow_runner", "flow.run", "pointer") {
+		t.Fatal("legacy denied analytics state accepted an event")
 	}
 }
 
@@ -259,7 +287,7 @@ func TestSessionExpiresAfterThirtyMinutesAndBackgroundDoesNotExtendIt(t *testing
 	}
 }
 
-func TestDebugProviderNeverBuffersBeforeConsentAndIsBounded(t *testing.T) {
+func TestDebugProviderDefaultsOnAndIsBounded(t *testing.T) {
 	now := time.Date(2026, 9, 18, 0, 0, 0, 0, time.UTC)
 	service, err := New(Options{
 		DataRoot: t.TempDir(), Config: Config{Provider: ProviderDebug, Environment: "test"},
@@ -269,12 +297,8 @@ func TestDebugProviderNeverBuffersBeforeConsentAndIsBounded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service.UIAction("flow_runner", "flow.run", "pointer")
-	if len(service.DebugEvents()) != 0 {
-		t.Fatal("debug must stay empty without consent")
-	}
-	if _, err := service.SetConsent(true); err != nil {
-		t.Fatal(err)
+	if status := service.Status(); status.Consent != ConsentGranted || !status.CaptureEnabled || !status.InstallIDSet {
+		t.Fatalf("debug analytics should default on in test environment: %+v", status)
 	}
 	for i := 0; i < 5; i++ {
 		service.UIAction("flow_runner", "flow.run", "pointer")
