@@ -189,6 +189,36 @@
       return taskStore.save(next, {expectedRevision: task.revision});
     }
 
+    async function readAuthorizedSource(task, context) {
+      if (task.asset.kind !== 'js-file' && task.asset.kind !== 'automation-directory') {
+        fail('ASSET_SOURCE_UNAVAILABLE', 'task has no editable source asset');
+      }
+      if (task.authorizations.readSource !== true) {
+        fail('SOURCE_READ_NOT_AUTHORIZED', 'reading associated source requires explicit authorization');
+      }
+      if (task.authorizations.shareSourceWithModel !== true) {
+        fail('MODEL_SHARE_NOT_AUTHORIZED', 'sending source content to the configured model requires separate authorization');
+      }
+      const selected = scriptAssetEntry(task);
+      if (!selected || selected.clarify) {
+        fail('ASSET_BOUNDARY_AMBIGUOUS', selected && selected.clarify || 'source entry is not resolved');
+      }
+      const sourceRef = Contract.assertReadable(task, selected.entry);
+      if (!recipeBridge || typeof recipeBridge.read !== 'function') {
+        fail('SCRIPT_SOURCE_READER_UNAVAILABLE', 'host-owned bounded source reader is unavailable');
+      }
+      const source = await recipeBridge.read({
+        scriptPath: sourceRef,
+        scopeRoot: selected.scopeRoot,
+        signal: context && context.signal || null,
+      });
+      const content = String(source && source.content || '');
+      const scriptHash = String(source && source.scriptHash || '');
+      if (!content || !scriptHash) fail('SCRIPT_SOURCE_READ_FAILED', 'host did not return source content and digest');
+      if (sha256(content) !== scriptHash) fail('SCRIPT_SOURCE_DIGEST_MISMATCH', 'host source content does not match its digest');
+      return deepFreeze({ref: sourceRef, scopeRoot: selected.scopeRoot, digest: scriptHash, content});
+    }
+
     async function explain(taskId, context) {
       let task = await taskStore.load(taskId);
       if (!task) fail('TASK_NOT_FOUND', 'task was not found');
@@ -210,7 +240,21 @@
         return deepFreeze({task, text: '已根据安装 Flow 的公开元信息完成说明；未读取受保护源码。\n' + JSON.stringify(safe, null, 2)});
       }
       if (task.asset.kind === 'js-file' || task.asset.kind === 'automation-directory') {
-        fail('AUTHOR_SOURCE_READ_BLOCKED', '当前安全门不允许助手为解释而读取关联源码；资产关联本身不授权读取或外发');
+        if (!modelChannel || typeof modelChannel.explainSource !== 'function') fail('MODEL_UNAVAILABLE', 'safe source explanation channel is unavailable');
+        const source = await readAuthorizedSource(task, context || {});
+        const reply = await modelChannel.explainSource({
+          goal: task.userGoal,
+          sourceRef: source.ref,
+          sourceContent: source.content,
+          sourceDigest: source.digest,
+          signal: context && context.signal || null,
+          requestId: task.requestId,
+        });
+        task = await updateTask(task, {
+          status:'explained',
+          evidence:(task.evidence || []).concat([{type:'source-explanation',sourceRef:source.ref,sourceDigest:source.digest,at:clock().toISOString()}]),
+        });
+        return deepFreeze({task, text:reply.text});
       }
       if (!modelChannel || typeof modelChannel.send !== 'function') fail('MODEL_UNAVAILABLE', 'model channel is unavailable');
       const reply = await modelChannel.send({messages:[{role:'user',content:task.userGoal}], signal:context && context.signal || null, requestId:task.requestId});
@@ -222,14 +266,31 @@
       let task = await taskStore.load(taskId);
       if (!task) fail('TASK_NOT_FOUND', 'task was not found');
       if (task.intent !== 'make' && task.intent !== 'improve') fail('INVALID_TASK_INTENT', 'task is not a make/improve task');
-      if (task.intent === 'improve' || task.asset.kind !== 'none') {
-        fail('AUTHOR_SOURCE_READ_BLOCKED', '源码型改进仍被任务级真实文件授权安全门阻塞；不会把关联路径升级为作者读取权限');
-      }
       if (!modelChannel || typeof modelChannel.draftCandidate !== 'function') fail('MODEL_UNAVAILABLE', 'safe candidate drafting channel is unavailable');
-      const drafted = await modelChannel.draftCandidate({goal:task.userGoal, signal:context && context.signal || null, requestId:task.requestId});
+
+      let source = null;
+      if (task.intent === 'improve') {
+        if (task.asset.kind !== 'js-file' && task.asset.kind !== 'automation-directory') {
+          fail('INVALID_IMPROVE_ASSET', 'improve requires an explicitly authorized JS source or resolved automation entry');
+        }
+        source = await readAuthorizedSource(task, context || {});
+      } else if (task.asset.kind !== 'none') {
+        fail('INVALID_MAKE_ASSET', 'make currently accepts no source asset; use improve for an authorized editable source');
+      }
+
+      const drafted = await modelChannel.draftCandidate({
+        goal:task.userGoal,
+        sourceRef:source ? source.ref : '',
+        sourceContent:source ? source.content : '',
+        sourceDigest:source ? source.digest : '',
+        signal:context && context.signal || null,
+        requestId:task.requestId,
+      });
       const candidate = candidateService.create({
-        contract: Contract.create(Object.assign({}, task, {authorizations:{readSource:false,shareSourceWithModel:false}})),
+        contract: task,
         candidateId: 'cand-' + randomUUID(),
+        sourceRef: source ? source.ref : '',
+        sourceSnapshot: source ? {ref:source.ref, digest:source.digest} : null,
         content: drafted.text,
       });
       await persistCandidate(candidate);
@@ -243,7 +304,23 @@
       if (!task) fail('TASK_NOT_FOUND', 'task was not found');
       const candidate = await loadCandidate(taskId, candidateId);
       if (!candidate) fail('CANDIDATE_NOT_FOUND', 'candidate was not found');
-      const saved = candidateService.saveAs({candidate, destination, authorized:true});
+      let currentSourceDigest = '';
+      if (candidate.sourceRef) {
+        const selected = scriptAssetEntry(task);
+        if (!selected || selected.clarify || Contract.assertReadable(task, candidate.sourceRef) !== candidate.sourceRef) {
+          fail('SOURCE_CONFLICT', 'candidate source is no longer the authorized task source');
+        }
+        if (!recipeBridge || typeof recipeBridge.inspect !== 'function') {
+          fail('SCRIPT_HOST_INSPECT_UNAVAILABLE', 'host source digest inspection is unavailable');
+        }
+        const inspected = await recipeBridge.inspect({
+          scriptPath:candidate.sourceRef,
+          scopeRoot:selected.scopeRoot,
+        });
+        currentSourceDigest = String(inspected && inspected.scriptHash || '');
+        if (!currentSourceDigest) fail('SCRIPT_INSPECTION_FAILED', 'host did not return current source digest');
+      }
+      const saved = candidateService.saveAs({candidate, destination, authorized:true, currentSourceDigest});
       await persistCandidate(saved);
       task = await updateTask(task, {status:'candidate-saved'});
       return deepFreeze({task, candidate:saved});
