@@ -398,6 +398,14 @@
         task = await updateTask(task, {status:'clarification-needed'});
         return deepFreeze({kind:'clarify', task, message:selected.clarify});
       }
+      if (task.asset.kind === 'automation-directory') {
+        task = await updateTask(task, {status:'blocked-dependency-closure'});
+        return deepFreeze({
+          kind:'clarify',
+          task,
+          message:'已记录明确目录入口，但当前宿主还不能冻结并在执行前重新验证 helper／资源依赖闭包，因此不会仅凭入口文件 hash 运行目录自动化。',
+        });
+      }
       if (!recipeBridge || typeof recipeBridge.inspect !== 'function' || typeof recipeBridge.run !== 'function') {
         fail('SCRIPT_HOST_INSPECT_UNAVAILABLE', 'host script inspection/run seam is unavailable');
       }
