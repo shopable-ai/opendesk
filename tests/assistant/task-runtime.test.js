@@ -128,12 +128,22 @@ test('all four asset entry shapes persist without projectId and unresolved direc
 
 test('candidate make is reviewable, save-as is exclusive, and verification must bind the exact candidate digest', async () => {
   const file = memoryFile();
+  let verificationMode = 'wrong';
   const runtime = TaskRuntime.create({
     file, rootDir:'/data/assistant', randomUUID:uuids(), clock:clock(),
     protectedRoots:['/data/assistant/protected'],
     modelChannel:{
       async draftCandidate(){ return {text:'console.log("candidate");'}; },
       async send(){ return {text:'unused'}; },
+    },
+    async verifyCandidate({candidate, criteriaId}) {
+      return {
+        candidateDigest: verificationMode === 'wrong' ? 'wrong' : candidate.contentDigest,
+        executionId:'exec-real-1',
+        criteriaId,
+        observedAt:'2026-09-18T00:01:00Z',
+        status:'passed',
+      };
     },
   });
   const task = await runtime.startTask({
@@ -145,9 +155,7 @@ test('candidate make is reviewable, save-as is exclusive, and verification must 
   assert.equal(generated.candidate.independentlyVerified, false);
 
   await assert.rejects(
-    () => runtime.recordCandidateVerification(task.taskId, generated.candidate.candidateId, {
-      candidateDigest:'wrong', executionId:'exec-1', criteriaId:'criteria-1', observedAt:'2026-09-18T00:00:00Z', status:'passed',
-    }),
+    () => runtime.verifyCandidate(task.taskId, generated.candidate.candidateId, 'candidate-runtime-smoke-v1'),
     {code:'VERIFICATION_MISMATCH'},
   );
 
@@ -159,15 +167,31 @@ test('candidate make is reviewable, save-as is exclusive, and verification must 
     {code:'DESTINATION_EXISTS'},
   );
 
-  const verified = await runtime.recordCandidateVerification(task.taskId, generated.candidate.candidateId, {
-    candidateDigest:saved.candidate.contentDigest,
-    executionId:'exec-real-1',
-    criteriaId:'candidate-runtime-smoke-v1',
-    observedAt:'2026-09-18T00:01:00Z',
-    status:'passed',
-  });
+  verificationMode = 'pass';
+  const verified = await runtime.verifyCandidate(
+    task.taskId,
+    generated.candidate.candidateId,
+    'candidate-runtime-smoke-v1',
+  );
   assert.equal(verified.candidate.independentlyVerified, true);
   assert.equal(verified.candidate.verificationEvidence.executionId, 'exec-real-1');
+});
+
+test('candidate verification is unavailable without a host-owned verifier', async () => {
+  const file = memoryFile();
+  const runtime = TaskRuntime.create({
+    file, rootDir:'/data/assistant', randomUUID:uuids(), clock:clock(),
+    modelChannel:{async draftCandidate(){ return {text:'console.log("candidate");'}; }},
+  });
+  const task = await runtime.startTask({
+    taskId:'verify-blocked', conversationId:'conv-a', requestId:'req-verify',
+    userGoal:'make candidate', intent:'make', asset:{kind:'none'},
+  });
+  const generated = await runtime.generateCandidate(task.taskId);
+  await assert.rejects(
+    () => runtime.verifyCandidate(task.taskId, generated.candidate.candidateId, 'criteria'),
+    {code:'VERIFICATION_OWNER_UNAVAILABLE'},
+  );
 });
 
 test('source improvement stays blocked rather than upgrading association into model/file authority', async () => {
