@@ -136,14 +136,11 @@ type Service struct {
 	started        bool
 	closed         bool
 
-	runs               map[string]runContext
-	debugCapacity      int
-	debug              []Event
-	diagnosticCapacity int
-	diagnostic         []DiagnosticEvent
-	dropped            uint64
-	lastErrorCode      string
-	lastSendResult     string
+	runs          map[string]runContext
+	debugCapacity int
+	debug         []Event
+	dropped       uint64
+	lastErrorCode string
 }
 
 func New(options Options) (*Service, error) {
@@ -173,7 +170,6 @@ func New(options Options) (*Service, error) {
 		config: config, runtime: runtimeInfo, dataRoot: root, now: options.Now,
 		transport: options.Transport, makeProvider: maker, consent: ConsentUnknown,
 		runs: map[string]runContext{}, debugCapacity: options.DebugCapacity,
-		diagnosticCapacity: defaultDiagnosticCapacity,
 	}
 	persisted, readErr := readConsent(service.consentPath())
 	if readErr != nil {
