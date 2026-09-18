@@ -80,6 +80,8 @@ func (s *Service) SetConsent(granted bool) (Status, error) {
 	s.lastForeground = time.Time{}
 	s.runs = map[string]runContext{}
 	s.debug = nil
+	s.diagnostic = nil
+	s.lastSendResult = ""
 	err := writeConsent(s.consentPath(), persistedConsent{SchemaVersion: SchemaVersion, State: ConsentDenied})
 	if err != nil {
 		// Never leave a previous durable Granted record behind after an in-memory
@@ -343,17 +345,21 @@ func (s *Service) captureLocked(name string, fields map[string]any, foreground b
 			s.debug = append([]Event(nil), s.debug[len(s.debug)-s.debugCapacity:]...)
 			s.dropped++
 		}
+		s.recordDiagnosticLocked(name, "stored_local_debug", "", now)
 		return true
 	}
 	if err := s.ensureProviderLocked(); err != nil || s.provider == nil {
 		s.lastErrorCode = "provider_unavailable"
 		s.dropped++
+		s.recordDiagnosticLocked(name, "provider_unavailable", s.lastErrorCode, now)
 		return false
 	}
 	if err := s.provider.Enqueue(event); err != nil {
 		s.lastErrorCode = "provider_enqueue_failed"
 		s.dropped++
+		s.recordDiagnosticLocked(name, "enqueue_failed", s.lastErrorCode, now)
 		return false
 	}
+	s.recordDiagnosticLocked(name, "queued_to_provider", "", now)
 	return true
 }
