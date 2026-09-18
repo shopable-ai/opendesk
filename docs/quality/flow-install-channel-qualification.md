@@ -2,7 +2,7 @@
 
 > 日期：2026-09-18  
 > 状态：CURRENT_SOURCE_UPDATED / EXECUTION_EVIDENCE_INCOMPLETE  
-> 本轮源码证据快照：`master @ 5622ea534aa16195079ccef68e54eefd4c5cf859`（master 有并行写入，具体执行证据以下方 commit / run ID 为准）
+> 本轮源码证据快照：`master @ a86dc7885744c0a6f9632b44d5d63d0c2e642740`（master 有并行写入，具体执行证据以下方 commit / run ID 为准）
 
 本文件记录“多入口、单安装内核”本轮资格状态。它不把已有源码、历史截图或单元测试的存在自动换算成当前 PASS。
 
@@ -118,7 +118,7 @@ pack / verify 后 marker 不存在
 | Double-click hot / single instance | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN |
 | Web Marketplace → OpenDesk | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED |
 | In-App Marketplace | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED |
-| CLI qualification | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN |
+| CLI qualification | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | NOT_RUN | PASS |
 
 ## 4.1 本轮已经实际执行的非 Native 检查
 
@@ -143,27 +143,25 @@ pack / verify 后 marker 不存在
 | ID-only Install Intent | PASS | model 行为测试通过 |
 | Runtime Flow JS / shared fixture 语法 | PASS | `flow-distribution.js` 与 fixture 均完成解析；这不是 Runtime 行为 PASS |
 
-Chromium v1.1 smoke 已进入 `Flow Commercial Qualification`，但对应最新 Actions run 仍在队列，因此这里不把浏览器视觉证据提前写成 PASS。
+Chromium v1.1 smoke 已在 Flow Commercial Qualification run `35300159654` 的 `Marketplace prototype` job 实际 PASS；29 项 Node model/静态合同与 Chromium smoke 均通过，并上传 `marketplace-prototype-evidence`。该证据仍不等于 Native OpenDesk / OS Deep Link。
 
 ## 4.2 GitHub Actions 已取得与待取得证据
 
-已实际取得：
+Flow Commercial run `35300159654` 已实际执行当前 Flow 资格：
 
-- Flow Commercial run `35297242961`：macOS `go test ./pkg/flowmarketplace -count=1` PASS。
-- 同一 run 的 Windows `go test ./pkg/flowmarketplace -count=1` PASS（日志：`ok opendesk/pkg/flowmarketplace`）。
-- 该轮 macOS 的 B0 package direct/formal Runtime gate PASS。
-- 该轮 `flow-distribution.js` 没有进入 Flow 断言：直接失败于缺失 `OPENDESK_RUNTIME_API_BINARY`。这是 qualification harness 接线错误，不是安装行为 FAIL。
+- Linux portable owners：PASS，包含 `flowpackage / flowinstall / flowmarketplace / appdata / execution / flowcli / packagecli`。
+- Marketplace prototype：PASS，29 项 Node model/静态合同 + Chromium smoke 全部通过。
+- macOS Runtime：PASS，包括 Marketplace vertical slice、当前 build、B0 direct/formal、`flow-distribution.js`、B1 direct/formal。
+- 因此当前 shared fixture 的真实 macOS CLI 链路已经证明：签名包安装前后业务 marker 为零、幂等重装零执行、Catalog identity 正确、显式 Run 后 marker/result 才出现、中文/空格/深目录 package path 可工作。
+- Windows Runtime：Marketplace vertical slice PASS、Windows distribution build PASS、B0 direct Runtime PASS；B0 formal Runtime gate FAIL，失败点是通用 Runtime API gate 仍调用 Unix `/bin/test` 检查 run-local binary，错误为 `START_FAILED`。该失败发生在 Flow 行为断言之前，不应解释成 Flow install FAIL。
 
-本轮已修复上述资格基础设施：
+Windows Core run `35300333899` 还存在 Recorder bundle / test-architecture audit 的独立失败；这不属于本 Flow 多渠道安装根因，不能为了本任务扩大成无关重构。
 
-- `.github/workflows/flow-commercial.yml` 在 macOS / Windows 为 `flow-distribution.js` 注入实际 Runtime binary。
-- Linux portable owner 安装仓库既有 App Mode X11 / audio build dependencies，修复 `X11/Xutil.h` 环境型失败。
-- Windows UI Host 的 `Form.ActiveForm` 遮蔽编译错误改为 `System.Windows.Forms.Form.ActiveForm`；旧 run 中 Marketplace Go test 在该编译错误之前已经 PASS。
-- Marketplace prototype 新增独立 Node + Chromium smoke CI job，并上传 `.runtime/tests/marketplace-prototype/`。
-- 最新 Marketplace Go vertical slice 又新增业务结果级断言：安装完成后 `install-test.marker / result.json / run.json` 必须全部不存在。
-- canonical side-load cancel 零副作用测试也已加入现有 `pkg/flowinstall` suite。
+当前仍待本地/后续 CI 完成：
 
-后两项新增断言与修复后的 Runtime distribution gate 对应的新 Actions run 尚未执行完成，因此保持 NOT_RUN；不继承旧 run 的结果。
+- Windows formal Runtime gate 的跨平台 harness 修复，随后实际运行 Windows `flow-distribution.js` / B1。
+- macOS Native picker / drag-drop / double-click cold-hot 实窗证据。
+- Web `opendesk://` product wiring 与 In-App Marketplace 产品接线仍是明确 IMPLEMENTATION GAP。
 
 ### 为什么本轮 Native 项不是 PASS
 
@@ -232,28 +230,28 @@ Marketplace vertical slice 的上一版同源测试已在 Flow Commercial run `3
 | 3 | double-click cold start | NOT_RUN |
 | 4 | double-click hot start / single instance | NOT_RUN |
 | 5 | Marketplace Install Intent 安装 | BLOCKED |
-| 6 | 同一 Flow 不同入口产生一致 Catalog identity | NOT_RUN |
-| 7 | 安装成功后业务零执行 | NOT_RUN |
-| 8 | 显式 Run 后业务才执行 | NOT_RUN |
-| 9 | 用户取消安装 → Catalog 无新增 | NOT_RUN |
-| 10 | 未知 Publisher → 真实 Trust 决策 | NOT_RUN |
-| 11 | Flow scope trust 不升级为 Publisher-wide | NOT_RUN |
+| 6 | 同一 Flow 不同入口产生一致 Catalog identity | PASS |
+| 7 | 安装成功后业务零执行 | PASS |
+| 8 | 显式 Run 后业务才执行 | PASS |
+| 9 | 用户取消安装 → Catalog 无新增 | PASS |
+| 10 | 未知 Publisher → 真实 Trust 决策 | PASS |
+| 11 | Flow scope trust 不升级为 Publisher-wide | PASS |
 | 12 | Publisher-wide trust 需要明确选择 | NOT_RUN |
-| 13 | 签名损坏 → 失败且零执行 | NOT_RUN |
-| 14 | Manifest / inventory 损坏 → 失败 | NOT_RUN |
-| 15 | 平台 / Runtime 不兼容 → 阻止 | NOT_RUN |
-| 16 | 同版本同 artifact 重复安装 | NOT_RUN |
-| 17 | 同版本不同 artifact → 拒绝 | NOT_RUN |
-| 18 | 事务失败无 ready 半安装 | NOT_RUN |
-| 19 | 中文 / 空格 / 深目录路径 | NOT_RUN |
+| 13 | 签名损坏 → 失败且零执行 | PASS |
+| 14 | Manifest / inventory 损坏 → 失败 | PASS |
+| 15 | 平台 / Runtime 不兼容 → 阻止 | PASS |
+| 16 | 同版本同 artifact 重复安装 | PASS |
+| 17 | 同版本不同 artifact → 拒绝 | PASS |
+| 18 | 事务失败无 ready 半安装 | PASS |
+| 19 | 中文 / 空格 / 深目录路径 | PASS |
 | 20 | 重启后仍可发现 | NOT_RUN |
 | 21 | Runner 显示名称 / 版本 / Publisher | NOT_RUN |
-| 22 | 移除测试 Flow 不破坏其他 Flow / Trust / entitlement | NOT_RUN |
-| 23 | Browser 只控制 flowId / releaseId / intentId | NOT_RUN |
-| 24 | canonical Release identity mismatch → 拒绝 | NOT_RUN |
-| 25 | artifact digest mismatch → 拒绝 | NOT_RUN |
-| 26 | Marketplace Verified ≠ Local Publisher Trust | NOT_RUN |
-| 27 | Marketplace 安装仍不自动 Run | BLOCKED |
+| 22 | 移除测试 Flow 不破坏其他 Flow / Trust / entitlement | PASS |
+| 23 | Browser 只控制 flowId / releaseId / intentId | PASS |
+| 24 | canonical Release identity mismatch → 拒绝 | PASS |
+| 25 | artifact digest mismatch → 拒绝 | PASS |
+| 26 | Marketplace Verified ≠ Local Publisher Trust | PASS |
+| 27 | Marketplace test backend 安装仍不自动 Run | PASS |
 
 `BLOCKED` 的含义是对应产品 Channel 尚缺当前正式入口；`NOT_RUN` 表示已有可执行测试/实现基础，但本轮没有取得当前基线的真实执行证据。
 
@@ -316,8 +314,8 @@ apps/opendesk/prototypes/marketplace/
 
 本轮尚未取得：
 
-- v1.1 Chromium DOM / 截图重跑证据（29 / 29 model/静态合同已 PASS，Chromium CI 尚未完成）；
-- 修复 binary 注入后的当前 Runtime distribution gate 真实执行结果（旧 run 只证明 harness 在进入断言前失败）；
+- v1.1 Chromium DOM / 截图证据：已 PASS（Flow Commercial run `35300159654`）；
+- macOS Runtime distribution gate 已 PASS；Windows formal catalog gate 仍因 Unix-only `/bin/test` harness 失败，Windows Flow direct/distribution 需在修复后补跑；
 - 当前 macOS Native picker / drop / double-click cold-hot 截图与业务状态；
 - Windows live 原生证据；
 - Web Deep Link 产品接线；
