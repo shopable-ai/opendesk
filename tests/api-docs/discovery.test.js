@@ -112,6 +112,9 @@ test('Agent-to-Recipe consumers use one short API entry with valid links', () =>
     'docs/api/agent/README.md',
     'docs/api/README.md',
     'docs/api/index.md',
+    'docs/api/runtime.md',
+    'docs/api/.rules.md',
+    'docs/implementation/runtime/runtime-api-development-workflow.md',
     'workflows/agent-to-recipe/WORKFLOW.md',
     'workflows/agent-to-recipe/design/capability-discovery.md',
   ]) {

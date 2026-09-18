@@ -260,4 +260,4 @@ source label 升级，也不是完整 Runtime 沙箱。
 
 Runtime 注入顺序、native owner、polyfill 组成、内部 bridge 和资源清理模型属于维护者信息，
 见 [Runtime API composition](../implementation/runtime/runtime-api-composition.md)。内部对象存在
-不等于它是用户 API；公开契约只以 `docs/api/`、机器索引和对应类型声明为准。
+不等于它是用户 API；公开契约以 `docs/api/` 的 canonical Reference 与对应类型声明为准；Agent 能力目录只是按需阅读入口，不是独立事实源。

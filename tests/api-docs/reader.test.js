@@ -99,11 +99,12 @@ test('generated catalogs, local links and independent inventories remain covered
   assert.ok(report.sourceContractGaps.some(x=>x.name==='page.ensureMacPermissions'));
 });
 test('catalog check does not require the legacy runtime-api.ai.json file', () => {
+  assert.equal(fs.existsSync(path.join(root,'docs/api/runtime-api.ai.json')), false, 'retired JSON must stay deleted');
   const temp = fs.mkdtempSync(path.join(out,'no-legacy-json-'));
   try {
     fs.cpSync(path.join(root,'docs/api'),path.join(temp,'docs/api'),{recursive:true});
     fs.cpSync(path.join(root,'types'),path.join(temp,'types'),{recursive:true});
-    fs.rmSync(path.join(temp,'docs/api/runtime-api.ai.json'));
+    fs.rmSync(path.join(temp,'docs/api/runtime-api.ai.json'),{force:true});
     assert.deepEqual(reader.check(temp).errors, []);
   } finally { fs.rmSync(temp,{recursive:true}); }
 });
