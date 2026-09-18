@@ -222,11 +222,43 @@
       "coordinates": "nativeBounds stays tagged in the backend coordinate space. bounds is null unless a reliable conversion to OpenDesk logical screen coordinates was performed."
     },
     {
-      "name": "UI", "source": "visual polyfills 006-ui/011-ui-targets/012-ui-scope-locator/013-ui-perception plus execution-owned native Accessibility value, target-sequence, menu composition, and privacy-gated DesktopVision observation", "status": "stable-with-experimental-scope-locator-semantic-and-legacy-target-value-menu-and-sequence-wait", "doc": "desktop-ui.md", "types": "types/UI.d.ts",
-      "keyMethods": ["within", "findTexts", "findText", "hasText", "readText", "tapText", "tapTexts", "tapTargets", "waitText", "waitTextGone", "getValue", "setValue", "findImages", "findImage", "tapImage", "getMenuItems", "findMenuItem", "tapMenuItem", "getCapabilities"],
+      "name": "UI",
+      "source": "visual polyfills 006-ui/011-ui-targets/012-ui-scope-locator/013-ui-perception plus execution-owned native Accessibility value, target-sequence, menu composition, and privacy-gated DesktopVision observation",
+      "status": "stable-with-experimental-scope-locator-semantic-and-legacy-target-value-menu-and-sequence-wait",
+      "doc": "desktop-ui.md",
+      "types": "types/UI.d.ts",
+      "keyMethods": [
+        "within",
+        "findTexts",
+        "findText",
+        "hasText",
+        "readText",
+        "tapText",
+        "tapTexts",
+        "tapTargets",
+        "waitText",
+        "waitTextGone",
+        "getValue",
+        "setValue",
+        "findImages",
+        "findImage",
+        "tapImage",
+        "getMenuItems",
+        "findMenuItem",
+        "tapMenuItem",
+        "getCapabilities"
+      ],
       "scopeLocator": {
         "status": "experimental-local",
-        "methods": ["UI.within", "UIScope.locator", "Locator.find", "Locator.waitFor", "Locator.tap", "Locator.getValue", "Locator.setValue"],
+        "methods": [
+          "UI.within",
+          "UIScope.locator",
+          "Locator.find",
+          "Locator.waitFor",
+          "Locator.tap",
+          "Locator.getValue",
+          "Locator.setValue"
+        ],
         "identity": "UI.within synchronously snapshots one resolved WindowInfo identity. Each later Scope or Locator operation refreshes the same id, PID and native handle, so move/resize refreshes geometry while closure/recreation or a same-title replacement fails STALE_TARGET without rebinding.",
         "locator": "A Locator copies only Scope identity and target description. It retains no OCR point, screenshot, ElementRef or ElementHandle; find returns a one-time observation snapshot rather than an executable object.",
         "targets": "{text} uses existing OCR/visual discovery, {image} uses existing high-confidence (0.95) image discovery, and role/name/identifier uses exact native Accessibility. Loss of the native UI tree does not disable text/image observation or action.",
@@ -716,12 +748,13 @@
       "doc": "file.md",
       "keyMethods": [
         "readJSON",
-        "writeJSON"
+        "writeJSON",
+        "writeNew"
       ],
       "workdir": "File.cwd and every relative File path use the normalized Execution.workdir for this execution.",
       "open": "File.open returns a constrained synchronous FileHandle (close, read/readBytes, write/writeBytes, seek, truncate, sync), never a raw host file descriptor. Runtime teardown closes unclosed handles.",
       "json": "readJSON and writeJSON are Promise-based; JSON uses Runtime JSON.parse/stringify semantics, has an 8 MiB maximum per operation and 128 container nesting limit.",
-      "writeSafety": "writeJSON uses a supported same-directory replacement backend on macOS/Linux. Windows fails closed with ATOMIC_REPLACE_UNSUPPORTED; it never truncates as a fallback."
+      "writeSafety": "writeNew exclusively creates a new regular text file through an opened parent directory, rejects an existing final target and symbolic-link/reparse-point parent aliases, rechecks parent identity, and never truncates an existing file. writeJSON remains the existing-file JSON replacement API and has platform-specific atomic-replace support."
     },
     {
       "name": "SQLite",
