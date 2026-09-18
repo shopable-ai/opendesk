@@ -489,11 +489,20 @@ button:disabled {
 
 
 /* Oracle Amendment A1: live acquisition and explicit, non-toolbar recording. */
+.selection-focus-mask {
+  /* WeChat-style window spotlight: the SVG path uses even-odd fill so this
+     neutral dark scrim paints only outside the hovered candidate window. */
+  fill:rgba(5,10,15,.44);
+  pointer-events:none
+}
+
 .window-preview {
+  /* Border only. Never tint, whiten, blur or otherwise cover candidate pixels. */
   fill:none;
-  stroke:#67bbff;
-  stroke-width:3;
-  stroke-dasharray:8 5
+  stroke:#7ef0c8;
+  stroke-width:2.5;
+  vector-effect:non-scaling-stroke;
+  filter:drop-shadow(0 0 2px rgba(8,35,30,.72))
 }
 
 .candidate:not(.locked) {
