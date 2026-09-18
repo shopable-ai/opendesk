@@ -44,7 +44,7 @@ func TestRunObservedUsesTrustedExecutionLifecycle(t *testing.T) {
 
 func TestRunObservedStartupRejectDoesNotEmitAnalyticsStart(t *testing.T) {
 	request := observedRequest(t, context.Background(), "analytics-startup-reject")
-	request.WorkDir = filepath.Join(t.TempDir(), "missing")
+	request.Environment = map[string]string{"INVALID-NAME": "reject-before-running"}
 	started := 0
 	finished := 0
 	_, _, err := RunObserved(request, ExecutionLifecycle{
