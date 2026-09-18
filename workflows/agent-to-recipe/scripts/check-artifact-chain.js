@@ -332,11 +332,16 @@ function checkArtifactChain(options) {
       }
     }
 
-    const capabilityDecisions = array(procedure.capabilityDecisions, 'CAPABILITY_DECISION_REQUIRED',
-      'Procedure requires capabilityDecisions for Recipe-driving OpenDesk capability choices.');
-    requireCheck(capabilityDecisions.length > 0, 'CAPABILITY_DECISION_REQUIRED',
-      'At least one Recipe-driving capability choice must be traceable.');
-    for (const [index, decision] of capabilityDecisions.entries()) {
+    const capabilityTraceRequested = (candidate && candidate.sourceMapping || [])
+      .some(mapping => Array.isArray(mapping.capabilityDecisionRefs) && mapping.capabilityDecisionRefs.length > 0);
+    const capabilityDecisions = procedure.capabilityDecisions;
+    if (capabilityTraceRequested || own(procedure, 'capabilityDecisions')) {
+      array(capabilityDecisions, 'CAPABILITY_DECISION_REQUIRED',
+        'Procedure requires capabilityDecisions when the Candidate consumes capability decisions.');
+      requireCheck(capabilityDecisions.length > 0, 'CAPABILITY_DECISION_REQUIRED',
+        'At least one Recipe-driving capability choice must be traceable.');
+    }
+    for (const [index, decision] of (capabilityDecisions || []).entries()) {
       const base = 'procedure.capabilityDecisions[' + index + ']';
       attempt('procedure-synthesize', base, () => {
         requireCheck(object(decision) && text(decision.decisionId) && !capabilityDecisionById.has(decision.decisionId),
@@ -504,6 +509,7 @@ function checkArtifactChain(options) {
       notEvaluated: ['truth of historical observations beyond bound evidence', 'desktop actions or OS input events',
         'visual correctness', 'human acceptance', 'host skill discovery/loading', 'blind-context model performance',
         'semantic correctness of a catalog/contract beyond its bound bytes or of runtime evidence beyond its cited record',
+        'capability selection provenance for legacy Procedure/Candidate pairs that do not declare capabilityDecisionRefs',
         'JavaScript reachability, aliasing, shadowing or general data-flow correctness',
         'transitive dependency closure, arbitrary trace formats or business semantics',
         'unsupported inputs, platforms or layouts'],
