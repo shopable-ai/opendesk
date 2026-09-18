@@ -100,6 +100,7 @@ jobs:
           tests/assistant/task-runtime.test.js
           tests/assistant/product-wiring.test.js
           tests/assistant/controller.test.js
+          tests/assistant/model-channel-source.test.js
           tests/custom-ui/product-script-runner.test.js
       - name: Test App-owned assistant execution seams
         run: go test ./cmd/opendesk -run 'TestAppRecipeRunner|TestAssistantInstalledFlowVerticalRuntime|TestLoadAppFlowInvocation' -count=1
@@ -128,6 +129,8 @@ jobs:
           tests/assistant/assistant.test.js
           tests/assistant/task-runtime.test.js
           tests/assistant/product-wiring.test.js
+          tests/assistant/controller.test.js
+          tests/assistant/model-channel-source.test.js
       - name: Test assistant host and File safety seams
         run: >-
           go test ./automation ./cmd/opendesk
@@ -154,7 +157,7 @@ jobs:
           cache: true
       - name: Test assistant JavaScript contracts
         shell: pwsh
-        run: node --test tests/assistant/assistant.test.js tests/assistant/task-runtime.test.js tests/assistant/product-wiring.test.js tests/assistant/controller.test.js tests/custom-ui/product-script-runner.test.js
+        run: node --test tests/assistant/assistant.test.js tests/assistant/task-runtime.test.js tests/assistant/product-wiring.test.js tests/assistant/controller.test.js tests/assistant/model-channel-source.test.js
       - name: Test assistant host and File safety seams
         shell: pwsh
         run: go test ./automation ./cmd/opendesk -run 'TestFileWriteNew|TestFileRealPath|TestAppRecipeRunner|TestAssistantInstalledFlowVerticalRuntime|TestLoadAppFlowInvocation' -count=1
