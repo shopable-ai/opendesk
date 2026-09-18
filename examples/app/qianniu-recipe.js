@@ -1,12 +1,56 @@
-// Refined ordinary Recipe; examples/app/qianniu.js remains Legacy / Evidence Case.
-// Framework: docs/frameworks/demonstration-to-automation-pipeline.md, section 10.
-// From repository root:
-// ./dist/opendesk -script examples/app/qianniu-recipe.js -console-mode script
-// Configuration: .runtime/recipes/qianniu/config.json (see adjacent example JSON).
-// No CommonJS, new Runtime, hidden global config, automatic send, or shipment.
-// The supplied layout is a candidate until qualified on the real Windows Qianniu.
+/**
+ * 千牛普通 Recipe（Framework 重构对照样本）
+ *
+ * 定位：
+ * - 原 examples/app/qianniu.js 保留为 Legacy / Evidence Case；本文件是按当前 Framework
+ *   重新表达的普通 JavaScript Recipe，不引入新的 Workflow Runtime、IR 或 Compiler。
+ * - 默认只准备并验证聊天草稿；不发送消息、不发货。
+ * - 窗口、区域、尺寸和原生控件定位在真实 Windows 千牛完成资格验证前都只是候选应用知识。
+ *
+ * 推荐阅读顺序：先看 runOnce() 的业务主链，再按下面的方法进入实现细节。
+ *
+ * main()
+ *   └─ runOnce()
+ *      1. validateConfig()                         校验配置、授权和布局资格
+ *      2. activateNotification()
+ *         + observeNotification()                  确认通知窗口、收件人与待发货状态
+ *      3. openReception()                          打开并验证正确接待窗口
+ *      4. observeOrder()                           确认唯一可见订单和实际商品标题
+ *      5. copyProductTitle()                       复制并验证剪贴板中的实际标题
+ *      6. queryProduct()                           查询并验证同一商品的数据
+ *      7. composeMessage()                         生成完整草稿
+ *      8. prepareDraft()                           原生写入并回读验证草稿
+ *      → DRAFT_VERIFIED                            到此结束；不发送、不发货
+ *
+ * 核心判断链：
+ * 观察（Observation）
+ * → 状态解释（State interpretation）
+ * → 业务操作资格（Business eligibility）
+ * → 动作（Action）
+ * → 结果验证（Verification）
+ *
+ * 任何副作用结果为 uncertain 时：立即停止并先核对实际效果，不自动重试。
+ *
+ * 文件职责分区：
+ * ① 任务与千牛应用知识
+ * ② Result / Evidence / 配置辅助
+ * ③ 窗口与应用状态观察
+ * ④ Region / Target / Geometry
+ * ⑤ UI → 剪贴板 → 商品 API 数据步骤
+ * ⑥ 可验证草稿动作
+ * ⑦ 单次 Workflow
+ * ⑧ 可选 Supervisor
+ * ⑨ 显式 main()
+ *
+ * 从仓库根目录运行：
+ * ./dist/opendesk -script examples/app/qianniu-recipe.js -console-mode script
+ *
+ * 配置文件：
+ * .runtime/recipes/qianniu/config.json
+ * 示例见同目录 qianniu-recipe.config.example.json。
+ */
 
-// ---- Task / Qianniu application knowledge ---------------------------------
+// ---- ① 任务与千牛应用知识 ---------------------------------------------------
 const QIANNIU = Object.freeze({
   exeName: 'AliWorkbench.exe',
   notificationSuffix: '消息通知',
@@ -22,7 +66,7 @@ const LIMITS = Object.freeze({
 });
 const CONFIG_PATH = '.runtime/recipes/qianniu/config.json';
 
-// ---- Pure Result / Evidence / configuration helpers ----------------------
+// ---- ② Result / Evidence / 配置辅助：统一停止、结果与资格边界 ----------------
 function stop(status, code, reason) {
   const error = new Error(reason);
   error.recipeStatus = status;
@@ -71,8 +115,9 @@ function layoutProfile(value, regions) {
     'INVALID_CONFIG', '布局尺寸范围无效');
   regions.forEach(key => percentRegion(value[key]));
 }
+// 配置门：冻结本次任务的授权、窗口、布局和草稿定位；不合格则在任何业务动作前停止。
 function validateConfig(raw) {
-  // Snapshot once: callers cannot change task authority during an awaited step.
+  // 开始时只快照一次配置，避免 await 期间调用方改变任务授权或布局资格。
   let config;
   try { config = JSON.parse(JSON.stringify(raw)); }
   catch (_) { stop('blocked', 'INVALID_CONFIG', '配置必须是普通 JSON'); }
@@ -155,8 +200,9 @@ function failedResult(ctx, error) {
     error && error.recipeCode ? error.message : '当前步骤未获得可靠结果；原始异常正文未写入日志');
 }
 
-// not_started belongs only to the attempted action, never to a later read.
-// A read failing after a submitted action must not erase that pending effect.
+// not_started 只描述当前尝试的动作，不能用于否定更早已经提交的动作。
+// 如果动作提交后的只读核对失败，必须保留 pending 副作用并返回 uncertain。
+// 副作用提交门：每个动作最多提交一次；只有能证明未开始时才清除 pending。
 async function submitOnce(ctx, action, counter, invoke) {
   ctx.pending = action;
   ctx.effects[counter]++;
@@ -167,7 +213,7 @@ async function submitOnce(ctx, action, counter, invoke) {
   }
 }
 
-// ---- Window / application observation ------------------------------------
+// ---- ③ 窗口与应用状态观察：先确认身份和当前状态，再允许后续操作 ----------------
 function requireRuntime() {
   requireThat(typeof window !== 'undefined' && typeof UI !== 'undefined' &&
     typeof Geometry !== 'undefined' && typeof clipboard !== 'undefined' &&
@@ -219,7 +265,7 @@ async function activateNotification(ctx, config) {
   return win;
 }
 
-// ---- Region / Target / Geometry; all Qianniu layout arithmetic lives here -
+// ---- ④ Region / Target / Geometry：千牛布局换算集中在这里，不污染业务主流程 ----
 function contained(parent, child) {
   const overlap = Geometry.intersect(Geometry.rect(parent), Geometry.rect(child));
   return overlap && ['x', 'y', 'width', 'height'].every(k => overlap[k] === child[k]);
@@ -268,7 +314,8 @@ function interpretStates(ctx, groups, scope) {
   return unique(candidates(groups, 0, scope), 'STATE_NOT_UNIQUE', '待发货状态必须唯一');
 }
 
-// ---- Data steps: actual UI -> clipboard -> product API --------------------
+// ---- ⑤ 数据步骤：实际 UI → 剪贴板 → 商品 API，逐步验证数据身份 ----------------
+// 只读通知：确认收件人、唯一待发货状态和唯一“和我联系”入口，不在这里执行点击。
 async function observeNotification(ctx, config, pin) {
   const win = await refresh(pin, config.layout.notification, config.windows.notificationTitle);
   const recipient = await readActualText(ctx, win, region(win, config.layout.notification.recipient), 'notification-recipient');
@@ -282,6 +329,7 @@ async function observeNotification(ctx, config, pin) {
     'OBSERVATION_CHANGED', '读取通知期间窗口几何改变，旧观察失效');
   return { win: current, recipient: recipient };
 }
+// 只读订单：重新绑定收件人，确认唯一可见订单，并读取实际商品标题。
 async function observeOrder(ctx, config, pin, expectedRecipient) {
   const win = await refresh(pin, config.layout.reception, config.windows.receptionTitle);
   const recipient = await readActualText(ctx, win, region(win, config.layout.reception.recipient), 'reception-recipient');
@@ -289,7 +337,7 @@ async function observeOrder(ctx, config, pin, expectedRecipient) {
     'RECIPIENT_MISMATCH', '接待窗口当前收件人与通知中的实际收件人不一致');
   const panel = region(win, config.layout.reception.orders);
   const groups = await UI.findTextMatches(QIANNIU.states.concat(QIANNIU.copyTitle), { within: win, region: panel, match: 'exact' });
-  // Deliberately limited to one visible order: no stable order ID, no first/last row choice.
+  // 当前故意只支持一个可见订单：没有稳定 orderId 时，不默认选择第一行或最后一行。
   const state = interpretStates(ctx, groups, panel);
   const copy = unique(candidates(groups, 4, panel), 'ORDER_NOT_UNIQUE', '订单面板须有且只有一个复制入口；多订单时停止');
   const card = cardFromStatus(config, win, state.bounds);
@@ -309,6 +357,7 @@ async function verifyBinding(ctx, config, order) {
   requireThat(textKey(current.title) === textKey(order.title), 'ORDER_CHANGED', '当前商品标题已改变，旧数据不得进入下一副作用');
   return current;
 }
+// 可验证动作：点击联系入口后，必须证明打开的是同进程且收件人一致的接待窗口。
 async function openReception(ctx, config, notification) {
   const current = await observeNotification(ctx, config, notification.win);
   requireThat(textKey(current.recipient) === textKey(notification.recipient),
@@ -337,6 +386,7 @@ function copyOptions(config, pin) {
     relativeTo: { text: '待发货', region: anchor => cardFromStatus(config, observedWindow, anchor.bounds) },
   };
 }
+// 可验证动作：复制只提交一次；通过“剪贴板变化 + UI 标题 + 上下文重验”证明结果。
 async function copyProductTitle(ctx, config, order) {
   const current = await verifyBinding(ctx, config, order);
   const before = clipboard.paste();
@@ -356,15 +406,16 @@ async function copyProductTitle(ctx, config, order) {
       copied = value;
       break;
     }
-    await sleep(LIMITS.pollingMs); // Bounded read-only polling; never repeat the copy action.
+    await sleep(LIMITS.pollingMs); // 这里只做有界只读轮询，绝不重复“复制”动作。
   }
   requireThat(copied !== null && Date.now() <= deadline, 'COPY_NOT_VERIFIED', '未在预算内证明复制效果；先人工核对，不自动重复制');
   await verifyBinding(ctx, config, current);
   ctx.pending = null;
   record(ctx, 'action-verification', { action: 'copy-title', changed: true, matchesActualTitle: true,
     proof: 'clipboard-change + UI-title + rechecked-visible-context', stableOrderIdProven: false });
-  return copied; // The API receives actual clipboard data, never a configured expected value.
+  return copied; // 商品 API 只接收实际剪贴板数据，不使用配置中的 expected 值补写。
 }
+// 数据验证：API 成功还不够，返回商品标题必须与实际复制标题一致。
 async function queryProduct(ctx, config, copiedTitle) {
   ctx.effects.queryAttempts++;
   let response;
@@ -386,7 +437,8 @@ function composeMessage(copiedTitle, product, postfix) {
     (postfix ? '\n\n' + postfix : ''), LIMITS.messageLength, '完整草稿');
 }
 
-// ---- Verifiable draft Action; intentionally no send / ship helpers --------
+// ---- ⑥ 可验证草稿动作：只写入并回读草稿，明确不提供发送或发货 helper ----------
+// 可验证动作：不覆盖已有不同草稿；写入后用同一原生输入框回读完整文本。
 async function prepareDraft(ctx, config, order, message) {
   let current = await verifyBinding(ctx, config, order);
   const options = { within: current.win, timeout: LIMITS.valueMs };
@@ -413,7 +465,8 @@ async function prepareDraft(ctx, config, order, message) {
     alreadyPrepared: before === message, length: actual.length, sent: false, shipped: false });
 }
 
-// ---- Business Workflow: single task, explicit data handoffs ----------------
+// ---- ⑦ 单次业务 Workflow：业务步骤显式传递数据，不依赖持续循环 ----------------
+// 只读预检入口：检查当前接待页与草稿可读性，不授予 draft 模式资格。
 async function inspectCurrentChat(ctx, config) {
   ctx.stage = 'inspect-current-chat';
   const chat = await window.get({ exeName: QIANNIU.exeName, title: config.windows.receptionTitle });
@@ -424,6 +477,7 @@ async function inspectCurrentChat(ctx, config) {
     notificationBindingVerified: false, qualificationGranted: false });
   return result(ctx, 'success', 'INSPECTION_ONLY', '只读预检结束；未点击、复制、查询、写草稿、发送或发货，仍须人工审阅资格');
 }
+// 单次业务主流程：这里应当能直接读懂完整业务顺序；helper 只负责实现细节与验证。
 async function runOnce(rawConfig) {
   const ctx = newRun();
   try {
@@ -448,8 +502,10 @@ async function runOnce(rawConfig) {
   } catch (error) { return failedResult(ctx, error); }
 }
 
-// Optional supervisor: only retry an idle, no-action observation. A successful
-// draft also stops: without stable IDs, automatic next-order deduplication is unsafe.
+// ---- ⑧ 可选 Supervisor ------------------------------------------------------
+// 只允许对“没有通知且本轮零动作”的空闲结果做有界重查。
+// 草稿成功也立即结束：缺少稳定业务 ID 时，自动处理下一订单无法可靠去重。
+// 长期监督与业务逻辑分离；除纯空闲观察外，任何结果都会结束本轮监督。
 async function supervise(config, maxIdleChecks) {
   requireThat(Number.isInteger(maxIdleChecks) && maxIdleChecks > 0 && maxIdleChecks <= 60,
     'INVALID_SUPERVISOR_LIMIT', '监听必须提供 1..60 的空闲检查上限');
@@ -464,7 +520,8 @@ async function supervise(config, maxIdleChecks) {
   return outcome;
 }
 
-// ---- Explicit main: exactly one run, bounded config read, redacted result --
+// ---- ⑨ 显式 main：只运行一次；有界读取配置；输出脱敏结果 ----------------------
+// 默认入口只执行一次 runOnce()；Supervisor 不会被隐式启动。
 async function main() {
   let config;
   try { config = await File.readJSON(CONFIG_PATH, { maxBytes: LIMITS.configBytes }); }
