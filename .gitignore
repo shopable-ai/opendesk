@@ -16,6 +16,7 @@ __debug*
 
 # runtime and build output
 .runtime/
+# Includes Agent-to-Recipe Calculator qualification output under .runtime/tests/workflows/calculator/.
 # Includes Runtime API Conformance Lab logs, screenshots, generated scripts, and evidence.
 .staging-sync/
 dist/

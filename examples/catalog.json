@@ -1,6 +1,21 @@
 {
   "schemaVersion": 2,
   "entries": {
+    "agent-to-recipe/calculator.js": {
+      "title": "Calculator Actual Result Chain",
+      "description": "Enter 25 × 4 + 10 in Calculator, read the actual display, then enter 6 × that value.",
+      "category": "Desktop",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "examples/agent-to-recipe/README.md",
+      "platforms": ["darwin"],
+      "prerequisites": ["Open macOS Calculator Basic 232x321 with Chinese native labels; Accessibility permission already granted; exclusive desktop input. Clears Calculator twice."],
+      "requiredEnv": [],
+      "expected": "Print fresh firstResult/finalResult and actual native completion receipts; qualification is a separate test.",
+      "tags": ["calculator", "agent-to-recipe", "actual-result"],
+      "launch": {"kind": "script", "ui": false, "consoleMode": "script"}
+    },
     "runtime/llm-agent/llm-generate.js": {
       "title": "Generate Text with LLM",
       "description": "Call the configured HTTP model adapter and consume result.data from ordinary JavaScript.",
