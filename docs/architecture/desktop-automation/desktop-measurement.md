@@ -131,7 +131,7 @@ MEASURING 的默认 Surface 只保留：
 - 小型 Toolbar；
 - 按需 Inspector。
 
-REFERENCE_SELECTING 只显示 Live 窗口边框/名称/bounds/确认提示，不显示冻结画面、冻结蒙版或正式颜色 HUD。
+REFERENCE_SELECTING 使用 **Live Spotlight Selection**：当前 Hover Candidate Window 的 Live 原始像素与亮度保持不变，只在其边界描边；Candidate 之外的桌面区域使用中性深色 scrim/dim 压暗，形成类似微信截图选窗或模态背景的聚焦效果。实现应使用 even-odd cutout / 等价四周蒙版，禁止把白色、灰色、半透明填充、blur 或 opacity 覆盖到 Candidate 内部。窗口名称/bounds/确认提示放在外缘或独立 HUD，不能遮挡候选窗口中心内容。该选择蒙版不是 Frozen Snapshot 蒙版；确认前不显示冻结画面或正式颜色 HUD。
 
 当前主 Toolbar 合同：
 
@@ -373,7 +373,7 @@ HTML 定义产品交互、信息层级、状态转换和几何语义；其中 sy
 
 ### Prototype Browser Oracle
 
-Live Reference selection、确认后冻结、磁吸 Hover size/margins、三级坐标、源像素、两组边距、Tab Candidate Stack、Alt/OFF 抑制工作、缓存/节流计数、弱蒙版、更新画面、ADJUSTING、token invalidation、多记录/跨 Snapshot 保留、Inspector、structured export、copy/save失败、exit cleanup、视觉候选不冒充语义。
+Live Reference selection、**Candidate 原样 + 外围 spotlight 蒙版**、确认后冻结、磁吸 Hover size/margins、三级坐标、源像素、两组边距、Tab Candidate Stack、Alt/OFF 抑制工作、缓存/节流计数、MEASURING 弱蒙版、更新画面、ADJUSTING、token invalidation、多记录/跨 Snapshot 保留、Inspector、structured export、copy/save失败、exit cleanup、视觉候选不冒充语义。
 
 ### Measurement Framework
 
