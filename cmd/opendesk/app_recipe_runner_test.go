@@ -450,7 +450,7 @@ func TestAssistantInstalledFlowVerticalRuntimeUsesCanonicalCatalogAndRealExecuti
 	flowSource := filepath.Join(flowSourceRoot, "payload", "main.js")
 	if err := os.WriteFile(flowSource, []byte(
 		`const resultPath = File.join(Execution.workdir, "assistant-flow-result.json");
-File.writeNew(resultPath, JSON.stringify({executionId: Execution.id, input: Execution.input}) + "\\n");
+File.writeNew(resultPath, JSON.stringify({executionId: Execution.id, input: Execution.input}) + "\n");
 console.log("ASSISTANT_FLOW_BUSINESS_OUTPUT=" + resultPath);`,
 	), 0o600); err != nil {
 		t.Fatal(err)
