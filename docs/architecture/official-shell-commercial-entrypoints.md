@@ -39,7 +39,7 @@ P0 显示一个首位品牌入口和两个右侧官方入口：
 
 ## 2. UI ownership 与边界
 
-`apps/opendesk/script-runner-simple.js` 的职责是产品启动适配。正式发行产品已经由 `apps/opendesk` 持有 App Mode 主窗口、Script Runner 与产品动作。
+`apps/opendesk/flow-runner.js` 的职责是产品启动适配。正式发行产品已经由 `apps/opendesk` 持有 App Mode 主窗口、Flow Runner 与产品动作。
 
 三类职责必须保持分离：
 
@@ -51,8 +51,8 @@ App Shell
 - single instance
 - Recorder / Quit system actions
 
-Generic Script Runner controller
-- script discovery / ordering
+Generic Flow Runner controller
+- Runnable Entry discovery / ordering
 - Run / Run Selected / Stop
 - list / empty / error state
 - child recipe process
@@ -66,23 +66,23 @@ Official Shell
 - HTTPS-only external navigation
 ```
 
-Product composition 只把 Generic Runner 与 Official Shell 组合在一起。Official Shell 不知道 Run/Stop 状态机；Generic Runner controller 不知道 Marketplace、VIP、License、OEM 或其他商业策略。
+Product composition 只把 Generic Flow Runner 与 Official Shell 组合在一起。Official Shell 不知道 Run/Stop 状态机；Generic Flow Runner controller 不知道 Marketplace、VIP、License、OEM 或其他商业策略。
 
-`examples/custom-ui/script-runner-simple.js` 继续是学习/API 示例，不注入 `opendesk.*` 官方动作。
+`examples/custom-ui/flow-runner.js` 继续是学习/API 示例，不注入 `opendesk.*` 官方动作。
 
 ## 3. Product Runner toolbar
 
 P0 使用 **同一个** FloatingWindow，不创建第二套 toolbar：
 
 ```text
-[OpenDesk] │ [运行] [停止] [当前脚本] [列表] │ [定制] [帮助]
+[OpenDesk] │ [运行] [停止] [当前流程] [流程列表] │ [定制] [帮助]
 ```
 
 说明：FloatingWindow 的按钮主体由图标表达，`label` 用于 tooltip/Accessibility；上图表示业务语义与顺序，而不是要求渲染成 HTML 文字按钮。
 
 规则：
 
-- Run / Stop / 当前脚本 / 列表是高频核心业务能力；
+- Run / Stop / 当前流程 / 流程列表是高频核心业务能力；
 - OpenDesk Logo 固定在第一位，作为无额外内边距的原色 image button，在 40pt 点击区内 `aspect-fit` 铺满；
 - Logo 是有 tooltip / Accessibility name / callback 的原生 icon button，不是装饰图片；
 - 定制 / 帮助位于右侧 secondary group；
@@ -380,17 +380,17 @@ apps/opendesk/
 │   └── activation
 ├── assets/
 │   └── product.odcfg
-├── script-runner-simple.js
-│   └── Product Runner composition / main-window mapping / secondary actions
-├── script-runner/
-│   └── controller.js             <- shared generic Runner behavior
+├── flow-runner.js
+│   └── Product Flow Runner composition / main-window mapping / secondary actions
+├── flow-runner/
+│   └── controller.js             <- shared generic Flow Runner behavior
 └── opendesk.app.json
 
 workflows/official-product-config/
 └── README + manage-official-product-config Skill
 ```
 
-`apps/opendesk/script-runner-simple.js` 继续作为产品启动适配器，不成为商业动作与 controller 的 owner。
+`apps/opendesk/flow-runner.js` 继续作为产品启动适配器，不成为商业动作与 controller 的 owner。
 
 ## 12. P0 验收
 
@@ -400,7 +400,7 @@ workflows/official-product-config/
 - Logo 点击打开配置中的 `opendesk.home`（与只读 `System.product.website` 投影一致），且不改变 recipe 状态；
 - Runner list 的稳定 window ID 为 `main`；
 - App Shell `opendesk.open` 显示/聚焦同一个 `main`；
-- Tray 不重复显示“打开 OpenDesk / 打开 Script Runner”；
+- Tray 不重复显示“打开 OpenDesk / 打开自动化”；
 - 不因 Open 创建第二 Runner、toolbar 或主 Execution；
 - Help/Customize 是同一 Runner toolbar 的 secondary actions；
 - recipe running 时 Help/Customize 仍可用；

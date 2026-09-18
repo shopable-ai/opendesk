@@ -244,10 +244,10 @@ tests/runtime-api/custom-ui-image-readiness.js
 
 ## 8. Interaction Group / Focus
 
-Promotion HTML surface 使用与 Script Runner Player 相同的 interaction group：
+Promotion HTML surface 使用与 Flow Runner Player 相同的 interaction group：
 
 ```text
-scriptRunnerPlayer
+flowRunnerPlayer
 ```
 
 目标是让 Runner / List Panel / Promotion 之间的组内交互不被误判成 outside interaction。

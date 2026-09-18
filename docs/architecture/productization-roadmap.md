@@ -116,20 +116,20 @@ main OpenDesk process
 
 不是独立 child OpenDesk process。
 
-### 3.4 Script Runner ownership — IMPLEMENTED BASELINE
+### 3.4 Flow Runner ownership — IMPLEMENTED BASELINE
 
-正式 Script Runner controller owner：
+正式 Flow Runner controller owner：
 
 ```text
-apps/opendesk/script-runner/controller.js
+apps/opendesk/flow-runner/controller.js
 ```
 
-`apps/opendesk/script-runner-simple.js` 是产品层的启动适配器，不重新拥有 Script Runner 业务 controller；controller owner 仍是 `apps/opendesk/script-runner/`。
+`apps/opendesk/flow-runner.js` 是产品层的启动适配器，不重新拥有 Flow Runner 业务 controller；controller owner 仍是 `apps/opendesk/flow-runner/`。
 
 Recipe 执行模型继续保持：
 
 ```text
-Script Runner UI
+Flow Runner UI
 → product-private App-owned execution bridge
 → fresh pkg/execution JavaScript Runtime in the OpenDesk App process
 ```

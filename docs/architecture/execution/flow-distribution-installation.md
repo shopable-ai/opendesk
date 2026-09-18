@@ -18,7 +18,7 @@
 → 交付 .js / .odpkg / .odflow
 → 用户双击 .odflow，或把文件拖入 OpenDesk
 → 宿主校验、确认信任、取得必要授权、安装与注册
-→ Flow 出现在 Script Runner
+→ Flow 出现在 Flow Runner（用户界面“自动化”）
 → 用户明确运行
 → 现有 Execution / Goja 执行业务
 ```
@@ -212,7 +212,7 @@ macOS 复用 Keychain owner；Windows 复用 current-user DPAPI owner并补目�
 
 ### 6.1 用户入口
 
-必须支持 `.odflow` 双击、OpenDesk/Script Runner 实窗文件拖放，以及“安装 Flow…”文件选择。托盘拖放只是增强，不是唯一入口。不抢占系统 `.js` 默认关联；裸 `.js` 通过拖入/选择安装。
+必须支持 `.odflow` 双击、OpenDesk/Flow Runner 实窗文件拖放，以及“安装 Flow…”文件选择。托盘拖放只是增强，不是唯一入口。不抢占系统 `.js` 默认关联；裸 `.js` 通过拖入/选择安装。
 
 macOS 文档类型/打开事件和 Windows 文件关联/启动参数都进入同一原生安装服务。宿主未启动时启动宿主；已启动时转交现有实例。安全传递文件参数，不用 shell 字符串拼接路径，不把打开文档转换成执行脚本。
 
@@ -296,7 +296,7 @@ Flow.dataDir
 
 Runner、CLI、AI 和 Scheduler 的 Flow 调用应复用同一解析与加载 owner。内部可以扩展调用面，但不得为每个入口复制一套找资源、找 key 或解密逻辑。现有不支持受保护文件的 transport，在安全接入前必须明确拒绝，不能绕过授权转为明文内联。
 
-Script Runner 从 Flow Catalog 获得稳定身份、显示名称、状态和入口，不再把“文件名以 `.js` 结尾”作为正式 Flow 能力边界。保留播放器式运行/停止/上一个/下一个/名称/列表，不重新设计整个界面，不显示扩展名来冒充友好名称。
+Flow Runner 从 Flow Catalog 获得稳定身份、显示名称、状态和入口，不再把“文件名以 `.js` 结尾”作为正式 Flow 能力边界。保留播放器式运行/停止/上一个/下一个/名称/列表，不重新设计整个界面，不显示扩展名来冒充友好名称。
 
 ### 7.2 不落地受保护源码
 
@@ -327,7 +327,7 @@ Protected execution 不自动输出明文 `script_snapshot.js`、临时源码、
 | `.odpkg` 加密、验签、内存加载 | Protected Package CLI 与既有架构/安全模型 | 复用；不得改成外层 ZIP 里放裸 DEK |
 | 精确 key/License 定位 | `pkg/licensing/device_bound.go` 按 publisher/product/package/content-key 生成存储定位，分离 package/issuer keys，并拒绝 pin 冲突 | 扩展认可来源、作用域、轮换/撤销，不新建竞争 key owner |
 | P1/P2 与设备 identity | CLI 合同描述离线授权、在线激活、刷新、停用、防重放；macOS/Windows 资格边界分列 | 复用原生链路并增加产品权益协调、普通用户 UI |
-| Runner 发现 | `apps/opendesk/script-runner/controller.js` 当前发现/排序仍限制直接 `.js` 文件名 | 改为 Flow Catalog；保留选择、顺序、运行/停止交互 |
+| Runner 发现 | `apps/opendesk/flow-runner/controller.js` 当前发现/排序支持 Runnable Entry | 复用 Flow Catalog；保留选择、顺序、运行/停止交互 |
 | Flow 安装容器与事务 | 前轮方案提出的新能力；不是既有 `.odpkg` CLI 的安装同义词 | 新增 Manifest/签名合同、pack/inspect/install 等实际能力与唯一安装 owner |
 | Flow 上下文与统一调用 | 现有 Execution 已有脚本路径与 workdir，不能冒充 Flow context | 新增 root/dataDir 绑定并接通入口，保护 metadata 不丢失 |
 | Publisher lifecycle | 当前 CLI 文档明确 P3 registry/rotation/retirement/migration 未实现 | 落实本合同所需本地信任管理；生产注册服务单独标明 |
@@ -432,7 +432,7 @@ macOS/Windows 分别列明源码、build、Runtime 和 native/live 证据；没�
 - [Protected Package Security Model](protected-package-security-model.md)：每包密钥、用途隔离、内存解密、客户端保护上限。
 - [License 安装与解析 owner](../../../pkg/licensing/device_bound.go)：精确身份定位、两类 public-key pins 与冲突拒绝。
 - [Protected Loader](../../../pkg/scriptloader/protected.go)：签名、授权、内存解密与 ProtectionInfo。
-- [Script Runner Controller](../../../apps/opendesk/script-runner/controller.js)：既有直接 `.js` 发现/排序限制。
+- [Flow Runner Controller](../../../apps/opendesk/flow-runner/controller.js)：Runnable Entry 发现/排序与执行边界。
 - [Execution Reference](../../api/execution.md)：脚本路径、工作目录、artifact 与只读上下文语义。
 - [项目协作规范](../../../AGENTS.md)：Runtime JS 测试、原生验收、测试产物和分支约束。
 

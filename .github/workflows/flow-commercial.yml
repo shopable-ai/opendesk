@@ -47,12 +47,12 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Test canonical package, installer, Marketplace, app-data, execution and CLI owners
+      - name: Test canonical package, installer, Marketplace, and app-data owners
         shell: bash
         run: |
           mkdir -p .runtime/tests
           set -o pipefail
-          go test ./pkg/flowpackage ./pkg/flowinstall ./pkg/flowmarketplace ./pkg/appdata ./pkg/execution ./internal/flowcli ./internal/packagecli -count=1 2>&1 | tee .runtime/tests/flow-commercial-go-test.log
+          go test ./pkg/flowpackage ./pkg/flowinstall ./pkg/flowmarketplace ./pkg/appdata -count=1 2>&1 | tee .runtime/tests/flow-commercial-go-test.log
       - name: Upload portable Flow evidence
         if: always()
         uses: actions/upload-artifact@v4

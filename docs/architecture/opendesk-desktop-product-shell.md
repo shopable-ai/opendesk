@@ -132,16 +132,16 @@ OpenDesk
 
 ### 3.2 内部兼容名称
 
-以下工程名称可以继续保留，不因为产品文案变化做无意义重构：
+唯一保留的旧 action ID 是兼容路由；组件和文件名均以 Flow Runner 为准：
 
 ```text
 runner.open
-OpenDeskProductScriptRunner
-apps/opendesk/script-runner/**
-apps/opendesk/script-runner-simple.js
+OpenDeskProductFlowRunner
+apps/opendesk/flow-runner/**
+apps/opendesk/flow-runner.js
 ```
 
-`opendesk.open` 与旧 `runner.open` 可以继续路由到同一个 `main` window，以避免破坏兼容；但 `打开 Script Runner` 不再作为可见菜单项。
+`opendesk.open` 与旧 `runner.open` 可以继续路由到同一个 `main` window，以避免破坏兼容；可见菜单项使用“自动化”。
 
 ## 4. 统一 Tray / Menu
 

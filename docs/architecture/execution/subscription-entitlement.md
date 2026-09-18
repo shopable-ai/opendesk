@@ -75,8 +75,8 @@ Runner / CLI / AI / 其他受支持入口
 | 设备与秘密 | `pkg/deviceidentity`、`pkg/securestore` | P-256、macOS Keychain、Windows current-user DPAPI owner；不是硬件不可导出承诺 |
 | 执行生命周期 | `pkg/execution/runner.go` | 同一 Goja；Request.Context、取消与超时可以复用 |
 | 官方 App 执行桥 | `cmd/opendesk/app_recipe_runner.go` | 当前只接受 `.js` 并保存源码快照；接入受保护文件时必须同时修快照路径 |
-| Runner 发现 | `apps/opendesk/script-runner/controller.js` 等 | 直接 `.js` 文件扫描；播放器已有，应该换数据源而非重做界面 |
-| 产品路径 | `apps/opendesk/script-runner-simple.js`、`cmd/opendesk/app_paths.go` | 现有 App 数据根、recipes、显式路径覆盖 |
+| Runner 发现 | `apps/opendesk/flow-runner/controller.js` 等 | Runnable Entry 扫描；播放器已有，应该换数据源而非重做界面 |
+| 产品路径 | `apps/opendesk/flow-runner.js`、`cmd/opendesk/app_paths.go` | 现有 App 数据根、recipes、显式路径覆盖 |
 | CLI 组织 | `internal/packagecli`、`internal/licensecli`、`internal/protectedcli`、`internal/aicli` | 后续接线应先复用现有组织与公共文档，不把新命令逻辑全堆进 main.go |
 
 `licensing.Entitlement` 当前混合包级身份、ExpiresAt 和 KeyEnvelope，是包级验证结果，不是完整产品／功能／组织权益领域模型。在线验证还会将 ExpiresAt 收敛成 offlineUntil；新合同必须保留商业截止与证明截止两个含义。
@@ -701,4 +701,4 @@ v1 是精确设备／包／期限合同，不能直接塞 Pro／永久／组织�
 
 - [Flow 合同](flow-distribution-installation.md)、[Protected Package CLI](../../api/protected-packages.md)、[Execution](../../api/execution.md)、[App Package](../app-package-format.md)。
 - [Protected Loader](../../../pkg/scriptloader/protected.go)、[License](../../../pkg/licensing/license.go)、[设备与存储](../../../pkg/licensing/device_bound.go)、[离线 License](../../../pkg/licensing/offline_license.go)、[在线缓存](../../../pkg/licensing/online_cache.go)、[防回滚](../../../pkg/licensing/online_replay.go)。
-- [客户端](../../../pkg/entitlement/client.go)、[参考服务](../../../pkg/entitlementservice/service.go)、[App 执行桥](../../../cmd/opendesk/app_recipe_runner.go)、[Execution](../../../pkg/execution/runner.go)、[Runner](../../../apps/opendesk/script-runner/controller.js)、[产品路径](../../../apps/opendesk/script-runner-simple.js)。
+- [客户端](../../../pkg/entitlement/client.go)、[参考服务](../../../pkg/entitlementservice/service.go)、[App 执行桥](../../../cmd/opendesk/app_recipe_runner.go)、[Execution](../../../pkg/execution/runner.go)、[Flow Runner](../../../apps/opendesk/flow-runner/controller.js)、[产品路径](../../../apps/opendesk/flow-runner.js)。

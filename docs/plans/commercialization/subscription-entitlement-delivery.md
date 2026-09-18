@@ -153,7 +153,7 @@ UI 可以提前完善不依赖商业判断的部分，但 B5 整体完成依赖 
 - **B5.2 既有 Runner 与授权管理**：Catalog 接入播放器，保留运行／停止／上一个／下一个／当前名称／列表；一行状态＋对应激活／续订／联网修复主动作；信任与授权不同意不能混成一个默认勾选。单次激活后多 Flow 可以复用产品购买、独立取得包信封，用户不选 key。无人值守返回错误，不弹购买窗。
 - **B5.3 产品发行接线**：只读官方资源与可写 Flow 分开；manifest／构建脚本携带所需关联和原生入口；主程序与 UI host provenance 一致。保存原 recipes 顺序／当前选择／资源／引用的迁移资格；运行／更新／停止／隐藏关闭回归。
 
-建议面：`apps/opendesk/script-runner/controller.js`、`player-controller.js`、`script-runner-simple.js`、必要 `main.js`／locale，`pkg/appshell`／native file-open/drop owner、产品构建脚本（先读实际 owner），`tests/runtime-api/flow-product-installation.js` 与原生资格脚本。
+建议面：`apps/opendesk/flow-runner/controller.js`、`player-controller.js`、`flow-runner.js`、必要 `main.js`／locale，`pkg/appshell`／native file-open/drop owner、产品构建脚本（先读实际 owner），`tests/runtime-api/flow-product-installation.js` 与原生资格脚本。
 
 演示：客户对一个带空格／中文路径的 .odflow 双击或拖入→明确信任／激活→正确条目→明确 Run→结果；到期可续订，免费项目与停止按钮仍可用。
 
@@ -216,13 +216,13 @@ GitHub-only 环境：没有本地 checkout 就只报告远端 SHA／文件，不
 
 ### 8.1 当前批次状态
 
-以下状态按 `master@3087701871c73f0a0aca4a4385886fa0ef0f004b` 的生产源码与已保存证据更新。较早 checkout 的 PASS 只证明当时构建；最新源码尚未重跑的项保持 PARTIAL/NOT_RUN。
+以下状态按 2026-09-18 实际核验的 `master@84a6415c25464decebfa167f4045c745edc3748a` 加当前 dirty worktree 更新。该 current-source 输入已重新构建并执行直接 Runtime、正式 gate、相关回归及 test-architecture audit；未实际执行的平台交互仍明确保留为 `NOT_RUN`。
 
 | 批次 | 实现状态 | 验证状态 | 当前依赖／下一步 |
 |---|---|---|---|
-| B0 | IMPLEMENTED | PARTIAL | canonical owner=`pkg/flowpackage`；已有 macOS direct Runtime/Go 证据；最新源码需重跑 B0 direct + formal gate |
-| B1 | IMPLEMENTED | PARTIAL | canonical owner=`pkg/flowinstall`；Trust/Catalog/install/run lease/事务恢复已落地；最新待授权更新与 transactional uninstall 修复需 current-source 重验 |
-| B2 | NOT_STARTED | NOT_RUN | NEXT：B0/B1 最新源码资格通过后进入 grant/lease、proof v2、device binding、secure cache、trusted time/offline decision |
+| B0 | IMPLEMENTED | PASS | canonical owner=`pkg/flowpackage`；current-source build、owner tests、direct Runtime 与 formal `flow-package` gate 均通过 |
+| B1 | IMPLEMENTED | PASS | canonical owner=`pkg/flowinstall`；current-source trust/install/catalog/update/uninstall/recovery Runtime 与 formal `flow-installation` gate 均通过；原生 Trust UI 属 B5 平台交互，未运行不冒充 PASS |
+| B2 | NOT_STARTED | NOT_RUN | NEXT：grant/lease、proof v2、device binding、secure cache、trusted time/offline decision |
 | B3 | NOT_STARTED | NOT_RUN | B2；持久化 issuer／激活刷新 |
 | B4 | NOT_STARTED | NOT_RUN | B1+B2+B3；统一执行及截止 |
 | B5 | IN_PROGRESS | PARTIAL | 并行 Flow 分发已接入 Catalog/Runner/macOS 原生文件入口；完整商业 UX 仍依赖 B4，Windows/native live 未闭合 |
@@ -233,14 +233,14 @@ GitHub-only 环境：没有本地 checkout 就只报告远端 SHA／文件，不
 ```yaml
 batch: B0
 workPackages: [B0.1, B0.2, B0.3]
-sourceBaseline: 6930be2bb06526127d21c7b542313a932fc33ba9
+sourceBaseline: "master@84a6415c25464decebfa167f4045c745edc3748a + dirty working tree, current-source qualified 2026-09-18"
 implementationCommits:
   - 03c0e207d9f1d1b164ba7183ffc29006d6305103
   - 1badc5295052ac2b399e83f99b9702bfa16a22a3
   - 05f01fd1e812e1d92783c9401e1ef7268bc6c82f
   - 0cac461e6a8c747d45f33eec82cb66b26fa1bec6
 codeStatus: IMPLEMENTED
-verificationStatus: PARTIAL
+verificationStatus: PASS
 changedOwners:
   - pkg/flowpackage
   - schemas/flow/flow.schema.json
@@ -249,29 +249,29 @@ changedOwners:
   - tests/runtime-api/flow-package.js
   - tests/runtime-api/support/flow-package-harness.js
   - tests/runtime-api/gates
-reuseEvidence:
-  - docs/quality/flow-distribution-qualification.md E1/E2/E3/E5/E10
 commandsActuallyRun:
-  - go test ./pkg/appshell ./pkg/flowinstall ./pkg/flowpackage ./internal/flowcli ./pkg/execution ./pkg/appdata -count=1
-  - ./dist/opendesk -script tests/runtime-api/flow-package.js -console-mode script
-  - OPENDESK_RUNTIME_API_RUN_DIR=<isolated> OPENDESK_RUNTIME_API_BINARY=$PWD/dist/opendesk ./dist/opendesk -script tests/runtime-api/flow-distribution.js -console-mode script
   - make build
-  - SKIP_CODESIGN=1 scripts/build_macos_app.sh
+  - go test ./pkg/flowpackage ./pkg/flowinstall ./pkg/flowmarketplace ./pkg/appdata ./pkg/execution ./internal/flowcli ./internal/packagecli -count=1
+  - ./dist/opendesk -script tests/runtime-api/flow-package.js -console-mode script
+  - OPENDESK_RUNTIME_API_MODE=flow-package ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+  - OPENDESK_RUNTIME_API_RUN_DIR=.runtime/tests/runtime-api/flow-direct-20260918-final OPENDESK_RUNTIME_API_BINARY=$PWD/dist/opendesk ./dist/opendesk -script tests/runtime-api/flow-distribution.js -console-mode script
+  - ./scripts/build_macos_app.sh
+  - codesign --verify --deep --strict dist/OpenDesk.app
+  - ./dist/opendesk app validate apps/opendesk --json
 caseResults:
-  - B0 package/CLI owners on earlier working tree: PASS
-  - B0 direct Runtime flow-package.js on earlier working tree: PASS 3/3
-  - Flow distribution Runtime regression on earlier working tree: PASS
-  - latest master direct/formal B0 qualification after subsequent commits: NOT_RUN
+  - canonical package/signature/CLI owner suite: PASS
+  - direct B0 Runtime flow-package.js: PASS 3/3 (.runtime/runs/direct-20260918-003038-081000)
+  - formal flow-package Runtime gate: PASS (.runtime/tests/runtime-api/direct-20260918-003039-260000)
+  - signed pack/inspect/verify, candidate-key mismatch, overwrite refusal, and no business-JavaScript execution: PASS
+  - normal/protected structure plus manifest/asset/signature tamper rejection: PASS
+  - Flow distribution regression, explicit-run-only behavior, and legacy local .js Flow route: PASS (.runtime/tests/runtime-api/flow-direct-20260918-final)
+  - static macOS bundle validation, signature verification, and .odflow association metadata: PASS
 platformEvidence:
-  macOS: PARTIAL
-  Windows: PARTIAL
-blockingFacts:
-  - earlier macOS evidence came from an older/dirty working tree and cannot certify current master automatically
-  - Windows has package/install cross-build evidence but no target-system live Runtime evidence
-remainingWorkPackages:
-  - current-source B0 direct Runtime test
-  - current-source flow-package formal gate
-nextAction: build latest master and rerun B0 direct/formal gates without weakening assertions
+  macOS: PASS (current-source build, direct/formal Runtime, signed bundle and association metadata)
+  Windows: NOT_RUN (no target-system Runtime or desktop qualification was executed)
+blockingFacts: []
+remainingWorkPackages: []
+nextAction: B2 — grant / lease / proof v2 / device binding / secure cache / trusted time / offline decision
 ```
 
 ### 8.1.2 B1 当前台账
@@ -279,7 +279,7 @@ nextAction: build latest master and rerun B0 direct/formal gates without weakeni
 ```yaml
 batch: B1
 workPackages: [B1.1, B1.2, B1.3]
-sourceBaseline: 0cac461e6a8c747d45f33eec82cb66b26fa1bec6
+sourceBaseline: "master@84a6415c25464decebfa167f4045c745edc3748a + dirty working tree, current-source qualified 2026-09-18"
 implementationCommits:
   - 0cac461e6a8c747d45f33eec82cb66b26fa1bec6
   - 2b57fc2750da9396c41e16f9c25fdb32573829d5
@@ -289,7 +289,7 @@ implementationCommits:
   - 9734a7ba7c24327ec26bd27e65c8cbd576d8f87e
   - 3087701871c73f0a0aca4a4385886fa0ef0f004b
 codeStatus: IMPLEMENTED
-verificationStatus: PARTIAL
+verificationStatus: PASS
 changedOwners:
   - pkg/flowinstall
   - pkg/appdata
@@ -299,33 +299,40 @@ changedOwners:
   - tests/runtime-api/flow-distribution.js
   - tests/runtime-api/gates
   - .github/workflows/flow-commercial.yml
-reuseEvidence:
-  - docs/quality/flow-distribution-qualification.md E1/E3/E6/E10/E11/E12
 commandsActuallyRun:
-  - go test ./pkg/appshell ./pkg/flowinstall ./pkg/flowpackage ./internal/flowcli ./pkg/execution ./pkg/appdata -count=1
-  - OPENDESK_RUNTIME_API_RUN_DIR=<isolated> OPENDESK_RUNTIME_API_BINARY=$PWD/dist/opendesk ./dist/opendesk -script tests/runtime-api/flow-distribution.js -console-mode script
-  - node --test tests/custom-ui/script-runner-simple.test.js
   - make build
-  - SKIP_CODESIGN=1 scripts/build_macos_app.sh
+  - go test ./pkg/flowpackage ./pkg/flowinstall ./pkg/flowmarketplace ./pkg/appdata ./pkg/execution ./internal/flowcli ./internal/packagecli -count=1
+  - ./dist/opendesk -script tests/runtime-api/flow-installation.js -console-mode script
+  - OPENDESK_RUNTIME_API_MODE=flow-installation ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+  - OPENDESK_RUNTIME_API_RUN_DIR=.runtime/tests/runtime-api/flow-direct-20260918-final OPENDESK_RUNTIME_API_BINARY=$PWD/dist/opendesk ./dist/opendesk -script tests/runtime-api/flow-distribution.js -console-mode script
+  - node --test tests/custom-ui/flow-runner.test.js tests/custom-ui/flow-runner-player.test.js tests/custom-ui/product-flow-runner.test.js
+  - ./dist/opendesk -script tests/runtime-api/flow-runner-shortcuts.js -console-mode script
+  - ./dist/opendesk -script tests/custom-ui/flow-runner-runtime.js -console-mode script
+  - node scripts/check_api_docs_contract.js
+  - node scripts/audit_test_architecture.js
+  - ./scripts/build_macos_app.sh
+  - codesign --verify --deep --strict dist/OpenDesk.app
 caseResults:
-  - canonical safe install/catalog/trust/run/uninstall on earlier working tree: PASS/PARTIAL by FLOW case matrix
-  - native macOS trust modal visibly reached: PARTIAL; automated modal click not achieved
-  - latest ready->needs-activation update protection: IMPLEMENTED, latest-source test NOT_RUN
-  - latest transactional uninstall/recovery: IMPLEMENTED, latest-source test NOT_RUN
-  - latest flow-installation direct/formal Runtime gate: NOT_RUN
+  - canonical install/trust/catalog/transaction owner suite: PASS
+  - direct B1 Runtime flow-installation.js: PASS 4/4 (.runtime/runs/direct-20260918-003131-913000)
+  - formal flow-installation Runtime gate: PASS (.runtime/tests/runtime-api/direct-20260918-003133-087000)
+  - candidate signature validity, Publisher Trust, commercial entitlement, and explicit execution remain independent: PASS
+  - unknown publisher/public key does not auto-trust; Flow- and Publisher-scoped trust remain distinct: PASS
+  - no-entitlement commercial Flow installs only as needs-activation and cannot run; install does not execute business JavaScript: PASS
+  - Catalog identity/provenance, restart discovery, display-name collision isolation, and content/data/state separation: PASS
+  - same-digest idempotency, same-version digest conflict, explicit downgrade, ready-to-needs-activation protection, and interrupted-install recovery: PASS
+  - transactional uninstall/recovery retains data by default, deletes only target data when requested, and preserves shared Trust/entitlement and other Flows: PASS
+  - hostile archive inputs (traversal, absolute/ambiguous/reserved/ADS/case/Unicode aliases, duplicates, special entries, tamper, and compression limits) fail closed with zero business-JavaScript execution and no existing-install damage: PASS
+  - Flow distribution and Flow Runner regression: PASS; Node suite 58/58, shortcut Runtime PASS, child execution/Stop/restart Runtime PASS (.runtime/tests/flow-runner/1789662717106/result.json)
+  - test architecture audit and API-doc contract: PASS
 platformEvidence:
-  macOS: PARTIAL
-  Windows: PARTIAL
+  macOS: PARTIAL (current-source build, B1 direct/formal Runtime, signed bundle PASS; native Trust/install interaction was not run)
+  Windows: NOT_RUN (no target-system Runtime, association, or desktop qualification was executed)
 blockingFacts:
-  - latest transaction journal extension and aligned flow-installation.js require current-source compilation and Runtime execution
-  - macOS native trust modal interaction remains partial; visible modal is not equivalent to successful native install qualification
-  - Windows live Runtime/file association/desktop qualification remains NOT_RUN
-remainingWorkPackages:
-  - current-source Go owner tests
-  - current-source B1 direct Runtime test
-  - current-source flow-installation formal gate
-  - relevant Runner/test-architecture regressions
-nextAction: run latest master locally, fix any compile/runtime failures, rerun exact B0/B1 gates, then advance primary development to B2
+  - B1 verification PASS covers the canonical install contract and Runtime gates. Native Trust/install dialog interaction belongs to B5 product UX and remains NOT_RUN on this host; it is not inferred from CLI/Runtime success.
+  - Windows target-system live qualification remains NOT_RUN; no cross-build is represented as live PASS.
+remainingWorkPackages: []
+nextAction: B2 — grant / lease / proof v2 / device binding / secure cache / trusted time / offline decision
 ```
 
 ### 8.2 状态不能混成一个 DONE
@@ -387,21 +394,15 @@ nextAction: <一个明确的工作包或验收动作>
 
 ## 11. 当前下一步
 
-**不要重新开发 B0/B1。当前唯一正确的下一步是：在最新 `master` 上进行 current-source qualification，失败就直接修复同一 canonical owner；B0/B1 最新源码全部通过后，主开发批次进入 B2。**
+**B0/B1 已在本台账记录的 current-source closure 上完成资格验证并通过。不要重新开发 B0/B1；主开发批次现在直接进入 B2：grant / lease / proof v2 / device binding / secure cache / trusted time / offline decision。**
 
 固定验收顺序：
 
 ```text
-go test canonical Flow owners
-→ make build / 当前平台正式 build owner
-→ B0 direct Runtime
-→ B0 formal flow-package gate
-→ flow-distribution regression
-→ B1 direct Runtime
-→ B1 formal flow-installation gate
-→ Runner / test-architecture / API docs regressions
-→ 更新本台账为真实 PASS / FAIL / PARTIAL
-→ B2：grant / lease / proof v2 / device binding / secure cache / trusted time / offline decision
+B2 contract and threat model
+→ grant / lease persistence and proof v2
+→ device binding / secure cache / trusted time
+→ offline decision Runtime contract and current-source qualification
 ```
 
 B1 当前对“ready 旧版本 + 新版本 needs-activation”的策略是**不替换旧版本并返回 activation-required**；首装 protected Flow 仍可显式安装成 `needs-activation`。在 B2 尚未建立可持久晋升的 pending-candidate 协议前，不伪造一个无法安全 promote 的第二套 pending 安装模型。
