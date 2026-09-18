@@ -39,6 +39,10 @@
   `.odcfg`；只读 `System.product.website` 从该生成资源派生，不得形成第二个 URL source，也不得进入环境变量或
   App Manifest。发行与 UI 验收必须分别检查，不得用源码阅读替代真实点击。
 
+## Agent API 能力发现
+
+- 自动化任务需要发现或调用框架能力时，从 `docs/api/agent/README.md` 进入相关能力目录，再取得选中方法的 canonical 正文及必要公共约束；不要默认全文读取 `runtime-api.ai.json`、全部类型或历史案例。已明确的方法可直接取得阅读包。发现入口不替代下述专项 Skill、授权、数据真实性与安全停止要求。
+
 ## 接口测试
 
 - 修改 `docs/api/` 中的 API Reference 前，必须先阅读并遵守 `docs/api/.rules.md`。

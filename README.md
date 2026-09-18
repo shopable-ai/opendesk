@@ -445,10 +445,12 @@ docs/api/
 推荐入口：
 
 ```text
+docs/api/agent/README.md
 docs/api/index.md
 docs/api/cookbook.md
-docs/api/runtime-api.ai.json
 ```
+
+Agent 从 `docs/api/agent/README.md` 按当前业务步骤展开；用户总导航与 Cookbook 按需读取，不是顺序必读清单。`docs/api/runtime-api.ai.json` 保留程序解析与校验用途，不作为默认全文阅读输入。
 
 JavaScript Runtime API contract、unit、safe smoke、Safari live 与 acceptance 测试位于
 `tests/runtime-api/`，OpenDesk JS 入口为 `scripts/test_runtime_apis.js`；默认 smoke 从仓库根目录运行
