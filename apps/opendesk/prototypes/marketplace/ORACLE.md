@@ -1,7 +1,8 @@
-# Flow Marketplace · 当前交互原型合同 v1.1
+# Flow Marketplace · 当前交互原型合同 v1.2
 
-日期：2026-09-18  
-状态：PROTOTYPE_V1_1_IMPLEMENTED / PRODUCT_INTEGRATION_NOT_CLAIMED  
+日期：2026-09-19
+
+状态：LOCAL_HTTP_PAGE_VERIFIED / DESKTOP_DELIVERY_UNCONFIRMED / PRODUCT_INTEGRATION_NOT_CLAIMED
 入口：[index.html](index.html)  
 运行与测试：[README.md](README.md)
 
@@ -124,7 +125,7 @@ Release 已撤回在进入安装确认/下载演示前即阻止。`verify` 不�
 
 ## 5. 验证覆盖与证据范围
 
-`tests/prototypes/marketplace.test.cjs`：当前包含 29 项源码契约，其中新增侧栏帮助区 v1.1 静态合同；其余覆盖筛选、身份型 intent、scope、entitlement、平台、取消/迟到回调、更新/回滚、存储恢复、畸形存储、无隐式执行等。
+`tests/prototypes/marketplace.test.cjs`：包含 29 项源码契约，其中包含侧栏帮助区 v1.1 静态合同；其余覆盖筛选、身份型 intent、scope、entitlement、平台、取消/迟到回调、更新/回滚、存储恢复、畸形存储、无隐式执行等。
 
 `tests/prototypes/marketplace-smoke.py`：19 组浏览器交互场景继续覆盖主流程、付费、发布者信任、手动方式、故障、更新、键盘、焦点、错误路由和响应式布局；v1.1 又在 320 / 390 / 768 / 1280 宽度加入帮助区可见、桌面贴底、去 Card 化、标题同行和移动端非 fixed 的断言。运行截图仍写入 `.runtime/tests/marketplace-prototype/`。
 
@@ -141,3 +142,34 @@ v1.1 已在 Flow Commercial Qualification run `35300159654` 的 `Marketplace pro
 5. 真包、真实 Deep Link、Native UI、失败回滚和零业务执行的独立验收。现有测试 fixture 不能替代这些证据。
 
 发布者后台、上传、支付、评论、排行榜与完整自动更新平台不在本轮 HTML 实现范围内。「发布 Flow」只说明发布要求，不能宣称可实际发布。
+
+## 7. 本地开发检查（v1.2）
+
+需求来源：继续本地 Marketplace 验收；用户允许无 HTTPS 的本地 HTML，要求最简页和既有原型分别检查，
+并区分 OS URL 分发、receiver fail-closed、现有 `.odflow` 侧载路径。
+
+本轮保留上述原型的布局、示例数据和模拟安装逻辑，仅在原型提示条增加到
+`local-deep-link-smoke.html` 的入口。最简页会在明确点击时请求真实客户端，必须显式标注这一差别。
+合法请求只有固定三个标识；负向请求仅添加 `unsupported=1`，不携带文件、代码或凭证。
+页面只报告“已请求浏览器打开；交付尚未确认”，不提供自动重试或成功推断。
+
+`9c4017f8` 已落地 macOS URL receiver；本文件第 1 节描述的是更早的原型基线。
+当前没有配置 Marketplace client 时，接收端会在安装确认 UI 之前 fail closed。
+最简页的静态合同由 `tests/prototypes/marketplace-local.test.cjs` 的 4 项检查覆盖；
+它们不启动桌面，不证明 AppKit 回调被调用。侧载 CLI、真实浏览器点击、原生窗口视觉验收分别留证。
+v1.2 未继承 v1.1 截图的视觉通过结论；签名、加载或浏览器策略阻塞时，记录当前验收缺口。
+
+### 2026-09-19 HTTP 实测补充
+
+通过用户已启动的 `http://localhost:51807/`，真实 Chrome 已加载当前 HTML，并完成
+详情 → 网页交接 → 权限确认 → Flow 范围信任 → 安装完成 → 模拟 Runner 的页面链路。
+安装结果显示「尚未运行」，Runner 运行次数为 `0`；截图与 DOM 记录在
+`.runtime/tests/marketplace/http-20260919/`。这是浏览器内模拟安装的证据。
+
+最简页加载时为「尚未请求打开客户端」。合法链接点击后显示交付未知，点击期间浏览器控制中断；
+只读复核不能证明 macOS 或 receiver 接收，故不重复点击，不继续非法参数派发。
+接收端 live、原生安装确认和 GUI 侧载仍未通过。本轮未替换、启动或结束共享 OpenDesk 实例。
+
+独立 CLI 在隔离 app-data 下实际完成包验签、未信任拒绝、Flow-scope 安装、Catalog ready/origin=odflow
+和幂等重装；未调用 `flow run`。33 项 Node 检查通过。CLI 安装与浏览器模拟安装分别留证。
+Notify Demo 的公开示例归属、现有消费者和未来 fixture reference 规则见 README；本轮不复制或移动包。

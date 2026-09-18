@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>OpenDesk · 本地 URL 分发检查</title>
+  <style>
+    :root { font: 16px/1.65 system-ui, sans-serif; color: #172a36; background: #f5f7f8; }
+    * { box-sizing: border-box; }
+    body { max-width: 760px; margin: 0 auto; padding: 32px 20px; }
+    h1 { font-size: clamp(24px, 5vw, 32px); line-height: 1.3; }
+    h2 { font-size: 19px; margin-top: 28px; }
+    a { color: #17695c; }
+    a:focus-visible { outline: 3px solid #56a899; outline-offset: 4px; }
+    .action { display: inline-block; padding: 10px 16px; margin: 4px 0; border: 1px solid #17695c; border-radius: 8px; text-decoration: none; }
+    .primary { background: #17695c; color: white; }
+    code { overflow-wrap: anywhere; font-size: 13px; }
+    #result { border-left: 3px solid #17695c; background: #e8f3ef; padding: 14px; overflow-wrap: anywhere; }
+    .muted { color: #52626e; }
+  </style>
+</head>
+<body>
+  <nav><a href="index.html">← 交互原型（模拟安装）</a></nav>
+  <main>
+    <p class="muted">本地开发检查 · 无需 HTTPS</p>
+    <h1>从网页请求打开 OpenDesk</h1>
+    <p>本页会真实请求打开已注册的 OpenDesk。请先核对客户端来源和签名；浏览器可能要求你确认打开应用。页面不会探测客户端，也无法判断 macOS 是否已交付请求。</p>
+    <p>这里使用固定测试标识，没有可安装的 Marketplace Release。当前未配置 Marketplace client 的构建应拒绝安装，不下载、信任或运行 Flow。</p>
+
+    <h2>1. 合法的安装意图</h2>
+    <p><code>opendesk://install/flow/local-smoke?release=local-release-1&amp;intent=local-intent-1</code></p>
+    <a class="action primary" data-dispatch="valid" href="opendesk://install/flow/local-smoke?release=local-release-1&amp;intent=local-intent-1">请求打开 OpenDesk</a>
+    <p class="muted">接收端预期日志：<code>[MARKETPLACE_INSTALL] blocked</code>，原因 <code>marketplace installer is unavailable</code>。此分支在安装确认窗口之前停止，不应期待确认窗口出现。</p>
+
+    <h2>2. 未知参数拒绝检查</h2>
+    <p>此请求仅比上面的 URI 多一个 <code>unsupported=1</code> 参数，应在解析阶段拒绝。</p>
+    <a class="action" data-dispatch="invalid" href="opendesk://install/flow/local-smoke?release=local-release-1&amp;intent=local-intent-1&amp;unsupported=1">请求检查非法参数</a>
+    <p class="muted">接收端预期日志：<code>[MARKETPLACE_INSTALL] rejected invalid install intent</code>。没有接收端日志就只能记录“交付未确认”。</p>
+
+    <p id="result" role="status" aria-live="polite">尚未请求打开客户端。</p>
+    <h2>独立检查 .odflow 侧载</h2>
+    <p>仓库内的 <code>examples/flow-distribution/notify-demo/notify-demo.odflow</code> 可用于现有文件安装路径。侧载成功不代表上面的 Marketplace 安装已通过；安装后仍需用户另行点击运行。</p>
+    <p><a href="README.md">查看检查步骤与证据要求</a></p>
+  </main>
+  <script id="local-dispatch">
+    'use strict';
+    const result = document.querySelector('#result');
+    for (const link of document.querySelectorAll('[data-dispatch]')) {
+      link.addEventListener('click', event => {
+        event.preventDefault();
+        result.textContent = '已请求浏览器打开客户端；macOS 交付与安装结果尚未确认。请核对接收端日志。';
+        try {
+          window.location.assign(link.href);
+        } catch (_) {
+          result.textContent = '浏览器未能发起打开请求。客户端是否收到请求未知，请核对接收端日志；不会自动重试。';
+        }
+      });
+    }
+  </script>
+</body>
+</html>
