@@ -225,6 +225,36 @@ test('actual Controller render updates supported message rows immediately and ex
   await controller.close();
 });
 
+test('Runner asset handoff snapshots the selected asset once and later Runner changes do not retarget the persisted task', async () => {
+  const ui = createFakeUI();
+  let runnerAsset = {kind: 'js-file', ref: '/work/first.js', displayName: 'First'};
+  const controller = Controller.create({
+    ui,
+    file: memoryFile(),
+    appDataRoot: '/data',
+    execution: {id: 'app-test', workdir: '/data', scriptDir: '/bundle/opendesk'},
+    taskService: taskService([]),
+    runnerAssetProvider: () => runnerAsset,
+    llm: {getCapabilities: () => ({supported: true, configured: true}), async generate() { return {data: 'unused'}; }},
+    agent: {getCapabilities: () => ({supported: false, configured: false})},
+  });
+  await controller.open('test');
+
+  await ui.controls.get('importRunnerAsset').emit('click');
+  assert.equal(ui.controls.get('taskIntent').state.value, 'use');
+  assert.equal(ui.controls.get('assetKind').state.value, 'js-file');
+  assert.equal(ui.controls.get('assetRef').state.value, '/work/first.js');
+
+  runnerAsset = {kind: 'js-file', ref: '/work/second.js', displayName: 'Second'};
+  ui.controls.get('composer').state.value = '运行刚才带入的自动化';
+  await ui.controls.get('send').emit('click');
+
+  await waitFor(() => controller.state().taskWorkspace?.task?.asset?.ref === '/work/first.js');
+  assert.equal(controller.state().taskWorkspace.task.asset.ref, '/work/first.js');
+  assert.notEqual(controller.state().taskWorkspace.task.asset.ref, runnerAsset.ref);
+  await controller.close();
+});
+
 test('assistant rendering only sends fields supported by ControlHandle.update', async () => {
   const ui = createFakeUI();
   const controller = Controller.create({
