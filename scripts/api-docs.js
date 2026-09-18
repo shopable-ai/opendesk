@@ -403,7 +403,7 @@ function checkLinks(root, rel, text) {
   }
   return errors;
 }
-// 清单覆盖不以机器 keyMethods 或既有映射证明自己；发现未路由的新公开对象/Reference 即失败。
+// 清单覆盖不以旧机器索引或既有生成目录证明自己；发现未路由的新公开对象/Reference 即失败。
 function inventory(root) {
   const docs = new Set(config.groups.flatMap(g => g.docs));
   const roots = new Set(Object.values(config.surfaces).flat().map(n => n.split('.')[0]));
@@ -469,16 +469,9 @@ function check(root) {
     if (fs.existsSync(path.join(root, rel))) errors.push(...checkLinks(root, rel, fs.readFileSync(path.join(root, rel), 'utf8')));
     else errors.push(`MISSING_ENTRY ${rel}`);
   }
-  const index = JSON.parse(readFile(root, 'docs/api/runtime-api.ai.json'));
-  for (const g of index.globals || []) if (g.doc && !seenDocs.has(g.doc.replace(/\.md$/, ''))) errors.push(`MISSING_GLOBAL_ROUTE ${g.name} ${g.doc}`);
-  for (const g of index.globals || []) {
-    if (!g.doc) continue;
-    const names = methodEntries(root, doc(root, g.doc)).map(e => e.name);
-    for (const m of g.keyMethods || []) if (!names.some(n => n === m || n === `${g.name}.${m}` || n.endsWith(`.${m}`))) errors.push(`MISSING_KEY_METHOD ${g.name}.${m}`);
-  }
   const coverageInventory = inventory(root);
   errors.push(...coverageInventory.errors);
-  const report = {ok: errors.length === 0, inventory: coverageInventory, scope: 'navigation-and-extraction; not semantic certification', contractReadiness: gaps.length ? 'existing-source-gaps-blocked' : 'no-detected-gaps', groups: config.groups.length, documents: seenDocs.size, methodEntries: counts, machineGlobals: index.globals.length, sourceContractGaps: gaps, errors, tokenUsage: null, modelLoaded: false, desktopExecuted: false};
+  const report = {ok: errors.length === 0, inventory: coverageInventory, scope: 'navigation-and-extraction; not semantic certification', contractReadiness: gaps.length ? 'existing-source-gaps-blocked' : 'no-detected-gaps', groups: config.groups.length, documents: seenDocs.size, methodEntries: counts, declaredReferenceDocs: coverageInventory.declaredReferences.length, declaredTypeGlobals: coverageInventory.declaredGlobals.length, sourceContractGaps: gaps, errors, tokenUsage: null, modelLoaded: false, desktopExecuted: false};
   return report;
 }
 function main(args) {

@@ -246,14 +246,18 @@ README.md             = index
 
 ```text
 Runtime / polyfill implementation
-→ canonical docs/api Reference
-→ docs/api/runtime-api.ai.json
-→ types/*.d.ts
+↔ canonical docs/api Reference
+↔ types/*.d.ts
+        ↓
+node scripts/api-docs.js generate / check
+        ↓
+docs/api/agent/*.md
 ```
 
-机器索引和类型是派生消费面，不是第二事实源。修改相关能力后运行：
+Agent 能力目录是从 canonical Reference、类型声明和小型导航关系生成的阅读入口，不是第二套完整 API 数据库。普通 Agent 不需要机器维护总表。修改相关能力后运行：
 
 ```bash
+node scripts/api-docs.js check
 node scripts/check_api_docs_contract.js
 ```
 

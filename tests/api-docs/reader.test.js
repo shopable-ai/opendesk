@@ -91,11 +91,21 @@ test('plan CLI produces actual range ledger without returning Reference bodies',
   const plan=JSON.parse(data);assert.ok(plan.returnedRanges.length);assert.equal(plan.modelLoaded,false);
   assert.ok(!data.includes('```js'));
 });
-test('generated catalogs, local links, globals and keyMethods remain covered', () => {
+test('generated catalogs, local links and independent inventories remain covered', () => {
   const report = reader.check(root);
   fs.writeFileSync(path.join(out,'coverage.json'),JSON.stringify(report,null,2)+'\n');
-  assert.deepEqual(report.errors, []); assert.equal(report.groups,10); assert.ok(report.machineGlobals >= 41);
+  assert.deepEqual(report.errors, []); assert.equal(report.groups,10);
+  assert.ok(report.declaredReferenceDocs > 0); assert.ok(report.declaredTypeGlobals > 0);
   assert.ok(report.sourceContractGaps.some(x=>x.name==='page.ensureMacPermissions'));
+});
+test('catalog check does not require the legacy runtime-api.ai.json file', () => {
+  const temp = fs.mkdtempSync(path.join(out,'no-legacy-json-'));
+  try {
+    fs.cpSync(path.join(root,'docs/api'),path.join(temp,'docs/api'),{recursive:true});
+    fs.cpSync(path.join(root,'types'),path.join(temp,'types'),{recursive:true});
+    fs.rmSync(path.join(temp,'docs/api/runtime-api.ai.json'));
+    assert.deepEqual(reader.check(temp).errors, []);
+  } finally { fs.rmSync(temp,{recursive:true}); }
 });
 test('all catalogs are deterministic and expose method input/output plus effects', () => {
   for (const group of config.groups) {

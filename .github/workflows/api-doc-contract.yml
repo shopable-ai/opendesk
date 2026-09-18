@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   api-doc-contract:
-    name: Canonical API docs and machine index
+    name: Canonical API docs contract
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -55,7 +55,7 @@ jobs:
           node scripts/api-docs.js generate
           git diff --exit-code -- docs/api/agent
           test -z "$(git ls-files --others --exclude-standard docs/api/agent)"
-      - name: Record source and current JSON consumers
+      - name: Record source and remaining legacy JSON consumers
         if: always()
         run: |
           mkdir -p .runtime/tests/api-docs
