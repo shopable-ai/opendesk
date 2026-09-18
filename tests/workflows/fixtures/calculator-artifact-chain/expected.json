@@ -19,7 +19,8 @@
     "METHOD_SELECTION",
     "METHOD_NOT_VALIDATED",
     "CAPABILITY_SOURCE_MAPPING",
-    "API_REF_MISMATCH"
+    "API_REF_MISMATCH",
+    "BUSINESS_STEP_CONTRACT"
   ],
   "note": "Expected values are test Oracles and are never read by the candidate source or used as producer data."
 }
