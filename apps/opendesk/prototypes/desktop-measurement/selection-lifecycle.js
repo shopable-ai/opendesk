@@ -47,7 +47,7 @@
     const instruction = document.getElementById('selection-instruction');
     if (instruction) {
       instruction.hidden = false;
-      instruction.textContent = message || '移动鼠标选择窗口 · 单击开始测量 · Esc 取消';
+      instruction.textContent = message || '移动鼠标选择窗口 · 目标保持清晰，周围变暗 · 单击开始测量 · Esc 取消';
     }
   }
 
