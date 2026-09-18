@@ -56,7 +56,9 @@ try {
   await expectCode(() => store.save(Contract.create({...first, status: 'stale'}), {expectedRevision: 1}), 'TASK_REVISION_CONFLICT');
 
   const source = File.join(root, 'source.js');
-  File.writeNew(source, 'console.log("source");\n');
+  const sourceText = 'console.log("source");\n';
+  File.writeNew(source, sourceText);
+  const sourceDigest = TaskRuntime.sha256(sourceText);
   const candidateService = Contract.createCandidateService({
     file: File,
     digest: TaskRuntime.sha256,
@@ -73,15 +75,16 @@ try {
       authorizations: {readSource: true, shareSourceWithModel: false},
     }),
     sourceRef: source,
+    sourceSnapshot: {ref: source, digest: sourceDigest},
     candidateId: 'candidate-one',
     content: 'console.log("candidate");\n',
   });
   check(candidate.independentlyVerified === false, 'generated candidate must start unverified');
 
   const destination = File.join(root, 'saved-candidate.js');
-  const saved = candidateService.saveAs({candidate, destination, authorized: true});
+  const saved = candidateService.saveAs({candidate, destination, authorized: true, currentSourceDigest: sourceDigest});
   check(File.read(destination).includes('candidate'), 'candidate save-as did not write expected content');
-  await expectCode(() => Promise.resolve(candidateService.saveAs({candidate, destination, authorized: true})), 'DESTINATION_EXISTS');
+  await expectCode(() => Promise.resolve(candidateService.saveAs({candidate, destination, authorized: true, currentSourceDigest: sourceDigest})), 'DESTINATION_EXISTS');
 
   await expectCode(() => Promise.resolve(candidateService.markVerified(saved, {
     candidateDigest: 'wrong',
