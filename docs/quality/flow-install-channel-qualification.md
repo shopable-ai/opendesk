@@ -2,7 +2,7 @@
 
 > 日期：2026-09-18  
 > 状态：CURRENT_SOURCE_UPDATED / EXECUTION_EVIDENCE_INCOMPLETE  
-> 当前基线：`master @ 12bc57fa37e358af9cc83ffcf248d35edd837340`
+> 当前基线：`master @ a6b026ac2824768909389ddac93bc65b14683c2c`
 
 本文件记录“多入口、单安装内核”本轮资格状态。它不把已有源码、历史截图或单元测试的存在自动换算成当前 PASS。
 
@@ -62,7 +62,15 @@ Discover / Purchase ≠ Install ≠ Run
 
 ## 3. 本轮统一测试 Flow
 
-正式 Runtime qualification 使用运行时生成并签名的隔离 Flow：
+正式 Runtime qualification 与 Marketplace test backend 复用同一个非秘密业务 payload：
+
+```text
+tests/fixtures/flow-install-test/
+├── main.js
+└── assets/value.txt
+```
+
+每次资格运行再用临时 Ed25519 key 生成并签名隔离 `.odflow`：
 
 ```text
 Flow ID: opendesk-install-test
@@ -71,7 +79,7 @@ Version: 1.0.0
 Publisher: opendesk-install-test-publisher
 ```
 
-测试 package 输出到 `.runtime/tests/runtime-api/**` 下的中文、空格、深目录路径，不提交私钥或运行产物。
+Runtime 测试 package 输出到 `.runtime/tests/runtime-api/**` 下的中文、空格、深目录路径，不提交私钥或运行产物。Marketplace package test 同样读取该 payload，但使用测试进程自己的临时签名 key 与 loopback `httptest.Server`。
 
 业务代码只有在显式 Run 时才写：
 
@@ -111,6 +119,32 @@ pack / verify 后 marker 不存在
 | Web Marketplace → OpenDesk | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED |
 | In-App Marketplace | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED | BLOCKED |
 | CLI qualification | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN |
+
+## 4.1 本轮已经实际执行的非 Native 检查
+
+这些结果来自本轮直接读取当前 `master` 文件后执行，不是历史记录：
+
+| 检查 | 结果 |
+| --- | --- |
+| `tests/prototypes/marketplace.test.cjs` JavaScript 语法解析 | PASS |
+| Marketplace HTML 内嵌 model JavaScript 语法解析 | PASS |
+| `tests/runtime-api/flow-distribution.js` async-script 语法解析 | PASS |
+| `tests/fixtures/flow-install-test/main.js` JavaScript 语法解析 | PASS |
+| 桌面 sidebar flex / help 底部合同 | PASS |
+| help 去 Card：0 radius / transparent / top divider | PASS |
+| 18px icon +「第一次使用？」同行合同 | PASS |
+| 两句帮助文案 +「查看安装指南 →」合同 | PASS |
+| 窄屏 compact row 且无 `position: fixed` | PASS |
+| Prototype model：Marketplace Verified 不产生 Local Trust | PASS |
+| Prototype model：默认 Flow-scoped Trust | PASS |
+| Prototype model：Publisher-wide 需要额外明确 consent | PASS |
+| Prototype model：Install ≠ Run，显式 Run 才增加执行 | PASS |
+| Prototype model：Cancel 零 Catalog / Trust 写入 | PASS |
+| Prototype model：Purchase ≠ Install | PASS |
+| Prototype model：transaction failure 保留旧状态 | PASS |
+| ID-only Install Intent 字符串合同 | PASS |
+
+这里的 PASS 证明源码合同与 prototype model 行为；它不等于 Chromium 布局截图、不等于 Go package test 已运行，更不等于 Native / OS 通道已通过。
 
 ### 为什么本轮 Native 项不是 PASS
 
@@ -256,8 +290,8 @@ apps/opendesk/prototypes/marketplace/
 
 本轮尚未取得：
 
-- v1.1 Chromium 重跑证据；
-- 当前 `master` Runtime gate 执行结果；
+- v1.1 Chromium DOM / 截图重跑证据（源码静态合同已 PASS）；
+- 当前 `master` Runtime gate 的真实 `dist/opendesk` 执行结果（语法合同已 PASS）；
 - 当前 macOS Native picker / drop / double-click cold-hot 截图与业务状态；
 - Windows live 原生证据；
 - Web Deep Link 产品接线；
