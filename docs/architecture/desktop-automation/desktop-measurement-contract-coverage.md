@@ -40,12 +40,12 @@ macOS / Windows native qualification
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | DM-LIFE-001 Lifecycle | Current Oracle §1 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | Service single-flight 已有；Product 初始选择门已前置到 capture adapter，但 `Service.State()` 尚未在选择期间暴露 `REFERENCE_SELECTING` | `reference-selection.test.py` ADDED_NOT_RUN；既有 lifecycle tests 本轮未重跑 | LOCAL_REQUIRED | LOCAL_REQUIRED | PARTIAL | Prototype `interaction-core.js` + `selection-lifecycle.js`; `pkg/measurement/session.go`, `cmd/opendesk/app_measurement.go` | 核心 Service 仍在 `openNew()` 内调用 Capture；下一步应把 selection owner 从 adapter 提升到 Service lifecycle |
 | DM-REF-001 Live Reference Selection | Oracle §2 DM-SELECT-001 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | 初始产品入口现在先观察真实 pointer / window，再允许 screenshot | focused Playwright ADDED_NOT_RUN；production selector tests 本轮未重跑 | LOCAL_REQUIRED | LOCAL_REQUIRED | IMPLEMENTED_UNVERIFIED | Prototype Live observer；`automation/pointer_selection.go`, `cmd/opendesk/app_measurement.go` | 选择期 Native candidate border / label surface 仍需本地核验/收口 |
-| DM-REF-002 Hover Reference Candidate | Oracle §2 DM-SELECT-002 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | pointer move 以 bounded resolver 解析 topmost eligible window；OpenDesk own windows 过滤；candidate 变化保留在 selection state | Hover A/B / app-switch focused browser cases ADDED_NOT_RUN；production z-order tests 本轮未重跑 | LOCAL_REQUIRED | LOCAL_REQUIRED | IMPLEMENTED_UNVERIFIED | Prototype synthetic two-window scene；production selection state | HTML app switch / z-order 是 synthetic，仅用于 Oracle；各平台真实 z-order 仍需资格验证 |
+| DM-REF-002 Hover Reference Candidate | Oracle §2 DM-SELECT-002/005 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | pointer move 以 bounded resolver 解析 topmost eligible window；OpenDesk own windows 过滤；candidate 变化保留在 selection state | Hover A/B + outside-only even-odd spotlight cases ADDED_NOT_RUN；production z-order tests 本轮未重跑 | LOCAL_REQUIRED | LOCAL_REQUIRED | IMPLEMENTED_UNVERIFIED | Prototype synthetic two-window scene + `selection-focus-mask` cutout；production selection state | HTML spotlight / app switch / z-order 是 synthetic，仅用于 Oracle；Native 必须证明 Candidate 内部完全不被遮挡且蒙版只在外侧 |
 | DM-REF-003 Reference Confirmation | Oracle §2 DM-SELECT-003/006 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | Production 已有 down/up identity/bounds/movement gate；本轮未修改 Production | focused real browser pointer/mouse cases ADDED_NOT_RUN | LOCAL_REQUIRED | LOCAL_REQUIRED | IMPLEMENTED_UNVERIFIED | `selection-lifecycle.js`; test-only move/close/failure fixture | Native 仍需验证 primary button、same pointer、blur/pointercancel、输入权限、多屏坐标与底层 click 隔离 |
 | DM-FREEZE-001 Click → Freeze | Oracle §2–3 DM-SELECT-004 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | screenshot 位于 selection confirmation 之后；本轮未修改 Production | observable FREEZING / failure / cancel-late focused cases ADDED_NOT_RUN | LOCAL_REQUIRED | LOCAL_REQUIRED | IMPLEMENTED_UNVERIFIED | Prototype request version + synthetic delay/failure; production capture adapter | `pkg/measurement.Service` 的正式 selector/capture ownership 仍需本地生产修复；Native 迟到 capture 必须实际证明 |
 | DM-SNAP-001 Frozen Snapshot | Oracle §3 | existing prototype asset retained | CURRENT | 已有 Snapshot / Mapping / token / source-pixel 实现 | existing `pkg/measurement` tests；本轮未重跑 | LOCAL_REQUIRED | LOCAL_REQUIRED | AUTOMATED_PASS | `pkg/measurement/model.go`, `session.go`, capture mapping tests | Native capture exclusion / permission / multi-display 仍需真机 |
 | DM-CAND-001 Frozen Candidate Resolver | Oracle §6 | existing prototype asset retained | CURRENT | AX/UIA + OCR provider、token/epoch guard、candidate stack 已有 | existing candidate stack/provider tests；本轮未重跑 | LOCAL_REQUIRED | LOCAL_REQUIRED | AUTOMATED_PASS | `candidate_stack.go`, `cmd/opendesk/app_measurement_candidates.go` | bounded latest-pointer worker/cache 与 Native cancellation 继续收敛 |
-| DM-HUD-001 Selection / Hover HUD | Oracle §2/8 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | Frozen MEASURING HUD 已有；Live selection 可视 surface 的生产状态按现代码保留，本轮未修改 | exact prompt / toolbar-hidden cases ADDED_NOT_RUN | LOCAL_REQUIRED | LOCAL_REQUIRED | OPEN_IMPLEMENTATION | Prototype exact instruction + FREEZING HUD | 需要 Native selection overlay，并证明 overlay 不成为 candidate 或 capture source |
+| DM-HUD-001 Selection / Hover HUD | Oracle §2/8 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | Frozen MEASURING HUD 已有；Live selection 可视 surface 的生产状态按现代码保留，本轮未修改 | exact prompt / toolbar-hidden / candidate-fill-none / outside-cutout cases ADDED_NOT_RUN | LOCAL_REQUIRED | LOCAL_REQUIRED | OPEN_IMPLEMENTATION | Prototype exact instruction + outside-only spotlight + FREEZING HUD | 需要 Native selection overlay；Candidate 内部不得白化/染色/blur，并证明 overlay 不成为 candidate 或 capture source |
 | DM-TOOL-001 Point | Oracle §5 | retained | CURRENT | implemented | existing Go tests | LOCAL_REQUIRED | LOCAL_REQUIRED | AUTOMATED_PASS | `model.go`, `session_test.go` | 真机 source-pixel / DPI |
 | DM-TOOL-002 Region | Oracle §5 | retained | CURRENT | implemented | existing Go tests | LOCAL_REQUIRED | LOCAL_REQUIRED | AUTOMATED_PASS | `model.go`, `session_interaction_test.go` | 真机 drag / overlay parity |
 | DM-TOOL-003 Point↔Point | Oracle §5 | retained | CURRENT | implemented | existing Go tests | LOCAL_REQUIRED | LOCAL_REQUIRED | AUTOMATED_PASS | `BuildTwoPointResult` + tests | Native interaction qualification |
@@ -71,7 +71,7 @@ PG IDs 是短期 Production Gap，不是新阶段。本轮只更新 Prototype / 
 | --- | --- | --- | --- |
 | PG-01 Live Reference Selection | **PARTIAL** | Production 已有 initial screenshot 前的 pointer/window confirmation gate | 将 Current Oracle 的 REFERENCE_SELECTING / primary pointer / cancel ownership 在正式 Service 生命周期中闭环，并跑真实回归 |
 | PG-02 Hover / Candidate Resolver | **PARTIAL** | Live window candidate 有 bounded resolver；Frozen candidate stack/provider 已较完整 | 证明平台 z-order、latest-pointer、window move/close、多屏、取消与 worker bounded 行为 |
-| PG-03 Hover HUD / Native Visual Feedback | **OPEN_IMPLEMENTATION** | Prototype 已表达候选边框/提示；Native measuring HUD 可复用 | Live candidate border/weak dim/label 正式接线，并证明 overlay 不成为 candidate/capture source |
+| PG-03 Hover HUD / Native Visual Feedback | **OPEN_IMPLEMENTATION** | Prototype 已表达 WeChat-style outside-only spotlight：Candidate 原样，外侧 dim，边框无 fill；Native measuring HUD 可复用 | 正式接线 Live candidate spotlight cutout；证明 Candidate 内部像素视觉不被覆盖、外侧蒙版稳定跟随 topmost window，且 overlay 不成为 candidate/capture source |
 | PG-04 Session Records / Authoring | **PARTIAL** | immutable Journal / envelope / snapshot dedupe 等资产可复用 | 完成 Production activeSession Record/Update/Inspector/Save 与 Authoring artifact 闭环 |
 
 ## 5. Legacy Stage Retirement
@@ -125,8 +125,9 @@ PG IDs 是短期 Production Gap，不是新阶段。本轮只更新 Prototype / 
 
 ### 本轮实际修改职责
 
-- `index.html`：增加 exact selection instruction、Live source probe、Prototype observer，并加载 selection lifecycle adapter；正式 Measurement Toolbar 结构未扩张。
+- `index.html`：selection instruction 明确“目标保持清晰，周围变暗”；Live source probe、Prototype observer 与正式 Measurement Toolbar 边界保持不变。
 - `selection-lifecycle.js`：只负责 Reference Selection confirmation gate、可观察 FREEZING、cancel/stale guard、failure recovery 和 Prototype test fixture；复用 `interaction-core.js` 既有 Snapshot / Measurement 路径，不建立第二套测量 Runtime。
+- `interaction-core.js` + `prototype.css`：Live Hover 使用 even-odd spotlight cutout；Candidate Window 内部 `fill:none`，只在其外侧绘制中性深色蒙版，禁止白色/灰色覆盖 Candidate 内容。
 - `ORACLE.md`：把 trigger / precondition / visible feedback / transition / allowed & forbidden effects / failure & recovery / verification 写成当前自包含契约。
 - `tests/desktop-measurement/reference-selection.test.py`：新增聚焦 Chromium contract；真实确认路径使用 Playwright mouse/pointer/keyboard，test-only API 只用于 window move/close 与 freeze failure 注入。
 
@@ -160,7 +161,7 @@ apps/opendesk/prototypes/desktop-measurement/index.html
 本地 Production 修复至少需要核验并闭环：
 
 - 打开工具绝不先截图；
-- Hover topmost eligible native window，只产生候选视觉；
+- Hover topmost eligible native window，只产生候选视觉；Candidate 保持原样，只有 Candidate 外侧区域变暗，不能反向覆盖/白化目标窗口；
 - primary same-pointer down/up + same identity + stable geometry + click tolerance；
 - blur / pointercancel / app switch / window move/resize/close 清空或拒绝 pending confirm；
 - valid click 才允许 Capture；
@@ -172,7 +173,7 @@ apps/opendesk/prototypes/desktop-measurement/index.html
 
 ### Native qualification 必须证明
 
-macOS / Windows 分别以真实系统行为证明：topmost/z-order、应用切换、hover border、窗口 move/close、权限、pointer identity、multi-display、negative coordinate、Retina/DPI、overlay exclusion、Recorder coexistence、cancel/stale completion、close/reopen。HTML synthetic PASS 不能替代这些结果。
+macOS / Windows 分别以真实系统行为证明：topmost/z-order、应用切换、hover spotlight（Candidate 原样、外围 dim、无反向白色遮罩）、窗口 move/close、权限、pointer identity、multi-display、negative coordinate、Retina/DPI、overlay exclusion、Recorder coexistence、cancel/stale completion、close/reopen。HTML synthetic PASS 不能替代这些结果。
 
 ## 7. Qualification rule
 
