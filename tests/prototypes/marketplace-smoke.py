@@ -240,13 +240,16 @@ def main() -> None:
                           const icon=g.querySelector('.guide-icon').getBoundingClientRect();
                           const h=g.querySelector('h3').getBoundingClientRect();
                           const contentBottom=sb.bottom-parseFloat(side.paddingBottom||'0');
-                          return {bottom:Math.abs(contentBottom-gb.bottom),radius:cs.borderRadius,borderTop:cs.borderTopWidth,titleDelta:Math.abs((icon.top+icon.height/2)-(h.top+h.height/2)),titleHeight:title.height};
+                          return {bottom:Math.abs(contentBottom-gb.bottom),radius:cs.borderRadius,borderTop:cs.borderTopWidth,margins:[cs.marginTop,cs.marginRight,cs.marginBottom,cs.marginLeft],titleDelta:Math.abs((icon.top+icon.height/2)-(h.top+h.height/2)),titleHeight:title.height};
                         }""")
                         assert metrics['bottom'] <= 2, f"desktop guide not docked to sidebar content bottom: {metrics}"
+                        assert metrics['margins'] == ['0px','0px','0px','0px'], f"desktop guide must have zero outer margin: {metrics}"
                         assert metrics['radius'] == '0px' and metrics['borderTop'] != '0px', f"desktop guide still looks like a card: {metrics}"
                         assert metrics['titleDelta'] <= 2.5, f"guide icon/title not vertically aligned: {metrics}"
                     else:
                         assert guide.locator('p').evaluate("el=>getComputedStyle(el).display") == 'none', 'mobile help row should stay compact'
+                        margins = guide.evaluate("el=>{const cs=getComputedStyle(el);return [cs.marginTop,cs.marginRight,cs.marginBottom,cs.marginLeft]}")
+                        assert margins == ['0px','0px','0px','0px'], f"mobile guide must have zero outer margin: {margins}"
                     if width == 390:
                         page.screenshot(path=str(OUT / 'market-mobile.png'), full_page=True)
                     detail(page); click(page,'install'); click(page,'accept'); approve(page)
