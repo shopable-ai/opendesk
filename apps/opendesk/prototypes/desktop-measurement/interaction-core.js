@@ -577,6 +577,16 @@
     overlay.append(svg('line', {x1: first.x, y1: first.y, x2: second.x, y2: second.y, class: className}));
   }
 
+  function drawSelectionFocus(candidate) {
+    if (!candidate) return;
+    const r = localRect(candidate.rect);
+    // Spotlight selection: dim only OUTSIDE the hover candidate. The candidate
+    // window itself is an even-odd cutout and must keep its original live pixels.
+    const d = `M0 0H${W}V${H}H0Z M${r.x} ${r.y}H${r.x + r.width}V${r.y + r.height}H${r.x}Z`;
+    overlay.append(svg('path', {d, class: 'selection-focus-mask', 'fill-rule': 'evenodd'}));
+    appendRect(candidate.rect, 'window-preview');
+  }
+
   function drawMask() {
     if (!win) return;
     const r = localRect(win.rect);
@@ -601,7 +611,7 @@
   function renderOverlay() {
     overlay.replaceChildren();
     if (isSelecting()) {
-      if (E.referenceCandidate) appendRect(E.referenceCandidate.rect, 'window-preview');
+      if (E.referenceCandidate) drawSelectionFocus(E.referenceCandidate);
       return;
     }
     if (!isMeasuring()) return;
