@@ -54,6 +54,22 @@ node workflows/agent-to-recipe/scripts/check-handoff.js --request ".runtime/auto
 - 允许的清空与状态准备在本次合同中确认；不能擅自清除无关历史、关闭用户窗口或改变系统权限。
 - 本轮先支持所需的正整数及乘法、加法、等号；其他数字格式、模式和平台不自动获得支持资格。
 
+## 2026-09-19｜从 r003 反向验收能力发现链
+
+这是一份**当前反向验收**，不是把 2026-09-18 的冻结 Procedure 改写成“当时已经记录过”的历史。r003 Candidate／Qualification 字节继续冻结；本次只用成功代码、已有运行证据和当前 Markdown API 入口验证新工作流是否能产生同等或更可追溯的结果。以后新生成或改变 API 策略的 Procedure 按共享合同写入 `capabilityDecisions`；本案例的 synthetic frozen fixture 用于检查字段消费关系，不冒充 live Calculator evidence。
+
+| 业务需要 | Capability Discovery | 候选与当前决定 | Canonical Contract | 实际/历史验证边界 | Recipe 消费 |
+| --- | --- | --- | --- | --- | --- |
+| 启动 / 取得 Calculator | `docs/api/agent/README.md` → `agent/targets.md` | `App.launch` 可发现，但当前 Recipe 把“Calculator 已打开”作为显式前置条件，因此未选；不是运行失败 | `docs/api/app.md#App.launch`（仅候选时需要） | 当前 r003 没有启动应用的资格声明 | `main()` 的前置条件 |
+| 唯一窗口、聚焦与重验 | short entry → `agent/targets.md` | `window.get`、`window.activate`、`window.current` 分别承担 resolve / focus / refresh；不缓存旧坐标或另找同标题窗口 | `docs/api/window.md` 对应三个方法正文 | q002 历史 live + 当前源码；新运行仍须重验窗口、权限和 binary | `main()` / `currentCalculator()` |
+| 按钮语义预检 | short entry → `agent/elements.md` | `Accessibility.snapshot` 用于 bounded semantic preflight；它不是第二次点击 backend | `docs/api/accessibility.md#Accessibility.snapshot` | 历史 q002 环境具备 AX；当前 HEAD 未重新 live | `inspectCalculator()` |
+| 顺序按钮动作 | short entry → `agent/elements.md` | 当前选择 `UI.tapTargets`；`UI.tapText` / `UI.tapTexts` 是可比较候选，不形成全局优先级。历史 locator-repair 记录过 `UI.tapTexts` 的用户报告 OCR 问题，但没有把它冒充本次 q002 的新失败 | `docs/api/desktop-ui.md#UI.tapTargets` + 必要 scope/partial-action 约束 | q002 的 native completion receipts 与独立 UI 后置共同支持固定场景；synthetic fixture 另测 failed-candidate 记录规则 | `clearCalculator()` / `clickCalculatorButtons()` |
+| 读取显示值 | short entry → `agent/elements.md` | `UI.readText` 作为业务值通道；AX snapshot 保留为 preflight/supporting evidence，不替代最终读值 | `docs/api/desktop-ui.md#UI.readText` + scope 约束 | 历史 q002 实际读到 110/660；当前 HEAD 未重新 live | `readCalculatorResult()` |
+| `firstResult` → 第二次输入 | 不是新的 API 发现问题，而是 Procedure 数据依赖 | `firstResult` 必须来自第一次 actual UI read；禁止 expected/JS 算术 | Procedure / Candidate contract | Dossier、源码赋值/展开、动作回执与独立后置交叉支持 | `B025 → B040` / `...firstResult` |
+| 最终资格 | S12 / recipe-qualify | 固定 Candidate 后再验；API 文档通过不能替代业务资格 | QualificationRecord contract | q002 是历史固定范围 PASS；当前新 live 未运行就保持 not-run | Run Summary / handoff |
+
+`× / * / x` 不在当前生产 Recipe 中做别名归一化：固定支持范围只接受 Calculator 真实语义名 `×`。没有证据支持把 `*` 或 `x` 静默解释为同一控件；若未来参数化需要别名，应作为新的输入/定位策略变更并重新 qualification。
+
 ## 按需求语义拆分本次业务任务
 
 - 完成第一次计算并取得中间结果。
