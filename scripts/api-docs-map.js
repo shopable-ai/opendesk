@@ -54,6 +54,20 @@ const navigation = /^(.*实现来源|.*Polyfill 的关系|相关|参见|更多|�
 // UI 的公共约定按当前方法族选择，其余 API 默认保守保留所有非方法 H2 正文。
 const uiShared = ['Capture mapping 与 DPI', '新鲜度与副作用', '错误', '平台与能力'];
 const dependencies = [
+  // 跨页/委托依赖只记录位置；正文仍由 canonical Reference 唯一维护。
+  {doc: 'global-apis', method: /^notify$/, contracts: [['notify', 'notify']]},
+  {doc: 'global-apis', method: /^copyToClipboard$/, contracts: [['clipboard', 'clipboard.copy']]},
+  {doc: 'global-apis', method: /^getClipboard$/, contracts: [['clipboard', 'clipboard.paste']]},
+  ...['alert', 'confirm', 'prompt'].flatMap(name => [
+    {doc: 'global-apis', method: new RegExp(`^${name}$`), contracts: [['dialog', name]]},
+    {doc: 'dialog', method: new RegExp(`^${name}$`), delegate: () => `Dialog.${name}`},
+  ]),
+  {doc: 'desktop-ui', method: /^Locator\.waitFor$/, delegate: () => 'Locator.find'},
+  {doc: 'desktop-ui', method: /^Locator\.(getValue|setValue)$/, delegate: name => `UI.${name.split('.').pop()}`},
+  {doc: 'desktop-ui', method: /^Locator\.tap$/, contracts: [['desktop-ui', 'UI.tapTargets'], ['desktop-ui', 'UI.tapText'], ['desktop-ui', 'UI.tapImage']]},
+  {doc: 'desktop-ui', method: /^Locator\.find$/, sections: ['accessibility#公共约定', 'accessibility#错误', 'accessibility#平台与能力']},
+  {doc: 'window', method: /^window\.wait$/, delegate: () => 'window.get'},
+  {doc: 'window', method: /^window\.activate$/, delegate: () => 'window.current'},
   {doc: 'http', method: /^http\.(get|post)$/, delegate: () => 'http.request'},
   {doc: 'http', method: /^(http|axios)\./, sections: ['http#http--axios错误行为', 'http#axios实现边界']},
   {doc: 'ui', method: /^ui\.notify$/, delegate: () => 'ui.toast'},
@@ -71,7 +85,7 @@ const dependencies = [
   {doc: 'desktop-ui', method: /^UI\.tapTargets$/, sections: ['desktop-ui#原生-target-序列选项']},
   {doc: 'desktop-ui', method: /^UI\.(getMenuItems|findMenuItem|tapMenuItem)$/, sections: ['desktop-ui#原生菜单选项', 'desktop-ui#原生菜单-path']},
   {doc: 'desktop-ui', method: /^UI\.(findImages|findImage|tapImage)$/, sections: ['desktop-ui#图片选项', 'desktop-ui#scopewithin', 'desktop-ui#region', 'desktop-ui#relativeto']},
-  {doc: 'desktop-ui', method: /^(UI\.(findTexts|findTextMatches|findText|hasText|readText|tapText|tapTexts|waitText|waitTextGone)|Locator\.)$/, sections: ['desktop-ui#文本选项', 'desktop-ui#scopewithin', 'desktop-ui#region', 'desktop-ui#relativeto']},
+  {doc: 'desktop-ui', method: /^(UI\.(findTexts|findTextMatches|findText|hasText|readText|tapText|tapTexts|waitText|waitTextGone)|Locator\.(find|waitFor|tap))$/, sections: ['desktop-ui#文本选项', 'desktop-ui#scopewithin', 'desktop-ui#region', 'desktop-ui#relativeto']},
   {doc: 'desktop-ui', method: /^Locator\./, sections: ['desktop-ui#图片选项', 'desktop-ui#原生-target-序列选项']},
 ];
 module.exports = {groups, surfaces, types, instances, wholePages, navigation, uiShared, dependencies};

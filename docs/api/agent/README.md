@@ -39,7 +39,17 @@ node scripts/api-docs.js read file File.readJSON --report
 
 方法名由目录选择；该例不表示文件 API 优先。stdout 是 canonical 原文、必要公共段、来源 SHA-256/行范围和结束标记；stderr 是实际读取账本。需要精确重载/命名公共类型时追加 `--types`。只得到锚点、签名或摘要不算已读合同。
 
-工具返回被截断、缺少 `END_API_READING_PACKET` 时，不进入调用。执行 `node scripts/api-docs.js plan file File.readJSON` 取得范围清单，固定同一 commit，再用宿主文件工具按每个范围读取（例如 GitHub `fetch_file` 的 `start_line/end_line`），逐段核对；范围在另一版本无效。无 shell 的宿主先获取同版本工具生成的清单，或沿 Reference 的方法及显式公共引用逐段核对；无法确认依赖完整时阻塞，不能假定点击锚点自动返回完整合同。
+工具返回被截断、缺少 `END_API_READING_PACKET` 时，不进入调用。结束标记只能识别尾部截断；输出中部缺失必须用 `plan` 的 `packetSha256`、字节/字符计数或下面的 `verify` 检查，不能只看标记。可加 `--max-bytes 24000`，超限会整包报错且不返回部分正文。执行 `node scripts/api-docs.js plan file File.readJSON` 取得范围清单，固定同一 commit，再用宿主文件工具按每个范围读取（例如 GitHub `fetch_file` 的 `start_line/end_line`），逐段核对；范围在另一版本无效。无 shell 的宿主先获取同版本工具生成的清单，或沿 Reference 的方法及显式公共引用逐段核对；无法确认依赖完整时阻塞，不能假定点击锚点自动返回完整合同。
+
+需要把输出经工具或文件传递时，可保存并核验（维护产物只放 `.runtime/`）：
+
+```bash
+mkdir -p .runtime/tests/api-docs
+node scripts/api-docs.js read file File.readJSON --report > .runtime/tests/api-docs/packet.md 2> .runtime/tests/api-docs/plan.json
+node scripts/api-docs.js verify .runtime/tests/api-docs/packet.md .runtime/tests/api-docs/plan.json
+```
+
+`verify` 复核输出、选择项、范围与当前来源；不一致即拒绝。它验证保存的完整文件，不证明聊天工具真的把全部字符送入模型；宿主仍须核对各段实际返回。`plan --types` 与 `read --types` 必须配对。
 
 CLI 有合适命令时复用 [AI CLI](../ai-cli.md)；需要 JS API 时使用现有 `opendesk -script recipe.js` 或 `opendesk ai run recipe.js --input '{}'`，不因缺同名 CLI 重做底层能力。实际入口的参数、输出与取消语义也须按需读取。Node 文档工具不能运行 Runtime Recipe。
 

@@ -147,7 +147,6 @@ function typeMethods(root, id, ledger = []) {
         out.set(n, old);
       }
     }
-
     const members = (name, seen = new Set()) => {
       if (seen.has(name) || !defs.has(name)) return [];
       seen.add(name);
@@ -355,6 +354,7 @@ function readContract(root, id, name, withTypes = false) {
         add(other, section(other, heading), `required-by:${name}`);
       }
       if (dep.delegate) visit(d.id, dep.delegate(name));
+      for (const [targetId, targetMethod] of dep.contracts || []) visit(targetId, targetMethod);
     }
     if (/getCapabilities$/.test(name)) add(load('capabilities'), {start: 0, end: load('capabilities').lines.length}, 'capability-field-semantics');
     if (withTypes) {
@@ -387,7 +387,7 @@ function readContract(root, id, name, withTypes = false) {
   const output = [`# API 阅读包：${name}`, `Revision: ${revision}`, '这是选中 Reference 的原文与声明依赖，不是执行结果或宿主能力证明。未说明的行为必须补证；不得从类型/示例猜测授权、错误或成功。',
     ...merged.map(b => `<!-- source: ${b.path}:${b.startLine ?? 'member'}-${b.endLine ?? 'member'} sha256=${b.sourceSha256} reason=${b.reason} -->\n\n${b.text}`),
     '<!-- END_API_READING_PACKET: only a packet with this marker is complete -->'].join('\n\n') + '\n';
-  return {output, report: {revision, programReads: snapshot, returnedRanges: merged.map(({text, ...b}) => ({...b, ...size(text)})), returned: size(output), tokenUsage: null, modelLoaded: false, desktopExecuted: false}};
+  return {output, report: {selection: {doc: id, selector: name, withTypes}, packetSha256: hash(output), revision, programReads: snapshot, returnedRanges: merged.map(({text, ...b}) => ({...b, ...size(text)})), returned: size(output), tokenUsage: null, modelLoaded: false, desktopExecuted: false}};
 }
 function checkLinks(root, rel, text) {
   const errors = [];
@@ -402,6 +402,45 @@ function checkLinks(root, rel, text) {
     }
   }
   return errors;
+}
+// 清单覆盖不以机器 keyMethods 或既有映射证明自己；发现未路由的新公开对象/Reference 即失败。
+function inventory(root) {
+  const docs = new Set(config.groups.flatMap(g => g.docs));
+  const roots = new Set(Object.values(config.surfaces).flat().map(n => n.split('.')[0]));
+  const globals = new Set(), errors = [];
+  const declaredReferences = [];
+  for (const file of fs.readdirSync(path.join(root, 'docs/api')).filter(f => f.endsWith('.md')).sort()) {
+    const text = readFile(root, `docs/api/${file}`);
+    const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1] || '';
+    if (!/^docType:\s*reference\s*$/m.test(frontmatter)) continue;
+    declaredReferences.push(file);
+    if (!docs.has(file.slice(0, -3))) errors.push(`UNROUTED_REFERENCE docs/api/${file}`);
+  }
+  for (const file of fs.readdirSync(path.join(root, 'types')).filter(f => f.endsWith('.d.ts')).sort()) {
+    const text = maskTS(readFile(root, `types/${file}`));
+    for (const block of text.matchAll(/\bdeclare\s+global\s*\{/g)) {
+      const start = block.index + block[0].length - 1, end = closeAt(text, start);
+      const body = text.slice(start + 1, end);
+      for (const m of body.matchAll(/\b(?:var|const|let|function|class)\s+([\w$]+)/g)) {
+        globals.add(m[1]);
+        if (!roots.has(m[1])) errors.push(`UNROUTED_TYPE_GLOBAL types/${file} ${m[1]}`);
+      }
+    }
+  }
+  return {declaredReferences, declaredGlobals: [...globals].sort(), errors};
+}
+// 验证已接收的完整输出，不以 END 标记代替内容完整性；同版本来源才能通过。
+function verifyPacket(root, output, report) {
+  if (!report?.selection || typeof report.selection.doc !== 'string' || typeof report.selection.selector !== 'string' || typeof report.selection.withTypes !== 'boolean') throw new Error('INVALID_PACKET_PLAN');
+  if (typeof output !== 'string' || hash(output) !== report.packetSha256 || size(output).bytes !== report.returned?.bytes || size(output).characters !== report.returned?.characters) throw new Error('PACKET_INCOMPLETE_OR_CHANGED');
+  const current = readContract(root, report.selection.doc, report.selection.selector, report.selection.withTypes);
+  if (current.output !== output || JSON.stringify(current.report.returnedRanges) !== JSON.stringify(report.returnedRanges)) throw new Error('PACKET_SOURCE_OR_PLAN_CHANGED');
+  return {ok: true, packetSha256: report.packetSha256, returned: size(output), modelLoaded: false};
+}
+function boundedOutput(result, limit) {
+  if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1)) throw new Error('INVALID_MAX_BYTES');
+  if (limit !== undefined && result.report.returned.bytes > limit) throw new Error(`PACKET_TOO_LARGE ${result.report.returned.bytes} > ${limit}; use plan and read every pinned range; no partial packet returned`);
+  return result.output;
 }
 function check(root) {
   const errors = [], counts = {}, gaps = [], seenDocs = new Set();
@@ -437,7 +476,9 @@ function check(root) {
     const names = methodEntries(root, doc(root, g.doc)).map(e => e.name);
     for (const m of g.keyMethods || []) if (!names.some(n => n === m || n === `${g.name}.${m}` || n.endsWith(`.${m}`))) errors.push(`MISSING_KEY_METHOD ${g.name}.${m}`);
   }
-  const report = {ok: errors.length === 0, scope: 'navigation-and-extraction; not semantic certification', contractReadiness: gaps.length ? 'existing-source-gaps-blocked' : 'no-detected-gaps', groups: config.groups.length, documents: seenDocs.size, methodEntries: counts, machineGlobals: index.globals.length, sourceContractGaps: gaps, errors, tokenUsage: null, modelLoaded: false, desktopExecuted: false};
+  const coverageInventory = inventory(root);
+  errors.push(...coverageInventory.errors);
+  const report = {ok: errors.length === 0, inventory: coverageInventory, scope: 'navigation-and-extraction; not semantic certification', contractReadiness: gaps.length ? 'existing-source-gaps-blocked' : 'no-detected-gaps', groups: config.groups.length, documents: seenDocs.size, methodEntries: counts, machineGlobals: index.globals.length, sourceContractGaps: gaps, errors, tokenUsage: null, modelLoaded: false, desktopExecuted: false};
   return report;
 }
 function main(args) {
@@ -459,16 +500,32 @@ function main(args) {
     return;
   }
   if (command === 'plan' && id && selector) {
-    const result = readContract(ROOT, id, selector);
+    if (rest.some(x => x !== '--types')) throw new Error('UNKNOWN_PLAN_OPTION');
+    const result = readContract(ROOT, id, selector, rest.includes('--types'));
     console.log(JSON.stringify(result.report, null, 2)); return;
   }
   if (command === 'read' && id && selector) {
-    if (rest.some(x => !['--types', '--report'].includes(x))) throw new Error('UNKNOWN_READ_OPTION');
-    const result = readContract(ROOT, id, selector, rest.includes('--types'));
-    if (rest.includes('--report')) console.error(JSON.stringify(result.report, null, 2));
-    process.stdout.write(result.output); return;
+    let limit;
+    const flags = [];
+    for (let i = 0; i < rest.length; i++) {
+      if (rest[i] === '--max-bytes') {
+        const raw = rest[++i];
+        if (!/^[1-9]\d*$/.test(raw || '') || limit !== undefined) throw new Error('INVALID_MAX_BYTES');
+        limit = Number(raw);
+      } else if (['--types', '--report'].includes(rest[i])) flags.push(rest[i]);
+      else throw new Error('UNKNOWN_READ_OPTION');
+    }
+    const result = readContract(ROOT, id, selector, flags.includes('--types'));
+    const output = boundedOutput(result, limit);
+    if (flags.includes('--report')) console.error(JSON.stringify(result.report, null, 2));
+    process.stdout.write(output); return;
   }
-  throw new Error('Usage: node scripts/api-docs.js catalog <group> | outline <doc> | plan <doc> <method-or-#anchor> | read <doc> <method-or-#anchor> [--types] [--report] | generate | check');
+  if (command === 'verify' && id && selector && rest.length === 0) {
+    const packet = fs.readFileSync(id, 'utf8');
+    const plan = JSON.parse(fs.readFileSync(selector, 'utf8'));
+    console.log(JSON.stringify(verifyPacket(ROOT, packet, plan), null, 2)); return;
+  }
+  throw new Error('Usage: node scripts/api-docs.js catalog <group> | outline <doc> | plan <doc> <method-or-#anchor> | read <doc> <method-or-#anchor> [--types] [--report] [--max-bytes N] | verify <packet.md> <plan.json> | generate | check');
 }
-module.exports = {parseMarkdown, slug, declarations, typeMethods, methodEntries, catalog, readContract, check, doc, size, checkLinks};
+module.exports = {parseMarkdown, slug, declarations, typeMethods, methodEntries, catalog, readContract, check, doc, size, checkLinks, inventory, verifyPacket, boundedOutput};
 if (require.main === module) { try {main(process.argv.slice(2));} catch (error) {console.error(`API_DOC_READ_ERROR ${error.message}`); process.exitCode = 2;} }
