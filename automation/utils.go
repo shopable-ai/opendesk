@@ -129,7 +129,9 @@ type InitJSOptions struct {
 	// Script Runner. It creates a separate JavaScript Execution inside the App
 	// host process so protected desktop operations retain the App's OS identity.
 	// It is deliberately not exposed through the public automation.app object.
-	AppOwnedScriptRun   AppOwnedScriptRunner
+	AppOwnedScriptInspect AppOwnedScriptInspector
+	AppOwnedScriptRun     AppOwnedScriptRunner
+	AppOwnedExecutionID   AppOwnedExecutionIDAllocator
 	// AppOwnedFlowInspect/AppOwnedFlowRun are private product bridges used by
 	// the bundled assistant/Runner to inspect and launch one canonical installed
 	// Flow through the same App-owned execution owner. They are never public
