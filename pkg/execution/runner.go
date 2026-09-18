@@ -145,6 +145,7 @@ type Request struct {
 	// separate Recipe Execution without leaving the App host process identity.
 	// Ordinary and nested Recipe executions leave it nil.
 	AppOwnedScriptInspect automation.AppOwnedScriptInspector
+	AppOwnedScriptRead    automation.AppOwnedScriptReader
 	AppOwnedScriptRun     automation.AppOwnedScriptRunner
 	AppOwnedExecutionID   automation.AppOwnedExecutionIDAllocator
 	AppOwnedFlowInspect   automation.AppOwnedFlowInspector
@@ -438,6 +439,7 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				CustomUIBaseDir:                 customUIBaseDir(req),
 				AppShell:                        req.AppShell,
 				AppOwnedScriptInspect:           req.AppOwnedScriptInspect,
+				AppOwnedScriptRead:              req.AppOwnedScriptRead,
 				AppOwnedScriptRun:               req.AppOwnedScriptRun,
 				AppOwnedExecutionID:             req.AppOwnedExecutionID,
 				AppOwnedFlowInspect:             req.AppOwnedFlowInspect,
