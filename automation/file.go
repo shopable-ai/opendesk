@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 )
@@ -168,6 +167,30 @@ func (fs *FileSystem) Write(path string, text string, encoding ...string) error 
 	return os.WriteFile(absPath, []byte(text), 0644)
 }
 
+func pathContainsSymlink(path string) (bool, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil { return false, err }
+	absPath = filepath.Clean(absPath)
+	volume := filepath.VolumeName(absPath)
+	root := string(filepath.Separator)
+	rest := absPath
+	if volume != "" {
+		root = volume + string(filepath.Separator)
+		rest = strings.TrimPrefix(absPath[len(volume):], string(filepath.Separator))
+	} else {
+		rest = strings.TrimPrefix(absPath, string(filepath.Separator))
+	}
+	current := root
+	for _, part := range strings.Split(rest, string(filepath.Separator)) {
+		if part == "" || part == "." { continue }
+		current = filepath.Join(current, part)
+		info, statErr := os.Lstat(current)
+		if statErr != nil { return false, statErr }
+		if info.Mode()&os.ModeSymlink != 0 { return true, nil }
+	}
+	return false, nil
+}
+
 // WriteNew creates one new regular file without replacing an existing path.
 // The parent directory is opened as an os.Root before the final O_EXCL open,
 // so a later parent-path replacement cannot redirect the create operation.
@@ -183,17 +206,9 @@ func (fs *FileSystem) WriteNew(path string, text string, encoding ...string) err
 	root, err := os.OpenRoot(parent)
 	if err != nil { return err }
 	defer root.Close()
-	resolvedParent, err := filepath.EvalSymlinks(parent)
+	redirected, err := pathContainsSymlink(parent)
 	if err != nil { return err }
-	resolvedParent, err = filepath.Abs(resolvedParent)
-	if err != nil { return err }
-	parentClean := filepath.Clean(parent)
-	resolvedClean := filepath.Clean(resolvedParent)
-	samePath := parentClean == resolvedClean
-	if runtime.GOOS == "windows" {
-		samePath = strings.EqualFold(parentClean, resolvedClean)
-	}
-	if !samePath {
+	if redirected {
 		return errors.New("File.writeNew rejects symbolic-link or reparse-point parent directories")
 	}
 	pathInfo, err := os.Stat(parent)
