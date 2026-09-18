@@ -228,6 +228,24 @@ def main() -> None:
             for width in [320,390,768,1280]:
                 def responsive(page, width=width):
                     expect(page.locator('.flow-card')).to_have_count(6)
+                    guide = page.locator('.side-guide')
+                    expect(guide).to_be_visible()
+                    expect(guide.locator('.side-guide-title')).to_contain_text('第一次使用？')
+                    expect(guide.locator('[data-action="guide"]')).to_have_text('查看安装指南 →')
+                    assert guide.evaluate("el=>getComputedStyle(el).position") != 'fixed', 'help row must remain in document flow'
+                    if width > 740:
+                        metrics = page.locator('.sidebar').evaluate("""el=>{
+                          const g=el.querySelector('.side-guide'), sb=el.getBoundingClientRect(), gb=g.getBoundingClientRect(), cs=getComputedStyle(g);
+                          const title=g.querySelector('.side-guide-title').getBoundingClientRect();
+                          const icon=g.querySelector('.guide-icon').getBoundingClientRect();
+                          const h=g.querySelector('h3').getBoundingClientRect();
+                          return {bottom:Math.abs(sb.bottom-gb.bottom),radius:cs.borderRadius,borderTop:cs.borderTopWidth,titleDelta:Math.abs((icon.top+icon.height/2)-(h.top+h.height/2)),titleHeight:title.height};
+                        }""")
+                        assert metrics['bottom'] <= 6, f"desktop guide not docked to sidebar bottom: {metrics}"
+                        assert metrics['radius'] == '0px' and metrics['borderTop'] != '0px', f"desktop guide still looks like a card: {metrics}"
+                        assert metrics['titleDelta'] <= 2.5, f"guide icon/title not vertically aligned: {metrics}"
+                    else:
+                        assert guide.locator('p').evaluate("el=>getComputedStyle(el).display") == 'none', 'mobile help row should stay compact'
                     if width == 390:
                         page.screenshot(path=str(OUT / 'market-mobile.png'), full_page=True)
                     detail(page); click(page,'install'); click(page,'accept'); approve(page)
