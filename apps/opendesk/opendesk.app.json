@@ -49,9 +49,10 @@
         "action": "permissions.open"
       },
       {
-        "id": "open-analytics-settings",
-        "label": "基础使用统计…",
-        "action": "analytics.open"
+        "id": "open-settings",
+        "labelKey": "menu.settings",
+        "label": "设置…",
+        "action": "settings.open"
       },
       {
         "id": "open-runtime-log",
