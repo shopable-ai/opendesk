@@ -6,14 +6,14 @@ order: 45
 
 # 能力发现与代码提炼
 
-本页是现有 S1—S12 的作业补充，不是新阶段、Skill、Runtime 或自动调度器。返回[执行入口](../WORKFLOW.md)。字段与交接仍以[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)为准；方法签名、错误和平台限制只在[当前 API Reference](../../../docs/api/README.md)维护。本页写入不表示真实桌面、独立 Agent 或成本评测已通过。
+本页是现有 S1—S12 的作业补充，不是新阶段、Skill、Runtime 或自动调度器。返回[执行入口](../WORKFLOW.md)。字段与交接仍以[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)为准；方法签名、错误和平台限制只在由 [Agent API 短入口](../../../docs/api/agent/README.md) 定位的 canonical Reference 维护。本页写入不表示真实桌面、独立 Agent 或成本评测已通过。
 
 ## 执行链与最低产物
 
 ```text
-业务目标与授权 → 复用已有任务包／经验／脚本
-→ S2、S3—S6：按任务发现能力 → 核对契约与入口
-→ 普通 JS 有界操作 → 实际读取与业务验证
+业务目标与授权 → S1 合同／计划，复用已有任务包／经验／脚本
+→ S2、S3—S6：Agent API 短入口 → 相关能力目录 → 候选方法 → 完整契约
+→ 选择专用 CLI 或普通 OpenDesk JS 入口 → 有界操作／观察 → 保存实际结果与业务验证
 → S7：从真实事实提炼必要路径
 → S8—S9：业务步骤、参数与数据依赖
 → S10—S11：复核框架复用 → 普通 JS 候选
@@ -23,6 +23,8 @@ order: 45
 在现有工作包／操作记录中留一条简短决定：业务步骤、候选能力、选择理由、契约文件与版本、实际入口及二进制身份、实际证据、未验证范围和重查条件。不新增 schema；不把一次 WindowInfo、OCR 点、Locator 或 ElementRef 当持久资产。一次观察、动作回执、业务结果与候选资格分别记录。
 
 ## 按需读取与上下文责任
+
+默认读取链为：`AGENTS.md` → `workflows/agent-to-recipe/WORKFLOW.md` → 当前任务包 → `docs/api/agent/README.md` → 当前需要的一个或少数能力目录 → 选中方法的完整 canonical Reference 及必要公共约束 → 必要类型。仅冲突、缺口或失败时定向进入实现和测试；共享合同与专业方法按当前阶段需要读取，不构成另一套 API 发现顺序。
 
 | 层次 | 当前来源 | 读取时机与范围 |
 | --- | --- | --- |
@@ -54,7 +56,7 @@ order: 45
 | -script | 通用本地入口；入口参数、输入及异步完成约定不能机械套用 ai run |
 | HTTP／MCP／Scheduler 或 Runtime 内 Agent.run() | 不假定与外部 Coding Agent 或本地脚本具有相同权限、对象和生命周期 |
 
-2026-09-18 源码核验基线为 f325e459cb42ff7380a57caf1a454c3f5056dc11：internal/aicli/commands.go 的普通 .js Request 显式开启 Command、Download、Accessibility、SQLite，但未设置 NativeExtensions、Webhook、Custom UI；cmd/opendesk/main.go 的本地 -script Request 还显式开启 NativeExtensions、Webhook，并按配置启用 Custom UI。该表述仅是此基线的入口证据，不是永久授权表；相关能力任务应重查当前入口。宿主启用、OS 权限和用户本次授权仍是不同条件。当前范围不为追求入口一致而扩权。
+**执行时核对当前入口，不沿用历史 SHA 的能力清单。** 先读取所选入口的当前文档，并记录源码版本与实际二进制身份；有冲突、缺口或失败时，才定向核对当前 `internal/aicli/commands.go`、`cmd/opendesk/main.go` 或对应入口 owner。NativeExtensions、Webhook、Accessibility、SQLite、Custom UI 等是否在该入口启用，不能由旧提交、另一入口或类型声明推定。相关文件／构建／配置变化后重新确认；宿主启用、OS 权限和用户本次授权仍是不同条件，不为追求入口一致而扩权。历史源码核验只保留在 Git 历史或其对应的运行证据中，不作为长期执行真值。
 
 按业务检查点组织片段：解析新鲜目标 → 必要前置读取 → 一次动作或有界组合 → 验证 → 输出普通数据。共享原生引用、监听器、句柄或执行内状态的操作必须在同一 Execution 内完成并清理；等待外部 Agent 作下一步判断时，可结束片段并交接普通数据，下个片段重新解析目标。不为每个观察／动作启动新 Execution，也不为少一次调用盲跑未知长流程；不从业务 Execution 嵌套启动多个 OpenDesk 执行来模拟共享状态。
 
@@ -130,6 +132,8 @@ S12 按冻结候选、正式入口、干净状态和独立结果来源验证。
 
 ## 验证用例与证据边界
 
+文档阅读层的离线回归见 [reader.test.js](../../../tests/api-docs/reader.test.js) 与 [discovery.test.js](../../../tests/api-docs/discovery.test.js)。后者按无 API 名称的业务输入走查只读桌面值、校验 JSON 后另存、未知输入结果后的局部维修，并检查短入口接线、普通已跟踪目录文件及 CI 边界。测试中的候选答案属于维护者断言，不能预先提供给被测 Agent；离线阅读与局部控制流检查不等于独立 Agent 盲测或真实 Runtime 运行。
+
 以下是[现有验证计划](validation-plan.md)中 BC-04／05／08／09／11／13／15 的具体执行用例，沿用其 Gate、评分和授权；不新增验收体系。两类资产分别覆盖按钮动作与跨步骤取值、原生完整字符串读写，不建设复杂业务表格。初始任务只给业务要求、授权、资料入口和自有目标身份，不提示 API 名称、预选方案或 backend。允许主动发现已有经验；只找到现成 Recipe 的结果记为资产复用，不能单独算方法发现通过。
 
 | 用例 | 使用的已有资产或受控输入 | 必须证明 |
@@ -144,4 +148,4 @@ S12 按冻结候选、正式入口、干净状态和独立结果来源验证。
 
 测试准备与被测 Agent 的答案隔离；fixture 和 Oracle 可以由维护者准备，但不得提前把方法选择答案送入被测上下文。先冻结基线和改进方案，再运行可比较的合法输入；允许正常拒绝的反例不等于业务已完成，全部拒绝也不能算流程可用。
 
-当前只完成文档接线：能力发现盲测、成本对照、实际二进制兼容性与 macOS／Windows 真实业务运行均未因本页存在而通过。无相应权限或设备的项目保留 not-run／blocked；API 参数或历史案例通过不能替代当前候选资格。
+文档接线与离线回归只验证阅读层：能力发现盲测、成本对照、实际二进制兼容性与 macOS／Windows 真实业务运行均未因本页存在而通过。无相应权限或设备的项目保留 not-run／blocked；API 参数或历史案例通过不能替代当前候选资格。
