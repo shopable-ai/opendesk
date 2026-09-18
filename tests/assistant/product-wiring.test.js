@@ -37,6 +37,8 @@ test('controller exposes no-project task intent, four asset forms, candidate sav
   assert.match(controller, /global\.__opendeskRecipeExecution/);
   assert.match(controller, /global\.__opendeskFlowExecution/);
   assert.match(controller, /protectedRoots:\s*\[execution\.scriptDir, file\.join\(appDataRoot, 'flows'\)\]/);
+  assert.match(controller, /defaultBusinessCwd:\s*appDataRoot/);
+  assert.doesNotMatch(controller, /businessCwd\s*=\s*file\.join\(ref,\s*['"]\.\.['"]\)/);
   assert.match(controller, /authorizations:\s*\{readSource:\s*false, shareSourceWithModel:\s*false\}/);
   assert.doesNotMatch(controller, /projectId\s*:\s*['"][^'"]+/);
 });
@@ -71,3 +73,21 @@ test('task contract consumes confirmation before asynchronous final inspection a
   assert.match(contract, /OVERWRITE_NOT_SUPPORTED/);
   assert.match(contract, /SOURCE_READ_NOT_AUTHORIZED/);
 });
+
+test('Flow use requires signed effect/input metadata and candidate verification has a host owner', () => {
+  const contract = read('apps/opendesk/assistant/task-contract.js');
+  const runtime = read('apps/opendesk/assistant/task-runtime.js');
+  const host = read('cmd/opendesk/app_flow_invocation.go');
+
+  assert.match(contract, /FLOW_INVOCATION_CONTRACT_MISSING/);
+  assert.match(contract, /FLOW_FIXED_INPUT_CONFLICT/);
+  assert.match(contract, /FLOW_UNKNOWN_INPUT/);
+  assert.match(contract, /FLOW_REQUIRED_INPUT_MISSING/);
+  assert.match(contract, /FLOW_INPUT_TYPE_MISMATCH/);
+  assert.match(runtime, /candidateVerifier/);
+  assert.match(runtime, /VERIFICATION_OWNER_UNAVAILABLE/);
+  assert.doesNotMatch(runtime, /recordCandidateVerification/);
+  assert.match(host, /assistant-use\.json/);
+  assert.match(host, /DisallowUnknownFields/);
+});
+
