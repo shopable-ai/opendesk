@@ -164,3 +164,121 @@ func TestAppRecipeRunnerInstalledFlowUsesCanonicalCatalogAndExecutionInput(t *te
 	var flowErr *automation.AppOwnedFlowRunError
 	if !errors.As(err, &flowErr) || flowErr.Code != "FLOW_CHANGED" { t.Fatalf("changed Flow error=%T %v", err, err) }
 }
+
+func TestAppRecipeRunnerAssistantInspectBindsScopeHashInputAndReservedIdentity(t *testing.T) {
+	root := t.TempDir()
+	scriptPath := filepath.Join(root, "assistant.js")
+	if err := os.WriteFile(scriptPath, []byte(`console.log("ASSISTANT_INPUT=" + JSON.stringify(Execution.input));`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runner := newAppRecipeRunner(appRecipeRunnerConfig{}, nil, nil)
+	inspection, err := runner.InspectScript(context.Background(), automation.AppOwnedScriptInspectRequest{
+		ScriptPath: scriptPath,
+		ScopeRoot:  root,
+	})
+	if err != nil {
+		t.Fatalf("inspect App-owned Recipe: %v", err)
+	}
+	if inspection.ScriptHash == "" || inspection.Ext != ".js" {
+		t.Fatalf("inspection=%+v", inspection)
+	}
+
+	reserved := runner.ReserveExecutionID("recipe")
+	logDir := filepath.Join(root, ".runtime", "assistant")
+	result, err := runner.Run(context.Background(), automation.AppOwnedScriptRunRequest{
+		ExecutionID:        reserved,
+		ScriptPath:         scriptPath,
+		ScopeRoot:          root,
+		ExpectedScriptHash: inspection.ScriptHash,
+		InputJSON:          `{"amount":17,"nested":{"target":"A"}}`,
+		WorkDir:            root,
+		LogDir:             logDir,
+	})
+	if err != nil {
+		t.Fatalf("run inspected Recipe: %v", err)
+	}
+	if result.ExecutionID != reserved || result.Status != string(pkgExecution.ExecutionStatusSucceeded) {
+		t.Fatalf("result=%+v reserved=%q", result, reserved)
+	}
+	stdout, err := os.ReadFile(filepath.Join(logDir, "stdout.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(stdout), `ASSISTANT_INPUT={"amount":17,"nested":{"target":"A"}}`) {
+		t.Fatalf("stdout=%q", stdout)
+	}
+
+	if err := os.WriteFile(scriptPath, []byte(`console.log("changed");`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err = runner.Run(context.Background(), automation.AppOwnedScriptRunRequest{
+		ScriptPath:         scriptPath,
+		ScopeRoot:          root,
+		ExpectedScriptHash: inspection.ScriptHash,
+		InputJSON:          `{}`,
+		WorkDir:            root,
+		LogDir:             filepath.Join(root, ".runtime", "stale"),
+	})
+	var typed *automation.AppOwnedScriptRunError
+	if !errors.As(err, &typed) || typed.Code != appRecipeChangedCode {
+		t.Fatalf("stale script error=%T %v", err, err)
+	}
+
+	outsideRoot := t.TempDir()
+	outside := filepath.Join(outsideRoot, "outside.js")
+	if err := os.WriteFile(outside, []byte(`console.log("outside");`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runner.InspectScript(context.Background(), automation.AppOwnedScriptInspectRequest{
+		ScriptPath: outside,
+		ScopeRoot:  root,
+	}); err == nil {
+		t.Fatal("outside directory entry was accepted")
+	}
+	link := filepath.Join(root, "link.js")
+	if err := os.Symlink(outside, link); err == nil {
+		if _, err := runner.InspectScript(context.Background(), automation.AppOwnedScriptInspectRequest{
+			ScriptPath: link,
+			ScopeRoot:  root,
+		}); err == nil {
+			t.Fatal("symlinked assistant entry was accepted")
+		}
+	}
+}
+
+func TestAppRecipeRunnerFlowUsesReservedExecutionIdentity(t *testing.T) {
+	root := t.TempDir()
+	service, err := flowinstall.NewService(flowinstall.Roots{
+		FlowRoot: filepath.Join(root, "flows"), DataRoot: filepath.Join(root, "flow-data"),
+		StateRoot: filepath.Join(root, "flow-state"), TrustRoot: filepath.Join(root, "flow-state", "trust"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := filepath.Join(t.TempDir(), "flow.js")
+	if err := os.WriteFile(source, []byte(`console.log("FLOW_RESERVED_ID=" + Execution.id);`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	installed, err := service.InstallScript(context.Background(), source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner := newAppRecipeRunner(appRecipeRunnerConfig{}, nil, nil)
+	runner.flowService = service
+	reserved := runner.ReserveExecutionID("flow")
+	result, err := runner.RunFlow(context.Background(), automation.AppOwnedFlowRunRequest{
+		ExecutionID: reserved,
+		InstallID: installed.Record.InstallID,
+		WorkDir: root,
+		LogDir: filepath.Join(root, ".runtime", "flow-reserved"),
+		InputJSON: `{}`,
+		ExpectedArchiveDigest: installed.Record.ArchiveDigest,
+		ExpectedManifestDigest: installed.Record.ManifestDigest,
+	})
+	if err != nil {
+		t.Fatalf("run reserved Flow: %v", err)
+	}
+	if result.ExecutionID != reserved {
+		t.Fatalf("executionId=%q want %q", result.ExecutionID, reserved)
+	}
+}
