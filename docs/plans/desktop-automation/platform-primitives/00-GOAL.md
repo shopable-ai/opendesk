@@ -66,7 +66,7 @@ Camera、Bluetooth、USB、Serial、Printer、Wi-Fi/VPN 管理等外围系统能
 - 不复制 Peekaboo 等成熟项目已经稳定解决且没有差异化价值的高层功能；优先 integration / adapter / backend delegation。
 - 不允许 silent fallback。失败必须结构化、可诊断、可测试。
 - 不把 OCR 坐标点击伪装成 Accessibility。
-- 新增用户 API 时同步检查 `docs/api/*.md`、`docs/api/runtime-api.ai.json`、`types/*.d.ts`、示例与测试。
+- 新增用户 API 时同步检查 canonical `docs/api/*.md`、`types/*.d.ts`、`tests/runtime-api/manifest.js`、示例与测试；能力导航通过 `scripts/api-docs.js check/generate` 更新。
 - 所有副作用 API 必须有权限、目标、超时和错误边界。
 - 每张任务卡独立完成、独立验证、独立提交；不要一次性实现全部任务。
 
@@ -75,7 +75,7 @@ Camera、Bluetooth、USB、Serial、Printer、Wi-Fi/VPN 管理等外围系统能
 执行者必须先完成以下检查，再决定 IMPLEMENT / EXTEND / INTEGRATE / SKIP：
 
 1. 搜索 Go package、polyfills、JS globals、MCP tools、HTTP routes。
-2. 搜索 `docs/api`、`runtime-api.ai.json`、`.d.ts` 与 examples。
+2. 搜索 `docs/api`、`.d.ts`、`tests/runtime-api/manifest.js` 与 examples；需要能力发现时从 `docs/api/agent/README.md` 进入。
 3. 搜索 Recorder/Scheduler/FloatingWindow 等内部模块是否已有私有实现。
 4. 检查 `third_party`、integration 文档和 Peekaboo 等已有后端。
 5. 若已有能力覆盖 80% 以上，默认 EXTEND，而不是创建新命名空间。

@@ -4,8 +4,8 @@
 JavaScript Runtime API 测试源码；任何一次性日志、截图、生成脚本、状态和运行证据只写入
 `.runtime/tests/runtime-api/<runId>/`，不得纳入版本控制。
 
-API 事实源按优先级为：当前源码和实际 Runtime 行为、`docs/api/*.md`、
-`docs/api/runtime-api.ai.json`、`types/*.d.ts`。只有这些正式来源可以作为测试输入；
+API 事实源按优先级为：当前源码和实际 Runtime 行为、`docs/api/*.md` canonical Reference、
+`tests/runtime-api/manifest.js` 与 `types/*.d.ts`。生成的 Agent 目录只负责导航，不作为 Runtime 预期值；
 不得恢复或使用任何退役接口文档。
 
 ## 普通示例运行与正式 gate 的边界

@@ -399,10 +399,10 @@ no File/System/page/http/raw NativeExtension capability by default
 必须同步仓库级公开描述：
 
 ```text
-docs-user-api/
-docs-user-api/runtime-api.ai.json
+docs/api/ canonical Reference
 types/
 tests/runtime-api/manifest.js
+docs/api/agent/（由 scripts/api-docs.js check/generate 维护，不手工复制完整合同）
 ```
 
 每个第三方插件可以携带可选 `types/index.d.ts`，用于把动态 facade 描述为：
@@ -596,12 +596,13 @@ diagnostics。
 至少更新：
 
 ```text
-docs-user-api/native-extension.md
-docs-user-api/index.md
-docs-user-api/README.md
-docs-user-api/runtime.md
-docs-user-api/runtime-api.ai.json
+docs/api/native-extension.md
+docs/api/index.md
+docs/api/README.md
+docs/api/runtime.md
 types/
+tests/runtime-api/manifest.js
+docs/api/agent/（通过 scripts/api-docs.js check/generate）
 examples/native-extensions/README.md
 tests/extensions/native-process/README.md
 docs/plans/runtime/runtime-extension-roadmap.md

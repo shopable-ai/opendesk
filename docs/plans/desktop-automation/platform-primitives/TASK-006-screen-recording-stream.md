@@ -260,7 +260,7 @@ playback/readback success
 - 没有引入第二套 Audio / Recorder / Drawing 系统；
 - macOS 有真实 Evidence；
 - 不成熟部分明确标记 Experimental；
-- 公共 API 变化时同步 docs、types、`runtime-api.ai.json` 和必要 example。
+- 公共 API 变化时同步 canonical docs、types、Runtime manifest/tests 和必要 example，并通过 `scripts/api-docs.js check/generate` 更新 Agent 导航。
 
 ## Execution record — 2026-09-02
 

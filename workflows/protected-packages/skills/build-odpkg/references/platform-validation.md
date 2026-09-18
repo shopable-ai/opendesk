@@ -36,7 +36,7 @@ server 生成 PE32+ x86-64。
 
 ```bash
 python3 /Users/mac/.codex/skills/.system/skill-creator/scripts/quick_validate.py workflows/protected-packages/skills/build-odpkg
-git diff --check -- AGENTS.md workflows/protected-packages workflows/README.md docs/api/README.md docs/api/index.md docs/api/ai-cli.md docs/api/runtime-api.ai.json docs/api/protected-packages.md docs/architecture/execution/protected-package-terminology.md docs/architecture/execution/protected-recipe-package.md docs/plans/runtime/protected-recipe/README.md docs/plans/runtime/protected-recipe/STATUS.md docs/plans/runtime/protected-recipe/p2-online-entitlement.md
+git diff --check -- AGENTS.md workflows/protected-packages workflows/README.md docs/api/README.md docs/api/index.md docs/api/ai-cli.md docs/api/protected-packages.md docs/architecture/execution/protected-package-terminology.md docs/architecture/execution/protected-recipe-package.md docs/plans/runtime/protected-recipe/README.md docs/plans/runtime/protected-recipe/STATUS.md docs/plans/runtime/protected-recipe/p2-online-entitlement.md
 ```
 
 Publisher/使用者侧完整命令验证应运行 [runtime-equivalence.md](runtime-equivalence.md) 中的 Skill entry。它由

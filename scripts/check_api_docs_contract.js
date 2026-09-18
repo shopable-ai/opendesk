@@ -27,71 +27,27 @@ const requireBefore = (rel, first, second, description = `${first} before ${seco
   }
 };
 
-let index;
-try {
-  index = JSON.parse(read('docs/api/runtime-api.ai.json'));
-} catch (error) {
-  errors.push(`docs/api/runtime-api.ai.json: invalid JSON: ${error.message}`);
-}
+// 直接检查当前正式资料；退役机器索引不再是契约或预期值来源。
+requireText('docs/api/app-shell.md', '[automation.app API](automation-app.md)', 'App Mode guide -> automation.app Reference');
+requireText('docs/api/automation-app.md', '[App Mode 与 App Shell](app-shell.md)', 'automation.app Reference -> App Mode guide');
+requireText('docs/api/automation-app.md', '## automation.app.onAction(handler)');
+requireText('docs/api/automation-app.md', '## automation.app.updateMenuItem(id, patch)');
+requireText('docs/api/automation-app.md', '## automation.app.quit()');
+requireText('docs/api/automation-app.md', '## automation.app.getCapabilities()');
+requireBefore(
+  'docs/api/automation-app.md',
+  '## automation.app.onAction(handler)',
+  '## automation.app.getCapabilities()',
+  'automation.app business methods before getCapabilities() diagnostic method',
+);
 
-if (index) {
-  const byName = Object.fromEntries((index.globals || []).map(item => [item.name, item]));
+requireText('docs/api/recorder-runtime.md', '## Recorder.start(options)');
+requireText('docs/api/recorder-runtime.md', '## Recorder.getCapabilities()');
+requireText('docs/api/ui.md', '## new FloatingWindow(options?)', 'FloatingWindow canonical constructor in ui.md');
 
-  if (index.entrypoints?.appMode?.docs !== 'docs/api/app-shell.md') {
-    errors.push('runtime-api.ai.json: appMode.docs must point to conceptual app-shell.md');
-  }
-  if (index.entrypoints?.appMode?.runtimeApiDocs !== 'docs/api/automation-app.md') {
-    errors.push('runtime-api.ai.json: appMode.runtimeApiDocs must point to automation-app.md');
-  }
-  if (byName.automation?.doc !== 'automation-app.md') {
-    errors.push('runtime-api.ai.json: automation canonical doc must be automation-app.md');
-  }
-  if (byName.ui?.doc !== 'ui.md') {
-    errors.push('runtime-api.ai.json: ui canonical doc must be ui.md');
-  }
-  if (Object.prototype.hasOwnProperty.call(byName.ui || {}, 'toastDoc')) {
-    errors.push('runtime-api.ai.json: ui.toast must not have a second toastDoc; ui.md is canonical');
-  }
-  if (byName.notify?.doc !== 'notify.md') {
-    errors.push('runtime-api.ai.json: global notify canonical doc must be notify.md');
-  }
-  if (byName.Notifications?.doc !== 'notifications.md') {
-    errors.push('runtime-api.ai.json: Notifications canonical doc must be notifications.md');
-  }
-  if (byName.Notifications?.keyMethods?.[0] !== 'list') {
-    errors.push('runtime-api.ai.json: Notifications.list must precede diagnostics in keyMethods');
-  }
-  if (byName.Recorder?.keyMethods?.[0] !== 'start') {
-    errors.push('runtime-api.ai.json: Recorder.start must precede diagnostics in keyMethods');
-  }
-  if (byName.FloatingWindow?.doc !== 'ui.md') {
-    errors.push('runtime-api.ai.json: FloatingWindow canonical doc must be ui.md');
-  }
-  if (byName.LLM?.keyMethods?.[0] !== 'generate') {
-    errors.push('runtime-api.ai.json: LLM.generate must precede diagnostics in keyMethods');
-  }
-  if (byName.Agent?.keyMethods?.[0] !== 'run') {
-    errors.push('runtime-api.ai.json: Agent.run must precede diagnostics in keyMethods');
-  }
-
-  const runtimeDocs = index.documentation?.runtime || [];
-  for (const required of ['capabilities.md', 'ui.md', 'notifications.md']) {
-    if (!runtimeDocs.includes(required)) {
-      errors.push(`runtime-api.ai.json: documentation.runtime missing ${required}`);
-    }
-  }
-  const legacyUiDoc = ['custom', 'ui.md'].join('-');
-  if (runtimeDocs.includes(legacyUiDoc)) {
-    errors.push('runtime-api.ai.json: legacy UI documentation path must not be canonical runtime documentation');
-  }
-
-  const runtimeRules = index.runtimeRules || [];
-  if (!runtimeRules.some(rule => rule.includes('.mjs') && rule.includes('static relative import/export'))) {
-    errors.push('runtime-api.ai.json: missing current static ESM support rule');
-  }
-}
-
-rejectText('docs/api/runtime-api.ai.json', 'Static/dynamic ESM loading is unsupported', 'stale all-ESM-unsupported claim');
+requireText('docs/api/runtime.md', '静态相对 `import` / `export`', 'static relative ESM support');
+requireText('docs/api/runtime.md', '当前 P0 **不承诺**任意运行时 `import()`', 'runtime import() remains unsupported');
+rejectText('docs/api/runtime.md', 'Static/dynamic ESM loading is unsupported', 'stale all-ESM-unsupported claim');
 
 requireText('docs/api/scheduler.md', 'docType: guide');
 requireText('docs/api/scheduler.md', 'scheduler-api.md');

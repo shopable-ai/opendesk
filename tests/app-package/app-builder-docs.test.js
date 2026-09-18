@@ -14,7 +14,6 @@ test('installed Runtime App Builder documentation matches the public CLI route',
   const apiIndex = read('docs/api/index.md');
   const apiReadme = read('docs/api/README.md');
   const examplesIndex = read('examples/README.md');
-  const machineIndex = JSON.parse(read('docs/api/runtime-api.ai.json'));
 
   const command = 'opendesk app build <package-dir> --target <macos|windows> --output <path> [--json]';
   assert.ok(guide.includes(command), 'user guide must publish the exact build command');
@@ -28,8 +27,5 @@ test('installed Runtime App Builder documentation matches the public CLI route',
   assert.match(apiReadme, /\[Installed Runtime App Builder\]\(app-builder\.md\)/);
   assert.match(examplesIndex, /\[Installed Runtime App Builder\]\(\.\.\/docs\/api\/app-builder\.md\)/);
 
-  const appMode = machineIndex.entrypoints.appMode;
-  assert.equal(appMode.buildCommand, command);
-  assert.equal(appMode.builderDocs, 'docs/api/app-builder.md');
-  assert.equal(fs.existsSync(path.join(root, appMode.builderDocs)), true);
+  assert.equal(fs.existsSync(path.join(root, 'docs/api/app-builder.md')), true);
 });

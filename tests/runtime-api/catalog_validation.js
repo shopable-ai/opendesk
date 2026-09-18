@@ -1,5 +1,5 @@
 // JavaScript-only catalog and source-of-truth validation. It compares the
-// active Runtime surface with the maintained catalog, docs/api index and
+// active Runtime surface with the maintained catalog, canonical docs routes and
 // TypeScript declarations before coverage can be reported as passing.
 
 globalThis.RuntimeAPICatalogValidation = (() => {
@@ -53,19 +53,6 @@ globalThis.RuntimeAPICatalogValidation = (() => {
       })
       .sort();
     return { objects, globals, unknownObjects };
-  }
-
-  function documentedFamilies() {
-    const index = JSON.parse(File.read(File.join(root, 'docs/api', 'runtime-api.ai.json')));
-    const families = new Set();
-    for (const item of index.globals || []) {
-      const name = String(item.name || '');
-      if (name === 'notify' || name === 'Promise/timers/sleep' || name === 'Global APIs') families.add('global');
-      else if (name) {
-        families.add(name);
-      }
-    }
-    return { index, families };
   }
 
   function escapeRegExp(value) {
@@ -195,39 +182,24 @@ globalThis.RuntimeAPICatalogValidation = (() => {
     }
     if (actual.unknownObjects.length) errors.push('Runtime added unknown public object(s): ' + actual.unknownObjects.join(','));
 
-    const documented = documentedFamilies();
-    const retiredPublicFamilies = new Set(['browser', 'context', 'playwright', 'browser/context/upgraded facades']);
-    for (const item of documented.index.globals || []) {
-      const name = String(item.name || '');
-      if (retiredPublicFamilies.has(name)) {
-        errors.push('docs/api machine index republishes implementation-only compatibility facade: ' + name);
+    // Compatibility facades may still exist as Runtime residue, but the maintained
+    // public catalog itself must never republish them.
+    const retiredPublicFamilies = new Set(['browser', 'context', 'playwright']);
+    for (const family of retiredPublicFamilies) {
+      if (Object.prototype.hasOwnProperty.call(RuntimeAPIObjects, family)) {
+        errors.push('Runtime API catalog republishes implementation-only compatibility facade: ' + family);
       }
-    }
-    for (const family of Object.keys(RuntimeAPIObjects)) {
-      if (!documented.families.has(family)) errors.push('docs/api object drift: missing ' + family);
-    }
-    for (const [family, definition] of Object.entries(RuntimeAPIObjects)) {
-      if (!definition.handle) continue;
-      const item = (documented.index.globals || []).find((candidate) => candidate && candidate.name === family);
-      const methods = item && Array.isArray(item.handleMethods) ? item.handleMethods.slice().sort() : [];
-      const expected = definition.handle.methods.slice().sort();
-      if (!item || item.handleType !== definition.handle.typeName) {
-        errors.push('docs/api handle type drift: ' + family + ' -> ' + definition.handle.typeName);
-      }
-      if (JSON.stringify(methods) !== JSON.stringify(expected)) {
-        errors.push('docs/api handle method drift: ' + family + ' -> ' + definition.handle.family);
+      if (catalog.some((entry) => entry.family === family)) {
+        errors.push('Runtime API manifest republishes implementation-only compatibility facade: ' + family);
       }
     }
     for (const entry of catalog) {
-      if (!File.exists(File.join(root, entry.source.docs))) errors.push('catalog docs route missing: ' + entry.source.docs);
-      if (!File.exists(File.join(root, entry.source.types))) errors.push('catalog types route missing: ' + entry.source.types);
-      if (!typeContains(entry)) errors.push('types declaration drift: missing ' + entry.id + ' in ' + entry.source.types);
-    }
-    for (const item of documented.index.globals || []) {
-      for (const method of item.keyMethods || []) {
-        const family = ['Global APIs', 'Promise/timers/sleep', 'notify'].includes(item.name) ? 'global' : item.name;
-        if (family && !family.includes('/') && !idSet.has(family + '.' + method)) errors.push('docs keyMethod missing from catalog: ' + family + '.' + method);
-      }
+      const docsRoute = String(entry.source.docs || '');
+      const typesRoute = String(entry.source.types || '');
+      if (!docsRoute.startsWith('docs/api/')) errors.push('catalog docs route must stay under docs/api/: ' + docsRoute);
+      if (!File.exists(File.join(root, docsRoute))) errors.push('catalog docs route missing: ' + docsRoute);
+      if (!File.exists(File.join(root, typesRoute))) errors.push('catalog types route missing: ' + typesRoute);
+      if (!typeContains(entry)) errors.push('types declaration drift: missing ' + entry.id + ' in ' + typesRoute);
     }
     return { ok: errors.length === 0, errors, actual, catalog, catalogFingerprint: fingerprint(catalog.slice().sort((a, b) => a.id.localeCompare(b.id))) };
   }

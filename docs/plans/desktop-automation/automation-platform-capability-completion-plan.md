@@ -781,7 +781,7 @@ Evidence Model
 ```text
 JavaScript facade
 TypeScript declarations
-runtime-api.ai.json
+Agent capability navigation (`docs/api/agent/*`, not a full API database)
 HTTP schema
 MCP tool schema
 user documentation index

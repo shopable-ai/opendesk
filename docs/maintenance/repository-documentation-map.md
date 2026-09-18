@@ -42,7 +42,7 @@ Do not create another user-facing API root under `docs/`, and do not create a de
 
 These are maintained but are **not additional documentation roots**:
 
-- `docs/api/runtime-api.ai.json` — Agent-facing machine index and document routing.
+- `docs/api/agent/` — deterministic Agent navigation generated from canonical Reference, types and the small routing map; it is not a second API database.
 - `types/*.d.ts` — VS Code / TypeScript autocomplete and callable signatures.
 - `jsconfig.json` — connects repository JavaScript with the declaration files.
 
@@ -69,9 +69,8 @@ Former working areas and old-path redirect Markdown are historical only. Once cu
 ```text
 1. current source/runtime behavior
 2. docs/api/*.md canonical Reference
-3. docs/api/runtime-api.ai.json
-4. types/*.d.ts
-5. Git history
+3. types/*.d.ts
+4. Git history
 ```
 
 The Markdown layer is the canonical rendered user documentation. JSON and `.d.ts` are derived consumption formats and must be corrected when they drift.
@@ -91,7 +90,7 @@ The Markdown layer is the canonical rendered user documentation. JSON and `.d.ts
 |---|---|
 | Current project/framework/architecture/implementation/quality knowledge | `docs/<category>/` |
 | User-facing API prose | `docs/api/` |
-| Machine-readable user API map | `docs/api/runtime-api.ai.json` |
+| Generated Agent API navigation | `docs/api/agent/` |
 | Editor signatures | `types/*.d.ts` |
 | Editor project wiring | `jsconfig.json` |
 | Active research | `docs/research/` |
@@ -137,8 +136,8 @@ When adding or changing a user-visible API:
 1. verify current source/runtime behavior;
 2. update the corresponding rendered Markdown;
 3. update `docs/api/index.md` if navigation or object ownership changed;
-4. update `runtime-api.ai.json` when public object/method routing changed;
-5. update `types/*.d.ts` whenever callable signatures, return shapes, optionality or sync/Promise behavior changed;
+4. update `types/*.d.ts` whenever callable signatures, return shapes, optionality or sync/Promise behavior changed;
+5. run `scripts/api-docs.js check/generate` when API routing or discoverability changed;
 6. run the declaration checks;
 7. verify examples.
 

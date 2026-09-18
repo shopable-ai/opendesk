@@ -450,7 +450,7 @@ docs/api/index.md
 docs/api/cookbook.md
 ```
 
-Agent 从 `docs/api/agent/README.md` 按当前业务步骤展开；用户总导航与 Cookbook 按需读取，不是顺序必读清单。`docs/api/runtime-api.ai.json` 保留程序解析与校验用途，不作为默认全文阅读输入。
+Agent 从 `docs/api/agent/README.md` 按当前业务步骤展开；用户总导航与 Cookbook 按需读取，不是顺序必读清单。完整合同以选中方法的 canonical Reference 为准，类型只在需要时读取。
 
 JavaScript Runtime API contract、unit、safe smoke、Safari live 与 acceptance 测试位于
 `tests/runtime-api/`，OpenDesk JS 入口为 `scripts/test_runtime_apis.js`；默认 smoke 从仓库根目录运行

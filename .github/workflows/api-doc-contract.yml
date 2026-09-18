@@ -22,6 +22,8 @@ jobs:
         run: |
           node --check apps/opendesk/flow-runner.js
           node --check apps/opendesk/scheduler-center.js
+      - name: Test API-adjacent documentation consumers
+        run: node --test tests/app-package/app-builder-docs.test.js
   agent-api-reading:
     name: Layered Agent API reading
     runs-on: ubuntu-latest
@@ -55,7 +57,7 @@ jobs:
           node scripts/api-docs.js generate
           git diff --exit-code -- docs/api/agent
           test -z "$(git ls-files --others --exclude-standard docs/api/agent)"
-      - name: Record source and remaining legacy JSON consumers
+      - name: Record source and retired JSON references
         if: always()
         run: |
           mkdir -p .runtime/tests/api-docs
@@ -63,8 +65,9 @@ jobs:
           git status --short | tee .runtime/tests/api-docs/worktree-status.txt
           git diff --check
           git diff --check HEAD^ HEAD
-          git grep -n -F 'runtime-api.ai.json' > .runtime/tests/api-docs/json-consumers.txt || test $? = 1
-          git grep -n -E 'runtime-api.ai.json|preferredForAI' -- '*.go' '*.js' '*.json' > .runtime/tests/api-docs/program-consumers.txt || test $? = 1
+          test ! -e docs/api/runtime-api.ai.json
+          git grep -n -F 'runtime-api.ai.json' > .runtime/tests/api-docs/retired-json-references.txt || test $? = 1
+          git grep -n -E 'runtime-api.ai.json|preferredForAI' -- '*.go' '*.js' '*.json' > .runtime/tests/api-docs/retired-json-program-references.txt || test $? = 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:

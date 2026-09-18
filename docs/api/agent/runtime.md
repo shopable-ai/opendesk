@@ -194,7 +194,7 @@ docType: index
 
 - `types/Execution.d.ts` SHA-256 `e1776073124a1585896ead8fdc22ad7f2da61546c9923a0f90fd3378f6c735d0`
 
-- `docs/api/global-apis.md` SHA-256 `b49ae469fb2ad565f8d017a970bf4b695b0c8172b6feb842b6201c870b717769`
+- `docs/api/global-apis.md` SHA-256 `64be8b1eae5c756d52e9ee8446e5041b4e072929d280eceaabf463e29aaae6e1`
 
 - `types/global.d.ts` SHA-256 `1cf9e19b27cd13fb50d7147713d1a2a67c2176a0be2de6791a2e325b5519da8c`
 

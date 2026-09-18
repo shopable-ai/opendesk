@@ -112,10 +112,48 @@ test('Agent-to-Recipe consumers use one short API entry with valid links', () =>
     'docs/api/agent/README.md',
     'docs/api/README.md',
     'docs/api/index.md',
+    'docs/api/runtime.md',
+    'docs/api/.rules.md',
+    'docs/implementation/runtime/runtime-api-development-workflow.md',
     'workflows/agent-to-recipe/WORKFLOW.md',
     'workflows/agent-to-recipe/design/capability-discovery.md',
   ]) {
     assert.doesNotMatch(text(rel), /runtime-api\.ai\.json|\bkeyMethods\b/, `${rel} 不应把旧机器索引暴露给普通 Agent`);
+  }
+});
+
+test('current consumers and maintenance guidance do not depend on the retired API JSON', () => {
+  for (const rel of [
+    'README.md',
+    'QUICKSTART.md',
+    'docs/README.md',
+    'docs/api/global-apis.md',
+    'docs/architecture/runtime-capability-contract.md',
+    'docs/architecture/llm-agent-api-publication.md',
+    'docs/implementation/runtime/goja-binding-model.md',
+    'docs/implementation/runtime/runtime-api-composition.md',
+    'docs/implementation/runtime/runtime-api-development-workflow.md',
+    'docs/maintenance/repo-file-lifecycle-policy.md',
+    'docs/maintenance/repository-documentation-map.md',
+    'docs/project/overview.md',
+    'docs/project/runbook.md',
+    'tests/README.md',
+    'tests/runtime-api/README.md',
+    '.prompt/01-path-and-source-context.md',
+    'workflows/protected-packages/skills/build-odpkg/references/platform-validation.md',
+    'docs/plans/desktop-automation/automation-platform-capability-completion-plan.md',
+    'docs/plans/desktop-automation/platform-primitives/00-GOAL.md',
+    'docs/plans/desktop-automation/platform-primitives/CODEX-EXECUTION-GOAL.md',
+    'docs/plans/desktop-automation/platform-primitives/PLAN-screen-capture-region-selector.md',
+    'docs/plans/desktop-automation/platform-primitives/TASK-001-accessibility-api.md',
+    'prompts/runtime/native-extension-canonical-install-root-and-authoring-goal.md',
+    'prompts/runtime/native-extension-plugin-autodiscovery-goal.md',
+    'prompts/runtime/native-process-extension-prototype-goal.md',
+    'tests/app-package/app-builder-docs.test.js',
+    'tests/runtime-api/unit/native-extension.test.js',
+    'tests/extensions/native-plugin/tools/proof-harness/main.py',
+  ]) {
+    assert.doesNotMatch(text(rel), /runtime-api\.ai\.json|\bpreferredForAI\b/, `${rel} 不应继续依赖或要求维护退役 JSON`);
   }
 });
 

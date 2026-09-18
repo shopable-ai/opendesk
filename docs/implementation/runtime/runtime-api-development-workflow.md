@@ -27,7 +27,7 @@ order: 15
 
 1. `automation/*.go`：实现、native owner、错误与资源边界；
 2. `automation/utils.go` 的 `jsMethodAllowlist` 或对应显式 `registerXxx`；
-3. `docs/api/*.md` 与 `docs/api/runtime-api.ai.json`；
+3. `docs/api/*.md` 的 canonical Reference；Agent 导航只通过 `scripts/api-docs.js generate/check` 从正式资料派生，不维护第二套完整接口总表；
 4. `types/*.d.ts`；
 5. `tests/runtime-api/manifest.js` 与 `tests/runtime-api/unit/<namespace>.test.js`；
 6. `docs/implementation/runtime/` 与 `docs/quality/`；
@@ -64,6 +64,8 @@ Page 还必须检查 `page____Inject` 与 `polyfills/000-page.js`；Sound/Audio 
 以下命令都从仓库根目录执行：
 
 ```bash
+node scripts/api-docs.js check
+node scripts/check_api_docs_contract.js
 node scripts/audit_test_architecture.js
 go test ./... -count=1
 OPENDESK_RUNTIME_API_MODE=contract ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script

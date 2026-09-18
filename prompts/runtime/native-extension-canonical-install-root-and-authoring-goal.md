@@ -389,10 +389,11 @@ pkg/nativeextension/discovery.go
 pkg/nativeextension/*_test.go
 automation/native_extensions.go
 cmd/opendesk/
-docs-user-api/native-extension.md
-docs-user-api/index.md
-docs-user-api/README.md
-docs-user-api/runtime-api.ai.json
+docs/api/native-extension.md
+docs/api/index.md
+docs/api/README.md
+tests/runtime-api/manifest.js
+scripts/api-docs.js
 examples/native-extensions/README.md
 tests/extensions/native-plugin/
 python3 tests/extensions/native-plugin/tools/proof-harness/main.py

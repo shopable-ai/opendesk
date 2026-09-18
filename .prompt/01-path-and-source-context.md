@@ -12,7 +12,7 @@
 - 本卡新增接口是设计目标，不是已实现事实。已有能力满足目标则记录“复用/已验证”，不重复实现；缺少必要输入或证据则记录具体 Blocked/Not Evaluated，继续可独立完成的部分。
 - 普通脚本由 Runtime 自动注入后直接使用；不要求 import、require、new、npm install 或 Node 解释器。开发期已有 Node 工具可以保留，不能当产品脚本运行器。
 - Route A：Agent-to-Recipe，普通 JavaScript、现有正常执行入口、真实后置条件验证。不得创建 Recorder / IR / Compiler / 专用 Replay 主链，也不把本卡扩成新的 Workflow Engine。
-- 文件清单是建议落点。先查同职责代码再复用；“新增候选”不是已存在文件。公共文档、类型、机器索引、manifest、JS 测试、Go 必要测试、公开示例一起同步。公共能力不能只由 Go 单测证明。
+- 文件清单是建议落点。先查同职责代码再复用；“新增候选”不是已存在文件。公共文档、类型、Runtime manifest、Agent 导航、JS 测试、Go 必要测试、公开示例一起同步。公共能力不能只由 Go 单测证明。
 - 默认不新增 CLI 子命令/flag，不重新实现 `docs/command`。必要的内部接线只做向后兼容增量；若修改会破坏已完成命令契约，报告边界而不是擅自更换协议。
 - 未获用户另行授权，不 commit、push 或创建 PR。原始证据只写 `.runtime/`；报告写实际命令、二进制来源/hash、运行结果和未验证项。
 
@@ -64,7 +64,7 @@ Execution.scriptDir: string | null;
 | 新增候选 | `types/path.d.ts`、`docs/api/path.md` | 同步调用契约。 |
 | 条件修改 | 当前唯一 Execution 类型声明 | 增加两个字段；不存在时才新增 `types/Execution.d.ts`，不得重复声明。 |
 | 新增候选 | `tests/runtime-api/unit/path.test.js`、`tests/runtime-api/acceptance/path.js`、`examples/path.js` | 直接使用与正式入口验收。 |
-| 修改 | `docs/api/runtime.md`、`docs/api/index.md`、`docs/api/runtime-api.ai.json`、`tests/runtime-api/manifest.js` | 范围、元数据和准确覆盖。 |
+| 修改 | `docs/api/runtime.md`、`docs/api/index.md`、`tests/runtime-api/manifest.js` | 范围、元数据和准确覆盖；Agent 导航通过 `scripts/api-docs.js check/generate` 验证。 |
 
 注册/日志接线若本地被前一任务重排，应跟随其 owner，不按旧行号打补丁。
 
