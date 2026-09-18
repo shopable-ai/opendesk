@@ -75,8 +75,10 @@
       if (stack.length < 2) fail('ASSET_PATH_NOT_ABSOLUTE', 'UNC path must include server and share');
       return '//' + stack.join('/');
     }
+    if (drive && stack.length === 0) return drive + '/';
+    if (!drive && stack.length === 0) return '/';
     const prefix = drive ? drive + '/' : '/';
-    return (prefix + stack.join('/')).replace(/\/$/, '') || '/';
+    return prefix + stack.join('/');
   }
 
   function isWithin(root, candidate) {
