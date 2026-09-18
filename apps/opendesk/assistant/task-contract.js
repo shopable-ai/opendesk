@@ -394,9 +394,17 @@
     return Object.freeze({create: candidate, saveAs, markVerified});
   }
 
+  function canonicalComparableValue(value) {
+    if (Array.isArray(value)) return value.map(canonicalComparableValue);
+    if (!value || typeof value !== 'object') return value;
+    const result = {};
+    for (const key of Object.keys(value).sort()) result[key] = canonicalComparableValue(value[key]);
+    return result;
+  }
+
   function comparableInspection(value) {
     const item = value && typeof value === 'object' ? value : {};
-    return JSON.stringify({
+    return JSON.stringify(canonicalComparableValue({
       installId: String(item.installId || ''),
       flowId: String(item.flowId || ''),
       version: String(item.version || ''),
@@ -408,7 +416,7 @@
       authorizationRevision: String(item.authorizationRevision || ''),
       permissionRevision: String(item.permissionRevision || ''),
       invocation: item.invocation && typeof item.invocation === 'object' ? clone(item.invocation) : null,
-    });
+    }));
   }
 
   function createFlowUseService(options) {
