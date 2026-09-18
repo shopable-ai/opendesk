@@ -9,7 +9,7 @@ Installation is import-and-register only; it never executes the Flow. The user m
 
 ## Notify Demo
 
-For the smallest drag-and-run smoke test, use [`notify-demo/`](notify-demo/). It keeps one `main.js` as both the raw JavaScript Flow and the packaged `.odflow` entry point. The checked-in `notify-demo.odflow` is a real signed package built by the official `flow pack` command. Installing it only registers the Flow; the system notification appears only after an explicit Run.
+For the smallest drag-and-run smoke test, use [`notify-demo/`](notify-demo/). It keeps one `main.js` as both the raw JavaScript Flow and the packaged `.odflow` entry point, and requests its OpenDesk-owned transient feedback through `ui.toast()`. The checked-in `notify-demo.odflow` is a real signed package built by the official `flow pack` command. Installing it only registers the Flow; the Toast appears only after an explicit Run.
 
 ## Build from the repository root
 

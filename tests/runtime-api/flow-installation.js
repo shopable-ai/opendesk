@@ -153,10 +153,12 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
     const env = installEnv('notify-demo-example');
     const exampleRoot = File.join(Execution.workdir, 'examples', 'flow-distribution', 'notify-demo');
     const sourcePath = File.join(exampleRoot, 'main.js');
+    const configPath = File.join(exampleRoot, 'clawdesk.runtime.json');
     const manifestPath = File.join(exampleRoot, 'flow.json');
     const packagePath = File.join(exampleRoot, 'notify-demo.odflow');
 
     assert(File.isFile(sourcePath), 'Notify Demo main.js is missing');
+    assert(File.isFile(configPath), 'Notify Demo UI runtime configuration is missing');
     assert(File.isFile(manifestPath), 'Notify Demo flow.json is missing');
     assert(File.isFile(packagePath), 'Notify Demo .odflow is missing');
 
@@ -164,7 +166,8 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
     equal(inspected.result.manifest.flowId, 'com.example.opendesk.notify-demo', 'Notify Demo flowId');
     equal(inspected.result.manifest.name, 'Notify Demo', 'Notify Demo display name');
     equal(inspected.result.manifest.entry, 'main.js', 'Notify Demo entry');
-    equal(JSON.stringify(inspected.result.manifest), File.read(manifestPath), 'checked-in flow.json differs from packaged manifest');
+    assert(inspected.result.manifest.files.some(file => file.path === 'clawdesk.runtime.json'), 'Notify Demo package omits its UI runtime configuration');
+    equal(JSON.stringify(inspected.result.manifest), File.read(manifestPath).trim(), 'checked-in flow.json differs from packaged manifest');
 
     const installed = await cli(['flow', 'install', packagePath, '--trust-flow'], true, env);
     equal(installed.result.record.state, 'ready', 'Notify Demo installed state');
@@ -178,12 +181,53 @@ RuntimeAPITest.load('tests/runtime-api/manifest.js');
       'main.js',
     );
     equal(File.read(installedSource), File.read(sourcePath), 'packaged Notify Demo main.js differs from public source');
+    assert(File.read(sourcePath).includes('ui.toast('), 'Notify Demo must use canonical ui.toast() feedback');
+    assert(!/^\s*notify\s*\(/m.test(File.read(sourcePath)), 'Notify Demo must not use the operating-system notify() API');
+    equal(
+      File.read(File.join(env.OPENDESK_APP_DATA_DIR, 'flows', installed.result.record.installId, 'clawdesk.runtime.json')),
+      File.read(configPath),
+      'packaged Notify Demo UI runtime configuration differs from public source',
+    );
 
     const listed = await cli(['flow', 'list'], true, env);
     equal(listed.result.flows.length, 1, 'Notify Demo install did not create exactly one Catalog record');
     equal(listed.result.flows[0].installId, installed.result.record.installId, 'Notify Demo Catalog identity changed');
     assertNeverExecuted();
 
+    await cli(['flow', 'uninstall', installed.result.record.installId, '--remove-data'], true, env);
+  });
+
+  test({
+    name: 'raw Flow import carries its adjacent UI runtime configuration into explicit flow run',
+    tier: 'unit',
+    covers: ['Command.run', 'File.read'],
+  }, async () => {
+    const env = installEnv('notify-demo-local-ui-config');
+    const exampleRoot = File.join(Execution.workdir, 'examples', 'flow-distribution', 'notify-demo');
+    const sourceRoot = File.join(root, 'notify-demo-local-ui-config-source');
+    const sourcePath = File.join(sourceRoot, 'main.js');
+    const configPath = File.join(exampleRoot, 'clawdesk.runtime.json');
+    File.ensureDir(sourceRoot);
+    File.write(
+      sourcePath,
+      "const capabilities = ui.getCapabilities(); if (!capabilities.enabled || capabilities.activationSource !== 'projectConfig') throw new Error('adjacent UI config was not activated'); console.log('FLOW_LOCAL_UI_CONFIG=projectConfig');\n",
+    );
+    File.copy(configPath, File.join(sourceRoot, 'clawdesk.runtime.json'));
+    const installed = await cli(['flow', 'install', sourcePath], true, env);
+    equal(installed.result.record.origin, 'js', 'raw Notify Demo import origin');
+    equal(
+      File.read(File.join(env.OPENDESK_APP_DATA_DIR, 'flows', installed.result.record.installId, 'payload', 'clawdesk.runtime.json')),
+      File.read(configPath),
+      'raw Notify Demo import did not preserve its adjacent UI runtime configuration',
+    );
+    assertNeverExecuted();
+    const runLogDir = File.join(root, 'notify-demo-local-ui-config-run');
+    const ran = await cli(['flow', 'run', installed.result.record.installId, '--log-dir', runLogDir], true, env);
+    equal(ran.result.execution.status, 'succeeded', 'raw Flow explicit run status');
+    assert(
+      File.read(File.join(runLogDir, 'stdout.log')).includes('FLOW_LOCAL_UI_CONFIG=projectConfig'),
+      'raw Flow explicit run did not load its adjacent UI runtime configuration',
+    );
     await cli(['flow', 'uninstall', installed.result.record.installId, '--remove-data'], true, env);
   });
 

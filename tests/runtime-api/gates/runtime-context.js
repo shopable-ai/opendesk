@@ -39,6 +39,7 @@ let GO_BASIC_EXTENSION = '';
 let APPLE_VISION_BUNDLE = '';
 let APPLE_VISION_EXTENSION = '';
 let childEnv = {};
+let PLATFORM = null;
 
 function fail(message) {
   throw new Error(message);
@@ -112,6 +113,38 @@ function absolutePath(path) {
   return File.path(path);
 }
 
+// Keep the formal qualification harness platform-correct without changing its
+// assertions. File mode bits, executable file names, hashing tools and process
+// inspection all have different host semantics on Windows.
+function platform() {
+  if (PLATFORM) return PLATFORM;
+  const info = System.getPlatformInfo();
+  const os = String(info && info.os || '');
+  const arch = String(info && info.arch || '');
+  if (!['darwin', 'linux', 'windows'].includes(os) || !arch) {
+    fail(`unsupported Runtime API qualification platform: ${JSON.stringify(info)}`);
+  }
+  PLATFORM = Object.freeze({ os, arch });
+  return PLATFORM;
+}
+
+function isWindows() {
+  return platform().os === 'windows';
+}
+
+function platformExecutableName(name) {
+  return isWindows() ? `${name}.exe` : name;
+}
+
+function evidencePlatform() {
+  const value = platform();
+  return {
+    os: value.os === 'darwin' ? 'Darwin' : value.os === 'linux' ? 'Linux' : 'Windows',
+    // Existing macOS extension staging passes this value directly to xcrun.
+    arch: value.os === 'darwin' && value.arch === 'amd64' ? 'x86_64' : value.arch,
+  };
+}
+
 function safeRunId() {
   const configured = Execution.env.OPENDESK_RUNTIME_API_RUN_ID;
   const candidate = configured && String(configured).length > 0 ? String(configured) : String(Execution.id);
@@ -120,19 +153,45 @@ function safeRunId() {
 }
 
 async function sha256(path) {
-  const result = await requireCommand('shasum', ['-a', '256', path], {
+  const value = platform();
+  const command = value.os === 'windows'
+    ? 'certutil.exe'
+    : value.os === 'darwin'
+      ? 'shasum'
+      : 'sha256sum';
+  const args = value.os === 'windows'
+    ? ['-hashfile', path, 'SHA256']
+    : value.os === 'darwin'
+      ? ['-a', '256', path]
+      : [path];
+  const result = await requireCommand(command, args, {
     cwd: ROOT_DIR,
     timeout: 30_000,
     maxOutputBytes: 1024 * 1024,
   }, `sha256 ${path}`);
-  const value = result.stdout.trim().split(/\s+/)[0] || '';
-  if (!/^[a-fA-F0-9]{64}$/.test(value)) fail(`invalid sha256 output for ${path}`);
-  return value.toLowerCase();
+  const digest = result.stdout.match(/\b[a-fA-F0-9]{64}\b/);
+  if (!digest) fail(`invalid sha256 output for ${path}`);
+  return digest[0].toLowerCase();
 }
 
 async function assertExecutable(path, label) {
-  if (!File.isFile(path)) fail(`${label} is not a regular file: ${path}`);
+  const stat = File.stat(path);
+  if (!stat || stat.type !== 'file') fail(`${label} is not a regular file: ${path}`);
+  if (isWindows()) {
+    if (!/\.exe$/i.test(File.getName(path))) fail(`${label} is not a Windows executable: ${path}`);
+    return;
+  }
   await requireCommand('/bin/test', ['-x', path], { timeout: 10_000 }, `${label} executable check`);
+}
+
+async function stageRunLocalBinary(source, stage, destination) {
+  if (isWindows()) {
+    File.copy(source, stage);
+    File.move(stage, destination);
+    return;
+  }
+  await requireCommand('/bin/cp', ['-p', source, stage], { timeout: 60_000 }, 'stage OPENDESK_BINARY');
+  await requireCommand('/bin/mv', [stage, destination], { timeout: 30_000 }, 'install run-local OPENDESK_BINARY');
 }
 
 async function initialize() {
@@ -146,7 +205,7 @@ async function initialize() {
   }
   CONTEXT = File.join(RUN_DIR, 'context.json');
   PROCESSES = File.join(RUN_DIR, 'processes.json');
-  BINARY = File.join(RUN_DIR, 'bin', 'opendesk');
+  BINARY = File.join(RUN_DIR, 'bin', platformExecutableName('opendesk'));
   BINARY_ORIGINAL_PATH = '';
   BINARY_ORIGINAL_SHA256 = '';
 
@@ -156,8 +215,7 @@ async function initialize() {
     await assertExecutable(BINARY_ORIGINAL_PATH, 'OPENDESK_BINARY');
     BINARY_ORIGINAL_SHA256 = await sha256(BINARY_ORIGINAL_PATH);
     const stage = File.join(RUN_DIR, 'bin', `.opendesk-stage-${Execution.id}`);
-    await requireCommand('/bin/cp', ['-p', BINARY_ORIGINAL_PATH, stage], { timeout: 60_000 }, 'stage OPENDESK_BINARY');
-    await requireCommand('/bin/mv', [stage, BINARY], { timeout: 30_000 }, 'install run-local OPENDESK_BINARY');
+    await stageRunLocalBinary(BINARY_ORIGINAL_PATH, stage, BINARY);
     BINARY_PROVENANCE = 'external_binary_copy';
     BUILD_SOURCE = 'verified run-local copy of OPENDESK_BINARY';
   } else {
@@ -182,8 +240,7 @@ async function initialize() {
 
   const commit = (await requireCommand('git', ['rev-parse', 'HEAD'], { cwd: ROOT_DIR, timeout: 30_000 }, 'git rev-parse HEAD')).stdout.trim();
   const dirtyResult = await requireCommand('git', ['status', '--porcelain'], { cwd: ROOT_DIR, timeout: 30_000 }, 'git status --porcelain');
-  const os = (await requireCommand('/usr/bin/uname', ['-s'], { timeout: 10_000 }, 'uname -s')).stdout.trim();
-  const arch = (await requireCommand('/usr/bin/uname', ['-m'], { timeout: 10_000 }, 'uname -m')).stdout.trim();
+  const { os, arch } = evidencePlatform();
   const browser = String(Execution.env.OPENDESK_RUNTIME_API_BROWSER_APP
     || Execution.env.HOST_API_BROWSER_APP
     || 'Safari');
@@ -360,6 +417,30 @@ async function verifyZeroCleanup(gate, recordName = gate) {
 }
 
 async function noResidual() {
+  if (isWindows()) {
+    const processRecords = await readJSON(PROCESSES);
+    const pids = [...new Set((processRecords.records || [])
+      .map((record) => Number(record && record.pid))
+      .filter((pid) => Number.isInteger(pid) && pid > 0))];
+    const residual = [];
+    for (const pid of pids) {
+      // PID is parsed as an integer from this run's own watchdog record before
+      // interpolation. CIM returns only a current process, so a reused PID whose
+      // command line no longer belongs to this run is not reported as residual.
+      const script = `$ErrorActionPreference = 'Stop'; $item = Get-CimInstance -ClassName Win32_Process -Filter 'ProcessId = ${pid}'; if ($null -ne $item) { [PSCustomObject]@{ pid = $item.ProcessId; commandLine = [string]$item.CommandLine } | ConvertTo-Json -Compress }`;
+      const result = await requireCommand('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+        cwd: ROOT_DIR,
+        timeout: 30_000,
+        maxOutputBytes: 1024 * 1024,
+      }, `process residual inspection for PID ${pid}`);
+      if (!result.stdout.trim()) continue;
+      const observed = parseJSON(result.stdout, `process residual inspection for PID ${pid}`);
+      if (String(observed.commandLine || '').includes(RUN_DIR)) residual.push(observed);
+    }
+    if (residual.length > 0) fail(`[RUNTIME-API] residual test process: ${JSON.stringify(residual)}`);
+    console.log('[RUNTIME-API-CLEANUP] no runtime, watchdog, fixture server, or run-scoped process remains');
+    return;
+  }
   const result = await requireCommand('/bin/ps', ['-axo', 'pid=,command='], {
     cwd: ROOT_DIR,
     timeout: 30_000,

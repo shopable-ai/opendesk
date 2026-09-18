@@ -16,7 +16,10 @@ func TestExecuteLocalInstallRunAndUninstallUsesFlowService(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv(appdata.RootEnvironment, root)
 	source := filepath.Join(root, "recipe.js")
-	if err := os.WriteFile(source, []byte("File.write(File.join(Flow.dataDir, 'marker'), 'ran');\n"), 0o600); err != nil {
+	if err := os.WriteFile(source, []byte("const capability = ui.getCapabilities(); if (!capability.enabled || capability.activationSource !== 'projectConfig') throw new Error('installed runtime configuration was not applied'); File.write(File.join(Flow.dataDir, 'marker'), 'ran');\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "clawdesk.runtime.json"), []byte(`{"schemaVersion":1,"runtime":{"capabilities":["ui"]}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

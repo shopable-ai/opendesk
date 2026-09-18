@@ -19,6 +19,7 @@ import (
 	pkgExecution "opendesk/pkg/execution"
 	"opendesk/pkg/flowinstall"
 	"opendesk/pkg/flowpackage"
+	"opendesk/pkg/runtimeconfig"
 	"opendesk/pkg/runtimeenv"
 	"opendesk/pkg/scriptloader"
 	"opendesk/pkg/scriptpackage"
@@ -320,13 +321,23 @@ func run(args []string, stdout, _ io.Writer) int {
 	} else if err := os.WriteFile(artifacts.ScriptSnapshotPath, source.Content, 0o600); err != nil {
 		return writeCommandError(stdout, command, err)
 	}
+	// Flow Runner invokes this exact `flow run <installId>` command. Resolve
+	// capability configuration from the verified installed entry, rather than
+	// from the Runner process's working directory, so a signed/recorded
+	// adjacent clawdesk.runtime.json grants UI only to that Flow execution.
+	activation, err := runtimeconfig.ResolveUI(runtimeconfig.UIResolveOptions{ScriptPath: lease.Entry})
+	if err != nil {
+		return writeCommandError(stdout, command, err)
+	}
 	result, summary, runErr := runInstalledFlowExecution(environment.Values, pkgExecution.Request{
 		Context: ctx, ExecutionID: executionID, SourceLabel: "installed-flow:" + installID,
 		ScriptPath: lease.Entry, Ext: source.Ext, ScriptHash: scriptHash, ScriptContent: source.Content,
 		WorkDir: workDir, Environment: environment.Values, Timeout: *timeout,
 		Flow:                   &pkgExecution.FlowContext{Root: lease.Root, DataDir: lease.DataDir},
 		EnableNativeExtensions: true, EnableCommand: true, EnableDownload: true, EnableWebhook: true,
-		EnableAccessibility: true, EnableSQLite: true, Meta: meta, Artifacts: artifacts,
+		EnableAccessibility: true, EnableSQLite: true,
+		EnableCustomUI: activation.Enabled, CustomUIActivationSource: activation.Source,
+		CustomUIBaseDir: lease.Root, Meta: meta, Artifacts: artifacts,
 		Selection: pkgExecution.TerminalSelection{Mode: "quiet", Categories: map[string]bool{}, ColorMode: "never"},
 	})
 	if runErr != nil {

@@ -58,6 +58,11 @@ Flow 安装不会执行包内 JavaScript。安装后的执行只通过 `flow run
 `--trust-flow` 只批准当前 Flow，`--trust-publisher` 才建立 publisher scope。普通 `.js/.mjs`
 导入生成明确的 local manifest，不获得 publisher signature 或 publisher-wide trust。
 
+若本地脚本同目录有严格的 `clawdesk.runtime.json`，导入会将它作为唯一允许的辅助资源复制到
+脚本相邻位置，并把摘要写入 local manifest；`flow run` 会从该已验证入口的相邻配置解析 `ui`
+capability。其他同级文件不会被导入。该配置必须是有效的常规文件；导入后被替换、损坏或移除时，
+`flow run` 会在执行入口前失败。
+
 `flow install` 不接受裸 `.odpkg` 作为明文脚本或无条件信任入口；受保护裸包继续使用既有
 `package verify`/protected loader 和对应 P1/P2 授权路径。没有可信包材料时命令返回
 `flow_trust_required`，不会降级执行源码。
@@ -79,6 +84,7 @@ Flow 安装不会执行包内 JavaScript。安装后的执行只通过 `flow run
 ```
 
 `flow run` 不接受包内路径来绕过 Catalog、信任或授权；`--timeout` 默认为 `30m`。
+Custom UI 仍只支持 macOS 和 Windows；Flow 的 `platforms` 应如实排除不支持 `ui.toast()` 的平台。
 
 ## opendesk flow uninstall
 

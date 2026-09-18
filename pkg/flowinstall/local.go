@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"opendesk/internal/processlock"
+	"opendesk/pkg/runtimeconfig"
 )
 
 const localFlowFormat = "opendesk-local-flow"
@@ -77,14 +78,26 @@ func (service *Service) InstallScript(ctx context.Context, sourcePath string) (I
 	flowID := "local-" + digestHex[:32]
 	installID := "local-" + digestHex[:32]
 	entry := "payload/main" + ext
+	configEntry := "payload/" + runtimeconfig.FileName
 	name := strings.TrimSuffix(filepath.Base(absolute), filepath.Ext(absolute))
 	if name == "" {
 		name = "Local Flow"
 	}
+	files := []localFlowFile{{Path: entry, SHA256: digestHex, Size: int64(len(content))}}
+	config, hasConfig, err := readAdjacentLocalRuntimeConfig(filepath.Dir(absolute))
+	if err != nil {
+		return InstallResult{}, err
+	}
+	if hasConfig {
+		configDigest := sha256.Sum256(config)
+		files = append(files, localFlowFile{
+			Path: configEntry, SHA256: hex.EncodeToString(configDigest[:]), Size: int64(len(config)),
+		})
+	}
 	manifest := localFlowManifest{
 		Format: localFlowFormat, SchemaVersion: 1, FlowID: flowID, Name: name,
 		Version: "0.0.0", Entry: entry, SourceSHA256: digestHex,
-		Files: []localFlowFile{{Path: entry, SHA256: digestHex, Size: int64(len(content))}},
+		Files: files,
 	}
 	manifestBytes, err := json.Marshal(manifest)
 	if err != nil {
@@ -126,6 +139,11 @@ func (service *Service) InstallScript(ctx context.Context, sourcePath string) (I
 	}
 	if err := os.WriteFile(filepath.Join(staging, filepath.FromSlash(entry)), content, 0o600); err != nil {
 		return InstallResult{}, newError(CodeTransactionFailed, "cannot write local Flow entry", err)
+	}
+	if hasConfig {
+		if err := os.WriteFile(filepath.Join(staging, filepath.FromSlash(configEntry)), config, 0o600); err != nil {
+			return InstallResult{}, newError(CodeTransactionFailed, "cannot write local Flow runtime configuration", err)
+		}
 	}
 	if err := os.WriteFile(filepath.Join(staging, "flow.json"), append(manifestBytes, '\n'), 0o600); err != nil {
 		return InstallResult{}, newError(CodeTransactionFailed, "cannot write local Flow manifest", err)
@@ -190,6 +208,32 @@ func readLocalSource(path string, expectedSize int64) ([]byte, error) {
 	return data, nil
 }
 
+// A local Flow remains a one-file import, except for the strict runtime
+// configuration that authorizes its own OpenDesk UI. Keep that configuration
+// adjacent to the imported entry and record it in the local integrity manifest;
+// arbitrary sibling resources are deliberately not imported.
+func readAdjacentLocalRuntimeConfig(sourceDir string) ([]byte, bool, error) {
+	path := filepath.Join(sourceDir, runtimeconfig.FileName)
+	info, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, newError(CodeTransactionFailed, "cannot inspect local Flow runtime configuration", err)
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() < 1 || info.Size() > 64<<10 {
+		return nil, false, newError(CodeTransactionFailed, "local Flow runtime configuration must be a bounded regular file", nil)
+	}
+	if _, err := runtimeconfig.Load(path); err != nil {
+		return nil, false, newError(CodeTransactionFailed, "local Flow runtime configuration is invalid", err)
+	}
+	content, err := readLocalSource(path, info.Size())
+	if err != nil {
+		return nil, false, newError(CodeTransactionFailed, "cannot read local Flow runtime configuration", err)
+	}
+	return content, true, nil
+}
+
 func verifyLocalDirectory(root string, record Record) error {
 	if !pathIsRealDirectory(root) {
 		return newError(CodeTransactionFailed, "local Flow root is unavailable", nil)
@@ -205,18 +249,45 @@ func verifyLocalDirectory(root string, record Record) error {
 	if err := decoder.Decode(&manifest); err != nil || manifest.Format != localFlowFormat || manifest.SchemaVersion != 1 || manifest.Entry != record.Entry || manifest.SourceSHA256 == "" {
 		return newError(CodeTransactionFailed, "local Flow manifest is invalid", err)
 	}
-	entryPath := filepath.Join(root, filepath.FromSlash(record.Entry))
-	entryInfo, err := os.Lstat(entryPath)
-	if err != nil || !entryInfo.Mode().IsRegular() || entryInfo.Mode()&os.ModeSymlink != 0 {
-		return newError(CodeTransactionFailed, "local Flow entry is unavailable", err)
+	if len(manifest.Files) < 1 || len(manifest.Files) > 2 {
+		return newError(CodeTransactionFailed, "local Flow file inventory is invalid", nil)
 	}
-	entry, err := os.ReadFile(entryPath)
-	if err != nil {
-		return newError(CodeTransactionFailed, "local Flow entry cannot be read", err)
+	expectedPaths := map[string]bool{record.Entry: true, filepath.ToSlash(filepath.Join("payload", runtimeconfig.FileName)): true}
+	seen := make(map[string]bool, len(manifest.Files))
+	for _, file := range manifest.Files {
+		if !expectedPaths[file.Path] || seen[file.Path] || file.Size < 1 || len(file.SHA256) != 64 {
+			return newError(CodeTransactionFailed, "local Flow file inventory is invalid", nil)
+		}
+		seen[file.Path] = true
+		path := filepath.Join(root, filepath.FromSlash(file.Path))
+		info, statErr := os.Lstat(path)
+		if statErr != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() != file.Size {
+			return newError(CodeTransactionFailed, "local Flow file is unavailable", statErr)
+		}
+		content, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return newError(CodeTransactionFailed, "local Flow file cannot be read", readErr)
+		}
+		digest := sha256.Sum256(content)
+		if !strings.EqualFold(hex.EncodeToString(digest[:]), file.SHA256) {
+			return newError(CodeTransactionFailed, "local Flow file digest does not match its catalog", nil)
+		}
 	}
-	digest := sha256.Sum256(entry)
-	if hex.EncodeToString(digest[:]) != record.ArchiveDigest || hex.EncodeToString(digest[:]) != manifest.SourceSHA256 {
+	if !seen[record.Entry] {
+		return newError(CodeTransactionFailed, "local Flow entry is missing from its inventory", nil)
+	}
+	entryFile := nextLocalFile(manifest.Files, record.Entry)
+	if entryFile.SHA256 != record.ArchiveDigest || entryFile.SHA256 != manifest.SourceSHA256 {
 		return newError(CodeTransactionFailed, "local Flow entry digest does not match its catalog", nil)
 	}
 	return nil
+}
+
+func nextLocalFile(files []localFlowFile, path string) localFlowFile {
+	for _, file := range files {
+		if file.Path == path {
+			return file
+		}
+	}
+	return localFlowFile{}
 }
