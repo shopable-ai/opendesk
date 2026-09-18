@@ -164,6 +164,11 @@ order: 70
   - Agent 路线提供 Dossier／Raw Trace；Human Recorder 路线提供固定 recording/actions 与 H3/H4 reviewed recording steps。两者都必须保持来源 lineage，不把人工记录追认为 Agent 示范。
   - 对需要增强的 Human 路线，验证相同的应用工程、必要路径提炼、过程提炼、代码生成与资格方法能够消费其明确输入；简单受控坐标路线仍允许按 H 设计直接生成，不强制深度提炼。
   - 若 Human H5 重新维护一套与共享 trace-distill／procedure-synthesize 冲突的专业真相，或 Agent 路线要求人工 Recorder 文件才能继续，判设计接线失败。
+- **BC-32｜能力发现 → 方法选择 → 契约 → 现场验证闭环**
+  - 给业务步骤和 `docs/api/agent/README.md`，不预告 API 名称。记录能力需求、实际进入的一个或少数 catalog、候选方法及 disposition；只为 selected 方法读取 canonical contract／必要 shared constraints。
+  - 文档存在不能把 `runtimeValidation` 写成 pass。选中候选实际失败时保留失败 evidence，再换候选；已知不适合而未执行的候选写 rejected/not-run，不伪造失败。
+  - 生成 Candidate 时，`apiRefs` 必须携带 selected canonical contract／必要约束，`sourceMapping.capabilityDecisionRefs` 能回到 Procedure。缺选择记录、双选、缺合同、not-run 冒充 pass、失败无证据或 Candidate 丢 ref 均判断链。
+  - Frozen Fixture 可以验证结构拒绝行为，但不能冒充 Calculator 历史 Runtime 运行；真实方法有效性仍由对应 execution／Qualification 证明。
 
 ## 四、按层推进与裁剪
 
@@ -184,10 +189,11 @@ order: 70
 | 信封与内容绑定；BC-15 的输入前提 | 身份、允许根、缺文件、hash、旧 request、半写及非法路径 | producer 信任、业务意义、宿主加载与无历史交接；BC-15 本身未测 |
 | S7；BC-29—BC-30 的必要路径部分 | 缺关键证据、未知副作用、误删读取／准备、重复数字、action/step 对应及顺序 | 任意探索与恢复轨迹、模型对必要性的真实判断 |
 | S8—S9；BC-30 的静态消费部分 | 从 DistilledSteps 检查覆盖、顺序、生产／消费声明及对应原动作，拒绝丢依赖和第二份取舍 | 隔离上下文的过程生成、一般业务语义和泛化；BC-31 双来源未测 |
+| Capability chain；BC-32 | short entry/catalog 与候选分离；唯一 selected；canonical contract 内容绑定；Runtime validation 明确；失败候选有证据；Candidate apiRefs/sourceMapping 消费选择 | synthetic fixture 不证明真实 API 行为；当前 HEAD 的正式 Runtime contract/unit 与新 live Calculator 仍需本机执行 |
 | S11；BC-02—BC-03 的限定代码评审 | 固定源码 baseline-retained；拒绝读取后固定 110、注释／字符串假调用、旧 hash | 任意 JS 控制流／别名／遮蔽、全部坏代码反例、改码后 live |
 | S12 声明消费 | Candidate 版本、错 revision、部分 requested 假 PASS、失败资格拒绝 | 请求本身及真实 scope 含义、实际环境、独立业务观察、视觉与人类验收 |
 
-`check-artifact-chain.js` 只证明表中受支持的静态切片：A/B ID、digit-string、Calculator 形状的动作回执及直接 await/spread 模式。未知格式不能冒充通用语义通过。没有递归依赖校验或一般 JS 分析器；精确依赖由 Calculator `qualify.cjs --check` 另核，当前现场仍须独立验收。正常例和合法省略非必要截图的例子必须通过，不能靠全拒绝满足负例。
+`check-artifact-chain.js` 只证明表中受支持的静态切片：A/B ID、digit-string、Calculator 形状的动作回执、能力选择内容绑定及直接 await/spread 模式。未知格式不能冒充通用语义通过。没有递归依赖校验或一般 JS 分析器；精确依赖由 Calculator `qualify.cjs --check` 另核，当前现场仍须独立验收。正常例和合法省略非必要截图的例子必须通过，不能靠全拒绝满足负例。
 
 实际次数、命令、内容绑定、原资格复用与限制集中在[质量总览](../../../docs/quality/agent-to-recipe-workflow-review-20260919.md)，不在本计划复制运行状态。
 
