@@ -9,6 +9,41 @@ description: "以本次任务和可选脚本资产为中心，复用官方 Codex
 
 **本轮是设计、官方机制核验和文档纠偏，不修改生产代码，不搬迁源码或安装目录，不运行真实业务、模型、Runtime、构建或桌面测试。** 第 3 节保留历史调用链；第 4 节是本次有限范围源码核查，不是安装包验收。当前合同取代 v0.3 的“制作必须绑定用户项目／主工作区”，但保留开发者已有工程的可选关联。
 
+## 0. 2026-09-18 当前生产实现状态
+
+本节只记录当前 `master` 已写入的生产代码和可复现测试入口；它不把尚未运行的本机／桌面资格写成 PASS，也不改变后续章节保存的历史设计依据。
+
+当前正式产品链已经加入：
+
+- `assistant/task-contract.js`：任务为持久主身份，`projectId` 和 `sessionId` 均不是任务存在的前提；四类资产都可保存。revision 保存使用调用方 expected revision，加上 `File.writeNew` 独占 revision 文件，旧 revision 不再采用“读最新再覆盖”的方式静默成功。
+- `assistant/task-runtime.js`：负责当前对话的持久任务、候选版本、接续、可信 use 预览和 confirmation registry。候选生成、候选另存和独立验证是三个分离状态；验证必须绑定当前 candidate digest、真实 executionId、criteriaId、observedAt 和 `passed`。
+- `assistant/controller.js → session.js → task-runtime.js`：现有助手 UI 已增加“普通聊天／解释／使用／制作／改进”和“无资产／单 JS／自动化目录／已安装 Flow”入口。目录没有唯一入口时保存任务并明确澄清，不运行探测脚本。
+- `File.writeNew`：候选另存和不可变 task revision 使用独占创建。目标已存在时不覆盖；父目录若解析为 symlink／reparse-point 别名，或授权核对期间目录身份发生变化，则拒绝。
+- 单 JS／目录 use：App-owned 私有宿主先对真实入口做路径、real-file、目录边界和 script hash 核验；确认后再次核验 hash，结构化参数进入正式 `pkg/execution.Request.Input → Execution.input`。
+- Installed Flow use：助手只持有 canonical installId；宿主从唯一 `flowinstall.Service` 获取 Catalog/RunLease，预览与执行前分别核验当前状态，最终 run 再绑定 archive/manifest digest；受保护源码不通过助手 inspection 暴露。
+- confirmation：宿主侧 task runtime 保存 canonical input/inspection snapshot；一次性 token 在任何异步最终检查之前先消费，因此并发双击不能同时越过“未消费”检查。
+- stop：UI 请求停止后先进入 `stopping`；AbortSignal 继续传到模型和 App-owned Execution。模型返回、Abort 发出或已有 executionId 本身都不单独证明业务已停止；迟到结果不会把新任务覆盖为成功。
+- 正式加载与发行：`main.js` 已加载 TaskContract/TaskRuntime，`.release/app-mode-runtime-files.txt` 和 App Mode payload contract 已包含两者。
+
+当前仍保持明确 BLOCKED／未完成资格的范围：
+
+- 已关联 JS／目录的 **作者源码读取和“改进已有源码”** 尚未获得任务级 native 文件授权 owner；因此不会把关联路径、`readSource` 字段或 analysis-only Agent 自动升级为作者权限。当前 `improve` 源码通道会 fail closed。
+- 目录候选的多文件事务回写没有可靠 owner；当前只正式支持单文件候选安全另存，不宣称目录原子回写。
+- Runner → 助手的显式资产 handoff 动作尚未新增；当前四类入口来自助手本身。任务一旦建立只使用 task contract 中冻结的资产身份，不轮询 Runner 当前选择。
+- Runtime 成功终态默认记录为 `execution-finished-unverified`；没有独立业务 observer 时不升级为业务成功。
+- macOS/Windows 真实 App Mode、真实模型/Codex、真实桌面副作用与发行包视觉验收必须由当前 CI 和后续本机资格给证据；未运行前继续是 NOT RUN。
+
+正式可重复测试入口：
+
+```text
+node --test tests/assistant/assistant.test.js tests/assistant/task-runtime.test.js tests/assistant/product-wiring.test.js
+go test ./cmd/opendesk -run 'TestAppRecipeRunner' -count=1
+./dist/opendesk -script tests/runtime-api/assistant-task-core.js -console-mode script
+OPENDESK_RUNTIME_API_MODE=assistant-task-core ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+```
+
+App Mode CI 在 macOS 和 Windows 构建完成后执行最后两条 Runtime 测试；测试未完成时，不以文件存在代替执行证据。
+
 ## 1. 一屏看懂最终方案
 
 **用户只需要“本次任务＋可选关联脚本／自动化”。OpenDesk 按需准备任务资料；Codex 负责理解与制作；现有 OpenDesk 服务负责授权、实际操作、脚本运行与结果。**
@@ -215,11 +250,11 @@ App 内局部排他不证明外部 CLI／Recorder／Scheduler 全覆盖；独立
 
 | 最小实施任务 | 成功标准 | 本轮状态 |
 | --- | --- | --- |
-| T0：任务／资产／授权绑定 | 四种入口均无需 projectId；已有可选项目兼容；只读解释与已确定运行不建制作目录；原会话 UI 不重做 | 设计完成，实现未验证 |
-| T1：资源视图、候选与接续 | 单文件无父目录授权；多入口消歧；Agent cwd 与执行语义分开；回写冲突不覆盖；清理不丢唯一资料 | 设计完成，反例未运行 |
+| T0：任务／资产／授权绑定 | 四种入口均无需 projectId；已有可选项目兼容；只读解释与已确定运行不建制作目录；原会话 UI 不重做 | 生产代码已接入；Node/发行资格待本轮证据 |
+| T1：资源视图、候选与接续 | 单文件无父目录授权；多入口消歧；Agent cwd 与执行语义分开；回写冲突不覆盖；清理不丢唯一资料 | 单文件候选、revision、接续和安全另存已实现；目录事务回写与清理资格仍阻塞 |
 | T2：本地受管 Codex 与两个通用 Skill | 一次性自动准备；核验 CLI／有效配置／Skill 来源；analysis 不扩权；任务级 OpenDesk 工具授权、实时留证和联合停止可验证 | 设计完成，兼容及隔离未验证 |
 | T3：最小真实制作闭环 | 核心目录外固定顶层 JS 与实际消费参数的任务；至少一个非 Calculator；A/B 分开、无 Agent 救场、无重复业务、可中断接续 | 本轮不运行真实业务 |
-| T4：已有 Flow 对话使用 | 相似候选、固定冲突、未激活、权限不足、旧确认均正确处理；C 闭环；不增加主程序业务 if/else；明确运行不依赖 Codex | 本轮未运行 |
+| T4：已有 Flow 对话使用 | 相似候选、固定冲突、未激活、权限不足、旧确认均正确处理；C 闭环；不增加主程序业务 if/else；明确运行不依赖 Codex | canonical Catalog/RunLease/Execution 接缝已实现；真实安装 Flow App Mode 资格仍待运行 |
 | T5：需要时接助手富交互 | 官方 App Server 的身份、审批、事件和中断与同一任务/授权/工具服务联通 | 后续可选，不阻塞 T0—T4 |
 
 先完成 T0/T1 的离线合同与资源反例，再放行 T2 的低风险集成，之后做 T3/T4；相关既有 Flow 接缝可并行核验。未通过任务级工具授权和加载来源隔离，不开启真实作者操作。不要从零重跑已完成商业 Flow B0—B6，不建立新的实施管理平台。
