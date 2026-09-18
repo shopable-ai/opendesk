@@ -78,7 +78,6 @@ func registerAppProductAnalytics(owner *appSchedulerRuntime, packageID, appRoot,
 	service.Start()
 
 	mux.HandleFunc("/api/product/analytics/status", analyticsRuntime.authorize(analyticsRuntime.handleStatus))
-	mux.HandleFunc("/api/product/analytics/enabled", analyticsRuntime.authorize(analyticsRuntime.handleEnabled))
 	mux.HandleFunc("/api/product/analytics/screen", analyticsRuntime.authorize(analyticsRuntime.handleScreen))
 	mux.HandleFunc("/api/product/analytics/action", analyticsRuntime.authorize(analyticsRuntime.handleAction))
 	mux.HandleFunc("/api/product/analytics/run/start", analyticsRuntime.authorize(analyticsRuntime.handleRunStart))
@@ -236,25 +235,6 @@ func (r *appProductAnalyticsRuntime) handleStatus(w http.ResponseWriter, request
 		return
 	}
 	r.writeStatus(w, true, nil)
-}
-
-func (r *appProductAnalyticsRuntime) handleEnabled(w http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	var body struct {
-		Enabled bool `json:"enabled"`
-	}
-	if !decodeAnalyticsBody(w, request, &body) {
-		return
-	}
-	status, err := r.service.SetConsent(body.Enabled)
-	if err != nil {
-		r.writeStatus(w, false, err)
-		return
-	}
-	r.writeStatusValue(w, status, true, nil)
 }
 
 func (r *appProductAnalyticsRuntime) handleScreen(w http.ResponseWriter, request *http.Request) {
