@@ -20,6 +20,8 @@ test('product main loads task contract/runtime before session/controller and rel
   const policy = read('apps/opendesk/.release/app-mode-runtime-files.txt');
   assert.match(policy, /^assistant\/task-contract\.js$/m);
   assert.match(policy, /^assistant\/task-runtime\.js$/m);
+  assert.match(main, /runnerAssetProvider:\s*\(\) => runner\.currentAsset\(\)/);
+
 });
 
 test('controller exposes no-project task intent, four asset forms, candidate save, and only private execution bridges', () => {
@@ -34,6 +36,8 @@ test('controller exposes no-project task intent, four asset forms, candidate sav
     assert.match(controller, new RegExp('value="' + value + '"'));
   }
   assert.match(controller, /TaskRuntime\.create\(/);
+  assert.match(controller, /id="importRunnerAsset"/);
+  assert.match(controller, /runnerAssetProvider/);
   assert.match(controller, /global\.__opendeskRecipeExecution/);
   assert.match(controller, /global\.__opendeskFlowExecution/);
   assert.match(controller, /protectedRoots:\s*\[execution\.scriptDir, file\.join\(appDataRoot, 'flows'\)\]/);
@@ -91,3 +95,15 @@ test('Flow use requires signed effect/input metadata and candidate verification 
   assert.match(host, /DisallowUnknownFields/);
 });
 
+
+test('Runner handoff is a one-time asset snapshot API, not a live task dependency', () => {
+  const runner = read('apps/opendesk/script-runner-simple.js');
+  assert.match(runner, /function currentAsset\(\)/);
+  assert.match(runner, /kind: 'installed-flow'/);
+  assert.match(runner, /kind: 'js-file'/);
+  assert.match(runner, /kind: 'unsupported'/);
+  assert.match(runner, /currentAsset,/);
+  const controller = read('apps/opendesk/assistant/controller.js');
+  assert.match(controller, /const asset = await Promise\.resolve\(runnerAssetProvider\(\)\)/);
+  assert.doesNotMatch(controller, /runnerAssetProvider\(\).*performAssetTaskRequest/s);
+});
