@@ -56,6 +56,18 @@ order: 10
 | S11 | 依据过程、AppProfile 和当前 API 生成普通 JS；仅按需要改进代码 | 冻结 CandidateManifest、真实入口与依赖 hash；完成生成者自检和无输入预检，不把自检当独立资格 |
 | S12 | 固定候选与请求验证范围，从干净状态执行真实入口 | QualificationRecord、实际命令、环境、结果及证据；分别记录 pass／fail／not-run／blocked，失败定向回流 |
 
+关键交接按同一 S1—S12 解释，不再增加编号：
+
+| 交接 | Owner / Skill 或能力 | 输入 | 可消费输出 | Gate / 下一消费者 |
+| --- | --- | --- | --- | --- |
+| 任务事实 → 能力需求 | S1 → S2 / application-engineer | TaskContract、WorkPlan、高影响 Unknown | 当前业务步骤需要的窗口／动作／读取／验证能力 | 需求明确且获准；进入 capability discovery |
+| 能力需求 → Discovery / Selection / Contract / Validation | S2、S3—S6，必要时 S10 | `docs/api/agent/README.md`、相关 catalog、当前现场 | 原工作包中的轻量选择记录与真实 evidence；失败候选保留 | 选中方法合同已读且当前环境有证据；S8—S9 收敛 |
+| 必要路径 → 稳定业务 Procedure | S7 → S8—S9 / trace-distill → procedure-synthesize | DistilledSteps、AppProfile、选择记录 | SemanticProcedure；业务步骤、数据依赖及 `capabilityDecisions` | 每项 Recipe-driving 选择可追到 catalog、候选、canonical contract 和 Runtime validation；S10/S11 消费 |
+| Procedure → Locator / Stability | S10 / application-engineer | Procedure、AppProfile、失败／缺口 | 有范围、坐标空间、父区域、容差、重验条件的规则；无坐标方案时也明确其语义定位依据 | 无裸坐标／未知失效条件；S11 消费 |
+| Validated Procedure → Recipe | S11 / recipe-build，按需 code-rebuild | Procedure、AppProfile、已选 API contract | 普通 JS + CandidateManifest；`apiRefs` / `sourceMapping.capabilityDecisionRefs` 固定选择链 | Candidate 字节、依赖、入口和来源映射冻结；S12 消费 |
+| Recipe → 最终结论 | S12 / recipe-qualify | 冻结 Candidate、请求范围、独立场景 | QualificationRecord + Recipe Review + Run Summary 投影 | 请求范围无 fail/not-run/blocked 才能 pass；交付／定向返修 |
+
+这里的 `capabilityDecisions` 不保存模型私有推理，只保存接续和复核必需的决定事实。目录命中、方法选择、合同阅读和现场验证必须分别成立；例如 API 文档可读但当前 Calculator 中调用失败时，应记录失败并选择其他候选，而不是把“文档存在”当 PASS。
 S8—S11 必须保留跨步骤真实数据依赖。例如当前计算器案例的第二次计算只能消费第一次从 UI 实际读取的 `firstResult`，不能用 expected 或 JS 算术替代。helper 可以表达业务语义，但不能隐式清空状态、偷偷补点或改变用户要求的操作方式。
 
 S11 还必须把生产 Recipe 与资格代码分开。一个应用操作在同一流程中重复时，优先形成接收语义参数并返回实际结果的普通函数；点击序列与“清空后计算”必须在名称、输入合同及 Procedure 中明确区别。Calculator 的当前维护示例使用 `clickCalculatorButtons(win, buttons)`，清空和读值由主流程明确调用。不新增应用对象方法层，也不为每次调用复制整段代码。生产文件只保留业务控制流和运行时必须的身份、状态、唯一性、实际读值及未知结果停止门禁；expected、截图、完整事件审计、hash 断言和独立 Oracle 留在测试／QualificationRecord。框架原样动作回执可以作为普通函数返回值，回执仍不等于业务正确。若要求跨 Recipe 文件复用，再单独核对当前 Runtime 已发布的加载与打包合同，不能先发明 `import`／`require`。
@@ -98,12 +110,12 @@ node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-c
 
 ### 4.1 相邻工件消费检查与方法入口
 
-完整六类工件已存在时，使用 [check-artifact-chain.js](scripts/check-artifact-chain.js) 检查选定的 Dossier／actions → DistilledSteps → Procedure → Candidate → Qualification 边界。它与信封工具共用 [artifact-validation.js](scripts/artifact-validation.js) 的受限读取基础，但增加动作取舍、顺序、实际值生产者／消费者声明、候选直接 await／spread 模式及资格声明范围检查。错误按 `boundary` 返回；未读取的边界为 `not-run`，失败资格只能作为诊断资料。
+完整六类工件已存在时，使用 [check-artifact-chain.js](scripts/check-artifact-chain.js) 检查选定的 Dossier／actions → DistilledSteps → Procedure → Candidate → Qualification 边界。它与信封工具共用 [artifact-validation.js](scripts/artifact-validation.js) 的受限读取基础，但增加动作取舍、顺序、实际值生产者／消费者声明、`Capability Discovery → Method Selection → canonical contract → Runtime Validation → Candidate apiRefs/sourceMapping`、候选直接 await／spread 模式及资格声明范围检查。错误按 `boundary` 返回；未读取的边界为 `not-run`，失败资格只能作为诊断资料。
 
 | 当前工作 | 方法输入 → 输出 | 本轮已落地的验证切片 |
 | --- | --- | --- |
 | S7 | [trace-distill](skills/trace-distill/SKILL.md)：冻结合同／计划、Dossier／Raw Trace → DistilledSteps | 必要读取／准备不误删，重复数字不去重，缺证据／unknown／事后解释被拒绝 |
-| S8—S9 | [procedure-synthesize](skills/procedure-synthesize/SKILL.md)：固定 DistilledSteps → 业务步骤与数据依赖 | 覆盖及顺序、输出与输入关系、禁止第二套 action disposition |
+| S8—S9 | [procedure-synthesize](skills/procedure-synthesize/SKILL.md)：固定 DistilledSteps → 业务步骤、数据依赖与能力选择记录 | 覆盖及顺序、输出与输入关系、禁止第二套 action disposition；短入口/能力目录、唯一选中方法、内容绑定 canonical contract、Runtime validation 与 Candidate 消费关系不断链 |
 | S11 可选审查 | [code-rebuild](skills/code-rebuild/SKILL.md)：精确代码及需求／过程／应用规则 → 原样保留评审或新候选 | 读取首值却消费固定样例被拒绝；代码变更不能沿用旧 hash |
 
 该工具当前只支持 Calculator 形状的 v1 成功路径及直接调用源码模式，既不是通用 schema validator，也不是任意 JS 的控制流证明。它检查选定引用，不递归证明整个依赖闭包，不判断历史真实性、现场、视觉、人类接受或宿主安装。闭包另由候选专用检查核验；实际语义仍需审阅。工具通过不表示三个 Skill 在隔离上下文中的行为评测通过。
@@ -115,6 +127,8 @@ node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-c
 先写实际产物，再发布完整 handoff，最后由唯一协调者核对并更新 progress。产物已存在但 progress 落后时补核状态，不重做业务；只有旧 running／done 标签而缺产物时不得跳过。新尝试、新候选与旧证据分别保留，不能覆盖失败历史。
 
 每次暂停、阻塞或交给新会话时，交付**任务根及当前计划版本、可复用成果引用、本轮变更与受影响范围、实际检查结果、未决项／副作用状态、下一工作包与最小安全动作**。这些内容写回现有 progress／handoff／工作包，不另建一套平行状态文件。
+
+任务结束时还应提供一个**Run Summary 投影**。它优先由现有 progress／handoff／QualificationRecord 和质量报告组织，不成为新的权威状态文件，也不复制全部工件。最小视图显示：任务与当前状态、S1—S12 完成情况、关键输入／输出、最终 capability decisions、已验证 Procedure、locator/stability 策略、最终 Recipe、Recipe Qualification、剩余风险及关键工件链接。任何一项只存在历史证据或未运行，都在摘要中原样标记，不因“汇总”提升成熟度。
 
 网页环境止于能够完成的源文件、离线检查和明确交接；本地再补当前主程序／UI host 的构建与加载证明、真实窗口／业务结果、视觉及平台资格。macOS 通过不外推 Windows 通过；缺设备的项目标未测，不补写通过。需要安装 Skill、统一调度或 Catalog 发布时仍须单独实现与验证，本规程不宣称这些能力已经落地。
 
