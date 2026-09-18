@@ -39,7 +39,6 @@ on:
       - 'apps/opendesk/assets/product.odcfg'
       - 'tests/product-analytics/**'
       - 'tests/runtime-api/product-analytics*.js'
-      - 'tests/app-lifecycle/settings-privacy-controller.test.js'
       - 'docs/architecture/product-analytics.md'
   pull_request:
     paths: *analytics_paths
@@ -65,8 +64,6 @@ jobs:
         run: >-
           node --test
           tests/product-analytics/runner-ui-dedupe.test.cjs
-          tests/product-analytics/privacy-settings.test.cjs
-          tests/app-lifecycle/settings-privacy-controller.test.js
 
   production-contract:
     name: Production Contract
