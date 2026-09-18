@@ -41,6 +41,14 @@ v0.4 纠正 v0.3 的必需项目假设：**制作绑定本次任务和可选资�
 
 Flow 分发合同已选定 flows/installId、内容／数据／状态分离和共享安全链，真实 flowinstall/Catalog 已存在；不能因旧 IMPLEMENTATION_PENDING 从零重做。Catalog 的 ready 不能直接代表助手已启用、业务资格或本次许可。
 
+| 范围 | 源码事实 | 仍不能推断 |
+| --- | --- | --- |
+| 正式 AI 助手 | main.js 直接注入 `capabilities/calculator.js`，两个固定 task；模型只生成 envelope | 用户业务应放该目录、通用目录已完成 |
+| 产品用户目录 | Flow Runner 使用 `OPENDESK_APP_DATA_DIR`/用户 home 下的 appDataRoot；runnableRoot 可由 `OPENDESK_FLOW_RUNNER_DIR` 指定，旧 `OPENDESK_SCRIPT_RUNNER_DIR` 仅为兼容 fallback，默认 `recipes` | 目录里每个 JS 都有助手可调用资格 |
+| 产品执行器 | `cmd/opendesk/app_recipe_runner.go` 为 JS 创建新 Runtime/Execution，同 App host 进程；有 BUSY、Recorder 检查、取消和入口快照 | 第三方沙箱、全局原子桌面锁、结构化业务 input/result、依赖闭包或 `.odpkg` 已支持 |
+| 助手接线 | 当前仍在助手已有上下文调用 Calculator 模块 | 已经复用上述用户任务执行器 |
+| 调用历史 | request/message/终态存在 | 完整的候选、参数来源、版本与步骤审计记录 |
+
 早期 Chat mock 12/12、Recorder／golden 和静态 refiner 记录保留其原范围，不是本轮重跑或当前业务资格。task-demonstrate／trace-distill 等历史职责名称不证明同名 Skill 已安装。新 opendesk-author／opendesk-use 是两个通用方法入口的设计名称，不是新增业务分发格式，也未由本轮部署。
 
 当前作者通道、有效加载来源隔离、任务工具权限、实时留证、联合停止及四类入口的真实集成仍需验收；不能从一份 Skill 或官方 CLI 支持推断已经完成。

@@ -38,13 +38,13 @@ function writeJSON(filePath, value) {
   fs.writeFileSync(filePath, JSON.stringify(value, null, 2) + '\n');
 }
 
-function createFixture() {
+function createFixture(options = {}) {
   const recordingId = `rec-script-refiner-test-${process.pid}-${Date.now()}`;
   const recordingDir = path.join(repoRoot, '.runtime', 'recordings', recordingId);
-  const generatedDir = path.join(recordingDir, 'generated');
-  const rawDir = path.join(recordingDir, 'raw');
-  fs.mkdirSync(generatedDir, {recursive: true});
-  fs.mkdirSync(rawDir, {recursive: true});
+  const artifactDir = options.legacyLayout ? path.join(recordingDir, 'generated') : recordingDir;
+  const rawDir = options.legacyLayout ? path.join(recordingDir, 'raw') : recordingDir;
+  fs.mkdirSync(artifactDir, {recursive: true});
+  if (options.legacyLayout) fs.mkdirSync(rawDir, {recursive: true});
 
   const rawPath = path.join(rawDir, 'events.ndjson');
   const rawEvents = [
@@ -64,7 +64,7 @@ function createFixture() {
     recordingId,
     revision: 1,
     readiness: 'ready',
-    raw: {file: 'raw/events.ndjson', sha256: hash(rawBytes), bytes: rawBytes.length},
+    raw: {file: options.legacyLayout ? 'raw/events.ndjson' : 'events.ndjson', sha256: hash(rawBytes), bytes: rawBytes.length},
     environment: {platform: 'darwin', coordinateSpace: 'screen-logical'},
     actions: [{
       id: 'a0001', kind: 'click', strategy: 'mouse.click',
@@ -96,11 +96,11 @@ function createFixture() {
   });
   const actionsBytes = fs.readFileSync(actionsPath);
 
-  const scriptPath = path.join(generatedDir, 'basic.recipe.js');
+  const scriptPath = path.join(artifactDir, 'basic.recipe.js');
   const scriptBytes = Buffer.from("console.log('fixture');\n");
   fs.writeFileSync(scriptPath, scriptBytes);
 
-  const candidatePath = path.join(generatedDir, 'basic.candidate.json');
+  const candidatePath = path.join(artifactDir, 'basic.candidate.json');
   const candidate = {
     formatVersion: 'opendesk.recorder.basic-candidate/v3',
     recordingId,
@@ -111,7 +111,7 @@ function createFixture() {
       revision: 1,
     },
     script: {
-      file: `C:\\old-computer\\clawdesk\\.runtime\\recordings\\${recordingId}\\generated\\basic.recipe.js`,
+      file: `C:\\old-computer\\clawdesk\\.runtime\\recordings\\${recordingId}${options.legacyLayout ? '\\generated' : ''}\\basic.recipe.js`,
       sha256: hash(scriptBytes),
     },
     timing: {minimumDelayMs: 500, maximumDelayMs: 30000, speedMultiplier: 1},
@@ -123,7 +123,7 @@ function createFixture() {
     formatVersion: 'opendesk.recorder.recording/v2',
     recordingId,
     storage: {
-      state: 'saved', file: 'manifest.json', rawFile: 'raw/events.ndjson',
+      state: 'saved', file: 'manifest.json', rawFile: options.legacyLayout ? 'raw/events.ndjson' : 'events.ndjson',
       rawSha256: hash(rawBytes), rawBytes: rawBytes.length,
     },
   });
@@ -169,34 +169,43 @@ test('inspector safely relocates a package and validates its full lineage', () =
   }
 });
 
+test('inspector retains read compatibility for a legacy raw/generated package', () => {
+  const fixture = createFixture({legacyLayout: true});
+  try {
+    assert.equal(inspectBundle(fixture.relativeScript, {repoRoot}).valid, true);
+  } finally {
+    fs.rmSync(fixture.recordingDir, {recursive: true, force: true});
+  }
+});
+
 test('inspector rejects paths outside the current Recorder package boundary', () => {
   assert.throws(
     () => inspectBundle('/tmp/basic.recipe.js', {repoRoot}),
     error => error && error.code === 'PATH_OUTSIDE_REPOSITORY',
   );
   assert.throws(
-    () => inspectBundle('./.runtime/recordings/rec-safe/generated/../../secret.js', {repoRoot}),
+    () => inspectBundle('./.runtime/recordings/rec-safe/../secret.js', {repoRoot}),
     error => error && error.code === 'INVALID_SCRIPT_PATH',
   );
   assert.throws(
-    () => inspectBundle('./.runtime/recordings/rec-safe/generated/bad`name.js', {repoRoot}),
+    () => inspectBundle('./.runtime/recordings/rec-safe/bad`name.js', {repoRoot}),
     error => error && error.code === 'INVALID_ARGUMENT',
   );
 });
 
-test('inspector rejects a generated directory reached through a symbolic link', () => {
+test('inspector rejects a recording directory reached through a symbolic link', () => {
   const fixture = createFixture();
-  const generatedDir = path.dirname(fixture.scriptPath);
-  const realGeneratedDir = path.join(fixture.recordingDir, 'generated-real');
+  const realRecordingDir = fixture.recordingDir + '-real';
   try {
-    fs.renameSync(generatedDir, realGeneratedDir);
-    fs.symlinkSync('generated-real', generatedDir, 'dir');
+    fs.renameSync(fixture.recordingDir, realRecordingDir);
+    fs.symlinkSync(path.basename(realRecordingDir), fixture.recordingDir, 'dir');
     assert.throws(
       () => inspectBundle(fixture.relativeScript, {repoRoot}),
       error => error && error.code === 'INVALID_DIRECTORY',
     );
   } finally {
     fs.rmSync(fixture.recordingDir, {recursive: true, force: true});
+    fs.rmSync(realRecordingDir, {recursive: true, force: true});
   }
 });
 

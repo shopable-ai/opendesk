@@ -67,6 +67,6 @@ description: 从 OpenDesk Recorder actions.json 权威动作数据确定性编�
 
 ## 默认交付
 
-在同一 `generated/` 下交付新的 refined script 与静态报告，不覆盖任何文件。报告由 generator 的固定安全 schema 生成，逐 action 说明策略、证据等级、采用或跳过的 locator 理由和 point basis；字符串 identity 用 hash 或安全枚举表达，不得复制键盘文本、AXValue、raw 正文或 source event 正文。
+在源脚本同一目录下交付新的 refined script 与静态报告，不覆盖任何文件。新录制的源脚本直接位于 recording 根目录；旧的 `generated/` 结构只读兼容。报告由 generator 的固定安全 schema 生成，逐 action 说明策略、证据等级、采用或跳过的 locator 理由和 point basis；字符串 identity 用 hash 或安全枚举表达，不得复制键盘文本、AXValue、raw 正文或 source event 正文。
 
 最终分别报告 artifact、source/refined hash、采用与跳过的改进，以及 `generated`、`statically reviewed`、固定为 `not-run` 的 live/qualified/visual 状态。用户要求判断业务意图、删除或重排动作、参数化、结果 Oracle、真实执行或业务资格时，改用 `human-to-recipe`，不要在本 Skill 内暗中升级。

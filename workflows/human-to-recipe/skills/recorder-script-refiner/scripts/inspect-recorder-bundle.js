@@ -75,19 +75,22 @@ function resolveScript(repoRoot, input) {
   assert(rel && !rel.startsWith('..' + path.sep) && !path.isAbsolute(rel),
     'PATH_OUTSIDE_REPOSITORY', 'scriptFile must stay within the current repository');
   const parts = rel.split(path.sep);
-  assert(parts.length === 5 && parts[0] === '.runtime' && parts[1] === 'recordings'
-    && RECORDING_ID.test(parts[2]) && parts[3] === 'generated' && parts[4].endsWith('.js'),
-  'INVALID_SCRIPT_PATH', 'scriptFile must be a generated JavaScript inside one Recorder package');
-  const recordingDir = path.dirname(path.dirname(scriptPath));
+  const flatLayout = parts.length === 4 && parts[0] === '.runtime' && parts[1] === 'recordings'
+    && RECORDING_ID.test(parts[2]) && parts[3].endsWith('.js');
+  const legacyLayout = parts.length === 5 && parts[0] === '.runtime' && parts[1] === 'recordings'
+    && RECORDING_ID.test(parts[2]) && parts[3] === 'generated' && parts[4].endsWith('.js');
+  assert(flatLayout || legacyLayout,
+    'INVALID_SCRIPT_PATH', 'scriptFile must be a root-level or legacy generated JavaScript inside one Recorder package');
+  const recordingDir = path.join(repoRoot, '.runtime', 'recordings', parts[2]);
   for (const [directoryPath, label] of [
     [path.join(repoRoot, '.runtime'), 'runtime directory'],
     [path.join(repoRoot, '.runtime', 'recordings'), 'recordings directory'],
     [recordingDir, 'recording directory'],
-    [path.dirname(scriptPath), 'generated directory'],
+    [path.dirname(scriptPath), flatLayout ? 'recording artifact directory' : 'legacy generated directory'],
   ]) {
     assertDirectory(directoryPath, label);
   }
-  return {scriptPath, recordingDir, recordingId: parts[2]};
+  return {scriptPath, recordingDir, recordingId: parts[2], legacyLayout};
 }
 
 function candidateName(scriptName) {
@@ -136,13 +139,12 @@ function inspectBundle(scriptInput, options = {}) {
   'ACTIONS_IDENTITY_MISMATCH', 'actions identity or revision does not match the candidate');
   assert(actions.readiness === 'ready', 'ACTIONS_NOT_READY', 'actions readiness must be ready');
 
-  assert(actions.raw && actions.raw.file === 'raw/events.ndjson'
+  assert(actions.raw && (actions.raw.file === 'events.ndjson' || actions.raw.file === 'raw/events.ndjson')
     && SHA256.test(String(actions.raw.sha256 || ''))
     && Number.isInteger(actions.raw.bytes) && actions.raw.bytes >= 0,
   'INVALID_RAW_REFERENCE', 'actions raw reference is invalid');
-  const rawDir = path.join(recordingDir, 'raw');
-  assertDirectory(rawDir, 'raw directory');
-  const rawPath = path.join(rawDir, 'events.ndjson');
+  const rawPath = path.join(recordingDir, actions.raw.file);
+  assertDirectory(path.dirname(rawPath), actions.raw.file === 'events.ndjson' ? 'recording directory' : 'legacy raw directory');
   const rawBytes = readRegular(rawPath, 'rawFile');
   assert(rawBytes.length === actions.raw.bytes && hash(rawBytes) === actions.raw.sha256,
     'RAW_MISMATCH', 'actual raw bytes do not match actions');
@@ -151,7 +153,7 @@ function inspectBundle(scriptInput, options = {}) {
   const manifestBytes = readRegular(manifestPath, 'manifestFile');
   const manifest = parseJSON(manifestBytes, 'manifestFile');
   assert(manifest.recordingId === recordingId && manifest.storage && manifest.storage.state === 'saved'
-    && manifest.storage.rawFile === 'raw/events.ndjson'
+    && manifest.storage.rawFile === actions.raw.file
     && manifest.storage.rawBytes === rawBytes.length
     && manifest.storage.rawSha256 === actions.raw.sha256,
   'MANIFEST_MISMATCH', 'manifest does not match the fixed raw source');

@@ -25,6 +25,26 @@
 
 零参数固定脚本和参数化脚本都保留，不为接入强制函数化。用户要求与固定行为冲突时不能忽略要求照旧执行。Flow Runner、CLI、计划中心确定运行脚本时，不强制启动 Codex。
 
+## 当前任务执行路径
+
+```text
+用户目录中的录制/编写 JS
+→ 明确固定行为或可变参数
+→ 固定候选/依赖 → 验证 → 明确发布到本地目录
+→ 对话选择任务身份，而不是模型给文件路径
+→ 固定脚本使用空业务输入；参数化脚本只接收已声明参数
+→ 宿主预览、确认和版本绑定
+→ 共用 App-owned 执行服务
+→ 每次任务独立 Runtime/Execution
+→ 实际结果、验证状态与运行记录
+```
+
+固定顶层业务 JS 不必先函数化或参数化。它可以按原业务验证后直接由 production loader 运行；发现/匹配阶段禁止 import/eval 业务脚本。用户要求改变未开放的固定行为时，不能忽略要求后照旧执行。
+
+已有产品执行接缝位于 [flow-runner.js](../flow-runner.js) 和 [app_recipe_runner.go](../../../cmd/opendesk/app_recipe_runner.go)：用户 JavaScript 默认在 appDataRoot/recipes，可显式配置其他 runnable root；每次任务新 Runtime，但仍在 App host 进程内。它不是第三方代码沙箱，现有 `{scriptPath, workdir, logDir, signal}` 也不是已经完成的结构化业务 input/result API。
+
+助手应该复用这一 owner，不通过点击 Runner UI 或把用户脚本加载进助手会话来执行。当前助手尚未接入这条共同服务；本轮文档修改不代表生产迁移完成。
+
 ## 文档职责
 
 | 阅读目的 | 文档 |

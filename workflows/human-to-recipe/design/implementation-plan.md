@@ -100,7 +100,7 @@ $env:OPENDESK_RECORDER_ACTIONS_FILE='.runtime\recordings\<ID>\actions.json'; .\d
 生成后只在另一次明确回放授权和已恢复测试起点下运行：
 
 ```bash
-./dist/opendesk -script .runtime/recordings/<ID>/generated/basic.recipe.js -console-mode script
+./dist/opendesk -script .runtime/recordings/<ID>/basic.recipe.js -console-mode script
 ```
 
 回放命令 resolve、进程退出或 mouse/keyboard API 成功都不是业务成功；必须另查 fixture 约定状态。

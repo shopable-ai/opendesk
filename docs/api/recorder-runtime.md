@@ -392,7 +392,7 @@ Recorder.generateScript(
 | --- | --- | --- | --- | --- |
 | `actionsFile` | `string` | 是 | 无 | 录制目录直属的 `actions.json` 或 `actions.rNNN.json` |
 | `options.mode` | `"semantic" \| "basic"` | 否 | `"semantic"` | 语义生成；basic 是显式兼容物理回放，不作为高质量自动降级 |
-| `options.outputFile` | `string` | 否 | `generated/semantic.recipe.js` | 只能是本录制 `generated` 目录内的新 `.js` 文件 |
+| `options.outputFile` | `string` | 否 | `semantic.recipe.js` | 只能是录制根目录内的新 `.js` 文件；不接受嵌套目录 |
 | `options.timing` | `object` | 否 | 见下列 timing 字段 | 生成相邻动作间 `sleep` 的可审计策略；显式 pause/resume 边界不应用该策略 |
 | `options.timing.minimumDelayMs` | `number` | 否 | `500` | 每个非暂停动作间隔的下限；整数，范围 `0..1800000` |
 | `options.timing.maximumDelayMs` | `number` | 否 | `30000` | 每个非暂停动作间隔的上限；整数，范围 `0..1800000`，不得小于 `minimumDelayMs` |
@@ -417,7 +417,7 @@ Recorder.generateScript(
 
 **显式 basic 兼容合同**
 
-`{mode: "basic"}` 保留原物理输入语义，包括 needs-review partial/no-op、窗口相对坐标、pointerMotion 与下述回放规则。默认输出为 `generated/basic.recipe.js`，仍不可覆盖。它不是 semantic 模式失败后的自动 fallback，也不继承 semantic 资格。
+`{mode: "basic"}` 保留原物理输入语义，包括 needs-review partial/no-op、窗口相对坐标、pointerMotion 与下述回放规则。默认输出为 `basic.recipe.js`，仍不可覆盖。它不是 semantic 模式失败后的自动 fallback，也不继承 semantic 资格。
 
 生成脚本先检查 OS，然后仅发出白名单窗口、显示器、Geometry、mouse、keyboard 与 Accessibility 调用，以及相邻动作间固定的 `sleep`。快捷键和特殊键先证明重新解析的窗口正在前台，再分别调用 `keyboard.combination()` 和 `keyboard.press()`；自动重复按 `repeatCount` 逐次调用。低层 `text` 的内容先写入显式 `const __recorderTextN`，供用户或下游流程确认、改名或参数化，再传给 `keyboard.type()`。`text-edit` 先在该窗口内用录制的 role 加 identifier（缺失时 name）执行完整唯一性搜索，同时读取当前 `focused` 和 `value`；只有目标仍聚焦，且 value 的 UTF-16 code-unit 长度与 UTF-16LE SHA-256 精确匹配 precondition，才在内存应用差异、核对 after hash、最多一次调用 `Accessibility.perform(...setValue...)`。调用后再次读取同一引用，要求它仍聚焦且值匹配 postcondition。安全字段、歧义、焦点或前置状态漂移、动作未确认、回读不一致均停止，绝不重试或退回键盘猜测。执行这类候选必须显式启用 Accessibility Runtime 能力并具备系统权限。
 
@@ -450,7 +450,7 @@ $env:OPENDESK_RECORDER_ACTIONS_FILE='.runtime\recordings\<ID>\actions.json'; .\d
 生成后只有在重新建立获准测试起点并明确授权回放时，才从仓库根目录单独执行：
 
 ```bash
-./dist/opendesk -script .runtime/recordings/<ID>/generated/semantic.recipe.js -console-mode script
+./dist/opendesk -script .runtime/recordings/<ID>/semantic.recipe.js -console-mode script
 ```
 
 Promise resolve 只证明生成或输入 API 返回，不证明目标应用的业务结果；结果必须由 fixture 状态、实际画面或预先约定的独立检查确认。
@@ -462,15 +462,15 @@ Recorder v2 目录为：
 ```text
 .runtime/recordings/<recording-id>/
   manifest.json
-  raw/events.ndjson
+  events.ndjson
   actions.json
-  generated/semantic.recipe.js
-  generated/semantic.candidate.json
-  generated/basic.recipe.js          # 显式 basic 才生成
-  generated/basic.candidate.json     # 显式 basic 才生成
+  semantic.recipe.js
+  semantic.candidate.json
+  basic.recipe.js                     # 显式 basic 才生成
+  basic.candidate.json                # 显式 basic 才生成
 ```
 
-raw 使用字符串保存 session sequence 和 native timestamp，避免 JavaScript safe-integer 损失；同时保存 native clock/unit、接收时间、modifier、库事件、坐标验证、输入来源和已知 gap；新的 macOS live `KEY_TYPED` 将不能代表目标应用最终输入结果的 `textInputSource` 明确保存为 `unknown`。`manifest.json` 保存可选的起始窗口快照、与权威 pointer/keyboard 事件关联的 `inputContexts`、显式键盘授权下的 `textEdits`，以及只针对 raw 未配对按键的 `keyStatesAtStop`。新录制的 pointer press/release/wheel context 分别带 `pressed`／`released`／`wheel` phase；旧 v2 release-only context 的空 phase 仍可读取，但不能补造缺失的 press traits。窗口和标签语义是动作当时事实；`textEdits` 只含 before/after 指纹、差异插入内容、精确可写文本框 descriptor 和源事件引用，不保存未变化上下文、完整字段值、选择文本或安全字段内容。Recorder 自身的暂停／恢复与 Custom UI 控制点击边界使用 `source: "recorder"`；控制点击边界的 metadata 固定保存 `windowId`、`targetId`、`uiTimestamp`、`triggerEventIds`、`controlBounds` 和 `matchStatus`。暂停区间的输入内容不写入 raw。普通 hover `MOUSE_MOVED` 不保存；只在鼠标键按住期间保留 motion／drag 路径供动作判定。默认事件队列 4096、窗口上下文队列 128、文本采样 40ms、文本静默归组 750ms、上下文新鲜度上限 750ms、writer flush 250ms、backend start/stop deadline 8s、默认 session 15 分钟、最大 30 分钟；Meta／Control／Alt chord 和非编辑导航键会立即切断文本归组，以保留独立快捷键或特殊键事实。这些是有限设计默认值，不是性能实测结论。
+`events.ndjson` 使用字符串保存 session sequence 和 native timestamp，避免 JavaScript safe-integer 损失；同时保存 native clock/unit、接收时间、modifier、库事件、坐标验证、输入来源和已知 gap；新的 macOS live `KEY_TYPED` 将不能代表目标应用最终输入结果的 `textInputSource` 明确保存为 `unknown`。`manifest.json` 保存可选的起始窗口快照、与权威 pointer/keyboard 事件关联的 `inputContexts`、显式键盘授权下的 `textEdits`，以及只针对 raw 未配对按键的 `keyStatesAtStop`。新录制的 pointer press/release/wheel context 分别带 `pressed`／`released`／`wheel` phase；旧 v2 release-only context 的空 phase 仍可读取，但不能补造缺失的 press traits。窗口和标签语义是动作当时事实；`textEdits` 只含 before/after 指纹、差异插入内容、精确可写文本框 descriptor 和源事件引用，不保存未变化上下文、完整字段值、选择文本或安全字段内容。Recorder 自身的暂停／恢复与 Custom UI 控制点击边界使用 `source: "recorder"`；控制点击边界的 metadata 固定保存 `windowId`、`targetId`、`uiTimestamp`、`triggerEventIds`、`controlBounds` 和 `matchStatus`。暂停区间的输入内容不写入 raw。普通 hover `MOUSE_MOVED` 不保存；只在鼠标键按住期间保留 motion／drag 路径供动作判定。默认事件队列 4096、窗口上下文队列 128、文本采样 40ms、文本静默归组 750ms、上下文新鲜度上限 750ms、writer flush 250ms、backend start/stop deadline 8s、默认 session 15 分钟、最大 30 分钟；Meta／Control／Alt chord 和非编辑导航键会立即切断文本归组，以保留独立快捷键或特殊键事实。这些是有限设计默认值，不是性能实测结论。
 
 当前 Human Recorder 不创建 `observations/`，也不保存完整 AX/UIA Tree。`evidence: "target-semantics"` 对真实 pointer action 保存当前 application/window、point-hit element（必要时最近可执行 ancestor）、有界 ancestors/containers，以及该目标的 role、name、identifier、enabled、nativeActions、bounds 和点内位置；它是 target-level Accessibility evidence，不是 OCR observation。Accessibility 标签直接作为动作上下文中的结构化事实保存，不等于 OCR，也不被当作已证明的业务意图。
 

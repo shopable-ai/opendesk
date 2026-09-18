@@ -109,9 +109,9 @@ Current 控制面是 MCP-first；完整 JavaScript / HTTP Recorder session routi
 本决策约束 Recorder 生成的脚本。人工维护的普通 Recipe 不会仅因本页存在而自动变成 IR 派生产物；其任务合同、源码和业务验证仍需明确维护。
 
 ```text
-raw/events.ndjson
+events.ndjson
 → distilled/flow.json
-→ generated/flow.js
+→ flow.js
 ```
 
 - Raw Trace 保存真实发生过的行为，不因后续优化而改写；
@@ -905,8 +905,7 @@ Testability      可做 syntax、contract、fixture、live 与 perturbation 测�
 ```text
 .runtime/recordings/<session-id>/
 ├── manifest.json
-├── raw/
-│   └── events.ndjson
+├── events.ndjson
 ├── observations/
 │   ├── windows/
 │   ├── screenshots/
@@ -925,9 +924,8 @@ Testability      可做 syntax、contract、fixture、live 与 perturbation 测�
 │   ├── variables.json
 │   ├── source-map.json
 │   └── report.json
-├── generated/
-│   ├── flow.js
-│   └── replay-config.example.json
+├── flow.js
+├── replay-config.example.json
 ├── repairs/
 │   └── history.ndjson
 └── runs/

@@ -46,7 +46,7 @@ Recorder v2 的实现必须逐项追溯到下列需求；代码、API、类型�
   → recorder_uiohook_bridge.c
   → 静态编入的 libuiohook 1.2.2
   → 回调只复制标量、分配 session sequence、按策略过滤／入 4096 有界队列
-  → recorderWriter 唯一顺序写 raw/events.ndjson
+  → recorderWriter 唯一顺序写 events.ndjson
   → 鼠标按下、释放／文本段起点另入 128 容量的上下文队列
   → callback 线程之外解析动作当时的 application → window → optional element 层级
 
@@ -83,15 +83,15 @@ Recorder.generateScript(actionsFile, {mode: "basic"})
   → 重新读取同一份 actions 字节并计算 hash
   → strict schema、ready/needs-review、固定 raw bytes/hash/revision 检查；blocked 拒绝
   → 每个动作重新解析当前应用窗口或显示器，再生成白名单普通 JS 文本
-  → exclusive-create generated/basic.recipe.js
-  → generated/basic.candidate.json（verification: not-run）
+  → exclusive-create basic.recipe.js
+  → basic.candidate.json（verification: not-run）
 
 Recorder.generateScript(actionsFile, {mode: "native-semantic"})
   → 重新读取并严格核对同一 actions／raw／manifest
   → 只接受普通单左键、verified press 关联、精确窗口和可证明 invoke 等价的 button
   → 在当前新解析窗口执行有界完整查找；必要时先唯一查有限父容器再唯一查目标
   → 保存 verified locator、当前 enabled/actions、观察环境和 sourceActionId/sourceEventId
-  → exclusive-create generated/native-semantic.recipe.js 与 candidate；不执行动作
+  → exclusive-create native-semantic.recipe.js 与同级 candidate；不执行动作
   → 后续独立 OpenDesk execution 再次解析窗口和元素并最多提交一次 invoke
 
 默认 timing 以每对非暂停动作的 raw 间隔为基础，按 1× 速度限制到 500ms..30s；
@@ -245,11 +245,11 @@ Windows 真机/VM Runtime evidence 是目标系统具备后单独执行的后续
 ```text
 .runtime/recordings/<recording-id>/
   manifest.json
-  raw/events.ndjson
+  events.ndjson
   actions.json
   actions.r002.json                 # 仅修订时
-  generated/basic.recipe.js
-  generated/basic.candidate.json
+  basic.recipe.js
+  basic.candidate.json
   runs/<run-id>/result.json         # 未来真人独立验收或引用 Execution artifact
 ```
 

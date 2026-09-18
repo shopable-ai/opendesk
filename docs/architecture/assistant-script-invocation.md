@@ -93,9 +93,87 @@ Calculator 当时以相对 keyPoints 调用 mouse.clickForPID，Accessibility �
 ### 3.2 当时正式 Runner 的用户脚本执行路径
 
 ```text
-scriptRoot：已配置 OPENDESK_SCRIPT_RUNNER_DIR 或 appDataRoot/recipes
-→ Script Runner 选择 scriptPath
-→ script-runner-simple.js 的 productCommand.run 适配
+scriptRoot：已配置 OPENDESK_FLOW_RUNNER_DIR，或兼容的 OPENDESK_SCRIPT_RUNNER_DIR，或 appDataRoot/recipes
+→ Flow Runner 选择 scriptPath
+→ flow-runner.js 的 productCommand.run 适配
+→ __opendeskRecipeExecution.run({scriptPath, workdir, logDir, signal})
+→ cmd/opendesk/app_recipe_runner.go
+→ production loader 读取 JS / 入口快照
+→ pkg/execution.Run
+→ 新 Execution.id / 状态 / 日志 / 取消
+```
+
+### 3.3 当时助手的固定 Calculator 调用链
+
+```text
+main.js：加载 Calculator 模块及 assistant 模块
+→ assistant/controller.js：send.click → session.submit(text)
+→ assistant/session.js：先保存 request/message 身份，再 performRequest()
+  ├─ shouldHandle(text) 为 false
+  │   → model-channel.send(messages) → 普通聊天回复
+  └─ shouldHandle(text) 为 true
+      → task-service.plan(text)
+      → Agent.run(codex / codex-analysis)
+      → result.data：受约束 JSON envelope
+      → 宿主校验并冻结 → 可信预览 → 用户确认
+      → task-service.execute(envelope, context)
+      → OpenDeskCalculatorCapability.execute()
+      → pressAndRead() / twoStage()
+      → 真实计算器操作、显示区读数、结果文字
+```
+
+源文件：[controller](../../apps/opendesk/assistant/controller.js)、[session](../../apps/opendesk/assistant/session.js)、[task-service](../../apps/opendesk/assistant/task-service.js)、[model-channel](../../apps/opendesk/assistant/model-channel.js)、[store](../../apps/opendesk/assistant/store.js)、[Calculator](../../apps/opendesk/capabilities/calculator.js)。
+
+当前模型生成的是参数，不是新 JS。两个 task 为 `calculator.pressAndRead` 和 `calculator.twoStage`；能力定义为 `calculator.basic` / `1.0.0`。实际关联是加载对象引用、任务白名单和显式函数分支，不是检索用户脚本，也不受 Script Runner 当前选择影响。
+
+两阶段 envelope 示例（仅表示现有参数形状，不是运行证据）：
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "task",
+  "task": "calculator.twoStage",
+  "buttons": ["2", "5", "×", "4", "+", "1", "0", "="],
+  "multiplier": "6",
+  "message": ""
+}
+```
+
+当前具体行为：
+
+- `shouldHandle()` 以“计算器/calculator”和动作/计算正则分流。中文“计算器”自身包含“计算”，不能据此正确理解否定、引用、只解释或任务修订。误路由不等于已经绕过后续确认执行。
+- 任务 Planner 只拿本轮 `text`，普通聊天才拿 `messages`。有聊天历史不代表有结构化任务上下文；“把乘数改成 7”可能不进入任务分支。等待确认时新请求会使旧确认失效，这一保护应保留。
+- `Agent` facade 位于 [008-ai-runtime.js](../../polyfills/008-ai-runtime.js)，复用 execution-owned Command owner。任务 Planner 配置与普通聊天通道不同；普通聊天成功不能证明 Calculator Planner 可用。
+- Calculator 目前限定 macOS、应用身份和 `232×321` Basic 布局（容差 2）。每次点击前核对当前窗口，按相对 keyPoints 计算位置并调用 `mouse.clickForPID()`；Accessibility 用于数字显示读取，要求唯一 numeric staticText 和连续两次相同读数。不能说它已自动改成 AX 按钮 invoke 或 `UI.tapTexts()`。
+- `twoStage()` 清空、点击第一段、读取本次 firstResult，验证可重新输入后生成第二段按钮，再清空、点击并读取 finalResult。没有用 expected/模型猜测替代 firstResult。
+- `session` 里的 taskId 当前取 requestId；`envelope.task` 是逻辑任务类型，不是运行实例身份。
+- `store` 持久化会话、请求、消息和终态；完整 taskState 主要在活动请求内存里，不是完整的参数/版本/候选/步骤审计库。
+- 结果文案里的“未运行 JavaScript”应改为“复用了已有 JavaScript；未执行模型临时生成的代码”。代码中的 version、codeRef 或“已资格化”文字不是资格证据。
+
+`examples/ai-workflows/chat-calculator/` 是另一套示例文件，修改它不证明正式助手已经变化。现有黄金样本仍是来源/测试资产，不应借迁移静默覆盖。
+
+### 3.4 正式 Flow Runner 已有的用户文件路径
+
+[flow-runner.js](../../apps/opendesk/flow-runner.js) 已经将产品代码与用户数据分开：
+
+```text
+appDataRoot = OPENDESK_APP_DATA_DIR（已配置时）
+           或 <HOME/USERPROFILE>/.opendesk/apps/<packageId>
+
+runnableRoot = OPENDESK_FLOW_RUNNER_DIR（已配置时）
+             或 OPENDESK_SCRIPT_RUNNER_DIR（兼容 fallback）
+             或 <appDataRoot>/recipes
+```
+
+官方默认 packageId 回退为 `com.opendesk.desktop`。这些是已有路径规则，不是本次新增环境变量。原生 [app_paths.go](../../cmd/opendesk/app_paths.go) 同样区分发行包的用户数据与开发 `-app` 的历史工作目录；开发模式仍可能用 packageRoot，不能把开发路径泛化为正式用户资产位置。
+
+[Flow Runner controller](../../apps/opendesk/flow-runner/controller.js) 以 Runnable Entry
+处理 `.js`、`.mjs`、`.odpkg` 与 Installed Flow；JavaScript 载荷的 `scriptPath` 和
+Runtime `-script` 参数继续保留准确技术语义。
+
+```text
+Flow Runner 选择实际 entry
+→ productCommand.run() 拦截产品 Recipe 请求
 → __opendeskRecipeExecution.run({scriptPath, workdir, logDir, signal})
 → cmd/opendesk/app_recipe_runner.go
 → production loader 读取 JS / 入口快照
@@ -109,7 +187,15 @@ scriptRoot：已配置 OPENDESK_SCRIPT_RUNNER_DIR 或 appDataRoot/recipes
 
 下表路径均在 `a3ad21f2699f4b56db50dea959d5a20ba95f573e` 读取。源码存在不等于测试通过；没有读取的集成接线不宣称不存在。
 
-| 核查对象 | 可证明的现状 | 本轮不能据此声称 |
+不应新造“助手专用任意脚本执行器”，也不能继续在助手会话 Runtime 中 eval 用户资产。应该抽取/复用当前 App-owned 执行 owner，在它之前增加可信任务解析与确认绑定，并按需补齐输入、结果、期限和一致性检查。
+
+共享的是服务，不是通过模拟点击 Flow Runner 的按钮来运行任务；不应该为了助手请求改变播放器当前选择、打开流程列表或创建另一个主 App。
+
+### 4.1 文件与数据归属
+
+#### 4.1.1 必须分清四种内容
+
+| 内容 | 归属 | 规则 |
 | --- | --- | --- |
 | `apps/opendesk/assistant/task-service.js` | 仍是 Calculator 两任务、固定 schema、`codex-analysis` Planner 和 calculator.execute | 通用四类资产入口、作者态或自然语言 Flow Catalog 已完成 |
 | `polyfills/008-ai-runtime.js` 的 profile 校验与选择、runCodex、runOwnedCommand | P0 只接受 analysis；使用 Command owner、stdin、exec JSONL、独立 invocation、read-only、skip-git、ephemeral、ignore-user-config；不传 CLI `--profile` | 已有受管作者权限、实时事件持久化、线程恢复、Skills/MCP 作者集成 |
