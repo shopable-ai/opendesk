@@ -54,8 +54,12 @@ func (t *postHogPrivacyTransport) RoundTrip(request *http.Request) (*http.Respon
 	}
 
 	body, err := io.ReadAll(io.LimitReader(request.Body, postHogMaximumWireBytes+1))
+	closeErr := request.Body.Close()
 	if err != nil {
 		return nil, fmt.Errorf("read product analytics PostHog body: %w", err)
+	}
+	if closeErr != nil {
+		return nil, fmt.Errorf("close product analytics PostHog body: %w", closeErr)
 	}
 	if len(body) == 0 || len(body) > postHogMaximumWireBytes {
 		return nil, errors.New("product analytics PostHog body exceeds privacy bound")
