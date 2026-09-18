@@ -38,6 +38,7 @@ __opendeskInspectorResult(JSON.stringify({
   prepared: {
     taskId: prepared.task.taskId,
     revision: prepared.task.revision,
+    effectSummary: prepared.prepared.preview.effectSummary,
     previewInput: prepared.prepared.preview.input,
   },
   run: outcome.run,
