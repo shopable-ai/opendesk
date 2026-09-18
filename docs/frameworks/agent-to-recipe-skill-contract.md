@@ -247,17 +247,28 @@ DistilledSteps 只对原始事实做有来源的重建、分段和取舍，不�
 
 ### SemanticProcedure
 
-包含 `distilledStepsRef / businessSteps / parameters / config / secretRefs / runtimeValues / dataDependencies / retainedReasons / omittedReasons / recoveryCandidates / supportedScope / unresolved / evidenceRefs`。若当前实现尚无 `distilledStepsRef` 字段，可由 inputRefs／sourceMapping／handoff 固定实际消费版本，正式 schema 升级另行实施；不能因此重新读取不受约束的 Raw Trace 作为隐式输入。
+包含 `distilledStepsRef / businessSteps / parameters / config / secretRefs / runtimeValues / dataDependencies / capabilityDecisions / retainedReasons / omittedReasons / recoveryCandidates / supportedScope / unresolved / evidenceRefs`。若当前实现尚无 `distilledStepsRef` 字段，可由 inputRefs／sourceMapping／handoff 固定实际消费版本，正式 schema 升级另行实施；不能因此重新读取不受约束的 Raw Trace 作为隐式输入。
 
 每个 Business Step 定义业务目的、输入、前后条件、输出、验证与副作用；区分事实、解释和待测规则。S8 将 DistilledSteps 的必要操作片段组织成业务步骤，S9 再确认参数、数据角色、分支、循环、Recovery 和支持范围。未证明分支只作为候选或补采请求，不进入支持声明。
 
 为兼容既有消费者，`retainedReasons / omittedReasons` 可以保留摘要，但原始 action 的 retain／merge／omit／recovery／unresolved 权威取舍属于 DistilledSteps；Procedure 不维护第二套互相漂移的 action disposition。若 Procedure 发现上游取舍错误，应提出 trace-distill 修订并消费新版本。
 
+**能力选择记录。** `capabilityDecisions` 是 Recipe 需要的轻量追溯信息，不是 API Registry，也不保存模型私有推理或复制 canonical 文档。对会影响最终 Recipe 的每项框架能力选择，记录：
+
+- `decisionId / businessStepRefs / capabilityNeed`：说明哪个业务步骤需要什么能力；
+- `discoveryPath`：从 `docs/api/agent/README.md` 到一个或少数 capability catalog 的实际发现路径；这里只记录“发现了什么”，不混入最终选择；
+- `candidates`：候选方法、`selected / rejected / failed / not-run` 处置、简短依据；`failed` 必须引用实际失败证据，`rejected` 表示有据未选但没有伪造运行失败；
+- `selectedMethod / canonicalContractRefs / sharedConstraintRefs`：选定方法及当时实际读取的 canonical contract／必要公共约束内容绑定；类型只在本次确有需要时引用；
+- `runtimeValidation`：`pass / fail / partial / not-run`、环境范围和 evidenceRefs。文档可用不等于现场可用，运行失败后允许换候选，但旧失败不能被成功候选覆盖；
+- `recipeConsumers / revalidateWhen`：最终普通 JS 的消费者和会使该选择失效的条件。
+
+Capability Discovery、Method Selection、Contract Reading、Runtime Validation 是四个不同事实：目录命中只证明“可考虑”，选择只证明“决定尝试”，合同只证明“知道怎样调用”，只有对应环境的实际证据才能把方法写成已验证。新生成或改变定位／动作／读取／等待策略的修订必须保存这些最小信息；旧 Procedure 缺失时表示未记录／未知，不能事后把当前文档或成功代码倒填成历史选择证据。S2—S6／S10 可先在原工作包留下临时决定，S8—S9 只把最终仍被 Recipe 消费的决定及必要失败候选收敛到本字段，不建立第二个 registry。
+
 接续中的反向提炼只能在 `continuation.reverseSynthesis` 声明的边界内确认过程；已有代码说明“实现了什么”，不自动说明“业务为何如此”或“现场确实成功”。用于最小修复的局部 SemanticProcedure 可以有受限 Gate scope，但不能冒充完整新生成所需的完整过程。
 
 ### CandidateManifest
 
-包含 `scriptRef / scriptHash / contractRef / procedureRef / appProfileRefs / apiRefs / entryCommand / workingDirectory / inputContract / dependencies / supportedScope / sourceMapping / limitations`。脚本以普通 JS 的函数、验证、失败处理表达业务；sourceMapping 可为 Business Step 到函数／代码区域的简表，并可通过 Procedure 追到 DistilledSteps／原始 action，不是 SourceMap／IR 引擎。读取在线 OCR／Vision 或模型依赖必须明示；不得把依赖 Agent 实时规划的程序称为确定性离线 Recipe。只有 `reuse-unchanged` 且本次声明范围不要求反向提炼时，`procedureRef` 才可为 `null`，并须在 `limitations` 与接续处置中说明；不能用该例外规避新生成或最小修复所需的过程依据。
+包含 `scriptRef / scriptHash / contractRef / procedureRef / appProfileRefs / apiRefs / entryCommand / workingDirectory / inputContract / dependencies / supportedScope / sourceMapping / limitations`。其中 `apiRefs` 固定本 Candidate 实际采用方法的 canonical contract／必要共享约束版本；`sourceMapping` 对受能力选择影响的代码区域引用对应 `capabilityDecisionRefs`。这样可以从 Recipe 回到“业务步骤 → 能力需求 → 候选 → 选中合同 → 现场验证”，而不把 API 正文复制进 Candidate。脚本以普通 JS 的函数、验证、失败处理表达业务；sourceMapping 可为 Business Step 到函数／代码区域的简表，并可通过 Procedure 追到 DistilledSteps／原始 action，不是 SourceMap／IR 引擎。读取在线 OCR／Vision 或模型依赖必须明示；不得把依赖 Agent 实时规划的程序称为确定性离线 Recipe。只有 `reuse-unchanged` 且本次声明范围不要求反向提炼时，`procedureRef` 才可为 `null`，并须在 `limitations` 与接续处置中说明；不能用该例外规避新生成或最小修复所需的过程依据。
 
 接续时清单通过可选 `continuation` 保存已有资产 lineage 和实际处置。原样复用可以直接引用获准路径下 hash 不变的脚本，不要求复制或重写；任何代码修改都形成新候选并使旧资格结论不能自动沿用。
 
