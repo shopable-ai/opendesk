@@ -48,6 +48,19 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Install Linux Flow build dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev \
+            libx11-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            libxi-dev \
+            libxinerama-dev \
+            libxrandr-dev \
+            libxtst-dev
       - name: Test canonical package, installer, Marketplace, app-data, execution and CLI owners
         shell: bash
         run: |
@@ -84,7 +97,7 @@ jobs:
       - name: Run B0 formal Runtime gate
         run: OPENDESK_RUNTIME_API_MODE=flow-package ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
       - name: Run existing Flow distribution regression
-        run: ./dist/opendesk -script tests/runtime-api/flow-distribution.js -console-mode script
+        run: OPENDESK_RUNTIME_API_BINARY="$PWD/dist/opendesk" ./dist/opendesk -script tests/runtime-api/flow-distribution.js -console-mode script
       - name: Run B1 direct Runtime test
         run: ./dist/opendesk -script tests/runtime-api/flow-installation.js -console-mode script
       - name: Run B1 formal Runtime gate
@@ -137,6 +150,7 @@ jobs:
         shell: pwsh
         run: |
           $runtime = '.\dist\windows\win-x64\opendesk.exe'
+          $env:OPENDESK_RUNTIME_API_BINARY = (Resolve-Path $runtime).Path
           & $runtime -script 'tests/runtime-api/flow-distribution.js' -console-mode script
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run B1 direct Runtime test
