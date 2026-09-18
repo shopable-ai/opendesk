@@ -20,9 +20,8 @@ framework-level App Shell/manifest/single-instance contract.
 ## Product composition
 
 OpenDesk no longer adds a Demo/welcome window in front of its main automation
-UI. The implementation is still based on the existing Script Runner controller,
-but **`Script Runner` is an internal engineering name, not a product-facing
-name**.
+UI. The implementation is based on the Flow Runner controller. **Flow Runner**
+is the component name; the product-facing name is “自动化”.
 
 The target product relationship is:
 
@@ -58,14 +57,10 @@ The visible label describes the actual lifecycle semantics: the action shows
 and focuses the already-existing `main` window. The stable internal action ID
 remains `opendesk.open` for compatibility.
 
-The internal names below remain valid compatibility/implementation seams and do
-not need a repository-wide rename:
+The stable action ID below remains an external compatibility seam:
 
 ```text
 runner.open
-OpenDeskProductScriptRunner
-apps/opendesk/script-runner/**
-apps/opendesk/script-runner-simple.js
 ```
 
 `apps/opendesk/main.js` remains the composition root. It loads product
@@ -94,10 +89,10 @@ contracts. Do not move product source merely to make a release bundle smaller.
   resource ownership.
 - `examples/custom-ui/**`: standalone learning/debug entrypoints, not Recorder
   product resource ownership.
-- `apps/opendesk/script-runner/controller.js`: shared generic Runner behavior
+- `apps/opendesk/flow-runner/controller.js`: shared Flow Runner behavior
   (discovery, ordering, Run/Stop, list/empty/error state and a command-compatible
   execution adapter).
-- `apps/opendesk/script-runner-simple.js`: product composition seam. It maps the
+- `apps/opendesk/flow-runner.js`: product composition seam. It maps the
   automation list to App Mode `main`, keeps one toolbar/main UI instance and
   appends Official Shell product actions. For the official product it routes
   Recipes through the private App-owned execution bridge and presents one
@@ -249,7 +244,7 @@ Ownership is intentionally split:
   Examples and API Docs are package-declared product actions;
 - Developer and Help/Services are OpenDesk product-shell composition;
 - Recorder is not duplicated in `opendesk.app.json`;
-- `打开 Script Runner` must disappear from the visible product menu, while the
+- `打开自动化` must remain the visible product menu label, while the
   internal `runner.open` action can remain as a compatibility route to the same
   `main` window;
 - the old `Open Scheduler` Web entry and the new Scheduler Center must not both
@@ -332,8 +327,9 @@ root, currently conceptually:
 ```
 
 Set `OPENDESK_APP_DATA_DIR` to override that root. Set
-`OPENDESK_SCRIPT_RUNNER_DIR` to use an existing recipe directory without making
-it Runner-managed.
+`OPENDESK_FLOW_RUNNER_DIR` to use an existing runnable directory without making
+it Flow Runner-managed. Existing installations may continue to use the legacy
+`OPENDESK_SCRIPT_RUNNER_DIR` fallback.
 
 ## Development
 
@@ -401,7 +397,7 @@ Already present in the repository:
 - built-in Recorder action and shared UI process driver;
 - canonical Recorder product source under `apps/opendesk/recorder/**` with
   `internal/recorderbundle` as its runtime adapter;
-- main automation UI implemented through the current Script Runner code;
+- main automation UI implemented through the current Flow Runner code;
 - Scheduler Center/client composition;
 - Official Shell homepage/help/customize support;
 - single-instance/main-window lifecycle;
@@ -411,8 +407,9 @@ Already present in the repository:
 
 Still to close for the broader desktop product contract:
 
-- remove remaining user-visible `Script Runner` terminology where applicable;
-- remove duplicate visible `打开 Script Runner` menu choices while preserving
+- keep user-visible terminology as “自动化” while preserving the Flow Runner
+  component contract;
+- remove duplicate visible `打开自动化` menu choices while preserving
   internal compatibility routing;
 - merge/preserve the required Developer/legacy product capabilities in the one
   App Mode Tray;

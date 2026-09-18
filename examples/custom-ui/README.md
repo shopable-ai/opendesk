@@ -126,7 +126,7 @@ bash scripts/render_custom_ui_icon_catalog.sh
 
 After checking that temporary output, publish the generated HTML with `bash scripts/render_custom_ui_icon_catalog.sh --publish`. This updates both the durable browser icon list at `docs/custom-ui/icon-list.html` and the restricted Runtime view at `examples/custom-ui/icon-browser/panel.html`. The browser list is only a selection aid; run `icon-browser/main.js` above for the real Custom UI window, controller, clipboard, scroll and lifecycle path.
 
-Recorder control surfaces and their UI assets now live under `workflows/human-to-recipe/`; the released Recorder implementation is owned by `internal/recorderbundle/`. Script Runner is owned by `apps/opendesk/`. They are intentionally absent from this teaching directory and from the Example Explorer catalog. See the workflow README for their explicit, side-effectful commands.
+Recorder control surfaces and their UI assets now live under `workflows/human-to-recipe/`; the released Recorder implementation is owned by `internal/recorderbundle/`. Flow Runner is owned by `apps/opendesk/`. They are intentionally absent from this teaching directory and from the Example Explorer catalog. See the workflow README for their explicit, side-effectful commands.
 
 The unrelated horizontal toolbar example emits `HORIZONTAL_TOOLBAR_ACTION` records for `start`, `pause`, `stop`, `settings`, `send`, and `timer`; stop restores startPause to `play.fill` / `开始` / inactive. Each example stays open until the user closes it.
 

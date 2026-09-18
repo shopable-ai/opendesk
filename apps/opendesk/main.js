@@ -89,8 +89,8 @@ if (!globalThis.OpenDeskProductAnalytics
   || typeof OpenDeskProductAnalyticsIntegration.wrapController !== 'function') {
   throw new Error('OpenDesk Product Analytics client/integration did not initialize');
 }
-globalThis.OpenDeskScriptRunnerSimple = OpenDeskProductAnalyticsIntegration.wrapController(
-  OpenDeskScriptRunnerSimple,
+globalThis.OpenDeskFlowRunner = OpenDeskProductAnalyticsIntegration.wrapController(
+  OpenDeskFlowRunner,
   {client: OpenDeskProductAnalytics},
 );
 

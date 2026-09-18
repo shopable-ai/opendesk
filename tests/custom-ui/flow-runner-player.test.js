@@ -390,5 +390,10 @@ test('official OpenDesk main decorates the base controller before product runner
   assert.match(mainSource, /flow-runner['"]\s*,\s*['"]controller\.js/);
   assert.match(mainSource, /flow-runner['"]\s*,\s*['"]player-controller\.js/);
   assert.match(mainSource, /OpenDeskFlowRunnerPlayerController\.wrapController/);
+  assert.match(
+    mainSource,
+    /globalThis\.OpenDeskFlowRunner\s*=\s*OpenDeskProductAnalyticsIntegration\.wrapController\(\s*OpenDeskFlowRunner/,
+  );
+  assert.doesNotMatch(mainSource, /OpenDeskScriptRunnerSimple/);
   assert.match(mainSource, /playerUI:\s*OpenDeskPromotionsIntegration\.createPlayerUI\(ui/);
 });

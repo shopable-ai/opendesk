@@ -165,7 +165,7 @@ Recorder 是 OpenDesk 官方桌面应用的产品能力，因此正式实现继�
 │   └── opendesk/
 │       ├── main.js
 │       ├── opendesk.app.json
-│       ├── script-runner/
+│       ├── flow-runner/
 │       └── recorder/                    # Recorder 正式产品实现
 │           ├── controller.js
 │           ├── controller-core.js

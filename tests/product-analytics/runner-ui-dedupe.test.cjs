@@ -13,9 +13,9 @@ function load(relative) {
 
 test('10 logical Run actions produce exactly 10 ui_action events across pointer and keyboard', async () => {
   delete globalThis.OpenDeskProductAnalyticsIntegration;
-  delete globalThis.OpenDeskScriptRunnerShortcuts;
+  delete globalThis.OpenDeskFlowRunnerShortcutController;
   load('apps/opendesk/product-analytics/integration.js');
-  load('apps/opendesk/script-runner/shortcut-controller.js');
+  load('apps/opendesk/flow-runner/shortcut-controller.js');
 
   const analytics = [];
   const screens = [];
@@ -68,7 +68,7 @@ test('10 logical Run actions produce exactly 10 ui_action events across pointer 
     unregister(accelerator) { shortcuts.delete(accelerator); },
   };
 
-  const script = {name: 'recipe.js'};
+  const entry = {name: 'recipe.js'};
   const BaseController = {
     createApp(settings) {
       const toolbar = new settings.FloatingWindow({});
@@ -83,10 +83,10 @@ test('10 logical Run actions produce exactly 10 ui_action events across pointer 
         },
         requestRun() { runs++; return Promise.resolve({status: 'succeeded'}); },
         stopRun() { stops++; return Promise.resolve(true); },
-        scripts() { return [script]; },
-        state() { return {selectedScriptName: script.name, running: false, activeRun: null, runs, stops}; },
+        entries() { return [entry]; },
+        state() { return {selectedEntryKey: entry.name, running: false, activeRun: null, runs, stops}; },
       };
-      toolbar.addButton('run', 'Run', 'play.fill', () => api.requestRun([script], 'toolbar'));
+      toolbar.addButton('run', 'Run', 'play.fill', () => api.requestRun([entry], 'toolbar'));
       toolbar.addButton('stop', 'Stop', 'stop.fill', () => api.stopRun('toolbar'));
       toolbar.addButton('previous', 'Previous', 'backward.fill', () => true);
       toolbar.addButton('next', 'Next', 'forward.fill', () => true);
@@ -96,7 +96,7 @@ test('10 logical Run actions produce exactly 10 ui_action events across pointer 
   };
 
   const AnalyticsController = OpenDeskProductAnalyticsIntegration.wrapController(BaseController, {client});
-  const Controller = OpenDeskScriptRunnerShortcuts.wrapController(AnalyticsController, {
+  const Controller = OpenDeskFlowRunnerShortcutController.wrapController(AnalyticsController, {
     globalShortcut,
     system: {getPlatformInfo: () => ({os: 'darwin'})},
     console: {warn() {}},
