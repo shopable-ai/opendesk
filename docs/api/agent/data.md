@@ -133,6 +133,7 @@ Runtime 默认预加载的第三方库；按库级能力发现，不把第三方
 | Cheerio | `cheerio` | 仓库固定快照 | HTML 解析与类 jQuery 节点查询 | 是 | [Cheerio](../libs.md#cheerio)；`read libs "#cheerio"` |
 | js-beautify | `window.js_beautify` | 1.14.9 | 格式化 JavaScript 文本 | 是 | [js-beautify](../libs.md#js-beautify)；`read libs "#js-beautify"` |
 
+
 ## 生成依据
 
 维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
