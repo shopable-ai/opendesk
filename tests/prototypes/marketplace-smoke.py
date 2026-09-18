@@ -235,13 +235,14 @@ def main() -> None:
                     assert guide.evaluate("el=>getComputedStyle(el).position") != 'fixed', 'help row must remain in document flow'
                     if width > 740:
                         metrics = page.locator('.sidebar').evaluate("""el=>{
-                          const g=el.querySelector('.side-guide'), sb=el.getBoundingClientRect(), gb=g.getBoundingClientRect(), cs=getComputedStyle(g);
+                          const g=el.querySelector('.side-guide'), sb=el.getBoundingClientRect(), gb=g.getBoundingClientRect(), cs=getComputedStyle(g), side=getComputedStyle(el);
                           const title=g.querySelector('.side-guide-title').getBoundingClientRect();
                           const icon=g.querySelector('.guide-icon').getBoundingClientRect();
                           const h=g.querySelector('h3').getBoundingClientRect();
-                          return {bottom:Math.abs(sb.bottom-gb.bottom),radius:cs.borderRadius,borderTop:cs.borderTopWidth,titleDelta:Math.abs((icon.top+icon.height/2)-(h.top+h.height/2)),titleHeight:title.height};
+                          const contentBottom=sb.bottom-parseFloat(side.paddingBottom||'0');
+                          return {bottom:Math.abs(contentBottom-gb.bottom),radius:cs.borderRadius,borderTop:cs.borderTopWidth,titleDelta:Math.abs((icon.top+icon.height/2)-(h.top+h.height/2)),titleHeight:title.height};
                         }""")
-                        assert metrics['bottom'] <= 6, f"desktop guide not docked to sidebar bottom: {metrics}"
+                        assert metrics['bottom'] <= 2, f"desktop guide not docked to sidebar content bottom: {metrics}"
                         assert metrics['radius'] == '0px' and metrics['borderTop'] != '0px', f"desktop guide still looks like a card: {metrics}"
                         assert metrics['titleDelta'] <= 2.5, f"guide icon/title not vertically aligned: {metrics}"
                     else:
