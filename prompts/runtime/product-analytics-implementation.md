@@ -43,26 +43,21 @@ flow_run_finished
 
 本轮范围是官方 OpenDesk 产品，不能自动给所有第三方 `.js` / `.odflow` 增加遥测。现有 Runner 代码命名以最新仓库为准，不因此重新执行命名迁移。
 
-产品层级固定为：
+产品层级固定为两层：
 
 ```text
-Consent / Privacy
+Privacy Controls
 = 普通用户能力
 = OpenDesk → 设置 → 隐私与数据 → 帮助改进 OpenDesk
 
-Analytics Diagnostics
-= 开发者能力
-= 开发者 → 产品统计诊断…
-= 正式普通用户菜单默认隐藏
-
-Analytics Dashboard
-= 产品管理员能力
-= PostHog Dashboard
+Admin Analytics
+= 产品管理员 / 运营能力
+= 浏览器登录 PostHog Web Dashboard
 ```
 
 普通用户设置不得显示 Product Analytics、PostHog、Event、Dashboard、内部事件名、统计计数、Queue 或管理状态；它只负责 consent、简短准确的数据采集说明与隐私说明入口。不要重新添加“基础使用统计…”普通菜单入口，也不要用改名方式保留原来的 Analytics Settings 产品层级。
 
-如果保留本地 Analytics UI，它只能是第一方开发诊断面：只读查看 consent、provider、初始化、最近事件、最近本地发送结果和 queue 状态；必须明确 Provider 入队不等于云端已接收。诊断能力不能成为第二套业务 Dashboard、第二 Provider 或第二发送链。
+OpenDesk 客户端不提供 Analytics Dashboard，也不提供“产品统计诊断”菜单或窗口。开发排障只通过自动测试、日志和代码级内部状态完成。发行包中的 PostHog Project Capture Token 只用于事件采集，不是管理员后台凭据；管理员通过产品团队自己的 PostHog 账号与项目权限访问 Web Dashboard。
 
 ## 本轮执行
 
