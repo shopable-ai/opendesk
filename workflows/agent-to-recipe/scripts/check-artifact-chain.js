@@ -280,12 +280,32 @@ function checkArtifactChain(options) {
     bind(procedure.distilledStepsRef, 'distilled', 'bindings', 'procedure.distilledStepsRef');
     attempt('procedure-synthesize', 'procedure.actionDecisions', () => requireCheck(!own(procedure, 'actionDecisions'),
       'DUPLICATE_DISPOSITION', 'Procedure must consume DistilledSteps rather than maintain a second action disposition.'));
+    const capabilityTraceRequested = (candidate && candidate.sourceMapping || [])
+      .some(mapping => Array.isArray(mapping.capabilityDecisionRefs) && mapping.capabilityDecisionRefs.length > 0);
+    const modernProcedure = capabilityTraceRequested || own(procedure, 'capabilityDecisions');
     const businessSteps = array(procedure.businessSteps, 'BUSINESS_STEPS', 'Procedure requires businessSteps.');
     const businessById = new Map();
     const sourceToBusiness = new Map();
     businessSteps.forEach((step, index) => attempt('procedure-synthesize', 'procedure.businessSteps[' + index + ']', () => {
       requireCheck(object(step) && text(step.stepId) && !businessById.has(step.stepId),
         'BUSINESS_STEP_ID', 'Every Business Step needs a unique stepId.');
+      if (modernProcedure) {
+        requireCheck(text(step.purpose)
+          && Array.isArray(step.inputs)
+          && Array.isArray(step.inputSources)
+          && (step.inputs.length === 0 || step.inputSources.length > 0)
+          && Array.isArray(step.preconditions) && step.preconditions.length > 0
+          && text(step.execution)
+          && text(step.observation)
+          && Array.isArray(step.outputs)
+          && Array.isArray(step.postconditions) && step.postconditions.length > 0
+          && text(step.verification)
+          && Array.isArray(step.stopConditions) && step.stopConditions.length > 0
+          && Array.isArray(step.consumers) && step.consumers.length > 0
+          && Array.isArray(step.sideEffects),
+        'BUSINESS_STEP_CONTRACT',
+        'Modern Business Steps need purpose, input provenance, preconditions, execution, observation, outputs, postconditions, verification, stop conditions, consumers and side effects.');
+      }
       businessById.set(step.stepId, step);
       for (const sourceId of array(step.sourceStepRefs, 'SOURCE_STEPS', 'Business Steps must cite DistilledSteps.')) {
         requireCheck(!sourceToBusiness.has(sourceId), 'SOURCE_STEP_COVERAGE',
@@ -332,8 +352,6 @@ function checkArtifactChain(options) {
       }
     }
 
-    const capabilityTraceRequested = (candidate && candidate.sourceMapping || [])
-      .some(mapping => Array.isArray(mapping.capabilityDecisionRefs) && mapping.capabilityDecisionRefs.length > 0);
     const capabilityDecisions = procedure.capabilityDecisions;
     if (capabilityTraceRequested || own(procedure, 'capabilityDecisions')) {
       array(capabilityDecisions, 'CAPABILITY_DECISION_REQUIRED',
