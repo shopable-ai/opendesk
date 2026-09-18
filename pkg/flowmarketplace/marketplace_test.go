@@ -76,6 +76,7 @@ func TestMarketplaceInstallVerticalSlice(t *testing.T) {
 		t.Fatalf("catalog did not persist Marketplace provenance: %+v", loaded)
 	}
 	assertTrustSource(t, service, "user")
+	assertTrustScope(t, service, "flow")
 }
 
 func TestMarketplaceVerifiedPublisherDoesNotBypassLocalTrust(t *testing.T) {
@@ -98,6 +99,31 @@ func TestMarketplaceVerifiedPublisherDoesNotBypassLocalTrust(t *testing.T) {
 	if len(records) != 0 {
 		t.Fatalf("untrusted Marketplace Flow was registered: %+v", records)
 	}
+	assertNoTrustRecords(t, service)
+}
+
+func TestMarketplaceCanonicalIdentityMismatchStopsBeforeDownload(t *testing.T) {
+	fixture := newMarketplaceFixture(t, EntitlementFree)
+	fixture.release.FlowID = "different-flow"
+	fixture = resignFixture(t, fixture)
+	server, artifactHits := newMarketplaceServer(t, fixture)
+	defer server.Close()
+	service := newFlowService(t)
+	installer := &Installer{
+		Client: newTestClient(t, server.URL, fixture.marketplaceKey), FlowService: service, TempRoot: t.TempDir(),
+		Confirmer: confirmerFunc(func(context.Context, Release) (bool, error) { return true, nil }),
+	}
+	if _, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{
+		Approver: func(context.Context, flowinstall.TrustCandidate) (flowinstall.TrustDecision, error) {
+			return flowinstall.DecisionFlow, nil
+		},
+	}); err == nil {
+		t.Fatal("InstallURL() succeeded when canonical release identity mismatched the deep link")
+	}
+	if got := artifactHits.Load(); got != 0 {
+		t.Fatalf("artifact requests = %d, want 0 before canonical identity verification succeeds", got)
+	}
+	assertCatalogEmpty(t, service)
 	assertNoTrustRecords(t, service)
 }
 
@@ -498,6 +524,29 @@ func assertNoTrustRecords(t *testing.T, service *flowinstall.Service) {
 	}
 	if len(entries) != 0 {
 		t.Fatalf("unexpected trust records: %v", entries)
+	}
+}
+
+func assertTrustScope(t *testing.T, service *flowinstall.Service, expected string) {
+	t.Helper()
+	recordsRoot := filepath.Join(service.Roots.TrustRoot, "records")
+	entries, err := os.ReadDir(recordsRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("trust record count = %d, want 1", len(entries))
+	}
+	data, err := os.ReadFile(filepath.Join(recordsRoot, entries[0].Name()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var record struct{ Scope string `json:"scope"` }
+	if err := json.Unmarshal(data, &record); err != nil {
+		t.Fatal(err)
+	}
+	if record.Scope != expected {
+		t.Fatalf("trust scope = %q, want %q", record.Scope, expected)
 	}
 }
 
