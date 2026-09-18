@@ -202,6 +202,16 @@ test('Flow confirmation uses frozen canonical input, consumes before async reche
     protected:false,
     archiveDigest:'archive-a',
     manifestDigest:'manifest-a',
+    invocation:{
+      schemaVersion:1,
+      effectSummary:'Write the requested low-risk sample output.',
+      parameters:{
+        amount:{type:'number',required:true},
+        nested:{type:'object',required:true},
+        account:{type:'string'},
+      },
+      fixedInputs:{account:'sandbox'},
+    },
   };
   const flowBridge = {
     async inspect() {
@@ -237,6 +247,59 @@ test('Flow confirmation uses frozen canonical input, consumes before async reche
   assert.equal(seenRuns.length, 1);
   assert.deepEqual(JSON.parse(seenRuns[0].inputJSON), {amount:17,nested:{target:'A'}});
   assert.equal(seenRuns[0].expectedArchiveDigest, 'archive-a');
+});
+
+test('Flow use fails closed without signed invocation metadata and rejects unknown, missing, type, and fixed-input conflicts', async () => {
+  const file = memoryFile();
+  const installId = 'local-abcdefabcdefabcdefabcdefabcdefab';
+  let inspection = {
+    installId,
+    flowId:'contract.flow',
+    name:'Contract Flow',
+    version:'1.0.0',
+    publisherId:'publisher',
+    state:'ready',
+    runnable:true,
+    protected:false,
+    archiveDigest:'archive-contract',
+    manifestDigest:'manifest-contract',
+  };
+  const runtime = TaskRuntime.create({
+    file, rootDir:'/data/assistant', defaultBusinessCwd:'/business',
+    randomUUID:uuids(), clock:clock(),
+    flowBridge:{
+      async inspect(){ return clone(inspection); },
+      async reserve(){ return 'app-flow-contract'; },
+      async run(){ throw new Error('must not run invalid input'); },
+    },
+  });
+  const task = await runtime.startTask({
+    taskId:'flow-contract',conversationId:'conv-a',requestId:'req-contract',
+    userGoal:'run contract flow',intent:'use',
+    asset:{kind:'installed-flow',installId},
+  });
+  await assert.rejects(() => runtime.prepareUse(task.taskId, {}), {code:'FLOW_INVOCATION_CONTRACT_MISSING'});
+
+  inspection = {
+    ...inspection,
+    invocation:{
+      schemaVersion:1,
+      effectSummary:'Send the sample to the fixed sandbox account.',
+      parameters:{
+        amount:{type:'number',required:true},
+        account:{type:'string',required:true},
+      },
+      fixedInputs:{account:'sandbox'},
+    },
+  };
+  await assert.rejects(() => runtime.prepareUse(task.taskId, {extra:true}), {code:'FLOW_UNKNOWN_INPUT'});
+  await assert.rejects(() => runtime.prepareUse(task.taskId, {}), {code:'FLOW_REQUIRED_INPUT_MISSING'});
+  await assert.rejects(() => runtime.prepareUse(task.taskId, {amount:'17'}), {code:'FLOW_INPUT_TYPE_MISMATCH'});
+  await assert.rejects(() => runtime.prepareUse(task.taskId, {amount:17,account:'production'}), {code:'FLOW_FIXED_INPUT_CONFLICT'});
+
+  const prepared = await runtime.prepareUse(task.taskId, {amount:17});
+  assert.match(prepared.preview, /已签名影响说明/);
+  assert.deepEqual(prepared.prepared.preview.input, {account:'sandbox',amount:17});
 });
 
 test('script use binds host hash and refuses a changed entry before run', async () => {
