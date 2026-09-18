@@ -360,12 +360,15 @@ func (r *appProductAnalyticsRuntime) writeStatus(w http.ResponseWriter, accepted
 
 func (r *appProductAnalyticsRuntime) writeStatusValue(w http.ResponseWriter, status productanalytics.Status, accepted bool, err error) {
 	w.Header().Set("Content-Type", "application/json")
+	code := 0
 	message := "success"
 	if err != nil {
+		code = 1
 		message = "product analytics preference update failed"
+		w.WriteHeader(http.StatusInternalServerError)
 	}
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"code":    0,
+		"code":    code,
 		"message": message,
 		"data": map[string]any{
 			"available":      true,
