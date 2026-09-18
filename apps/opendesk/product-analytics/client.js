@@ -57,6 +57,7 @@
   const client = Object.freeze({
     getCapabilities,
     status: () => request('GET', '/api/product/analytics/status'),
+    diagnostics: () => request('GET', '/api/product/analytics/diagnostics'),
     setEnabled: enabled => request('POST', '/api/product/analytics/enabled', {enabled: !!enabled}),
     screenViewed: surface => bestEffort('/api/product/analytics/screen', {surface: String(surface || '')}),
     uiAction: (surface, actionId, inputMethod) => bestEffort('/api/product/analytics/action', {
