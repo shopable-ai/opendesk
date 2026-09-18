@@ -37,12 +37,36 @@ on:
       - 'docs/architecture/product-analytics.md'
   workflow_dispatch:
 
+concurrency:
+  group: product-analytics-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
+  module-and-js-contract:
+    name: Module and JavaScript Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify Go module graph is canonical
+        run: go mod tidy -diff
+      - name: Product Analytics JavaScript contracts
+        run: >-
+          node --test
+          tests/product-analytics/runner-ui-dedupe.test.cjs
+          tests/product-analytics/client-settings.test.cjs
+          tests/app-lifecycle/analytics-settings-controller.test.js
+
   production-contract:
     name: Production Contract
+    needs: module-and-js-contract
     runs-on: macos-latest
     timeout-minutes: 30
     steps:
@@ -61,12 +85,6 @@ jobs:
           ./pkg/execution
           ./pkg/appshell
           -count=1
-      - name: Product Analytics JavaScript contracts
-        run: >-
-          node --test
-          tests/product-analytics/runner-ui-dedupe.test.cjs
-          tests/product-analytics/client-settings.test.cjs
-          tests/app-lifecycle/analytics-settings-controller.test.js
       - name: Build OpenDesk Runtime
         run: |
           mkdir -p dist
