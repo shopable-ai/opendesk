@@ -443,7 +443,7 @@ test('Flow confirmation uses frozen canonical input, consumes before async reche
   const result = await first;
   assert.equal(result.run.executionId, 'app-flow-real-1');
   assert.equal(seenRuns.length, 1);
-  assert.deepEqual(JSON.parse(seenRuns[0].inputJSON), {amount:17,nested:{target:'A'}});
+  assert.deepEqual(JSON.parse(seenRuns[0].inputJSON), {account:'sandbox',amount:17,nested:{target:'A'}});
   assert.equal(seenRuns[0].expectedArchiveDigest, 'archive-a');
 });
 
