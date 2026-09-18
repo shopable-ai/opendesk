@@ -181,17 +181,23 @@ func TestConfigureOfficialAppOwnedExecutionRejectsThirdPartyAppModePackages(t *t
 
 	var thirdParty pkgExecution.Request
 	configureOfficialAppOwnedExecution("com.example.third-party", &thirdParty, runner)
-	if thirdParty.AppOwnedScriptInspect != nil || thirdParty.AppOwnedScriptRead != nil
-		|| thirdParty.AppOwnedScriptRun != nil || thirdParty.AppOwnedExecutionID != nil
-		|| thirdParty.AppOwnedFlowInspect != nil || thirdParty.AppOwnedFlowRun != nil {
+	if thirdParty.AppOwnedScriptInspect != nil ||
+		thirdParty.AppOwnedScriptRead != nil ||
+		thirdParty.AppOwnedScriptRun != nil ||
+		thirdParty.AppOwnedExecutionID != nil ||
+		thirdParty.AppOwnedFlowInspect != nil ||
+		thirdParty.AppOwnedFlowRun != nil {
 		t.Fatal("third-party App Mode package received private App-owned product bridges")
 	}
 
 	var official pkgExecution.Request
 	configureOfficialAppOwnedExecution(officialOpenDeskAppID, &official, runner)
-	if official.AppOwnedScriptInspect == nil || official.AppOwnedScriptRead == nil
-		|| official.AppOwnedScriptRun == nil || official.AppOwnedExecutionID == nil
-		|| official.AppOwnedFlowInspect == nil || official.AppOwnedFlowRun == nil {
+	if official.AppOwnedScriptInspect == nil ||
+		official.AppOwnedScriptRead == nil ||
+		official.AppOwnedScriptRun == nil ||
+		official.AppOwnedExecutionID == nil ||
+		official.AppOwnedFlowInspect == nil ||
+		official.AppOwnedFlowRun == nil {
 		t.Fatal("official OpenDesk package did not receive required private App-owned bridges")
 	}
 }
