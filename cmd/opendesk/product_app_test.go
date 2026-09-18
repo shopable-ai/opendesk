@@ -125,7 +125,7 @@ func TestProductAppUsesOnlyTheSharedAppLocalServicesRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(source)
-	if strings.Count(text, "startAppScheduler(") != 1 {
+	if strings.Count(text, "startAppSchedulerWithActivity(") != 1 {
 		t.Fatalf("App Mode must start exactly one App Local Services runtime; source=%s", text)
 	}
 	for _, forbidden := range []string{"startAppDeveloperRuntime", "appDeveloper", "OPENDESK_APP_INSPECTOR_CONTROL_TOKEN"} {
