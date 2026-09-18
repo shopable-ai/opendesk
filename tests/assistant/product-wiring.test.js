@@ -26,7 +26,7 @@ test('product main loads task contract/runtime before session/controller and rel
 
 test('controller exposes no-project task intent, four asset forms, candidate save, and only private execution bridges', () => {
   const controller = read('apps/opendesk/assistant/controller.js');
-  for (const id of ['taskIntent', 'assetKind', 'assetRef', 'assetEntry', 'businessCwd', 'taskInput', 'candidateSavePath', 'saveCandidate']) {
+  for (const id of ['taskIntent', 'assetKind', 'assetRef', 'assetEntry', 'businessCwd', 'allowSourceRead', 'allowModelShare', 'taskInput', 'candidateSavePath', 'saveCandidate']) {
     assert.match(controller, new RegExp('id="' + id + '"'));
   }
   for (const value of ['none', 'js-file', 'automation-directory', 'installed-flow']) {
