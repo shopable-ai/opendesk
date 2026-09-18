@@ -21,6 +21,7 @@ type Diagnostics struct {
 	ProviderInitialized bool              `json:"providerInitialized"`
 	QueueMode           string            `json:"queueMode"`
 	QueueCapacity       int               `json:"queueCapacity"`
+	QueueDepth          int               `json:"queueDepth"`
 	QueueDepthKnown     bool              `json:"queueDepthKnown"`
 	MaxEnqueuedRequests int               `json:"maxEnqueuedRequests"`
 	DroppedEvents       uint64            `json:"droppedEvents"`
@@ -36,12 +37,14 @@ func (s *Service) Diagnostics() Diagnostics {
 	copy(recent, s.diagnostic)
 	queueMode := "disabled"
 	queueCapacity := 0
+	queueDepth := 0
 	queueDepthKnown := false
 	maxRequests := 0
 	switch s.config.Provider {
 	case ProviderDebug:
 		queueMode = "local-debug-ring"
 		queueCapacity = s.debugCapacity
+		queueDepth = len(s.debug)
 		queueDepthKnown = true
 	case ProviderPostHog:
 		queueMode = "sdk-managed"
@@ -53,8 +56,8 @@ func (s *Service) Diagnostics() Diagnostics {
 		Configured: s.captureConfiguredLocked(),
 		CaptureEnabled: s.consent == ConsentGranted && s.captureConfiguredLocked() && !s.closed,
 		Initialized: s.started, Closed: s.closed, ProviderInitialized: s.provider != nil,
-		QueueMode: queueMode, QueueCapacity: queueCapacity, QueueDepthKnown: queueDepthKnown,
-		MaxEnqueuedRequests: maxRequests, DroppedEvents: s.dropped,
+		QueueMode: queueMode, QueueCapacity: queueCapacity, QueueDepth: queueDepth,
+		QueueDepthKnown: queueDepthKnown, MaxEnqueuedRequests: maxRequests, DroppedEvents: s.dropped,
 		LastErrorCode: s.lastErrorCode, LastSendResult: s.lastSendResult,
 		RecentEvents: recent,
 	}
