@@ -281,20 +281,107 @@ test('candidate verification is unavailable without a host-owned verifier', asyn
   );
 });
 
-test('source improvement stays blocked rather than upgrading association into model/file authority', async () => {
+test('source improve is denied by default and only the host-owned reader can supply explicitly shared source', async () => {
   const file = memoryFile();
-  file.writeNew('/work/source.js', 'console.log("source");');
+  const sourceText = 'console.log("source");';
+  file.writeNew('/work/source.js', sourceText);
+  let readCalls = 0;
+  let draftedInput = null;
+  let currentHash = TaskRuntime.sha256(sourceText);
+  const recipeBridge = {
+    async read(options) {
+      readCalls += 1;
+      assert.equal(options.scriptPath, '/work/source.js');
+      assert.equal(options.scopeRoot, '');
+      return {content: sourceText, scriptHash: currentHash, ext:'.js'};
+    },
+    async inspect() { return {scriptHash: currentHash, ext:'.js'}; },
+  };
   const runtime = TaskRuntime.create({
-    file, rootDir:'/data/assistant', randomUUID:uuids(), clock:clock(),
-    modelChannel:{async draftCandidate(){throw new Error('must not call model');}},
+    file, rootDir:'/data/assistant', randomUUID:uuids(), clock:clock(), recipeBridge,
+    modelChannel:{
+      async draftCandidate(input) {
+        draftedInput = clone(input);
+        return {text:'console.log("improved");'};
+      },
+    },
   });
-  const task = await runtime.startTask({
+
+  const blocked = await runtime.startTask({
+    taskId:'improve-blocked', conversationId:'conv-a', requestId:'req-blocked',
+    userGoal:'improve it', intent:'improve',
+    asset:{kind:'js-file',ref:'/work/source.js'},
+    authorizations:{readSource:false,shareSourceWithModel:false},
+  });
+  await assert.rejects(() => runtime.generateCandidate(blocked.taskId), {code:'SOURCE_READ_NOT_AUTHORIZED'});
+  assert.equal(readCalls, 0, 'association alone must not read source');
+
+  const noShare = await runtime.startTask({
+    taskId:'improve-no-share', conversationId:'conv-a', requestId:'req-no-share',
+    userGoal:'improve it', intent:'improve',
+    asset:{kind:'js-file',ref:'/work/source.js'},
+    authorizations:{readSource:true,shareSourceWithModel:false},
+  });
+  await assert.rejects(() => runtime.generateCandidate(noShare.taskId), {code:'MODEL_SHARE_NOT_AUTHORIZED'});
+  assert.equal(readCalls, 0, 'read authorization alone must not send/read source for model use');
+
+  const allowed = await runtime.startTask({
     taskId:'improve-a', conversationId:'conv-a', requestId:'req-a',
     userGoal:'improve it', intent:'improve',
     asset:{kind:'js-file',ref:'/work/source.js'},
     authorizations:{readSource:true,shareSourceWithModel:true},
   });
-  await assert.rejects(() => runtime.generateCandidate(task.taskId), {code:'AUTHOR_SOURCE_READ_BLOCKED'});
+  const generated = await runtime.generateCandidate(allowed.taskId);
+  assert.equal(readCalls, 1);
+  assert.equal(draftedInput.sourceRef, '/work/source.js');
+  assert.equal(draftedInput.sourceContent, sourceText);
+  assert.equal(draftedInput.sourceDigest, currentHash);
+  assert.equal(generated.candidate.sourceDigest, currentHash);
+  assert.equal(generated.candidate.status, 'candidate-pending');
+
+  currentHash = TaskRuntime.sha256('console.log("changed");');
+  await assert.rejects(
+    () => runtime.saveCandidateAs(allowed.taskId, generated.candidate.candidateId, '/exports/improved.js'),
+    {code:'SOURCE_CONFLICT'},
+  );
+  assert.equal(file.exists('/exports/improved.js'), false);
+
+  currentHash = TaskRuntime.sha256(sourceText);
+  const saved = await runtime.saveCandidateAs(allowed.taskId, generated.candidate.candidateId, '/exports/improved.js');
+  assert.equal(saved.candidate.status, 'saved');
+  assert.equal(file.read('/exports/improved.js'), 'console.log("improved");');
+});
+
+test('source explain requires separate model-share authorization and records only local source identity evidence', async () => {
+  const file = memoryFile();
+  const sourceText = 'export const value = 42;';
+  file.writeNew('/work/explain.mjs', sourceText);
+  const hash = TaskRuntime.sha256(sourceText);
+  let explainedInput = null;
+  const runtime = TaskRuntime.create({
+    file, rootDir:'/data/assistant', randomUUID:uuids(), clock:clock(),
+    recipeBridge:{
+      async read() { return {content:sourceText, scriptHash:hash, ext:'.mjs'}; },
+    },
+    modelChannel:{
+      async explainSource(input) {
+        explainedInput = clone(input);
+        return {text:'This module exports value 42; runtime behavior was not executed.'};
+      },
+    },
+  });
+  const task = await runtime.startTask({
+    taskId:'explain-source', conversationId:'conv-a', requestId:'req-explain',
+    userGoal:'explain this file', intent:'explain',
+    asset:{kind:'js-file',ref:'/work/explain.mjs'},
+    authorizations:{readSource:true,shareSourceWithModel:true},
+  });
+  const result = await runtime.explain(task.taskId);
+  assert.match(result.text, /exports value 42/);
+  assert.equal(explainedInput.sourceContent, sourceText);
+  assert.equal(explainedInput.sourceDigest, hash);
+  assert.ok(result.task.evidence.some(item => item.type === 'source-explanation' && item.sourceDigest === hash));
+  assert.equal(JSON.stringify(result.task.evidence).includes(sourceText), false, 'task evidence must not persist source content');
 });
 
 test('Flow confirmation uses frozen canonical input, consumes before async recheck, and runs the canonical installId', async () => {
