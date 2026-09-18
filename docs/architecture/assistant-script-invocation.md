@@ -28,7 +28,7 @@ description: "以本次任务和可选脚本资产为中心，复用官方 Codex
 当前仍保持明确 BLOCKED／未完成资格的范围：
 
 - 单个 JS 的源码解释／改进已经具备**窄只读宿主 owner**：关联本身仍不授权，用户必须分别开启“允许读取已关联源码”和“允许将读取源码发送给当前模型”；App host 只允许经真实路径／scope 校验后的指定 .js/.mjs 入口，限制 1 MiB、UTF-8，并返回内容摘要。模型仍无 Command/File/Desktop 工具，源码按不可信数据处理；候选另存前重新由宿主检查 source digest。
-- 自动化目录的多文件作者态仍明确 BLOCKED：当前可以保存、澄清、解释明确入口和按正式路径 use，但在无法冻结并重新验证 helper／资源依赖闭包、且没有目录事务回写前，`improve` 返回 `DIRECTORY_AUTHORING_DEPENDENCIES_UNRESOLVED`。当前只正式支持单文件候选安全另存，不宣称目录原子回写。
+- 自动化目录的依赖闭包仍明确 BLOCKED：当前可以保存、澄清和在双重授权后解释明确入口；但在无法冻结并于执行前重新验证 helper／资源依赖闭包时，目录 `use` 只保存并展示阻塞，不会仅凭入口 hash 运行；`improve` 返回 `DIRECTORY_AUTHORING_DEPENDENCIES_UNRESOLVED`。当前只正式支持单文件候选安全另存，不宣称目录原子回写。
 - Runner → 助手已有显式一次性 handoff：用户在助手中点击“从 Runner 带入”，产品读取当前 Runner 选中的 JS 或 canonical installed Flow 身份并复制到任务草稿；受保护 `.odpkg` 不投影为源码资产。任务一旦建立只使用 task contract 中冻结的资产身份，不轮询 Runner 当前选择，之后播放器切换条目不会重定向旧任务。
 - Runtime 成功终态默认记录为 `execution-finished-unverified`；没有独立业务 observer 时不升级为业务成功。
 - macOS/Windows 真实 App Mode、真实模型/Codex、真实桌面副作用与发行包视觉验收必须由当前 CI 和后续本机资格给证据；未运行前继续是 NOT RUN。
