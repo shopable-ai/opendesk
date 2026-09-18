@@ -527,7 +527,9 @@ test('assistant UI source uses scrollable chat history and progressive conversat
   assert.match(controller, /<textarea id="composer"[^>]*aria-label="聊天消息"/);
   assert.doesNotMatch(controller, /['"](?:keydown|keypress|keyup)['"]/);
   assert.doesNotMatch(controller, /task selector|script selector|execute script/i);
-  assert.match(controller, /普通聊天不会运行脚本、命令或桌面动作/);
+  assert.match(controller, /直接描述需求；发送不会自动运行脚本、命令或桌面动作/);
+  assert.match(controller, /placeholder="描述你想完成的事"/);
+  assert.doesNotMatch(controller, /id="taskIntent"|id="assetKind"|id="assetRef"/);
 
   assert.match(controller, /MESSAGE_ROW_CAPACITY\s*=\s*120/);
   assert.match(controller, /id="messageList"[^>]*role="log"/);

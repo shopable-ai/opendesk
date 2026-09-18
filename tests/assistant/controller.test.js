@@ -15,8 +15,6 @@ const CONTROL_IDS = new Set([
   'archivedMore', 'archivedOverflow', 'archivedEmpty', 'currentTitle', 'conversationState',
   'titleInput', 'renameConversation', 'archiveConversation', 'deleteConversation', 'modelState', 'globalStatus',
   'modelHelp', 'refreshModel', 'toggleHelp', 'messageEmpty', 'messageTranscript', 'messageOverflow', 'composer',
-  'taskIntent', 'assetKind', 'importRunnerAsset', 'assetRef', 'assetEntry', 'businessCwd',
-  'allowSourceRead', 'allowModelShare', 'taskInput',
   'send', 'stop', 'taskStatus', 'taskPreview', 'confirmTask', 'cancelTask', 'composerHint',
   'candidateSaveRow', 'candidateSavePath', 'saveCandidate',
 ]);
@@ -158,6 +156,8 @@ function createFakeUI(options = {}) {
       assert.match(spec.content.html, /id="messageRow0"/);
       assert.match(spec.content.html, /id="taskPreview"/);
       assert.match(spec.content.html, /id="confirmTask"/);
+      assert.match(spec.content.html, /placeholder="描述你想完成的事"/);
+      assert.doesNotMatch(spec.content.html, /id="taskIntent"|id="assetKind"|id="assetRef"/);
       return handle;
     },
   };
@@ -236,33 +236,25 @@ test('actual Controller render updates supported message rows immediately and ex
   await controller.close();
 });
 
-test('Runner asset handoff snapshots the selected asset once and later Runner changes do not retarget the persisted task', async () => {
+test('natural-language entry creates a trusted task preview without exposing task setup controls', async () => {
   const ui = createFakeUI();
-  let runnerAsset = {kind: 'js-file', ref: '/work/first.js', displayName: 'First'};
   const controller = Controller.create({
     ui,
     file: memoryFile(),
     appDataRoot: '/data',
     execution: {id: 'app-test', workdir: '/data', scriptDir: '/bundle/opendesk'},
     taskService: taskService([]),
-    runnerAssetProvider: () => runnerAsset,
     llm: {getCapabilities: () => ({supported: true, configured: true}), async generate() { return {data: 'unused'}; }},
     agent: {getCapabilities: () => ({supported: false, configured: false})},
   });
   await controller.open('test');
 
-  await ui.controls.get('importRunnerAsset').emit('click');
-  assert.equal(ui.controls.get('taskIntent').state.value, 'use');
-  assert.equal(ui.controls.get('assetKind').state.value, 'js-file');
-  assert.equal(ui.controls.get('assetRef').state.value, '/work/first.js');
-
-  runnerAsset = {kind: 'js-file', ref: '/work/second.js', displayName: 'Second'};
-  ui.controls.get('composer').state.value = '运行刚才带入的自动化';
+  ui.controls.get('composer').state.value = '打开 Calculator，计算 25 × 4 + 10';
   await ui.controls.get('send').emit('click');
 
-  await waitFor(() => controller.state().taskWorkspace?.task?.asset?.ref === '/work/first.js');
-  assert.equal(controller.state().taskWorkspace.task.asset.ref, '/work/first.js');
-  assert.notEqual(controller.state().taskWorkspace.task.asset.ref, runnerAsset.ref);
+  await waitFor(() => ui.controls.get('confirmTask').state.visible === true);
+  assert.equal(ui.controls.has('taskIntent'), false);
+  assert.equal(ui.controls.has('assetKind'), false);
   await controller.close();
 });
 

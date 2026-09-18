@@ -168,7 +168,6 @@ const assistantTaskService = OpenDeskAssistantTaskService.create({
 const assistant = OpenDeskAssistantController.create({
   appDataRoot: globalThis.OpenDeskProductPaths.appDataRoot,
   taskService: assistantTaskService,
-  runnerAssetProvider: () => runner.currentAsset(),
 });
 
 const schedulerClientEntry = File.join(Execution.scriptDir, 'scheduler-client.js');

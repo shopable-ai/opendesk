@@ -28,6 +28,11 @@ test('assistant message rows use supported text controls and render atomically',
     controller,
     /await update\(record, 'messageTranscript', \{\s*visible: messages\.length > 0,\s*text: messages\.length > 0 \? buildMessageOverflow\(messages\) : '',/s,
   );
+  assert.match(
+    controller,
+    /\.message-transcript\{padding:7px 10px;font:13px\/1\.35 /,
+    'the normal one-turn transcript must keep its terminal line inside the constrained desktop card',
+  );
 });
 
 test('assistant surfaces the stage of a swallowed Custom UI render failure', () => {

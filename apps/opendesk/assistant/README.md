@@ -67,7 +67,7 @@
 
 | 文件 | 职责／定位 |
 | --- | --- |
-| `controller.js` | 现有窗口内的普通聊天＋任务意图／四类资产／可信预览／确认／候选另存与状态渲染 |
+| `controller.js` | 单一自然语言对话入口；可信预览／确认／候选另存只在相应任务状态出现 |
 | `session.js` | 请求身份、聊天／Calculator／持久资产任务分流、确认、停止、迟到结果及 unknown-effect 保护 |
 | `task-contract.js` | 持久 task revision、四类资产、候选绑定、一次性确认和 signed Flow invocation 合同 |
 | `task-runtime.js` | 任务/候选接续、safe save、JS/目录/installed Flow 使用链和证据持久化 |

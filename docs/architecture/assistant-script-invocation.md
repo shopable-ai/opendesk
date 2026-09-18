@@ -17,7 +17,7 @@ description: "以本次任务和可选脚本资产为中心，复用官方 Codex
 
 - `assistant/task-contract.js`：任务为持久主身份，`projectId` 和 `sessionId` 均不是任务存在的前提；四类资产都可保存。revision 保存使用调用方 expected revision，加上 `File.writeNew` 独占 revision 文件，旧 revision 不再采用“读最新再覆盖”的方式静默成功。
 - `assistant/task-runtime.js`：负责当前对话的持久任务、候选版本、接续、可信 use 预览和 confirmation registry。候选生成、候选另存和独立验证是三个分离状态；验证必须绑定当前 candidate digest、真实 executionId、criteriaId、observedAt 和 `passed`。
-- `assistant/controller.js → session.js → task-runtime.js`：现有助手 UI 已增加“普通聊天／解释／使用／制作／改进”和“无资产／单 JS／自动化目录／已安装 Flow”入口。目录没有唯一入口时保存任务并明确澄清，不运行探测脚本。
+- `assistant/controller.js → session.js → task-runtime.js`：现有助手 UI 使用单一自然语言入口；可信预览、确认和候选另存只在对应任务状态出现。目录没有唯一入口时保存任务并明确澄清，不运行探测脚本。
 - `File.writeNew`：候选另存和不可变 task revision 使用独占创建。目标已存在时不覆盖；父目录若解析为 symlink／reparse-point 别名，或授权核对期间目录身份发生变化，则拒绝。
 - 单 JS use：App-owned 私有宿主通过 traversal-resistant root handle 对真实入口做路径／real-file／最终文件身份和 script hash 核验；确认后再次读取并核验 hash，结构化参数进入正式 `pkg/execution.Request.Input → Execution.input`。目录型 use 不假装只校验入口文件即可代表完整自动化，依赖闭包未可冻结时明确阻塞。
 - Installed Flow use：助手只持有 canonical installId；宿主从唯一 `flowinstall.Service` 获取 Catalog/RunLease，预览与执行前分别核验当前状态，最终 run 再绑定 archive/manifest digest；受保护源码不通过助手 inspection 暴露。
