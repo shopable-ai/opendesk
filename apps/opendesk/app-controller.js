@@ -16,7 +16,7 @@
     const schedulerCenter = settings.schedulerCenter;
     const runtimeLog = settings.runtimeLog;
     const permissionsCenter = settings.permissionsCenter;
-    const analyticsSettings = settings.analyticsSettings || null;
+    const settingsCenter = settings.settingsCenter || null;
     const about = settings.about;
     const inspectorLauncher = settings.inspectorLauncher;
     const developerTools = settings.developerTools;
@@ -106,10 +106,10 @@
           await beforeProductSurface('permissions-window');
           await permissionsCenter.open(source);
           return true;
-        case 'analytics.open':
-          if (!analyticsSettings || typeof analyticsSettings.open !== 'function') return false;
-          await beforeProductSurface('analytics-settings-window');
-          await analyticsSettings.open(source);
+        case 'settings.open':
+          if (!settingsCenter || typeof settingsCenter.open !== 'function') return false;
+          await beforeProductSurface('settings-window');
+          await settingsCenter.open(source);
           return true;
         case 'opendesk.about':
           await beforeProductSurface('about-window');
@@ -124,6 +124,7 @@
               'opendesk.logs.open',
               'opendesk.debug.normal',
               'opendesk.debug.detailed',
+              'opendesk.analytics.diagnostics',
             ].includes(event.id)) {
             await beforeProductSurface('developer-tool');
             await developerTools.activate(event.id, source);
@@ -159,7 +160,7 @@
           if (action === 'assistant.open' || action === 'opendesk.assistant.open') prefix = '[ASSISTANT]';
           if (action === 'scheduler.open' || action === 'scheduler.new') prefix = '[SCHEDULER_CENTER]';
           if (action === 'inspector.open' || action === 'opendesk.inspector.open') prefix = '[INSPECTOR]';
-          if (action === 'analytics.open') prefix = '[ANALYTICS_SETTINGS]';
+          if (action === 'settings.open') prefix = '[SETTINGS]';
           if (action === 'opendesk.about') prefix = '[ABOUT]';
           if (action === 'opendesk.activity.suspend') prefix = '[PRODUCT_ACTIVITY]';
           if (action === 'promotions.restore') prefix = '[PROMOTIONS]';
