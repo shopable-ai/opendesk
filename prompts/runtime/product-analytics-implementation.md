@@ -43,21 +43,16 @@ flow_run_finished
 
 本轮范围是官方 OpenDesk 产品，不能自动给所有第三方 `.js` / `.odflow` 增加遥测。现有 Runner 代码命名以最新仓库为准，不因此重新执行命名迁移。
 
-产品层级固定为两层：
+当前菜单调整必须保持最小范围：
 
 ```text
-Privacy Controls
-= 普通用户能力
-= OpenDesk → 设置 → 隐私与数据 → 帮助改进 OpenDesk
-
-Admin Analytics
-= 产品管理员 / 运营能力
-= 浏览器登录 PostHog Web Dashboard
+只删除：
+基础使用统计…
 ```
 
-普通用户设置不得显示 Product Analytics、PostHog、Event、Dashboard、内部事件名、统计计数、Queue 或管理状态；它只负责 consent、简短准确的数据采集说明与隐私说明入口。不要重新添加“基础使用统计…”普通菜单入口，也不要用改名方式保留原来的 Analytics Settings 产品层级。
+不要新增“设置…”作为替代入口，不新增 Product Analytics、PostHog、Dashboard 或诊断菜单，不重排现有菜单。Product Analytics 不应借本轮需求扩张 OpenDesk 的菜单体系。
 
-OpenDesk 客户端不提供 Analytics Dashboard，也不提供“产品统计诊断”菜单或窗口。开发排障只通过自动测试、日志和代码级内部状态完成。发行包中的 PostHog Project Capture Token 只用于事件采集，不是管理员后台凭据；管理员通过产品团队自己的 PostHog 账号与项目权限访问 Web Dashboard。
+统计结果仍由产品管理员/运营通过浏览器登录 PostHog Web Dashboard 查看。OpenDesk 继续负责 consent core、事件合同和发送链；如果未来 OpenDesk 已有统一 Settings / Privacy 产品入口，再把 consent 控件接入那个既有设置体系，本轮不单独创造设置中心。
 
 ## 本轮执行
 
