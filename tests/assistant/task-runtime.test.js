@@ -170,6 +170,30 @@ test('all four asset entry shapes persist without projectId and unresolved direc
   assert.match(prepared.message, /不会猜测入口/);
 });
 
+test('resolved automation directory use still blocks until helper/resource dependency closure can be revalidated', async () => {
+  const file = memoryFile();
+  let inspectCalls = 0;
+  let runCalls = 0;
+  const runtime = TaskRuntime.create({
+    file, rootDir:'/data/assistant', randomUUID:uuids(), clock:clock(),
+    recipeBridge:{
+      async inspect(){ inspectCalls += 1; return {scriptHash:'hash'}; },
+      async run(){ runCalls += 1; return {executionId:'should-not-run',status:'succeeded'}; },
+    },
+  });
+  const task = await runtime.startTask({
+    taskId:'directory-use', conversationId:'conv-a', requestId:'req-directory-use',
+    userGoal:'use this automation', intent:'use',
+    asset:{kind:'automation-directory',ref:'/work/auto',entryRef:'/work/auto/main.js',boundaryResolved:true},
+  });
+  const prepared = await runtime.prepareUse(task.taskId, {});
+  assert.equal(prepared.kind, 'clarify');
+  assert.match(prepared.message, /依赖闭包/);
+  assert.equal(inspectCalls, 0);
+  assert.equal(runCalls, 0);
+  assert.equal(prepared.task.status, 'blocked-dependency-closure');
+});
+
 test('candidate make is reviewable, save-as is exclusive, and verification must bind the exact candidate digest', async () => {
   const file = memoryFile();
   let verificationMode = 'wrong';
