@@ -30,20 +30,33 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 2
       - name: Validate checked-in catalogs without regenerating them
+        shell: bash
         run: |
           mkdir -p .runtime/tests/api-docs
-          node scripts/api-docs.js check > .runtime/tests/api-docs/ci-check.json
+          node scripts/api-docs.js check | tee .runtime/tests/api-docs/ci-check.json
       - name: Test reading dependencies and discovery demonstrations
         if: always()
-        run: node --test tests/api-docs/reader.test.js > .runtime/tests/api-docs/ci-tests.tap
+        shell: bash
+        run: |
+          mkdir -p .runtime/tests/api-docs
+          node --test tests/api-docs/*.test.js | tee .runtime/tests/api-docs/ci-tests.tap
+      - name: Verify catalog regeneration is deterministic
+        run: |
+          node scripts/api-docs.js generate
+          git diff --exit-code -- docs/api/agent
+          node scripts/api-docs.js generate
+          git diff --exit-code -- docs/api/agent
+          test -z "$(git ls-files --others --exclude-standard docs/api/agent)"
       - name: Record source and current JSON consumers
         if: always()
         run: |
           mkdir -p .runtime/tests/api-docs
-          git rev-parse HEAD > .runtime/tests/api-docs/source-head.txt
-          git status --short > .runtime/tests/api-docs/worktree-status.txt
+          git rev-parse HEAD | tee .runtime/tests/api-docs/source-head.txt
+          git status --short | tee .runtime/tests/api-docs/worktree-status.txt
           git diff --check
+          git diff --check HEAD^ HEAD
           git grep -n -F 'runtime-api.ai.json' > .runtime/tests/api-docs/json-consumers.txt || test $? = 1
           git grep -n -E 'runtime-api.ai.json|preferredForAI' -- '*.go' '*.js' '*.json' > .runtime/tests/api-docs/program-consumers.txt || test $? = 1
       - uses: actions/upload-artifact@v4
