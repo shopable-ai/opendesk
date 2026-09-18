@@ -29,7 +29,7 @@ description: "以本次任务和可选脚本资产为中心，复用官方 Codex
 
 - 已关联 JS／目录的 **作者源码读取和“改进已有源码”** 尚未获得任务级 native 文件授权 owner；因此不会把关联路径、`readSource` 字段或 analysis-only Agent 自动升级为作者权限。当前 `improve` 源码通道会 fail closed。
 - 目录候选的多文件事务回写没有可靠 owner；当前只正式支持单文件候选安全另存，不宣称目录原子回写。
-- Runner → 助手的显式资产 handoff 动作尚未新增；当前四类入口来自助手本身。任务一旦建立只使用 task contract 中冻结的资产身份，不轮询 Runner 当前选择。
+- Runner → 助手已有显式一次性 handoff：用户在助手中点击“从 Runner 带入”，产品读取当前 Runner 选中的 JS 或 canonical installed Flow 身份并复制到任务草稿；受保护 `.odpkg` 不投影为源码资产。任务一旦建立只使用 task contract 中冻结的资产身份，不轮询 Runner 当前选择，之后播放器切换条目不会重定向旧任务。
 - Runtime 成功终态默认记录为 `execution-finished-unverified`；没有独立业务 observer 时不升级为业务成功。
 - macOS/Windows 真实 App Mode、真实模型/Codex、真实桌面副作用与发行包视觉验收必须由当前 CI 和后续本机资格给证据；未运行前继续是 NOT RUN。
 
