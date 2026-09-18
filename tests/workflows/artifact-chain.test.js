@@ -144,9 +144,16 @@ test('accepts a legacy Procedure/Candidate pair without inventing capability pro
   const f = fixture(t, source => {
     delete source.procedure.capabilityDecisions;
     for (const mapping of source.candidate.sourceMapping) delete mapping.capabilityDecisionRefs;
+  }, state => {
+    const candidate = JSON.parse(fs.readFileSync(state.file('candidate.json'), 'utf8'));
+    candidate.apiRefs = [state.ref('api/window-get.md', 'CanonicalAPIContract', 'text/markdown')];
+    state.write('candidate.json', candidate);
+    const qualification = JSON.parse(fs.readFileSync(state.file('qualification.json'), 'utf8'));
+    qualification.candidateRef = state.ref('candidate.json', 'CandidateManifest');
+    state.write('qualification.json', qualification);
   });
   const report = f.check();
-  assert.equal(report.verdict, 'pass');
+  assert.equal(report.verdict, 'pass', JSON.stringify(report.errors, null, 2));
   assert.ok(report.notEvaluated.some(item => item.includes('legacy Procedure/Candidate')));
 });
 
