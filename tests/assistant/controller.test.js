@@ -15,7 +15,8 @@ const CONTROL_IDS = new Set([
   'archivedMore', 'archivedOverflow', 'archivedEmpty', 'currentTitle', 'conversationState',
   'titleInput', 'renameConversation', 'archiveConversation', 'deleteConversation', 'modelState', 'globalStatus',
   'modelHelp', 'refreshModel', 'toggleHelp', 'messageEmpty', 'messageTranscript', 'messageOverflow', 'composer',
-  'taskIntent', 'assetKind', 'importRunnerAsset', 'assetRef', 'assetEntry', 'businessCwd', 'taskInput',
+  'taskIntent', 'assetKind', 'importRunnerAsset', 'assetRef', 'assetEntry', 'businessCwd',
+  'allowSourceRead', 'allowModelShare', 'taskInput',
   'send', 'stop', 'taskStatus', 'taskPreview', 'confirmTask', 'cancelTask', 'composerHint',
   'candidateSaveRow', 'candidateSavePath', 'saveCandidate',
 ]);
