@@ -20,7 +20,18 @@ order: 45
 → S12：固定候选、干净状态独立运行与验证
 ```
 
-在现有工作包／操作记录中留一条简短决定：业务步骤、候选能力、选择理由、契约文件与版本、实际入口及二进制身份、实际证据、未验证范围和重查条件。不新增 schema；不把一次 WindowInfo、OCR 点、Locator 或 ElementRef 当持久资产。一次观察、动作回执、业务结果与候选资格分别记录。
+在现有工作包／操作记录中先留轻量决定；S8—S9 形成最终 Procedure 时，把仍被 Recipe 消费的决定收敛到共享合同已有 `SemanticProcedure.capabilityDecisions`：业务步骤、能力需求、实际发现路径、候选及处置、选中方法、canonical contract／必要公共约束、Runtime 验证、Recipe 消费者、未验证范围和重查条件。它是现有 Procedure 的字段，不是新 Stage、Registry 或 API 数据库；临时探索不要求永久保存，失败候选只有存在实际失败证据时才写 `failed`。不把一次 WindowInfo、OCR 点、Locator 或 ElementRef 当持久资产。一次观察、动作回执、业务结果与候选资格分别记录。
+
+### 四个事实必须分开
+
+| 事实 | 回答的问题 | 最小留存 | 不能冒充 |
+| --- | --- | --- | --- |
+| Capability Discovery | 当前业务步骤有哪些现成能力可考虑？ | 短入口 → 相关 catalog；能力需求与候选集合 | 最终方法选择 |
+| Method Selection | 当前现场准备尝试哪个方法，为什么？ | 候选 disposition、选中项、简短依据 | Runtime 已经成功 |
+| Contract Reading | 选中方法怎样正确、安全调用？ | canonical contract／必要 shared constraints 的内容绑定 | 当前应用一定支持 |
+| Runtime Validation | 该方法在当前应用／窗口／入口／权限下实际是否成立？ | pass/fail/partial/not-run、环境范围、evidenceRefs | 文档或类型声明 |
+
+候选可以在真实验证后从 `selected` 变为 `failed`，再选择另一候选；失败证据保留。已知某方法在当前范围不合适时可以直接 `rejected`，不需要为了“完整”故意产生一次副作用失败。只有最终被 Recipe 消费的选择进入 Procedure；探索顺序和模型内部推理不保存。
 
 ## 按需读取与上下文责任
 
@@ -105,7 +116,7 @@ order: 45
 部分完成或动作可能已发生时保留已有事实，停止依赖动作，先对账；
 不得重放前缀、换 backend 重复输入或假定取消撤销了副作用。
 
-在原工作包记录候选、选择依据、契约版本、真实入口、证据和未测项。
+在原工作包记录能力需求、发现路径、候选 disposition、选择依据、契约版本、真实入口、验证证据和未测项；S8—S9 只把最终 Recipe 需要的选择收敛为 `capabilityDecisions`。
 资料未变则复用，现场按契约重验；不每轮加载全库或重新从零示范。
 ```
 
@@ -146,11 +157,13 @@ S12 按冻结候选、正式入口、干净状态和独立结果来源验证。
 
 文档阅读层的离线回归见 [reader.test.js](../../../tests/api-docs/reader.test.js) 与 [discovery.test.js](../../../tests/api-docs/discovery.test.js)。后者按无 API 名称的业务输入走查只读桌面值、校验 JSON 后另存、未知输入结果后的局部维修，并检查短入口接线、普通已跟踪目录文件及 CI 边界。测试中的候选答案属于维护者断言，不能预先提供给被测 Agent；离线阅读与局部控制流检查不等于独立 Agent 盲测或真实 Runtime 运行。
 
+Recipe 工件层另由 [artifact-chain.test.js](../../../tests/workflows/artifact-chain.test.js) 的 Calculator frozen fixture 检查 `Capability Discovery → Method Selection → canonical contract → Runtime Validation → Candidate apiRefs/sourceMapping` 的结构消费关系，并包含双选、缺合同、未运行却声称通过、失败候选无证据和 Candidate 丢 API ref 等反例。fixture 明确是 synthetic；它证明检查器能拒绝断链，不把合成 evidence 冒充历史 Calculator 运行。
+
 以下是[现有验证计划](validation-plan.md)中 BC-04／05／08／09／11／13／15 的具体执行用例，沿用其 Gate、评分和授权；不新增验收体系。两类资产分别覆盖按钮动作与跨步骤取值、原生完整字符串读写，不建设复杂业务表格。初始任务只给业务要求、授权、资料入口和自有目标身份，不提示 API 名称、预选方案或 backend。允许主动发现已有经验；只找到现成 Recipe 的结果记为资产复用，不能单独算方法发现通过。
 
 | 用例 | 使用的已有资产或受控输入 | 必须证明 |
 | --- | --- | --- |
-| 按钮计算并复用实际结果 | cases/calculator.md、examples/ai-cli/macos-calculator-recipe.js | 自主选择适用能力；第二段消费第一次实际读值；合法变参不依赖示范常量 |
+| 按钮计算并复用实际结果 | cases/calculator.md、examples/agent-to-recipe/calculator.js | 从 `targets.md` / `elements.md` 自主比较窗口、语义点击、显示读取等候选；当前黄金 Recipe 实际使用 `window.get/activate/current`、`Accessibility.snapshot`、`UI.tapTargets`、`UI.readText`；启动仍是显式前置条件而非隐藏 `App.launch`；第二段消费第一次实际读值 |
 | 修改消息输入框并读回 | tests/runtime-api/ui-scope-locator-native-macos.js 及其自有 fixture | 保留前导零、空格、中文；识别无专用 CLI 的 Runtime 方法；真实观察、一次写入、实际回读和独立 fixture 状态一致，无额外按钮动作 |
 | 错误参数或不允许的入口 | 相关方法契约的受控反例 | 不发明 API／字段，不以 enabled 推定用户授权，不通过远程入口绕过本地限制；类型与运行结论分开 |
 | 部分完成／unknown／读值失败 | 原有失败用例及受控故障 | 保存实际已完成部分，停止依赖动作，对账前不重放；错误期望不会让业务被判成功 |
