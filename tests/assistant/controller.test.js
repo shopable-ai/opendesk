@@ -218,7 +218,7 @@ test('actual Controller render updates supported message rows immediately and ex
   assert.match(ui.controls.get('messageRow1').state.text, /打开 Calculator/);
   assert.match(ui.controls.get('messageRow0').state.text, /正在生成回复/);
   assert.match(ui.controls.get('messageTranscript').state.text, /打开 Calculator/);
-  assert.match(ui.controls.get('taskStatus').state.text, /确认前不会产生/);
+  assert.match(ui.controls.get('taskStatus').state.text, /确认前不会启动新的业务 Execution/);
   assert.match(ui.controls.get('taskPreview').state.text, /可信预览/);
   assert.equal(executions.length, 0);
 
