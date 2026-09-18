@@ -337,7 +337,7 @@
         executionId,
         workdir:businessCwd,
         logDir,
-        input:canonical.input,
+        inputJSON:JSON.stringify(canonical.input || {}),
         signal:context && context.signal || null,
       });
       const actualExecutionId = String(result && result.executionId || executionId || '');
