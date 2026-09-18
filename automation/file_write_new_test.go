@@ -2,6 +2,7 @@ package automation
 
 import (
 	"os"
+	"runtime"
 	"path/filepath"
 	"testing"
 )
@@ -21,5 +22,16 @@ func TestFileWriteNewNeverReplacesExistingPath(t *testing.T) {
 		if err := fs.WriteNew(link, "replacement"); err == nil { t.Fatal("WriteNew followed/replaced an existing final symlink") }
 		data, readErr := os.ReadFile(protected); if readErr != nil { t.Fatal(readErr) }
 		if string(data) != "protected" { t.Fatalf("protected content=%q", data) }
+	}
+	if runtime.GOOS != "windows" {
+		outside := t.TempDir()
+		parentAlias := filepath.Join(root, "redirect")
+		if err := os.Symlink(outside, parentAlias); err != nil { t.Fatal(err) }
+		if err := fs.WriteNew(filepath.Join(parentAlias, "candidate.js"), "redirected"); err == nil {
+			t.Fatal("WriteNew accepted a symbolic-link parent directory")
+		}
+		if _, err := os.Stat(filepath.Join(outside, "candidate.js")); !os.IsNotExist(err) {
+			t.Fatalf("redirected candidate unexpectedly exists: %v", err)
+		}
 	}
 }
