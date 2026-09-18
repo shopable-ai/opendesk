@@ -89,7 +89,7 @@
 
 推荐的工件关系为：
 
-`Task Contract + 不可变 Raw Trace + Evidence` 形成 `Demonstration Dossier`；经人类可读的语义重建和批准形成 `Semantic Procedure`；经泛化形成 `Generalized Workflow / Skill Spec`；经目标、状态、Geometry、Verifier 和 Recovery 工程形成 `Automation IR`；再派生 JavaScript、Skill、Playbook 或其他运行产物。
+`Task Contract + 不可变 Raw Trace + Evidence` 形成 `DemonstrationDossier`；经人类可读的语义重建和批准形成 `Semantic Procedure`；经泛化形成 `Generalized Workflow / Skill Spec`；经目标、状态、Geometry、Verifier 和 Recovery 工程形成 `Automation IR`；再派生 JavaScript、Skill、Playbook 或其他运行产物。
 
 这一层不能省略，否则系统很容易退化成 `Trace → JavaScript`，并失去来源、置信度、审核状态和重新生成能力。
 
@@ -667,6 +667,62 @@ Skills:
 
 普通 Recipe 可以用独立业务函数及返回结果表达这些步骤；不需要为此先建设新的编排系统。下一步只接受已核对且仍有效的输出，不能依赖前一步遗留的窗口焦点或截图。详细合同模板和非千牛对照场景只在任务求解方法文档维护。
 
+### 10.7 Framework 回落到普通 Recipe：新旧对照样本
+
+2026-09-18 增加普通 Recipe 对照，不覆盖早期实现，也不把本案例转成 Recorder／IR／Compiler 专项：
+
+| 文件 | 角色 |
+| --- | --- |
+| [`examples/app/qianniu.js`](../../examples/app/qianniu.js) | Legacy / Evidence Case：保留真实人工实现、调试债务和历史业务分支，原文件未修改 |
+| 本节 10.2–10.6 | 从实际代码中提炼窗口、状态、业务对象、定位、数据依赖和副作用验证原则 |
+| [`examples/app/qianniu-recipe.js`](../../examples/app/qianniu-recipe.js) | Refined ordinary Recipe：用普通函数重新落实原则，显式 `main()`，不依赖新的编排系统 |
+
+新版 `runOnce()` 的业务顺序是：确认待处理通知 → 读取状态与收件人 → 找到唯一联系入口 → 打开并核对接待窗口 → 确认单个可见订单 → 复制实际商品标题 → 查询匹配商品 → 生成文案 → 原生写入并回读草稿 → 返回明确结果。原文件末尾实际调用 `clickCopyAndInputProduct()`，最终以 `shouldSend=false` 准备草稿；新版保留这一安全上限，不把旧文件中的其他自动发送／发货分支引入默认业务。
+
+| 提炼出的原则 | 新版落点 | 无法证明时的行为 |
+| --- | --- | --- |
+| Observation → State interpretation → Business eligibility | `readActualText`、`interpretStates`、`observeNotification`、`observeOrder` | 颜色不是业务状态；缺失、歧义、状态冲突或收件人不符立即停止 |
+| Target／Region／Geometry 分离 | `region`、`cardFromStatus`、`copyOptions`；实际 `Geometry` 与同帧文字参照物 | 重新读取同一窗口并计算区域；越界、超出资格尺寸、多订单均停止，无固定矩形兜底 |
+| 真实数据按步骤传递 | UI 实际标题 → 新剪贴板文本 → `queryProduct` → `composeMessage` | 剪贴板必须变化且匹配标题；HTTP、业务码、响应字段或商品标题不匹配不得生成正常消息 |
+| Action 与 Verification 分开 | `submitOnce`、`prepareDraft`；原生同引用回读后再读取最终输入框并核对上下文 | 不以无异常／`return true` 为成功；不覆盖已有不同草稿，不降级为盲目键盘粘贴 |
+| 副作用不确定先核对 | `pendingAction`、`failedResult` | 已提交动作后的只读错误，即使标记 `not_started`，也不能抹去此前副作用；返回 `uncertain`，停止重试 |
+| 单次业务与长期等待分开 | `runOnce`、独立且默认不调用的 `supervise` | 只在无通知且所有动作计数为零时有界退避；草稿成功、失败或不确定都会停止，不自动处理下一订单 |
+
+本轮完全没有加入发送／发货函数或可启用它们的配置。`success / DRAFT_VERIFIED` 只证明本次可观察上下文下完整草稿回读匹配，不证明消息已发送、订单已发货或独立业务后台已确认。`conversationId` 与 `orderId` 明确为 `null`；可见收件人、单个订单、状态与标题只是有限依据，同收件人／同标题多订单不能据此可靠消歧。
+
+#### 配置、应用知识与运行边界
+
+配置从 `.runtime/recipes/qianniu/config.json` 有界读取；[配置模板](../../examples/app/qianniu-recipe.config.example.json)故意将未实测的标题、区域、尺寸和原生控件标识留空／`null`。直接复制未填写的模板会安全停止，不表示已有可用千牛布局，不沿用旧 INI／全局 `config` 或 `serviceReady`。
+
+窗口应用知识仍明确限定为早期案例的 Windows `AliWorkbench.exe`。需要填写当前账号完整通知／接待标题、实测逻辑尺寸范围、收件人／状态／联系／订单区域，以及真实唯一聊天 `textField` 的 `name` 或 `identifier`。区域采用父区域的 `0..100` 百分比；订单卡片上下关系以订单面板高度为父级、当前状态文字为参照，标题区域再相对于卡片。订单面板应排除状态筛选标签等非订单内容，且本候选只支持一个可见订单，不能把合成测试的布局抄成真机测量数据。
+
+先填写实际配置并以 `mode: "inspect"` 在已由用户打开、处于前台的接待窗口做只读预检：它不激活、联系、复制、调用商品服务或写入，也不会自动授予资格。它只检查当前接待页，通知到接待的收件人绑定仍需单独真机核验。实际布局／文案／复制／输入框无发送副作用等检查通过后，记录依据，才设置 `layout.qualified`、`layout.evidence`、`layout.exclusiveInteraction`，并为 `mode: "draft"` 分别明确 `allowDraft`、`allowProductQuery`。这些字段是维护者的资格声明，不是程序自行证明过真机的证据。
+
+新版只复用当前已公开且有实现的 [Window](../api/window.md)、[Geometry](../api/geometry.md)、[UI](../api/desktop-ui.md)、`File.readJSON`、`clipboard.paste` 和 `axios.get`；其中部分 Window／原生文本接口仍为 Experimental，真实平台能力和权限不满足时停止。业务方法中的状态与结果 helper 只是本文件的 JavaScript 函数，不是新 Runtime API。
+
+仍需注意：原生文本框不可读写时无键盘兜底；商品服务必须返回与实际复制标题匹配的成功结果；剪贴板原本已是同一标题时，本轮不清空它制造探针，而是报告无法证明新复制。前后检查不是跨窗口业务上下文与输入的原子事务，运行期间不得有并发人工或其他自动化操作；任何收件人、标题或焦点变化均应停止并核对实际效果。
+
+#### 验证入口与本轮证据等级
+
+从仓库根目录执行宿主侧结构／合成检查：
+
+```bash
+node --test tests/recipes/qianniu-recipe.test.js
+```
+
+本轮实际结果为 **53 / 53 通过**：1 项结构／async 包装解析检查，加 [52 项共享合成场景](../../tests/recipes/qianniu-recipe.contract.js)。这些测试加载未改写的正式 Recipe，复用当前真实 Geometry 源码；窗口、UI、剪贴板、HTTP 和草稿动作使用受控替身，不代表千牛真机成功。
+
+当前 OpenDesk Runtime 的独立解析／合成入口和普通业务入口分别为：
+
+```bash
+./dist/opendesk -script tests/recipes/qianniu-recipe-runtime.js -console-mode script
+./dist/opendesk -script examples/app/qianniu-recipe.js -console-mode script
+```
+
+Windows 使用本机实际构建的 `.exe` 路径。[Runtime 合成入口](../../tests/recipes/qianniu-recipe-runtime.js)继续只运行这 52 项合成场景，即使通过也不等于真实千牛资格。本轮网页执行环境没有可用 OpenDesk 构建物，**真实 Runtime 解析／执行未运行**；真实通知／接待绑定、布局／DPI／窗口平移、剪贴板内容、商品服务合同和原生聊天框草稿写入全部标为 **需要真机资格验证**。后续不得将 Node 检查、配置中的 `qualified` 或旧样本当作这些项目已经通过。
+
+普通入口输出 `QIANNIU_RECIPE_RESULT`，应检查 `status`、`code`、`pendingAction`、动作计数与 `next`。配置失败会明确 `blocked / CONFIG_READ_FAILED`；有处理结果的进程退出码不能替代草稿成功判断。测试日志、配置、截图及资格证据留在 `.runtime/`，不写回 Legacy 源码。
+
 ## 11. 当前 OpenDesk 实现位置与真实缺口
 
 ### 11.1 已有的正确基础
@@ -775,7 +831,7 @@ Skills:
 - **语义正确性**：Intent、业务步骤、步骤顺序、遗漏、错误归纳。
 - **去噪正确性**：探索、离题、错误、重试、Recovery 的 Precision / Recall。
 - **泛化正确性**：参数、常量、Secret、分支、循环和 Skill 边界。
-- **目标正确性**：唯一性、多 Locator、一致 Target、错误目标点击。
+- **目标正确性**：唯一性、多 Locator，一致 Target、错误目标点击。
 - **状态与等待**：异步加载、弹窗、滚动和虚拟列表。
 - **Geometry**：窗口移动 / Resize、DPI、多显示器、截图与屏幕坐标转换。
 - **业务验证**：真成功、假成功、后端拒绝、重复副作用和结果不确定。
