@@ -13,7 +13,7 @@
         ↓
 App-owned Product Analytics Core
         ↓
-Consent / Source / Schema / Privacy / Size 校验
+Default-on Enablement / Source / Schema / Privacy / Size 校验
         ↓
 PostHog Provider
         ↓
@@ -24,7 +24,7 @@ Provider final wire privacy scrub
 PostHog Cloud
 ```
 
-OpenDesk 不建设 Analytics Server、Analytics Database、独立 Analytics Daemon、第二 Runtime 或第二 App listener。PostHog 负责事件接收、存储、Trends、Funnels、Retention 和 Dashboard；OpenDesk 负责产品事件语义、随机安装标识、前台 Session、隐私白名单、Provider 生命周期、用户开关、第三方隔离和 Execution 生命周期。
+OpenDesk 不建设 Analytics Server、Analytics Database、独立 Analytics Daemon、第二 Runtime 或第二 App listener。PostHog 负责事件接收、存储、Trends、Funnels、Retention 和 Dashboard；OpenDesk 负责产品事件语义、随机安装标识、前台 Session、隐私白名单、Provider 生命周期、第三方隔离和 Execution 生命周期。V1 基础产品统计默认开启，不建设普通用户统计开关。
 
 正式 Native owner 位于 `pkg/productanalytics/`。官方 JS 只通过 App Mode 已有的 `127.0.0.1:随机端口` local-services listener 调用窄接口；PostHog SDK 和 Project Capture Token 不进入产品 JS。
 
@@ -32,7 +32,7 @@ OpenDesk 不建设 Analytics Server、Analytics Database、独立 Analytics Daem
 
 | 事件 | 当前 owner | 真实触发语义 |
 | --- | --- | --- |
-| `app_started` | Native `productanalytics.Service.Start()`，由 primary OpenDesk App local-services 初始化调用 | 已有有效同意且 Provider 已配置时，每个 primary App process 最多一次 |
+| `app_started` | Native `productanalytics.Service.Start()`，由 primary OpenDesk App local-services 初始化调用 | 默认开启且 Provider 已配置时，每个 primary App process 最多一次 |
 | `app_session_started` | Analytics Core `ensureSessionLocked()` | 第一次真实前台统计活动，或超过 idle timeout 后的新前台活动 |
 | `screen_viewed` | Flow Runner Product Analytics FloatingWindow wrapper | Native `show()` 成功后；create/menu click 不直接算 view |
 | `ui_action` | Flow Runner logical action seam + Player product boundary | Run/Stop/Previous/Next/List；固定 `pointer/keyboard/menu` 枚举 |
@@ -45,13 +45,13 @@ OpenDesk 不建设 Analytics Server、Analytics Database、独立 Analytics Daem
 
 `pkg/productanalytics/` 当前负责：
 
-- 随机 `install_id`，仅在用户明确同意后生成并以 `0600` consent 文件持久化；不用 machine ID、MAC、硬盘/CPU/设备序列号、License ID 或账号 ID。
+- 随机 `install_id`：基础统计默认开启，首次发现有效 Provider 配置时自动生成并以 `0600` 本地 Analytics 状态持久化；不用 machine ID、MAC、硬盘/CPU/设备序列号、License ID 或账号 ID。Provider 未配置时不生成 ID。
 - 随机 `process_id`、`session_id`、`event_id`。
 - foreground session idle timeout；后台运行不创建或延长前台 Session。
 - 六类事件的封闭 schema、字段/枚举白名单和单事件大小上限。
 - PostHog SDK 的有限 Queue、Batch、Retry、Request Timeout、Shutdown Timeout 和 Max Enqueued Requests。
 - Debug Provider 的完整 Event Ring 仅用于自动测试/开发测试，不作为普通产品 UI 或第二套生产 Analytics。
-- Analytics disable 时先关闭 Network Gate，取消可取消的 in-flight 请求，再有界关闭 SDK；未发送队列不能继续发起网络请求。
+- Provider / 内部 kill-switch 关闭 Analytics 时先关闭 Network Gate，取消可取消的 in-flight 请求，再有界关闭 SDK；未发送队列不能继续发起网络请求。该能力不是普通用户菜单。
 
 PostHog Provider 使用 `posthog.CaptureModeAnalyticsV1`，只调用 Capture；不使用 Identify、Alias、Feature Flags、Error Tracking、Personal API Key 或 Project Secret。Provider 设置 `$process_person_profile=false`，不建立 PostHog person profile，并保持 `$geoip_disable=true`。
 
@@ -103,7 +103,6 @@ X-OpenDesk-Analytics-Token
 
 ```text
 GET  /api/product/analytics/status
-POST /api/product/analytics/enabled
 POST /api/product/analytics/screen
 POST /api/product/analytics/action
 POST /api/product/analytics/run/start
@@ -112,7 +111,7 @@ POST /api/product/analytics/run/finish
 
 所有 route 都再次检查 remote address 是 loopback、token 完全匹配、JSON 有大小上限且拒绝未知字段。Native 已经知道的 Recipe lifecycle 不绕 HTTP；installed Flow 子进程只使用受控 bridge 报告真实 Execution lifecycle。
 
-生产客户端没有 Analytics diagnostics route、diagnostics ring 或 Analytics Dashboard UI。
+生产客户端没有 Analytics enable/disable 设置 route、diagnostics route、diagnostics ring 或 Analytics Dashboard UI。
 
 ## 6. Recipe / Flow true-start 与 terminal
 
@@ -131,7 +130,7 @@ Flow Runner request
 → flow_run_finished
 ```
 
-Recipe 与 App 位于同一 Native process，因此可信 owner 直接调用 Analytics Core，不经过 HTTP。Analytics disabled / unconfigured 时 Recipe 直接走原执行路径，不制造 Analytics run identity。
+Recipe 与 App 位于同一 Native process，因此可信 owner 直接调用 Analytics Core，不经过 HTTP。Provider 未配置或内部 kill-switch 关闭时 Recipe 直接走原执行路径，不制造 Analytics run identity。
 
 ### Installed Flow / `.odflow`
 
@@ -191,38 +190,54 @@ Prompt
 
 OpenDesk 自有事件在进入 SDK Queue / Debug Ring 前完成 schema、privacy 和大小校验；PostHog SDK 后续自动加入的 host metadata 再由同一 Provider 的 final wire privacy scrub 删除。业务模块没有 `Capture(name, map)` 之类通用任意事件 API。
 
-## 9. 产品层级：本轮只删除错误菜单入口
+## 9. 产品层级：默认开启 / 无客户端统计菜单
 
-当前 Product Analytics 不应改变 OpenDesk 既有菜单结构。
-
-本轮 UI 范围只有一项：
+V1 基础 Product Analytics 采用与普通网页产品统计相同的产品模型：
 
 ```text
-删除：
+OpenDesk 启动
+→ 基础匿名产品统计默认开启
+→ Provider 配置有效时生成随机 install_id
+→ 六类受控事件进入 Analytics Core
+→ PostHog
+```
+
+普通用户不需要进入：
+
+```text
+设置
+→ 隐私与数据
+→ 帮助改进 OpenDesk
+```
+
+也不新增：
+
+```text
 基础使用统计…
+Product Analytics
+PostHog
+Event
+Dashboard
+Diagnostics
 ```
 
-不新增替代菜单，不新增“设置…”，不新增 Analytics / PostHog / Dashboard / Diagnostics 客户端入口，也不重排其他已有菜单。
+等客户端菜单或管理页面。
 
-统计产品层保持：
+当前行为：
 
-```text
-OpenDesk Product Analytics Core
-→ Event Contract
-→ Analytics Service
-→ PostHog Provider
-→ PostHog Cloud
-```
+- fresh install 默认使用基础匿名统计；
+- `install_id` 只在 Provider 真正可用时生成，因此当前仓库 `projectToken=""` 时不会创建 Analytics identity，也不会发网络请求；
+- 已存在的历史 `denied` 记录继续尊重，避免升级时悄悄反转旧的明确 opt-out；
+- Provider 配置为 disabled / 缺少 capture token / Provider 初始化失败时统计自然不可用，但不能影响 OpenDesk 主业务；
+- Product Analytics 的聚合、Trends、Funnels、Retention 和 Dashboard 仅由产品管理员在 PostHog Web 后台查看。
 
-统计结果由 OpenDesk 产品管理员/运营在 PostHog Web Dashboard 查看。OpenDesk 客户端不建设管理员统计后台。
-
-Consent Core 与持久化能力继续保留，但**本轮不为了 Product Analytics 单独创建新的 Settings 产品入口**。未来只有在 OpenDesk 已有统一 Settings / Privacy 产品体系时，才将 consent 控件接入该既有设置体系；不能再次为了统计功能单独增加顶级菜单。
+内部 `SetConsent(false)` / Network Gate 仍保留为测试和故障处置安全机制，但不通过普通产品 JS、菜单或设置页暴露。
 
 ## 10. 自动测试合同
 
 当前代码包含以下自动测试资产：
 
-- Core consent、install ID、session、schema、invalid enum、event size、Debug Ring、withdraw/disable。
+- Core default-on、install ID 生成/持久化、legacy denied 兼容、session、schema、invalid enum、event size、Debug Ring、内部 disable。
 - PostHog Go SDK **真实 wire payload**：Core → SDK → final privacy Transport → controlled RoundTripper，读取 `/i/v1/analytics/events` 的真实 batch。
 - 最终 wire 字段闭包：拒绝 SDK 自动加入的 OS / Go / library metadata，仅保留批准的产品字段与 `$geoip_disable`。
 - Network Gate disable / in-flight cancellation。
@@ -256,4 +271,4 @@ Cloud HTTP 2xx 只能证明 capture endpoint 接收请求。只有能够在 Post
 
 ## 12. V1 不做的事情
 
-本轮不增加 GA4 第二 Provider，不建设自有 Analytics backend、客户端 Analytics Dashboard 或本地 Analytics diagnostics 产品面，不增加第二 listener/daemon/runtime，不做自动异常采集，不上传用户原始内容，不把 Analytics API 暴露为公共 Runtime API，不把 Run click 当 started，不把 Stop click 当 cancelled，也不为了统计失败而阻断 OpenDesk 主业务。
+本轮不增加 GA4 第二 Provider，不建设自有 Analytics backend、客户端 Analytics Dashboard、本地 Analytics diagnostics 或用户统计设置页，不增加第二 listener/daemon/runtime，不做自动异常采集，不上传用户原始内容，不把 Analytics API 暴露为公共 Runtime API，不把 Run click 当 started，不把 Stop click 当 cancelled，也不为了统计失败而阻断 OpenDesk 主业务。
