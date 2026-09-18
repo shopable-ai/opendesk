@@ -12,7 +12,7 @@ open apps/opendesk/prototypes/desktop-measurement/index.html
 
 ```text
 进入 Live 窗口选择
-→ Hover 聊天窗口 / 备忘录窗口，仅预选
+→ Hover 聊天窗口 / 备忘录窗口，仅预选：目标窗口保持原样，周围区域变暗聚焦
 → primary click 确认 Reference
 → 可观察 FREEZING
 → 成功后才出现 Frozen Snapshot 与正式 Measurement Toolbar
@@ -24,7 +24,7 @@ open apps/opendesk/prototypes/desktop-measurement/index.html
 选择阶段提示固定为：
 
 ```text
-移动鼠标选择窗口 · 单击开始测量 · Esc 取消
+移动鼠标选择窗口 · 目标保持清晰，周围变暗 · 单击开始测量 · Esc 取消
 ```
 
 页面左下角 `LIVE source` 和底部 `Prototype observer` 是原型观测器：用于看见 Live source 继续变化，以及成功确认后 `frozenAt` / snapshotId 固定。它们不是 Production Toolbar。
@@ -47,6 +47,8 @@ open apps/opendesk/prototypes/desktop-measurement/index.html
 ## 关键边界
 
 进入不截图；Hover 建议不是确认；Hover 不激活、置顶、锁定或截图。有效 Reference Confirmation 必须是 primary、同 pointerId、同 window identity、稳定 bounds、完整 down/up 且在 click tolerance 内。右键、中键、拖动、跨窗口 down/up、pointercancel、blur、window move/close 均不得确认。
+
+Live 选窗的视觉语义固定为 **spotlight / cutout**：候选窗口内部不覆盖任何白色、灰色或半透明填充，不改变亮度、不 blur；只压暗候选窗口之外的区域，并用纯描边标识窗口边界。换到另一个 Candidate 时开孔与边框同步移动；没有 Candidate 时不能残留上一窗口的聚焦蒙版。
 
 Reference click 只消费“选择窗口”意图，不触发底层业务，也不成为第一条 Measurement 输入。只有确认成功、更新画面、调整界面后继续测量才创建新 Snapshot。正式颜色、坐标、区域与边距绑定 Frozen Snapshot。
 
