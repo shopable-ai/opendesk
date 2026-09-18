@@ -270,8 +270,12 @@
 
       let source = null;
       if (task.intent === 'improve') {
-        if (task.asset.kind !== 'js-file' && task.asset.kind !== 'automation-directory') {
-          fail('INVALID_IMPROVE_ASSET', 'improve requires an explicitly authorized JS source or resolved automation entry');
+        if (task.asset.kind === 'automation-directory') {
+          fail('DIRECTORY_AUTHORING_DEPENDENCIES_UNRESOLVED',
+            'directory improvement is blocked until the host can freeze and revalidate the reviewed dependency closure; use explain/use or improve an explicitly associated single JS file');
+        }
+        if (task.asset.kind !== 'js-file') {
+          fail('INVALID_IMPROVE_ASSET', 'improve requires an explicitly authorized single JS source');
         }
         source = await readAuthorizedSource(task, context || {});
       } else if (task.asset.kind !== 'none') {
