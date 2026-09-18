@@ -2,7 +2,7 @@
 
 > 日期：2026-09-18  
 > 状态：CURRENT_SOURCE_UPDATED / EXECUTION_EVIDENCE_INCOMPLETE  
-> 当前基线：`master @ a6b026ac2824768909389ddac93bc65b14683c2c`
+> 本轮源码证据快照：`master @ 5622ea534aa16195079ccef68e54eefd4c5cf859`（master 有并行写入，具体执行证据以下方 commit / run ID 为准）
 
 本文件记录“多入口、单安装内核”本轮资格状态。它不把已有源码、历史截图或单元测试的存在自动换算成当前 PASS。
 
@@ -122,29 +122,47 @@ pack / verify 后 marker 不存在
 
 ## 4.1 本轮已经实际执行的非 Native 检查
 
-这些结果来自本轮直接读取当前 `master` 文件后执行，不是历史记录：
+这些结果来自本轮直接读取当前仓库文件并实际执行，不是“文件存在即通过”：
 
-| 检查 | 结果 |
-| --- | --- |
-| `tests/prototypes/marketplace.test.cjs` JavaScript 语法解析 | PASS |
-| Marketplace HTML 内嵌 model JavaScript 语法解析 | PASS |
-| `tests/runtime-api/flow-distribution.js` async-script 语法解析 | PASS |
-| `tests/fixtures/flow-install-test/main.js` JavaScript 语法解析 | PASS |
-| 桌面 sidebar flex / help 底部合同 | PASS |
-| help 去 Card：0 radius / transparent / top divider | PASS |
-| 18px icon +「第一次使用？」同行合同 | PASS |
-| 两句帮助文案 +「查看安装指南 →」合同 | PASS |
-| 窄屏 compact row 且无 `position: fixed` | PASS |
-| Prototype model：Marketplace Verified 不产生 Local Trust | PASS |
-| Prototype model：默认 Flow-scoped Trust | PASS |
-| Prototype model：Publisher-wide 需要额外明确 consent | PASS |
-| Prototype model：Install ≠ Run，显式 Run 才增加执行 | PASS |
-| Prototype model：Cancel 零 Catalog / Trust 写入 | PASS |
-| Prototype model：Purchase ≠ Install | PASS |
-| Prototype model：transaction failure 保留旧状态 | PASS |
-| ID-only Install Intent 字符串合同 | PASS |
+| 检查 | 结果 | 证据边界 |
+| --- | --- | --- |
+| Marketplace prototype model / 静态合同 | PASS | 最终 v1.1 HTML blob `2a1426b9...` + test blob `bb5f92f9...`，29 / 29 实际执行通过 |
+| 帮助区桌面贴底 | PASS | 分类导航承担 `margin-bottom:auto`；帮助区自身不承担定位 margin |
+| 帮助区自身四周 `margin = 0` | PASS | desktop / mobile 静态合同均实际执行通过 |
+| 去独立 Card | PASS | `border-radius:0`、transparent、仅 top divider |
+| 18px icon +「第一次使用？」同行 | PASS | v1.1 静态合同通过 |
+| 固定两句文案 +「查看安装指南 →」 | PASS | v1.1 静态合同通过 |
+| 窄屏 compact row 且非 fixed | PASS | v1.1 静态合同通过 |
+| Prototype：Marketplace Verified ≠ Local Trust | PASS | model 行为测试通过 |
+| Prototype：Flow-scoped 为默认 Trust | PASS | model 行为测试通过 |
+| Prototype：Publisher-wide 需要额外 consent | PASS | model 行为测试通过 |
+| Prototype：Purchase ≠ Install | PASS | model 行为测试通过 |
+| Prototype：Install ≠ Run | PASS | model 行为测试通过 |
+| Prototype：Cancel 零 Catalog / Trust 写入 | PASS | model 行为测试通过 |
+| Prototype：transaction failure 保留旧状态 | PASS | model 行为测试通过 |
+| ID-only Install Intent | PASS | model 行为测试通过 |
+| Runtime Flow JS / shared fixture 语法 | PASS | `flow-distribution.js` 与 fixture 均完成解析；这不是 Runtime 行为 PASS |
 
-这里的 PASS 证明源码合同与 prototype model 行为；它不等于 Chromium 布局截图、不等于 Go package test 已运行，更不等于 Native / OS 通道已通过。
+Chromium v1.1 smoke 已进入 `Flow Commercial Qualification`，但对应最新 Actions run 仍在队列，因此这里不把浏览器视觉证据提前写成 PASS。
+
+## 4.2 GitHub Actions 已取得与待取得证据
+
+已实际取得：
+
+- Flow Commercial run `35297242961`：macOS `go test ./pkg/flowmarketplace -count=1` PASS。
+- 同一 run 的 Windows `go test ./pkg/flowmarketplace -count=1` PASS（日志：`ok opendesk/pkg/flowmarketplace`）。
+- 该轮 macOS 的 B0 package direct/formal Runtime gate PASS。
+- 该轮 `flow-distribution.js` 没有进入 Flow 断言：直接失败于缺失 `OPENDESK_RUNTIME_API_BINARY`。这是 qualification harness 接线错误，不是安装行为 FAIL。
+
+本轮已修复上述资格基础设施：
+
+- `.github/workflows/flow-commercial.yml` 在 macOS / Windows 为 `flow-distribution.js` 注入实际 Runtime binary。
+- Linux portable owner 安装仓库既有 App Mode X11 / audio build dependencies，修复 `X11/Xutil.h` 环境型失败。
+- Windows UI Host 的 `Form.ActiveForm` 遮蔽编译错误改为 `System.Windows.Forms.Form.ActiveForm`；旧 run 中 Marketplace Go test 在该编译错误之前已经 PASS。
+- Marketplace prototype 新增独立 Node + Chromium smoke CI job，并上传 `.runtime/tests/marketplace-prototype/`。
+- 最新 Marketplace Go vertical slice 又新增业务结果级断言：安装完成后 `install-test.marker / result.json / run.json` 必须全部不存在。
+
+后两项新增断言与修复后的 Runtime distribution gate 对应的新 Actions run 尚未执行完成，因此保持 NOT_RUN；不继承旧 run 的结果。
 
 ### 为什么本轮 Native 项不是 PASS
 
@@ -170,10 +188,16 @@ pack / verify 后 marker 不存在
 - 普通本地 JavaScript import 同样保持 Install ≠ Run；
 - package 路径包含中文、空格、深目录。
 
+从仓库根目录进行 macOS 当前构建资格时，可直接执行：
+
+```bash
+OPENDESK_RUNTIME_API_BINARY="$PWD/dist/opendesk" OPENDESK_RUNTIME_API_RUN_DIR="$PWD/.runtime/tests/flow-install-channels/cli" ./dist/opendesk -script tests/runtime-api/flow-distribution.js -console-mode script
+```
+
 正式执行结果写入：
 
 ```text
-.runtime/tests/runtime-api/<run>/results/flow.json
+.runtime/tests/flow-install-channels/cli/results/flow.json
 ```
 
 ### Marketplace test backend
@@ -290,8 +314,8 @@ apps/opendesk/prototypes/marketplace/
 
 本轮尚未取得：
 
-- v1.1 Chromium DOM / 截图重跑证据（源码静态合同已 PASS）；
-- 当前 `master` Runtime gate 的真实 `dist/opendesk` 执行结果（语法合同已 PASS）；
+- v1.1 Chromium DOM / 截图重跑证据（29 / 29 model/静态合同已 PASS，Chromium CI 尚未完成）；
+- 修复 binary 注入后的当前 Runtime distribution gate 真实执行结果（旧 run 只证明 harness 在进入断言前失败）；
 - 当前 macOS Native picker / drop / double-click cold-hot 截图与业务状态；
 - Windows live 原生证据；
 - Web Deep Link 产品接线；
