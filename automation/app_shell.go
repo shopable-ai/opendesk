@@ -62,6 +62,19 @@ type AppOwnedScriptInspector func(context.Context, AppOwnedScriptInspectRequest)
 type AppOwnedScriptRunner func(context.Context, AppOwnedScriptRunRequest) (AppOwnedScriptRunResult, error)
 type AppOwnedExecutionIDAllocator func(kind string) string
 
+type AppOwnedFlowParameter struct {
+	Type        string `json:"type"`
+	Required    bool   `json:"required,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+type AppOwnedFlowInvocation struct {
+	SchemaVersion int                              `json:"schemaVersion"`
+	EffectSummary string                           `json:"effectSummary"`
+	Parameters    map[string]AppOwnedFlowParameter `json:"parameters,omitempty"`
+	FixedInputs   map[string]any                   `json:"fixedInputs,omitempty"`
+}
+
 type AppOwnedFlowInspection struct {
 	InstallID string `json:"installId"`
 	FlowID string `json:"flowId"`
@@ -76,6 +89,7 @@ type AppOwnedFlowInspection struct {
 	ManifestDigest string `json:"manifestDigest"`
 	Runnable bool `json:"runnable"`
 	Protected bool `json:"protected"`
+	Invocation *AppOwnedFlowInvocation `json:"invocation,omitempty"`
 }
 type AppOwnedFlowInspectRequest struct { InstallID string }
 type AppOwnedFlowRunRequest struct {
