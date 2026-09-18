@@ -34,7 +34,7 @@ OpenDesk 不建设 Analytics Server、Analytics Database、独立 Analytics Daem
 | --- | --- | --- |
 | `app_started` | Native `productanalytics.Service.Start()`，由 primary OpenDesk App local-services 初始化调用 | 已有有效同意且 Provider 已配置时，每个 primary App process 最多一次 |
 | `app_session_started` | Analytics Core `ensureSessionLocked()` | 第一次真实前台统计活动，或超过 idle timeout 后的新前台活动 |
-| `screen_viewed` | Flow Runner Product Analytics FloatingWindow wrapper | Native `show()` 成功后；create/menu click 不直接算 view；Privacy Settings 不统计自身访问 |
+| `screen_viewed` | Flow Runner Product Analytics FloatingWindow wrapper | Native `show()` 成功后；create/menu click 不直接算 view |
 | `ui_action` | Flow Runner logical action seam + Player product boundary | Run/Stop/Previous/Next/List；固定 `pointer/keyboard/menu` 枚举 |
 | `flow_run_started` | `pkg/execution` 可信 Emitter lifecycle 经 `productanalytics.RunObserved()` | Request normalization 完成且 Execution 真正进入 running 后 |
 | `flow_run_finished` | 同一 Execution lifecycle | 仅真实 `success/failure/cancelled` 终态；Stop click 不等于 cancelled |
@@ -191,35 +191,32 @@ Prompt
 
 OpenDesk 自有事件在进入 SDK Queue / Debug Ring 前完成 schema、privacy 和大小校验；PostHog SDK 后续自动加入的 host metadata 再由同一 Provider 的 final wire privacy scrub 删除。业务模块没有 `Capture(name, map)` 之类通用任意事件 API。
 
-## 9. 产品层级：Privacy Consent / Admin Dashboard
+## 9. 产品层级：本轮只删除错误菜单入口
 
-### 9.1 普通用户
+当前 Product Analytics 不应改变 OpenDesk 既有菜单结构。
 
-普通用户路径固定为：
+本轮 UI 范围只有一项：
 
 ```text
-OpenDesk
-→ 设置…
-→ 隐私与数据
-→ 帮助改进 OpenDesk
+删除：
+基础使用统计…
 ```
 
-该页面只负责：
+不新增替代菜单，不新增“设置…”，不新增 Analytics / PostHog / Dashboard / Diagnostics 客户端入口，也不重排其他已有菜单。
 
-- 显示基础使用数据是否启用。
-- 提供可随时开启/关闭的 consent 控件。
-- 用普通用户能理解的语言说明采集用途和主要不采集内容。
-- 提供隐私说明入口。
+统计产品层保持：
 
-普通用户页面不暴露 Provider、PostHog、Event、Dashboard、内部事件名、事件计数、Dropped Events、Queue、发送错误码或运营/管理信息。设置页自身不产生自指 Analytics 事件。
+```text
+OpenDesk Product Analytics Core
+→ Event Contract
+→ Analytics Service
+→ PostHog Provider
+→ PostHog Cloud
+```
 
-关闭后立即停止接受新事件、撤销 Analytics identity、关闭 Network Gate 并有界终止 Provider。首次开启不回放或补发同意前行为。
+统计结果由 OpenDesk 产品管理员/运营在 PostHog Web Dashboard 查看。OpenDesk 客户端不建设管理员统计后台。
 
-### 9.2 产品管理员
-
-统计结果由 OpenDesk 产品管理员/运营/开发者在 PostHog Dashboard 查看。OpenDesk 客户端不建设第二套业务 Dashboard，也不提供本地 Analytics diagnostics 产品面。
-
-用于自动测试的 Debug Provider 不是生产 Analytics 第二通道，也不面向普通用户。
+Consent Core 与持久化能力继续保留，但**本轮不为了 Product Analytics 单独创建新的 Settings 产品入口**。未来只有在 OpenDesk 已有统一 Settings / Privacy 产品体系时，才将 consent 控件接入该既有设置体系；不能再次为了统计功能单独增加顶级菜单。
 
 ## 10. 自动测试合同
 
@@ -236,7 +233,6 @@ OpenDesk
 - App-owned Recipe success / failure / startup reject / real cancel。
 - installed Flow success / failure / startup reject / real cancel，并由真实 OpenDesk JavaScript Runtime 检查私有环境没有泄漏。
 - Flow Runner UI action dedupe：工具条、列表 row、Run Selected、keyboard shortcut 合计 10 次逻辑 Run，必须恰好产生 10 个 `ui_action`；Stop pointer/keyboard 和 Previous/Next/List 也做去重断言。
-- Privacy Settings 合同：普通用户页面只有 consent / privacy，不出现 Provider、PostHog、Dashboard、内部事件名或统计管理字段。
 - `tests/runtime-api/product-analytics-isolation.js`：正式 OpenDesk Runtime 入口用于第三方能力隔离验收。
 
 测试断言不以 Analytics 成功为业务成功前提；Analytics callback/provider/network failure 不能改变 Execution result。
