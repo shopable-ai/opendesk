@@ -348,6 +348,7 @@
       manifestDigest: String(item.manifestDigest || ''),
       authorizationRevision: String(item.authorizationRevision || ''),
       permissionRevision: String(item.permissionRevision || ''),
+      invocation: item.invocation && typeof item.invocation === 'object' ? clone(item.invocation) : null,
     });
   }
 
@@ -374,15 +375,60 @@
       }
     }
 
-    function validateFixedInputs(inspected, input) {
-      const fixed = inspected && inspected.fixedInputs && typeof inspected.fixedInputs === 'object' ? inspected.fixedInputs : {};
+    function flowInputMatchesType(value, kind) {
+      if (kind === 'string') return typeof value === 'string';
+      if (kind === 'number') return typeof value === 'number' && Number.isFinite(value);
+      if (kind === 'integer') return typeof value === 'number' && Number.isInteger(value);
+      if (kind === 'boolean') return typeof value === 'boolean';
+      if (kind === 'object') return !!value && typeof value === 'object' && !Array.isArray(value);
+      if (kind === 'array') return Array.isArray(value);
+      return false;
+    }
+
+    function validateInvocationInput(inspected, input) {
+      const invocation = inspected && inspected.invocation && typeof inspected.invocation === 'object'
+        ? inspected.invocation : null;
+      if (!invocation) {
+        fail('FLOW_INVOCATION_CONTRACT_MISSING',
+          'this installed Flow does not publish a signed assistant-use contract; run it from Flow Runner instead of guessing its behavior');
+      }
+      if (invocation.schemaVersion !== 1 || typeof invocation.effectSummary !== 'string' || !invocation.effectSummary.trim()) {
+        fail('FLOW_INVOCATION_CONTRACT_INVALID', 'Flow assistant-use contract is invalid');
+      }
+      const parameters = invocation.parameters && typeof invocation.parameters === 'object'
+        ? invocation.parameters : {};
+      const fixed = invocation.fixedInputs && typeof invocation.fixedInputs === 'object'
+        ? clone(invocation.fixedInputs) : {};
       const actual = input && typeof input === 'object' && !Array.isArray(input) ? clone(input) : {};
+
+      for (const key of Object.keys(actual)) {
+        if (!Object.prototype.hasOwnProperty.call(parameters, key)) {
+          fail('FLOW_UNKNOWN_INPUT', 'input ' + key + ' is not declared by the signed Flow invocation contract');
+        }
+      }
       for (const [key, expected] of Object.entries(fixed)) {
-        if (Object.prototype.hasOwnProperty.call(actual, key) && JSON.stringify(actual[key]) !== JSON.stringify(expected)) {
+        if (Object.prototype.hasOwnProperty.call(actual, key)
+          && JSON.stringify(actual[key]) !== JSON.stringify(expected)) {
           fail('FLOW_FIXED_INPUT_CONFLICT', 'input ' + key + " conflicts with the Flow's fixed behavior");
         }
       }
-      return deepFreeze(Object.assign({}, clone(fixed), actual));
+      const merged = {...fixed, ...actual};
+      for (const [key, parameter] of Object.entries(parameters)) {
+        if (!parameter || typeof parameter !== 'object') {
+          fail('FLOW_INVOCATION_CONTRACT_INVALID', 'Flow parameter metadata is invalid');
+        }
+        if (!Object.prototype.hasOwnProperty.call(merged, key)) {
+          if (parameter.required === true) fail('FLOW_REQUIRED_INPUT_MISSING', 'required input ' + key + ' is missing');
+          continue;
+        }
+        if (!flowInputMatchesType(merged[key], String(parameter.type || ''))) {
+          fail('FLOW_INPUT_TYPE_MISMATCH', 'input ' + key + ' does not match declared type ' + String(parameter.type || ''));
+        }
+      }
+      return deepFreeze({
+        input: clone(merged),
+        invocation: clone(invocation),
+      });
     }
 
     async function prepare(contractInput, input, context) {
@@ -392,7 +438,8 @@
       }
       const inspected = await gateway.inspect(contract.asset.installId, context || {});
       validateInspection(contract, inspected);
-      const actualInput = validateFixedInputs(inspected, input);
+      const invocationUse = validateInvocationInput(inspected, input);
+      const actualInput = invocationUse.input;
       const canonical = {
         taskId: contract.taskId,
         taskRevision: contract.revision,
@@ -417,6 +464,9 @@
           name: String(inspected.name || inspected.flowId || contract.asset.installId),
           version: String(inspected.version || ''),
           publisherId: String(inspected.publisherId || ''),
+          effectSummary: String(invocationUse.invocation.effectSummary),
+          parameters: clone(invocationUse.invocation.parameters || {}),
+          fixedInputs: clone(invocationUse.invocation.fixedInputs || {}),
           input: clone(actualInput),
           sourceVisible: false,
           protected: inspected.protected === true,
