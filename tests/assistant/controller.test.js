@@ -56,9 +56,19 @@ function memoryFile() {
     exists(target) { return files.has(normalize(target)) || dirs.has(normalize(target)); },
     listDir(dir) {
       const root = normalize(dir).replace(/\/$/, '') + '/';
-      return [...files.keys()].filter(key => key.startsWith(root)).map(key => key.slice(root.length)).filter(name => !name.includes('/'));
+      const names = new Set();
+      for (const key of [...files.keys(), ...dirs]) {
+        if (!key.startsWith(root)) continue;
+        const rest = key.slice(root.length);
+        if (rest && !rest.includes('/')) names.add(rest);
+      }
+      return [...names];
     },
-    async readJSON(target) { return clone(files.get(normalize(target))); },
+    async readJSON(target) {
+      const value = files.get(normalize(target));
+      if (typeof value === 'string') return JSON.parse(value);
+      return clone(value);
+    },
     async writeJSON(target, value) {
       const key = normalize(target);
       if (files.has(key)) throw Object.assign(new Error('immutable write'), {code: 'ATOMIC_REPLACE_UNSUPPORTED'});
