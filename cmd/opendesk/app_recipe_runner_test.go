@@ -257,6 +257,76 @@ func TestAppRecipeRunnerAssistantInspectBindsScopeHashInputAndReservedIdentity(t
 	}
 }
 
+func TestAppRecipeRunnerReadScriptUsesExactHostBoundaryAndDigest(t *testing.T) {
+	root := t.TempDir()
+	scriptPath := filepath.Join(root, "source.js")
+	content := []byte(`// source is untrusted data
+console.log("read-only");
+`)
+	if err := os.WriteFile(scriptPath, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runner := newAppRecipeRunner(appRecipeRunnerConfig{}, nil, nil)
+
+	source, err := runner.ReadScript(context.Background(), automation.AppOwnedScriptInspectRequest{
+		ScriptPath: scriptPath,
+		ScopeRoot:  root,
+	})
+	if err != nil {
+		t.Fatalf("read bounded source: %v", err)
+	}
+	if source.Content != string(content) || source.Ext != ".js" {
+		t.Fatalf("source=%+v", source)
+	}
+	if source.ScriptHash != pkgExecution.ComputeScriptHash(content) {
+		t.Fatalf("source hash=%q want=%q", source.ScriptHash, pkgExecution.ComputeScriptHash(content))
+	}
+
+	outsideRoot := t.TempDir()
+	outside := filepath.Join(outsideRoot, "outside.js")
+	if err := os.WriteFile(outside, []byte(`console.log("outside");`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runner.ReadScript(context.Background(), automation.AppOwnedScriptInspectRequest{
+		ScriptPath: outside,
+		ScopeRoot:  root,
+	}); err == nil {
+		t.Fatal("bounded source reader accepted a sibling/outside file")
+	}
+
+	link := filepath.Join(root, "alias.js")
+	if err := os.Symlink(outside, link); err == nil {
+		if _, err := runner.ReadScript(context.Background(), automation.AppOwnedScriptInspectRequest{
+			ScriptPath: link,
+			ScopeRoot:  root,
+		}); err == nil {
+			t.Fatal("bounded source reader followed a symbolic-link entry")
+		}
+	}
+
+	tooLarge := filepath.Join(root, "too-large.js")
+	if err := os.WriteFile(tooLarge, []byte(strings.Repeat("a", 1024*1024+1)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runner.ReadScript(context.Background(), automation.AppOwnedScriptInspectRequest{
+		ScriptPath: tooLarge,
+		ScopeRoot:  root,
+	}); err == nil || !strings.Contains(err.Error(), "1 MiB") {
+		t.Fatalf("oversized source error=%v", err)
+	}
+
+	invalidUTF8 := filepath.Join(root, "invalid.js")
+	if err := os.WriteFile(invalidUTF8, []byte{0xff, 0xfe, 0xfd}, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runner.ReadScript(context.Background(), automation.AppOwnedScriptInspectRequest{
+		ScriptPath: invalidUTF8,
+		ScopeRoot:  root,
+	}); err == nil || !strings.Contains(err.Error(), "UTF-8") {
+		t.Fatalf("invalid UTF-8 source error=%v", err)
+	}
+}
+
 func TestAppRecipeRunnerFlowUsesReservedExecutionIdentity(t *testing.T) {
 	root := t.TempDir()
 	service, err := flowinstall.NewService(flowinstall.Roots{
