@@ -1,7 +1,7 @@
-# Flow Marketplace · 当前交互原型合同 v1
+# Flow Marketplace · 当前交互原型合同 v1.1
 
 日期：2026-09-18  
-状态：PROTOTYPE_IMPLEMENTED / AWAITING_USER_REVIEW  
+状态：PROTOTYPE_V1_1_IMPLEMENTED / PRODUCT_INTEGRATION_NOT_CLAIMED  
 入口：[index.html](index.html)  
 运行与测试：[README.md](README.md)
 
@@ -47,6 +47,19 @@
 六个 fixture：文件自动整理、表格日报汇总、网页资料收集、到点提醒、计算器 UI 演示、订单导出与对账。它们不表示仓库已存在这些可安装商品。
 
 搜索和筛选可组合；无结果时可清除条件。不展示伪造的下载量、评价、销售额或“真实安装成功”统计。
+
+### 左侧安装帮助区（v1.1）
+
+桌面端的帮助区属于侧栏本身，不再表现为一张独立 Card：
+
+- 位于分类导航下方的剩余空间底部；侧栏用纵向布局，帮助区用自动上外边距贴底。
+- 帮助区自身四周 `margin = 0`，无独立白底、无外框、无圆角；只保留顶部细分隔线。
+- 18px 图标与「第一次使用？」在同一行并垂直居中。
+- 正文固定为两句：`在 OpenDesk 中确认安装。` / `是否运行，由你决定。`
+- 唯一操作入口文案为：`查看安装指南 →`。
+- 窄屏侧栏折叠为顶部分类区时，同一帮助区进入普通文档流的紧凑横向帮助行；不使用 `position: fixed`，不遮挡市场内容。
+
+这个区域只解释安装与运行的产品边界，不显示“安装成功”或“已运行”状态，也不成为第二套安装入口。
 
 ### Flow 详情
 
@@ -111,11 +124,11 @@ Release 已撤回在进入安装确认/下载演示前即阻止。`verify` 不�
 
 ## 5. 验证覆盖与证据范围
 
-`tests/prototypes/marketplace.test.cjs`：28 项纯模型检查，覆盖筛选、身份型 intent、scope、entitlement、平台、取消/迟到回调、更新/回滚、存储恢复、畸形存储、无隐式执行等。
+`tests/prototypes/marketplace.test.cjs`：当前包含 29 项源码契约，其中新增侧栏帮助区 v1.1 静态合同；其余覆盖筛选、身份型 intent、scope、entitlement、平台、取消/迟到回调、更新/回滚、存储恢复、畸形存储、无隐式执行等。
 
-`tests/prototypes/marketplace-smoke.py`：19 组浏览器交互检查，覆盖主流程、付费、发布者信任、手动方式、故障、更新、键盘、焦点、错误路由、响应式布局，以及无 JS 页面异常和无外部请求。主界面、详情、信任、成功、故障和移动端截图写入 `.runtime/tests/marketplace-prototype/`。
+`tests/prototypes/marketplace-smoke.py`：19 组浏览器交互场景继续覆盖主流程、付费、发布者信任、手动方式、故障、更新、键盘、焦点、错误路由和响应式布局；v1.1 又在 320 / 390 / 768 / 1280 宽度加入帮助区可见、桌面贴底、去 Card 化、标题同行和移动端非 fixed 的断言。运行截图仍写入 `.runtime/tests/marketplace-prototype/`。
 
-本轮浏览器以 `--set-content` 执行，证据是实际 Chromium DOM 和点击结果，不是 Native OpenDesk 实窗，也不验证浏览器导航与 OS 交接。详见 README。
+此前 v1 浏览器证据曾以 `--set-content` 执行；v1.1 修改后的源码需要重新运行后才可形成新的 Chromium 视觉证据。无论是否重跑，这些浏览器证据都不是 Native OpenDesk 实窗，也不验证浏览器导航与 OS 交接。详见 README。
 
 ## 6. 后续生产接线边界
 
