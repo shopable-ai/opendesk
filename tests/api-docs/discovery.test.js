@@ -39,6 +39,14 @@ const cases = [
     selected: [['desktop-ui', 'UI.tapTexts'], ['runtime', '#异步完成与取消']],
     reason: '方法名从待修代码中识别，不来自任务或历史案例。保留已完成前缀和原错误；未知副作用/取消后不重放，成功路径仍做原业务验证。',
   },
+  {
+    id: 'D-bundled-library',
+    task: '把嵌套数组完整展开，去掉重复值，并保持第一次出现的顺序；只做内存数据处理。',
+    groups: ['data'],
+    candidates: [['libs', '#lodash']],
+    selected: [['libs', '#lodash']],
+    reason: '这是纯数据转换；能力目录只需要发现 Runtime 已默认提供 Lodash 及固定版本，不要求 OpenDesk 复制 _.flattenDeep/_.uniq 的完整第三方方法表，也不为此自建 flatten helper。',
+  },
 ];
 
 function packet(doc, method) {
@@ -60,7 +68,8 @@ function walk(c) {
     return {path: rel, content: text(rel)};
   });
   for (const [doc, method] of c.candidates) {
-    assert.ok(catalogs.some(catalog => catalog.content.includes(`read ${doc} ${method}`)), `目录没有候选 ${method}`);
+    const readCommand = method.startsWith('#') ? 'read ' + doc + ' "' + method + '"' : 'read ' + doc + ' ' + method;
+    assert.ok(catalogs.some(catalog => catalog.content.includes(readCommand)), `目录没有候选 ${method}`);
   }
   const packets = c.selected.map(([doc, method]) => ({doc, method, ...packet(doc, method)}));
   fs.mkdirSync(evidenceDir, {recursive: true});
@@ -196,6 +205,21 @@ test('Case C: source-selected action contract includes partial completion and ca
   const packets = walk(cases[2]);
   for (const word of ['completed', 'actionState', 'unknown']) assert.ok(packets[0].output.includes(word), word);
   assert.match(packets[1].output, /取消/);
+});
+
+test('Case D: bundled library is discovered as a library card, not copied into an OpenDesk method inventory', () => {
+  const packets = walk(cases[3]);
+  const lodash = packets[0].output;
+  assert.match(lodash, /Lodash/);
+  assert.match(lodash, /4\.17\.21/);
+  assert.match(lodash, /_\.flattenDeep/);
+  assert.match(lodash, /_\.uniq/);
+  const dataCatalog = reader.catalog(root, 'data');
+  assert.match(dataCatalog, /Runtime bundled library 能力卡/);
+  assert.match(dataCatalog, /Lodash/);
+  assert.match(dataCatalog, /\| `_` \| 4\.17\.21/);
+  assert.doesNotMatch(dataCatalog, /_\.flattenDeep\s*\(/);
+  assert.doesNotMatch(dataCatalog, /_\.groupBy\s*\(/);
 });
 
 // 只测待修代码的控制流，不模拟/认证原生输入、取消或业务状态。

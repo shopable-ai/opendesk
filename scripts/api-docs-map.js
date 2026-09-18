@@ -15,6 +15,18 @@ const groups = [
   ['entrypoints', '外部入口、计划与分发', '现有 CLI/HTTP/MCP、计划、安装和打包；不是 JS 全局对象', ['ai-cli', 'http-server', 'recorder', 'scheduler-api', 'scheduler-cli', 'flow-cli', 'app-package-cli', 'protected-packages']],
 ].map(([id, title, purpose, docs]) => ({id, title, purpose, docs}));
 
+// 第三方库按“库级能力”发布给 Agent：只维护 Runtime 入口、固定版本/身份、用途和正文锚点，
+// 不在 OpenDesk 目录复制第三方完整 API。source 用于维护与审计，不参与业务方法契约。
+const bundledLibraries = [
+  {name: 'Lodash', entry: '_', version: '4.17.21', source: 'jslibs/lodash.min.js', purpose: '数组、集合、对象与函数工具；包括 flatten、groupBy、uniq、debounce 等', anchor: 'lodash'},
+  {name: 'YAML / js-yaml', entry: 'YAML', version: '5.4.1', source: 'jslibs/js-yaml-5.4.1.opendesk.js', purpose: 'YAML 解析与序列化；稳定入口为 parse/stringify', anchor: 'yaml'},
+  {name: 'CSV / Papa Parse', entry: 'CSV', version: '5.7.0', source: 'jslibs/papaparse-5.7.0.min.js', purpose: 'CSV 解析与生成；稳定入口为 parse/stringify', anchor: 'csv'},
+  {name: 'query-string', entry: 'queryString', version: '仓库固定快照', source: 'jslibs/query-string.min.js', purpose: 'URL query 参数解析与拼接', anchor: 'querystring'},
+  {name: 'Moment', entry: 'moment', version: '2.18.1', source: 'jslibs/moment.min.js', purpose: '日期时间格式化、加减与比较；现有 Recipe 兼容能力', anchor: 'moment'},
+  {name: 'Cheerio', entry: 'cheerio', version: '仓库固定快照', source: 'jslibs/cheerio.js', purpose: 'HTML 解析与类 jQuery 节点查询', anchor: 'cheerio'},
+  {name: 'js-beautify', entry: 'window.js_beautify', version: '1.14.9', source: 'jslibs/beautify1.14.9.js', purpose: '格式化 JavaScript 文本', anchor: 'js-beautify'},
+];
+
 // 仅声明公开接收者与其类型拥有者。实例名是文档称呼，不是新全局对象。
 const surfaces = {
   app: ['App'], window: ['window'], page: ['page'], geometry: ['Geometry'],
@@ -23,7 +35,7 @@ const surfaces = {
   mouse: ['mouse'], input: ['keyboard', 'touchscreen'], clipboard: ['clipboard'],
   'global-shortcut': ['globalShortcut'], events: ['Events'], notifications: ['Notifications'],
   file: ['File', 'FileHandle'], path: ['path'], storage: ['AppStorage'], sqlite: ['SQLite', 'db'],
-  libs: ['queryString', '_', 'moment', 'cheerio', 'beautify', 'js_beautify', 'window.js_beautify'],
+  libs: ['queryString', '_', 'moment', 'cheerio', 'beautify', 'js_beautify', 'window.js_beautify', 'YAML', 'CSV'],
   execution: ['Execution'], 'global-apis': ['console', 'crypto', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame', 'queueMicrotask', 'delay', 'sleep', 'sleepSeconds', 'copyToClipboard', 'getClipboard', 'AbortController', 'AbortSignal', 'URL', 'URLSearchParams', 'TextEncoder', 'TextDecoder', 'ReadableStream', 'WritableStream', 'TransformStream', 'notify', 'alert', 'confirm', 'prompt'], system: ['System'], command: ['Command'],
   audio: ['Audio'], sound: ['Sound', 'playback'],
   ui: ['ui', 'ToastHandle', 'WindowHandle', 'ControlHandle', 'FloatingWindow'],
@@ -89,4 +101,4 @@ const dependencies = [
   {doc: 'desktop-ui', method: /^(UI\.(findTexts|findTextMatches|findText|hasText|readText|tapText|tapTexts|waitText|waitTextGone)|Locator\.(find|waitFor|tap))$/, sections: ['desktop-ui#文本选项', 'desktop-ui#scopewithin', 'desktop-ui#region', 'desktop-ui#relativeto']},
   {doc: 'desktop-ui', method: /^Locator\./, sections: ['desktop-ui#图片选项', 'desktop-ui#原生-target-序列选项']},
 ];
-module.exports = {groups, surfaces, types, instances, wholePages, navigation, uiShared, dependencies};
+module.exports = {groups, surfaces, types, instances, wholePages, navigation, uiShared, dependencies, bundledLibraries};

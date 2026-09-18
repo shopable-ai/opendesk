@@ -35,6 +35,18 @@ order: 45
 | 关联类型 | 对应 types/*.d.ts 的相关声明及必要依赖 | 编码时定向核对；类型正确不等于实际行为正确 |
 | 实现与测试 | 所用入口、Runtime 注入、方法 owner、相关测试 | 冲突、缺口、失败或关键安全边界未明确时定向核验，不通读全仓库 |
 
+### 三类能力采用不同读取粒度
+
+能力发现不能把 JavaScript 语言、第三方 bundled library 和 OpenDesk 自有 API 混成一张巨大方法表：
+
+- **JavaScript 标准能力**：从 Runtime 语言基线确认当前稳定支持范围；普通数组/对象/Promise 等不先寻找同名 OpenDesk API。
+- **Runtime bundled library**：从 `agent/data.md` 的库级能力卡进入 `libs.md`，确认库名、固定版本/身份、全局入口、用途和默认加载状态。目录不枚举 `_.flatten`、`_.groupBy` 等第三方完整 API；常见稳定能力按固定版本使用，冷门、版本相关或安全敏感行为再定向查上游文档/Runtime 证据。
+- **OpenDesk Runtime API**：继续走“能力目录 → 候选方法 → 选中方法完整 canonical contract → 必要公共约束/类型”，因为参数、权限、副作用、取消、部分完成和平台行为由 OpenDesk 定义。
+
+因此遇到“展开/去重数组”“解析 YAML/CSV”“解析 HTML”等纯数据问题时，先判断标准 JS 或已有 bundled library 是否已经足够；
+不能因为 Agent 方法目录没有一个 `OpenDesk.flatten` 就重复造轮子。反过来，UI 输入、文件提交、网络、进程等带宿主语义的行为，
+也不能只凭第三方库或模型常识跳过 OpenDesk contract。
+
 当前外部 Coding Agent 负责使用宿主已有文件／搜索工具，把这些资料带入自己的上下文。提示词给阅读路径，不等于宿主已经加载 Skill。开发者提供任务、授权和资产位置，不必手工把全部 API 贴入对话；缺文件读取或 shell 能力时只完成可做部分，并明确阻塞。
 
 普通 Agent 不读取机器维护总表作为备用定位源。`ai schema` 也只覆盖专用 CLI。未检索到方法时先核对相关 Markdown 方法目录和契约，必要时查类型／注册点，再区分“资料遗漏”“入口受限”“尚未实现”；不能凭单次空搜索定论。

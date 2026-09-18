@@ -23,6 +23,11 @@ OpenDesk 可观察和操作桌面、处理本地数据、调用网络/模型、�
 | 人工录制、扩展、Flow 资源 | [录制与扩展](authoring.md) |
 | CLI/HTTP/MCP、计划、安装与打包 | [外部调用与交付](entrypoints.md) |
 
+能力来源按读取粒度分三类：JavaScript 标准能力看 Runtime 语言基线；Runtime 默认第三方库从
+[文件与数据](data.md)进入库级能力卡，只确认库、版本/固定身份、全局入口与用途，不展开完整第三方 API；
+OpenDesk 自有能力才按“方法目录 → 选中方法 canonical contract”读取。目录没有列出 `_.flatten` 之类第三方方法，
+不表示 bundled library 没有该能力。
+
 ## 最少共用约束
 
 目录和类型声明不证明当前 Runtime、平台、权限或插件可用；只读观察也必须遵守数据访问范围。区分大写 `UI`（外部桌面）与小写 `ui`（OpenDesk 界面），`App`（外部应用）与 `automation.app`（当前 App Mode）。作用域、真实返回值与业务后置条件不能由预期值代替。

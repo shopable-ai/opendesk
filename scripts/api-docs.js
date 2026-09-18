@@ -250,6 +250,7 @@ const conditions = {
   accessibility: 'Experimental/可信本地授权；AX/UIA、ref 生命周期与坐标映射限制。',
   file: '相对路径基于 Execution.workdir；JSON、句柄和普通同步方法语义不同。',
   sqlite: '可信本地 execution；有界 SQL/队列/取消，句柄必须关闭。',
+  libs: 'Runtime 默认预加载的第三方库；按库级能力发现，不把第三方完整 API 复制成 OpenDesk 方法合同。',
   ui: '小写 ui 不是外部 UI；平台/host/授权和句柄生命周期按正文。',
   'automation-app': '仅当前 App Mode execution；不是外部应用 App。',
   'native-extension': '真实已安装插件及 manifest 决定能力；不把示例插件当作内置 API。',
@@ -288,6 +289,16 @@ function catalog(root, groupId, ledger = []) {
   for (const id of group.docs) {
     const d = doc(root, id, ledger);
     out.push(`\n## ${d.headings.find(h => h.level === 1)?.title || id}\n\n${conditions[id] || '状态、前置权限、平台、错误/等待/取消与副作用按选中正文核对。'}\n\n来源：[${id}.md](../${id}.md)。`);
+    if (id === 'libs') {
+      out.push(
+        '本节列的是 Runtime bundled library 能力卡，不是 OpenDesk 方法表。Agent 先确认库、版本/固定身份、全局入口和用途；不在目录展开第三方完整 API。',
+        '| 库 | Runtime 入口 | 版本 / 固定身份 | 主要用途 | 默认加载 | 详细信息 |\n| --- | --- | --- | --- | --- | --- |'
+      );
+      for (const lib of config.bundledLibraries) {
+        out.push(`| ${esc(lib.name)} | \`${esc(lib.entry)}\` | ${esc(lib.version)} | ${esc(lib.purpose)} | 是 | [${esc(lib.name)}](../libs.md#${lib.anchor})；\`read libs "#${lib.anchor}"\` |`);
+      }
+      continue;
+    }
     if (groupId === 'entrypoints') {
       out.push('| 命令/协议章节 | 完整正文 |\n| --- | --- |');
       for (const h of d.headings.filter(h => h.level === 2)) out.push(`| ${esc(h.title)} | [读取](../${id}.md#${h.anchor})；\`read ${id} "#${h.anchor}"\` |`);

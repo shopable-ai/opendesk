@@ -117,20 +117,21 @@ docType: index
 
 ## jslibs
 
-状态、前置权限、平台、错误/等待/取消与副作用按选中正文核对。
+Runtime 默认预加载的第三方库；按库级能力发现，不把第三方完整 API 复制成 OpenDesk 方法合同。
 
 来源：[libs.md](../libs.md)。
 
-| 精确方法；主要输入 → 输出（签名） | 解决的问题 | 副作用；适用限制 | 契约获取 |
-| --- | --- | --- | --- |
-| `_` | _；所属能力：jslibs | 需核对正文；不能假定无副作用；继承本节限制 | [_](../libs.md)；`read libs _` 共享整页兜底 |
-| `beautify / js_beautify` | 来源 - beautify1.14.9.js 常见用途 - 格式化 JS 文本 示例 | 需核对正文；不能假定无副作用；继承本节限制 | [beautify](../libs.md#beautify--js_beautify)；`read libs beautify` 共享整页兜底 |
-| `cheerio` | 来源 - cheerio.js 常见用途 - 解析 HTML - 像 jQuery 一样取文本、属性、节点 示例 适合场景 - 配合 axios/http 抓网页后解析 …（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [cheerio](../libs.md#cheerio)；`read libs cheerio` 共享整页兜底 |
-| `beautify / js_beautify` | 来源 - beautify1.14.9.js 常见用途 - 格式化 JS 文本 示例 | 需核对正文；不能假定无副作用；继承本节限制 | [js_beautify](../libs.md#beautify--js_beautify)；`read libs js_beautify` 共享整页兜底 |
-| `moment` | 来源 - moment.min.js 常见用途 - 时间格式化 - 时间加减与比较 示例 | 需核对正文；不能假定无副作用；继承本节限制 | [moment](../libs.md#moment)；`read libs moment` 共享整页兜底 |
-| `queryString` | 来源 - query-string.min.js 常见用途 - 解析查询字符串 - 拼接 query 参数 示例 | 需核对正文；不能假定无副作用；继承本节限制 | [queryString](../libs.md#querystring)；`read libs queryString` 共享整页兜底 |
-| `window.js_beautify` | window.js_beautify；所属能力：jslibs | 需核对正文；不能假定无副作用；继承本节限制 | [window.js_beautify](../libs.md)；`read libs window.js_beautify` 共享整页兜底 |
+本节列的是 Runtime bundled library 能力卡，不是 OpenDesk 方法表。Agent 先确认库、版本/固定身份、全局入口和用途；不在目录展开第三方完整 API。
 
+| 库 | Runtime 入口 | 版本 / 固定身份 | 主要用途 | 默认加载 | 详细信息 |
+| --- | --- | --- | --- | --- | --- |
+| Lodash | `_` | 4.17.21 | 数组、集合、对象与函数工具；包括 flatten、groupBy、uniq、debounce 等 | 是 | [Lodash](../libs.md#lodash)；`read libs "#lodash"` |
+| YAML / js-yaml | `YAML` | 5.4.1 | YAML 解析与序列化；稳定入口为 parse/stringify | 是 | [YAML / js-yaml](../libs.md#yaml)；`read libs "#yaml"` |
+| CSV / Papa Parse | `CSV` | 5.7.0 | CSV 解析与生成；稳定入口为 parse/stringify | 是 | [CSV / Papa Parse](../libs.md#csv)；`read libs "#csv"` |
+| query-string | `queryString` | 仓库固定快照 | URL query 参数解析与拼接 | 是 | [query-string](../libs.md#querystring)；`read libs "#querystring"` |
+| Moment | `moment` | 2.18.1 | 日期时间格式化、加减与比较；现有 Recipe 兼容能力 | 是 | [Moment](../libs.md#moment)；`read libs "#moment"` |
+| Cheerio | `cheerio` | 仓库固定快照 | HTML 解析与类 jQuery 节点查询 | 是 | [Cheerio](../libs.md#cheerio)；`read libs "#cheerio"` |
+| js-beautify | `window.js_beautify` | 1.14.9 | 格式化 JavaScript 文本 | 是 | [js-beautify](../libs.md#js-beautify)；`read libs "#js-beautify"` |
 
 ## 生成依据
 
@@ -153,4 +154,4 @@ docType: index
 
 - `types/sqlite.d.ts` SHA-256 `0026c6278e61d03029ca89dc8f997017db8ded1c77b3f7d5213af7c369dd458c`
 
-- `docs/api/libs.md` SHA-256 `87b06ce1562105b739662e4621939f533a1fb3ed7d2689d605263cc10c3255e4`
+- `docs/api/libs.md` SHA-256 `68e835bc9996066afb5fa7916b8593ab1437600a7bcc7a9a28c1eb7cfea994e7`

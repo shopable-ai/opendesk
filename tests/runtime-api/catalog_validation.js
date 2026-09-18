@@ -9,7 +9,7 @@ globalThis.RuntimeAPICatalogValidation = (() => {
     'page____Inject', 'browser____Inject', 'context____Inject',
     'browser', 'context', 'playwright',
     'global', 'globalThis', 'module', 'exports', 'require',
-    '_', 'moment', 'cheerio', 'queryString', 'querystring',
+    '_', 'moment', 'cheerio', 'queryString', 'querystring', 'YAML', 'CSV', 'Papa',
     'Automation', 'RuntimeAPITest', 'RuntimeAPICatalogValidation', 'RuntimeAPICoverageValidation', 'RuntimeAPICrypto',
     'browserLegacy', 'browserUpgraded', 'contextLegacy', 'contextUpgraded',
     'pageLegacy', 'pageUpgraded',
