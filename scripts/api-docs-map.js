@@ -73,7 +73,8 @@ const dependencies = [
   {doc: 'ui', method: /^ui\.notify$/, delegate: () => 'ui.toast'},
   {doc: 'ui', method: /^ToastHandle\./, delegate: () => 'ui.toast'},
   {doc: 'ui', method: /^(WindowHandle|ControlHandle)\./, delegate: () => 'ui.createWindow'},
-  {doc: 'desktop-ui', method: /^UI\.(getValue|setValue|tapTargets|getMenuItems|findMenuItem|tapMenuItem)$/, sections: ['accessibility#公共约定', 'accessibility#错误', 'accessibility#平台与能力']},
+  // 文本输入也可能委托原生 owner；读取包必须带上 actionState、取消与引用生命周期。
+  {doc: 'desktop-ui', method: /^UI\.(getValue|setValue|tapText|tapTexts|tapTargets|getMenuItems|findMenuItem|tapMenuItem)$/, sections: ['accessibility#公共约定', 'accessibility#错误', 'accessibility#平台与能力']},
   {doc: 'desktop-ui', method: /^UI\.tapTargets$/, delegate: () => 'UI.tapTexts'},
 
   {doc: 'file', method: /^File\.(readJSON|writeJSON)$/, sections: ['file#写入提交取消与并发', 'file#错误']},
