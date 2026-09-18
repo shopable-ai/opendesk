@@ -303,6 +303,23 @@
       const workspace = state.taskWorkspace && state.taskWorkspace.task ? state.taskWorkspace : null;
       const persistedTask = workspace ? workspace.task : null;
       const candidate = workspace ? workspace.candidate : null;
+      if (selected && record.taskDraftConversationId !== selected.id) {
+        record.taskDraftConversationId = selected.id;
+        if (persistedTask) {
+          const asset = persistedTask.asset || {kind: 'none'};
+          record.taskDraft = {
+            intent: persistedTask.intent || 'chat',
+            assetKind: asset.kind || 'none',
+            assetRef: asset.kind === 'installed-flow' ? String(asset.installId || '') : String(asset.ref || ''),
+            assetEntry: asset.kind === 'automation-directory' ? String(asset.entryRef || '') : '',
+            businessCwd: String(persistedTask.businessCwd || ''),
+            // Confirmation inputs are deliberately not restored after restart.
+            inputJSON: '{}',
+          };
+        } else {
+          record.taskDraft = {intent: 'chat', assetKind: 'none', assetRef: '', assetEntry: '', businessCwd: '', inputJSON: '{}'};
+        }
+      }
       const busy = !!active || state.submitting;
       const canReplacePreview = !!(active && active.task
         && active.conversationId === state.selectedConversationId
@@ -994,6 +1011,7 @@
           helpVisible: false,
           titleEditing: false,
           taskDraft: {intent: 'chat', assetKind: 'none', assetRef: '', assetEntry: '', businessCwd: '', inputJSON: '{}'},
+          taskDraftConversationId: null,
           candidateSavePath: '',
           lifecycle: null,
         };
