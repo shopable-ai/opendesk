@@ -128,7 +128,7 @@ Release 已撤回在进入安装确认/下载演示前即阻止。`verify` 不�
 
 `tests/prototypes/marketplace-smoke.py`：19 组浏览器交互场景继续覆盖主流程、付费、发布者信任、手动方式、故障、更新、键盘、焦点、错误路由和响应式布局；v1.1 又在 320 / 390 / 768 / 1280 宽度加入帮助区可见、桌面贴底、去 Card 化、标题同行和移动端非 fixed 的断言。运行截图仍写入 `.runtime/tests/marketplace-prototype/`。
 
-此前 v1 浏览器证据曾以 `--set-content` 执行；v1.1 修改后的源码需要重新运行后才可形成新的 Chromium 视觉证据。无论是否重跑，这些浏览器证据都不是 Native OpenDesk 实窗，也不验证浏览器导航与 OS 交接。详见 README。
+v1.1 已在 Flow Commercial Qualification run `35300159654` 的 `Marketplace prototype` job 中实际执行：29 项 Node model/静态合同 PASS，Chromium `--set-content` smoke PASS，并上传 `.runtime/tests/marketplace-prototype/` 证据。该证据证明当前 HTML DOM、交互和响应式布局合同，不是 Native OpenDesk 实窗，也不验证浏览器导航与 OS Deep Link 交接。详见 README。
 
 ## 6. 后续生产接线边界
 
