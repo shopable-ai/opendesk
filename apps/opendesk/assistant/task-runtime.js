@@ -83,6 +83,7 @@
     const defaultBusinessCwd = settings.defaultBusinessCwd || (global.Execution && global.Execution.workdir) || '';
     const randomUUID = settings.randomUUID || (global.crypto && typeof global.crypto.randomUUID === 'function' ? () => global.crypto.randomUUID() : null);
     const clock = settings.clock || (() => new Date());
+    const candidateVerifier = typeof settings.verifyCandidate === 'function' ? settings.verifyCandidate : null;
     if (!Contract || typeof Contract.createStore !== 'function') fail('TASK_CONTRACT_UNAVAILABLE', 'task contract module is not loaded');
     if (!file || typeof file.join !== 'function' || typeof file.ensureDir !== 'function' || typeof file.readJSON !== 'function'
       || typeof file.writeNew !== 'function' || typeof file.exists !== 'function' || typeof file.listDir !== 'function') {
@@ -234,14 +235,33 @@
       return deepFreeze({task, candidate:saved});
     }
 
-    async function recordCandidateVerification(taskId, candidateId, evidence) {
+    async function verifyCandidate(taskId, candidateId, criteriaId, context) {
       let task = await taskStore.load(taskId);
       if (!task) fail('TASK_NOT_FOUND', 'task was not found');
       const candidate = await loadCandidate(taskId, candidateId);
       if (!candidate) fail('CANDIDATE_NOT_FOUND', 'candidate was not found');
+      if (!candidateVerifier) {
+        fail('VERIFICATION_OWNER_UNAVAILABLE',
+          'no host-owned candidate verifier is configured; candidate remains unverified');
+      }
+      const criteria = String(criteriaId || '').trim();
+      if (!criteria || criteria.length > 240) fail('INVALID_ARGUMENT', 'verification criteriaId is required');
+      const evidence = await candidateVerifier({
+        task: clone(task),
+        candidate: clone(candidate),
+        criteriaId: criteria,
+        signal: context && context.signal || null,
+      });
       const verified = candidateService.markVerified(candidate, evidence);
       await persistCandidate(verified);
-      task = await updateTask(task, {status:'candidate-verified', evidence:(task.evidence || []).concat([{type:'candidate-verification',candidateId,verification:verified.verificationEvidence}])});
+      task = await updateTask(task, {
+        status:'candidate-verified',
+        evidence:(task.evidence || []).concat([{
+          type:'candidate-verification',
+          candidateId,
+          verification:verified.verificationEvidence,
+        }]),
+      });
       return deepFreeze({task, candidate:verified});
     }
 
@@ -453,7 +473,7 @@
       generateCandidate,
       loadCandidate,
       saveCandidateAs,
-      recordCandidateVerification,
+      verifyCandidate,
       prepareUse,
       confirmUse,
       sha256,
