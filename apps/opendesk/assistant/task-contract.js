@@ -446,7 +446,7 @@
         expectedArchiveDigest: canonical.archiveDigest,
         expectedManifestDigest: canonical.manifestDigest,
         signal: context && context.signal || null,
-        onStarted: context && context.onStarted || null,
+        onReserved: context && context.onReserved || null,
       });
       if (!result || !text(result.executionId, 'executionId', 240, true)) fail('EXECUTION_ID_MISSING', 'host did not return the real Execution identity');
       return deepFreeze({
