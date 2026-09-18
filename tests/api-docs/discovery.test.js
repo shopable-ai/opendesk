@@ -141,6 +141,7 @@ test('current consumers and maintenance guidance do not depend on the retired AP
     'tests/runtime-api/README.md',
     '.prompt/01-path-and-source-context.md',
     'workflows/protected-packages/skills/build-odpkg/references/platform-validation.md',
+    'docs/plans/desktop-automation/automation-platform-capability-completion-plan.md',
     'docs/plans/desktop-automation/platform-primitives/00-GOAL.md',
     'docs/plans/desktop-automation/platform-primitives/CODEX-EXECUTION-GOAL.md',
     'docs/plans/desktop-automation/platform-primitives/PLAN-screen-capture-region-selector.md',
