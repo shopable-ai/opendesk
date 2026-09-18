@@ -164,8 +164,7 @@ YYYY-MM-DD-topic.md
 ```text
 当前源码 / runtime 行为
 -> docs/api/*.md canonical Reference
--> docs/api/runtime-api.ai.json
--> types/*.d.ts
+-> types/*.d.ts（签名与类型）
 -> Git 历史
 ```
 

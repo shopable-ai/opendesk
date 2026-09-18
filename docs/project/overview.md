@@ -223,9 +223,8 @@ docs/quality/gates-and-evidence.md
 
 ```text
 当前源码/runtime
--> docs/api/runtime-api.ai.json
--> docs/api/*.md
--> types/*.d.ts
+-> docs/api/*.md canonical Reference
+-> types/*.d.ts（签名与类型）
 -> Git history
 ```
 

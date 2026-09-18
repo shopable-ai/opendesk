@@ -11,7 +11,7 @@ OpenDesk 的多个公开对象都提供 `getCapabilities()`，但它们面对的
 - 同名字段在不同公开 API 中表达同一件事；
 - 调用方能区分“未授权”“未实现”“配置不完整”“当前不可用”和“尚未探测”；
 - `getCapabilities()` 保持只读诊断能力，不被误解成业务调用前的强制握手；
-- 文档、类型声明、`runtime-api.ai.json` 与 Runtime 行为使用同一语义；
+- canonical 文档、类型声明与 Runtime 行为使用同一语义；
 - 不新增没有必要的全局 `Capabilities` API。
 
 ## 非目标
@@ -118,7 +118,7 @@ automation.app.getCapabilities();
 - capability 查询不得为了把 `available` 变成 boolean 而偷偷增加网络请求、CLI 启动、登录、安装、系统授权提示或桌面遍历。
 - breaking shape 变化仍由各 API 自己的 schema/version 合同管理；本页不是统一返回类型版本号。
 
-## 文档与机器索引
+## 文档、类型与维护检查
 
 需要同时保持一致：
 
@@ -126,14 +126,13 @@ automation.app.getCapabilities();
 Runtime / native or polyfill implementation
 → types/*.d.ts
 → docs/api/<canonical-reference>.md
-→ docs/api/runtime-api.ai.json
+→ tests/runtime-api/manifest.js + Runtime contract
 ```
 
-`runtime-api.ai.json` 是面向 Agent 的高密度索引，可以摘要，但不能把已经支持的能力写成 unsupported，也不能把 compatibility redirect 当成 canonical Reference。
-
-维护者修改这些边界后应运行：
+Agent 能力目录只负责按需导航到这些正式资料，不是第二套事实源。维护者修改这些边界后应运行：
 
 ```bash
+node scripts/api-docs.js check
 node scripts/check_api_docs_contract.js
 ```
 

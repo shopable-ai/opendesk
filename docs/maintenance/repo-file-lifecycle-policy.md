@@ -25,8 +25,8 @@ Do not recreate the retired trees as parallel sources of truth.
 For API facts, use this priority:
 
 1. current source/runtime behavior
-2. `docs/api/runtime-api.ai.json`
-3. `docs/api/*.md`
+2. `docs/api/*.md` canonical Reference
+3. `types/*.d.ts` for signatures and shapes
 4. Git history
 
 For project architecture, implementation and quality facts:

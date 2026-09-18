@@ -1,6 +1,6 @@
 ---
 title: LLM / Agent API 发布契约
-description: 规定 LLM.generate 与 Agent.run 从设计进入 Runtime、类型、测试、docs/api 和机器索引时的单一发布门槛，避免未实现接口提前进入公开 API 文档。
+description: 规定 LLM.generate 与 Agent.run 从设计进入 Runtime、类型、测试、docs/api 和 Agent 导航时的单一发布门槛，避免未实现接口提前进入公开 API 文档。
 ---
 
 # OpenDesk LLM / Agent API 发布契约
@@ -25,7 +25,7 @@ description: 规定 LLM.generate 与 Agent.run 从设计进入 Runtime、类型�
 → 类型声明
 → JavaScript Runtime API 测试
 → docs/api 正式 Reference
-→ API 索引 / 机器索引
+→ API 导航 / Agent 能力目录
 → 公开示例
 → 对应运行证据
 ```
@@ -235,18 +235,19 @@ CLI 子进程如果需要真正的环境替换 / allowlist，应优先作为 `Co
 
 如果实现阶段发现 `getCapabilities(options?)` 不是最合适的最终签名，应以实际可测试合同为准，同时更新本设计；不能为了与设计文本一致保留低质量 API。
 
-## 7. 类型与机器索引同步
+## 7. 类型与 Agent 导航同步
 
 公开 API 不允许只存在于 Markdown。
 
-实现者必须定位仓库当前真实类型声明和 API 机器索引生成来源，并同步：
+实现者必须同步：
 
 - `LLM` / `Agent` 全局对象类型。
 - options、result、meta、output schema、错误类型。
 - backend / protocol 枚举及当前真实支持状态。
-- API 文档机器索引，例如当前仓库实际维护的 `runtime-api.ai.json` 或其生成来源。
+- canonical Reference 与 `tests/runtime-api/manifest.js`。
+- Agent 能力目录；它由文档工具从正式资料和小型导航关系生成，不手工维护第二套完整接口数据库。
 
-若机器索引由脚本生成，不手工维护两份事实源；修改 canonical source 后重新生成并验证。
+修改 canonical source 后运行 `scripts/api-docs.js check/generate` 并验证生成结果。
 
 ## 8. 测试门槛
 
@@ -327,7 +328,7 @@ HTTP LLM 路线与 Agent CLI 路线的通过资格分别记录；某一路径成
 - 配置和凭据不泄露。
 - 文档示例使用真实签名。
 - API 一览、独立 H2、参数表和错误内容符合 `docs/api/.rules.md`。
-- `docs/api/index.md`、`docs/api/README.md` 和机器索引同步。
+- `docs/api/index.md`、`docs/api/README.md` 与生成的 Agent 能力目录同步。
 - 未实施 backend / protocol 没有被描述为支持。
 
 如果只有 Agent 已实现，则只发布 `agent.md`；如果只有 LLM 已实现，则只发布 `llm.md`。不要为了对称性发布不存在的对象。

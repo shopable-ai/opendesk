@@ -16,7 +16,7 @@ order: 13
 | --- | --- |
 | `docs/api/` | 用户能调用什么，参数、返回值、平台限制、错误和示例是什么。 |
 | `docs/implementation/` | Runtime 如何组装，内部对象、资源与架构边界是什么。 |
-| `docs/maintenance/` | Markdown、机器索引、类型和测试如何同步维护。 |
+| `docs/maintenance/` | Markdown、Agent 导航、类型和测试如何同步维护。 |
 
 Go native method 到 Goja function 的反射、参数/返回/错误投影，以及 `page____Inject` 到
 `page` 的两层映射详见 [Go to JavaScript Runtime binding model](./goja-binding-model.md)。
@@ -94,8 +94,8 @@ Go native method 到 Goja function 的反射、参数/返回/错误投影，以�
 ## 内部注入面
 
 `page____Inject`、`browser____Inject`、`context____Inject` 是 polyfill / facade 的内部构造面。
-它们可以为 Runtime 实现保留，但不应出现在面向用户的脚本示例、类型声明或机器索引中，也不
-应被标记为 Stable API。
+它们可以为 Runtime 实现保留，但不应出现在面向用户的脚本示例、类型声明、canonical Reference
+或生成的 Agent 能力目录中，也不应被标记为 Stable API。
 
 `NativeExtensions` 与低层 `NativeExtension` 的 gate、manifest discovery 和 one-shot process
 边界属于实现与安全设计；公开调用形状、安装说明和 Experimental 限制只在
@@ -114,7 +114,7 @@ Go native method 到 Goja function 的反射、参数/返回/错误投影，以�
 ## 变更同步
 
 内部组成变化如果改变用户可见能力、参数、返回、注入条件或默认行为，必须同步更新用户 API
-页面、`runtime-api.ai.json`、`types/*.d.ts` 和相应 JavaScript Runtime API 测试。具体治理流程
+页面、`types/*.d.ts`、`tests/runtime-api/manifest.js` 和相应 JavaScript Runtime API 测试，并重新检查生成的 Agent 导航。具体治理流程
 见 [Runtime API development workflow](./runtime-api-development-workflow.md) 与 [API documentation maintenance](../../maintenance/docs-user-api-editme-toc-maintenance.md)。
 
 `ui.toast()` 这种薄 facade 的同步闭环是：
@@ -124,8 +124,8 @@ automation/custom_ui_notify.go + pkg/customui notification owner
 → polyfills/000-ui.js
 → docs/api/notify.md（用户主入口）+ docs/api/ui.md（namespace/兼容入口）
 → types/custom-ui.d.ts
-→ docs/api/runtime-api.ai.json
 → tests/runtime-api/manifest.js + custom-ui tests
+→ scripts/api-docs.js check/generate（Agent 导航）
 ```
 
 Sound / Audio / Command / SQLite 这类 native global 的同步闭环是：
@@ -135,8 +135,8 @@ automation/sound.go 或 automation/audio.go
 → automation/utils.go 的 Runtime 注册
 → docs/api/sound.md 或 docs/api/audio.md
 → types/Sound.d.ts 或 types/Audio.d.ts
-→ docs/api/runtime-api.ai.json
-→ tests/runtime-api/unit/*.test.js
+→ tests/runtime-api/manifest.js + tests/runtime-api/unit/*.test.js
+→ scripts/api-docs.js check/generate（Agent 导航）
 ```
 
 只有增加纯 JS 组合、默认值或兼容 facade 时，才应增加对应 `polyfills/*.js` 并在文档中标明

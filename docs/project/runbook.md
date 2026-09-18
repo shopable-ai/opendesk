@@ -331,9 +331,9 @@ docs/implementation/macos/screenshot-troubleshooting.md
 
 ```text
 docs/api/*.md
-docs/api/index.md
-runtime-api.ai.json（如对象/路由变化）
+docs/api/index.md（如导航/对象归属变化）
 types/*.d.ts（如签名变化）
+scripts/api-docs.js check/generate（如能力导航变化）
 ```
 
 ### 项目/工程行为变化

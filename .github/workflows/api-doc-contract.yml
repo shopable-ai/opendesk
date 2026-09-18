@@ -22,6 +22,8 @@ jobs:
         run: |
           node --check apps/opendesk/script-runner-simple.js
           node --check apps/opendesk/scheduler-center.js
+      - name: Test API-adjacent documentation consumers
+        run: node --test tests/app-package/app-builder-docs.test.js
   agent-api-reading:
     name: Layered Agent API reading
     runs-on: ubuntu-latest

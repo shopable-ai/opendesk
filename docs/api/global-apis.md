@@ -705,8 +705,8 @@ runTask();
 - **Polyfill**：补齐或包装 JavaScript 行为的内置脚本。
 - **Compatibility**：为迁移保留的兼容形状，不代表完整第三方运行时。
 
-新增、删除或改名全局接口时，应同步检查本页、`runtime-api.ai.json`、对应的 `types/*.d.ts`
-和 `tests/runtime-api/` 中的 JavaScript 契约。Runtime 的加载顺序与资源目录说明见
+新增、删除或改名全局接口时，应同步检查本页、对应的 `types/*.d.ts`、`tests/runtime-api/manifest.js`
+和 `tests/runtime-api/` 中的 JavaScript 契约；Agent 能力目录通过文档工具从正式资料重新生成并检查。Runtime 的加载顺序与资源目录说明见
 [JavaScript Runtime](runtime.md)；不要把 `polyfills/*.js` 中的内部 bridge 或历史兼容 facade 当作用户 API。
 
 ## 全局接口与 Polyfill 的关系

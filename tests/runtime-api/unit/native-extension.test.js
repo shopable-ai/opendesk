@@ -33,10 +33,8 @@
     covers: ['NativeExtensions.list'],
   }, async () => {
     equal(RuntimeAPIObjects.NativeExtensions.status, 'experimental');
-    const index = JSON.parse(File.read(File.join(File.cwd(), 'docs/api', 'runtime-api.ai.json')));
-    const documented = (index.globals || []).find((item) => item.name === 'NativeExtensions');
-    assert(documented, 'runtime-api.ai.json is missing NativeExtensions');
-    equal(documented.status, 'experimental');
+    const reference = File.read(File.join(File.cwd(), 'docs/api', 'native-extension.md'));
+    assert(reference.includes('> 状态：**Experimental**。'), 'canonical Native Extension Reference must remain Experimental');
     equal(typeof NativeExtension, 'undefined', 'registry gate exposed unsafe V0 compatibility global');
   });
 

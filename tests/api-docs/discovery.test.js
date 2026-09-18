@@ -122,6 +122,33 @@ test('Agent-to-Recipe consumers use one short API entry with valid links', () =>
   }
 });
 
+test('current consumers and maintenance guidance do not depend on the retired API JSON', () => {
+  for (const rel of [
+    'README.md',
+    'QUICKSTART.md',
+    'docs/README.md',
+    'docs/api/global-apis.md',
+    'docs/architecture/runtime-capability-contract.md',
+    'docs/architecture/llm-agent-api-publication.md',
+    'docs/implementation/runtime/goja-binding-model.md',
+    'docs/implementation/runtime/runtime-api-composition.md',
+    'docs/implementation/runtime/runtime-api-development-workflow.md',
+    'docs/maintenance/repo-file-lifecycle-policy.md',
+    'docs/maintenance/repository-documentation-map.md',
+    'docs/project/overview.md',
+    'docs/project/runbook.md',
+    'tests/README.md',
+    'tests/runtime-api/README.md',
+    '.prompt/01-path-and-source-context.md',
+    'workflows/protected-packages/skills/build-odpkg/references/platform-validation.md',
+    'tests/app-package/app-builder-docs.test.js',
+    'tests/runtime-api/unit/native-extension.test.js',
+    'tests/extensions/native-plugin/tools/proof-harness/main.py',
+  ]) {
+    assert.doesNotMatch(text(rel), /runtime-api\.ai\.json|\bpreferredForAI\b/, `${rel} 不应继续依赖或要求维护退役 JSON`);
+  }
+});
+
 test('normal CI checks repository content, with no catalog blob transit jobs', () => {
   const ci = text('.github/workflows/api-doc-contract.yml');
   assert.match(ci, /contents: read/);

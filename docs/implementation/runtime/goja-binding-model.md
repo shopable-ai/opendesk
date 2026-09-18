@@ -246,7 +246,7 @@ NewPage()
 ```
 
 `page____Inject`、`browser____Inject` 和 `context____Inject` 是内部构造面，不是用户 API，
-也不应进入 `types/*.d.ts` 或 `runtime-api.ai.json`。它们的作用是让 polyfill 在加载时获得
+也不应进入 `types/*.d.ts`、canonical Reference 或生成的 Agent 能力目录。它们的作用是让 polyfill 在加载时获得
 稳定的 native owner，同时避免 facade 再创建第二个 Page/Browser/Context owner。
 
 Accessibility 与 UI 菜单的相关顺序是：
@@ -354,7 +354,7 @@ OPENDESK_RUNTIME_API_MODE=unit ./dist/opendesk -script scripts/test_runtime_apis
 2. 决定使用 `AutoMapObject`、显式注册，还是 native + polyfill 两层组合。
 3. 更新 `jsMethodAllowlist` 或对应注册函数；不要依赖“导出方法自动出现”。
 4. 如果是 facade，更新相应 `polyfills/*.js` 以及本文件中的 owner/覆盖说明。
-5. 更新 `types/*.d.ts`、`runtime-api.ai.json`、`tests/runtime-api/manifest.js`。
+5. 更新 `types/*.d.ts`、`tests/runtime-api/manifest.js`，并运行 `scripts/api-docs.js check/generate` 验证 Agent 导航；
 6. 在 `tests/runtime-api/unit/<namespace>.test.js` 写 JS 公共契约；只把无法从 JS 观察的
    private/backend seam 留在同包 `_test.go`。
 7. 运行正式 JS gate，并把输出写入 `.runtime/tests/runtime-api/`。

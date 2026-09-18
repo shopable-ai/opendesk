@@ -137,7 +137,6 @@ def source_snapshot() -> dict[str, dict[str, object]]:
         ROOT / "docs/api" / "native-extension.md",
         ROOT / "docs/api" / "README.md",
         ROOT / "docs/api" / "index.md",
-        ROOT / "docs/api" / "runtime-api.ai.json",
         ROOT / "docs" / "implementation" / "runtime" / "native-extension-plugin-discovery.md",
         ROOT / "tests" / "runtime-api" / "unit" / "native-extension.test.js",
         ROOT / "tests" / "runtime-api" / "manifest.js",
