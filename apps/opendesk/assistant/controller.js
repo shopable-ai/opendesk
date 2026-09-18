@@ -181,6 +181,7 @@
                 <option value="automation-directory">自动化目录</option>
                 <option value="installed-flow">已安装 Flow</option>
               </select>
+              <button id="importRunnerAsset" class="task-button" title="一次性带入当前 Runner 选中的自动化" aria-label="从当前 Runner 带入资产">从 Runner 带入</button>
               <input id="assetRef" maxlength="8192" aria-label="资产引用" placeholder="JS/目录绝对路径，或 canonical installId">
               <input id="assetEntry" maxlength="8192" aria-label="目录入口" placeholder="目录入口绝对路径（目录资产可选）">
               <input id="businessCwd" maxlength="8192" aria-label="业务工作目录" placeholder="业务 cwd（可选）">
@@ -219,6 +220,7 @@
     const Session = settings.Session || global.OpenDeskAssistantSession;
     const TaskRuntime = settings.TaskRuntime || global.OpenDeskAssistantTaskRuntime;
     const taskService = settings.taskService || null;
+    const runnerAssetProvider = typeof settings.runnerAssetProvider === 'function' ? settings.runnerAssetProvider : null;
     const execution = settings.execution || global.Execution;
     const llm = settings.llm || global.LLM;
     const agent = settings.agent || global.Agent;
@@ -346,6 +348,10 @@
       const directoryAsset = structured && selectedAssetKind === 'automation-directory';
       await update(record, 'taskIntent', {disabled: busy && !canReplacePreview, value: selectedTaskIntent});
       await update(record, 'assetKind', {disabled: !structured || (busy && !canReplacePreview), value: selectedAssetKind});
+      await update(record, 'importRunnerAsset', {
+        disabled: !runnerAssetProvider || (busy && !canReplacePreview),
+        text: '从 Runner 带入',
+      });
       await update(record, 'assetRef', {disabled: !assetNeedsRef || (busy && !canReplacePreview), value: String(record.taskDraft && record.taskDraft.assetRef || '')});
       await update(record, 'assetEntry', {disabled: !directoryAsset || (busy && !canReplacePreview), value: String(record.taskDraft && record.taskDraft.assetEntry || '')});
       await update(record, 'businessCwd', {disabled: !structured || (busy && !canReplacePreview), value: String(record.taskDraft && record.taskDraft.businessCwd || '')});
@@ -822,6 +828,27 @@
       bind(record, record.handle.control('assetKind'), 'change', 'asset-kind', async () => {
         const control = await record.handle.control('assetKind').getState();
         record.taskDraft.assetKind = String(control && control.value || 'none');
+        await render(record);
+      });
+      bind(record, record.handle.control('importRunnerAsset'), 'click', 'import-runner-asset', async () => {
+        if (!runnerAssetProvider) throw new Error('当前产品没有可用的 Runner 资产入口。');
+        const asset = await Promise.resolve(runnerAssetProvider());
+        if (!asset) throw new Error('Runner 当前没有已选择的自动化。');
+        if (asset.kind === 'unsupported') {
+          throw new Error('Runner 当前条目不能作为助手资产带入：' + String(asset.displayName || asset.runnerKind || 'unsupported'));
+        }
+        if (asset.kind === 'installed-flow') {
+          record.taskDraft.assetKind = 'installed-flow';
+          record.taskDraft.assetRef = String(asset.installId || '');
+          record.taskDraft.assetEntry = '';
+        } else if (asset.kind === 'js-file') {
+          record.taskDraft.assetKind = 'js-file';
+          record.taskDraft.assetRef = String(asset.ref || '');
+          record.taskDraft.assetEntry = '';
+        } else {
+          throw new Error('Runner 返回了未知资产类型。');
+        }
+        if (record.taskDraft.intent === 'chat') record.taskDraft.intent = 'use';
         await render(record);
       });
       for (const id of ['assetRef', 'assetEntry', 'businessCwd', 'taskInput']) {
