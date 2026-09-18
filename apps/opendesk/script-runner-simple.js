@@ -547,6 +547,35 @@
       return app ? app.stopRun() : false;
     }
 
+    function currentAsset() {
+      if (!app || typeof app.state !== 'function' || typeof app.scripts !== 'function') return null;
+      const snapshot = app.state();
+      const selectedName = snapshot && snapshot.selectedScriptName ? String(snapshot.selectedScriptName) : '';
+      if (!selectedName) return null;
+      const entry = app.scripts().find(item => item && item.name === selectedName);
+      if (!entry) return null;
+      if (entry.kind === 'flow') {
+        return Object.freeze({
+          kind: 'installed-flow',
+          installId: String(entry.installId || ''),
+          flowId: entry.record && entry.record.flowId ? String(entry.record.flowId) : '',
+          displayName: String(entry.displayName || entry.name || ''),
+        });
+      }
+      if (entry.kind === 'script' && /\.m?js$/i.test(String(entry.path || ''))) {
+        return Object.freeze({
+          kind: 'js-file',
+          ref: String(entry.path),
+          displayName: String(entry.displayName || entry.name || ''),
+        });
+      }
+      return Object.freeze({
+        kind: 'unsupported',
+        runnerKind: String(entry.kind || ''),
+        displayName: String(entry.displayName || entry.name || ''),
+      });
+    }
+
     function state() {
       return {
         active: !!app,
@@ -565,6 +594,7 @@
       open,
       openList,
       stopRun,
+      currentAsset,
       state,
       waitUntilClosed,
     });
