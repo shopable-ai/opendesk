@@ -74,6 +74,11 @@
       return '已确认，宿主正在做最终一致性检查并准备启动受控自动化…';
     }
     if (phase === 'stopping') return '正在停止；不会提交新的桌面动作。';
+    if (phase === 'unknown') {
+      return progress && progress.executionId
+        ? 'Execution ' + progress.executionId + ' 的终态未能确认；业务效果未知，不会自动重试。'
+        : '任务终态未能确认；业务效果未知，不会自动重试。';
+    }
     if (phase === 'running') {
       if (!progress) return '正在执行受控自动化…';
       const stage = progress.stage === 'first' ? '第一段' : progress.stage === 'second' ? '第二段' : '';
