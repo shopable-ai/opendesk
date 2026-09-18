@@ -1,15 +1,106 @@
 package productanalytics
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"sync"
 
 	posthog "github.com/posthog/posthog-go"
 )
 
 var errAnalyticsTransportDisabled = errors.New("product analytics transport disabled")
+
+const postHogMaximumWireBytes = 512 * 1024
+
+// postHogPrivacyTransport is the final Product Analytics privacy gate.
+//
+// posthog-go deliberately enriches CaptureModeAnalyticsV1 events with host
+// runtime metadata such as $os, $os_version and $go_version after OpenDesk has
+// validated its own typed event. OpenDesk's V1 contract is stricter: those
+// provider-added dimensions are not part of the product schema. Keep the
+// official SDK for batching/retry/shutdown, but scrub SDK-owned enrichment from
+// the final JSON body before it reaches the network. $geoip_disable is retained
+// because it is a processing-control sentinel, not product telemetry.
+type postHogPrivacyTransport struct {
+	base http.RoundTripper
+}
+
+func newPostHogPrivacyTransport(base http.RoundTripper) *postHogPrivacyTransport {
+	if base == nil {
+		if defaults, ok := http.DefaultTransport.(*http.Transport); ok {
+			base = defaults.Clone()
+		} else {
+			base = http.DefaultTransport
+		}
+	}
+	return &postHogPrivacyTransport{base: base}
+}
+
+func (t *postHogPrivacyTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	if t == nil || t.base == nil {
+		return nil, errors.New("product analytics privacy transport unavailable")
+	}
+	if request == nil || request.URL == nil || request.URL.Path != "/i/v1/analytics/events" {
+		return t.base.RoundTrip(request)
+	}
+	if request.Body == nil {
+		return nil, errors.New("product analytics PostHog request body is missing")
+	}
+
+	body, err := io.ReadAll(io.LimitReader(request.Body, postHogMaximumWireBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("read product analytics PostHog body: %w", err)
+	}
+	if len(body) == 0 || len(body) > postHogMaximumWireBytes {
+		return nil, errors.New("product analytics PostHog body exceeds privacy bound")
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, fmt.Errorf("decode product analytics PostHog body: %w", err)
+	}
+	batch, ok := payload["batch"].([]any)
+	if !ok || len(batch) == 0 {
+		return nil, errors.New("product analytics PostHog batch is invalid")
+	}
+	for _, rawEvent := range batch {
+		event, ok := rawEvent.(map[string]any)
+		if !ok {
+			return nil, errors.New("product analytics PostHog event is invalid")
+		}
+		properties, ok := event["properties"].(map[string]any)
+		if !ok {
+			return nil, errors.New("product analytics PostHog properties are invalid")
+		}
+		for key := range properties {
+			if strings.HasPrefix(key, "$") && key != "$geoip_disable" {
+				delete(properties, key)
+			}
+		}
+		if value, exists := properties["$geoip_disable"]; !exists || value != true {
+			return nil, errors.New("product analytics PostHog GeoIP privacy guard is missing")
+		}
+	}
+
+	scrubbed, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("encode product analytics PostHog body: %w", err)
+	}
+	next := request.Clone(request.Context())
+	next.Body = io.NopCloser(bytes.NewReader(scrubbed))
+	next.ContentLength = int64(len(scrubbed))
+	next.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(scrubbed)), nil
+	}
+	next.Header.Del("Content-Length")
+	return t.base.RoundTrip(next)
+}
 
 type gateTransport struct {
 	base http.RoundTripper
@@ -82,7 +173,8 @@ type postHogProvider struct {
 }
 
 func newPostHogProvider(config Config, transport http.RoundTripper) (Provider, error) {
-	gate := newGateTransport(transport)
+	privacy := newPostHogPrivacyTransport(transport)
+	gate := newGateTransport(privacy)
 	maxRetries := config.MaxRetries
 	client, err := posthog.NewWithConfig(config.ProjectToken, posthog.Config{
 		Endpoint:            config.Endpoint,
@@ -99,6 +191,7 @@ func newPostHogProvider(config Config, transport http.RoundTripper) (Provider, e
 		BatchSubmitTimeout:  -1, // never block the caller when upload workers are saturated
 		MaxEnqueuedRequests: config.MaxEnqueuedRequests,
 		CaptureMode:         posthog.CaptureModeAnalyticsV1,
+		Compression:         posthog.CompressionNone,
 	})
 	if err != nil {
 		gate.Disable()
