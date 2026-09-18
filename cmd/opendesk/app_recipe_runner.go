@@ -97,7 +97,7 @@ func (r *appRecipeRunner) Run(parent context.Context, input automation.AppOwnedS
 	}
 	var runResult pkgExecution.ExecutionResult
 	var runErr error
-	if r.analytics != nil {
+	if r.analytics != nil && r.analytics.Status().CaptureEnabled {
 		runResult, _, runErr = runAppRecipeWithProductAnalytics(r.analytics, request)
 	} else {
 		runResult, _, runErr = r.run(request)
