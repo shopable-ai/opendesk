@@ -1,0 +1,25 @@
+{
+  "revision": "r003",
+  "candidatePath": ".runtime/automation-authoring/calculator-fresh-20260918/revisions/r003/candidate-q002.json",
+  "script": "examples/agent-to-recipe/calculator.js",
+  "scriptHash": "a62c72aa2b00f256755aac2524d14e4655a88194c012bf6765f0d314a62774cc",
+  "scope": "macOS 12.7.6 / Calculator 10.16 Basic 232x321 / Chinese native labels / fixed 25×4+10 then 6×actual firstResult",
+  "criteria": [
+    "actual first UI value 110",
+    "second native receipt names derived from fresh firstResult",
+    "actual final UI value and independent 660/660/660",
+    "independent pre-run 0/0/0",
+    "exact reviewed source/snapshot and dependencies unchanged",
+    "independent first-result screenshot + separate visual review"
+  ],
+  "apiDocuments": [
+    "docs/api/window.md",
+    "docs/api/app.md",
+    "docs/api/accessibility.md",
+    "docs/api/desktop-ui.md",
+    "docs/api/page.md",
+    "docs/api/execution.md",
+    "docs/api/runtime.md",
+    "docs/api/ai-cli.md"
+  ]
+}

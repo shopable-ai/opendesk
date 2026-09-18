@@ -71,6 +71,8 @@ Agent-to-Recipe 是生产和完善这些成果的一条开发路径，可以从�
 
 ## 二、人类需求发现入口
 
+2026-09-19 接续建设的来源是用户要求“继续完善工作流，直接使用当前 checkout 和未提交修改，不重做 Calculator”。本轮以固定 `examples/agent-to-recipe/calculator.js` 为实例，落实三个专业方法、冻结测试资料、相邻工件检查和内容绑定代码评审；交付形态仍是普通 JS。保留 S1—S12／G0—G7，不建 Engine／DSL／Compiler，不提交或推送。本轮需求的设计、实现、验证决定表与局限只在[质量总览](../../../docs/quality/agent-to-recipe-workflow-review-20260919.md)汇总，历史现场与事前记录不能事后补造。
+
 - 从原始要求与背景事实理解业务问题。
   - 确认使用者、待解决的重复工作、业务对象、预期成果和当前痛点。
   - 阅读已有样例与资产，区分需求、实现偶然、失败经验和没有来源的说法。
@@ -201,7 +203,7 @@ Agent-to-Recipe 是生产和完善这些成果的一条开发路径，可以从�
 ## 九、当前未知与处理方向
 
 - 宿主 Skill 加载路径、权限隔离、上下文隔离与停止能力：实施前核对实际宿主；影响安装和独立性声明，不阻止本轮写设计。新方法文件不证明当前可自动调用。
-- `trace-distill`、独立 code-rebuild 和人工开发的正式调用／交接：依据[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)设计兼容迁移；本轮更新目标合同和职责，不冒充这些新调用已经由宿主加载或通过独立测试。
+- `trace-distill`、`procedure-synthesize`、`code-rebuild` 方法文件及 Calculator 形状的静态消费检查已实现；宿主自动加载、盲上下文行为评测、人工开发来源适配仍待验证。方法存在、格式合法与行为可靠性分别记录。
 - 计算器 OS、版本、布局、C／AC 语义、结果组件、旧脚本与证据：在授权下定向核查，记录到[案例](../cases/calculator.md)和本次任务包，不在这里猜测。
 - 聊天应用、联系人身份依据、历史读取范围、回复标准、发送授权、模型接入及结果证明：由实际任务合同与获准观察确认；本轮只设计案例，不授权联系真实用户。
 - 跨应用组合、共享许可与支持环境、复用者的配置及维护责任：交付前按声明范围确认；不预设统一平台、分发协议或商业规则。
@@ -225,3 +227,5 @@ Agent-to-Recipe 是生产和完善这些成果的一条开发路径，可以从�
 2026-09-10，v0.5：加入 Structured UI Collection Reading 需求基线，新增 DREQ-25—DREQ-29；冻结 generic collection/business mapping、multi-source Observation、Collection/Traversal、VLM provider 和 mutation/partial completion 边界。详细 Runtime 算法只链接专项架构，不新增 S13、独立 collection Skill 或 Stable API 声明。
 
 2026-09-11，v0.6：补入自然语言任务入口与内部结构化合同边界、执行前用户可审阅操作计划、关键未知优先验证、planned／actual 偏差接续，以及 S7 DistilledSteps／`trace-distill` 与 S8—S9 `procedure-synthesize` 的职责边界。未新增阶段、Runtime 或已安装 Skill 声明。
+
+2026-09-19：沿用 DREQ-01—DREQ-33，增加上述接续实施来源与状态；三个方法文件及验证切片不改变业务需求，也不把合成 fixture 追认为现场。

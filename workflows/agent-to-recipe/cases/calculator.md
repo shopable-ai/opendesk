@@ -8,9 +8,43 @@ order: 10
 
 任务：通过桌面计算器按钮输入 `25 × 4 + 10 =`，读取结果，再点击 `6 × 上一步实际结果 =`，读取、打印并返回最终结果。此文件长期保留案例、设计理由、备选方案、反例和未决问题，不能仅放在会被清理的临时目录。
 
-状态：2026-09-07 整理的需求与设计记录，本次同步 design 归位与可选优化决定；没有运行计算器、生成生产 JS 或取得真实读数。`110`、`660` 是数学验收期望，不是本次观察结果。实际系统、应用版本、布局、按钮坐标、读数方式和候选脚本路径均须在获准执行时确认。
+状态：2026-09-07 建立需求与设计记录；当时没有运行计算器、生成生产 JS 或取得真实读数。2026-09-18 的独立新任务已完成真实 S1—S12 整链，见[正式质量报告](../../../docs/quality/agent-to-recipe-calculator-live-chain-20260918.md)。下文原设计中的“本次未运行／没有实际读值”保留其历史时点；设计里的 `110`、`660` 仍只是验收期望，实际读值以该任务的执行证据为准。
 
 入口：[设计总纲](../design/README.md)、[完整任务树](../design/task-decomposition.md)、[链路交接](../design/chain-design.md)、[应用操作建模](../design/application-operations.md)、[code-rebuild](../design/code-rebuild.md)、[验证计划](../design/validation-plan.md)。以下保留三种起点和五个结果层次，另完整保留十三节点展开，使用 R1—R13 防止与共享合同 S1—S12 重名。它们是同一案例的不同阅读视图，不是两套可执行流程。
+
+## 已完成整链的接续入口
+
+任务根为 `.runtime/automation-authoring/calculator-fresh-20260918/`。原始计划 `r001` 和原始 S1—S12 资格不变；当前定向续作计划为 `r003.1`，交付与证据见 [r003 报告](../../../docs/quality/agent-to-recipe-calculator-r003.md)。这是既有成果的查阅入口；新示范的被测 Agent 仍从业务输入及当前能力发现入口开始。
+
+| 已完成、可复用 | 本轮补充 | 证据／授权边界 |
+| --- | --- | --- |
+| r001 的 S1—S12、实际值与消费者、独立 Oracle；r002 实际运行 110→660 及最终观察 | r003 恢复完整预检，显式清空，保留真实动作回执，维护源码/测试，先冻结后独立资格 | r002 完整资格声明经审计撤回；r003 只按新证据判断。跨文件模块、其他平台/布局、通用表达式、任意参数和故障注入未测 |
+
+按用途读取以下同一任务的文件，不以旧备注中的下一步重启业务：
+
+1. [progress.json](../../../.runtime/automation-authoring/calculator-fresh-20260918/progress.json) 提供当前索引；资格结论仍须核对 [r003 QualificationRecord](../../../.runtime/automation-authoring/calculator-fresh-20260918/revisions/r003/qualification-q002.json) 与新执行证据，不能只看 qualified 标签。
+2. [r003 CandidateManifest](../../../.runtime/automation-authoring/calculator-fresh-20260918/revisions/r003/candidate-q002.json) 固定[维护源码](../../../examples/agent-to-recipe/calculator.js)、API/依赖、输入和来源映射；普通运行及函数说明见 [README](../../../examples/agent-to-recipe/README.md)。
+3. r003 用 `clickCalculatorButtons(win, buttons)` 点击给定序列并返回框架实际回执；主流程明确清空、点击、读取。第二段由本次实际 `firstResult` 展开。r002 的 [Manifest](../../../.runtime/automation-authoring/calculator-fresh-20260918/candidate-r002.json)、[资格记录](../../../.runtime/automation-authoring/calculator-fresh-20260918/qualification-r002.json)和 [S12 交接](../../../.runtime/automation-authoring/calculator-fresh-20260918/attempts/reusable-recipe-r002-qualification/handoff.json)保留历史原文，缺口以 r003 审计记录纠正。
+4. 原 [r001 CandidateManifest](../../../.runtime/automation-authoring/calculator-fresh-20260918/candidate.json)、[candidate.js](../../../.runtime/automation-authoring/calculator-fresh-20260918/candidate.js)和 [S11 交接](../../../.runtime/automation-authoring/calculator-fresh-20260918/attempts/author-freeze-001/handoff.json)保留为旧资格证据，不再是当前推荐交付。旧 `handoff-notes.json` 中“S12 未运行”只记录资格前状态，不回写冻结字节。
+
+从仓库根目录运行当前真实测试；它为每次运行建立新的证据目录，不覆盖旧结果：
+
+```bash
+node tests/workflows/calculator/qualify.cjs
+```
+
+该命令会实际操作 Calculator，先验证固定 Manifest/依赖及干净起点，再断言实际首值、原生动作回执与最终值，使用独立观察和截图。具体新执行及失败修复见 r003 报告；自动结果与视觉审阅分别报告。r002 的历史 [测试结果](../../../.runtime/automation-authoring/calculator-fresh-20260918/executions/r002-tests/r002-2026-09-18T15-02-22-105Z-48326/test-result.json)不替代新资格。
+
+从仓库根目录执行以下两条 **Node 只读完整性检查**，不会启动 Calculator 或执行 Recipe：
+
+```bash
+node workflows/agent-to-recipe/scripts/check-handoff.js --request ".runtime/automation-authoring/calculator-fresh-20260918/attempts/author-freeze-001/request.json" --handoff ".runtime/automation-authoring/calculator-fresh-20260918/attempts/author-freeze-001/handoff.json" --root "task=.runtime/automation-authoring/calculator-fresh-20260918"
+node workflows/agent-to-recipe/scripts/check-handoff.js --request ".runtime/automation-authoring/calculator-fresh-20260918/attempts/independent-qualification-001/request.json" --handoff ".runtime/automation-authoring/calculator-fresh-20260918/attempts/independent-qualification-001/handoff.json" --root "task=.runtime/automation-authoring/calculator-fresh-20260918"
+```
+
+检查范围和限制见[工作流完整性检查](../WORKFLOW.md#4-交接完整性检查可执行但不替代资格)。退出码 0 仅证明所检查的交接完整性；业务与视觉 PASS 来自质量报告引用的原始执行。报告中的 Runtime 一行命令是历史验收命令，不能为了查阅成果再次运行并覆盖其日志目录。以后确需新运行时，另建尝试并核对现场和适用范围。
+
+上述任务包在可清理的 `.runtime/` 中，未作为永久源码或 Catalog 发布。文件缺失或 hash 不符时，报告具体不可复核项，不能仅凭本文或 progress 的 passed 标签宣布当前可运行。
 
 ## 业务需求与不可替代的事实
 

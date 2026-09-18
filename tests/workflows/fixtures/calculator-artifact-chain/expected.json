@@ -1,0 +1,15 @@
+{
+  "fixtureStatus": "fixture-only",
+  "positive": {"firstResult":"110","finalResult":"660","verdict":"pass"},
+  "negativeCodes": [
+    "MISSING_EVIDENCE",
+    "MIXED_ATTEMPT",
+    "SIDE_EFFECT_UNKNOWN",
+    "PARTIAL_QUALIFICATION",
+    "NECESSARY_ACTION_OMITTED",
+    "DATA_DEPENDENCY_BROKEN",
+    "HISTORICAL_FACT_UNBOUND",
+    "HASH_MISMATCH"
+  ],
+  "note": "Expected values are test Oracles and are never read by the candidate source or used as producer data."
+}

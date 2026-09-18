@@ -13,7 +13,7 @@ order: 30
 - 以[主方法](../../../docs/frameworks/demonstration-to-automation-pipeline.md)第 0 节十二阶段总表、[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)的 S1—S12 映射为主编号；业务分解依据[任务求解方法](../../../docs/frameworks/automation-problem-solving-framework.md)。
 - 本文保留五个需求结果层次，下面写实际要完成的大任务和小任务；阶段是开发自动化的方法，不是生成后每次业务运行都要重走的步骤。
 - 讨论中的十三节点视图也保留在后文，但用 R1—R13 标识其原节点，防止“讨论 S4＝状态重建”与“合同 S4＝动作后验证”混用。这是来源对照，不是新增运行阶段或悄悄修订上游文档。
-- 应用操作细化见[应用操作建模与封装](application-operations.md)；S11 的按需质量改进见[code-rebuild](code-rebuild.md)。当前只创建 [application-engineer 方法入口](../skills/application-engineer/SKILL.md)；`trace-distill` 是本轮明确的目标专业职责，但尚未创建 SKILL.md、宿主调用或独立验收，不声明其已可用。
+- 应用操作细化见[应用操作建模与封装](application-operations.md)；S11 的按需质量改进见[code-rebuild](code-rebuild.md)。当前四个方法文件及验证切片见 [WORKFLOW 第 4.1 节](../WORKFLOW.md#41-相邻工件消费检查与方法入口)；宿主自动调用和独立上下文验收尚未证明，任务树与 S1—S12 编号不变。
 - Structured Collection Reading 作为 S1—S12 内的跨应用数据读取能力整合，**不新增 S13，也不新增 collection/ui-understanding/VLM Skill**。`UI.readCollection()`／`UI.collectCollection()` 当前只是在专项架构冻结的 Working Contract，真正实现前生成代码只能使用当前 API。
 - 本文回答完整需要做什么；[requirements.md](requirements.md)明确来源和需求基线，[chain-design.md](chain-design.md)明确环节、输入输出和组合，[validation-plan.md](validation-plan.md)明确凭什么通过。不在任务树复制完整专业方法和数据合同。
 
@@ -224,7 +224,7 @@ order: 30
       - 保持路线边界。
         - 普通路线直接维护 JS；过程和交接文件不是第二份可执行 IR。
         - 完整 Recorder 专项才构造 Canonical Automation IR 并派生代码，未知 Locator、Verifier、Postcondition 或 Recovery 不得静默编译为成功。
-        - recipe-build 保留生成职责；code-rebuild 是拟新增的独立可选职责，不再是改名替代。详细 Skill、宿主接入和合同兼容尚未实现，不冒充现有合法新调用。
+        - recipe-build 保留生成职责；code-rebuild 已有独立可选方法文件，允许 baseline-retained，不是改名替代。宿主接入及超出既有合同的适配仍待实施，不冒充已安装新调用。
   - **Ⅴ. 从候选到合格、可维护的自动化资产**
     - **S12｜独立资格验收、限定范围晋级与维护**
       - 核对实际候选与执行条件。
@@ -306,11 +306,11 @@ order: 30
 
 - 保留历史六项专业职责的设计依据，目标职责以[链路设计](chain-design.md)为准；旧 Skill 目录已删除，不作为当前可调用入口。本次仅已有 application-engineer 正式方法文件，其他目标职责的实现状态不被设计文本升级。
   - automation-plan 负责 S1；application-engineer 负责 S2／S10；task-demonstrate 负责 S3—S6。
-  - **trace-distill 目标职责负责 S7**：消费冻结的合同／计划、Dossier／Raw Trace、必要 AppProfile 和证据，发布 DistilledSteps；尚未创建正式 Skill 或宿主调用。
+  - **trace-distill 负责 S7**：消费冻结的合同／计划、Dossier／Raw Trace、必要 AppProfile 和证据，发布 DistilledSteps；[方法文件](../skills/trace-distill/SKILL.md)及相邻消费检查已实现，宿主加载与独立行为验证未证明。
   - **procedure-synthesize 负责 S8—S9**：消费 DistilledSteps，将必要路径转成 Business Step、参数、数据依赖和复用规则，不重新维护第二套原始 action disposition。
   - recipe-build 负责 S11 的生成／登记；recipe-qualify 负责 S12。
   - Structured Collection 不增加一个 Skill：CollectionProfile 由 application-engineer 的既有认识/工程化职责生产，Runtime working primitive/collector 由后续能力任务实现，business mapping 属于过程/Recipe，资格仍由 recipe-qualify。
-  - 拟新增 code-rebuild 负责独立按需质量改进，不复制另一套代码生成责任；详细 Skill 与正式合同兼容尚未实施，不能把设计名称当作已安装能力。
+  - [code-rebuild](../skills/code-rebuild/SKILL.md) 负责独立按需质量改进，不复制代码生成责任；已应用于固定 Calculator 基线审查，不能把同一 Agent 审查当作盲上下文验证或已安装能力。
 - 将工作包与阶段、文件、Agent 区分开。
   - 一个业务工作包可以经过多个阶段；多个业务步骤可在一个 JS 文件中实现，不因节点多而创建大量 Skill。
   - 默认同一 Agent 继续，内部子作业直接共享同版资料；每次正式消费固定输入版本、范围与权限，只传必要上下文。独立接续测试时资料不足要明确缺口，而非复制全部聊天补救。

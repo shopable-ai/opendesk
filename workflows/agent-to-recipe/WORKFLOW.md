@@ -6,11 +6,11 @@ order: 10
 
 # Agent-to-Recipe｜工作流导航与应用工程入口
 
-本文件负责整体工作流导航、手工协调执行规程和当前已存在的方法入口，不是自动调度程序。当前已建立 [application-engineer/SKILL.md](skills/application-engineer/SKILL.md) 方法入口；其余职责只有在对应实现、宿主加载和验证实际完成后才视为可用。本文不复制专业正文，也不自动授予桌面权限。
+本文件负责整体工作流导航、手工协调执行规程和当前已存在的方法入口，不是自动调度程序。当前已建立 [application-engineer](skills/application-engineer/SKILL.md)、[trace-distill](skills/trace-distill/SKILL.md)、[procedure-synthesize](skills/procedure-synthesize/SKILL.md) 和 [code-rebuild](skills/code-rebuild/SKILL.md) 方法文件，可由当前 Agent 显式读取使用；文件、辅助程序、宿主加载、独立上下文评测和真实业务资格分别判断。本文不复制专业正文，也不自动授予桌面权限。
 
 ## 本轮执行规程：从已有成果继续，而不是重新开始
 
-本节是现有 S1—S12 的**手工协调执行清单**，不是新增 Skill、自动调度器或数据格式。默认由当前 Agent 消费真实文件后连续推进；不能调用尚未实现的 `automation-plan`、`trace-distill`、`recipe-build` 或 `recipe-qualify` 命令。专业方法、字段和完整任务树仍分别以原文件为准。
+本节是现有 S1—S12 的**手工协调执行清单**，不是自动调度器或数据格式。默认由当前 Agent 消费真实文件后连续推进；Skill 方法文件并不是同名 CLI 命令，不能虚构 `automation-plan`、`trace-distill`、`recipe-build` 或 `recipe-qualify` 命令。专业方法、字段和完整任务树仍分别以原文件为准。
 
 ### 1. 固定入口与本轮边界
 
@@ -37,6 +37,8 @@ order: 10
 
 文件存在只能证明有文件，`progress.json` 也只是进度索引。依次核对：同一 task／工作包／attempt → request 版本 → 实际引用字节 → Gate 声明与证据 → 本轮合同、计划和环境适用性。资格不存在、已失效或证据不可复核的部分仍放在后两列，不能以 `completed` 标签提升为可复用。
 
+冻结记录中的待办须按其阶段和写入时点解释。例如 S11 的 Candidate／交接备注写着“S12 未运行”，接续时应沿 progress 中的资格引用查找后续 QualificationRecord 和对应 request／handoff，核对它们绑定同一 Candidate／合同 hash 及所需 scope。后续证据完整时保留已经完成的资格；不因旧备注重跑，也不回写冻结文件或把 qualification hash 填回 Candidate。若引用缺失或绑定不一致，记录具体缺口。已完成 Calculator 的实例见[案例接续入口](cases/calculator.md#已完成整链的接续入口)。
+
 同一任务只保留一个进度写入者。没有权限读取的本地任务包明确写“未读取”，不能用仓库里的 Calculator golden 充当该任务的真实成果。
 
 ### 3. 按当前输入就绪的阶段推进
@@ -55,6 +57,18 @@ order: 10
 | S12 | 固定候选与请求验证范围，从干净状态执行真实入口 | QualificationRecord、实际命令、环境、结果及证据；分别记录 pass／fail／not-run／blocked，失败定向回流 |
 
 S8—S11 必须保留跨步骤真实数据依赖。例如当前计算器案例的第二次计算只能消费第一次从 UI 实际读取的 `firstResult`，不能用 expected 或 JS 算术替代。helper 可以表达业务语义，但不能隐式清空状态、偷偷补点或改变用户要求的操作方式。
+
+S11 还必须把生产 Recipe 与资格代码分开。一个应用操作在同一流程中重复时，优先形成接收语义参数并返回实际结果的普通函数；点击序列与“清空后计算”必须在名称、输入合同及 Procedure 中明确区别。Calculator 的当前维护示例使用 `clickCalculatorButtons(win, buttons)`，清空和读值由主流程明确调用。不新增应用对象方法层，也不为每次调用复制整段代码。生产文件只保留业务控制流和运行时必须的身份、状态、唯一性、实际读值及未知结果停止门禁；expected、截图、完整事件审计、hash 断言和独立 Oracle 留在测试／QualificationRecord。框架原样动作回执可以作为普通函数返回值，回执仍不等于业务正确。若要求跨 Recipe 文件复用，再单独核对当前 Runtime 已发布的加载与打包合同，不能先发明 `import`／`require`。
+
+精简交付前再检查以下边界，不能仅用行数或文件数判定完成：
+
+- 稳定界面首次输入（含清除）前，预检全部必要 distinct targets 和实际读值通道；资格分离不能删除这项运行门禁。
+- CandidateManifest 完整绑定真实 API 正文、Procedure、AppProfile、入口和依赖闭包。先冻结，再记录资格 request，最后执行；事后补录必须标明，不倒填历史时间。
+- S12 将准备动作、独立干净状态观察、精确候选运行、独立结果观察分开，并记录同时点的依赖前后检查。自报按钮数组不是实际动作证据；核对框架完成回执、源码数据流及独立 UI 后置，说明各自能证明的范围。
+- 新工作包先进入真实续作 WorkPlan/changeLog；已有候选定向修复属于 `continuation-chain`，不能因其上游曾完整新生成而改称本次 `new-generation-chain`。
+- 交付七类主产物的实际路径、版本、用途、复用/修订及验证状态。未变的上游固定 hash 引用；维护源码/测试进入所属 `examples/`、`tests/`，冻结快照和运行输出留在 `.runtime/`。一次固定业务中的两次函数调用不自动证明全部参数组合。
+
+上述边界的实际审计与修复见 [Calculator r003 报告](../../docs/quality/agent-to-recipe-calculator-r003.md)。这仍是手工协调清单，不是新增自动调度器或通用 schema validator。
 
 Measurement／Recorder／Accessibility／OCR 等都只是依据或实现选择。按短入口定位当前方法契约，仅在冲突、缺口或失败时定向核对实现，再消费已有适用证据；不因架构文档出现某个名称就生成未知 API。应用限定的替代定位遵守现有安全模型；任何动作可能已发生或结果未知时立即停止重复输入。
 
@@ -79,8 +93,22 @@ node workflows/agent-to-recipe/scripts/check-handoff.js --request ".runtime/auto
 本工具的离线测试命令可从仓库根目录直接执行，fixture 仅生成于 `.runtime/tests/workflows/`：
 
 ```bash
-node --test tests/workflows/handoff-integrity.test.js
+node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-chain.test.js
 ```
+
+### 4.1 相邻工件消费检查与方法入口
+
+完整六类工件已存在时，使用 [check-artifact-chain.js](scripts/check-artifact-chain.js) 检查选定的 Dossier／actions → DistilledSteps → Procedure → Candidate → Qualification 边界。它与信封工具共用 [artifact-validation.js](scripts/artifact-validation.js) 的受限读取基础，但增加动作取舍、顺序、实际值生产者／消费者声明、候选直接 await／spread 模式及资格声明范围检查。错误按 `boundary` 返回；未读取的边界为 `not-run`，失败资格只能作为诊断资料。
+
+| 当前工作 | 方法输入 → 输出 | 本轮已落地的验证切片 |
+| --- | --- | --- |
+| S7 | [trace-distill](skills/trace-distill/SKILL.md)：冻结合同／计划、Dossier／Raw Trace → DistilledSteps | 必要读取／准备不误删，重复数字不去重，缺证据／unknown／事后解释被拒绝 |
+| S8—S9 | [procedure-synthesize](skills/procedure-synthesize/SKILL.md)：固定 DistilledSteps → 业务步骤与数据依赖 | 覆盖及顺序、输出与输入关系、禁止第二套 action disposition |
+| S11 可选审查 | [code-rebuild](skills/code-rebuild/SKILL.md)：精确代码及需求／过程／应用规则 → 原样保留评审或新候选 | 读取首值却消费固定样例被拒绝；代码变更不能沿用旧 hash |
+
+该工具当前只支持 Calculator 形状的 v1 成功路径及直接调用源码模式，既不是通用 schema validator，也不是任意 JS 的控制流证明。它检查选定引用，不递归证明整个依赖闭包，不判断历史真实性、现场、视觉、人类接受或宿主安装。闭包另由候选专用检查核验；实际语义仍需审阅。工具通过不表示三个 Skill 在隔离上下文中的行为评测通过。
+
+可复制的真实只读命令、Frozen Fixture、代码评审及分层结论集中在[工作流质量总览](../../docs/quality/agent-to-recipe-workflow-review-20260919.md)。稳定 fixture 在 `tests/workflows/fixtures/calculator-artifact-chain/`，它明确标为合成测试资料，不是历史示范；临时实例仍写入 `.runtime/tests/workflows/`。S1—S12、G0—G7 不变，最终业务程序仍为普通 JS。
 
 ### 5. 结束与恢复必须交付什么
 
@@ -187,4 +215,4 @@ S10 消费策略选择、风险和定位证据，S11 执行生成者自检，S12
 - 同一个 Agent 可连续承担专业工作和检查；独立上下文测试须真实隔离，不能以在同一对话切换角色冒充通过。
 - 生成与可选改进分开，失败按原因返回，不必所有任务重走完整链。结果可能已经生效时先核对，不从头重放。
 - 正常保存必要事实，异常再展开诊断，不等失败后补造现场。原图、审阅、规则与验证不混用版本；只有认识时不声明已有可靠操作。
-- 当前已建立 application-engineer 方法入口，但实际模型提取、审阅辅助程序、留出规则测试、宿主加载和真实桌面验收仍按验证计划分批完成；未运行项如实保留。
+- 当前四个方法入口的文件状态与验证范围见第 4.1 节；实际模型提取、留出规则测试、宿主加载、盲上下文及其他桌面场景仍按验证计划分批完成，未运行项如实保留。

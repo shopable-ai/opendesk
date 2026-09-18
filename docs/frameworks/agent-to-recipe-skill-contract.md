@@ -4,14 +4,14 @@
 
 ## 1. 定位与唯一职责
 
-本文件维护 Agent-to-Recipe 专业作业的输入、输出、交接和恢复约定，并维护 Human／已有资产进入共同资格与发布出口时的最小适配约束，不另建开发阶段或业务执行引擎。S1—S12 仍是生命周期阶段；专业职责与阶段不是一一对应。当前 Agent-to-Recipe 目录只有 `application-engineer` 正式方法入口；`trace-distill`、`code-rebuild` 等目标职责只有在对应方法文件、宿主加载和独立验证完成后才视为可调用能力。Human 的两个现有 Skill 保持独立来源和方法，不因复用本合同而改成 Agent 示范。
+本文件维护 Agent-to-Recipe 专业作业的输入、输出、交接和恢复约定，并维护 Human／已有资产进入共同资格与发布出口时的最小适配约束，不另建开发阶段或业务执行引擎。S1—S12 仍是生命周期阶段；专业职责与阶段不是一一对应。当前已有 `application-engineer`、`trace-distill`、`procedure-synthesize`、`code-rebuild` 四个方法文件，支持当前 Agent 显式读取；宿主发现／加载与独立上下文验证仍须另外证明。Human 的两个现有 Skill 保持独立来源和方法，不因复用本合同而改成 Agent 示范。
 
 - 阶段与完整生命周期：[示范到自动化执行方法](demonstration-to-automation-pipeline.md)。
 - 业务拆解、数据依赖和六类解题模式：[自动化任务求解方法](automation-problem-solving-framework.md)。
 - 专业操作依据：[应用开发框架](app-development-framework.md)、[总体执行闭环](automation-framework.md)。
 - 可调用能力：[API 入口](../api/README.md)、[Execution](../api/execution.md)、[扩展放置原则](runtime-api-extension-framework.md)。
 - 已有质量体系：[G0—G7](../quality/gates-and-evidence.md)、[失败分类](../quality/failure-taxonomy.md)。不另造平行 Gate／Failure 编号。
-- 工作流导航：[当前入口](../../workflows/agent-to-recipe/WORKFLOW.md)。当前唯一正式专业 Skill 文件：[application-engineer](../../workflows/agent-to-recipe/skills/application-engineer/SKILL.md)。旧 prompts 目录不是有效入口；目标职责名称不证明当前存在已安装实现。
+- 工作流导航及四个方法文件：[当前入口](../../workflows/agent-to-recipe/WORKFLOW.md)。旧 prompts 目录不是有效入口；方法文件不证明当前存在已安装实现。
 - 原首个验证任务：[计算器规程](../quality/agent-to-recipe/calculator-validation.md)。行为案例与应用工程评测沿用[当前验证计划](../../workflows/agent-to-recipe/design/validation-plan.md)。
 - 跨 Runtime／Catalog／Authoring 生命周期、CapabilityDefinition／CatalogEntry、运行路由与 P0／P1 优先级：[Automation Capability Lifecycle](../architecture/desktop-automation/task-capability-lifecycle.md)。本文第 10 节只拥有跨来源作者交接约束，不复制第二套运行状态机或能力目录字段。
 
@@ -27,17 +27,17 @@ Agent 使用 OpenDesk 当前能力完成真实任务，保存关键事实，先�
 
 ## 2. 目标专业职责与阶段映射
 
-原六项职责保留为历史来源；当前目标职责增加 S7 `trace-distill`，并将 `procedure-synthesize` 收窄为 S8—S9。`code-rebuild` 继续作为独立、可选职责。下表是目标合同，不表示除 application-engineer 外的 Skill 已安装。
+原六项职责保留为历史来源；当前职责增加 S7 `trace-distill`，并将 `procedure-synthesize` 收窄为 S8—S9。`code-rebuild` 继续作为独立、可选职责。下表是职责合同；四个方法文件的存在不表示宿主已安装它们。
 
 | 专业职责 | 方法阶段 | 主要输入 | 本环节必须保存的主产物 | 正常消费者 |
 | --- | --- | --- | --- | --- |
 | `automation-plan` | S1，含前置拆解与操作计划 | 用户自然语言／样例／已有资产、授权来源 | TaskContract、WorkPlan、可读任务／操作计划视图 | 应用工程、示范及所有后续环节 |
 | `application-engineer` | S2、S10 | 合同、所需操作、观察证据或定向缺口 | AppProfile、必要普通 JS helper、同版审阅／验证记录 | 示范、提炼、生成与验收，各按限定范围消费 |
 | `task-demonstrate` | S3—S6 | 合同、操作计划、应用资料、获准业务输入 | DemonstrationDossier、planned／actual 对应、关键业务值及证据索引 | trace-distill／诊断 |
-| `trace-distill`（目标职责，待实现） | S7 | 合同／计划、Dossier／Raw Trace、必要应用资料 | DistilledSteps、原 action 取舍、必要路径、恢复候选与未决项 | procedure-synthesize、步骤试执行、诊断 |
+| `trace-distill`（方法文件已实现） | S7 | 合同／计划、Dossier／Raw Trace、必要应用资料 | DistilledSteps、原 action 取舍、必要路径、恢复候选与未决项 | procedure-synthesize、步骤试执行、诊断 |
 | `procedure-synthesize` | S8—S9 | 合同、DistilledSteps、应用资料及补证 | SemanticProcedure、Business Step、参数与数据依赖 | 应用补强、生成 |
 | `recipe-build` | S11 的路线 A 实现 | 已确认过程、应用资料、当前 API | 普通 JS、CandidateManifest | 按需代码改进或验收 |
-| `code-rebuild`（目标职责，待实现） | S11 内可选／独立入口 | 代码基线、明确需求与改进目标、相关应用规则 | 原样保留结论，或新候选、变更理由、检查结果与重验范围 | 验收 |
+| `code-rebuild`（方法文件已实现） | S11 内可选／独立入口 | 代码基线、明确需求与改进目标、相关应用规则 | 原样保留结论，或新候选、变更理由、检查结果与重验范围 | 验收 |
 | `recipe-qualify` | S12 | 冻结合同、候选版本、验证场景 | QualificationRecord、失败及修复请求 | 协调者／交付者 |
 
 S1 先从用户原始来源形成任务合同和粗粒度业务任务树，再形成可审阅的业务操作计划。初始计划允许明确的 Unknown，禁止编造全部点击细节；需要依赖关键能力的大量后续动作前，应优先核实会推翻路线的高影响未知。S3—S5 是计划、操作、观察、验证和修订的微循环；S6 是整次示范的业务验证。一个工作包完成不代表全部任务完成。
@@ -267,6 +267,10 @@ DistilledSteps 只对原始事实做有来源的重建、分段和取舍，不�
 
 ## 7. 发布、消费与恢复
 
+已实现的只读检查分两层：`check-handoff.js` 核对 request／handoff 信封、身份和显式 hash；`check-artifact-chain.js` 检查 Calculator 形状 v1 工件的选定相邻边界及直接 await／spread 源码模式。后者不升级本合同为完整机器 schema，不递归验依赖闭包，不证明任意 JS 的可达性或一般语义；完整输入、计划适用性、历史事实、现场和授权仍由消费者核对。命令及范围见 [WORKFLOW 第 4 节](../../workflows/agent-to-recipe/WORKFLOW.md#4-交接完整性检查可执行但不替代资格)。
+
+`code-rebuild` 的 `baseline-retained`／`candidate-revised` 是评审处置标签，不新增 executionStatus、Gate 或 continuation.assetDisposition 枚举。评审必须绑定准确脚本／Candidate／Procedure／方法版本，列映射、分项判断、检查和未测范围；可写进现有工作包或质量报告。保持字节不变时不制造新候选；有影响性变化时仍遵循本节新版本与重验规则。
+
 1. 生产者写入本次 attempt，保留错误和未完成资料；每次新尝试新目录。
 2. 检查必要字段、输入版本、引用可读性、路径根、敏感信息及 Gate 依据。
 3. 最后发布 `handoff.json`，由协调者重新检查再更新 progress。宿主支持安全替换时可用于发布；不得假设 OpenDesk File 已保证跨文件事务。无该能力时，消费者必须以完整性和 hash 检查拒绝半写入。
@@ -388,6 +392,8 @@ Gap／Failure Package 的整体路由由总纲维护。进入本合同的作者�
 | 发布与执行隔离 | 作者完成不自动登记，登记不自动执行，旧用户确认不用于新版本 |
 
 ### 修订记录
+
+- 2026-09-19：落地 trace-distill、procedure-synthesize、code-rebuild 方法文件、共用读取基础及相邻工件检查切片；稳定 fixture 与正反测试进入 tests/workflows。没有改变 v1 枚举或 S/G 编号；宿主加载、盲上下文与人类验收未据此通过，实际结果见[质量总览](../quality/agent-to-recipe-workflow-review-20260919.md)。
 
 - 2026-09-08：深化应用工程合同并写入正式 application-engineer 方法入口。保留既有主产物和 request／handoff 枚举，明确同一 Agent、工作包内部复用、最小数据和 AppProfile 增量版本。
 - 2026-09-11，v1.1：补自然语言来源与内部结构化合同边界、可读操作计划、planned／actual／planDelta 交接；新增 DistilledSteps 主产物，目标 `trace-distill` 承担 S7，`procedure-synthesize` 收窄为 S8—S9。未据此声明新增 Skill 已安装、宿主已接线或运行验收通过。

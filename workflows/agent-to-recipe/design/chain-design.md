@@ -6,9 +6,9 @@ order: 40
 
 # Agent-first Recorder｜链路、职责与成果交接设计
 
-状态：链路设计 v0.7，2026-09-13 增补 Capability Gap／维修／资格发布接线。本文把[需求](requirements.md)与[完整任务树](task-decomposition.md)转成环节关系；当前只落地 application-engineer 方法入口及设计接线，不是完整运行调度器，也不新增可执行 IR。Structured UI Collection Reading 的 Runtime/VLM/Traversal 详细合同只维护在[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。返回[设计总纲](README.md)。
+状态：链路设计 v0.7，2026-09-19 补方法及验证切片实施状态，保留 2026-09-13 的 Capability 接线。本文把[需求](requirements.md)与[完整任务树](task-decomposition.md)转成环节关系；当前已有四个方法文件及只读检查，不是完整运行调度器，也不新增可执行 IR。Structured UI Collection Reading 的详细合同只维护在[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。返回[设计总纲](README.md)。
 
-跨 Runtime／Catalog／Authoring 的唯一架构与完整生命周期任务树见 [Automation Capability Lifecycle](../../../docs/architecture/desktop-automation/task-capability-lifecycle.md)。本页只维护作者链如何接入和返回；不复制 Catalog 字段、运行状态机或另建 `workflows/conversational-task-runner/`。本轮仅更新文档，不表示通用 Catalog、发布器或新的专业 Skill 已实现。
+跨 Runtime／Catalog／Authoring 的唯一架构与完整生命周期任务树见 [Automation Capability Lifecycle](../../../docs/architecture/desktop-automation/task-capability-lifecycle.md)。本页只维护作者链如何接入和返回；不复制 Catalog 字段、运行状态机或另建 `workflows/conversational-task-runner/`。新增方法与检查不表示通用 Catalog 或发布器已实现。
 
 ## 一、需求树／链路／方法三层怎样配合
 
@@ -24,17 +24,17 @@ order: 40
 
 ## 二、八项目标专业职责及状态
 
-历史六个 Skill 的目录已在 `17ccb9258dd34ce8b7c21296339a17f0c46e6586` 删除。当前只创建 [application-engineer/SKILL.md](../skills/application-engineer/SKILL.md)；`trace-distill` 与 `code-rebuild` 是目标专业职责，其正式 Skill、宿主接入和独立验收尚未完成。文件已写入、工具已实现、宿主可加载、独立测试和业务通过分别判断，不因设计名称存在就假设全部可调用。
+历史六个 Skill 的目录已在 `17ccb9258dd34ce8b7c21296339a17f0c46e6586` 删除。当前已有 [application-engineer](../skills/application-engineer/SKILL.md)、[trace-distill](../skills/trace-distill/SKILL.md)、[procedure-synthesize](../skills/procedure-synthesize/SKILL.md)、[code-rebuild](../skills/code-rebuild/SKILL.md) 方法文件，可显式读取。文件、工具、宿主加载、独立上下文和业务资格分别判断；本轮静态切片及固定候选评审见[质量总览](../../../docs/quality/agent-to-recipe-workflow-review-20260919.md)。
 
 | 环节与拟责任 | 对应任务节点 | 主要消费 | 主交付与消费者 |
 | --- | --- | --- | --- |
 | 明确需求、操作计划与范围：automation-plan | S1 | 用户自然语言／样例／已有资产、来源、权限、预算 | TaskContract／WorkPlan、业务任务树、可读任务／操作计划、关键检查点与未知项；供所有相关环节使用 |
 | 认识和补强应用：application-engineer | S2／S10 | 所需操作、当前观察、已有 AppProfile；harden 再加确认过程，repair 再加失败依据 | AppProfile、同版审阅／验证、必要 CollectionProfile、helper、操作合同、范围与证据；供示范、提炼、生成和验收按范围使用 |
 | 真实尝试与同步留证：task-demonstrate | S3—S6 | 合同、操作计划、最小应用认识、实际输入和桌面操作授权 | planned／actual 对应、节点事实、实际值及消费者、viewport/scroll 等真实副作用、完整或限定范围 Dossier；供提炼或诊断使用 |
-| 重建与提炼必要路径：trace-distill（待实现） | S7 | 冻结合同／计划、Dossier／Raw Trace、必要 AppProfile 和证据 | DistilledSteps、action retain／merge／omit／recovery／unresolved 取舍与来源；供过程提炼、步骤试执行或诊断使用 |
+| 重建与提炼必要路径：trace-distill（方法已实现） | S7 | 冻结合同／计划、Dossier／Raw Trace、必要 AppProfile 和证据 | DistilledSteps、action retain／merge／omit／recovery／unresolved 取舍与来源；供过程提炼、步骤试执行或诊断使用 |
 | 语义化与泛化过程：procedure-synthesize | S8—S9 | DistilledSteps、合同、应用资料和补证结果 | SemanticProcedure、Business Step、参数、generic→business 数据依赖、traversal need、来源与未决项；供应用补强和生成使用 |
 | 生成或登记普通 JS：recipe-build | S11 | 已确认过程、所需操作、实际 API；原样接续按旧合同例外处理 | 实际 JS 与 CandidateManifest；只使用当前真实 API，交按需改进或独立验收 |
-| 独立改善已有代码：code-rebuild（待实现） | S11 内可选工作／独立入口 | 代码基线、明确需求与改进目标、相关应用规则、允许变更范围 | 原样保留结论，或新候选、变更理由、检查结果和重验范围；交独立验收 |
+| 独立改善已有代码：code-rebuild（方法已实现） | S11 内可选工作／独立入口 | 代码基线、明确需求与改进目标、相关应用规则、允许变更范围 | 原样保留结论，或新候选、变更理由、检查结果和重验范围；交独立验收 |
 | 独立资格验收：recipe-qualify | S12 | 冻结候选及依赖、成功标准、获准场景、真实运行条件 | QualificationRecord、collection/runtime/business 分层证据和修复请求；交协调者或交付者 |
 
 - automation-plan 先把用户自然语言及来源转成结构化合同和可审阅业务操作计划；用户纠正的是业务含义，不要求编辑 JSON。未知现场只写问题和检查点，不预编造点击坐标。
@@ -326,13 +326,13 @@ S12 的完成成果仍是固定 Candidate 的 QualificationRecord，不增加 S1
 
 - 每个 Skill 需要明确适用触发、前提、输入合同、专业步骤、输出及消费者、错误和停止条件、允许工具、验证场景及未支持范围。
 - 核心步骤进入 SKILL.md，长示例和专项分析按需引用已有唯一正文；不是每阶段一个 Skill，也不重新建设平行 chains 正文。
-- WORKFLOW 保持范围与路由入口，不重复专业方法。当前只创建 application-engineer；`trace-distill` 与 code-rebuild 仍是待实现目标职责，Structured Collection 的 profile authoring 进入既有 application-engineer，不拆第二个 collection/VLM Skill。
+- WORKFLOW 保持范围与路由入口，不重复专业方法。四个现有方法的输入／输出和只读检查见 WORKFLOW 第 4.1 节；Structured Collection 的 profile authoring 仍进入 application-engineer，不拆第二个 collection/VLM Skill。
 - `trace-distill` 实施时必须能够只凭固定 TaskContract／WorkPlan、Dossier／Raw Trace、必要 AppProfile 和证据发布 DistilledSteps 或准确指出缺口；不能依赖复制完整聊天。`procedure-synthesize` 的独立接续测试则从 DistilledSteps 开始，不以重新分析 Raw Trace 掩盖交接缺陷。
 - `UI.readCollection()`／`UI.collectCollection()` 必须按专项 Phase 1–7 经 Runtime/type/API/docs/test 闭环后才能分别进入 Experimental；工作流文档先接线不构成实现。
 - 核实实际实现与宿主加载路径，建立与本设计一致的入口；旧目录已删除，不将历史索引或 stages 路径作为当前依赖，不恢复重复阶段卡。
-- 独立 code-rebuild、超出 minimal-repair 的获准优化、人工开发来源及质量裁剪仍须各自兼容设计。本次不悄悄新增这些 JSON 枚举，不把代码改进伪称新示范。
+- code-rebuild 已支持原样保留或有据修订的评审方法；处置标签不是新的 JSON Gate／executionStatus。超出 minimal-repair 的正式来源适配和质量裁剪仍须兼容设计，不把代码改进伪称新示范。
 - 实施后再验证单 Skill、独立交接及完整生成；合同、业务设计、实现和实际加载分别核实，不以本文证明新调用已经可用。
-- 下一实施批的作者侧优先补共享 `recipe-qualify` 正式方法与实际候选 Gate 接线、发布 handoff 的最小适配，并与总纲 P0 的 Catalog／信任门配合；不是先恢复全部旧 Skill 目录。其余 planning／demonstration／distillation／procedure／build 入口按真实消费者逐个补齐，code-rebuild 保持独立可选。
+- 下一实施批仍需共享 `recipe-qualify` 正式方法与 Gate 接线、发布 handoff 适配及 Catalog／信任门；现有 Calculator 专用 Gate 不等于通用方法。planning／demonstration／build 入口和四个方法的宿主加载、独立行为评测按真实消费者补齐，code-rebuild 保持独立可选。
 - Calculator 当前 Chat 候选必须取得自己的真实参数域／layout／取消／读值资格后才进入 Normal Mode，不能继承历史 golden 或 mock；第二应用、双来源实际发布及定向维修回归进入 P1。当前没有这些新 PASS，不对未来功能填写完成率。
 
 方法依据：[框架导航](../../../docs/frameworks/README.md)、[任务求解](../../../docs/frameworks/automation-problem-solving-framework.md)、[应用开发](../../../docs/frameworks/app-development-framework.md)、[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)、[Structured UI Collection Reading](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。

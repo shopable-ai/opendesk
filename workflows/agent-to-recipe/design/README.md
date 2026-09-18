@@ -6,7 +6,7 @@ order: 10
 
 # Agent-first Recorder｜设计总纲与文件地图
 
-状态：设计基线 v0.7，2026-09-11。保留 v0.6 Structured UI Collection Reading 的现行边界，并补入自然语言任务入口、执行前可审阅操作计划、planned／actual 接续和 DistilledSteps 专业边界。`trace-distill` 是目标职责而非已安装 Skill；当前仍只有 application-engineer 正式方法入口。本文不新增 Runtime、S13 或第三套工作流。先读本页，无需拼接历史对话。返回[工作流总入口](../../README.md)。
+状态：设计基线 v0.7，2026-09-19 补实施状态。保留 v0.6 Structured UI Collection Reading 的现行边界，以及自然语言入口、操作计划、planned／actual 和 DistilledSteps 专业边界。当前已有 application-engineer、trace-distill、procedure-synthesize、code-rebuild 四个方法文件与限定静态检查；宿主加载、盲评与人类验收未证明。实际状态见[质量总览](../../../docs/quality/agent-to-recipe-workflow-review-20260919.md)。本文不新增 Runtime、S13 或第三套工作流。返回[工作流总入口](../../README.md)。
 
 ## 一、当前要建设什么
 
@@ -188,7 +188,7 @@ application-engineer ↔ trace-distill → procedure-synthesize → recipe-build
 ## 八、实施前仍需核对
 
 - 更新 validation-plan 对 DREQ-30—DREQ-33 的行为案例和反例，确认自然语言入口、操作计划、高影响未知、planned／actual、DistilledSteps 和跨专业交接能实际被验证。
-- 实施 `trace-distill` 前先冻结最小输入、DistilledSteps schema/validator、可读视图和独立接续测试；当前文档已定义字段职责，但未建立正式 Skill 或宿主调用。
+- `trace-distill` 方法文件和 Calculator 形状的消费 validator 已落地；通用 schema、同版可读视图生成、宿主加载及独立接续测试仍需分别验证，不能从这个切片外推。
 - `procedure-synthesize` 实施／恢复时，从固定 DistilledSteps 开始独立接续，不能靠重新读取完整 Raw Trace 来掩盖上游交接缺陷。
 - 继续按 v0.6 Structured Collection 决策：第一批只做 `ObservationBundle / CollectionProfile / CollectionItem` 合同、离线 fixture 和 current-region deterministic JavaScript prototype；不做公共滚动 collector。
 - 至少用计算器实际数据链、一个含探索／错误／重复点击的轨迹、聊天会话列表、variable-height 消息 timeline、订单／表格验证相邻职责能独立失败。

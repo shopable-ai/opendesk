@@ -8,7 +8,7 @@ order: 60
 
 将已有脚本或已生成的代码，依据真实需求、应用规则和当前 OpenDesk API，改进为更易理解、维护和验证的普通 JS。已经满足要求的代码可以原样采用；rebuild 不是推倒重写。
 
-状态：阶段性专业分析，供后续独立 Skill 设计使用，不是安装完成的 Skill 或代码质量通过报告。返回[设计总纲](README.md)，对应[任务树](task-decomposition.md)S11 的可选作业，输入输出和路由见[链路设计](chain-design.md)，对照[计算器案例](../cases/calculator.md)。
+状态：专业方法正文，2026-09-19 已建立 [code-rebuild/SKILL.md](../skills/code-rebuild/SKILL.md)，并对固定 Calculator 候选形成 baseline-retained 评审。本文仍不是宿主安装证明或代码质量报告；实际映射、内容绑定、评分和局限见[质量总览](../../../docs/quality/agent-to-recipe-workflow-review-20260919.md)。返回[设计总纲](README.md)，对应[任务树](task-decomposition.md)S11 的可选作业，输入输出和路由见[链路设计](chain-design.md)。
 
 ## 何时进入与职责边界
 
@@ -17,8 +17,8 @@ order: 60
 - 简单脚本已满足本次用途和风险要求时，直接进入必要验收；不强制深度优化。不可跳过真实数据、正确 API、必要等待、验证和错误处理。
 - 代码本身只能证明实现结构，不能独立证明业务意图、历史成功或现场正确；本环节不自行改变目标、授权、成功标准、平台支持或上游观察。
 - 应用认识缺口返回[应用操作分析](application-operations.md)，业务解释缺口返回提炼，缺现场事实定向补采；不能通过重构猜出缺失规则。
-- 保留[链路设计](chain-design.md)中的 recipe-build 生成职责，拟增加独立可选 code-rebuild，而不是将其改名替代；[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)仍记录原调用体系。旧 Skill 目录已删除，职责名称和历史合同不证明当前存在实现。
-- 本次只保存新职责设计；新调用名、独立优化的处置和超出 minimal-repair 的改动范围须后续兼容设计、编写 Skill 并验证。不能把尚未支持的优化伪填成旧 schema，或宣称目录已经被宿主加载。
+- 保留[链路设计](chain-design.md)中的 recipe-build 生成职责；独立可选 code-rebuild 不将其改名替代。[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)继续拥有字段及交接；新方法文件不证明宿主已加载。
+- baseline-retained／candidate-revised 只是评审处置，不是新的 Gate、executionStatus 或 assetDisposition。超出 minimal-repair 的正式调用适配仍须后续兼容设计，不能把优化伪填成旧 schema。
 
 ## 生成时的框架复用复核
 
@@ -141,7 +141,7 @@ order: 60
 
 ## 用反例评估此环节，而不只评价输出文风
 
-以下是后续 Skill 评估任务，尚未运行：
+以下保留 Skill 行为评估任务。已落实的确定性切片仅包括“读取却消费固定样例”、注释／字符串假调用、旧 Candidate 的字节变化和正常基线；它们见 `tests/workflows/artifact-chain.test.js`。同一 Agent 对固定生产源码完成一次原样保留评审，仍不等于下面全部反例或盲上下文 Skill 行为测试通过：
 
 - 给出读取 firstResult 却仍使用固定 110 的脚本，要求指出实际消费者错误并保留读数证据。
 - 给出读取失败后默认答案、吞错打印成功或省略验证的脚本，要求拒绝假成功。
@@ -155,7 +155,7 @@ order: 60
 ## 后续细化与迁移
 
 - 先拿实际获准脚本形成保留项、问题、有据修改和回归范围，不在本分析中塞入未运行生产代码。
-- 再编写独立 code-rebuild Skill、必要检查清单和少量对照案例，测试其能发现坏代码也能保留好代码。
+- 使用已编写的独立 code-rebuild Skill 和正反 fixture，继续验证其在未见答案的真实消费者上下文中能发现坏代码也能保留好代码；本轮没有这项盲评证据。
 - 保留 recipe-build 的生成职责，同步新增职责与共享合同、候选消费者和实际宿主加载方式；不再执行旧的单纯改名方案。
 - 计算器设计选择与未决项继续维护在案例；试验结果、截图和日志按实际执行保存，不用设计摘要替代原始证据。
 

@@ -1,0 +1,114 @@
+{
+  "fixture": {
+    "status": "fixture-only",
+    "derivedFrom": "Calculator r003 action and data-flow shapes",
+    "sourceBoundary": "Structure is source-derived and values are synthetic test material; this is not a desktop execution or historical dossier.",
+    "schemaVersion": "agent-to-recipe/v1"
+  },
+  "contract": {
+    "schemaVersion": "agent-to-recipe/v1",
+    "taskId": "fixture-calculator-chain",
+    "successCriteria": ["first actual read", "second input consumes first read", "final actual read"]
+  },
+  "plan": {
+    "schemaVersion": "agent-to-recipe/v1",
+    "taskId": "fixture-calculator-chain",
+    "revision": "fixture-r001"
+  },
+  "actions": [
+    {"actionId":"A001","kind":"window","data":{"scope":"synthetic Calculator fixture"}},
+    {"actionId":"A002","kind":"actual-input","data":{"stepId":"clear-first","names":["AC"],"receipt":{"ok":true,"completed":[{"ok":true,"actionState":"acknowledged"}]}}},
+    {"actionId":"A003","kind":"actual-read","data":{"label":"clean","raw":"0"}},
+    {"actionId":"A004","kind":"actual-input","data":{"stepId":"first-expression","names":["2","5","×","4","+","1","0","="],"receipt":{"ok":true,"completed":[{"ok":true,"actionState":"acknowledged"}]}}},
+    {"actionId":"A005","kind":"actual-read","data":{"label":"first-result","first":"110","second":"110","source":"UI.readText"}},
+    {"actionId":"A006","kind":"screenshot","data":{"label":"first-result","fixture":true}},
+    {"actionId":"A007","kind":"actual-input","data":{"stepId":"clear-second","names":["AC"],"receipt":{"ok":true,"completed":[{"ok":true,"actionState":"acknowledged"}]}}},
+    {"actionId":"A008","kind":"actual-read","data":{"label":"second-clean","raw":"0"}},
+    {"actionId":"A009","kind":"actual-input","data":{"stepId":"second-expression","names":["6","×","1","1","0","="],"receipt":{"ok":true,"completed":[{"ok":true,"actionState":"acknowledged"}]}}},
+    {"actionId":"A010","kind":"actual-read","data":{"label":"final-result","first":"660","second":"660","source":"UI.readText"}}
+  ],
+  "dossier": {
+    "schemaVersion": "agent-to-recipe/v1",
+    "planRevision": "fixture-r001",
+    "runtimeValues": [
+      {"name":"firstResult","type":"digit-string","observedValue":"110","origin":"A005 actual UI read","evidence":"first-read.txt","consumers":["A009"],"validity":"fixture execution only","reacquireOnFreshRun":true},
+      {"name":"finalResult","type":"digit-string","observedValue":"660","origin":"A010 actual UI read","evidence":"final-read.txt","consumers":["final output"],"validity":"fixture execution only","reacquireOnFreshRun":true}
+    ],
+    "actualInputs":{"first":["2","5","×","4","+","1","0","="],"second":["6","×","1","1","0","="]},
+    "sideEffects":{"inputState":"confirmed","finalActual":"660"},
+    "provenanceNote":"Frozen fixture assembled for validator tests; never a historical execution record."
+  },
+  "distilled": {
+    "schemaVersion": "agent-to-recipe/v1",
+    "planRevision": "fixture-r001",
+    "steps": [
+      {"stepId":"D010","purpose":"prepare first expression","sourceActionRefs":["A001","A002","A003"],"inputs":[],"outputs":["cleanCalculator"],"dependencies":[],"classification":"preparation"},
+      {"stepId":"D020","purpose":"enter first expression","sourceActionRefs":["A004"],"inputs":["firstExpression"],"outputs":[],"dependencies":["D010"],"classification":"business-action"},
+      {"stepId":"D030","purpose":"read actual first result","sourceActionRefs":["A005","A006"],"inputs":[],"outputs":["firstResult"],"dependencies":["D020"],"classification":"runtime-read"},
+      {"stepId":"D040","purpose":"prepare second expression","sourceActionRefs":["A007","A008"],"inputs":["firstResult"],"outputs":["cleanCalculator"],"dependencies":["D030"],"classification":"preparation"},
+      {"stepId":"D050","purpose":"consume actual first result","sourceActionRefs":["A009"],"inputs":["secondMultiplier","firstResult"],"outputs":[],"dependencies":["D040"],"classification":"business-action"},
+      {"stepId":"D060","purpose":"read final result","sourceActionRefs":["A010"],"inputs":[],"outputs":["finalResult"],"dependencies":["D050"],"classification":"runtime-read"}
+    ],
+    "actionDecisions": [
+      {"actionRef":"A001","decision":"retain","stepRef":"D010","reason":"scope"},
+      {"actionRef":"A002","decision":"retain","stepRef":"D010","reason":"state preparation"},
+      {"actionRef":"A003","decision":"retain","stepRef":"D010","reason":"clean-state read"},
+      {"actionRef":"A004","decision":"retain","stepRef":"D020","reason":"business input"},
+      {"actionRef":"A005","decision":"retain","stepRef":"D030","reason":"runtime producer"},
+      {"actionRef":"A006","decision":"retain","stepRef":"D030","reason":"fixture evidence boundary"},
+      {"actionRef":"A007","decision":"retain","stepRef":"D040","reason":"state preparation"},
+      {"actionRef":"A008","decision":"retain","stepRef":"D040","reason":"clean-state read"},
+      {"actionRef":"A009","decision":"retain","stepRef":"D050","reason":"runtime consumer"},
+      {"actionRef":"A010","decision":"retain","stepRef":"D060","reason":"final runtime read"}
+    ],
+    "dataDependency":"D030 firstResult -> D050 digit expansion",
+    "recoveryCandidates":[],
+    "unresolved":[]
+  },
+  "procedure": {
+    "schemaVersion":"agent-to-recipe/v1",
+    "businessSteps":[
+      {"stepId":"B010","sourceStepRefs":["D010"],"inputs":[],"outputs":["cleanCalculator"],"classification":"preparation"},
+      {"stepId":"B020","sourceStepRefs":["D020"],"inputs":["firstExpression"],"outputs":[],"classification":"business-action"},
+      {"stepId":"B025","sourceStepRefs":["D030"],"inputs":[],"outputs":["firstResult"],"classification":"runtime-read"},
+      {"stepId":"B030","sourceStepRefs":["D040"],"inputs":["firstResult"],"outputs":["cleanCalculator"],"classification":"preparation"},
+      {"stepId":"B040","sourceStepRefs":["D050"],"inputs":["secondMultiplier","firstResult"],"outputs":[],"classification":"business-action"},
+      {"stepId":"B050","sourceStepRefs":["D060"],"inputs":[],"outputs":["finalResult"],"classification":"runtime-read"}
+    ],
+    "parameters":{"firstExpression":{"source":"fixture input","value":"25×4+10"},"secondMultiplier":{"source":"fixture input","value":"6"}},
+    "runtimeValues":[{"name":"firstResult","source":"B025 actual read","consumers":["B040"]},{"name":"finalResult","source":"B050 actual read","consumers":["output"]}],
+    "dataDependencies":[{"producer":"B025","value":"firstResult","consumer":"B040","transform":"character expansion only"}],
+    "supportedScope":"fixture-only fixed chain",
+    "unresolved":[]
+  },
+  "candidateSource": "'use strict';\nasync function main(win) {\n  await clearCalculator(win);\n  await clickCalculatorButtons(win, ['2', '5', '×', '4', '+', '1', '0', '=']);\n  const firstResult = await readCalculatorResult(win);\n  await clearCalculator(win);\n  await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);\n  const finalResult = await readCalculatorResult(win);\n  return {firstResult, finalResult};\n}\n",
+  "candidate": {
+    "schemaVersion":"agent-to-recipe/v1",
+    "taskId":"fixture-calculator-chain",
+    "revision":"fixture-q001",
+    "sourceMapping":[
+      {"step":"B010/B030","function":"clearCalculator","source":"explicit calls"},
+      {"step":"B020/B040","function":"clickCalculatorButtons","source":"button calls"},
+      {"step":"B025/B050","function":"readCalculatorResult","source":"actual return values"}
+    ],
+    "supportedScope":"fixture-only fixed chain",
+    "limitations":["not a desktop execution"]
+  },
+  "qualification": {
+    "schemaVersion":"agent-to-recipe/v1",
+    "taskId":"fixture-calculator-chain",
+    "revision":"fixture-q001",
+    "qualificationScope":{"requested":["fixed-chain","runtime-value-flow"],"exercised":["fixed-chain","runtime-value-flow"],"qualified":["fixed-chain","runtime-value-flow"],"excluded":["desktop-runtime"]},
+    "scenarios":[{"id":"fixture-chain","verdict":"pass","evidence":"qualification.txt"}],
+    "failedCriteria":[],
+    "skipped":[],
+    "verdict":"pass",
+    "limits":["fixture-only; no live Calculator claim"]
+  },
+  "evidence": {
+    "first-read.txt":"fixture observation: firstResult=110",
+    "final-read.txt":"fixture observation: finalResult=660",
+    "distillation.txt":"fixture-only distillation evidence",
+    "qualification.txt":"fixture-only consumer result"
+  }
+}
