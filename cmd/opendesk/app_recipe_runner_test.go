@@ -432,6 +432,10 @@ func TestAssistantInstalledFlowVerticalRuntimeUsesCanonicalCatalogAndRealExecuti
 	if err := os.MkdirAll(businessDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	businessDir, err = filepath.EvalSymlinks(businessDir)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	service, err := flowinstall.NewService(flowinstall.Roots{
 		FlowRoot: filepath.Join(root, "flows"),
