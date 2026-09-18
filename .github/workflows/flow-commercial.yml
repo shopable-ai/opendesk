@@ -37,8 +37,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: flow-commercial-${{ github.sha }}
-  cancel-in-progress: false
+  group: flow-commercial-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   marketplace-prototype:
