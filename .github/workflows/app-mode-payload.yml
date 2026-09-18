@@ -100,7 +100,7 @@ jobs:
           tests/assistant/task-runtime.test.js
           tests/assistant/product-wiring.test.js
       - name: Test App-owned assistant execution seams
-        run: go test ./cmd/opendesk -run 'TestAppRecipeRunner|TestAssistantInstalledFlowVerticalRuntime' -count=1
+        run: go test ./cmd/opendesk -run 'TestAppRecipeRunner|TestAssistantInstalledFlowVerticalRuntime|TestLoadAppFlowInvocation' -count=1
       - name: Test Recorder JavaScript contracts
         run: >-
           node --test
