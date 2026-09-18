@@ -354,9 +354,11 @@ func validatedAssistantScriptPath(scriptValue, scopeValue string) (string, error
 	if err != nil {
 		return "", fmt.Errorf("resolve Recipe scope target: %w", err)
 	}
-	if filepath.Clean(resolvedRoot) != filepath.Clean(scopeRoot) {
-		return "", errors.New("Recipe scope resolves through a symbolic-link alias")
-	}
+	// The scope entry itself must be a real directory (checked with Lstat above),
+	// but macOS commonly exposes otherwise-real temp paths through system-level
+	// ancestor aliases such as /var -> /private/var. Compare the canonical
+	// targets instead of rejecting that platform alias. A script still cannot
+	// escape the authorized canonical scope.
 	relative, err := filepath.Rel(resolvedRoot, resolvedScript)
 	if err != nil {
 		return "", fmt.Errorf("compare Recipe scope: %w", err)
@@ -457,7 +459,7 @@ func appFlowInspection(record flowinstall.Record) automation.AppOwnedFlowInspect
 func decodeAppExecutionInput(raw string) (any, error) {
 	if strings.TrimSpace(raw) == "" { raw = "{}" }
 	if len(raw) > 256<<10 { return nil, errors.New("Execution input exceeds 256 KiB") }
-	decoder := json.NewDecoder(strings.NewReader(raw)); decoder.UseNumber(); var value any
+	decoder := json.NewDecoder(strings.NewReader(raw)); var value any
 	if err := decoder.Decode(&value); err != nil { return nil, fmt.Errorf("decode Flow input: %w", err) }
 	if _, ok := value.(map[string]any); !ok { return nil, errors.New("Flow input must be a JSON object") }
 	var trailing any; if err := decoder.Decode(&trailing); err != io.EOF { return nil, errors.New("Flow input contains trailing JSON data") }

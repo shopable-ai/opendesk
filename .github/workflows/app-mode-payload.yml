@@ -101,6 +101,8 @@ jobs:
           tests/assistant/product-wiring.test.js
           tests/assistant/controller.test.js
           tests/custom-ui/product-flow-runner.test.js
+          tests/assistant/model-channel-source.test.js
+          tests/custom-ui/product-flow-runner.test.js
       - name: Test App-owned assistant execution seams
         run: go test ./cmd/opendesk -run 'TestAppRecipeRunner|TestAssistantInstalledFlowVerticalRuntime|TestLoadAppFlowInvocation' -count=1
       - name: Test Recorder JavaScript contracts
@@ -128,6 +130,8 @@ jobs:
           tests/assistant/assistant.test.js
           tests/assistant/task-runtime.test.js
           tests/assistant/product-wiring.test.js
+          tests/assistant/controller.test.js
+          tests/assistant/model-channel-source.test.js
       - name: Test assistant host and File safety seams
         run: >-
           go test ./automation ./cmd/opendesk
@@ -154,7 +158,7 @@ jobs:
           cache: true
       - name: Test assistant JavaScript contracts
         shell: pwsh
-        run: node --test tests/assistant/assistant.test.js tests/assistant/task-runtime.test.js tests/assistant/product-wiring.test.js tests/assistant/controller.test.js tests/custom-ui/product-script-runner.test.js
+        run: node --test tests/assistant/assistant.test.js tests/assistant/task-runtime.test.js tests/assistant/product-wiring.test.js tests/assistant/controller.test.js tests/assistant/model-channel-source.test.js
       - name: Test assistant host and File safety seams
         shell: pwsh
         run: go test ./automation ./cmd/opendesk -run 'TestFileWriteNew|TestFileRealPath|TestAppRecipeRunner|TestAssistantInstalledFlowVerticalRuntime|TestLoadAppFlowInvocation' -count=1
@@ -168,12 +172,8 @@ jobs:
         run: |
           & .\.runtime\assistant-ci\opendesk.exe -script tests/runtime-api/assistant-task-core.js -console-mode script
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Run assistant formal Runtime gate
-        shell: pwsh
-        run: |
-          $env:OPENDESK_RUNTIME_API_MODE = 'assistant-task-core'
-          & .\.runtime\assistant-ci\opendesk.exe -script scripts/test_runtime_apis.js -console-mode script
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      # Formal Runtime gate harness is POSIX-only (shasum, /bin/test, cp/mv, uname).
+      # Windows qualification uses the same production Runtime JS asset directly above.
 
   macos-package:
     name: macOS App Mode Payload
@@ -250,13 +250,8 @@ jobs:
           $runtime = '.\dist\windows\win-x64\opendesk.exe'
           & $runtime -script 'tests/runtime-api/assistant-task-core.js' -console-mode script
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Run AI assistant formal Runtime gate
-        shell: pwsh
-        run: |
-          $runtime = '.\dist\windows\win-x64\opendesk.exe'
-          $env:OPENDESK_RUNTIME_API_MODE = 'assistant-task-core'
-          & $runtime -script 'scripts/test_runtime_apis.js' -console-mode script
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      # The catalog gate harness is POSIX-only; the direct production Runtime
+      # acceptance above is the Windows Runtime qualification for this asset.
       - name: Verify exact Windows App Mode payload
         shell: pwsh
         run: |

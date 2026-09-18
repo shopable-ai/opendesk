@@ -384,6 +384,29 @@ test('source explain requires separate model-share authorization and records onl
   assert.equal(JSON.stringify(result.task.evidence).includes(sourceText), false, 'task evidence must not persist source content');
 });
 
+test('directory improve stays blocked until dependency closure can be frozen and revalidated', async () => {
+  const file = memoryFile();
+  const runtime = TaskRuntime.create({
+    file, rootDir:'/data/assistant', randomUUID:uuids(), clock:clock(),
+    recipeBridge:{
+      async read(){ throw new Error('directory improve must fail before host source read'); },
+    },
+    modelChannel:{
+      async draftCandidate(){ throw new Error('directory improve must fail before model'); },
+    },
+  });
+  const task = await runtime.startTask({
+    taskId:'directory-improve', conversationId:'conv-a', requestId:'req-directory-improve',
+    userGoal:'improve this automation', intent:'improve',
+    asset:{kind:'automation-directory',ref:'/work/auto',entryRef:'/work/auto/main.js',boundaryResolved:true},
+    authorizations:{readSource:true,shareSourceWithModel:true},
+  });
+  await assert.rejects(
+    () => runtime.generateCandidate(task.taskId),
+    {code:'DIRECTORY_AUTHORING_DEPENDENCIES_UNRESOLVED'},
+  );
+});
+
 test('Flow confirmation uses frozen canonical input, consumes before async recheck, and runs the canonical installId', async () => {
   const file = memoryFile();
   const seenRuns = [];
