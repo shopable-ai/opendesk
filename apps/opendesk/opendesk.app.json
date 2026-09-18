@@ -49,12 +49,6 @@
         "action": "permissions.open"
       },
       {
-        "id": "open-settings",
-        "labelKey": "menu.settings",
-        "label": "设置…",
-        "action": "settings.open"
-      },
-      {
         "id": "open-runtime-log",
         "labelKey": "menu.runtimeLog",
         "label": "运行日志",
