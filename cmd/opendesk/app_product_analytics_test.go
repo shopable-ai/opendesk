@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"path/filepath"
 	"testing"
 	"time"
@@ -133,7 +135,7 @@ func TestAppRecipeRunnerStripsPrivateAnalyticsEnvironment(t *testing.T) {
 		productanalytics.CaptureEnabledEnv: "1",
 		productanalytics.RunSourceEnv:      "foreground",
 		productanalytics.DebugOverrideEnv:  "1",
-		"SAFE":                           "preserved",
+		"SAFE":                             "preserved",
 	}, nil)
 	for _, name := range []string{
 		productanalytics.LocalTokenEnv,
@@ -148,5 +150,47 @@ func TestAppRecipeRunnerStripsPrivateAnalyticsEnvironment(t *testing.T) {
 	}
 	if runner.environment["SAFE"] != "preserved" {
 		t.Fatalf("unrelated environment changed: %#v", runner.environment)
+	}
+}
+
+type failingAnalyticsCloseProvider struct {
+	closed bool
+}
+
+func (p *failingAnalyticsCloseProvider) Enqueue(productanalytics.Event) error { return nil }
+func (p *failingAnalyticsCloseProvider) Disable()                             {}
+func (p *failingAnalyticsCloseProvider) Close(context.Context, bool) error {
+	p.closed = true
+	return errors.New("simulated analytics provider shutdown failure")
+}
+
+func TestCloseAppProductAnalyticsIsFailOpen(t *testing.T) {
+	provider := &failingAnalyticsCloseProvider{}
+	service, err := productanalytics.New(productanalytics.Options{
+		DataRoot: t.TempDir(),
+		Config: productanalytics.Config{
+			Provider: productanalytics.ProviderPostHog, Endpoint: "https://us.i.posthog.com",
+			ProjectToken: "phc_test", Environment: "test",
+		},
+		Runtime: productanalytics.RuntimeInfo{AppVersion: "2.0.1", Platform: "darwin", Arch: "arm64"},
+		ProviderMaker: func(productanalytics.Config, http.RoundTripper) (productanalytics.Provider, error) {
+			return provider, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner := &appSchedulerRuntime{}
+	appProductAnalyticsRegistry.Store(owner, &appProductAnalyticsRuntime{service: service})
+	t.Cleanup(func() { appProductAnalyticsRegistry.Delete(owner) })
+
+	if err := closeAppProductAnalytics(owner); err != nil {
+		t.Fatalf("analytics shutdown must not fail the owning App: %v", err)
+	}
+	if !provider.closed {
+		t.Fatal("analytics provider was not closed")
+	}
+	if appProductAnalyticsFor(owner) != nil {
+		t.Fatal("closed analytics runtime remains registered")
 	}
 }

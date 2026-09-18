@@ -33,7 +33,7 @@
   "analytics": {
     "provider": "posthog",
     "endpoint": "https://us.i.posthog.com",
-    "projectToken": "",
+    "projectToken": "phc_wmkeSWXsbMMQvGjjhQkZzX4ehLinBswgMcXaojfxPFiV",
     "environment": "production",
     "maxEventBytes": 2048,
     "queue": {

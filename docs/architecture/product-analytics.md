@@ -4,7 +4,7 @@
 > 状态：**CURRENT IMPLEMENTATION**  
 > Provider：PostHog Cloud + `github.com/posthog/posthog-go`  
 > 范围：官方 OpenDesk 桌面产品 V1 六类事件。  
-> Cloud 状态：**BLOCKED** — `configs/product.json` 当前没有真实 PostHog Project Capture Token。
+> Cloud 状态：**PASS** — 2026-09-18 已由正式 App Mode 的 PostHog Activity › Events 查询确认入库；默认 starter dashboard 的零计数不作为否定证据。
 
 ## 1. 当前生产架构
 
@@ -83,7 +83,7 @@ session idle timeout
 
 `projectToken` 只接受空值或 `phc_` PostHog Project Capture Token。Personal API Key、Project Secret / Management Key 不符合配置合同。
 
-当前 repository 的 `projectToken` 为空，因此生产代码完整但不会向 PostHog Cloud 发送事件。不得为验收伪造生产 token。
+当前 repository 已配置正式 `projectToken`，官方 primary App 的 Product Analytics 现在可以向 PostHog Cloud capture endpoint 发送受控事件。不得为验收伪造或在日志、测试输出中回显 production token；capture endpoint 的 HTTP 成功也不能单独证明 Dashboard 已入库。
 
 ## 5. App local-services bridge
 
@@ -226,7 +226,7 @@ Diagnostics
 当前行为：
 
 - fresh install 默认使用基础匿名统计；
-- `install_id` 只在 Provider 真正可用时生成，因此当前仓库 `projectToken=""` 时不会创建 Analytics identity，也不会发网络请求；
+- `install_id` 只在 Provider 真正可用时生成；provider disabled、缺少 capture token 或 Provider 初始化失败时不会创建 Analytics identity，也不会发网络请求；
 - 已存在的历史 `denied` 记录继续尊重，避免升级时悄悄反转旧的明确 opt-out；
 - Provider 配置为 disabled / 缺少 capture token / Provider 初始化失败时统计自然不可用，但不能影响 OpenDesk 主业务；
 - Product Analytics 的聚合、Trends、Funnels、Retention 和 Dashboard 仅由产品管理员在 PostHog Web 后台查看。
@@ -265,11 +265,19 @@ Diagnostics
 | Runtime JS execution | PASS — 同一 Production Contract 使用正式 `dist/opendesk` 执行 `tests/runtime-api/product-analytics-isolation.js` 通过。 |
 | Local build | PASS — 同一 Production Contract 的 `go build -o dist/opendesk ./cmd/opendesk` 通过。 |
 | Native product qualification | NOT RUN in this implementation environment |
-| PostHog Cloud ingestion | **BLOCKED — repository does not contain a real project capture configuration.** |
+| PostHog Cloud ingestion | **PASS — 2026-09-18 在 PostHog Activity › Events 查询到正式 App Mode 产生的 `app_started`、`app_session_started` 与 `screen_viewed`。** |
 
 Cloud HTTP 2xx 只能证明 capture endpoint 接收请求。只有能够在 PostHog 查询到事件，并核对 Dashboard 过滤/计数，才能把 Cloud ingestion 标为 PASS。
 
-2026-09-18 最终生产 gate 证据：Product Analytics workflow run #161 在 macOS 上完成 Module / JavaScript Contract、Go tests、Runtime build 与正式 third-party isolation，结论为 PASS。该证据不等于完整 Native 产品窗口验收，也不解除真实 PostHog Cloud 配置缺口。
+### 2026-09-18 Cloud ingestion verification 与经验
+
+- 以正式生产入口 `./dist/opendesk -app apps/opendesk -allow-recorder-capture -console-mode script` 启动的 App Mode 实例为准；不得把 `-script` 的 third-party isolation 运行误作产品事件触发。
+- 在 PostHog **Activity › Events** 使用“最近一小时”、无事件/属性筛选查询，观察到同一匿名 install identity（报告中仅保留掩码）的 `app_started`、`app_session_started`、`screen_viewed`，SDK library 为 `posthog-go`。最近一组的相对时间与该正式 App Mode 实例的启动时间吻合。
+- 此次初看 Dashboard 为零的原因不是 capture 失败：目标是 PostHog 默认 starter dashboard，其卡片统计自动网页事件的 Active users、Sessions、Pageviews，并没有配置 OpenDesk 的自定义事件。该页无全局日期覆盖、无 Filter/Breakdown 时仍可显示零。
+- Cloud acceptance 的首选 Oracle 是 Activity › Events 或 Live Events 中的实际事件行；Dashboard 只有在其 Insight 选择了 `app_started` / `screen_viewed` 等受控事件、且时间范围和筛选匹配时才可作为计数 Oracle。若需展示到默认 Dashboard，应新增/替换为此类事件的 Trends Insight，而不是修改 token 或据 HTTP 2xx 判定通过。
+- 该 Cloud 证据不等于 Native 产品窗口视觉验收；后者仍需以当前签名产品的真实 Flow Runner 窗口截图和布局检查单独通过。
+
+2026-09-18 最终生产 gate 证据：Product Analytics workflow run #161 在 macOS 上完成 Module / JavaScript Contract、Go tests、Runtime build 与正式 third-party isolation，结论为 PASS。Cloud Event 查询现已补齐入库证据；完整 Native 产品窗口视觉验收仍为独立层级。
 
 ## 12. V1 不做的事情
 

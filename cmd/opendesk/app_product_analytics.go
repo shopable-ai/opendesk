@@ -173,7 +173,11 @@ func closeAppProductAnalytics(owner *appSchedulerRuntime) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	return runtime.service.Close(ctx)
+	// Product Analytics is auxiliary. Its bounded provider flush/shutdown may
+	// fail (for example when capture is unavailable), but that must never turn
+	// the owning App's shutdown into a business failure.
+	_ = runtime.service.Close(ctx)
+	return nil
 }
 
 func runAppRecipeWithProductAnalytics(service *productanalytics.Service, request pkgExecution.Request) (pkgExecution.ExecutionResult, pkgExecution.AgentSummary, error) {
@@ -369,6 +373,6 @@ func writeAnalyticsAccepted(w http.ResponseWriter, accepted bool) {
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"code":    0,
 		"message": "success",
-		"data": map[string]any{"accepted": accepted},
+		"data":    map[string]any{"accepted": accepted},
 	})
 }
