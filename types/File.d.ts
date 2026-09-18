@@ -62,6 +62,8 @@ declare global {
 
   interface OpenDeskFileSystem {
     path(relativePath: string): string;
+    /** Resolves symlinks/reparse points and returns the canonical absolute host path. The target must already exist. */
+    realPath(path: string): string;
     cwd(): string;
     create(path: string): void;
     createIfNotExists(path: string): void;
