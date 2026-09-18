@@ -47,6 +47,8 @@
     const store = settings.store;
     const channel = settings.channel;
     const taskService = settings.taskService || null;
+    const taskRuntime = settings.taskRuntime || null;
+    const sessionId = String(settings.sessionId || '');
     const AbortControllerImpl = settings.AbortController || global.AbortController;
     const logger = settings.logger || global.console;
     const onChange = typeof settings.onChange === 'function' ? settings.onChange : async () => {};
@@ -63,6 +65,15 @@
       || typeof taskService.freezeEnvelope !== 'function')) {
       throw new AssistantSessionError('INVALID_SESSION', 'assistant task service is invalid');
     }
+    if (taskRuntime && (typeof taskRuntime.startTask !== 'function'
+      || typeof taskRuntime.latestForConversation !== 'function'
+      || typeof taskRuntime.prepareUse !== 'function'
+      || typeof taskRuntime.confirmUse !== 'function'
+      || typeof taskRuntime.generateCandidate !== 'function'
+      || typeof taskRuntime.saveCandidateAs !== 'function'
+      || typeof taskRuntime.explain !== 'function')) {
+      throw new AssistantSessionError('INVALID_SESSION', 'assistant task runtime is invalid');
+    }
     if (typeof AbortControllerImpl !== 'function') {
       throw new AssistantSessionError('INVALID_SESSION', 'AbortController is unavailable');
     }
@@ -73,16 +84,28 @@
     let active = null;
     let lastError = null;
     let persistenceError = null;
+    let taskWorkspace = null;
 
     function assertReady() {
       if (!initialized) throw new AssistantSessionError('SESSION_NOT_READY', 'assistant session is not initialized');
       if (disposed) throw new AssistantSessionError('SESSION_CLOSED', 'assistant session is closed');
     }
 
+    async function refreshTaskWorkspace(conversationId) {
+      if (!taskRuntime || !conversationId) {
+        taskWorkspace = null;
+        return null;
+      }
+      taskWorkspace = await taskRuntime.latestForConversation(conversationId);
+      return taskWorkspace;
+    }
+
     function snapshot() {
       const stored = store.snapshot();
       return Object.freeze({
         ...stored,
+        taskWorkspace: taskWorkspace && taskWorkspace.task
+          && taskWorkspace.task.conversationId === stored.selectedConversationId ? taskWorkspace : null,
         modelStatus: channel.statusText(),
         modelHelp: channel.helpText(),
         activeRequest: active ? Object.freeze({
@@ -92,6 +115,7 @@
           assistantMessageId: active.assistantMessageId,
           stopping: active.stopRequested === true,
           task: publicTaskState(active.taskState),
+          executionId: active.executionId || '',
         }) : null,
         submitting,
         lastError,
@@ -117,6 +141,7 @@
       if (initialized) return snapshot();
       await store.load();
       initialized = true;
+      await refreshTaskWorkspace(store.snapshot().selectedConversationId);
       try {
         const recovered = await store.recoverInterrupted();
         if (recovered > 0) {
@@ -140,6 +165,7 @@
       assertReady();
       try {
         const conversation = await store.createConversation();
+        await refreshTaskWorkspace(conversation.id);
         lastError = null;
         await publish();
         return conversation;
@@ -154,6 +180,7 @@
       assertReady();
       try {
         const conversation = await store.selectConversation(id);
+        await refreshTaskWorkspace(conversation.id);
         lastError = null;
         await publish();
         return conversation;
@@ -197,6 +224,7 @@
       assertReady();
       try {
         const result = await store.archiveConversation(id);
+        await refreshTaskWorkspace(result.selectedConversationId);
         lastError = null;
         await publish();
         return result;
@@ -212,6 +240,7 @@
       assertReady();
       try {
         const conversation = await store.restoreConversation(id);
+        await refreshTaskWorkspace(conversation.id);
         lastError = null;
         await publish();
         return conversation;
@@ -227,6 +256,7 @@
       assertReady();
       try {
         const result = await store.deleteConversation(id);
+        await refreshTaskWorkspace(result.selectedConversationId);
         lastError = null;
         await publish();
         return result;
@@ -334,9 +364,151 @@
       await finishRequest(entry, {status: 'completed', text: taskService.resultText(result, envelope)});
     }
 
+    async function performAssetTaskRequest(entry, text, taskOptions) {
+      if (!taskRuntime) throw new AssistantSessionError('TASK_RUNTIME_UNAVAILABLE', '任务与资产运行时不可用。');
+      entry.taskState = {
+        taskId: entry.requestId,
+        phase: 'preparing',
+        preview: '',
+        envelope: null,
+        progress: Object.freeze({phase: 'preparing'}),
+        result: null,
+        error: null,
+      };
+      await publish();
+
+      let task = await taskRuntime.startTask({
+        taskId: entry.requestId,
+        conversationId: entry.conversationId,
+        sessionId,
+        requestId: entry.requestId,
+        userGoal: text,
+        intent: taskOptions.intent,
+        asset: taskOptions.asset || {kind: 'none'},
+        authorizations: taskOptions.authorizations || {},
+        businessCwd: taskOptions.businessCwd || '',
+        projectId: taskOptions.projectId || '',
+        projectRecordRef: taskOptions.projectRecordRef || '',
+      });
+      await refreshTaskWorkspace(entry.conversationId);
+      if (entry.stopRequested || entry.controller.signal.aborted) {
+        await finishRequest(entry, {status: 'stopped', text: '任务已停止；没有恢复旧确认或自动执行。'});
+        return;
+      }
+
+      if (task.intent === 'explain') {
+        entry.taskState.phase = 'explaining';
+        entry.taskState.progress = Object.freeze({phase: 'explaining'});
+        await publish();
+        const explained = await taskRuntime.explain(task.taskId, {signal: entry.controller.signal});
+        task = explained.task;
+        await refreshTaskWorkspace(entry.conversationId);
+        entry.taskState.phase = 'completed';
+        entry.taskState.progress = Object.freeze({phase: 'completed'});
+        entry.taskState.result = Object.freeze({taskId: task.taskId, status: task.status});
+        await publish();
+        await finishRequest(entry, {status: 'completed', text: explained.text});
+        return;
+      }
+
+      if (task.intent === 'make' || task.intent === 'improve') {
+        entry.taskState.phase = 'drafting';
+        entry.taskState.progress = Object.freeze({phase: 'drafting'});
+        await publish();
+        const generated = await taskRuntime.generateCandidate(task.taskId, {signal: entry.controller.signal});
+        await refreshTaskWorkspace(entry.conversationId);
+        entry.taskState.phase = 'candidateReview';
+        entry.taskState.preview = generated.candidate.content;
+        entry.taskState.progress = null;
+        entry.taskState.result = Object.freeze({
+          candidateId: generated.candidate.candidateId,
+          status: generated.candidate.status,
+          independentlyVerified: generated.candidate.independentlyVerified === true,
+        });
+        await publish();
+        await finishRequest(entry, {
+          status: 'completed',
+          text: '已生成可审阅候选；尚未保存、安装、运行或独立验证。请在任务面板中确认内容后另存。',
+        });
+        return;
+      }
+
+      if (task.intent !== 'use') {
+        throw new AssistantSessionError('INVALID_TASK_INTENT', '当前任务意图不受支持。');
+      }
+
+      const prepared = await taskRuntime.prepareUse(task.taskId, taskOptions.input || {}, {signal: entry.controller.signal});
+      await refreshTaskWorkspace(entry.conversationId);
+      if (prepared.kind === 'clarify') {
+        entry.taskState.phase = 'clarify';
+        entry.taskState.preview = '';
+        entry.taskState.progress = null;
+        await publish();
+        await finishRequest(entry, {status: 'completed', text: prepared.message});
+        return;
+      }
+
+      entry.preparedUse = prepared;
+      entry.taskState.phase = 'awaitingConfirmation';
+      entry.taskState.preview = prepared.preview;
+      entry.taskState.envelope = Object.freeze({
+        kind: 'asset-use',
+        taskId: prepared.task.taskId,
+        taskRevision: prepared.task.revision,
+        asset: prepared.task.asset,
+      });
+      entry.taskState.progress = null;
+      entry.decision = deferred();
+      await publish();
+
+      const confirmed = await entry.decision.promise;
+      if (!confirmed || entry.stopRequested || entry.controller.signal.aborted) {
+        await finishRequest(entry, {status: 'stopped', text: '任务已取消；没有启动新的业务 Execution。'});
+        return;
+      }
+
+      entry.taskState.phase = 'running';
+      entry.taskState.progress = Object.freeze({phase: 'starting'});
+      await publish();
+      const outcome = await taskRuntime.confirmUse(
+        prepared.task.taskId,
+        prepared.prepared,
+        prepared.prepared.confirmationToken,
+        {
+          signal: entry.controller.signal,
+          onStarted: async executionId => {
+            if (active !== entry || entry.stopRequested || entry.controller.signal.aborted) return;
+            entry.executionId = String(executionId || '');
+            entry.taskState.progress = Object.freeze({phase: 'running', executionId: entry.executionId});
+            await refreshTaskWorkspace(entry.conversationId);
+            await publish();
+          },
+        },
+      );
+      await refreshTaskWorkspace(entry.conversationId);
+      if (entry.stopRequested || entry.controller.signal.aborted) {
+        await finishRequest(entry, {status: 'stopped', text: '停止请求已提交；迟到结果不会覆盖停止状态。'});
+        return;
+      }
+      entry.executionId = outcome.run.executionId;
+      entry.taskState.phase = 'completed';
+      entry.taskState.progress = Object.freeze({phase: 'completed', executionId: outcome.run.executionId});
+      entry.taskState.result = outcome.run;
+      await publish();
+      const terminal = outcome.run.businessVerified === true
+        ? 'Execution 已结束，且已有独立业务验证证据。'
+        : 'Execution 已结束；当前只有 Runtime 终态，没有独立业务成功证明。';
+      await finishRequest(entry, {
+        status: 'completed',
+        text: '实际 Execution：' + outcome.run.executionId + '\nRuntime 状态：' + outcome.run.status + '\n' + terminal,
+      });
+    }
+
     async function performRequest(entry, messages, text) {
       try {
-        if (taskService && taskService.shouldHandle(text)) {
+        if (entry.taskOptions && entry.taskOptions.intent && entry.taskOptions.intent !== 'chat') {
+          await performAssetTaskRequest(entry, text, entry.taskOptions);
+        } else if (taskService && taskService.shouldHandle(text)) {
           await performTaskRequest(entry, text);
         } else {
           await performChatRequest(entry, messages);
@@ -365,7 +537,7 @@
       }
     }
 
-    async function submit(text) {
+    async function submit(text, taskOptions) {
       assertReady();
       if (submitting) {
         throw new AssistantSessionError('REQUEST_BUSY', '已有请求或自动化任务正在处理；可以切换会话或编辑其他草稿，但不能创建隐形队列。');
@@ -406,6 +578,9 @@
           taskState: null,
           decision: null,
           lifecycle: null,
+          taskOptions: taskOptions && typeof taskOptions === 'object' ? Object.freeze({...taskOptions}) : null,
+          executionId: '',
+          preparedUse: null,
         };
         active = entry;
         submitting = false;
@@ -476,25 +651,33 @@
       if (!entry) return false;
       if (entry.stopRequested) return true;
       entry.stopRequested = true;
-      // Abort first: rendering or persistence latency must not leave a real
-      // planner/model/desktop request running after the user asked to stop it.
       entry.controller.abort('user-stop');
       if (entry.decision) entry.decision.resolve(false);
+      if (entry.taskState) {
+        entry.taskState.phase = 'stopping';
+        entry.taskState.progress = Object.freeze({
+          phase: 'stopping',
+          executionId: entry.executionId || '',
+          effect: entry.executionId ? 'unknown-until-execution-settles' : 'no-new-execution-confirmed',
+        });
+      }
       try {
         await store.markStopping(entry.conversationId, entry.requestId);
-        await store.transitionRequest({
-          conversationId: entry.conversationId,
-          requestId: entry.requestId,
-          status: 'stopped',
-          text: entry.taskState ? '自动化任务已停止。' : '请求已停止。',
-          error: null,
-        });
         persistenceError = null;
       } catch (error) {
         recordPersistenceError(error);
       }
       await publish();
       return true;
+    }
+
+    async function saveCandidate(taskId, candidateId, destination) {
+      assertReady();
+      if (!taskRuntime) throw new AssistantSessionError('TASK_RUNTIME_UNAVAILABLE', '任务运行时不可用。');
+      const result = await taskRuntime.saveCandidateAs(taskId, candidateId, destination);
+      await refreshTaskWorkspace(result.task.conversationId);
+      await publish();
+      return result;
     }
 
     async function close() {
@@ -520,6 +703,7 @@
       confirmTask,
       cancelTask,
       stop,
+      saveCandidate,
       close,
     });
   }
