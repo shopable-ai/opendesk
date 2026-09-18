@@ -14,6 +14,7 @@ function clone(value) {
 function memoryFile() {
   const files = new Map();
   const dirs = new Set(['/data', '/data/assistant']);
+  const redirects = new Map();
   const normalize = (...parts) => {
     const joined = parts.join('/').replace(/\\/g, '/').replace(/\/+/g, '/');
     return joined.startsWith('/') ? joined.replace(/\/$/, '') || '/' : '/' + joined.replace(/\/$/, '');
@@ -23,6 +24,16 @@ function memoryFile() {
     dirs,
     join: normalize,
     cwd: () => '/product',
+    realPath(path) {
+      const key = normalize(path);
+      if (!files.has(key) && !dirs.has(key)) throw Object.assign(new Error('not found'), {code:'ENOENT'});
+      return redirects.get(key) || key;
+    },
+    redirect(path, target) {
+      const key = normalize(path);
+      dirs.add(key);
+      redirects.set(key, normalize(target));
+    },
     ensureDir(path) { dirs.add(normalize(path)); },
     exists(path) { return files.has(normalize(path)) || dirs.has(normalize(path)); },
     listDir(path) {
@@ -95,6 +106,15 @@ test('task store uses expected revision and persistent task identity is not owne
   const loaded = await store.load(first.taskId);
   assert.equal(loaded.status, 'resumed');
   assert.equal(loaded.revision, 2);
+});
+
+
+test('task store rejects a task directory redirected through a symlink or reparse-point alias', async () => {
+  const file = memoryFile();
+  const store = Contract.createStore({file, rootDir:'/data/assistant', clock:clock()});
+  await store.save(Contract.create(baseTask()), {expectedRevision:0});
+  file.redirect('/data/assistant/tasks/task-a', '/outside/task-a');
+  await assert.rejects(() => store.load('task-a'), {code:'TASK_STORAGE_REDIRECTED'});
 });
 
 test('all four asset entry shapes persist without projectId and unresolved directory remains a clarification state', async () => {
@@ -177,6 +197,26 @@ test('candidate make is reviewable, save-as is exclusive, and verification must 
   assert.equal(verified.candidate.verificationEvidence.executionId, 'exec-real-1');
 });
 
+
+
+test('candidate store rejects a redirected candidate directory on resume', async () => {
+  const file = memoryFile();
+  const runtime = TaskRuntime.create({
+    file, rootDir:'/data/assistant', randomUUID:uuids(), clock:clock(),
+    modelChannel:{
+      async draftCandidate(){ return {text:'console.log("candidate");'}; },
+      async send(){ return {text:'unused'}; },
+    },
+  });
+  const task = await runtime.startTask({
+    taskId:'redirect-candidate', conversationId:'conv-a', requestId:'req-a',
+    userGoal:'make a candidate', intent:'make', asset:{kind:'none'},
+  });
+  const generated = await runtime.generateCandidate(task.taskId);
+  const path = '/data/assistant/tasks/' + task.taskId + '/candidates/' + generated.candidate.candidateId;
+  file.redirect(path, '/outside/candidate');
+  await assert.rejects(() => runtime.loadCandidate(task.taskId, generated.candidate.candidateId), {code:'TASK_STORAGE_REDIRECTED'});
+});
 test('candidate verification is unavailable without a host-owned verifier', async () => {
   const file = memoryFile();
   const runtime = TaskRuntime.create({
