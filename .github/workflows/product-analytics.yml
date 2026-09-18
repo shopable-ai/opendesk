@@ -49,6 +49,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: product-analytics-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   module-and-js-contract:
     name: Module and JavaScript Contract
