@@ -341,7 +341,7 @@
         return;
       }
 
-      entry.taskState.phase = 'running';
+      entry.taskState.phase = 'starting';
       entry.taskState.progress = Object.freeze({phase: 'starting'});
       await publish();
       const result = await taskService.execute(envelope, {
@@ -476,10 +476,10 @@
         prepared.prepared.confirmationToken,
         {
           signal: entry.controller.signal,
-          onStarted: async executionId => {
+          onReserved: async executionId => {
             if (active !== entry || entry.stopRequested || entry.controller.signal.aborted) return;
             entry.executionId = String(executionId || '');
-            entry.taskState.progress = Object.freeze({phase: 'running', executionId: entry.executionId});
+            entry.taskState.progress = Object.freeze({phase: 'reserved', executionId: entry.executionId});
             await refreshTaskWorkspace(entry.conversationId);
             await publish();
           },
