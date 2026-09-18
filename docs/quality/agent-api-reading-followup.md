@@ -1,6 +1,6 @@
 # Agent API 阅读入口：接续实施验收
 
-本记录针对已推送的实现提交 `9388ba04a4fca5fb085590f2cd4d472a7fbbcd9c`，补充[原交付记录](agent-api-reading.md)。原记录中 17 项测试及“JSON 只读字段”的测量是前一版基线；本记录的 26 项测试与“校验后独占另存”演示为本次接续结果。不是第二份 API 合同。
+本记录针对整合提交 `a76088c2834b692974526ee6e34203f6d57bfb04` 的最终复验，补充[原交付记录](agent-api-reading.md)。原记录中的 17 项测试、JSON 只读演示，以及本记录此前在 9388ba04 上的 26 项测试均为中间基线。最终整合验证为 33 pass、0 fail，覆盖“校验后独占另存”与原生动作状态依赖。不是第二份 API 合同。
 
 ## 最终阅读链
 
@@ -17,6 +17,8 @@
 
 第一次提交涉及 `AGENTS.md`、`docs/api/README.md`、`docs/api/index.md`、`workflows/README.md`、Agent WORKFLOW / capability-discovery / application-engineer Skill、Human Skill、recorder-script-refiner Skill，以及 `docs/api/agent/{targets,elements,vision,input-events,data,runtime,presentation,network-ai,authoring,entrypoints}.md`。
 
+质量摘要最初通过 `a615c567d828ff7f80ea5ae443161bf8e5ffea76` 提交，随后按最终 CI 结果更新。
+
 并行提交的根 README/QUICKSTART、Framework 导航、code-rebuild、CI 以及原质量记录均保留；没有用旧快照覆盖它们。远端更新使用 `force:false` 非强制快进，没有新建分支。本地验证环境是隔离源码快照，不是用户电脑工作区，未声称看过用户未提交修改。
 
 ## 本次补齐的真实缺口
@@ -24,6 +26,8 @@
 `Locator` 文本依赖正则原先只匹配字面量 `Locator.`，现覆盖 find/waitFor/tap。getValue/setValue 会继续读取 UI 底层方法及 Accessibility 公共语义；tap 会携带三种目标实际委托的方法；window.wait/activate 同样展开正文明确复用的 get/current。
 
 全局 notify、Dialog、剪贴板快捷方法现在跨页进入真正的 canonical 方法，并继续展开该页共享契约。所有依赖仅记录来源位置，没有复制第二套参数/错误正文。
+
+最终新增的 discovery 回归发现 UI.tapTexts 缺少 actionState 的 unknown 定义。修复要求读取 Accessibility 公共状态、错误及平台合同，不移除断言。准备提交时，SHA 保护发现并行提交已先完成同一修复，并扩展到 UI.tapText；保留该修改，没有覆盖。最终 a76088c 的 CI 已包含本次 26 项 reader 测试及并行新增的 7 项 discovery 测试。
 
 END 标记不能证明中间内容未丢失。现在 `plan` 包含选择项及 packet SHA-256，`verify` 同时复核输出、字节/字符、范围和当前源版本；有结束标记但丢失中段、同长度篡改、遗漏依赖和过期来源均会失败。`read --max-bytes N` 超限整包拒绝，stdout 为空，不返回成功形状的残片。`plan --types` 与 `read --types` 相匹配。
 
@@ -33,24 +37,19 @@ END 标记不能证明中间内容未丢失。现在 `plan` 包含选择项及 p
 
 实际运行在 GitHub Actions 完整 checkout，源码为上述实现提交：
 
-[Actions run 35345949660](https://github.com/shopable-ai/opendesk/actions/runs/35345949660)，阅读 job `105602441034`。
+[Actions run 35346880086](https://github.com/shopable-ai/opendesk/actions/runs/35346880086)，阅读 job `105605437407`、canonical job `105605437069` 均 success。
 
 | 检查 | 真实结果 |
 | --- | --- |
 | `node scripts/api-docs.js check` | PASS；10 组、45 个文档入口、493 个条目，链接/锚点/来源一致性错误 0 |
-| `node --test tests/api-docs/reader.test.js` | 26 pass，0 fail，0 skipped；包含三组只读演示 |
+| `node --test tests/api-docs/*.test.js` | 33 pass，0 fail，0 skipped；包含 26 项 reader 与 7 项 discovery 测试及三组只读演示 |
 | 目录再生成与已提交文件比较 | PASS；CI 先检查已提交目录，再生成验证，不能通过先重生成掩盖漂移 |
 | `git diff --check` 和生成后工作区 | PASS；CI 记录的 worktree-status 为空 |
 | 独立 Reference/类型发现 | PASS；扫描 63 个 declared global 名称及 8 个显式 docType: reference 页面；新增未路由 global/Reference 的注入测试会失败 |
-| `node scripts/check_api_docs_contract.js` | FAIL（该实现提交上的既有失败）；本次两笔读取层提交未修改旧检查或产品代码 |
+| `node scripts/check_api_docs_contract.js` | PASS；并行维护后的当前检查 |
+| 产品 JavaScript syntax | PASS；既有 script-runner-simple / scheduler-center 语法检查 |
 
-原检查在本次 commit 的 canonical job `105602441324` 实际输出：
-
-```text
-API_DOC_CONTRACT_ERROR apps/opendesk/scheduler-center.js: missing canonical Scheduler Center inline template name
-```
-
-该失败已在接续修改前的 CI 复现；因此 9388ba04 对应的整体 workflow 不是全绿。新阅读 job 与该旧失败独立。该 run 的 canonical job 后续产品 JS syntax step 被跳过，不能称其通过。提交报告前，master 已有并行提交更新旧检查器与 Workflow；此处只记录已核实的 9388ba04 结果，不把历史失败或成功冒充所有后续 commit 的状态。
+中间结果也保留：9388ba04 的 run `35345949660` 中，reader 为 26/26 通过，但原检查报 `missing canonical Scheduler Center inline template name`。a615c567 的 run `35346592487` 中，canonical 已通过，新增 discovery 检查为 32/33，暴露 UI.tapTexts 原生 actionState 依赖漏读。a76088c 的上述最终 run 才是两项 job 均通过、33/33 的整合结果。不能把不同 SHA 的局部成功拼成虚假的同版通过。读取层两笔实现提交没有修改旧检查器或产品代码；本次保留并复核了并行维护结果。
 
 493 是方法、属性、实例和兼容名称的目录条目，不是 493 个已逐一运行认证的 API。45 个入口还包含 CLI/Protocol；只有部分历史页带 docType，不能把“8 个显式 Reference”误说成全部 Reference。覆盖还联合全部已登记 Reference 的总表/标题/类型成员与机器索引 41 个 globals；机器 keyMethods 不是唯一覆盖依据。类库按当前正式文档的模块入口呈现，不等于附带第三方所有方法的行为合同。
 
@@ -72,7 +71,7 @@ API_DOC_CONTRACT_ERROR apps/opendesk/scheduler-center.js: missing canonical Sche
 | --- | ---: | ---: | ---: |
 | A 桌面取值 | 71,972 | 51,196 | 101,047 |
 | B 配置校验后另存 | 36,984 | 23,994 | 32,742 |
-| C Recipe 局部审查 | 49,584 | 33,316 | 78,261 |
+| C Recipe 局部审查 | 55,057 | 37,415 | 92,181 |
 
 “来源文件体量”为每个包内去重、跨包累计的源文件大小账本，不是操作系统底层 I/O 次数或流量；检查器自身会扫描更多文件，也不是模型上下文。三个演示均不全文读取 runtime-api.ai.json、不全文返回全部类型、不执行桌面或客户业务。没有 provider/tokenizer 数据，不声称效率、token 成本或成功率已提升。
 
@@ -86,14 +85,14 @@ API_DOC_CONTRACT_ERROR apps/opendesk/scheduler-center.js: missing canonical Sche
 | `UI.readText` | 14,368 / 10,268 | `docs/api/desktop-ui.md` 1–15, 40–44, 338–453, 524–547, 827–865, 1310–1353 |
 | `File.readJSON` | 5,334 / 3,434 | `docs/api/file.md` 1–22, 61–61, 105–130, 157–184, 435–442 |
 | `File.writeNew` | 3,628 / 2,290 | `docs/api/file.md` 1–22, 61–61, 199–223, 435–442 |
-| `UI.tapTexts` | 18,952 / 12,691 | `docs/api/desktop-ui.md` 1–15, 40–44, 338–453, 524–547, 897–994, 1310–1353 |
+| `UI.tapTexts` | 24,425 / 16,790 | `docs/api/desktop-ui.md` 1–15, 40–44, 338–453, 524–547, 897–994, 1310–1353；`docs/api/accessibility.md` 24–117, 350–398 |
 | `#异步完成与取消` | 5,933 / 3,523 | `docs/api/runtime.md` 1–12, 163–231 |
 
 File.readJSON 的关键公共错误/取消在 file.md 157–184 行，属于 writeJSON 后面的共享小节；本次真实返回该段，未把 H2 105–130 当作完整合同。File.writeNew 是另一个独占写入合同，没有把异步 writeJSON 的替换/取消语义强行套给它。
 
 ### 版本与重现
 
-CI 保存 `.runtime/tests/api-docs/reading-demos.json`（各包源 SHA-256、范围、大小、比较与停止点）、六个实际阅读包、coverage、测试 TAP、目录/工作区及 JSON 消费者记录。运行产物不提交；本文件只保存稳定验收摘要。阅读产物位于 run 的 `agent-api-reading-evidence`，id `10545719856`，留存 7 天，过期后可用同 commit 的测试重新生成。
+CI 保存 `.runtime/tests/api-docs/reading-demos.json`（各包源 SHA-256、范围、大小、比较与停止点）、六个实际阅读包、coverage、测试 TAP、目录/工作区及 JSON 消费者记录。运行产物不提交；本文件只保存稳定验收摘要。阅读产物位于 run 的 `agent-api-reading-evidence`，id `10547232497`，留存 7 天，过期后可用同 commit 的测试重新生成。
 
 程序消费 JSON、工具返回 Markdown 和真实模型加载分别记录。JSON 及其原有解析消费者不删除，不改变结构。旧 `Retain documentation verification inputs` 资料搬运步骤和临时准备 job 已从当前 CI 移除；保留的是正式检查与运行证据留存，不再上传整套源码资料作为交付。
 
