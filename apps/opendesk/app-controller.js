@@ -124,7 +124,6 @@
               'opendesk.logs.open',
               'opendesk.debug.normal',
               'opendesk.debug.detailed',
-              'opendesk.analytics.diagnostics',
             ].includes(event.id)) {
             await beforeProductSurface('developer-tool');
             await developerTools.activate(event.id, source);
