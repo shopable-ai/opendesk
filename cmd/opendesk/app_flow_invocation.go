@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -58,11 +59,8 @@ func loadAppFlowInvocation(lease *flowinstall.RunLease) (*automation.AppOwnedFlo
 		return nil, fmt.Errorf("decode Flow assistant invocation contract: %w", err)
 	}
 	var trailing any
-	if err := decoder.Decode(&trailing); err != nil && !errors.Is(err, os.ErrClosed) {
-		// json.Decoder reports io.EOF for a clean single document.
-		if err.Error() != "EOF" {
-			return nil, errors.New("Flow assistant invocation contract contains trailing JSON data")
-		}
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return nil, errors.New("Flow assistant invocation contract contains trailing JSON data")
 	}
 	if err := validateAppFlowInvocation(&contract); err != nil {
 		return nil, err
