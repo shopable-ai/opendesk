@@ -61,6 +61,27 @@ File 是运行时注入的文件系统对象。原有 `read()`、`write()` 等�
 
 ## File：常用方法
 
+## File.realPath(path)
+
+解析一个**已经存在**的文件或目录，跟随符号链接／Windows reparse point，并返回宿主文件系统的 canonical 绝对路径。它只做路径解析，不创建、删除或修改文件。
+
+```js
+const canonical = File.realPath('./assets/current');
+console.log(canonical);
+```
+
+**签名**
+
+```ts
+File.realPath(path: string): string
+```
+
+- 相对路径先按当前 `Execution.workdir` 解释，然后执行宿主真实路径解析。
+- 目标必须存在；不存在、权限拒绝或无法解析时直接抛出文件系统错误。
+- `File.path()` 只做工作目录下的绝对路径拼接；需要判断 symlink/junction/reparse-point 是否改变真实位置时使用 `File.realPath()`。
+- 返回值可以用于“期望路径”和“真实路径”比较，但它本身不是授权；调用方仍需按业务范围判断真实路径是否允许。
+- 该 API 不创建 watcher、handle 或后台任务。
+
 ## File.cwd()
 
 ```js
