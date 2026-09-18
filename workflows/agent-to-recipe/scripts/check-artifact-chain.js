@@ -8,6 +8,7 @@ const {
   SCHEMA, JSON_LIMIT, FILE_LIMIT, own, object, text, hash, CheckError,
   requireCheck, makeRoots, resolveFile, entryFile, readBytes, parseJson,
 } = require('./artifact-validation.js');
+const { inputsFor, artifactViews, provenChecks, renderReview } = require('./stage-review.js');
 
 const BOUNDARIES = ['bindings', 'trace-distill', 'procedure-synthesize', 'candidate', 'qualification'];
 
@@ -80,9 +81,11 @@ function callSegments(source, functionName) {
 }
 
 /**
- * @param {{dossier:string,actions:string,distilled:string,procedure:string,candidate:string,qualification:string,roots:Array<[string,string]>}} options
+ * @param {{dossier:string,actions:string,distilled:string,procedure?:string,candidate?:string,qualification?:string,through?:string,roots:Array<[string,string]>}} options
  */
-function checkArtifactChain(options) {
+function checkArtifactChain(options = {}) {
+  const through = options.through ?? 'qualification';
+  let required = [];
   const errors = [];
   const checks = [];
   const budget = { bytes: 0 };
@@ -106,10 +109,13 @@ function checkArtifactChain(options) {
     }
   };
 
+  required = attempt('bindings', 'through', () => inputsFor(through));
+  if (!required) return report();
   roots = attempt('bindings', 'roots', () => makeRoots(options.roots));
   if (!roots) return report();
 
   const readEntry = (name, requireObject = true) => attempt('bindings', name, () => {
+    if (!required.includes(name)) return undefined;
     const filename = entryFile(roots, options[name]);
     const bytes = readBytes(filename, JSON_LIMIT, budget);
     const parsed = parseJson(bytes);
@@ -123,7 +129,7 @@ function checkArtifactChain(options) {
   const procedure = readEntry('procedure');
   const candidate = readEntry('candidate');
   const qualification = readEntry('qualification');
-  if (![dossier, actions, distilled, procedure, candidate, qualification].every(Boolean)) return report();
+  if (!required.every(name => entries[name])) return report();
 
   const inspectRef = (ref, boundary, location) => attempt(boundary, location, () => {
     requireCheck(object(ref) && text(ref.rootId) && text(ref.path) && text(ref.kind)
@@ -158,6 +164,36 @@ function checkArtifactChain(options) {
       'SCHEMA_VERSION', 'Only agent-to-recipe/v1 artifacts are accepted.'));
   }
 
+  // This supported slice has one frozen plan revision. Multi-revision traces
+  // require a separate reviewed contract; never relabel history to fit it.
+  for (const [field, name] of [['contractRef', 'contract'], ['workPlanRef', 'plan']]) {
+    const expectedKind = name === 'contract' ? 'TaskContract' : 'WorkPlan';
+    const upstream = inspectRef(dossier[field], 'bindings', 'dossier.' + field);
+    inspectRef(distilled[field], 'bindings', 'distilled.' + field);
+    attempt('bindings', field + '.sameInput', () => requireCheck(
+      refIdentity(dossier[field]) === refIdentity(distilled[field]), 'WRONG_VERSION',
+      'Dossier and DistilledSteps must bind the same frozen contract and plan.'));
+    if (upstream) attempt('bindings', field + '.document', () => {
+      requireCheck(dossier[field].kind === expectedKind && distilled[field].kind === expectedKind,
+        'INVALID_REF', 'Contract and plan references must declare their actual artifact kind.');
+      requireCheck(upstream.bytes.length <= JSON_LIMIT, 'SIZE_LIMIT', 'Upstream JSON exceeds the read limit.');
+      const parsed = parseJson(upstream.bytes);
+      requireCheck(object(parsed) && parsed.schemaVersion === SCHEMA && text(parsed.taskId),
+        'INVALID_DOCUMENT', 'Upstream contract and plan need a supported schema and task identity.');
+      entries[name] = { ...upstream, parsed };
+    });
+  }
+  if (entries.contract && entries.plan) attempt('bindings', 'upstream.identity', () => {
+    requireCheck(entries.contract.parsed.taskId === entries.plan.parsed.taskId, 'MIXED_TASK',
+      'The frozen TaskContract and WorkPlan must identify the same task.');
+    requireCheck(text(entries.plan.parsed.revision)
+      && dossier.planRevision === entries.plan.parsed.revision
+      && distilled.planRevision === entries.plan.parsed.revision, 'WRONG_PLAN_REVISION',
+      'Both observed and distilled plan revisions must match the frozen WorkPlan.');
+    if (candidate) requireCheck(candidate.taskId === entries.contract.parsed.taskId, 'MIXED_TASK',
+      'Candidate must belong to the same task as the frozen upstream contract.');
+  });
+
   if (dossier && actions && distilled) attempt('trace-distill', 'structure', () => {
     evaluated.add('trace-distill');
     requireCheck(Array.isArray(actions) && actions.length > 0,
@@ -173,6 +209,8 @@ function checkArtifactChain(options) {
         'ACTION_ID', 'Every raw action needs a unique actionId.');
       actionById.set(action.actionId, { action, index });
     }));
+    requireCheck(Array.isArray(distilled.unresolved) && distilled.unresolved.length === 0,
+      'UNRESOLVED_ARTIFACT', 'The successful normal-path slice cannot accept unresolved distillation.');
     const steps = array(distilled.steps, 'SOURCE_STEPS', 'DistilledSteps requires a steps array.');
     requireCheck(steps.length > 0, 'SOURCE_STEPS', 'The normal path must not be empty.');
     const stepById = new Map();
@@ -180,7 +218,8 @@ function checkArtifactChain(options) {
       requireCheck(object(step) && text(step.stepId) && !stepById.has(step.stepId),
         'STEP_ID', 'Every DistilledStep needs a unique stepId.');
       stepById.set(step.stepId, { step, index });
-      array(step.sourceActionRefs, 'SOURCE_ACTIONS', 'Each DistilledStep must cite source actions.');
+      requireCheck(array(step.sourceActionRefs, 'SOURCE_ACTIONS', 'Each DistilledStep must cite source actions.').length > 0,
+        'SOURCE_ACTIONS', 'A normal-path DistilledStep cannot invent an action without a source.');
       for (const actionId of step.sourceActionRefs) requireCheck(actionById.has(actionId),
         'UNKNOWN_ACTION', 'A DistilledStep cites an unknown raw action.');
       for (const dependency of array(step.dependencies || [], 'DEPENDENCIES', 'dependencies must be an array.')) {
@@ -206,9 +245,11 @@ function checkArtifactChain(options) {
         if (decision.decision !== 'omit') requireCheck(stepById.has(decision.stepRef),
           'ACTION_DECISION', 'A non-omitted action decision must cite a DistilledStep.');
         requireCheck(text(decision.reason), 'ACTION_DECISION', 'Each disposition needs its source-based reason.');
-        if (decision.decision === 'retain') requireCheck(
+        requireCheck(decision.decision !== 'unresolved', 'UNRESOLVED_ARTIFACT',
+          'Unresolved action decisions cannot enter the successful normal path.');
+        if (['retain', 'merge'].includes(decision.decision)) requireCheck(
           stepById.get(decision.stepRef).step.sourceActionRefs.includes(decision.actionRef),
-          'ACTION_DECISION', 'A retained action must occur in its declared step.');
+          'ACTION_DECISION', 'A retained or merged action must occur in its declared step.');
         decisionByAction.set(decision.actionRef, decision);
       });
     }
@@ -254,15 +295,20 @@ function checkArtifactChain(options) {
       'The recorded runtime value must equal its cited actual read.'));
       const producerDecision = decisionByAction.get(match[0]);
       const producerStep = producerDecision && stepById.get(producerDecision.stepRef);
-      attempt('trace-distill', base + '.producer', () => requireCheck(producerStep
+      attempt('trace-distill', base + '.producer', () => requireCheck(producerStep && ['retain', 'merge'].includes(producerDecision.decision)
         && (producerStep.step.outputs || []).includes(runtimeValue.name), 'DATA_DEPENDENCY_BROKEN',
       'The producer DistilledStep must output the runtime value.'));
       for (const consumerId of runtimeValue.consumers || []) {
-        if (!actionById.has(consumerId)) continue;
+        if (!actionById.has(consumerId)) {
+          attempt('trace-distill', base + '.consumer.' + consumerId, () => requireCheck(
+            !/^A\d+$/.test(consumerId), 'UNKNOWN_CONSUMER', 'A raw-action consumer must exist in the frozen trace.'));
+          continue;
+        }
         const consumer = actionById.get(consumerId).action;
         const consumerDecision = decisionByAction.get(consumerId);
         const consumerStep = consumerDecision && stepById.get(consumerDecision.stepRef);
-        attempt('trace-distill', base + '.consumer.' + consumerId, () => requireCheck(consumerStep
+        attempt('trace-distill', base + '.consumer.' + consumerId, () => requireCheck(consumerStep && ['retain', 'merge'].includes(consumerDecision.decision)
+          && actionById.get(consumerId).index > actionById.get(match[0]).index
           && (consumerStep.step.inputs || []).includes(runtimeValue.name), 'DATA_DEPENDENCY_BROKEN',
         'The consumer DistilledStep must declare the runtime value as an input.'));
         if (consumer.kind === 'actual-input' && runtimeValue.type === 'digit-string') {
@@ -415,7 +461,10 @@ function checkArtifactChain(options) {
     evaluated.add('candidate');
     bind(candidate.procedureRef, 'procedure', 'bindings', 'candidate.procedureRef');
     const script = inspectRef(candidate.scriptRef, 'candidate', 'candidate.scriptRef');
-    if (script) scriptSource = script.bytes.toString('utf8');
+    if (script) {
+      scriptSource = script.bytes.toString('utf8');
+      entries.script = script;
+    }
     const sourceMapping = array(candidate.sourceMapping, 'SOURCE_MAPPING', 'Candidate sourceMapping must be an array.');
     const mappedSteps = new Set(sourceMapping.flatMap(mapping => referencedSteps(mapping.step)));
     attempt('candidate', 'candidate.sourceMapping', () => requireCheck(
@@ -493,6 +542,11 @@ function checkArtifactChain(options) {
         'QUALIFICATION_SCOPE', 'Scope entries must be nonempty strings.');
       requireCheck(requested.length > 0 && requested.every(item => exercised.has(item) && qualified.has(item)),
         'PARTIAL_QUALIFICATION', 'A pass cannot omit requested scope from exercised or qualified scope.');
+      requireCheck([...qualified].every(item => exercised.has(item)), 'PARTIAL_QUALIFICATION',
+        'Qualified scope cannot contain an unexercised scenario.');
+      const excluded = new Set(array(scope.excluded || [], 'QUALIFICATION_SCOPE', 'excluded scope must be an array.'));
+      requireCheck([...qualified].every(item => !excluded.has(item)), 'PARTIAL_QUALIFICATION',
+        'Qualified scope cannot also be excluded.');
       const skipped = new Set((qualification.skipped || []).flatMap(item => typeof item === 'string' ? [item] : [item.scope, item.id]));
       requireCheck(requested.every(item => !skipped.has(item)), 'PARTIAL_QUALIFICATION',
         'Requested scope may not be moved to skipped while claiming pass.');
@@ -515,37 +569,46 @@ function checkArtifactChain(options) {
   function report() {
     const status = Object.fromEntries(BOUNDARIES.map(boundary => [boundary,
       errors.some(error => error.boundary === boundary) ? 'fail' : evaluated.has(boundary) ? 'pass' : 'not-run']));
+    const accepted = {};
+    let upstreamOK = true;
+    for (const boundary of BOUNDARIES) {
+      accepted[boundary] = status[boundary] === 'pass' && !upstreamOK ? 'blocked' : status[boundary];
+      upstreamOK = upstreamOK && status[boundary] === 'pass';
+    }
     return {
       tool: 'agent-to-recipe-artifact-chain/v1', verdict: errors.length ? 'fail' : 'pass',
-      boundaries: status, checkedFiles: new Set([...verified.values()].map(value => value.filename)).size,
+      through, localChecks: status, artifacts: artifactViews(entries),
+      ignoredInputs: ['dossier', 'actions', 'distilled', 'procedure', 'candidate', 'qualification']
+        .filter(name => own(options, name) && !(required || []).includes(name)),
+      stageComplete: false, liveQualificationGranted: false,
+      boundaries: accepted, checkedFiles: new Set([...verified.values()].map(value => value.filename)).size,
       readBytes: budget.bytes, errors,
-      proves: ['exact-byte bindings', 'raw-action disposition coverage', 'runtime-value producer/consumer declarations',
-        'capability discovery → method selection → canonical contract → recorded runtime validation linkage',
-        'selected API contract refs carried into Candidate source mapping',
-        'Procedure-to-Candidate direct await/spread source pattern', 'Candidate-to-Qualification declared scope binding'],
-      scope: 'Calculator-shaped v1 successful artifact slice; selected stage refs, not a complete schema or dependency closure',
+      proves: provenChecks(accepted, errors.length === 0, capabilityDecisionById.size > 0),
+      scope: 'Calculator-shaped v1 successful artifact prefix through ' + through
+        + '; one frozen plan revision, selected refs, not a complete Stage Contract, schema or dependency closure',
       notEvaluated: ['truth of historical observations beyond bound evidence', 'desktop actions or OS input events',
         'visual correctness', 'human acceptance', 'host skill discovery/loading', 'blind-context model performance',
         'semantic correctness of a catalog/contract beyond its bound bytes or of runtime evidence beyond its cited record',
         'capability selection provenance for legacy Procedure/Candidate pairs that do not declare capabilityDecisionRefs',
         'JavaScript reachability, aliasing, shadowing or general data-flow correctness',
         'transitive dependency closure, arbitrary trace formats or business semantics',
-        'unsupported inputs, platforms or layouts'],
+        'unsupported inputs, platforms or layouts',
+        'complete Stage Contracts, G0-G7 decisions, trusted publisher identity or handoff publication'],
       desktopActionsAuthorized: false,
       next: errors.length ? 'Return each error to its named boundary; do not infer or replay missing desktop facts.'
-        : 'This artifact slice is internally consistent. Use its separate Qualification evidence for live behavior claims.',
+        : 'The requested artifact prefix is internally consistent. Unchecked downstream work remains not-run; complete the applicable Gates and handoff separately.',
     };
   }
 }
 
-const HELP = 'Usage: node workflows/agent-to-recipe/scripts/check-artifact-chain.js --dossier <dossier.json> --actions <actions.json> --distilled <distilled-steps.json> --procedure <procedure.json> --candidate <candidate.json> --qualification <qualification.json> --root <id=directory> [--root <id=directory> ...]\nRead-only S7→S12 consumer check. Exit: 0 pass, 1 semantic/integrity failure, 2 usage error.\n';
+const HELP = 'Usage: node workflows/agent-to-recipe/scripts/check-artifact-chain.js [--through trace-distill|procedure-synthesize|candidate|qualification] --dossier <dossier.json> --actions <actions.json> --distilled <distilled-steps.json> [--procedure <procedure.json>] [--candidate <candidate.json>] [--qualification <qualification.json>] --root <id=directory> [--root <id=directory> ...] [--format json|markdown]\nDefault: qualification (all six paths). Earlier boundaries require only their prefix; never fabricate downstream files. Read-only check, not live qualification. Exit: 0 prefix pass, 1 check failure, 2 usage error.\n';
 function main(argv) {
   if (argv.length === 1 && argv[0] === '--help') { process.stdout.write(HELP); return 0; }
   try {
     const options = { roots: [] };
     for (let index = 0; index < argv.length; index += 2) {
       const flag = argv[index], value = argv[index + 1];
-      requireCheck(['--dossier', '--actions', '--distilled', '--procedure', '--candidate', '--qualification', '--root']
+      requireCheck(['--dossier', '--actions', '--distilled', '--procedure', '--candidate', '--qualification', '--root', '--through', '--format']
         .includes(flag) && text(value) && !value.startsWith('--'), 'USAGE', 'Unknown option or missing argument.');
       if (flag === '--root') {
         const separator = value.indexOf('=');
@@ -557,12 +620,13 @@ function main(argv) {
         options[key] = value;
       }
     }
-    for (const name of ['dossier', 'actions', 'distilled', 'procedure', 'candidate', 'qualification']) {
-      requireCheck(text(options[name]), 'USAGE', 'All six artifact paths are required.');
+    for (const name of inputsFor(options.through ?? 'qualification')) {
+      requireCheck(text(options[name]), 'USAGE', 'Missing required prefix input: ' + name);
     }
+    requireCheck(['json', 'markdown'].includes(options.format ?? 'json'), 'USAGE', 'Use --format json or markdown.');
     requireCheck(options.roots.length > 0, 'USAGE', 'At least one explicit root is required.');
     const report = checkArtifactChain(options);
-    process.stdout.write(JSON.stringify(report, null, 2) + '\n');
+    process.stdout.write(options.format === 'markdown' ? renderReview(report) : JSON.stringify(report, null, 2) + '\n');
     return report.verdict === 'pass' ? 0 : 1;
   } catch (error) {
     process.stderr.write((error instanceof CheckError ? error.message : 'Invalid invocation.') + '\n' + HELP);

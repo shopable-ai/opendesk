@@ -6,7 +6,12 @@ order: 10
 
 # Agent-first Recorder｜设计总纲与文件地图
 
-状态：设计基线 v0.7，2026-09-19 补实施状态。保留 v0.6 Structured UI Collection Reading 的现行边界，以及自然语言入口、操作计划、planned／actual 和 DistilledSteps 专业边界。当前已有 application-engineer、trace-distill、procedure-synthesize、code-rebuild 四个方法文件与限定静态检查；宿主加载、盲评与人类验收未证明。实际状态见[质量总览](../../../docs/quality/agent-to-recipe-workflow-review-20260919.md)。本文不新增 Runtime、S13 或第三套工作流。返回[工作流总入口](../../README.md)。
+状态：设计基线 v0.8，2026-09-19 补交接审阅与前缀检查，纠正方法文件状态冲突。保留 v0.6 Structured UI Collection Reading 的现行边界，以及自然语言入口、操作计划、planned／actual 和 DistilledSteps 专业边界。当前已有 application-engineer、trace-distill、procedure-synthesize、code-rebuild 四个方法文件与限定静态检查；宿主加载、盲评与人类验收未证明。实际状态见[质量总览](../../../docs/quality/agent-to-recipe-workflow-review-20260919.md)。本文不新增 Runtime、S13 或第三套工作流。返回[工作流总入口](../../README.md)。
+
+## 先看关键输入输出与实际检查
+
+从[交接审阅地图](acceptance-map.md)查看：中文环节与 Skill／模式、输入输出实例、放行反例、失败责任和仍未实现部分。原[任务分解树](task-decomposition.md)继续拥有完整任务与三个循环，不用新摘要替代。
+原检查器已支持 `--through` 分段检查和 `--format markdown` 同源审阅 View；它不是完整 Stage Validator、自动评分器或新的运行资格证明。测试与限制见[本轮修复记录](../../../docs/quality/agent-to-recipe-stage-boundary-review-20260919.md)。
 
 ## 一、当前要建设什么
 
@@ -65,7 +70,7 @@ AX/UIA + OCR + Screenshot/Layout
 - [共享 Skill 合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)：TaskContract／WorkPlan、AppProfile、Dossier、DistilledSteps、SemanticProcedure、CandidateManifest、QualificationRecord 的字段职责、版本和正式交接唯一正文。
 - [结构化界面集合读取](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)：跨工作流唯一技术正文，定义 ObservationBundle、CollectionProfile、记录分段、字段归属、Validator、VLM proposal、generic Item、App Adapter 和 Recipe 边界。
 - [计算器案例](../cases/calculator.md)：保留需求代入、数据关系、失败反例和设计演变，不因新集合能力改写已有业务事实。
-- [WORKFLOW.md](../WORKFLOW.md)：保留导航和当前实际 Skill 入口；未实现的 `trace-distill`、`code-rebuild` 或整体调度不冒充可运行能力。
+- [WORKFLOW.md](../WORKFLOW.md)：保留导航和四个现有方法入口；方法可显式读取，不等于宿主自动加载或整体调度已实现。
 - [application-engineer/SKILL.md](../skills/application-engineer/SKILL.md)：在既有应用工程职责中认识 UI／Collection、组织 evidence、建立 Profile、必要时使用 VLM proposal、生成 overlay 并校验；不新增 collection/VLM Skill。
 
 建设关系仍是：需求及行为案例 → 完整任务树 → 链路／交接／测试设计 → Skill 方法与辅助程序 → 独立和组合验证。不是不可回退的瀑布链。
@@ -78,7 +83,7 @@ AX/UIA + OCR + Screenshot/Layout
 - S3—S5 维护 `planned step → actual action → actual observation → verification → planDelta`。计划外但事实证明必要的准备／读取／导航不能自动当噪音；未执行的计划也不能补成事实。
 - S6 的“真实业务任务完成”和 S12 的“可复用自动化候选已资格化”是两个不同里程碑；当交付目标包含自动化沉淀时，S6 不结束开发链。
 - S7 负责从 Dossier／Raw Trace 重建、分段、retain／merge／omit／recovery／unresolved 取舍并发布 versioned DistilledSteps；原始事实不可修改。
-- `trace-distill` 是目标专业职责，负责 S7；当前尚无正式 SKILL.md、宿主加载或独立通过结论。`procedure-synthesize` 收窄为 S8—S9，从 DistilledSteps 形成 Business Step、参数、数据依赖和复用规则，不重新维护第二套原始 action disposition。
+- `trace-distill` 是目标专业职责，负责 S7；当前已有正式方法文件及限定切片检查；宿主加载、模型独立上下文表现仍须单独证明。`procedure-synthesize` 收窄为 S8—S9，从 DistilledSteps 形成 Business Step、参数、数据依赖和复用规则，不重新维护第二套原始 action disposition。
 - 保留 recipe-build 负责生成或登记合格基础代码；code-rebuild 只做独立、按需改进；recipe-qualify 负责独立验收。生成者仍须自检，不能故意生产差代码制造优化需求。
 - 应用工程保留 discover／harden／repair。首次发现不依赖完整 SemanticProcedure；已有认识和规则足够时直接复用。
 - 界面认识与审阅继续属于 application-engineer 内部可独立进入和评测的子作业；Structured Collection 不新增第二个 Skill。
@@ -188,7 +193,7 @@ application-engineer ↔ trace-distill → procedure-synthesize → recipe-build
 ## 八、实施前仍需核对
 
 - 更新 validation-plan 对 DREQ-30—DREQ-33 的行为案例和反例，确认自然语言入口、操作计划、高影响未知、planned／actual、DistilledSteps 和跨专业交接能实际被验证。
-- `trace-distill` 方法文件和 Calculator 形状的消费 validator 已落地；通用 schema、同版可读视图生成、宿主加载及独立接续测试仍需分别验证，不能从这个切片外推。
+- `trace-distill` 方法文件和 Calculator 形状的消费 validator 已落地；本次增加了限定切片的同源 Markdown 审阅 View。通用 schema、完整任务门户、宿主加载及模型独立接续测试仍需分别验证，不能从这个切片外推。
 - `procedure-synthesize` 实施／恢复时，从固定 DistilledSteps 开始独立接续，不能靠重新读取完整 Raw Trace 来掩盖上游交接缺陷。
 - 继续按 v0.6 Structured Collection 决策：第一批只做 `ObservationBundle / CollectionProfile / CollectionItem` 合同、离线 fixture 和 current-region deterministic JavaScript prototype；不做公共滚动 collector。
 - 至少用计算器实际数据链、一个含探索／错误／重复点击的轨迹、聊天会话列表、variable-height 消息 timeline、订单／表格验证相邻职责能独立失败。
@@ -209,4 +214,5 @@ application-engineer ↔ trace-distill → procedure-synthesize → recipe-build
 - **v0.4**：深化 application-engineer、界面认识与审阅、同一 Agent 正常／异常路线；设计预评审不代表真实运行通过。
 - **v0.5**：接入 Structured Collection 初版，并曾保留 `UI.collectCollection()` / scroll collector 作为未来目标合同。
 - **v0.6**：依据最新批准方案取消“公共 `UI.collectCollection()` / Runtime traversal”方向；Collection 只负责当前明确观察范围，App Adapter 负责业务解释，Recipe 负责滚动、分页、跨批去重、结束判断和业务控制。
-- **v0.7（当前）**：补自然语言入口后的可审阅操作计划、planned／actual／planDelta、Dossier → DistilledSteps → SemanticProcedure 工件链；目标 `trace-distill` 负责 S7，`procedure-synthesize` 收窄为 S8—S9，并明确 Human Recorder 与 Agent-first 的共享专业边界。
+- **v0.7**：补自然语言入口后的可审阅操作计划、planned／actual／planDelta、Dossier → DistilledSteps → SemanticProcedure 工件链；目标 `trace-distill` 负责 S7，`procedure-synthesize` 收窄为 S8—S9，并明确 Human Recorder 与 Agent-first 的共享专业边界。
+- **v0.8（当前）**：保留完整任务树，新增交接审阅投影、原检查器的前缀检查与派生 View，完善三个方法的输入输出／反例／结论；纠正文件存在与行为资格混用，不改变 S1—S12、G0—G7 或 Runtime。

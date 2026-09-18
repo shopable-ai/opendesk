@@ -155,6 +155,7 @@ test('accepts a legacy Procedure/Candidate pair without inventing capability pro
   const report = f.check();
   assert.equal(report.verdict, 'pass', JSON.stringify(report.errors, null, 2));
   assert.ok(report.notEvaluated.some(item => item.includes('legacy Procedure/Candidate')));
+  assert.ok(!report.proves.some(item => /capability discovery|selected API contract refs/.test(item)));
 });
 
 test('requires modern Business Steps to expose input, execution, observation, stop and consumer contracts', t => {
@@ -370,4 +371,146 @@ test('CLI reports semantic and usage failures separately and never executes cand
   assert.equal(result.status, 1);
   rejects(JSON.parse(result.stdout), 'ACTIONS_REQUIRED');
   assert.equal(spawnSync(process.execPath, [cli, '--unknown'], { encoding: 'utf8' }).status, 2);
+});
+
+// Stage-prefix checks must not require fabricated future outputs.
+for (const [through, removed] of [
+  ['trace-distill', ['procedure', 'candidate', 'qualification']],
+  ['procedure-synthesize', ['candidate', 'qualification']],
+  ['candidate', ['qualification']],
+]) test('checks through ' + through + ' without reading future artifacts', t => {
+  const f = fixture(t);
+  const options = { ...f.options, through };
+  for (const name of removed) { fs.unlinkSync(options[name]); delete options[name]; }
+  const report = checkArtifactChain(options);
+  assert.equal(report.verdict, 'pass', JSON.stringify(report.errors));
+  assert.equal(report.through, through);
+  assert.equal(report.boundaries.qualification, 'not-run');
+  assert.equal(report.liveQualificationGranted, false);
+  assert.equal(report.stageComplete, false);
+  for (const name of removed) assert.ok(!report.artifacts.some(item => item.name === name));
+});
+
+test('does not infer a smaller scope when a required final artifact is missing', t => {
+  const f = fixture(t);
+  delete f.options.qualification;
+  assert.equal(f.check().verdict, 'fail');
+});
+
+test('rejects a merged action removed from its declared source step', t => {
+  const f = fixture(t, source => {
+    source.distilled.actionDecisions.find(item => item.actionRef === 'A005').decision = 'merge';
+    source.distilled.steps[2].sourceActionRefs = ['A006'];
+  });
+  rejects(f.check(), 'ACTION_DECISION');
+});
+
+test('allows a merged action still present in its declared source step', t => {
+  const f = fixture(t, source => {
+    source.distilled.actionDecisions.find(item => item.actionRef === 'A005').decision = 'merge';
+  });
+  assert.equal(f.check().verdict, 'pass');
+});
+
+test('rejects an unresolved normal-path distillation', t => {
+  const f = fixture(t, source => { source.distilled.unresolved = ['first read may belong to another window']; });
+  rejects(f.check(), 'UNRESOLVED_ARTIFACT');
+});
+
+test('rejects a nonexistent raw-action consumer at the S7 boundary', t => {
+  const f = fixture(t, source => { source.dossier.runtimeValues[0].consumers = ['A999']; });
+  rejects(f.check(), 'UNKNOWN_CONSUMER');
+  assert.equal(f.check().boundaries['trace-distill'], 'fail');
+});
+
+test('rejects a claimed plan revision different from the frozen WorkPlan', t => {
+  const f = fixture(t, source => { source.distilled.planRevision = 'fixture-r999'; });
+  rejects(f.check(), 'WRONG_PLAN_REVISION');
+});
+
+test('rejects contract and plan belonging to different tasks', t => {
+  const f = fixture(t, source => { source.contract.taskId = 'another-task'; });
+  rejects(f.check(), 'MIXED_TASK');
+});
+
+test('checks the upstream plan bytes rather than trusting the downstream hash chain', t => {
+  const f = fixture(t, () => {}, state => {
+    state.write('plan.json', { ...state.source.plan, revision: 'changed-after-freeze' });
+  });
+  rejects(f.check(), 'HASH_MISMATCH');
+});
+
+test('an upstream failure blocks downstream acceptance despite local checks passing', t => {
+  const f = fixture(t, source => { source.dossier.runtimeValues[0].evidence = null; });
+  const report = f.check();
+  assert.equal(report.localChecks.candidate, 'pass');
+  assert.equal(report.boundaries.candidate, 'blocked');
+  assert.equal(report.boundaries.qualification, 'blocked');
+  assert.deepEqual(report.proves, []);
+});
+
+test('reports exact input and output snapshots without turning a fixture into qualification', t => {
+  const f = fixture(t);
+  const report = checkArtifactChain({ ...f.options, through: 'trace-distill' });
+  for (const name of ['dossier', 'actions', 'distilled', 'contract', 'plan']) {
+    const item = report.artifacts.find(item => item.name === name);
+    assert.equal(item.sha256, crypto.createHash('sha256').update(fs.readFileSync(item.path)).digest('hex'));
+  }
+  assert.equal(report.liveQualificationGranted, false);
+  assert.ok(!report.proves.some(item => /Qualification/.test(item)));
+});
+
+test('CLI supports prefix Markdown review and rejects unknown or repeated scope flags', t => {
+  const f = fixture(t);
+  const cli = path.join(REPO, 'workflows/agent-to-recipe/scripts/check-artifact-chain.js');
+  const args = ['--through', 'trace-distill', '--dossier', f.options.dossier, '--actions', f.options.actions,
+    '--distilled', f.options.distilled, '--root', 'fixture=' + f.root];
+  fs.unlinkSync(f.options.procedure); fs.unlinkSync(f.options.candidate); fs.unlinkSync(f.options.qualification);
+  const json = spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8' });
+  assert.equal(json.status, 0, json.stderr);
+  const result = spawnSync(process.execPath, [cli, ...args, '--format', 'markdown'], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.stdout.includes('# 阶段工件审阅'));
+  assert.ok(result.stdout.includes('not-run'));
+  assert.ok(result.stdout.includes(JSON.parse(json.stdout).artifacts[0].sha256));
+  assert.equal(spawnSync(process.execPath, [cli, ...args, '--through', 'candidate'], { encoding: 'utf8' }).status, 2);
+  assert.equal(spawnSync(process.execPath, [cli, ...args, '--format', 'html'], { encoding: 'utf8' }).status, 2);
+  assert.equal(spawnSync(process.execPath, [cli, '--through', 'S99'], { encoding: 'utf8' }).status, 2);
+});
+
+test('the review renders artifact text as data and reports view truncation', t => {
+  const { renderReview } = require('../../workflows/agent-to-recipe/scripts/stage-review.js');
+  const f = fixture(t, source => {
+    source.distilled.steps[0].purpose = '<script>alert(1)</script> [click](javascript:bad) | **PASS**\n' + 'x'.repeat(3000);
+  });
+  const report = checkArtifactChain({ ...f.options, through: 'trace-distill' });
+  const md = renderReview(report);
+  assert.ok(!md.includes('<script>'));
+  assert.ok(!md.includes('[click](javascript:bad)'));
+  assert.ok(md.includes('截断'));
+  assert.equal(report.verdict, 'pass');
+});
+
+test('S7 rejects a new normal-path step with no observed source', t => {
+  const f = fixture(t, source => {
+    source.distilled.steps.push({ stepId: 'D070', sourceActionRefs: [], inputs: [], outputs: [], dependencies: [] });
+  });
+  rejects(checkArtifactChain({ ...f.options, through: 'trace-distill' }), 'SOURCE_ACTIONS');
+});
+
+test('a recovery-only action cannot masquerade as the normal runtime producer', t => {
+  const f = fixture(t, source => {
+    source.distilled.actionDecisions.find(item => item.actionRef === 'A005').decision = 'recovery';
+    source.distilled.steps[2].sourceActionRefs = ['A006'];
+  });
+  rejects(f.check(), 'DATA_DEPENDENCY_BROKEN');
+});
+
+for (const variant of ['unexercised', 'excluded']) test('qualification does not gain ' + variant + ' scope', t => {
+  const f = fixture(t, source => {
+    const scope = source.qualification.qualificationScope;
+    if (variant === 'unexercised') scope.qualified.push('another-platform');
+    else scope.excluded.push('fixed-chain');
+  });
+  rejects(f.check(), 'PARTIAL_QUALIFICATION');
 });
