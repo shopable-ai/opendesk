@@ -124,6 +124,14 @@ test('task store rejects a task directory redirected through a symlink or repars
   await assert.rejects(() => store.load('task-a'), {code:'TASK_STORAGE_REDIRECTED'});
 });
 
+test('task store rejects a redirected immutable revision file', async () => {
+  const file = memoryFile();
+  const store = Contract.createStore({file, rootDir:'/data/assistant', clock:clock()});
+  await store.save(Contract.create(baseTask()), {expectedRevision:0});
+  file.redirect('/data/assistant/tasks/task-a/00000001.json', '/outside/task.json');
+  await assert.rejects(() => store.load('task-a'), {code:'TASK_STORAGE_REDIRECTED'});
+});
+
 test('legacy optional project references survive revisions without expanding source authorization', async () => {
   const file = memoryFile();
   const store = Contract.createStore({file, rootDir:'/data/assistant', clock:clock()});
@@ -266,6 +274,28 @@ test('candidate store rejects a redirected candidate directory on resume', async
   await assert.rejects(() => runtime.loadCandidate(task.taskId, generated.candidate.candidateId), {code:'TASK_STORAGE_REDIRECTED'});
 });
 
+
+test('candidate store rejects a redirected immutable revision file', async () => {
+  const file = memoryFile();
+  const runtime = TaskRuntime.create({
+    file, rootDir:'/data/assistant', randomUUID:uuids(), clock:clock(),
+    modelChannel:{
+      async draftCandidate(){ return {text:'console.log("candidate");'}; },
+      async send(){ return {text:'unused'}; },
+    },
+  });
+  const task = await runtime.startTask({
+    taskId:'redirect-candidate-file', conversationId:'conv-a', requestId:'req-a',
+    userGoal:'make a candidate', intent:'make', asset:{kind:'none'},
+  });
+  const generated = await runtime.generateCandidate(task.taskId);
+  const revisionPath = '/data/assistant/tasks/' + task.taskId + '/candidates/' + generated.candidate.candidateId + '/00000001.json';
+  file.redirect(revisionPath, '/outside/candidate.json');
+  await assert.rejects(
+    () => runtime.loadCandidate(task.taskId, generated.candidate.candidateId),
+    {code:'TASK_STORAGE_REDIRECTED'},
+  );
+});
 
 test('candidate save protection includes canonical aliases of protected roots', async () => {
   const file = memoryFile();
