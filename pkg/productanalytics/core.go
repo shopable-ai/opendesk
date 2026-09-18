@@ -29,11 +29,11 @@ const (
 var (
 	allowedSurfaces = map[string]bool{
 		"flow_runner": true, "flow_list": true, "assistant": true, "scheduler": true,
-		"permissions": true, "runtime_log": true, "about": true, "analytics_settings": true,
+		"permissions": true, "runtime_log": true, "about": true,
 	}
 	allowedActions = map[string]bool{
 		"flow.run": true, "flow.stop": true, "flow.previous": true, "flow.next": true,
-		"flow.list": true, "flow.manage": true, "app.open": true, "analytics.open": true,
+		"flow.list": true, "flow.manage": true, "app.open": true,
 	}
 	allowedInputMethods = map[string]bool{"pointer": true, "keyboard": true, "menu": true}
 	allowedFlowOrigins  = map[string]bool{"local": true, "installed": true, "marketplace": true}
@@ -136,11 +136,14 @@ type Service struct {
 	started        bool
 	closed         bool
 
-	runs          map[string]runContext
-	debugCapacity int
-	debug         []Event
-	dropped       uint64
-	lastErrorCode string
+	runs               map[string]runContext
+	debugCapacity      int
+	debug              []Event
+	diagnosticCapacity int
+	diagnostic         []DiagnosticEvent
+	dropped            uint64
+	lastErrorCode      string
+	lastSendResult     string
 }
 
 func New(options Options) (*Service, error) {
@@ -170,6 +173,7 @@ func New(options Options) (*Service, error) {
 		config: config, runtime: runtimeInfo, dataRoot: root, now: options.Now,
 		transport: options.Transport, makeProvider: maker, consent: ConsentUnknown,
 		runs: map[string]runContext{}, debugCapacity: options.DebugCapacity,
+		diagnosticCapacity: defaultDiagnosticCapacity,
 	}
 	persisted, readErr := readConsent(service.consentPath())
 	if readErr != nil {
