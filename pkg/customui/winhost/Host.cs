@@ -74,14 +74,14 @@ internal abstract class Surface : IDisposable
         // centerOnActiveDisplay is reserved for host-owned Dialog surfaces. Keep
         // those above an always-on-top Custom UI window that requested them.
         string kind=J.S(spec,"kind");
-        bool floating=kind=="floating", measurement=kind=="measurement", frameless=floating&&J.S(spec,"chrome","system")=="none";
-        Form=new NativeForm { Text=measurement?"":J.S(spec,"title"),TopMost=J.B(spec,"alwaysOnTop")||J.B(spec,"centerOnActiveDisplay"),BackgroundDraggable=J.B(spec,"draggable"),ShowInTaskbar=!floating&&!measurement };
+		bool floating=kind=="floating", measurement=kind=="measurement", referenceSelection=kind=="reference-selection", frameless=floating&&J.S(spec,"chrome","system")=="none";
+		Form=new NativeForm { Text=(measurement||referenceSelection)?"":J.S(spec,"title"),TopMost=J.B(spec,"alwaysOnTop")||J.B(spec,"centerOnActiveDisplay"),BackgroundDraggable=J.B(spec,"draggable"),ShowInTaskbar=!floating&&!measurement&&!referenceSelection };
         if(frameless)Form.FormBorderStyle=FormBorderStyle.None;
         Form.BackColor=J.S(spec,"theme")=="dark"?Color.FromArgb(25,25,28):SystemColors.Window;
         Form.ForeColor=J.S(spec,"theme")=="dark"?Color.White:SystemColors.WindowText;
 		// Measurement is a tool-window surface, not a click-through overlay: it
 		// intentionally activates only long enough to receive Esc and arrow keys.
-		Form.NonActivating=floating;
+		Form.NonActivating=floating||referenceSelection;
 		Form.FormClosing+=(_,eventArgs)=>{
 			// User close is the only origin eligible for App Mode hide. Script,
 			// session, and shutdown paths set CloseReason before Form.Close and must

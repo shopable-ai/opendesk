@@ -16,13 +16,18 @@ func TestMeasurementWindowSpecUsesDisplaySizedProductSurface(t *testing.T) {
 		t.Fatalf("bounds=%+v mapping=%+v", spec.Bounds, snapshot.Mapping)
 	}
 	html := spec.Content.HTML
-	for _, token := range []string{"measurementToolbar", "measurementHUD", "measurementMicro", "measurementInspector", "measurementCopyMenu", "toolPoint", "toolRegion", "toolTwoPoint", "toolSpacing", "magnetToggle", "marginToggle", "refreshSnapshot", "adjustInterface", "copyStructured", "referenceButton"} {
+	for _, token := range []string{"measurementToolbar", "measurementMicro", "measurementInspector", "measurementCopyMenu", "measurementStatus", "referenceInfo", "snapInfo", "toolPoint", "toolRegion", "toolTwoPoint", "toolSpacing", "magnetToggle", "marginToggle", "refreshSnapshot", "adjustInterface", "copyStructured", "referenceButton"} {
 		if !strings.Contains(html, token) {
 			t.Fatalf("measurement HTML missing %q", token)
 		}
 	}
 	if strings.Contains(html, "<details") || strings.Contains(html, "PID 42") {
 		t.Fatalf("details must be independent and PID must not be persistently displayed: %s", html)
+	}
+	for _, retired := range []string{"measurementHUD", "measurementHUDValue", "class=\"hud"} {
+		if strings.Contains(html, retired) {
+			t.Fatalf("measurement surface retained redundant corner HUD %q", retired)
+		}
 	}
 	toolbarIndex := strings.Index(html, `id="measurementToolbar"`)
 	if toolbarIndex < 0 {
@@ -44,6 +49,11 @@ func TestMeasurementWindowSpecUsesDisplaySizedProductSurface(t *testing.T) {
 		t.Fatal("independent Inspector must be rendered outside the bottom toolbar")
 	}
 	inspector := html[inspectorIndex:toolbarIndex]
+	for _, relocated := range []string{"measurementStatus", "referenceInfo", "snapInfo"} {
+		if !strings.Contains(inspector, relocated) {
+			t.Fatalf("Inspector lost relocated supplemental information %q", relocated)
+		}
+	}
 	for _, preserved := range []string{"选择局部参照", "复制结构化数据", "更多复制格式", "简明数值", "完整中文说明", "结构化数据", "保存结果"} {
 		if !strings.Contains(inspector, preserved) {
 			t.Fatalf("Inspector lost preserved low-frequency capability %q", preserved)

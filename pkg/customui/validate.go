@@ -90,8 +90,8 @@ func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 	if spec.Kind == "" {
 		spec.Kind = "normal"
 	}
-	if spec.Kind != "normal" && spec.Kind != "floating" && spec.Kind != "measurement" {
-		return WindowSpec{}, invalidSpec("window kind must be normal, floating, or host-owned measurement")
+	if spec.Kind != "normal" && spec.Kind != "floating" && spec.Kind != "measurement" && spec.Kind != "reference-selection" {
+		return WindowSpec{}, invalidSpec("window kind must be normal, floating, or a host-owned measurement surface")
 	}
 	if spec.Chrome == "none" && spec.Kind != "floating" {
 		return WindowSpec{}, invalidSpec("chrome none requires kind floating")
@@ -218,6 +218,30 @@ func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 		// normal Custom UI call even if a future decoder accidentally accepts its
 		// kind string.
 		return WindowSpec{}, invalidSpec("host-owned measurement window requires a measurement extension")
+	}
+	if spec.ReferenceSelection != nil {
+		if spec.Kind != "reference-selection" {
+			return WindowSpec{}, invalidSpec("reference selection extension requires the host-owned reference-selection window kind")
+		}
+		role := strings.TrimSpace(spec.ReferenceSelection.Role)
+		if role == "" {
+			role = ReferenceSelectionRoleCandidate
+		}
+		switch role {
+		case ReferenceSelectionRoleCandidate, ReferenceSelectionRoleDimmer, ReferenceSelectionRoleInstruction:
+		default:
+			return WindowSpec{}, invalidSpec("reference selection role must be candidate, dimmer, or instruction")
+		}
+		label := strings.TrimSpace(spec.ReferenceSelection.Label)
+		if role == ReferenceSelectionRoleInstruction && label == "" {
+			return WindowSpec{}, invalidSpec("reference selection instruction requires a label")
+		}
+		if role != ReferenceSelectionRoleInstruction && label != "" {
+			return WindowSpec{}, invalidSpec("only a reference selection instruction may declare a label")
+		}
+		spec.ReferenceSelection = &ReferenceSelectionSurfaceSpec{Role: role, Label: label}
+	} else if spec.Kind == "reference-selection" {
+		return WindowSpec{}, invalidSpec("host-owned reference selection window requires a reference selection extension")
 	}
 	return spec, nil
 }

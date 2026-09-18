@@ -113,8 +113,10 @@ func executeAppMode(config *Config) error {
 	}
 	var measurementService *measurement.Service
 	if appshell.IsOpenDeskProduct(appPackage.Manifest) {
+		measurementCapture := appMeasurementCapture{}
+		measurementSelector := appMeasurementReferenceSelector{driver: sharedUIDriver, baseDir: filepath.Join(artifactsRoot, "measurement")}
 		measurementService, err = measurement.NewService(measurement.ServiceOptions{
-			Driver: sharedUIDriver, Capture: appMeasurementCapture{}, Clipboard: automation.NewClipboard(),
+			Driver: sharedUIDriver, Capture: measurementCapture, Selector: measurementSelector, Clipboard: automation.NewClipboard(),
 			BaseDir: filepath.Join(artifactsRoot, "measurement"), SaveDir: filepath.Join(artifactsRoot, "measurement", "results"),
 		})
 		if err != nil {

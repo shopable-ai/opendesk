@@ -10,7 +10,7 @@
 #import "floating_toolbar_darwin.h"
 #import "notification_darwin.h"
 
-static NSString *const CDProtocolVersion = @"1.13.0";
+static NSString *const CDProtocolVersion = @"1.14.0";
 static NSMutableDictionary<NSString *, id> *CDWindows;
 static NSMutableDictionary<NSString *, NSDictionary *> *CDClosedNotifications;
 
@@ -732,6 +732,79 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 
 @implementation CDMeasurementPanel
 - (BOOL)canBecomeKeyWindow { return YES; }
+- (BOOL)canBecomeMainWindow { return NO; }
+@end
+
+// Reference selection must visually preserve the candidate window. A WKWebView
+// may report a transparent document while still composing an opaque backing
+// layer, so this small host-owned view paints directly in AppKit instead.
+@interface CDReferenceSelectionView : NSView
+@property(nonatomic, copy) NSString *role;
+@property(nonatomic, copy) NSString *label;
+- (instancetype)initWithFrame:(NSRect)frame role:(NSString *)role label:(NSString *)label;
+@end
+
+@implementation CDReferenceSelectionView
+
+- (instancetype)initWithFrame:(NSRect)frame role:(NSString *)role label:(NSString *)label {
+	self = [super initWithFrame:frame];
+	if (self) {
+		_role = role.copy ?: @"candidate";
+		_label = label.copy ?: @"";
+		self.wantsLayer = YES;
+		self.layer.backgroundColor = NSColor.clearColor.CGColor;
+		self.accessibilityElement = NO;
+		self.accessibilityHidden = YES;
+	}
+	return self;
+}
+
+- (BOOL)isFlipped { return YES; }
+- (BOOL)acceptsFirstMouse:(NSEvent *)event { (void)event; return [self.role isEqualToString:@"candidate"]; }
+- (NSView *)hitTest:(NSPoint)point {
+	if (![self.role isEqualToString:@"candidate"]) return nil;
+	return [super hitTest:point];
+}
+
+- (void)drawRect:(NSRect)dirtyRect {
+	[super drawRect:dirtyRect];
+	if ([self.role isEqualToString:@"dimmer"]) {
+		[[NSColor colorWithCalibratedWhite:0.035 alpha:0.58] setFill];
+		NSRectFillUsingOperation(self.bounds, NSCompositingOperationSourceOver);
+		return;
+	}
+	if ([self.role isEqualToString:@"instruction"]) {
+		NSBezierPath *background = [NSBezierPath bezierPathWithRoundedRect:self.bounds xRadius:8 yRadius:8];
+		[[NSColor colorWithCalibratedRed:0.03 green:0.075 blue:0.115 alpha:0.95] setFill];
+		[background fill];
+		NSDictionary *attributes = @{
+			NSFontAttributeName: [NSFont systemFontOfSize:12 weight:NSFontWeightMedium],
+			NSForegroundColorAttributeName: [NSColor colorWithCalibratedWhite:0.96 alpha:1.0],
+		};
+		NSSize labelSize = [self.label sizeWithAttributes:attributes];
+		NSRect labelRect = NSMakeRect(MAX(8, floor((NSWidth(self.bounds) - labelSize.width) / 2)),
+			floor((NSHeight(self.bounds) - labelSize.height) / 2),
+			MAX(0, NSWidth(self.bounds) - 16), labelSize.height);
+		[self.label drawInRect:labelRect withAttributes:attributes];
+		return;
+	}
+	NSRect border = NSInsetRect(self.bounds, 1, 1);
+	NSBezierPath *path = [NSBezierPath bezierPathWithRect:border];
+	path.lineWidth = 2.0;
+	[[NSColor colorWithCalibratedRed:0.26 green:0.72 blue:1.0 alpha:1.0] setStroke];
+	[path stroke];
+}
+
+@end
+
+// Reference selection is deliberately not a Measurement surface. It may
+// receive the one candidate click to stop it reaching the underlying app, but
+// it must never become key/main or pull focus back from a system app switch.
+@interface CDReferenceSelectionPanel : NSPanel
+@end
+
+@implementation CDReferenceSelectionPanel
+- (BOOL)canBecomeKeyWindow { return NO; }
 - (BOOL)canBecomeMainWindow { return NO; }
 @end
 
@@ -1741,6 +1814,7 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 	// window chrome and resize behavior.
 	BOOL isHostDialog = [spec[@"centerOnActiveDisplay"] boolValue];
 	BOOL isMeasurement = [kind isEqualToString:@"measurement"];
+	BOOL isReferenceSelection = [kind isEqualToString:@"reference-selection"];
 	BOOL frameless = [spec[@"chrome"] isEqualToString:@"none"];
     NSWindowStyleMask style = frameless ? NSWindowStyleMaskBorderless : (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable);
 	if (!frameless && !isHostDialog && !isNativeToolbar) style |= NSWindowStyleMaskResizable | NSWindowStyleMaskMiniaturizable;
@@ -1759,6 +1833,19 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 		panel.hidesOnDeactivate = NO;
 		panel.titleVisibility = NSWindowTitleHidden;
 		panel.titlebarAppearsTransparent = YES;
+		window = panel;
+	} else if (isReferenceSelection) {
+		CDReferenceSelectionPanel *panel = [[CDReferenceSelectionPanel alloc] initWithContentRect:frame
+			styleMask:NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel
+			backing:NSBackingStoreBuffered defer:NO];
+		panel.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorFullScreenAuxiliary | NSWindowCollectionBehaviorTransient | NSWindowCollectionBehaviorIgnoresCycle;
+		panel.floatingPanel = YES;
+		panel.becomesKeyOnlyIfNeeded = NO;
+		panel.hidesOnDeactivate = NO;
+		panel.opaque = NO;
+		panel.backgroundColor = NSColor.clearColor;
+		panel.hasShadow = NO;
+		panel.ignoresMouseEvents = NO;
 		window = panel;
 	} else if ([kind isEqualToString:@"floating"]) {
 		NSWindowStyleMask panelStyle = frameless
@@ -1799,7 +1886,7 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 		[window setMaxSize:frame.size];
 	}
 	window.releasedWhenClosed = NO;
-	window.title = isMeasurement ? @"" : (spec[@"title"] ?: @"");
+	window.title = (isMeasurement || isReferenceSelection) ? @"" : (spec[@"title"] ?: @"");
 	// FloatingWindow paints a near-black native toolbar surface regardless of
 	// the user's system appearance. Scope Dark Aqua to that window so standard
 	// AppKit controls keep readable foregrounds, tracks, and disabled states.
@@ -1828,7 +1915,7 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 	// surfaces from the same execution. A normal-level confirm can otherwise be
 	// fully covered by the floating History window that requested it.
 	window.level = isHostDialog ? NSModalPanelWindowLevel :
-		(isMeasurement ? NSScreenSaverWindowLevel : (controller.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel));
+		((isMeasurement || isReferenceSelection) ? NSScreenSaverWindowLevel : (controller.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel));
 	window.movableByWindowBackground = NO;
 	window.delegate = controller;
 	if (isNativeToolbar) {
@@ -1846,6 +1933,20 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 		controller.floatingToolbarView = toolbarView;
 		window.contentView = toolbarView;
 		window.movableByWindowBackground = controller.draggable;
+		CDWindows[key] = controller;
+		CDRespond(requestID, controller.state);
+		return;
+	}
+	if (isReferenceSelection) {
+		NSDictionary *referenceSelection = [spec[@"referenceSelection"] isKindOfClass:NSDictionary.class] ? spec[@"referenceSelection"] : @{};
+		NSString *role = [referenceSelection[@"role"] isKindOfClass:NSString.class] ? referenceSelection[@"role"] : @"candidate";
+		NSString *label = [referenceSelection[@"label"] isKindOfClass:NSString.class] ? referenceSelection[@"label"] : @"";
+		CDReferenceSelectionView *view = [[CDReferenceSelectionView alloc] initWithFrame:window.contentView.bounds role:role label:label];
+		view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+		window.contentView = view;
+		// Dimmers and instructions only communicate state. The candidate shield
+		// remains the sole native surface that consumes a click.
+		((NSPanel *)window).ignoresMouseEvents = ![role isEqualToString:@"candidate"];
 		CDWindows[key] = controller;
 		CDRespond(requestID, controller.state);
 		return;
@@ -2096,6 +2197,11 @@ static void CDHandleRequest(NSDictionary *request) {
 			[controller.floatingToolbarView setAnimationsActive:YES];
             [controller.notificationView start];
 			[controller.notificationView displayIfNeeded];
+			[controller.window displayIfNeeded];
+		} else if ([controller.kind isEqualToString:@"reference-selection"]) {
+			// Reference selection follows the desktop under the pointer; it never
+			// activates OpenDesk or turns the candidate into a key window.
+			[controller.window orderFrontRegardless];
 			[controller.window displayIfNeeded];
 		}
 		else {

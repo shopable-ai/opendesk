@@ -1,6 +1,6 @@
 # Desktop Measurement Current Contract Coverage
 
-> 状态基于 2026-09-18 当前 `master` 源码。本文取代“P0 / P1 / P2 / P3 / P4 完成度”作为 Desktop Measurement 当前实施进度入口。阶段号只允许出现在历史追溯中。
+> 状态基于 2026-09-18 当前工作树（未提交改动已明确标注）。本文取代“P0 / P1 / P2 / P3 / P4 完成度”作为 Desktop Measurement 当前实施进度入口。阶段号只允许出现在历史追溯中。
 
 ## 1. Current authority
 
@@ -31,6 +31,7 @@ macOS / Windows native qualification
 - `AUTOMATED_PASS`：当前代码已有自动化验证证据；不代表真机资格。
 - `LOCAL_REQUIRED`：只能通过真实 macOS / Windows 主机完成的资格项。
 - `QUALIFIED`：目标平台真机资格验证已经完成并留有证据。
+- `NOT_RUN`：当前平台或入口本轮未运行；不得由构建、交叉编译或其他平台证据推断通过。
 
 浏览器 Prototype、Production、Native Qualification 是三条不同证据链，不能互相替代。
 
@@ -38,14 +39,14 @@ macOS / Windows native qualification
 
 | contractId | source | prototype | oracle | production | automatedTest | macOSQualification | windowsQualification | status | evidence | gap |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DM-LIFE-001 Lifecycle | Current Oracle §1 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | Service single-flight 已有；Product 初始选择门已前置到 capture adapter，但 `Service.State()` 尚未在选择期间暴露 `REFERENCE_SELECTING` | `reference-selection.test.py` ADDED_NOT_RUN；既有 lifecycle tests 本轮未重跑 | LOCAL_REQUIRED | LOCAL_REQUIRED | PARTIAL | Prototype `interaction-core.js` + `selection-lifecycle.js`; `pkg/measurement/session.go`, `cmd/opendesk/app_measurement.go` | 核心 Service 仍在 `openNew()` 内调用 Capture；下一步应把 selection owner 从 adapter 提升到 Service lifecycle |
-| DM-REF-001 Live Reference Selection | Oracle §2 DM-SELECT-001 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | 初始产品入口现在先观察真实 pointer / window，再允许 screenshot | focused Playwright ADDED_NOT_RUN；production selector tests 本轮未重跑 | LOCAL_REQUIRED | LOCAL_REQUIRED | IMPLEMENTED_UNVERIFIED | Prototype Live observer；`automation/pointer_selection.go`, `cmd/opendesk/app_measurement.go` | 选择期 Native candidate border / label surface 仍需本地核验/收口 |
-| DM-REF-002 Hover Reference Candidate | Oracle §2 DM-SELECT-002/005 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | pointer move 以 bounded resolver 解析 topmost eligible window；OpenDesk own windows 过滤；candidate 变化保留在 selection state | Hover A/B + outside-only even-odd spotlight cases ADDED_NOT_RUN；production z-order tests 本轮未重跑 | LOCAL_REQUIRED | LOCAL_REQUIRED | IMPLEMENTED_UNVERIFIED | Prototype synthetic two-window scene + `selection-focus-mask` cutout；production selection state | HTML spotlight / app switch / z-order 是 synthetic，仅用于 Oracle；Native 必须证明 Candidate 内部完全不被遮挡且蒙版只在外侧 |
-| DM-REF-003 Reference Confirmation | Oracle §2 DM-SELECT-003/006 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | Production 已有 down/up identity/bounds/movement gate；本轮未修改 Production | focused real browser pointer/mouse cases ADDED_NOT_RUN | LOCAL_REQUIRED | LOCAL_REQUIRED | IMPLEMENTED_UNVERIFIED | `selection-lifecycle.js`; test-only move/close/failure fixture | Native 仍需验证 primary button、same pointer、blur/pointercancel、输入权限、多屏坐标与底层 click 隔离 |
-| DM-FREEZE-001 Click → Freeze | Oracle §2–3 DM-SELECT-004 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | screenshot 位于 selection confirmation 之后；本轮未修改 Production | observable FREEZING / failure / cancel-late focused cases ADDED_NOT_RUN | LOCAL_REQUIRED | LOCAL_REQUIRED | IMPLEMENTED_UNVERIFIED | Prototype request version + synthetic delay/failure; production capture adapter | `pkg/measurement.Service` 的正式 selector/capture ownership 仍需本地生产修复；Native 迟到 capture 必须实际证明 |
+| DM-LIFE-001 Lifecycle | Current Oracle §1 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | `Service` 以 `IDLE → REFERENCE_SELECTING → FREEZING → MEASURING` 驱动；初始选择无 Snapshot、重复入口 single-flight、失败回 Live | `TestInitialReferenceSelectionIsLiveSingleFlightAndSnapshotFree`、`TestInitialCaptureFailureReturnsToLiveSelectionWithoutFallback` PASS | LOCAL_REQUIRED | LOCAL_REQUIRED | AUTOMATED_PASS | `pkg/measurement/session.go`; `pkg/measurement/session_reference_selection_test.go` | macOS/Windows 产品入口与实窗仍未资格化 |
+| DM-REF-001 Live Reference Selection | Oracle §2 DM-SELECT-001 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | `appMeasurementReferenceSelector` 使用 host-owned `reference-selection` Native surface；选中后才调用 exact capture | focused Service tests PASS；本轮更改 Native feedback 仍待验证 | LOCAL_REQUIRED | LOCAL_REQUIRED | IMPLEMENTED_UNVERIFIED | `cmd/opendesk/app_measurement_selection_surface.go`; `app_measurement.go` | 当前产品实窗仍受旧单实例阻断，不能把 Host/unit 结果代替 Measurement qualification |
+| DM-REF-002 Hover Reference Candidate | Oracle §2 DM-SELECT-002/005 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | bounded resolver 命中 topmost eligible window；每个 display 由候选外侧 dimmer panels 覆盖，candidate 由透明 native shield + outline 保持 Live 原始像素 | dimmer geometry / no-candidate-overlap tests ADDED_THIS_ROUND_NOT_RUN；既有 selector tests PASS | LOCAL_REQUIRED | LOCAL_REQUIRED | IMPLEMENTED_UNVERIFIED | `cmd/opendesk/app_measurement_selection_surface.go`; `app_measurement_selection_test.go`; `pkg/customui/machost/native_darwin.m` | 必须以当前 Bundle 实窗证明候选内部不被覆盖、外侧门板原子跟随、跨屏与 z-order 正确 |
+| DM-REF-003 Reference Confirmation | Oracle §2 DM-SELECT-003/006 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | primary down/up、exact identity/bounds、8 logical/CSS px 容差与隔离 outline 已接线；右/中键、跨窗、超容差 fail closed | `TestMeasurementReferenceSelectionRequiresSameWindowAndOracleClickTolerance`、`TestMeasurementReferenceSelectionRejectsNonPrimaryConfirmation` PASS | LOCAL_REQUIRED | LOCAL_REQUIRED | PARTIAL | `cmd/opendesk/app_measurement.go`, `app_measurement_selection_test.go` | `PointerSelectionEvent` 尚未携带 native pointerId；blur/pointercancel、input lease 与底层 click 隔离必须用真实主机逐项证明 |
+| DM-FREEZE-001 Click → Freeze | Oracle §2–3 DM-SELECT-004 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | exact reference 在 screenshot 前后重核验；FREEZING 无 snapshot；capture 失败回 Live；终止标记使 late capture 失效 | `TestCloseDuringFreezingDiscardsLateCaptureWithoutRevivingSession`、`TestInitialCaptureFailureReturnsToLiveSelectionWithoutFallback` PASS | LOCAL_REQUIRED | LOCAL_REQUIRED | AUTOMATED_PASS | `pkg/measurement/session.go`; `session_reference_selection_test.go`; `cmd/opendesk/app_measurement.go` | Native cancel / late OS capture 的实窗证据尚缺 |
 | DM-SNAP-001 Frozen Snapshot | Oracle §3 | existing prototype asset retained | CURRENT | 已有 Snapshot / Mapping / token / source-pixel 实现 | existing `pkg/measurement` tests；本轮未重跑 | LOCAL_REQUIRED | LOCAL_REQUIRED | AUTOMATED_PASS | `pkg/measurement/model.go`, `session.go`, capture mapping tests | Native capture exclusion / permission / multi-display 仍需真机 |
 | DM-CAND-001 Frozen Candidate Resolver | Oracle §6 | existing prototype asset retained | CURRENT | AX/UIA + OCR provider、token/epoch guard、candidate stack 已有 | existing candidate stack/provider tests；本轮未重跑 | LOCAL_REQUIRED | LOCAL_REQUIRED | AUTOMATED_PASS | `candidate_stack.go`, `cmd/opendesk/app_measurement_candidates.go` | bounded latest-pointer worker/cache 与 Native cancellation 继续收敛 |
-| DM-HUD-001 Selection / Hover HUD | Oracle §2/8 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | Frozen MEASURING HUD 已有；Live selection 可视 surface 的生产状态按现代码保留，本轮未修改 | exact prompt / toolbar-hidden / candidate-fill-none / outside-cutout cases ADDED_NOT_RUN | LOCAL_REQUIRED | LOCAL_REQUIRED | OPEN_IMPLEMENTATION | Prototype exact instruction + outside-only spotlight + FREEZING HUD | 需要 Native selection overlay；Candidate 内部不得白化/染色/blur，并证明 overlay 不成为 candidate 或 capture source |
+| DM-HUD-001 Selection / Hover HUD | Oracle §2/8 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | macOS 以 native AppKit candidate shield / dimmer / instruction surfaces 绘制，避免 WebKit 透明层白底覆盖；完成选择前关闭，正式 Measurement Toolbar 仍只在 freeze 成功后创建 | native role/geometry tests ADDED_THIS_ROUND_NOT_RUN；Measurement 实窗 NOT_RUN | LOCAL_REQUIRED | LOCAL_REQUIRED | IMPLEMENTED_UNVERIFIED | `cmd/opendesk/app_measurement_selection_surface.go`; `pkg/customui/model.go`; `pkg/customui/machost/native_darwin.m` | 需要当前 Bundle 实窗截图，确认候选原样、门板、说明位置、点击隔离及多显示器 |
 | DM-TOOL-001 Point | Oracle §5 | retained | CURRENT | implemented | existing Go tests | LOCAL_REQUIRED | LOCAL_REQUIRED | AUTOMATED_PASS | `model.go`, `session_test.go` | 真机 source-pixel / DPI |
 | DM-TOOL-002 Region | Oracle §5 | retained | CURRENT | implemented | existing Go tests | LOCAL_REQUIRED | LOCAL_REQUIRED | AUTOMATED_PASS | `model.go`, `session_interaction_test.go` | 真机 drag / overlay parity |
 | DM-TOOL-003 Point↔Point | Oracle §5 | retained | CURRENT | implemented | existing Go tests | LOCAL_REQUIRED | LOCAL_REQUIRED | AUTOMATED_PASS | `BuildTwoPointResult` + tests | Native interaction qualification |
@@ -58,20 +59,20 @@ macOS / Windows native qualification
 | DM-EXP-001 Session Export | Oracle §9/11 | retained | CURRENT | versioned envelope 已进入 canonical Go model；本轮未修改 | existing production tests 本轮未重跑 | LOCAL_REQUIRED | LOCAL_REQUIRED | PARTIAL | `session_records.go`, `evidence.go` | Native atomic manifest + snapshots transaction 仍需收口 |
 | DM-AUTH-001 Automation Authoring handoff | Oracle §11 | N/A | CURRENT | 可逐 Record 复用现有 Authoring lowering；本轮未修改 | existing authoring tests 本轮未重跑 | LOCAL_REQUIRED | LOCAL_REQUIRED | PARTIAL | `authoring.go`, `evidence.go` | 真实 Session artifact path / loader 仍需 Production 闭环 |
 | DM-RECORDER-001 Recorder integration | Oracle §12 | retained | CURRENT | product entry + activity isolation 已有；本轮未修改 | existing integration tests 本轮未重跑 | LOCAL_REQUIRED | LOCAL_REQUIRED | PARTIAL | Recorder bridge | live selector 与 Recorder native input lease 共存需真机验证 |
-| DM-SESSION-001 Session lifetime / Close | Oracle §12 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | single active Service + cleanup 已有；本轮未修改 | cancel / late-freeze focused case ADDED_NOT_RUN；production lifecycle tests 本轮未重跑 | LOCAL_REQUIRED | LOCAL_REQUIRED | IMPLEMENTED_UNVERIFIED | Prototype request invalidation; production session/selector | Production selection owner / listener cleanup 需本地继续核验 |
+| DM-SESSION-001 Session lifetime / Close | Oracle §12 | PROTOTYPE_UPDATED_NOT_RUN | CURRENT | Close 先标记终态、原子取消 selector/capture；Surface 初始化与清理互斥；reselect 保持同一 Service session、提升 generation 并废弃旧 token | `TestCloseCancelsLiveSelectionWithoutCreatingSurfaceOrSnapshot`、`TestCloseDuringFreezingDiscardsLateCaptureWithoutRevivingSession`、`TestCloseDuringReselectCancelsQueuedLiveSelectionAndKeepsOldTokenInvalid` PASS | LOCAL_REQUIRED | LOCAL_REQUIRED | AUTOMATED_PASS | `pkg/measurement/session.go`; `session_reference_selection_test.go` | Native observer/host process cleanup 仍需 macOS/Windows 真机 |
 | DM-DPI-001 DPI / Coordinate mapping | Oracle §3/7 | retained | CURRENT | logical/image mapping implemented | synthetic mixed-scale tests | LOCAL_REQUIRED | LOCAL_REQUIRED | AUTOMATED_PASS | capture mapping tests | Retina / Windows 125% / mixed monitor Native qualification |
-| DM-MAC-001 macOS Qualification | Oracle §14 | N/A | CURRENT | 本轮未修改 Production | N/A | LOCAL_REQUIRED | N/A | LOCAL_REQUIRED | 本轮没有新 Native evidence | topmost hover, permissions, z-order, move/close, Retina, multi-display, overlay exclusion, cancel/stale freeze |
-| DM-WIN-001 Windows Qualification | Oracle §14 | N/A | CURRENT | 本轮未修改 Production | N/A | N/A | LOCAL_REQUIRED | LOCAL_REQUIRED | 本轮没有新 Native evidence | UIA/window order, physical/logical mapping, 125%, multi-display, overlay exclusion, cancel/stale freeze |
+| DM-MAC-001 macOS Qualification | Oracle §14 | N/A | CURRENT | 新 Bundle 已构建且 codesign 校验；实际入口被 `/Applications/OpenDesk.app` 旧 PID 49640 single-instance 接管，当前 `dist/OpenDesk.app` 未加载 | Runtime API Custom UI Native Host subcases PASS；Measurement product flow NOT_RUN | LOCAL_REQUIRED | N/A | LOCAL_REQUIRED | `dist/OpenDesk.app` 2026-09-18 02:54:48Z；入口/PID/load-path evidence | 须先受控退出旧实例，再以当前 Bundle 重启并采集真实选窗/冻结截图 |
+| DM-WIN-001 Windows Qualification | Oracle §14 | N/A | CURRENT | Windows Host protocol 已升至 1.14；未在 Windows 设备运行 | N/A | N/A | LOCAL_REQUIRED | LOCAL_REQUIRED | NOT_RUN | `pkg/customui/winhost/Program.cs` | UIA/window order, physical/logical mapping, 125%, multi-display, overlay exclusion, cancel/stale freeze |
 
 ## 4. Production Gap IDs
 
-PG IDs 是短期 Production Gap，不是新阶段。本轮只更新 Prototype / Oracle / handoff；以下 Production 状态不因 Prototype 改动自动晋升。
+PG IDs 是短期 Production Gap，不是新阶段。以下状态基于当前 Production 源码和本轮可复查证据；Prototype 改动本身不使状态自动晋升。
 
 | Gap | Current status | Current evidence | Closure condition |
 | --- | --- | --- | --- |
-| PG-01 Live Reference Selection | **PARTIAL** | Production 已有 initial screenshot 前的 pointer/window confirmation gate | 将 Current Oracle 的 REFERENCE_SELECTING / primary pointer / cancel ownership 在正式 Service 生命周期中闭环，并跑真实回归 |
+| PG-01 Live Reference Selection | **AUTOMATED_PASS; LOCAL_REQUIRED** | Service lifecycle、selector/capture boundary和重试/取消测试已通过 | 用当前 Bundle 在真实 macOS/Windows 完整回归；补 native pointerId 或以平台单一 physical pointer contract 明确替代 |
 | PG-02 Hover / Candidate Resolver | **PARTIAL** | Live window candidate 有 bounded resolver；Frozen candidate stack/provider 已较完整 | 证明平台 z-order、latest-pointer、window move/close、多屏、取消与 worker bounded 行为 |
-| PG-03 Hover HUD / Native Visual Feedback | **OPEN_IMPLEMENTATION** | Prototype 已表达 WeChat-style outside-only spotlight：Candidate 原样，外侧 dim，边框无 fill；Native measuring HUD 可复用 | 正式接线 Live candidate spotlight cutout；证明 Candidate 内部像素视觉不被覆盖、外侧蒙版稳定跟随 topmost window，且 overlay 不成为 candidate/capture source |
+| PG-03 Hover HUD / Native Visual Feedback | **IMPLEMENTED_UNVERIFIED** | Prototype 已表达 WeChat-style outside-only spotlight；macOS Production 改为透明 native candidate shield 加外侧 dimmer panels，避免 WebKit 白底 | 取得当前 Bundle 实窗截图，证明候选内容保持原样、外侧门板稳定跟随、overlay 不成为 candidate/capture source 且确认点击不下传；Windows live 另行资格化 |
 | PG-04 Session Records / Authoring | **PARTIAL** | immutable Journal / envelope / snapshot dedupe 等资产可复用 | 完成 Production activeSession Record/Update/Inspector/Save 与 Authoring artifact 闭环 |
 
 ## 5. Legacy Stage Retirement
@@ -156,6 +157,8 @@ apps/opendesk/prototypes/desktop-measurement/index.html
 
 ### 仍需本地实现 / 验收的 Production 差异
 
+以下是本文件进入本轮 Production 修复前的 Prototype handoff 基线；当前实现和证据以 §3 Matrix 与下方 2026-09-18 Production follow-up 为准。
+
 本轮没有修改 Go、Native host、真实 input observer、真实 screenshot/capture 或 Production Measurement Service。Prototype test fixture 的 `closeWindow/moveWindow/failNextFreeze` 只用于合成 Oracle，不能作为 Production 已实现证据。
 
 本地 Production 修复至少需要核验并闭环：
@@ -175,7 +178,33 @@ apps/opendesk/prototypes/desktop-measurement/index.html
 
 macOS / Windows 分别以真实系统行为证明：topmost/z-order、应用切换、hover spotlight（Candidate 原样、外围 dim、无反向白色遮罩）、窗口 move/close、权限、pointer identity、multi-display、negative coordinate、Retina/DPI、overlay exclusion、Recorder coexistence、cancel/stale completion、close/reopen。HTML synthetic PASS 不能替代这些结果。
 
-## 7. Qualification rule
+## 7. 2026-09-18 Production follow-up — Reference Selection / Freeze
+
+### 代码与自动化验证
+
+- `measurementReferenceClickTolerance` 已与 Current Oracle 对齐为 `8.0` logical desktop points（CSS px 等价）；边界测试覆盖 8 px 接受、9 px 拒绝、跨窗口和非 primary button 拒绝。
+- `activeSession` 现在在终止时先标记 finished，再与 selector cancellation 原子协调；`initializeFrozenSurfaceForLiveSession` 与关闭清理互斥。迟到的 capture frame 不会重新创建 Custom UI、持久化 snapshot 或回到 `MEASURING`。
+- `reselectReference` 保持同一 Service session，关闭旧 frozen surface，清除 transient/result，提升 generation 并令先前 token 失效；每个 generation 使用独立的内部 Custom UI transport session，避免复用已关闭的 `sessionId/windowId`。取消重选不会创建第二次 capture 或恢复旧 token。
+- adapter-only compatibility path 以 `opening` gate 在 Surface 初始化完成后才发布 active session；生产 Selector 路径仍立即发布同一 Live observer。完整 `go test -v -race ./pkg/measurement -count=1 -timeout=120s` 已在 6.58 秒 PASS；`go test ./pkg/customui ./cmd/opendesk ./cmd/opendesk-ui-host` 亦通过。构建中仅见仓库既有 macOS native deprecation warnings。
+
+### Runtime API 与 Native Host
+
+- 已按 `docs/api/.rules.md`、`docs/api/ui.md`、`docs/api/automation-app.md`、`docs/api/window.md` 使用正式入口运行：
+
+  ```text
+  OPENDESK_RUNTIME_API_MODE=custom-ui OPENDESK_BINARY="$PWD/dist/opendesk" ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+  ```
+
+- 本轮先修正 macOS/Windows Native Host 残留的 `1.13.0` 协议常量，使其与 Runtime `1.14.0` 对齐。run-local Host 已成功加载；真实 Native component/API 子场景通过并产出截图。
+- 整个 Custom UI gate 结果仍为 **FAILED (4/22)**，原因是仓库缺少四个 Recorder fixture：`examples/custom-ui/recording-console/{controller.js,recorder.html,tray.html}` 与 `internal/recorderbundle/ui/recording-history.js`。这是独立的工作树缺失项；没有修改或掩盖它，也不把该整套 gate 记为 PASS。证据目录：`.runtime/tests/runtime-api/direct-20260918-025049-046000/`。
+
+### Bundle / 真实入口 / 视觉资格
+
+- `./scripts/build_macos_app.sh` 已成功；`codesign --verify --deep --strict dist/OpenDesk.app` 通过。当前 Bundle 主程序 SHA-256 是 `e38c56b6c6ae4a6d681c2b1174a91240c599b2f4866ad49e62f4846ccf710f5d`，构建时间 `2026-09-18T08:02:25Z`。
+- 文档规定的入口 `./dist/opendesk -app apps/opendesk -allow-recorder-capture -console-mode script` 已实际执行，但 `apps/opendesk/opendesk.app.json` 规定 `singleInstance: true`，请求被已运行的 `/Applications/OpenDesk.app` PID 49640 接管。`lsof` 证明该 PID 加载的是 `/Applications/OpenDesk.app/Contents/MacOS/opendesk`（inode `13200682`，46,949,904 bytes），不是新 Bundle 主程序（inode `13254622`，47,277,232 bytes）。
+- 因此，**新版本已构建但尚未加载；Measurement 原生选窗、冻结路径和真实窗口截图均 NOT_RUN**。为保护现有用户实例，本轮没有结束 PID 49640，也没有改写 App ID 或关闭 single-instance 规约来伪造并行资格。macOS/Windows live qualification 均保留 `LOCAL_REQUIRED` / `NOT_RUN`。
+
+## 8. Qualification rule
 
 ```text
 source updated

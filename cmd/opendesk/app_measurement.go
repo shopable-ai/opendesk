@@ -18,7 +18,10 @@ import (
 
 const (
 	measurementReferenceResolverInterval = 48 * time.Millisecond
-	measurementReferenceClickTolerance   = 4.0
+	// Keep the production gate aligned with the frozen current Oracle and its
+	// executable prototype. Coordinates here are logical desktop points, the
+	// native equivalent of the Prototype's 8 CSS px tolerance.
+	measurementReferenceClickTolerance = 8.0
 )
 
 type appMeasurementCapture struct {
@@ -64,39 +67,56 @@ type measurementReferenceSelectionState struct {
 
 func (capture appMeasurementCapture) Capture(ctx context.Context, targetID string) (measurement.CaptureFrame, error) {
 	windowManager := automation.NewWindowManager()
-	var selected measurementWindowRow
-	var err error
-	if strings.TrimSpace(targetID) == "" {
-		observe := capture.observePointerSelection
-		if observe == nil {
-			observe = automation.ObservePointerSelection
-		}
-		// Initial acquisition is live and intentionally precedes Screenshot.
-		// Entering Desktop Measurement therefore does not create a frozen source;
-		// only a same-window click confirmation is allowed to cross this gate.
-		selected, err = selectMeasurementReference(ctx, windowManager, observe)
-		if err != nil {
-			return measurement.CaptureFrame{}, err
-		}
-	}
-
 	targets, err := measurementWindows(windowManager)
 	if err != nil {
 		return measurement.CaptureFrame{}, err
 	}
 	if strings.TrimSpace(targetID) == "" {
-		var ok bool
-		selected, ok = revalidateMeasurementReference(targets, selected)
-		if !ok {
-			return measurement.CaptureFrame{}, fmt.Errorf("confirmed measurement reference changed before capture")
-		}
-	} else {
-		var ok bool
-		selected, ok = selectMeasurementWindow(targets, targetID)
-		if !ok {
-			return measurement.CaptureFrame{}, fmt.Errorf("target window %q is no longer available", targetID)
-		}
+		return measurement.CaptureFrame{}, fmt.Errorf("initial measurement capture requires an explicit reference selection")
 	}
+	selected, ok := selectMeasurementWindow(targets, targetID)
+	if !ok {
+		return measurement.CaptureFrame{}, fmt.Errorf("target window %q is no longer available", targetID)
+	}
+	return capture.captureWindow(ctx, windowManager, targets, selected)
+}
+
+// SelectReference is intentionally separate from Capture. Service exposes its
+// REFERENCE_SELECTING state before this observer starts, and no pixels or
+// snapshot asset can exist until the selector has returned one valid click.
+func (capture appMeasurementCapture) SelectReference(ctx context.Context) (measurement.ReferenceSelection, error) {
+	windowManager := automation.NewWindowManager()
+	observe := capture.observePointerSelection
+	if observe == nil {
+		observe = automation.ObservePointerSelection
+	}
+	selected, err := selectMeasurementReference(ctx, windowManager, observe)
+	if err != nil {
+		return measurement.ReferenceSelection{}, err
+	}
+	return measurement.ReferenceSelection{Reference: measurementReferenceForWindow(selected)}, nil
+}
+
+// CaptureReference is the initial-capture path. It refuses a title-only or
+// foreground replacement by checking the exact ID, PID, native handle and
+// bounds observed at confirmation immediately before Screenshot.
+func (capture appMeasurementCapture) CaptureReference(ctx context.Context, selection measurement.ReferenceSelection) (measurement.CaptureFrame, error) {
+	if err := selection.Validate(); err != nil {
+		return measurement.CaptureFrame{}, err
+	}
+	windowManager := automation.NewWindowManager()
+	targets, err := measurementWindows(windowManager)
+	if err != nil {
+		return measurement.CaptureFrame{}, err
+	}
+	selected, ok := measurementReferenceWindowFromSelection(targets, selection)
+	if !ok {
+		return measurement.CaptureFrame{}, fmt.Errorf("confirmed measurement reference changed before capture")
+	}
+	return capture.captureWindow(ctx, windowManager, targets, selected)
+}
+
+func (capture appMeasurementCapture) captureWindow(ctx context.Context, windowManager *automation.WindowManager, targets []measurementWindowRow, selected measurementWindowRow) (measurement.CaptureFrame, error) {
 
 	displays := measurementDisplays(automation.NewScreen().GetDisplays())
 	display, ok := selectMeasurementDisplay(displays, selected)
@@ -113,6 +133,19 @@ func (capture appMeasurementCapture) Capture(ctx context.Context, targetID strin
 	if !ok || len(pngBytes) == 0 {
 		return measurement.CaptureFrame{}, fmt.Errorf("screen screenshot returned %T instead of PNG bytes", result)
 	}
+	// Capture is evidence for the exact click-confirmed reference, not merely
+	// the display that happened to be frontmost. Re-list after Screenshot so a
+	// close, move, resize or native-handle replacement during capture is a hard
+	// failure instead of a mislabeled frozen frame.
+	afterTargets, err := measurementWindows(windowManager)
+	if err != nil {
+		return measurement.CaptureFrame{}, err
+	}
+	current, ok := revalidateMeasurementReference(afterTargets, selected)
+	if !ok {
+		return measurement.CaptureFrame{}, fmt.Errorf("measurement reference changed during capture")
+	}
+	selected, targets = current, afterTargets
 	config, err := png.DecodeConfig(bytes.NewReader(pngBytes))
 	if err != nil {
 		return measurement.CaptureFrame{}, fmt.Errorf("decode captured display dimensions: %w", err)
@@ -134,14 +167,10 @@ func (capture appMeasurementCapture) Capture(ctx context.Context, targetID strin
 		})
 	}
 	return measurement.CaptureFrame{
-		PNG:      pngBytes,
-		Snapshot: measurement.Snapshot{SampledAt: time.Now().UTC(), Mapping: mapping},
-		Reference: measurement.Reference{
-			Type:   measurement.ReferenceWindowOuter,
-			Bounds: measurement.Rect{X: selected.x, Y: selected.y, Width: selected.width, Height: selected.height},
-			Window: &measurement.WindowIdentity{ID: selected.id, PID: selected.pid, Title: selected.title},
-		},
-		Targets: targetOptions, SelectedTargetID: selected.id,
+		PNG:       pngBytes,
+		Snapshot:  measurement.Snapshot{SampledAt: time.Now().UTC(), Mapping: mapping},
+		Reference: measurementReferenceForWindow(selected),
+		Targets:   targetOptions, SelectedTargetID: selected.id,
 		// A CaptureFrame reaching the service has crossed explicit initial
 		// confirmation or is an explicit Update of an already locked target.
 		TargetConfirmed: true,
@@ -149,10 +178,41 @@ func (capture appMeasurementCapture) Capture(ctx context.Context, targetID strin
 	}, nil
 }
 
+func measurementReferenceForWindow(window measurementWindowRow) measurement.Reference {
+	return measurement.Reference{
+		Type:   measurement.ReferenceWindowOuter,
+		Bounds: measurement.Rect{X: window.x, Y: window.y, Width: window.width, Height: window.height},
+		Window: &measurement.WindowIdentity{ID: window.id, PID: window.pid, NativeHandle: window.handle, Title: window.title},
+	}
+}
+
+func measurementReferenceWindowFromSelection(windows []measurementWindowRow, selection measurement.ReferenceSelection) (measurementWindowRow, bool) {
+	reference := selection.Reference
+	if reference.Window == nil {
+		return measurementWindowRow{}, false
+	}
+	for _, current := range windows {
+		if current.id == reference.Window.ID && current.pid == reference.Window.PID && current.handle != 0 && current.handle == reference.Window.NativeHandle &&
+			current.x == reference.Bounds.X && current.y == reference.Bounds.Y && current.width == reference.Bounds.Width && current.height == reference.Bounds.Height {
+			return current, true
+		}
+	}
+	return measurementWindowRow{}, false
+}
+
 func selectMeasurementReference(
 	ctx context.Context,
 	manager *automation.WindowManager,
 	observe func(context.Context, func(automation.PointerSelectionEvent) bool) error,
+) (measurementWindowRow, error) {
+	return selectMeasurementReferenceWithFeedback(ctx, manager, observe, nil)
+}
+
+func selectMeasurementReferenceWithFeedback(
+	ctx context.Context,
+	manager *automation.WindowManager,
+	observe func(context.Context, func(automation.PointerSelectionEvent) bool) error,
+	feedback func(measurementWindowRow, bool),
 ) (measurementWindowRow, error) {
 	if manager == nil || observe == nil {
 		return measurementWindowRow{}, fmt.Errorf("measurement reference selector is unavailable")
@@ -160,6 +220,21 @@ func selectMeasurementReference(
 	state := measurementReferenceSelectionState{}
 	var resolveErr error
 	var lastResolved time.Time
+	var lastVisual measurementWindowRow
+	lastVisualVisible := false
+	// Arm the candidate outline before the first observed pointer press. The
+	// entry click has already completed before this function runs, but a user
+	// can confirm without moving the pointer again; probing the current point
+	// prevents that first confirmation from falling through underneath an
+	// asynchronously-created outline.
+	if feedback != nil {
+		position := automation.NewMouse().GetPos()
+		candidate, ok, candidateErr := measurementWindowAtPoint(manager, numberValue(position["x"]), numberValue(position["y"]))
+		if candidateErr == nil {
+			feedback(candidate, ok)
+			lastVisual, lastVisualVisible = candidate, ok
+		}
+	}
 	err := observe(ctx, func(event automation.PointerSelectionEvent) bool {
 		if event.Kind == automation.PointerSelectionCancel {
 			return state.apply(event, measurementWindowRow{}, false)
@@ -178,6 +253,10 @@ func selectMeasurementReference(
 			return true
 		}
 		lastResolved = now
+		if feedback != nil && (ok != lastVisualVisible || (ok && !sameMeasurementWindowObservation(lastVisual, candidate))) {
+			feedback(candidate, ok)
+			lastVisual, lastVisualVisible = candidate, ok
+		}
 		return state.apply(event, candidate, ok)
 	})
 	if resolveErr != nil {

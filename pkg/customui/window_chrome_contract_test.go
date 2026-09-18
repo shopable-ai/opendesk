@@ -89,19 +89,19 @@ func TestPromotionRequestsFramelessChrome(t *testing.T) {
 }
 
 func TestWindowChromeProtocolVersion(t *testing.T) {
-	if ProtocolVersion != "1.13.0" {
-		t.Fatalf("Go protocol = %q, want 1.13.0", ProtocolVersion)
+	if ProtocolVersion != "1.14.0" {
+		t.Fatalf("Go protocol = %q, want 1.14.0", ProtocolVersion)
 	}
 	for name, tc := range map[string]struct{ path, token string }{
-		"macos":   {"machost/native_darwin.m", `CDProtocolVersion = @"1.13.0"`},
-		"windows": {"winhost/Program.cs", `Protocol = "1.13.0"`},
+		"macos":   {"machost/native_darwin.m", `CDProtocolVersion = @"1.14.0"`},
+		"windows": {"winhost/Program.cs", `Protocol = "1.14.0"`},
 	} {
 		data, err := os.ReadFile(tc.path)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !strings.Contains(string(data), tc.token) {
-			t.Fatalf("%s native protocol is not synchronized to 1.13.0", name)
+			t.Fatalf("%s native protocol is not synchronized to 1.14.0", name)
 		}
 	}
 }

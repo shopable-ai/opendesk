@@ -22,9 +22,9 @@ internal sealed class WebSurface : Surface
         // Ordinary Custom UI pages must be native top-level windows. Reserving
         // the tool-window style for the explicit floating kind avoids an
         // accidental nonactivating/tool-window semantic on normal pages.
-		bool measurement=J.S(spec,"kind")=="measurement";
-		Form.FormBorderStyle=J.B(spec,"centerOnActiveDisplay")?FormBorderStyle.FixedDialog:measurement?FormBorderStyle.None:J.S(spec,"kind")=="floating"?FormBorderStyle.SizableToolWindow:FormBorderStyle.Sizable;
-		Form.MaximizeBox=!J.B(spec,"centerOnActiveDisplay")&&!measurement;Form.MinimizeBox=false;
+		bool measurement=J.S(spec,"kind")=="measurement", referenceSelection=J.S(spec,"kind")=="reference-selection";
+		Form.FormBorderStyle=J.B(spec,"centerOnActiveDisplay")?FormBorderStyle.FixedDialog:(measurement||referenceSelection)?FormBorderStyle.None:J.S(spec,"kind")=="floating"?FormBorderStyle.SizableToolWindow:FormBorderStyle.Sizable;
+		Form.MaximizeBox=!J.B(spec,"centerOnActiveDisplay")&&!measurement&&!referenceSelection;Form.MinimizeBox=false;
         Form.Controls.Add(web);
     }
     internal override async Task Initialize()

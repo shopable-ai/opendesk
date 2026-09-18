@@ -62,6 +62,43 @@ func TestNormalizeMeasurementSurfaceRequiresHostExtension(t *testing.T) {
 	}
 }
 
+func TestNormalizeReferenceSelectionRequiresHostExtension(t *testing.T) {
+	spec := testWindowSpec("referenceSelection")
+	spec.Kind = "reference-selection"
+	if _, err := Normalize(spec, t.TempDir()); err == nil {
+		t.Fatal("reserved reference-selection kind was accepted without its host extension")
+	}
+	spec.ReferenceSelection = &ReferenceSelectionSurfaceSpec{}
+	normalized, err := Normalize(spec, t.TempDir())
+	if err != nil || normalized.ReferenceSelection == nil || normalized.Kind != "reference-selection" {
+		t.Fatalf("reference selection normalize = %#v, err=%v", normalized.ReferenceSelection, err)
+	}
+}
+
+func TestNormalizeReferenceSelectionSurfaceRoles(t *testing.T) {
+	for _, role := range []string{ReferenceSelectionRoleCandidate, ReferenceSelectionRoleDimmer} {
+		spec := testWindowSpec("referenceSelection-" + role)
+		spec.Kind = "reference-selection"
+		spec.ReferenceSelection = &ReferenceSelectionSurfaceSpec{Role: role}
+		normalized, err := Normalize(spec, t.TempDir())
+		if err != nil || normalized.ReferenceSelection == nil || normalized.ReferenceSelection.Role != role {
+			t.Fatalf("role %q normalize = %#v, err=%v", role, normalized.ReferenceSelection, err)
+		}
+	}
+	instruction := testWindowSpec("referenceSelection-instruction")
+	instruction.Kind = "reference-selection"
+	instruction.ReferenceSelection = &ReferenceSelectionSurfaceSpec{Role: ReferenceSelectionRoleInstruction, Label: "Choose a window"}
+	normalized, err := Normalize(instruction, t.TempDir())
+	if err != nil || normalized.ReferenceSelection == nil || normalized.ReferenceSelection.Label != "Choose a window" {
+		t.Fatalf("instruction normalize = %#v, err=%v", normalized.ReferenceSelection, err)
+	}
+	bad := instruction
+	bad.ReferenceSelection = &ReferenceSelectionSurfaceSpec{Role: "unknown"}
+	if _, err := Normalize(bad, t.TempDir()); err == nil {
+		t.Fatal("unknown reference selection role was accepted")
+	}
+}
+
 func TestNormalizeToolbarOrientationPolicy(t *testing.T) {
 	button := func(id string) toolbar.ButtonSpec {
 		return toolbar.ButtonSpec{ID: id, Label: id, Icon: "timer", State: toolbar.ButtonState{Revision: 1}}

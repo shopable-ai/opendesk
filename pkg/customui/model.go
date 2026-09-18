@@ -8,7 +8,7 @@ import (
 
 // ProtocolVersion advances with native-host schema changes so an older host
 // cannot silently accept a host-owned Measurement surface declaration.
-const ProtocolVersion = "1.13.0"
+const ProtocolVersion = "1.14.0"
 
 type ActivationSource string
 
@@ -91,6 +91,11 @@ type WindowSpec struct {
 	// and keyboard events for one already-validated image control without
 	// enabling document scripts or a second desktop-input framework.
 	Measurement *MeasurementSurfaceSpec `json:"measurement,omitempty"`
+	// ReferenceSelection is a host-owned, nonactivating candidate outline used
+	// before a Measurement snapshot exists. Public JavaScript cannot declare
+	// this marker; it prevents normal Custom UI windows from intercepting a
+	// desktop click under the reserved reference-selection kind.
+	ReferenceSelection *ReferenceSelectionSurfaceSpec `json:"referenceSelection,omitempty"`
 	// AppCloseBehavior is host-owned App Mode policy. It is absent from the
 	// public JavaScript declaration and is injected only for window.mainId.
 	AppCloseBehavior string `json:"appCloseBehavior,omitempty"`
@@ -98,6 +103,27 @@ type WindowSpec struct {
 
 type MeasurementSurfaceSpec struct {
 	TargetID string `json:"targetId"`
+}
+
+const (
+	// ReferenceSelectionRoleCandidate is a transparent native input shield with
+	// a candidate outline. It must not paint over the candidate's contents.
+	ReferenceSelectionRoleCandidate = "candidate"
+	// ReferenceSelectionRoleDimmer is one of the opaque regions around the
+	// candidate. It is intentionally mouse-transparent.
+	ReferenceSelectionRoleDimmer = "dimmer"
+	// ReferenceSelectionRoleInstruction is a compact, mouse-transparent hint
+	// placed in the dimmed area, rather than over the candidate's content.
+	ReferenceSelectionRoleInstruction = "instruction"
+)
+
+// ReferenceSelectionSurfaceSpec is intentionally host-owned. The role is not
+// part of the public JavaScript Custom UI schema; Desktop Measurement composes
+// its candidate shield, surrounding dimmers, and instruction from this small
+// native-only vocabulary.
+type ReferenceSelectionSurfaceSpec struct {
+	Role  string `json:"role,omitempty"`
+	Label string `json:"label,omitempty"`
 }
 
 type Control struct {

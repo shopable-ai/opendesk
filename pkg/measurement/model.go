@@ -112,9 +112,10 @@ type Snapshot struct {
 }
 
 type WindowIdentity struct {
-	ID    string `json:"id,omitempty"`
-	PID   int64  `json:"pid,omitempty"`
-	Title string `json:"title,omitempty"`
+	ID           string `json:"id,omitempty"`
+	PID          int64  `json:"pid,omitempty"`
+	NativeHandle uint64 `json:"nativeHandle,omitempty"`
+	Title        string `json:"title,omitempty"`
 }
 
 type Reference struct {

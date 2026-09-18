@@ -46,6 +46,37 @@ type CaptureAdapter interface {
 	Capture(context.Context, string) (CaptureFrame, error)
 }
 
+// ReferenceSelection is the result of the one explicit live-desktop action
+// that is allowed to create an initial Measurement snapshot. It deliberately
+// carries the exact window observation rather than a title or foreground
+// fallback: Capture must revalidate this reference before it reads pixels.
+type ReferenceSelection struct {
+	Reference Reference
+}
+
+func (selection ReferenceSelection) Validate() error {
+	if selection.Reference.Type != ReferenceWindowOuter {
+		return errors.New("measurement reference selection requires an outer window reference")
+	}
+	return selection.Reference.Validate()
+}
+
+// ReferenceSelector owns only the live Reference-selection phase. It must
+// not take screenshots or create product UI surfaces; Service owns the
+// lifecycle transition into FREEZING and calls Capture separately.
+type ReferenceSelector interface {
+	SelectReference(context.Context) (ReferenceSelection, error)
+}
+
+// ReferenceCaptureAdapter is the optional exact-reference counterpart to the
+// long-standing CaptureAdapter. The production adapter implements it so a
+// confirmed PID/native handle/bounds observation is revalidated without a
+// same-title or foreground-window fallback. Existing non-product adapters
+// retain the CaptureAdapter contract for isolated model tests.
+type ReferenceCaptureAdapter interface {
+	CaptureReference(context.Context, ReferenceSelection) (CaptureFrame, error)
+}
+
 type ClipboardWriter interface {
 	Copy(string) error
 }
@@ -53,6 +84,7 @@ type ClipboardWriter interface {
 type ServiceOptions struct {
 	Driver    customui.Driver
 	Capture   CaptureAdapter
+	Selector  ReferenceSelector
 	Clipboard ClipboardWriter
 	BaseDir   string
 	SaveDir   string
@@ -62,13 +94,14 @@ type ServiceOptions struct {
 type Service struct {
 	driver    customui.Driver
 	capture   CaptureAdapter
+	selector  ReferenceSelector
 	clipboard ClipboardWriter
 	baseDir   string
 	saveDir   string
 	now       func() time.Time
 	mu        sync.Mutex
 	active    *activeSession
-	opening   chan struct{}
+	opening   chan struct{} // serializes the synchronous adapter-only compatibility open
 	tool      string
 	assetID   atomic.Uint64
 	sessionID atomic.Uint64
@@ -83,11 +116,15 @@ type activeSession struct {
 	window    *customui.Window
 	source    string
 
-	frame       CaptureFrame
-	image       image.Image
-	assetPath   string
-	overlayPath string
-	restore     func(context.Context) error
+	frame           CaptureFrame
+	image           image.Image
+	assetPath       string
+	overlayPath     string
+	restore         func(context.Context) error
+	selection       ReferenceSelection
+	selectionMu     sync.Mutex
+	selectionCancel context.CancelFunc
+	freezeMu        sync.Mutex
 
 	reference       Reference
 	tool            string
@@ -121,6 +158,8 @@ type activeSession struct {
 	snapshotID  string
 
 	closeOnce sync.Once
+	finished  atomic.Bool
+	runOnce   sync.Once
 	finishMu  sync.Mutex
 	finishErr error
 }
@@ -157,7 +196,7 @@ func NewService(options ServiceOptions) (*Service, error) {
 	if options.Now == nil {
 		options.Now = time.Now
 	}
-	return &Service{driver: options.Driver, capture: options.Capture, clipboard: options.Clipboard, baseDir: absolute, saveDir: saveDir, now: options.Now, tool: "region"}, nil
+	return &Service{driver: options.Driver, capture: options.Capture, selector: options.Selector, clipboard: options.Clipboard, baseDir: absolute, saveDir: saveDir, now: options.Now, tool: "region"}, nil
 }
 
 func (s *Service) Open(ctx context.Context, source string) error {
@@ -167,19 +206,22 @@ func (s *Service) Open(ctx context.Context, source string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	var current *activeSession
 	for {
 		s.mu.Lock()
-		if current := s.active; current != nil {
+		current = s.active
+		if current != nil {
 			s.mu.Unlock()
-			if current.phaseValue() == PhaseAdjusting {
-				return current.continueMeasurement(ctx)
-			}
-			w := current.currentWindow()
-			if w == nil {
-				return errors.New("measurement session has no active surface")
-			}
-			_, err := w.Show(ctx)
-			return err
+			break
+		}
+		if s.selector != nil {
+			// Product construction always supplies a Selector. Publish this live
+			// session immediately so concurrent entry points share its one observer.
+			active := s.newSelectingSession(source, s.tool)
+			s.active = active
+			s.mu.Unlock()
+			go active.selectAndFreeze(ctx)
+			return nil
 		}
 		if opening := s.opening; opening != nil {
 			s.mu.Unlock()
@@ -190,23 +232,43 @@ func (s *Service) Open(ctx context.Context, source string) error {
 				return ctx.Err()
 			}
 		}
-		s.opening = make(chan struct{})
-		opening := s.opening
+		// The adapter-only seam predates Live Reference Selection. Complete the
+		// historic Capture-backed surface before publishing it, so old callers
+		// cannot send Measurement input into a partially initialized session.
+		opening := make(chan struct{})
+		s.opening = opening
+		active := s.newSelectingSession(source, s.tool)
 		s.mu.Unlock()
-		active, err := s.openNew(ctx, source)
+
+		active.selectAndFreeze(ctx)
+		result := active.finishResult()
+
 		s.mu.Lock()
-		if err == nil {
+		if !active.isFinished() && s.active == nil {
 			s.active = active
 		}
-		close(opening)
-		s.opening = nil
-		s.mu.Unlock()
-		if err != nil {
-			return err
+		if s.opening == opening {
+			s.opening = nil
+			close(opening)
 		}
-		go active.run()
+		s.mu.Unlock()
+		return result
+	}
+
+	switch current.phaseValue() {
+	case PhaseAdjusting:
+		return current.continueMeasurement(ctx)
+	case PhaseReferenceSelecting, PhaseFreezing:
+		// A selection session already owns the only observer and native hint
+		// surface. Re-entry is intentionally a no-op, never a second capture.
 		return nil
 	}
+	w := current.currentWindow()
+	if w == nil {
+		return errors.New("measurement session has no active surface")
+	}
+	_, err := w.Show(ctx)
+	return err
 }
 
 func (s *Service) OpenAndWait(ctx context.Context, source string) error {
@@ -228,52 +290,194 @@ func (s *Service) OpenAndWait(ctx context.Context, source string) error {
 	}
 }
 
-func (s *Service) openNew(ctx context.Context, source string) (*activeSession, error) {
-	frame, err := s.capture.Capture(ctx, "")
-	if err != nil {
-		return nil, fmt.Errorf("capture initial desktop snapshot: %w", err)
-	}
-	img, assetPath, err := s.prepareFrame(frame)
-	if err != nil {
-		return nil, err
-	}
-	s.mu.Lock()
-	tool := s.tool
-	s.mu.Unlock()
+func (s *Service) newSelectingSession(source, tool string) *activeSession {
 	if tool == "" {
 		tool = "region"
 	}
 	sessionID := "measurement-" + s.now().UTC().Format("20060102T150405.000000000Z") + "-" + strconv.FormatUint(s.sessionID.Add(1), 10)
-	a := &activeSession{
+	return &activeSession{
 		service: s, events: make(chan customui.Event, eventQueueSize), done: make(chan struct{}),
-		frame: frame, image: img, assetPath: assetPath, restore: frame.Restore, reference: frame.Reference,
-		tool: tool, outputFormat: "concise", status: targetConfirmationInstruction(frame),
-		selectedTarget: frame.SelectedTargetID, targetConfirmed: frame.TargetConfirmed, source: strings.TrimSpace(source),
+		tool: tool, outputFormat: "concise", status: "移动鼠标选择窗口 · 单击开始测量 · Esc 取消",
+		source:      strings.TrimSpace(source),
 		snapEnabled: true, marginView: "window",
-		phase: PhasePreparing, sessionID: sessionID, generation: 1,
+		phase: PhaseReferenceSelecting, sessionID: sessionID, generation: 1,
 	}
-	a.snapshotID = snapshotIdentity(sessionID, a.generation, frame.Snapshot)
-	a.phase = PhaseMeasuring
+
+}
+
+// selectAndFreeze keeps initial selection outside Capture so REFERENCE_SELECTING
+// is observable, cancellable and snapshot-free. A failed capture returns to a
+// fresh Live selection instead of silently substituting a foreground window or
+// retaining an old frozen image.
+func (a *activeSession) selectAndFreeze(parent context.Context) {
+	if a.isFinished() {
+		return
+	}
+	if parent == nil {
+		parent = context.Background()
+	}
+	if a.service.selector == nil {
+		// Isolated package tests and non-product embedders retain the historic
+		// adapter-only seam. App Mode always installs a selector and therefore
+		// never reaches this compatibility path.
+		a.stateMu.Lock()
+		a.phase, a.snapshotID = PhaseFreezing, ""
+		a.stateMu.Unlock()
+		frame, err := a.service.capture.Capture(parent, "")
+		if err != nil {
+			a.finishWithError(context.Background(), true, fmt.Errorf("capture initial desktop snapshot: %w", err))
+			return
+		}
+		if err := a.initializeFrozenSurfaceForLiveSession(parent, frame); err != nil {
+			a.finishWithError(context.Background(), true, err)
+			return
+		}
+		a.startRun()
+		return
+	}
+	for {
+		if a.isFinished() {
+			return
+		}
+		ctx, cancel := context.WithCancel(parent)
+		if !a.setSelectionCancel(cancel) {
+			cancel()
+			return
+		}
+		selection, err := a.selectReference(ctx)
+		if err != nil {
+			a.clearSelectionCancel(cancel)
+			cancel()
+			if a.isFinished() {
+				return
+			}
+			a.finishWithError(context.Background(), true, fmt.Errorf("select measurement reference: %w", err))
+			return
+		}
+		if a.isFinished() {
+			a.clearSelectionCancel(cancel)
+			cancel()
+			return
+		}
+		if err := selection.Validate(); err != nil {
+			a.clearSelectionCancel(cancel)
+			cancel()
+			a.finishWithError(context.Background(), true, fmt.Errorf("invalid measurement reference selection: %w", err))
+			return
+		}
+		a.stateMu.Lock()
+		if a.phase != PhaseReferenceSelecting {
+			a.stateMu.Unlock()
+			return
+		}
+		a.phase = PhaseFreezing
+		a.snapshotID = ""
+		a.stateMu.Unlock()
+		a.selection = selection
+
+		frame, err := a.captureInitial(ctx, selection)
+		a.clearSelectionCancel(cancel)
+		cancel()
+		if err != nil {
+			if a.isFinished() {
+				return
+			}
+			a.stateMu.Lock()
+			a.phase = PhaseReferenceSelecting
+			a.snapshotID = ""
+			a.stateMu.Unlock()
+			a.status = "冻结参照窗口失败；请重新选择窗口。"
+			continue
+		}
+		if a.isFinished() {
+			return
+		}
+		if err := a.initializeFrozenSurfaceForLiveSession(context.Background(), frame); err != nil {
+			if a.isFinished() {
+				return
+			}
+			a.stateMu.Lock()
+			a.phase = PhaseReferenceSelecting
+			a.snapshotID = ""
+			a.stateMu.Unlock()
+			a.status = "创建测量界面失败；请重新选择窗口。"
+			continue
+		}
+		a.startRun()
+		return
+	}
+}
+
+// initializeFrozenSurfaceForLiveSession makes terminal cleanup and surface
+// construction mutually exclusive. A capture backend can return a valid frame
+// after cancellation; in that case finish wins and the frame is discarded
+// before it can persist an asset or revive the Custom UI session. This lock is
+// deliberately separate from operationMu: initialization renders the surface,
+// while reselect/refresh operations own operationMu and must not deadlock on
+// that render path.
+func (a *activeSession) initializeFrozenSurfaceForLiveSession(ctx context.Context, frame CaptureFrame) error {
+	a.freezeMu.Lock()
+	defer a.freezeMu.Unlock()
+	if a.isFinished() {
+		return context.Canceled
+	}
+	return a.initializeFrozenSurface(ctx, frame)
+}
+
+func (a *activeSession) selectReference(ctx context.Context) (ReferenceSelection, error) {
+	if a.service.selector == nil {
+		// Compatibility for isolated callers which provide only the historic
+		// CaptureAdapter. Product construction always supplies a selector.
+		return ReferenceSelection{}, nil
+	}
+	return a.service.selector.SelectReference(ctx)
+}
+
+func (a *activeSession) captureInitial(ctx context.Context, selection ReferenceSelection) (CaptureFrame, error) {
+	if exact, ok := a.service.capture.(ReferenceCaptureAdapter); ok && a.service.selector != nil {
+		return exact.CaptureReference(ctx, selection)
+	}
+	return a.service.capture.Capture(ctx, "")
+}
+
+func (a *activeSession) initializeFrozenSurface(ctx context.Context, frame CaptureFrame) error {
+	img, assetPath, err := a.service.prepareFrame(frame)
+	if err != nil {
+		return err
+	}
+	a.frame, a.image, a.assetPath, a.restore, a.reference = frame, img, assetPath, frame.Restore, frame.Reference
+	a.status, a.selectedTarget, a.targetConfirmed = targetConfirmationInstruction(frame), frame.SelectedTargetID, frame.TargetConfirmed
+	a.snapshotID = snapshotIdentity(a.sessionID, a.generation, frame.Snapshot)
 	overlayPath, err := a.writeOverlay()
 	if err != nil {
 		_ = os.Remove(assetPath)
-		return nil, err
+		return err
 	}
 	a.overlayPath = overlayPath
-	session, err := customui.NewSession(sessionID, s.baseDir, s.driver, a.enqueue)
+	// A Service session can reselect and create multiple frozen generations.
+	// Custom UI intentionally reserves a closed window ID for a driver session,
+	// so give each frozen surface a private generation-scoped transport session
+	// while retaining a.sessionID as the stable Measurement/Snapshot identity.
+	session, err := customui.NewSession(a.frozenSurfaceSessionID(), a.service.baseDir, a.service.driver, a.enqueue)
 	if err != nil {
 		_ = os.Remove(assetPath)
 		_ = os.Remove(overlayPath)
-		return nil, err
+		return err
 	}
 	a.session = session
 	if err := a.createSurface(ctx); err != nil {
 		_ = session.Close(context.Background())
 		_ = os.Remove(assetPath)
 		_ = os.Remove(overlayPath)
-		return nil, err
+		return err
 	}
-	return a, nil
+	a.stateMu.Lock()
+	a.phase = PhaseMeasuring
+	a.stateMu.Unlock()
+	if err := a.renderSurface(ctx); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *Service) prepareFrame(frame CaptureFrame) (image.Image, string, error) {
@@ -339,6 +543,47 @@ func (a *activeSession) finishResult() error {
 	return a.finishErr
 }
 
+func (a *activeSession) setSelectionCancel(cancel context.CancelFunc) bool {
+	a.selectionMu.Lock()
+	if a.finished.Load() {
+		a.selectionMu.Unlock()
+		return false
+	}
+	a.selectionCancel = cancel
+	a.selectionMu.Unlock()
+	return true
+}
+
+func (a *activeSession) clearSelectionCancel(cancel context.CancelFunc) {
+	a.selectionMu.Lock()
+	if a.selectionCancel != nil {
+		a.selectionCancel = nil
+	}
+	a.selectionMu.Unlock()
+}
+
+func (a *activeSession) cancelSelection() {
+	a.selectionMu.Lock()
+	cancel := a.selectionCancel
+	a.selectionCancel = nil
+	a.selectionMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+func (a *activeSession) isFinished() bool {
+	if a.finished.Load() {
+		return true
+	}
+	select {
+	case <-a.done:
+		return true
+	default:
+		return false
+	}
+}
+
 func (a *activeSession) currentWindow() *customui.Window {
 	a.surfaceMu.RLock()
 	defer a.surfaceMu.RUnlock()
@@ -381,13 +626,17 @@ func (a *activeSession) enqueue(event customui.Event) {
 	}
 }
 
+func (a *activeSession) startRun() {
+	a.runOnce.Do(func() { go a.run() })
+}
+
 func (a *activeSession) run() {
 	for {
 		select {
 		case event := <-a.events:
 			if event.Type == "close" {
 				w := a.currentWindow()
-				if w == nil || event.WindowID == w.ID() {
+				if w != nil && event.WindowID == w.ID() {
 					_ = a.finish(context.Background(), false)
 					return
 				}
@@ -498,6 +747,8 @@ func (a *activeSession) handleClick(ctx context.Context, id string) error {
 		return a.renderSurface(ctx)
 	case "referenceButton":
 		return a.beginReferenceEdit(ctx)
+	case "reselectReference":
+		return a.beginReferenceReselect(ctx)
 	case "copyMenuButton":
 		if a.result == nil {
 			return a.updateStatus(ctx, "复制失败：尚无测量结果。")
@@ -599,6 +850,64 @@ func (a *activeSession) beginReferenceEdit(ctx context.Context) error {
 	a.copyMenuOpen = false
 	a.status = "参照编辑：拖拽一个区域作为锁定参照。"
 	return a.renderSurface(ctx)
+}
+
+// beginReferenceReselect releases only snapshot-bound native resources while
+// retaining the one Service-owned session. It is intentionally separate from
+// the local-reference editor: changing a Window Reference must return to the
+// Live desktop gate and can never be implemented as a target dropdown or a
+// same-title lookup behind the frozen surface.
+func (a *activeSession) beginReferenceReselect(ctx context.Context) error {
+	if a.service == nil || a.service.selector == nil {
+		return a.updateStatus(ctx, "当前环境不支持重新选择窗口。")
+	}
+	// Keep the same freeze → operation ordering as terminal cleanup. A direct
+	// test or fast user click can request reselect as the first frozen surface
+	// finishes rendering; wait for that construction to settle before tearing
+	// it down and beginning the next Live selection.
+	a.freezeMu.Lock()
+	defer a.freezeMu.Unlock()
+	a.operationMu.Lock()
+	defer a.operationMu.Unlock()
+	if a.phaseValue() != PhaseMeasuring {
+		return nil
+	}
+	if w := a.currentWindow(); w != nil {
+		if _, err := w.Hide(ctx); err != nil {
+			return err
+		}
+	}
+	// Detach the visible surface before internally closing its session. The
+	// driver emits a close event for session teardown; leaving the old window
+	// published until after Close lets the run loop mistake that internal event
+	// for a user-requested exit and race the new Live selection.
+	oldSession := a.session
+	a.session = nil
+	a.setWindow(nil)
+	if oldSession != nil {
+		if err := oldSession.Close(context.Background()); err != nil {
+			return err
+		}
+	}
+	oldAsset, oldOverlay := a.assetPath, a.overlayPath
+	a.assetPath, a.overlayPath = "", ""
+	a.frame, a.image, a.reference = CaptureFrame{}, nil, Reference{}
+	a.result, a.pointer, a.lockedCandidate = nil, nil, nil
+	a.dragStart, a.twoPointFirst, a.spacingFirst = nil, nil, nil
+	a.manualPending, a.copyMenuOpen, a.inspectorOpen = false, false, false
+	a.regionHandle, a.editAnchor, a.editOriginal = RegionEditNone, nil, nil
+	a.marginView, a.snapSuspended = "window", false
+	a.status = "移动鼠标选择窗口 · 单击开始测量 · Esc 取消"
+	a.stateMu.Lock()
+	a.phase = PhaseReferenceSelecting
+	a.generation++
+	a.snapshotID = ""
+	a.stateMu.Unlock()
+	a.service.resetSnapshotCandidatesForOracle(a, a.snapEnabled, false, false)
+	_ = os.Remove(oldAsset)
+	_ = os.Remove(oldOverlay)
+	go a.selectAndFreeze(context.Background())
+	return nil
 }
 
 func (a *activeSession) restoreWindowReference(ctx context.Context) error {
@@ -1042,7 +1351,6 @@ func (a *activeSession) renderSurface(ctx context.Context) error {
 		return err
 	}
 	oldOverlay := a.overlayPath
-	hud := ChooseHUDPlacement(a.frame.Snapshot.Mapping, a.reference, a.result)
 	microTarget := a.reference.Bounds
 	if a.pointer != nil {
 		microTarget = Rect{X: a.pointer.X, Y: a.pointer.Y, Width: 1, Height: 1}
@@ -1077,9 +1385,7 @@ func (a *activeSession) renderSurface(ctx context.Context) error {
 		{"targetConfirmed", customui.ControlPatch{Visible: boolPtr(a.targetConfirmed)}},
 		{"referenceType", customui.ControlPatch{Value: referenceValue(a)}},
 		{"outputFormat", customui.ControlPatch{Value: a.outputFormat}},
-		{"measurementHUD", customui.ControlPatch{Classes: hud.Classes}},
 		{"measurementMicro", customui.ControlPatch{Classes: micro.Classes}},
-		{"measurementHUDValue", customui.ControlPatch{Text: stringPtr(a.conciseResult())}},
 		{"measurementMicroValue", customui.ControlPatch{Text: stringPtr(microText(a))}},
 		{"measurementStatus", customui.ControlPatch{Text: stringPtr(a.status)}},
 		{"referenceInfo", customui.ControlPatch{Text: stringPtr(measurementReferenceSummary(a))}},
@@ -1250,8 +1556,16 @@ func snapshotCandidateFromEvent(event customui.Event, token SnapshotToken) *Cand
 }
 
 func (a *activeSession) finish(ctx context.Context, closeWindow bool) error {
+	return a.finishWithError(ctx, closeWindow, nil)
+}
+
+func (a *activeSession) finishWithError(ctx context.Context, closeWindow bool, terminal error) error {
 	var result error
 	a.closeOnce.Do(func() {
+		a.finished.Store(true)
+		a.cancelSelection()
+		a.freezeMu.Lock()
+		defer a.freezeMu.Unlock()
 		a.operationMu.Lock()
 		defer a.operationMu.Unlock()
 		a.copyMenuOpen = false
@@ -1286,6 +1600,13 @@ func (a *activeSession) finish(ctx context.Context, closeWindow bool) error {
 				result = fmt.Errorf("measurement recovery limited: %w", err)
 			}
 		}
+		if terminal != nil {
+			if result != nil {
+				result = fmt.Errorf("%v; cleanup: %w", terminal, result)
+			} else {
+				result = terminal
+			}
+		}
 		a.finishMu.Lock()
 		a.finishErr = result
 		a.finishMu.Unlock()
@@ -1313,11 +1634,18 @@ func (a *activeSession) phaseValue() MeasurementPhase {
 func (a *activeSession) snapshotToken() SnapshotToken {
 	a.stateMu.RLock()
 	defer a.stateMu.RUnlock()
+	if a.phase != PhaseMeasuring {
+		return SnapshotToken{SessionID: a.sessionID, Generation: a.generation}
+	}
 	return SnapshotToken{SessionID: a.sessionID, Generation: a.generation, SnapshotID: a.snapshotID}
 }
 
 func (a *activeSession) acceptsSnapshot(token SnapshotToken) bool {
 	return a.snapshotToken().Matches(token)
+}
+
+func (a *activeSession) frozenSurfaceSessionID() string {
+	return fmt.Sprintf("%s-ui-g%d", a.sessionID, a.generation)
 }
 
 func snapshotIdentity(sessionID string, generation uint64, snapshot Snapshot) string {

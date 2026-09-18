@@ -204,7 +204,7 @@ func (d *snapshotCandidateDriver) prepareHostEvent(event customui.Event) (custom
 
 	if event.Type == "click" {
 		switch event.TargetID {
-		case "refreshSnapshot", "adjustInterface", "previousTarget", "nextTarget":
+		case "refreshSnapshot", "adjustInterface", "previousTarget", "nextTarget", "reselectReference":
 			d.invalidate()
 		case "magnetToggle":
 			d.state.mu.Lock()
