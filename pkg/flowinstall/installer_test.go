@@ -72,6 +72,36 @@ func TestInstallRequiresExplicitTrustAndDoesNotExecute(t *testing.T) {
 	}
 }
 
+func TestInstallCancelLeavesCatalogTrustAndBusinessEffectsUntouched(t *testing.T) {
+	service := newTestService(t)
+	fixture := newFlowFixture(t, "publisher-cancel", "key-cancel")
+	marker := filepath.Join(t.TempDir(), "must-not-exist")
+	packagePath, _ := fixture.build(t, "flow-cancel", "Cancel Flow", "1.0.0", []byte("require('fs').writeFileSync("+quoteJS(marker)+", 'executed')"))
+
+	if _, err := service.Install(context.Background(), packagePath, InstallOptions{
+		Approver: func(context.Context, TrustCandidate) (TrustDecision, error) { return DecisionCancel, nil },
+	}); CodeOf(err) != CodeTrustCanceled {
+		t.Fatalf("Install() cancel code = %q, error = %v, want %q", CodeOf(err), err, CodeTrustCanceled)
+	}
+	records, err := service.Catalog.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 0 {
+		t.Fatalf("cancelled install changed Catalog: %+v", records)
+	}
+	trustEntries, err := os.ReadDir(filepath.Join(service.Roots.TrustRoot, "records"))
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	if len(trustEntries) != 0 {
+		t.Fatalf("cancelled install wrote Trust records: %v", trustEntries)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("cancelled install executed business JavaScript; marker stat error = %v", err)
+	}
+}
+
 func TestInstallRejectsIncompatiblePlatformAndRuntimeBeforeTrust(t *testing.T) {
 	fixture := newFlowFixture(t, "publisher-a", "key-a")
 
