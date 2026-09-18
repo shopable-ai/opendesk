@@ -484,6 +484,11 @@ func (r *appRecipeRunner) InspectFlow(ctx context.Context, input automation.AppO
 	lease, err := r.flowService.AcquireRun(ctx, record.InstallID)
 	if err != nil { inspection.StateReason = "Flow failed current host availability checks"; return inspection, nil }
 	defer lease.Close()
+	// AcquireRun is the canonical run-readiness authority: it first performs
+	// transaction recovery and then reloads/verifies the catalog record. Build
+	// the preview from that post-recovery record so preview and final recheck
+	// compare the same authoritative state rather than a pre-recovery snapshot.
+	inspection = appFlowInspection(lease.Record)
 	source, err := scriptloader.NewProductionFileLoader().Load(ctx, lease.Entry)
 	if err != nil { inspection.StateReason = "Flow content is not currently loadable"; return inspection, nil }
 	inspection.Protected = source.Protection.Mode == scriptloader.ProtectionProtected
