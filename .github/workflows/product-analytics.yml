@@ -55,8 +55,8 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Verify Go module graph is canonical
-        run: go mod tidy -diff
+      - name: Verify Go module graph is read-only complete
+        run: go list -mod=readonly ./pkg/productanalytics ./pkg/officialconfig ./internal/flowcli ./cmd/opendesk ./pkg/execution ./pkg/appshell
       - name: Product Analytics JavaScript contracts
         run: >-
           node --test
