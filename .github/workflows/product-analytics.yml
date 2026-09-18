@@ -21,7 +21,7 @@ on:
       - 'apps/opendesk/**'
       - 'tests/product-analytics/**'
       - 'tests/runtime-api/product-analytics*.js'
-      - 'tests/app-lifecycle/analytics-settings-controller.test.js'
+      - 'tests/app-lifecycle/settings-privacy-controller.test.js'
       - 'docs/architecture/product-analytics.md'
   pull_request:
     paths:
@@ -37,7 +37,7 @@ on:
       - 'apps/opendesk/**'
       - 'tests/product-analytics/**'
       - 'tests/runtime-api/product-analytics*.js'
-      - 'tests/app-lifecycle/analytics-settings-controller.test.js'
+      - 'tests/app-lifecycle/settings-privacy-controller.test.js'
       - 'docs/architecture/product-analytics.md'
   workflow_dispatch:
 
@@ -65,8 +65,9 @@ jobs:
         run: >-
           node --test
           tests/product-analytics/runner-ui-dedupe.test.cjs
-          tests/product-analytics/client-settings.test.cjs
-          tests/app-lifecycle/analytics-settings-controller.test.js
+          tests/product-analytics/privacy-settings.test.cjs
+          tests/product-analytics/developer-diagnostics.test.cjs
+          tests/app-lifecycle/settings-privacy-controller.test.js
 
   production-contract:
     name: Production Contract
