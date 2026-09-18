@@ -170,7 +170,23 @@ func TestAppRecipeRunnerInstalledFlowUsesCanonicalCatalogAndExecutionInput(t *te
 	if err != nil { t.Fatalf("run installed Flow: %v", err) }
 	if result.Status != string(pkgExecution.ExecutionStatusSucceeded) || result.ExecutionID == "" { t.Fatalf("result=%+v", result) }
 	stdout, err := os.ReadFile(filepath.Join(logDir, "stdout.log")); if err != nil { t.Fatal(err) }
-	if !strings.Contains(string(stdout), `FLOW_INPUT={"amount":17,"nested":{"ok":true}}`) { t.Fatalf("stdout=%q", stdout) }
+	stdoutText := string(stdout)
+	marker := "FLOW_INPUT="
+	start := strings.Index(stdoutText, marker)
+	if start < 0 { t.Fatalf("stdout=%q", stdout) }
+	payload := stdoutText[start+len(marker):]
+	if end := strings.Index(payload, ` {"consoleMethod":`); end >= 0 {
+		payload = payload[:end]
+	} else if end := strings.IndexByte(payload, '\n'); end >= 0 {
+		payload = payload[:end]
+	}
+	var actualInput map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(payload)), &actualInput); err != nil {
+		t.Fatalf("decode Flow input from stdout: %v; stdout=%q", err, stdout)
+	}
+	if actualInput["amount"] != float64(17) { t.Fatalf("Flow input amount=%v", actualInput["amount"]) }
+	nested, ok := actualInput["nested"].(map[string]any)
+	if !ok || nested["ok"] != true { t.Fatalf("Flow nested input=%v", actualInput["nested"]) }
 	_, err = runner.RunFlow(context.Background(), automation.AppOwnedFlowRunRequest{InstallID: installed.Record.InstallID, WorkDir: workDir, LogDir: filepath.Join(workDir, ".runtime", "changed"), InputJSON: `{"amount":18}`, ExpectedArchiveDigest: "stale", ExpectedManifestDigest: installed.Record.ManifestDigest})
 	var flowErr *automation.AppOwnedFlowRunError
 	if !errors.As(err, &flowErr) || flowErr.Code != "FLOW_CHANGED" { t.Fatalf("changed Flow error=%T %v", err, err) }
