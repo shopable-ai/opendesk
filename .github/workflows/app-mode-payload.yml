@@ -131,7 +131,8 @@ jobs:
             libx11-dev \
             libxkbcommon-dev \
             libxkbcommon-x11-dev \
-            libxtst-dev
+            libxtst-dev \
+            libxinerama-dev
       - name: Test assistant JavaScript contracts
         run: >-
           node --test
