@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"opendesk/automation"
+	"opendesk/pkg/appshell"
 	pkgExecution "opendesk/pkg/execution"
 	"opendesk/pkg/flowinstall"
 )
@@ -280,5 +282,173 @@ func TestAppRecipeRunnerFlowUsesReservedExecutionIdentity(t *testing.T) {
 	}
 	if result.ExecutionID != reserved {
 		t.Fatalf("executionId=%q want %q", result.ExecutionID, reserved)
+	}
+}
+
+func TestAssistantInstalledFlowVerticalRuntimeUsesCanonicalCatalogAndRealExecution(t *testing.T) {
+	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seamPath := filepath.Join(repoRoot, "tests", "runtime-api", "seams", "assistant-installed-flow-use.js")
+	seamSource, err := os.ReadFile(seamPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	root := t.TempDir()
+	businessDir := filepath.Join(root, "business")
+	taskRoot := filepath.Join(root, "assistant-state")
+	if err := os.MkdirAll(businessDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	service, err := flowinstall.NewService(flowinstall.Roots{
+		FlowRoot: filepath.Join(root, "flows"),
+		DataRoot: filepath.Join(root, "flow-data"),
+		StateRoot: filepath.Join(root, "flow-state"),
+		TrustRoot: filepath.Join(root, "flow-state", "trust"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	flowSource := filepath.Join(t.TempDir(), "assistant-business-sample.js")
+	if err := os.WriteFile(flowSource, []byte(
+		`const resultPath = File.join(Execution.workdir, "assistant-flow-result.json");
+File.writeNew(resultPath, JSON.stringify({executionId: Execution.id, input: Execution.input}) + "\\n");
+console.log("ASSISTANT_FLOW_BUSINESS_OUTPUT=" + resultPath);`,
+	), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	installed, err := service.InstallScript(context.Background(), flowSource)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	runner := newAppRecipeRunner(appRecipeRunnerConfig{}, nil, nil)
+	runner.flowService = service
+
+	manifest, err := appshell.ParseManifest([]byte(`{
+		"id":"com.opendesk.assistant-installed-flow-vertical",
+		"entry":"main.js",
+		"singleInstance":false,
+		"window":{"mainId":"main","closeBehavior":"quit"},
+		"tray":{"enabled":false}
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	shell, err := appshell.New(manifest, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	shell.SetQuitHook(cancel)
+	if err := shell.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	var evidence struct {
+		Prepared struct {
+			TaskID       string         `json:"taskId"`
+			Revision     int            `json:"revision"`
+			PreviewInput map[string]any `json:"previewInput"`
+		} `json:"prepared"`
+		Run struct {
+			ExecutionID     string `json:"executionId"`
+			Status          string `json:"status"`
+			BusinessVerified bool   `json:"businessVerified"`
+		} `json:"run"`
+		FinalTask struct {
+			TaskID   string           `json:"taskId"`
+			Revision int              `json:"revision"`
+			Status   string           `json:"status"`
+			Evidence []map[string]any `json:"evidence"`
+		} `json:"finalTask"`
+	}
+
+	outerResult, _, runErr := pkgExecution.Run(pkgExecution.Request{
+		Context: ctx,
+		ExecutionID: pkgExecution.NewExecutionID("assistant-flow-vertical"),
+		SourceLabel: "assistant installed Flow vertical seam",
+		ScriptPath: seamPath,
+		Ext: ".js",
+		ScriptContent: seamSource,
+		WorkDir: repoRoot,
+		Environment: map[string]string{
+			"ASSISTANT_TASK_ROOT": taskRoot,
+			"ASSISTANT_BUSINESS_CWD": businessDir,
+			"ASSISTANT_FLOW_INSTALL_ID": installed.Record.InstallID,
+		},
+		AppShell: shell,
+		AppOwnedExecutionID: runner.ReserveExecutionID,
+		AppOwnedFlowInspect: runner.InspectFlow,
+		AppOwnedFlowRun: runner.RunFlow,
+		GracefulCancellation: func() bool {
+			state := shell.State()
+			return shell.TerminalError() == nil && (state == appshell.StateQuitting || state == appshell.StateStopped)
+		},
+		InternalResultSink: func(value []byte) error {
+			return json.Unmarshal(value, &evidence)
+		},
+		Selection: pkgExecution.TerminalSelection{Mode: "quiet", Categories: map[string]bool{}},
+	})
+	if runErr != nil || outerResult.Status != pkgExecution.ExecutionStatusSucceeded {
+		t.Fatalf("assistant vertical Runtime status=%s error=%v", outerResult.Status, runErr)
+	}
+
+	if evidence.Prepared.TaskID != "vertical-installed-flow" || evidence.Run.ExecutionID == "" {
+		t.Fatalf("vertical evidence=%+v", evidence)
+	}
+	if evidence.Run.Status != string(pkgExecution.ExecutionStatusSucceeded) {
+		t.Fatalf("run=%+v", evidence.Run)
+	}
+	if evidence.Run.BusinessVerified {
+		t.Fatal("Runtime success must not be promoted to business verification without a separate observer")
+	}
+	if evidence.FinalTask.Status != "execution-finished-unverified" {
+		t.Fatalf("final task status=%q", evidence.FinalTask.Status)
+	}
+
+	outputPath := filepath.Join(businessDir, "assistant-flow-result.json")
+	outputData, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("read business output: %v", err)
+	}
+	var output struct {
+		ExecutionID string         `json:"executionId"`
+		Input       map[string]any `json:"input"`
+	}
+	if err := json.Unmarshal(outputData, &output); err != nil {
+		t.Fatalf("decode business output: %v", err)
+	}
+	if output.ExecutionID != evidence.Run.ExecutionID {
+		t.Fatalf("business executionId=%q evidence=%q", output.ExecutionID, evidence.Run.ExecutionID)
+	}
+	if got := output.Input["amount"]; got != float64(17) {
+		t.Fatalf("business input amount=%v", got)
+	}
+	nested, ok := output.Input["nested"].(map[string]any)
+	if !ok || nested["target"] != "A" {
+		t.Fatalf("business nested input=%v", output.Input["nested"])
+	}
+	if preparedNested, ok := evidence.Prepared.PreviewInput["nested"].(map[string]any); !ok || preparedNested["target"] != "A" {
+		t.Fatalf("preview input was not frozen: %+v", evidence.Prepared.PreviewInput)
+	}
+
+	foundReserved := false
+	foundTerminal := false
+	for _, item := range evidence.FinalTask.Evidence {
+		switch item["type"] {
+		case "execution-reserved":
+			foundReserved = item["executionId"] == evidence.Run.ExecutionID
+		case "execution-terminal":
+			foundTerminal = item["executionId"] == evidence.Run.ExecutionID
+		}
+	}
+	if !foundReserved || !foundTerminal {
+		t.Fatalf("execution identity evidence incomplete: %+v", evidence.FinalTask.Evidence)
 	}
 }
