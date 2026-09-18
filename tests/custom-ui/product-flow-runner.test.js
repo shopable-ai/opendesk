@@ -68,6 +68,11 @@ function createHarness(options = {}) {
   let runnerOptions = null;
   let runnerToolbar = null;
   let rescanCount = 0;
+  const runnerEntries = (Array.isArray(options.runnerEntries) && options.runnerEntries.length
+    ? options.runnerEntries
+    : [{name: 'default.js', path: '/recipes/default.js', kind: 'script', displayName: 'Default'}])
+    .map(entry => ({...entry}));
+  let runnerSelectedName = String(options.runnerSelectedName || runnerEntries[0].name);
 
   const ui = {
     async createWindow(spec) {
@@ -170,7 +175,13 @@ function createHarness(options = {}) {
         },
         async stopRun() { return true; },
         async rescan() { rescanCount += 1; return true; },
-        state() { return {running: true, entryCount: 1}; },
+        entries() { return runnerEntries.map(entry => ({...entry})); },
+        async selectEntry(name) {
+          if (!runnerEntries.some(entry => entry.name === name)) return false;
+          runnerSelectedName = name;
+          return true;
+        },
+        state() { return {running: true, entryCount: runnerEntries.length, selectedEntryKey: runnerSelectedName}; },
       };
     },
   };
@@ -219,6 +230,10 @@ function createHarness(options = {}) {
     },
     get createAppCount() { return createAppCount; },
     get rescanCount() { return rescanCount; },
+    setRunnerSelectedName(name) {
+      if (!runnerEntries.some(entry => entry.name === name)) throw new Error('unknown runner entry: ' + name);
+      runnerSelectedName = name;
+    },
     File: {
       join: path.join,
       path: value => path.resolve(value),
@@ -347,6 +362,40 @@ test('product Flow Runner retains title as a compatibility input', async () => {
   assert.equal(runner.state().windowTitle, 'Existing title option');
   assert.equal(harness.windows[0].spec.title, 'Existing title option');
   assert.equal(harness.floatingWindows[0].spec.title, 'Existing title option');
+});
+
+test('product Runner exposes one-time assistant asset snapshots without leaking protected package paths', async () => {
+  const flowId = 'local-1234567890abcdef1234567890abcdef';
+  const harness = createHarness({
+    runnerEntries: [
+      {name: 'flow:' + flowId, path: 'flow:' + flowId, kind: 'flow', installId: flowId, displayName: 'Business Flow', record: {flowId: 'business.flow'}},
+      {name: 'plain.js', path: '/recipes/plain.js', kind: 'script', displayName: 'Plain'},
+      {name: 'secret.odpkg', path: '/recipes/secret.odpkg', kind: 'protected-package', displayName: 'Protected'},
+    ],
+    runnerSelectedName: 'flow:' + flowId,
+  });
+  const loaded = loadProductRunner(harness);
+  const runner = loaded.api.create({officialShell: harness.officialShell});
+  await runner.launch();
+
+  const first = runner.currentAsset();
+  assert.deepEqual(first, {
+    kind: 'installed-flow',
+    installId: flowId,
+    flowId: 'business.flow',
+    displayName: 'Business Flow',
+  });
+
+  harness.setRunnerSelectedName('plain.js');
+  const second = runner.currentAsset();
+  assert.deepEqual(second, {kind: 'js-file', ref: '/recipes/plain.js', displayName: 'Plain'});
+  assert.equal(first.installId, flowId, 'previous handoff snapshot must remain immutable after Runner selection changes');
+
+  harness.setRunnerSelectedName('secret.odpkg');
+  const protectedEntry = runner.currentAsset();
+  assert.equal(protectedEntry.kind, 'unsupported');
+  assert.equal(Object.prototype.hasOwnProperty.call(protectedEntry, 'ref'), false,
+    'protected package path must not be projected as an assistant source asset');
 });
 
 test('product Recipe runs in the App-owned execution bridge with one visible lifecycle toast', async () => {

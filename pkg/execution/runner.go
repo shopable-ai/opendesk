@@ -141,10 +141,15 @@ type Request struct {
 	// AppShell is the execution-scoped owner used only by the explicit -app
 	// pipeline. Ordinary Script/HTTP requests leave it nil.
 	AppShell *appshell.Shell
-	// AppOwnedScriptRun is the bundled Flow Runner's private bridge for launching a
+	// AppOwnedScriptRun is the bundled product's private bridge for launching a
 	// separate Recipe Execution without leaving the App host process identity.
 	// Ordinary and nested Recipe executions leave it nil.
-	AppOwnedScriptRun automation.AppOwnedFlowRunner
+	AppOwnedScriptInspect automation.AppOwnedScriptInspector
+	AppOwnedScriptRead    automation.AppOwnedScriptReader
+	AppOwnedScriptRun     automation.AppOwnedScriptRunner
+	AppOwnedExecutionID   automation.AppOwnedExecutionIDAllocator
+	AppOwnedFlowInspect   automation.AppOwnedFlowInspector
+	AppOwnedFlowRun     automation.AppOwnedFlowRunner
 	// CustomUIDriver is an internal dependency seam used by Runtime API tests.
 	CustomUIDriver customui.Driver
 	// OnCustomUISession is an internal lifecycle hook for App Mode owners that
@@ -433,7 +438,12 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				CustomUISessionID:               req.ExecutionID,
 				CustomUIBaseDir:                 customUIBaseDir(req),
 				AppShell:                        req.AppShell,
+				AppOwnedScriptInspect:           req.AppOwnedScriptInspect,
+				AppOwnedScriptRead:              req.AppOwnedScriptRead,
 				AppOwnedScriptRun:               req.AppOwnedScriptRun,
+				AppOwnedExecutionID:             req.AppOwnedExecutionID,
+				AppOwnedFlowInspect:             req.AppOwnedFlowInspect,
+				AppOwnedFlowRun:                 req.AppOwnedFlowRun,
 				GlobalShortcutBackendFactory:    req.GlobalShortcutBackendFactory,
 				DesktopEventBackendFactory:      req.DesktopEventBackendFactory,
 				AudioCaptureBackendFactory:      req.AudioCaptureBackendFactory,

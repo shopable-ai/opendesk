@@ -1,8 +1,8 @@
 # OpenDesk AI 助手：制作与复用阅读入口
 
-当前设计修订 v0.4，2026-09-18。先读 **[制作、复用与真实调用链](../../../docs/architecture/assistant-script-invocation.md)**，再按需要阅读下表。设计文件不证明生产代码或本机安装包已经更新；真实运行状态须核验实际加载来源和证据。
+当前实现修订 v0.5，2026-09-18。先读 **[制作、复用与真实调用链](../../../docs/architecture/assistant-script-invocation.md)**，再按需要阅读下表。任务/资产、候选安全另存、App-owned JS/Flow 使用接缝和正式发行加载已经写入生产代码；真实 Runtime、模型、桌面和发行包资格仍以 CI／本机证据分别判定。
 
-配图入口：[总体架构图、来源与阅读边界](../../../docs/architecture/assets/assistant/README.md)。原始 PNG 的实际归档状态以该页为准，概念图不表示生产实现已完成。下一轮使用 [任务与资产最小实施提示词](../../../prompts/runtime/assistant-task-assets-implementation.md)，继续代码、测试与文档交付。
+配图入口：[总体架构图、来源与阅读边界](../../../docs/architecture/assets/assistant/README.md)。原始 PNG 的实际归档状态以该页为准，概念图不代替运行证据。本轮实现与待本机资格的准确边界由主方案第 0 节和验收合同维护，不再把旧“最小实施提示词”当作当前代码状态。
 
 ## 一句话方案
 
@@ -67,11 +67,13 @@
 
 | 文件 | 职责／定位 |
 | --- | --- |
-| `controller.js` | 窗口、输入、任务预览／确认／停止与渲染 |
-| `session.js` | 请求身份、聊天／任务分流、确认冻结、取消与迟到结果保护 |
-| `task-service.js` | 当前 Calculator 专用路由、Planner、参数校验、执行适配和文案 |
-| `model-channel.js` | 普通聊天通道 |
-| `store.js` | 会话、草稿、请求、消息与终态；不能据此宣称新作者任务字段已实现 |
+| `controller.js` | 现有窗口内的普通聊天＋任务意图／四类资产／可信预览／确认／候选另存与状态渲染 |
+| `session.js` | 请求身份、聊天／Calculator／持久资产任务分流、确认、停止、迟到结果及 unknown-effect 保护 |
+| `task-contract.js` | 持久 task revision、四类资产、候选绑定、一次性确认和 signed Flow invocation 合同 |
+| `task-runtime.js` | 任务/候选接续、safe save、JS/目录/installed Flow 使用链和证据持久化 |
+| `task-service.js` | 既有 Calculator 专用路由、Planner、参数校验、执行适配和文案；保留回归路径 |
+| `model-channel.js` | 普通聊天及无源码 make 的 analysis-only 候选生成通道；不授予作者文件工具 |
+| `store.js` | 会话、草稿、request/message 状态；持久 task 由 TaskContract/TaskRuntime 另按 task identity 维护 |
 | `../capabilities/calculator.js` | 演示业务代码，不是要求用户照搬的业务目录 |
 | `../main.js` | 官方产品接线，不随新增用户业务脚本增加业务分支 |
 
@@ -89,4 +91,4 @@ App-owned 执行接缝的历史与当前局部核查同样在主方案中；后�
 
 停止以 Codex 与实际工具／Execution 收口为准，未知不冒充成功。切会话不污染原任务；清理缓存不删除用户唯一脚本、未完成任务资料或有效证据。保留既有 UI，不重做一套低代码编辑器或项目管理界面。
 
-本轮只更新文档；没有修改生产 JS／Go／打包资源，也没有运行构建、模型或桌面测试。具体未验证项保留在验收合同，不能以设计通过替代运行验收。
+当前生产代码已经修改 JS／Go／发行 payload，并新增 Node、Go 与正式 OpenDesk Runtime gate。网页环境不能直接运行本机桌面/Codex；CI 或本机尚未产生证据的条目继续标为 CI PENDING / NOT RUN，不能以代码存在或设计评分替代运行验收。源码型 improve 仍因缺少任务级 host-owned 作者文件授权而明确 BLOCKED，不通过放宽 analysis 通道制造“已接通”。

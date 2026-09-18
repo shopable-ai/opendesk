@@ -1,11 +1,13 @@
 (function installOpenDeskAssistantTaskContract(global) {
   'use strict';
 
-  const SCHEMA_VERSION = 1;
+  const SCHEMA_VERSION = 2;
   const INTENTS = new Set(['explain', 'use', 'make', 'improve']);
   const ASSET_KINDS = new Set(['none', 'js-file', 'automation-directory', 'installed-flow']);
   const INSTALL_ID = /^(?:flow|local)-[a-f0-9]{32}$/;
-  const TERMINAL = new Set(['business-complete', 'failed', 'canceled']);
+  const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/;
+  const TERMINAL = new Set(['business-complete', 'failed', 'canceled', 'interrupted']);
+  const DEFAULT_CONFIRM_TTL_MS = 5 * 60 * 1000;
 
   class TaskContractError extends Error {
     constructor(code, message, details) {
@@ -24,24 +26,40 @@
     return value == null ? value : JSON.parse(JSON.stringify(value));
   }
 
-  function text(value, field, maxLength = 4096, required = false) {
+  function deepFreeze(value) {
+    if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+    for (const item of Object.values(value)) deepFreeze(item);
+    return Object.freeze(value);
+  }
+
+  function text(value, field, maxLength, required) {
+    const limit = maxLength == null ? 4096 : maxLength;
     const result = String(value == null ? '' : value).replace(/\u0000/g, '').trim();
-    if (required && !result) fail('INVALID_ARGUMENT', `${field} is required`);
-    if (result.length > maxLength) fail('INVALID_ARGUMENT', `${field} is too long`);
+    if (required && !result) fail('INVALID_ARGUMENT', field + ' is required');
+    if (result.length > limit) fail('INVALID_ARGUMENT', field + ' is too long');
     return result;
   }
 
-  function uniqueTexts(value, field, maxItems = 64) {
+  function identifier(value, field, required) {
+    const result = text(value, field, 160, required);
+    if (!result) return '';
+    if (!SAFE_ID.test(result)) fail('INVALID_IDENTIFIER', field + ' contains unsafe characters');
+    return result;
+  }
+
+  function uniqueTexts(value, field, maxItems) {
     if (value == null) return [];
-    if (!Array.isArray(value) || value.length > maxItems) fail('INVALID_ARGUMENT', `${field} must be an array`);
+    const limit = maxItems == null ? 64 : maxItems;
+    if (!Array.isArray(value) || value.length > limit) fail('INVALID_ARGUMENT', field + ' must be an array');
     return [...new Set(value.map(item => text(item, field, 4096, true)))];
   }
 
   function normalizePath(value) {
     let input = text(value, 'path', 8192, true).replace(/\\/g, '/');
-    const drive = /^[A-Za-z]:\//.test(input) ? input.slice(0, 2).toLowerCase() : '';
-    const absolute = drive ? input.slice(2).startsWith('/') : input.startsWith('/');
-    if (!absolute) fail('ASSET_PATH_NOT_ABSOLUTE', 'asset paths must be absolute');
+    const unc = input.startsWith('//');
+    const driveMatch = /^([A-Za-z]:)\//.exec(input);
+    const drive = driveMatch ? driveMatch[1].toLowerCase() : '';
+    if (!unc && !drive && !input.startsWith('/')) fail('ASSET_PATH_NOT_ABSOLUTE', 'asset paths must be absolute');
     if (drive) input = input.slice(2);
     const stack = [];
     for (const part of input.split('/')) {
@@ -53,22 +71,29 @@
         stack.push(part);
       }
     }
-    return `${drive}${drive ? '/' : '/'}${stack.join('/')}`.replace(/\/$/, '') || '/';
+    if (unc) {
+      if (stack.length < 2) fail('ASSET_PATH_NOT_ABSOLUTE', 'UNC path must include server and share');
+      return '//' + stack.join('/');
+    }
+    if (drive && stack.length === 0) return drive + '/';
+    if (!drive && stack.length === 0) return '/';
+    const prefix = drive ? drive + '/' : '/';
+    return prefix + stack.join('/');
   }
 
   function isWithin(root, candidate) {
     const base = normalizePath(root);
     const target = normalizePath(candidate);
-    const insensitive = /^[a-z]:\//.test(base);
+    const insensitive = /^[a-z]:\//.test(base) || base.startsWith('//');
     const left = insensitive ? base.toLowerCase() : base;
     const right = insensitive ? target.toLowerCase() : target;
-    return right === left || right.startsWith(left.endsWith('/') ? left : `${left}/`);
+    return right === left || right.startsWith(left.endsWith('/') ? left : left + '/');
   }
 
   function normalizeAsset(raw) {
     const input = raw && typeof raw === 'object' ? raw : {kind: 'none'};
     const kind = text(input.kind || 'none', 'asset.kind', 64, true);
-    if (!ASSET_KINDS.has(kind)) fail('INVALID_ASSET_KIND', `unsupported asset kind: ${kind}`);
+    if (!ASSET_KINDS.has(kind)) fail('INVALID_ASSET_KIND', 'unsupported asset kind: ' + kind);
     if (kind === 'none') return Object.freeze({kind: 'none'});
     if (kind === 'js-file') {
       const ref = normalizePath(input.ref);
@@ -77,13 +102,17 @@
         kind,
         ref,
         scope: 'exact-file',
-        sourceDigest: text(input.sourceDigest, 'asset.sourceDigest', 256),
+        sourceDigest: text(input.sourceDigest, 'asset.sourceDigest', 256, false),
       });
     }
     if (kind === 'automation-directory') {
+      const root = normalizePath(input.ref);
+      const entryRef = input.entryRef ? normalizePath(input.entryRef) : '';
+      if (entryRef && !isWithin(root, entryRef)) fail('ASSET_SCOPE_DENIED', 'automation entry must remain inside the associated directory');
       return Object.freeze({
         kind,
-        ref: normalizePath(input.ref),
+        ref: root,
+        entryRef,
         scope: 'directory',
         boundaryResolved: input.boundaryResolved === true,
       });
@@ -93,35 +122,41 @@
     return Object.freeze({
       kind,
       installId,
-      flowId: text(input.flowId, 'asset.flowId', 240),
+      flowId: text(input.flowId, 'asset.flowId', 240, false),
       sourceVisible: false,
+    });
+  }
+
+  function normalizeAuthorizations(raw) {
+    const input = raw && typeof raw === 'object' ? raw : {};
+    return Object.freeze({
+      readSource: input.readSource === true,
+      shareSourceWithModel: input.shareSourceWithModel === true,
     });
   }
 
   function create(input) {
     const value = input || {};
     const intent = text(value.intent, 'intent', 32, true);
-    if (!INTENTS.has(intent)) fail('INVALID_INTENT', `unsupported intent: ${intent}`);
-    const asset = normalizeAsset(value.asset);
-    if (intent === 'use' && asset.kind !== 'installed-flow' && asset.kind !== 'js-file') {
-      fail('INVALID_USE_ASSET', 'use requires an installed Flow or an explicitly selected JS file');
-    }
+    if (!INTENTS.has(intent)) fail('INVALID_INTENT', 'unsupported intent: ' + intent);
     const now = text(value.updatedAt || value.createdAt || new Date().toISOString(), 'updatedAt', 64, true);
-    return Object.freeze({
+    return deepFreeze({
       schemaVersion: SCHEMA_VERSION,
       revision: Number.isInteger(value.revision) && value.revision >= 0 ? value.revision : 0,
-      taskId: text(value.taskId, 'taskId', 160, true),
-      sessionId: text(value.sessionId, 'sessionId', 160, true),
-      requestId: text(value.requestId, 'requestId', 160),
+      taskId: identifier(value.taskId, 'taskId', true),
+      conversationId: identifier(value.conversationId, 'conversationId', false),
+      sessionId: identifier(value.sessionId, 'sessionId', false),
+      requestId: identifier(value.requestId, 'requestId', false),
       userGoal: text(value.userGoal, 'userGoal', 20000, true),
       intent,
-      asset,
-      projectId: text(value.projectId, 'projectId', 240),
-      projectRecordRef: text(value.projectRecordRef, 'projectRecordRef', 4096),
-      agentWorkspaceRef: text(value.agentWorkspaceRef, 'agentWorkspaceRef', 4096),
+      asset: normalizeAsset(value.asset),
+      authorizations: normalizeAuthorizations(value.authorizations),
+      projectId: text(value.projectId, 'projectId', 240, false),
+      projectRecordRef: text(value.projectRecordRef, 'projectRecordRef', 4096, false),
+      agentWorkspaceRef: text(value.agentWorkspaceRef, 'agentWorkspaceRef', 4096, false),
       businessCwd: value.businessCwd ? normalizePath(value.businessCwd) : '',
-      resourceRefs: Object.freeze(uniqueTexts(value.resourceRefs, 'resourceRefs')),
-      outputRefs: Object.freeze(uniqueTexts(value.outputRefs, 'outputRefs')),
+      resourceRefs: Object.freeze(uniqueTexts(value.resourceRefs, 'resourceRefs', 64)),
+      outputRefs: Object.freeze(uniqueTexts(value.outputRefs, 'outputRefs', 64)),
       status: text(value.status || 'queued', 'status', 64, true),
       createdAt: text(value.createdAt || now, 'createdAt', 64, true),
       updatedAt: now,
@@ -131,15 +166,16 @@
 
   function assertReadable(contract, target) {
     const task = create(contract);
-    const path = normalizePath(target);
+    if (!task.authorizations.readSource) fail('SOURCE_READ_NOT_AUTHORIZED', 'source association does not authorize reading');
+    const candidate = normalizePath(target);
     if (task.asset.kind === 'js-file') {
-      if (path !== task.asset.ref) fail('ASSET_SCOPE_DENIED', 'single-file association does not authorize parent, sibling, or dependency reads');
-      return path;
+      if (candidate !== task.asset.ref) fail('ASSET_SCOPE_DENIED', 'single-file association does not authorize parent, sibling, or dependency reads');
+      return candidate;
     }
     if (task.asset.kind === 'automation-directory') {
       if (!task.asset.boundaryResolved) fail('ASSET_BOUNDARY_AMBIGUOUS', 'automation directory boundary must be resolved before reading files');
-      if (!isWithin(task.asset.ref, path)) fail('ASSET_SCOPE_DENIED', 'path is outside the associated automation directory');
-      return path;
+      if (!isWithin(task.asset.ref, candidate)) fail('ASSET_SCOPE_DENIED', 'path is outside the associated automation directory');
+      return candidate;
     }
     fail('ASSET_SOURCE_UNAVAILABLE', 'this task has no readable source asset');
   }
@@ -147,52 +183,119 @@
   function createStore(options) {
     const settings = options || {};
     const file = settings.file;
-    const rootDir = text(settings.rootDir, 'rootDir', 8192, true);
+    const requestedRootDir = normalizePath(settings.rootDir);
     const clock = settings.clock || (() => new Date());
     if (!file || typeof file.join !== 'function' || typeof file.ensureDir !== 'function'
       || typeof file.exists !== 'function' || typeof file.listDir !== 'function'
-      || typeof file.readJSON !== 'function' || typeof file.writeJSON !== 'function') {
-      fail('INVALID_STORE', 'task contract store requires immutable JSON file operations');
+      || typeof file.readJSON !== 'function' || typeof file.writeNew !== 'function'
+      || typeof file.realPath !== 'function') {
+      fail('INVALID_STORE', 'task contract store requires join/ensureDir/exists/listDir/readJSON/writeNew/realPath');
     }
-    const tasksRoot = file.join(rootDir, 'tasks');
-    file.ensureDir(tasksRoot);
+    file.ensureDir(requestedRootDir);
+    const rootDir = normalizePath(file.realPath(requestedRootDir));
+    const requestedTasksRoot = file.join(rootDir, 'tasks');
+    file.ensureDir(requestedTasksRoot);
+    const tasksRoot = normalizePath(file.realPath(requestedTasksRoot));
+    const chains = new Map();
+
+    function samePath(left, right) {
+      return isWithin(left, right) && isWithin(right, left);
+    }
+
+    function assertDirectory(path, allowMissing) {
+      const expected = normalizePath(path);
+      if (!file.exists(expected)) {
+        if (allowMissing === true) return expected;
+        fail('TASK_STORAGE_MISSING', 'task storage directory is missing');
+      }
+      let actual;
+      try {
+        actual = normalizePath(file.realPath(expected));
+      } catch (error) {
+        fail('TASK_STORAGE_REDIRECTED', 'task storage directory cannot be resolved safely', {cause: error});
+      }
+      if (!samePath(expected, actual)) {
+        fail('TASK_STORAGE_REDIRECTED', 'task storage directory resolves through an unexpected alias');
+      }
+      return expected;
+    }
 
     function taskDir(taskId) {
-      return file.join(tasksRoot, text(taskId, 'taskId', 160, true));
+      return file.join(tasksRoot, identifier(taskId, 'taskId', true));
     }
+
     function versions(taskId) {
       const dir = taskDir(taskId);
       if (!file.exists(dir)) return [];
+      assertDirectory(dir, false);
       return file.listDir(dir).map(String).filter(name => /^\d{8}\.json$/.test(name)).sort();
     }
+
     async function load(taskId) {
       const names = versions(taskId);
       if (!names.length) return null;
       return create(await file.readJSON(file.join(taskDir(taskId), names[names.length - 1]), {maxBytes: 1024 * 1024}));
     }
-    async function save(input) {
-      const requested = create(input);
-      const previous = await load(requested.taskId);
-      if (previous && previous.sessionId !== requested.sessionId) fail('TASK_SESSION_CONFLICT', 'taskId is already owned by another session');
-      const revision = previous ? previous.revision + 1 : 1;
-      const next = create({...requested, revision, createdAt: previous ? previous.createdAt : requested.createdAt,
-        updatedAt: clock().toISOString()});
-      const dir = taskDir(next.taskId);
-      file.ensureDir(dir);
-      const target = file.join(dir, `${String(revision).padStart(8, '0')}.json`);
-      if (file.exists(target)) fail('TASK_REVISION_CONFLICT', 'task revision already exists');
-      await file.writeJSON(target, next, {spaces: 0, createDirs: true, maxBytes: 1024 * 1024});
-      return next;
+
+    async function list() {
+      if (!file.exists(tasksRoot)) return [];
+      assertDirectory(tasksRoot, false);
+      const items = [];
+      for (const name of file.listDir(tasksRoot).map(String).sort()) {
+        if (!SAFE_ID.test(name)) continue;
+        const item = await load(name);
+        if (item) items.push(item);
+      }
+      return items;
     }
-    return Object.freeze({load, save, rootDir: tasksRoot});
+
+    function save(input, saveOptions) {
+      const requested = create(input);
+      const expectedOption = saveOptions && saveOptions.expectedRevision;
+      const expectedRevision = Number.isInteger(expectedOption) ? expectedOption : requested.revision;
+      const previousChain = chains.get(requested.taskId) || Promise.resolve();
+      const operation = previousChain.then(async () => {
+        const previous = await load(requested.taskId);
+        const actualRevision = previous ? previous.revision : 0;
+        if (expectedRevision !== actualRevision) {
+          fail('TASK_REVISION_CONFLICT', 'task revision changed before save', {expectedRevision, actualRevision});
+        }
+        const revision = actualRevision + 1;
+        const next = create(Object.assign({}, requested, {
+          revision,
+          createdAt: previous ? previous.createdAt : requested.createdAt,
+          updatedAt: clock().toISOString(),
+        }));
+        const dir = taskDir(next.taskId);
+        assertDirectory(tasksRoot, false);
+        file.ensureDir(dir);
+        assertDirectory(tasksRoot, false);
+        assertDirectory(dir, false);
+        const target = file.join(dir, String(revision).padStart(8, '0') + '.json');
+        try {
+          await Promise.resolve(file.writeNew(target, JSON.stringify(next) + '\n'));
+        } catch (error) {
+          if (file.exists(target) || (error && /exist/i.test(String(error.message || error)))) {
+            fail('TASK_REVISION_CONFLICT', 'task revision was committed concurrently', {expectedRevision, actualRevision: revision});
+          }
+          throw error;
+        }
+        return next;
+      });
+      chains.set(requested.taskId, operation.catch(() => {}));
+      return operation;
+    }
+
+    return Object.freeze({load, list, save, rootDir: tasksRoot, assertDirectory});
   }
 
   function createCandidateService(options) {
     const settings = options || {};
     const file = settings.file;
     const digest = settings.digest;
-    if (!file || typeof file.read !== 'function' || typeof file.write !== 'function') {
-      fail('INVALID_CANDIDATE_IO', 'candidate service requires read/write file operations');
+    const protectedRoots = Array.isArray(settings.protectedRoots) ? settings.protectedRoots.map(normalizePath) : [];
+    if (!file || typeof file.writeNew !== 'function' || typeof file.exists !== 'function') {
+      fail('INVALID_CANDIDATE_IO', 'candidate service requires writeNew/exists file operations');
     }
     if (typeof digest !== 'function') fail('INVALID_DIGEST', 'candidate service requires a digest function');
 
@@ -200,42 +303,77 @@
       const task = create(input.contract);
       if (task.intent !== 'improve' && task.intent !== 'make') fail('INVALID_CANDIDATE_INTENT', 'candidate generation is only valid for make/improve');
       const sourceRef = input.sourceRef ? assertReadable(task, input.sourceRef) : '';
-      const sourceContent = sourceRef ? String(file.read(sourceRef)) : '';
+      let sourceDigest = '';
+      if (sourceRef) {
+        const snapshot = input.sourceSnapshot && typeof input.sourceSnapshot === 'object' ? input.sourceSnapshot : null;
+        if (!snapshot || normalizePath(snapshot.ref) !== sourceRef) {
+          fail('INVALID_SOURCE_SNAPSHOT', 'candidate source requires a host-validated snapshot for the exact authorized path');
+        }
+        sourceDigest = text(snapshot.digest, 'sourceSnapshot.digest', 256, true);
+      }
       const proposedContent = String(input.content == null ? '' : input.content);
       if (!proposedContent) fail('EMPTY_CANDIDATE', 'candidate content is empty');
-      return Object.freeze({
-        candidateId: text(input.candidateId, 'candidateId', 160, true),
+      return deepFreeze({
+        candidateId: identifier(input.candidateId, 'candidateId', true),
         taskId: task.taskId,
-        sessionId: task.sessionId,
         sourceRef,
-        sourceDigest: sourceRef ? String(digest(sourceContent)) : '',
+        sourceDigest,
         content: proposedContent,
+        contentDigest: String(digest(proposedContent)),
         status: 'candidate-pending',
         independentlyVerified: false,
+        savedTo: '',
       });
     }
 
     function saveAs(input) {
-      const item = input.candidate;
-      if (!item || item.status !== 'candidate-pending') fail('INVALID_CANDIDATE', 'candidate is not pending review');
+      const item = input && input.candidate;
+      if (!item) fail('INVALID_CANDIDATE', 'candidate is not reviewable');
+      if (input.authorized !== true) fail('WRITE_NOT_AUTHORIZED', 'save-as requires an explicit user-authorized destination');
       const destination = normalizePath(input.destination);
-      const sourceRef = item.sourceRef ? normalizePath(item.sourceRef) : '';
-      if (sourceRef && destination === sourceRef) {
-        const current = String(file.read(sourceRef));
-        if (String(digest(current)) !== item.sourceDigest) {
-          fail('SOURCE_CONFLICT', 'source changed after the candidate was created; refusing to overwrite it');
-        }
-      } else if (typeof file.exists === 'function' && file.exists(destination) && input.replaceExisting !== true) {
-        fail('DESTINATION_EXISTS', 'save-as destination already exists');
+      if (item.status === 'saved') {
+        if (file.exists(destination)) fail('DESTINATION_EXISTS', 'save-as destination already exists');
+        fail('INVALID_CANDIDATE', 'a saved candidate is immutable; create or review a new candidate before another save');
       }
-      file.write(destination, item.content);
-      return Object.freeze({...item, savedTo: destination, status: 'saved'});
+      if (!['candidate-pending', 'verified'].includes(item.status)) fail('INVALID_CANDIDATE', 'candidate is not reviewable');
+      const sourceRef = item.sourceRef ? normalizePath(item.sourceRef) : '';
+      if (sourceRef) {
+        const currentSourceDigest = text(input.currentSourceDigest, 'currentSourceDigest', 256, true);
+        if (currentSourceDigest !== String(item.sourceDigest || '')) {
+          fail('SOURCE_CONFLICT', 'source changed after the candidate was created');
+        }
+      }
+      if (sourceRef && destination === sourceRef) fail('OVERWRITE_NOT_SUPPORTED', 'candidate save-as cannot overwrite the source file');
+      for (const root of protectedRoots) {
+        if (isWithin(root, destination)) fail('PROTECTED_DESTINATION', 'candidate cannot be saved into a protected product/install directory');
+      }
+      if (file.exists(destination)) fail('DESTINATION_EXISTS', 'save-as destination already exists');
+      try {
+        file.writeNew(destination, item.content);
+      } catch (error) {
+        if (file.exists(destination) || (error && /exist/i.test(String(error.message || error)))) {
+          fail('DESTINATION_EXISTS', 'save-as destination appeared concurrently');
+        }
+        throw error;
+      }
+      return deepFreeze(Object.assign({}, item, {savedTo: destination, status: 'saved'}));
     }
 
     function markVerified(item, evidence) {
-      if (!item || (item.status !== 'candidate-pending' && item.status !== 'saved')) fail('INVALID_CANDIDATE', 'candidate cannot be verified');
-      return Object.freeze({...item, independentlyVerified: true, verificationEvidence: clone(evidence || {}), status: 'verified'});
+      if (!item || !['candidate-pending', 'saved'].includes(item.status)) fail('INVALID_CANDIDATE', 'candidate cannot be verified');
+      const proof = evidence && typeof evidence === 'object' ? evidence : {};
+      if (String(proof.candidateDigest || '') !== String(item.contentDigest || '')) fail('VERIFICATION_MISMATCH', 'verification does not match the current candidate');
+      if (proof.status !== 'passed') fail('VERIFICATION_FAILED', 'verification result is not passed');
+      const executionId = text(proof.executionId, 'verification.executionId', 240, true);
+      const criteriaId = text(proof.criteriaId, 'verification.criteriaId', 240, true);
+      const observedAt = text(proof.observedAt, 'verification.observedAt', 64, true);
+      return deepFreeze(Object.assign({}, item, {
+        independentlyVerified: true,
+        verificationEvidence: {candidateDigest: item.contentDigest, executionId, criteriaId, observedAt, status: 'passed'},
+        status: 'verified',
+      }));
     }
+
     return Object.freeze({create: candidate, saveAs, markVerified});
   }
 
@@ -246,98 +384,164 @@
       flowId: String(item.flowId || ''),
       version: String(item.version || ''),
       state: String(item.state || ''),
+      runnable: item.runnable === true,
+      protected: item.protected === true,
       archiveDigest: String(item.archiveDigest || ''),
       manifestDigest: String(item.manifestDigest || ''),
       authorizationRevision: String(item.authorizationRevision || ''),
       permissionRevision: String(item.permissionRevision || ''),
+      invocation: item.invocation && typeof item.invocation === 'object' ? clone(item.invocation) : null,
     });
   }
 
   function createFlowUseService(options) {
     const settings = options || {};
     const gateway = settings.gateway;
-    const digest = settings.digest;
-    if (!gateway || typeof gateway.inspect !== 'function' || typeof gateway.run !== 'function' || typeof gateway.stop !== 'function') {
+    const randomUUID = settings.randomUUID || (global.crypto && typeof global.crypto.randomUUID === 'function' ? () => global.crypto.randomUUID() : null);
+    const clock = settings.clock || (() => new Date());
+    const ttlMs = Number.isFinite(settings.confirmTTLms) ? settings.confirmTTLms : DEFAULT_CONFIRM_TTL_MS;
+    if (!gateway || typeof gateway.inspect !== 'function' || typeof gateway.run !== 'function') {
       fail('FLOW_GATEWAY_UNAVAILABLE', 'installed Flow use requires the host-owned Flow gateway');
     }
-    if (typeof digest !== 'function') fail('INVALID_DIGEST', 'Flow use requires a digest function');
-    const consumed = new Set();
+    if (!randomUUID) fail('CONFIRMATION_ID_UNAVAILABLE', 'Flow confirmation requires a host random UUID source');
+    const registry = new Map();
 
     function validateInspection(contract, inspected) {
       if (!inspected || inspected.installId !== contract.asset.installId) fail('FLOW_IDENTITY_MISMATCH', 'Flow gateway returned a different install identity');
-      if (inspected.state !== 'ready' || inspected.runnable === false) {
-        fail('FLOW_NOT_RUNNABLE', inspected.stateReason || 'installed Flow is not ready to run');
+      if (inspected.state !== 'ready' || inspected.runnable !== true) {
+        fail('FLOW_NOT_RUNNABLE', inspected && inspected.stateReason || 'installed Flow is not ready to run');
       }
-      if (Object.prototype.hasOwnProperty.call(inspected, 'source') || Object.prototype.hasOwnProperty.call(inspected, 'sourceText')) {
-        fail('PROTECTED_SOURCE_EXPOSED', 'Flow inspection must not expose protected source');
+      if (Object.prototype.hasOwnProperty.call(inspected, 'source') || Object.prototype.hasOwnProperty.call(inspected, 'sourceText')
+        || Object.prototype.hasOwnProperty.call(inspected, 'entry') || Object.prototype.hasOwnProperty.call(inspected, 'root')) {
+        fail('PROTECTED_SOURCE_EXPOSED', 'Flow inspection exposed non-public execution material');
       }
     }
 
-    function validateFixedInputs(inspected, input) {
-      const fixed = inspected && inspected.fixedInputs && typeof inspected.fixedInputs === 'object' ? inspected.fixedInputs : {};
-      const actual = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
-      for (const [key, expected] of Object.entries(fixed)) {
-        if (Object.prototype.hasOwnProperty.call(actual, key) && JSON.stringify(actual[key]) !== JSON.stringify(expected)) {
-          fail('FLOW_FIXED_INPUT_CONFLICT', `input ${key} conflicts with the Flow's fixed behavior`);
+    function flowInputMatchesType(value, kind) {
+      if (kind === 'string') return typeof value === 'string';
+      if (kind === 'number') return typeof value === 'number' && Number.isFinite(value);
+      if (kind === 'integer') return typeof value === 'number' && Number.isInteger(value);
+      if (kind === 'boolean') return typeof value === 'boolean';
+      if (kind === 'object') return !!value && typeof value === 'object' && !Array.isArray(value);
+      if (kind === 'array') return Array.isArray(value);
+      return false;
+    }
+
+    function validateInvocationInput(inspected, input) {
+      const invocation = inspected && inspected.invocation && typeof inspected.invocation === 'object'
+        ? inspected.invocation : null;
+      if (!invocation) {
+        fail('FLOW_INVOCATION_CONTRACT_MISSING',
+          'this installed Flow does not publish a signed assistant-use contract; run it from Flow Runner instead of guessing its behavior');
+      }
+      if (invocation.schemaVersion !== 1 || typeof invocation.effectSummary !== 'string' || !invocation.effectSummary.trim()) {
+        fail('FLOW_INVOCATION_CONTRACT_INVALID', 'Flow assistant-use contract is invalid');
+      }
+      const parameters = invocation.parameters && typeof invocation.parameters === 'object'
+        ? invocation.parameters : {};
+      const fixed = invocation.fixedInputs && typeof invocation.fixedInputs === 'object'
+        ? clone(invocation.fixedInputs) : {};
+      const actual = input && typeof input === 'object' && !Array.isArray(input) ? clone(input) : {};
+
+      for (const key of Object.keys(actual)) {
+        if (!Object.prototype.hasOwnProperty.call(parameters, key)) {
+          fail('FLOW_UNKNOWN_INPUT', 'input ' + key + ' is not declared by the signed Flow invocation contract');
         }
       }
-      return Object.freeze({...fixed, ...clone(actual)});
+      for (const [key, expected] of Object.entries(fixed)) {
+        if (Object.prototype.hasOwnProperty.call(actual, key)
+          && JSON.stringify(actual[key]) !== JSON.stringify(expected)) {
+          fail('FLOW_FIXED_INPUT_CONFLICT', 'input ' + key + " conflicts with the Flow's fixed behavior");
+        }
+      }
+      const merged = {...fixed, ...actual};
+      for (const [key, parameter] of Object.entries(parameters)) {
+        if (!parameter || typeof parameter !== 'object') {
+          fail('FLOW_INVOCATION_CONTRACT_INVALID', 'Flow parameter metadata is invalid');
+        }
+        if (!Object.prototype.hasOwnProperty.call(merged, key)) {
+          if (parameter.required === true) fail('FLOW_REQUIRED_INPUT_MISSING', 'required input ' + key + ' is missing');
+          continue;
+        }
+        if (!flowInputMatchesType(merged[key], String(parameter.type || ''))) {
+          fail('FLOW_INPUT_TYPE_MISMATCH', 'input ' + key + ' does not match declared type ' + String(parameter.type || ''));
+        }
+      }
+      return deepFreeze({
+        input: clone(merged),
+        invocation: clone(invocation),
+      });
     }
 
-    async function prepare(contractInput, input) {
+    async function prepare(contractInput, input, context) {
       const contract = create(contractInput);
       if (contract.intent !== 'use' || contract.asset.kind !== 'installed-flow') {
         fail('INVALID_FLOW_USE', 'Flow use requires intent=use and an installed-flow asset');
       }
-      const inspected = await gateway.inspect(contract.asset.installId);
+      const inspected = await gateway.inspect(contract.asset.installId, context || {});
       validateInspection(contract, inspected);
-      const actualInput = validateFixedInputs(inspected, input);
-      const snapshot = comparableInspection(inspected);
-      const token = String(digest(JSON.stringify({
-        v: 1, taskId: contract.taskId, sessionId: contract.sessionId, requestId: contract.requestId,
-        snapshot, input: actualInput,
-      })));
-      return Object.freeze({
-        schemaVersion: 1,
+      const invocationUse = validateInvocationInput(inspected, input);
+      const actualInput = invocationUse.input;
+      const canonical = {
         taskId: contract.taskId,
-        sessionId: contract.sessionId,
+        taskRevision: contract.revision,
         requestId: contract.requestId,
         installId: contract.asset.installId,
-        input: actualInput,
-        inspection: clone(inspected),
-        inspectionSnapshot: snapshot,
+        input: clone(actualInput),
+        inspectionSnapshot: comparableInspection(inspected),
+        archiveDigest: String(inspected.archiveDigest || ''),
+        manifestDigest: String(inspected.manifestDigest || ''),
+        expiresAtMS: clock().getTime() + ttlMs,
+      };
+      const token = randomUUID();
+      registry.set(token, canonical);
+      return deepFreeze({
+        schemaVersion: 1,
+        taskId: canonical.taskId,
+        taskRevision: canonical.taskRevision,
+        requestId: canonical.requestId,
+        installId: canonical.installId,
         confirmationToken: token,
-        preview: Object.freeze({
+        preview: {
           name: String(inspected.name || inspected.flowId || contract.asset.installId),
           version: String(inspected.version || ''),
-          effectScope: clone(inspected.effectScope || null),
+          publisherId: String(inspected.publisherId || ''),
+          effectSummary: String(invocationUse.invocation.effectSummary),
+          parameters: clone(invocationUse.invocation.parameters || {}),
+          fixedInputs: clone(invocationUse.invocation.fixedInputs || {}),
           input: clone(actualInput),
           sourceVisible: false,
-        }),
+          protected: inspected.protected === true,
+        },
       });
     }
 
     async function confirmAndRun(contractInput, prepared, confirmationToken, context) {
       const contract = create(contractInput);
-      if (!prepared || prepared.taskId !== contract.taskId || prepared.sessionId !== contract.sessionId
-        || prepared.requestId !== contract.requestId || prepared.installId !== contract.asset.installId) {
-        fail('STALE_CONFIRMATION', 'confirmation belongs to a different task/session/request');
+      const canonical = registry.get(String(confirmationToken || ''));
+      if (!canonical) fail('STALE_CONFIRMATION', 'confirmation is unknown, expired, or already consumed');
+      registry.delete(String(confirmationToken));
+      if (canonical.expiresAtMS < clock().getTime()) fail('STALE_CONFIRMATION', 'confirmation expired before execution');
+      if (!prepared || prepared.confirmationToken !== confirmationToken
+        || canonical.taskId !== contract.taskId || canonical.taskRevision !== contract.revision
+        || canonical.requestId !== contract.requestId || canonical.installId !== contract.asset.installId) {
+        fail('STALE_CONFIRMATION', 'confirmation belongs to a different task revision or asset');
       }
-      if (confirmationToken !== prepared.confirmationToken) fail('STALE_CONFIRMATION', 'confirmation token is invalid or stale');
-      if (consumed.has(confirmationToken)) fail('DUPLICATE_CONFIRMATION', 'confirmation token was already consumed');
-      const inspected = await gateway.inspect(contract.asset.installId);
+      const inspected = await gateway.inspect(contract.asset.installId, context || {});
       validateInspection(contract, inspected);
-      if (comparableInspection(inspected) !== prepared.inspectionSnapshot) {
+      if (comparableInspection(inspected) !== canonical.inspectionSnapshot) {
         fail('FLOW_CHANGED_AFTER_PREVIEW', 'Flow state/content/authorization changed after preview');
       }
-      consumed.add(confirmationToken);
       const result = await gateway.run({
-        installId: contract.asset.installId,
-        input: clone(prepared.input),
+        installId: canonical.installId,
+        input: clone(canonical.input),
+        expectedArchiveDigest: canonical.archiveDigest,
+        expectedManifestDigest: canonical.manifestDigest,
         signal: context && context.signal || null,
+        onReserved: context && context.onReserved || null,
       });
-      if (!result || !text(result.executionId, 'executionId', 240)) fail('EXECUTION_ID_MISSING', 'host did not return the real Execution identity');
-      return Object.freeze({
+      if (!result || !text(result.executionId, 'executionId', 240, true)) fail('EXECUTION_ID_MISSING', 'host did not return the real Execution identity');
+      return deepFreeze({
         executionId: String(result.executionId),
         status: String(result.status || 'unknown'),
         result: clone(result.result),
@@ -346,18 +550,12 @@
       });
     }
 
-    async function stop(executionId) {
-      const id = text(executionId, 'executionId', 240, true);
-      try {
-        const result = await gateway.stop(id);
-        if (result && result.stopped === true) return Object.freeze({executionId: id, status: 'canceled'});
-        return Object.freeze({executionId: id, status: 'stopping', effect: 'unknown'});
-      } catch (error) {
-        return Object.freeze({executionId: id, status: 'stopping', effect: 'unknown', stopError: String(error && error.message || error)});
-      }
+    function invalidateTask(taskId) {
+      const id = identifier(taskId, 'taskId', true);
+      for (const [token, value] of registry.entries()) if (value.taskId === id) registry.delete(token);
     }
 
-    return Object.freeze({prepare, confirmAndRun, stop});
+    return Object.freeze({prepare, confirmAndRun, invalidateTask});
   }
 
   global.OpenDeskAssistantTaskContract = Object.freeze({
@@ -367,6 +565,8 @@
     TaskContractError,
     create,
     normalizeAsset,
+    normalizePath,
+    isWithin,
     assertReadable,
     createStore,
     createCandidateService,

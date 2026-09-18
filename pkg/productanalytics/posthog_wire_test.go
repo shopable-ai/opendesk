@@ -78,8 +78,8 @@ func TestPostHogWirePayloadContainsOnlyClosedProductSchema(t *testing.T) {
 		DataRoot: root,
 		Config: Config{
 			Provider: ProviderPostHog, Endpoint: "https://us.i.posthog.com", ProjectToken: "phc_wire_test",
-			Environment: "test", MaxEventBytes: 2048, MaxQueueSize: 32, BatchSize: 1,
-			MaxEnqueuedRequests: 4, RequestTimeout: time.Second, FlushInterval: 10 * time.Second,
+			Environment: "test", MaxEventBytes: 2048, MaxQueueSize: 32, BatchSize: 6,
+			MaxEnqueuedRequests: 1, RequestTimeout: time.Second, FlushInterval: 10 * time.Second,
 			MaxRetries: 0, ShutdownTimeout: 500 * time.Millisecond, SessionTimeout: 30 * time.Minute,
 		},
 		Runtime:   RuntimeInfo{AppVersion: "2.0.1", Platform: "darwin", Arch: "arm64"},
@@ -126,6 +126,33 @@ func TestPostHogWirePayloadContainsOnlyClosedProductSchema(t *testing.T) {
 		if event.Properties["install_id"] != installID {
 			t.Fatalf("%s wire install_id mismatch: %#v", event.Event, event.Properties["install_id"])
 		}
+		allowed := map[string]bool{
+			"schema_version": true, "event_id": true, "occurred_at": true, "install_id": true,
+			"process_id": true, "session_id": true, "app_version": true, "platform": true,
+			"arch": true, "environment": true, "$geoip_disable": true,
+		}
+		switch event.Event {
+		case "screen_viewed":
+			allowed["surface"] = true
+		case "ui_action":
+			allowed["surface"], allowed["action_id"], allowed["input_method"] = true, true, true
+		case "flow_run_started":
+			allowed["flow_origin"], allowed["run_source"], allowed["run_id"] = true, true, true
+		case "flow_run_finished":
+			allowed["flow_origin"], allowed["run_source"], allowed["run_id"] = true, true, true
+			allowed["outcome"], allowed["error_code"], allowed["duration_bucket"] = true, true, true
+		}
+		for key := range event.Properties {
+			if !allowed[key] {
+				t.Fatalf("%s contains provider-added or unapproved property %q: %#v", event.Event, key, event.Properties)
+			}
+		}
+		if event.Properties["$geoip_disable"] != true {
+			t.Fatalf("%s must keep PostHog GeoIP disabled: %#v", event.Event, event.Properties)
+		}
+		if len(event.Options) != 1 || event.Options["process_person_profile"] != false {
+			t.Fatalf("%s unexpected PostHog options: %#v", event.Event, event.Options)
+		}
 	}
 	for _, name := range []string{"app_started", "app_session_started", "screen_viewed", "ui_action", "flow_run_started", "flow_run_finished"} {
 		if seen[name] != 1 {
@@ -142,6 +169,7 @@ func TestPostHogWirePayloadContainsOnlyClosedProductSchema(t *testing.T) {
 		"javascript source", "flow source", "secret-value", "token-value", "/users/private/",
 		"clipboard-value", "ocr-value", "screenshot-value", "ai-conversation-value",
 		"prompt-value", "raw-error-value", "private-flow-id", "private-flow-name",
+		"$os", "$os_version", "$os_distro", "$go_version", "$lib", "$lib_version",
 	} {
 		if strings.Contains(wire, forbidden) {
 			t.Fatalf("forbidden product data reached PostHog wire payload: %q", forbidden)

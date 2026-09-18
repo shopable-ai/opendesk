@@ -126,10 +126,19 @@ type InitJSOptions struct {
 	// the automation.app action dispatcher.
 	EnableProductLocale bool
 	// AppOwnedScriptRun is a first-party product bridge used by the bundled
-	// Flow Runner. It creates a separate JavaScript Execution inside the App
+	// Script Runner. It creates a separate JavaScript Execution inside the App
 	// host process so protected desktop operations retain the App's OS identity.
 	// It is deliberately not exposed through the public automation.app object.
-	AppOwnedScriptRun AppOwnedFlowRunner
+	AppOwnedScriptInspect AppOwnedScriptInspector
+	AppOwnedScriptRead    AppOwnedScriptReader
+	AppOwnedScriptRun     AppOwnedScriptRunner
+	AppOwnedExecutionID   AppOwnedExecutionIDAllocator
+	// AppOwnedFlowInspect/AppOwnedFlowRun are private product bridges used by
+	// the bundled assistant/Runner to inspect and launch one canonical installed
+	// Flow through the same App-owned execution owner. They are never public
+	// Runtime APIs and ordinary executions leave both nil.
+	AppOwnedFlowInspect AppOwnedFlowInspector
+	AppOwnedFlowRun     AppOwnedFlowRunner
 	// ExecutionID binds a capture session and its manifest to this Runtime.
 	ExecutionID string
 	// RecorderBackendFactory and RecorderWindowProbe are internal seams for
@@ -713,7 +722,7 @@ var jsMethodAllowlist = map[reflect.Type][]string{
 	reflect.TypeOf((*HTTPClient)(nil)):     {"Request", "Get", "Post", "Download"},
 	reflect.TypeOf((*System)(nil)):         {"Delay", "GetPlatformInfo", "GetSystemInfo", "GetProcessList", "KillProcess", "GetNetworkInterfaces", "GetNetworkConnections", "GetPowerInfo", "Shutdown", "Restart", "Sleep", "GetDirectoryContents", "GetExecutablePath", "GetWorkingDirectory", "GetUserInfo", "IsAdministrator", "GetSystemMetrics", "GetFingerprint", "ToJSON"},
 	reflect.TypeOf((*WindowManager)(nil)):  {"GetCapabilities", "GetActiveWindow", "GetWindowByTitle", "GetFocusWindow", "Current", "Activate", "Focus", "SetWindowBounds", "SetWidth", "SetHeight", "Maximize", "Minimize", "Restore", "RestoreByPID", "MinimizeByPID", "MaximizeByPID", "CloseWindow", "CloseActiveWindow", "Kill", "Title", "GetTitle", "Content", "GetContent", "List", "SetAlwaysOnTop", "UnsetTopMost", "BringToTop"},
-	reflect.TypeOf((*FileSystem)(nil)):     {"Path", "Cwd", "Create", "CreateIfNotExists", "CreateWithDirs", "Exists", "EnsureDir", "Read", "ReadBytes", "Write", "Append", "WriteBytes", "AppendBytes", "Copy", "RenameWithoutExtension", "Rename", "Move", "GetExtension", "GetName", "GetNameWithoutExtension", "Remove", "RemoveDir", "ListDir", "IsFile", "IsDir", "IsEmptyDir", "GetHumanReadableSize", "GetSimplifiedPath", "Join", "Open"},
+	reflect.TypeOf((*FileSystem)(nil)):     {"Path", "RealPath", "Cwd", "Create", "CreateIfNotExists", "CreateWithDirs", "Exists", "EnsureDir", "Read", "ReadBytes", "Write", "WriteNew", "Append", "WriteBytes", "AppendBytes", "Copy", "RenameWithoutExtension", "Rename", "Move", "GetExtension", "GetName", "GetNameWithoutExtension", "Remove", "RemoveDir", "ListDir", "IsFile", "IsDir", "IsEmptyDir", "GetHumanReadableSize", "GetSimplifiedPath", "Join", "Open"},
 	reflect.TypeOf((*FileHandle)(nil)):     {"Close", "Read", "ReadBytes", "Write", "WriteBytes", "Seek", "Truncate", "Sync"},
 	reflect.TypeOf((*AppStorage)(nil)):     {"GetItem", "SetItem", "RemoveItem", "Clear", "GetLength", "Key"},
 	reflect.TypeOf((*Sound)(nil)):          {"PlaySuccess", "PlayFail", "PlayWarning", "PlayError", "PlayCaptcha", "PlaySound", "Play"},

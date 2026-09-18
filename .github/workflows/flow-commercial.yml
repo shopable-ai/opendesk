@@ -10,16 +10,22 @@ on:
       - 'pkg/flowmarketplace/**'
       - 'pkg/appdata/**'
       - 'pkg/execution/**'
+      - 'pkg/customui/winhost/**'
       - 'internal/flowcli/**'
       - 'internal/packagecli/**'
       - 'cmd/opendesk/**'
       - 'tests/runtime-api/flow-package.js'
       - 'tests/runtime-api/flow-distribution.js'
       - 'tests/runtime-api/flow-installation.js'
+      - 'tests/fixtures/flow-install-test/**'
       - 'tests/runtime-api/support/flow-package-harness.js'
+      - 'tests/prototypes/marketplace.test.cjs'
+      - 'tests/prototypes/marketplace-smoke.py'
+      - 'apps/opendesk/prototypes/marketplace/**'
       - 'tests/runtime-api/gates/**'
       - 'scripts/test_runtime_apis.js'
       - 'scripts/build_windows_distribution.ps1'
+      - 'scripts/build_windows_ui.ps1'
       - 'VERSION'
       - 'go.mod'
       - 'go.sum'
@@ -31,10 +37,40 @@ permissions:
   contents: read
 
 concurrency:
-  group: flow-commercial-${{ github.sha }}
-  cancel-in-progress: false
+  group: flow-commercial-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  marketplace-prototype:
+    name: Marketplace prototype
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout current commit
+        uses: actions/checkout@v4
+      - name: Run Marketplace model and sidebar contract tests
+        run: node --test tests/prototypes/marketplace.test.cjs
+      - name: Install browser smoke dependency
+        run: python -m pip install --disable-pip-version-check playwright
+      - name: Run Marketplace Chromium smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$browser" ]; then
+            echo "No system Chromium/Chrome found on runner" >&2
+            exit 1
+          fi
+          python tests/prototypes/marketplace-smoke.py --set-content --browser-executable "$browser"
+      - name: Upload Marketplace prototype evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marketplace-prototype-evidence
+          path: .runtime/tests/marketplace-prototype
+          if-no-files-found: warn
+          retention-days: 7
+
   owners:
     name: B0+B1+Marketplace portable owners
     runs-on: ubuntu-latest
@@ -47,7 +83,20 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Test canonical package, installer, Marketplace, and app-data owners
+      - name: Install Linux Flow build dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev \
+            libx11-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            libxi-dev \
+            libxinerama-dev \
+            libxrandr-dev \
+            libxtst-dev
+      - name: Test canonical package, installer, Marketplace, app-data, execution and CLI owners
         shell: bash
         run: |
           mkdir -p .runtime/tests
@@ -83,7 +132,7 @@ jobs:
       - name: Run B0 formal Runtime gate
         run: OPENDESK_RUNTIME_API_MODE=flow-package ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
       - name: Run existing Flow distribution regression
-        run: ./dist/opendesk -script tests/runtime-api/flow-distribution.js -console-mode script
+        run: OPENDESK_RUNTIME_API_BINARY="$PWD/dist/opendesk" ./dist/opendesk -script tests/runtime-api/flow-distribution.js -console-mode script
       - name: Run B1 direct Runtime test
         run: ./dist/opendesk -script tests/runtime-api/flow-installation.js -console-mode script
       - name: Run B1 formal Runtime gate
@@ -136,6 +185,7 @@ jobs:
         shell: pwsh
         run: |
           $runtime = '.\dist\windows\win-x64\opendesk.exe'
+          $env:OPENDESK_RUNTIME_API_BINARY = (Resolve-Path $runtime).Path
           & $runtime -script 'tests/runtime-api/flow-distribution.js' -console-mode script
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run B1 direct Runtime test

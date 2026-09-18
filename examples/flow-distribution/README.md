@@ -7,6 +7,10 @@ This directory is a small, readable `.odflow` example. It contains one JavaScrip
 
 Installation is import-and-register only; it never executes the Flow. The user must first run `flow list` to find the returned `installId`, then explicitly call `flow run <installId>`.
 
+## Notify Demo
+
+For the smallest drag-and-run smoke test, use [`notify-demo/`](notify-demo/). It keeps one `main.js` as both the raw JavaScript Flow and the packaged `.odflow` entry point. The checked-in `notify-demo.odflow` is a real signed package built by the official `flow pack` command. Installing it only registers the Flow; the system notification appears only after an explicit Run.
+
 ## Build from the repository root
 
 The following one-line command creates short-lived test signing material under `.runtime/`, builds a new `.odflow` under `.runtime/examples/flow-distribution/`, then deletes the private key. The private key is never placed in this example directory or in the archive:

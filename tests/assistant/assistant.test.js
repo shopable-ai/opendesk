@@ -258,9 +258,11 @@ test('duplicate submit is rejected, stop aborts the real request, and late reply
   assert.equal(channel.calls, 1);
   await session.stop();
   assert.equal(observedSignal.aborted, true);
-  assert.equal(session.getConversation(conversationId).requests[0].status, 'stopped');
+  assert.equal(session.getConversation(conversationId).requests[0].status, 'stopping',
+    'stop request is not a terminal execution proof');
   gate.resolve({text: '迟到但应丢弃的回复'});
   await waitFor(() => session.snapshot().activeRequest === null);
+  assert.equal(session.getConversation(conversationId).requests[0].status, 'stopped');
   const assistant = session.getConversation(conversationId).messages.find(message => message.id === ids.assistantMessageId);
   assert.equal(assistant.status, 'stopped');
   assert.notEqual(assistant.text, '迟到但应丢弃的回复');
@@ -559,6 +561,7 @@ test('official App Shell routes exactly one assistant action and keeps Script Ru
     runner: {async open(source) { calls.push(['runner', source]); }},
     assistant: {async open(source) { calls.push(['assistant', source]); }},
     schedulerCenter: {async open() {}, async openCreate() {}},
+    about: {async open() {}},
   });
   assert.equal(await controller.dispatch({id: 'assistant.open', source: 'tray'}), true);
   assert.deepEqual(calls, [['assistant', 'tray']]);

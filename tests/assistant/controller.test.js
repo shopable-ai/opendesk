@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 await import('../../apps/opendesk/assistant/store.js');
+await import('../../apps/opendesk/assistant/task-contract.js');
 await import('../../apps/opendesk/assistant/model-channel.js');
+await import('../../apps/opendesk/assistant/task-runtime.js');
 await import('../../apps/opendesk/assistant/session.js');
 await import('../../apps/opendesk/assistant/controller.js');
 
@@ -13,7 +15,9 @@ const CONTROL_IDS = new Set([
   'archivedMore', 'archivedOverflow', 'archivedEmpty', 'currentTitle', 'conversationState',
   'titleInput', 'renameConversation', 'archiveConversation', 'deleteConversation', 'modelState', 'globalStatus',
   'modelHelp', 'refreshModel', 'toggleHelp', 'messageEmpty', 'messageTranscript', 'messageOverflow', 'composer',
+  'taskIntent', 'assetKind', 'importRunnerAsset', 'assetRef', 'assetEntry', 'businessCwd', 'taskInput',
   'send', 'stop', 'taskStatus', 'taskPreview', 'confirmTask', 'cancelTask', 'composerHint',
+  'candidateSaveRow', 'candidateSavePath', 'saveCandidate',
 ]);
 for (let index = 0; index < 64; index += 1) {
   CONTROL_IDS.add(`recentItem${index}`);
@@ -43,17 +47,43 @@ function memoryFile() {
   }
   return {
     join: normalize,
+    realPath(target) {
+      const key = normalize(target);
+      if (!files.has(key) && !dirs.has(key)) throw Object.assign(new Error('not found'), {code: 'ENOENT'});
+      return key;
+    },
     ensureDir(dir) { dirs.add(normalize(dir)); },
     exists(target) { return files.has(normalize(target)) || dirs.has(normalize(target)); },
     listDir(dir) {
       const root = normalize(dir).replace(/\/$/, '') + '/';
-      return [...files.keys()].filter(key => key.startsWith(root)).map(key => key.slice(root.length)).filter(name => !name.includes('/'));
+      const names = new Set();
+      for (const key of [...files.keys(), ...dirs]) {
+        if (!key.startsWith(root)) continue;
+        const rest = key.slice(root.length);
+        if (rest && !rest.includes('/')) names.add(rest);
+      }
+      return [...names];
     },
-    async readJSON(target) { return clone(files.get(normalize(target))); },
+    async readJSON(target) {
+      const value = files.get(normalize(target));
+      if (typeof value === 'string') return JSON.parse(value);
+      return clone(value);
+    },
     async writeJSON(target, value) {
       const key = normalize(target);
       if (files.has(key)) throw Object.assign(new Error('immutable write'), {code: 'ATOMIC_REPLACE_UNSUPPORTED'});
       files.set(key, clone(value));
+    },
+    writeNew(target, value) {
+      const key = normalize(target);
+      if (files.has(key)) throw Object.assign(new Error('file exists'), {code: 'EEXIST'});
+      dirs.add(key.slice(0, key.lastIndexOf('/')) || '/');
+      files.set(key, String(value));
+    },
+    read(target) {
+      const key = normalize(target);
+      if (!files.has(key)) throw Object.assign(new Error('not found'), {code:'ENOENT'});
+      return String(files.get(key));
     },
   };
 }
@@ -173,6 +203,7 @@ test('actual Controller render updates supported message rows immediately and ex
     ui,
     file: memoryFile(),
     appDataRoot: '/data',
+    execution: {id: 'app-test', workdir: '/data', scriptDir: '/bundle/opendesk'},
     taskService: taskService(executions),
     llm: {getCapabilities: () => ({supported: true, configured: true}), async generate() { return {data: '普通回复'}; }},
     agent: {getCapabilities: () => ({supported: false, configured: false})},
@@ -204,12 +235,43 @@ test('actual Controller render updates supported message rows immediately and ex
   await controller.close();
 });
 
+test('Runner asset handoff snapshots the selected asset once and later Runner changes do not retarget the persisted task', async () => {
+  const ui = createFakeUI();
+  let runnerAsset = {kind: 'js-file', ref: '/work/first.js', displayName: 'First'};
+  const controller = Controller.create({
+    ui,
+    file: memoryFile(),
+    appDataRoot: '/data',
+    execution: {id: 'app-test', workdir: '/data', scriptDir: '/bundle/opendesk'},
+    taskService: taskService([]),
+    runnerAssetProvider: () => runnerAsset,
+    llm: {getCapabilities: () => ({supported: true, configured: true}), async generate() { return {data: 'unused'}; }},
+    agent: {getCapabilities: () => ({supported: false, configured: false})},
+  });
+  await controller.open('test');
+
+  await ui.controls.get('importRunnerAsset').emit('click');
+  assert.equal(ui.controls.get('taskIntent').state.value, 'use');
+  assert.equal(ui.controls.get('assetKind').state.value, 'js-file');
+  assert.equal(ui.controls.get('assetRef').state.value, '/work/first.js');
+
+  runnerAsset = {kind: 'js-file', ref: '/work/second.js', displayName: 'Second'};
+  ui.controls.get('composer').state.value = '运行刚才带入的自动化';
+  await ui.controls.get('send').emit('click');
+
+  await waitFor(() => controller.state().taskWorkspace?.task?.asset?.ref === '/work/first.js');
+  assert.equal(controller.state().taskWorkspace.task.asset.ref, '/work/first.js');
+  assert.notEqual(controller.state().taskWorkspace.task.asset.ref, runnerAsset.ref);
+  await controller.close();
+});
+
 test('assistant rendering only sends fields supported by ControlHandle.update', async () => {
   const ui = createFakeUI();
   const controller = Controller.create({
     ui,
     file: memoryFile(),
     appDataRoot: '/data',
+    execution: {id: 'app-test', workdir: '/data', scriptDir: '/bundle/opendesk'},
     taskService: taskService([]),
     llm: {getCapabilities: () => ({supported: true, configured: true}), async generate() { return {data: '回复'}; }},
     agent: {getCapabilities: () => ({supported: false, configured: false})},
@@ -228,6 +290,7 @@ test('a real-time Custom UI control update failure is surfaced in the assistant 
     ui,
     file: memoryFile(),
     appDataRoot: '/data',
+    execution: {id: 'app-test', workdir: '/data', scriptDir: '/bundle/opendesk'},
     taskService: taskService([]),
     logger: {error: value => logs.push(value), log() {}},
     llm: {getCapabilities: () => ({supported: true, configured: true}), async generate() { return {data: '回复'}; }},

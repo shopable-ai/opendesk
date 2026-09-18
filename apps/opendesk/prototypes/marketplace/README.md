@@ -28,6 +28,7 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory apps/opendesk/prototype
 | 页面 / 环节 | 可操作内容 |
 | --- | --- |
 | 市场首页 | 六个示例 Flow；关键词、分类、系统、价格、排序与空状态 |
+| 侧栏帮助区 | 桌面端贴底、无 Card、图标与标题同行；窄屏改为普通文档流紧凑帮助行 |
 | Flow 详情 | 概览、使用说明、版本记录、权限、发布者、兼容系统与价格示意 |
 | 网页交接 | ID-only Install Intent 展示、未装客户端、未收到唤起确认、手动安装说明 |
 | 桌面安装预览 | 具体版本确认、权限确认、模拟付费授权、校验、Flow / Publisher 信任范围 |
@@ -66,7 +67,7 @@ python tests/prototypes/marketplace-smoke.py
 
 运行证据写入 `.runtime/tests/marketplace-prototype/`，不提交运行截图或日志。
 
-本轮实际执行：28 项模型测试通过；19 组 Chromium DOM 交互检查通过，包括 320 / 390 / 768 / 1280 像素布局与 1440 像素主流程。未产生 JavaScript 页面异常或外部请求。
+v1.1 已重新完成真实资格：Flow Commercial Qualification run `35300159654` 的 `Marketplace prototype` job 中，29 项模型/静态合同通过，Chromium DOM 交互 smoke 通过；响应式检查覆盖 320 / 390 / 768 / 1280 像素，并验证帮助区桌面贴底、帮助区自身四边 `margin = 0`、去 Card、图标标题同行以及移动端非 fixed。运行证据由 CI 上传为 `marketplace-prototype-evidence`。
 
 当前执行环境的浏览器策略阻止 `file://` 和本地 HTTP 导航，因此本轮浏览器命令为：
 
@@ -74,4 +75,4 @@ python tests/prototypes/marketplace-smoke.py
 python tests/prototypes/marketplace-smoke.py --set-content --browser-executable /usr/bin/chromium
 ```
 
-该模式将同一 HTML 字节内容载入 Chromium DOM 后实际点击、检查和截图，**不证明本地 URL 导航、文件双击打开或浏览器持久存储端到端通过**。持久存储逻辑单独由模型测试验证。macOS / Windows Native UI、真实下载、支付、OS 唤起及签名校验均未在本轮执行。
+该模式将同一 HTML 字节内容载入 Chromium DOM 后实际点击、检查和截图，**不证明本地 URL 导航、文件双击打开或浏览器持久存储端到端通过**。持久存储逻辑单独由模型测试验证。当前 v1.1 smoke 已通过，但仍不能替代 macOS / Windows Native UI、真实下载、支付、OS 唤起或签名校验。

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 )
@@ -56,6 +57,20 @@ func (fs *FileSystem) Path(relativePath string) (string, error) {
 		return relativePath, nil
 	}
 	return filepath.Join(fs.workingDir, relativePath), nil
+}
+
+// RealPath resolves a path through the host filesystem and returns its canonical absolute path.
+// It does not create or modify filesystem state and fails when the target does not exist.
+func (fs *FileSystem) RealPath(path string) (string, error) {
+	absPath, err := fs.Path(path)
+	if err != nil { return "", err }
+	absPath, err = filepath.Abs(absPath)
+	if err != nil { return "", err }
+	resolved, err := filepath.EvalSymlinks(absPath)
+	if err != nil { return "", err }
+	resolved, err = filepath.Abs(resolved)
+	if err != nil { return "", err }
+	return filepath.Clean(resolved), nil
 }
 
 // Cwd returns the current working directory
@@ -151,6 +166,53 @@ func (fs *FileSystem) Write(path string, text string, encoding ...string) error 
 		return err
 	}
 	return os.WriteFile(absPath, []byte(text), 0644)
+}
+
+// WriteNew creates one new regular file without replacing an existing path.
+// The parent directory is opened as an os.Root before the final O_EXCL open,
+// so a later parent-path replacement cannot redirect the create operation.
+func (fs *FileSystem) WriteNew(path string, text string, encoding ...string) error {
+	absPath, err := fs.Path(path)
+	if err != nil { return err }
+	absPath, err = filepath.Abs(absPath)
+	if err != nil { return err }
+	absPath = filepath.Clean(absPath)
+	parent := filepath.Dir(absPath)
+	base := filepath.Base(absPath)
+	if base == "." || base == string(filepath.Separator) || base == "" { return errors.New("File.writeNew requires a file path") }
+	root, err := os.OpenRoot(parent)
+	if err != nil { return err }
+	defer root.Close()
+	resolvedParent, err := filepath.EvalSymlinks(parent)
+	if err != nil { return err }
+	resolvedParent, err = filepath.Abs(resolvedParent)
+	if err != nil { return err }
+	parentClean := filepath.Clean(parent)
+	resolvedClean := filepath.Clean(resolvedParent)
+	samePath := parentClean == resolvedClean
+	if runtime.GOOS == "windows" {
+		samePath = strings.EqualFold(parentClean, resolvedClean)
+	}
+	if !samePath {
+		return errors.New("File.writeNew rejects symbolic-link or reparse-point parent directories")
+	}
+	pathInfo, err := os.Stat(parent)
+	if err != nil { return err }
+	rootInfo, err := root.Stat(".")
+	if err != nil { return err }
+	if !os.SameFile(pathInfo, rootInfo) {
+		return errors.New("File.writeNew parent directory changed during authorization")
+	}
+	file, err := root.OpenFile(base, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil { return err }
+	cleanup := func() {
+		_ = file.Close()
+		_ = root.Remove(base)
+	}
+	if _, err := io.WriteString(file, text); err != nil { cleanup(); return err }
+	if err := file.Sync(); err != nil { cleanup(); return err }
+	if err := file.Close(); err != nil { _ = root.Remove(base); return err }
+	return nil
 }
 
 // Append appends text to a file

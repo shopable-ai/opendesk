@@ -62,6 +62,8 @@ declare global {
 
   interface OpenDeskFileSystem {
     path(relativePath: string): string;
+    /** Resolves symlinks/reparse points and returns the canonical absolute host path. The target must already exist. */
+    realPath(path: string): string;
     cwd(): string;
     create(path: string): void;
     createIfNotExists(path: string): void;
@@ -74,6 +76,8 @@ declare global {
     readJSON(filePath: string, options?: OpenDeskFileJSONReadOptions): Promise<unknown>;
     readBytes(path: string): ArrayBuffer;
     write(path: string, text: string, encoding?: string): void;
+    /** Exclusively creates one new regular text file. Never replaces an existing target and rejects redirected parent aliases. */
+    writeNew(path: string, text: string, encoding?: string): void;
     writeJSON(filePath: string, value: unknown, options?: OpenDeskFileJSONWriteOptions): Promise<void>;
     append(path: string, text: string, encoding?: string): void;
     writeBytes(path: string, bytes: OpenDeskByteInput): void;

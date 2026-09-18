@@ -42,3 +42,4 @@ func TestProductAnalyticsLocalRouteRequiresIndependentLoopbackToken(t *testing.T
 		t.Fatalf("non-loopback status=%d", response.Code)
 	}
 }
+

@@ -48,3 +48,17 @@ test('unrecognized stored records and markup are discarded',()=>{const store=sto
 test('reset clears only the dedicated prototype storage key',()=>{const {m,store}=fresh();store.setItem('unrelated','keep');installed(m);m.reset();assert.equal(store.getItem(KEY),null);assert.equal(store.getItem('unrelated'),'keep');assert.equal(m.state.runs,0);});
 test('callers cannot mutate active operation or catalog state snapshots',()=>{const {m}=fresh();const a=m.request(ID);a.id=PAID;assert.equal(m.active.id,ID);const snap=m.state;snap.catalog.fake={};assert.equal(Object.keys(m.state.catalog).length,0);});
 test('static artifact has no external scripts, native launch, or network client',()=>{assert.doesNotMatch(html,/<script[^>]+src=/);assert.doesNotMatch(html,/\bfetch\s*\(|XMLHttpRequest|WebSocket|window\.open\s*\(|location\.href\s*=/);assert.match(html,/connect-src 'none'/);assert.match(html,/不会真实安装、扣费或运行/);});
+
+
+test('desktop sidebar guide is docked, flat, and mobile-safe',()=>{
+  assert.match(html,/\.sidebar\{[^}]*display:flex;flex-direction:column;min-height:0/);
+  assert.match(html,/\.categories\{display:grid;gap:5px;margin-bottom:auto/);
+  assert.match(html,/\.side-guide\{[^}]*border:0;border-top:1px solid var\(--line\);border-radius:0;background:transparent;[^}]*margin:0/);
+  assert.match(html,/<div class="side-guide-title"><span class="guide-icon" id="guide-icon"><\/span><h3>第一次使用？<\/h3><\/div>/);
+  assert.match(html,/在 OpenDesk 中确认安装。<br>是否运行，由你决定。/);
+  assert.match(html,/>查看安装指南 →<\/button>/);
+  assert.doesNotMatch(html,/\.side-guide\{border:1px solid var\(--line\);border-radius:12px;background:#fff/);
+  assert.match(html,/@media\(max-width:740px\)[\s\S]*?\.categories\{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px/);
+  assert.match(html,/@media\(max-width:740px\)[\s\S]*?\.side-guide\{display:flex;align-items:center;gap:10px;margin:0;padding:10px 0 0;border-top:1px solid var\(--line\)/);
+  assert.doesNotMatch(html,/@media\(max-width:740px\)[\s\S]*?\.side-guide\{[^}]*position:fixed/);
+});

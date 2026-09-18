@@ -24,6 +24,14 @@ on:
       - 'scripts/tools/app-mode-payload/**'
       - 'scripts/tools/inspector-web-payload/**'
       - 'cmd/opendesk/**'
+      - 'automation/app_shell.go'
+      - 'automation/file.go'
+      - 'automation/file_write_new_test.go'
+      - 'automation/utils.go'
+      - 'pkg/execution/**'
+      - 'tests/assistant/**'
+      - 'tests/runtime-api/assistant-task-core.js'
+      - 'tests/runtime-api/gates/**'
       - 'cmd/opendesk-ui-host/**'
       - 'tests/app-lifecycle/official-shell.test.js'
       - 'tests/app-lifecycle/examples-menu-action.test.js'
@@ -49,6 +57,14 @@ on:
       - 'scripts/tools/app-mode-payload/**'
       - 'scripts/tools/inspector-web-payload/**'
       - 'cmd/opendesk/**'
+      - 'automation/app_shell.go'
+      - 'automation/file.go'
+      - 'automation/file_write_new_test.go'
+      - 'automation/utils.go'
+      - 'pkg/execution/**'
+      - 'tests/assistant/**'
+      - 'tests/runtime-api/assistant-task-core.js'
+      - 'tests/runtime-api/gates/**'
       - 'cmd/opendesk-ui-host/**'
       - 'tests/app-lifecycle/official-shell.test.js'
       - 'tests/app-lifecycle/examples-menu-action.test.js'
@@ -77,6 +93,16 @@ jobs:
           tests/app-lifecycle/official-shell.test.js
           tests/app-lifecycle/examples-menu-action.test.js
           tests/custom-ui/product-flow-runner.test.js
+      - name: Test AI assistant task and product contracts
+        run: >-
+          node --test
+          tests/assistant/assistant.test.js
+          tests/assistant/task-runtime.test.js
+          tests/assistant/product-wiring.test.js
+          tests/assistant/controller.test.js
+          tests/custom-ui/product-flow-runner.test.js
+      - name: Test App-owned assistant execution seams
+        run: go test ./cmd/opendesk -run 'TestAppRecipeRunner|TestAssistantInstalledFlowVerticalRuntime|TestLoadAppFlowInvocation' -count=1
       - name: Test Recorder JavaScript contracts
         run: >-
           node --test
@@ -85,6 +111,69 @@ jobs:
           tests/custom-ui/recording-history-interaction.test.js
           tests/custom-ui/recording-history-pagination.test.js
           tests/custom-ui/recording-history-presentation.test.js
+
+  assistant-core:
+    name: AI Assistant Core / Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test assistant JavaScript contracts
+        run: >-
+          node --test
+          tests/assistant/assistant.test.js
+          tests/assistant/task-runtime.test.js
+          tests/assistant/product-wiring.test.js
+      - name: Test assistant host and File safety seams
+        run: >-
+          go test ./automation ./cmd/opendesk
+          -run 'TestFileWriteNew|TestFileRealPath|TestAppRecipeRunner|TestAssistantInstalledFlowVerticalRuntime|TestLoadAppFlowInvocation'
+          -count=1
+      - name: Build direct Runtime for assistant gate
+        run: |
+          mkdir -p .runtime/assistant-ci
+          go build -trimpath -o .runtime/assistant-ci/opendesk ./cmd/opendesk
+      - name: Run assistant direct Runtime acceptance
+        run: ./.runtime/assistant-ci/opendesk -script tests/runtime-api/assistant-task-core.js -console-mode script
+      - name: Run assistant formal Runtime gate
+        run: OPENDESK_RUNTIME_API_MODE=assistant-task-core ./.runtime/assistant-ci/opendesk -script scripts/test_runtime_apis.js -console-mode script
+
+  assistant-core-windows:
+    name: AI Assistant Core / Windows
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test assistant JavaScript contracts
+        shell: pwsh
+        run: node --test tests/assistant/assistant.test.js tests/assistant/task-runtime.test.js tests/assistant/product-wiring.test.js tests/assistant/controller.test.js tests/custom-ui/product-script-runner.test.js
+      - name: Test assistant host and File safety seams
+        shell: pwsh
+        run: go test ./automation ./cmd/opendesk -run 'TestFileWriteNew|TestFileRealPath|TestAppRecipeRunner|TestAssistantInstalledFlowVerticalRuntime|TestLoadAppFlowInvocation' -count=1
+      - name: Build direct Runtime for assistant gate
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path .runtime/assistant-ci | Out-Null
+          go build -trimpath -o .runtime/assistant-ci/opendesk.exe ./cmd/opendesk
+      - name: Run assistant direct Runtime acceptance
+        shell: pwsh
+        run: |
+          & .\.runtime\assistant-ci\opendesk.exe -script tests/runtime-api/assistant-task-core.js -console-mode script
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run assistant formal Runtime gate
+        shell: pwsh
+        run: |
+          $env:OPENDESK_RUNTIME_API_MODE = 'assistant-task-core'
+          & .\.runtime\assistant-ci\opendesk.exe -script scripts/test_runtime_apis.js -console-mode script
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   macos-package:
     name: macOS App Mode Payload
@@ -99,6 +188,12 @@ jobs:
       - name: Build product app without release signing
         shell: bash
         run: APP_MODE_PACKAGE="$PWD/apps/opendesk" SKIP_CODESIGN=1 ./scripts/build_macos_app.sh
+      - name: Run AI assistant direct Runtime acceptance
+        shell: bash
+        run: ./dist/opendesk -script tests/runtime-api/assistant-task-core.js -console-mode script
+      - name: Run AI assistant formal Runtime gate
+        shell: bash
+        run: OPENDESK_RUNTIME_API_MODE=assistant-task-core ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
       - name: Verify exact macOS App Mode payload
         shell: bash
         run: |
@@ -149,6 +244,19 @@ jobs:
       - name: Build portable product distribution
         shell: pwsh
         run: pwsh -NoProfile -File scripts/build_windows_distribution.ps1 -Runtime win-x64 -AppModePackage apps/opendesk
+      - name: Run AI assistant direct Runtime acceptance
+        shell: pwsh
+        run: |
+          $runtime = '.\dist\windows\win-x64\opendesk.exe'
+          & $runtime -script 'tests/runtime-api/assistant-task-core.js' -console-mode script
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run AI assistant formal Runtime gate
+        shell: pwsh
+        run: |
+          $runtime = '.\dist\windows\win-x64\opendesk.exe'
+          $env:OPENDESK_RUNTIME_API_MODE = 'assistant-task-core'
+          & $runtime -script 'scripts/test_runtime_apis.js' -console-mode script
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify exact Windows App Mode payload
         shell: pwsh
         run: |

@@ -455,6 +455,7 @@ func executeAppMode(config *Config) error {
 		CustomUIHostPath:                      config.CustomUIHostPath,
 		SQLiteProtectedPaths:                  sqliteProtectedPaths(config),
 	}, environment.Values, sharedUIDriver)
+	recipeRunner.flowService = flowService
 	recorder.ordinaryRunning = recipeRunner.Running
 	// An open Recorder tray/window is an idle UI execution, not a capture
 	// conflict. Block Recipes only while the native input capture is active.
@@ -517,7 +518,12 @@ func executeAppMode(config *Config) error {
 		CustomUIDriver:                  customui.NewSessionScopedDriverForSession(sharedUIDriver, executionID),
 		CustomUIBaseDir:                 appPackage.Root,
 		AppShell:                        shell,
+		AppOwnedScriptInspect:           recipeRunner.InspectScript,
+		AppOwnedScriptRead:              recipeRunner.ReadScript,
 		AppOwnedScriptRun:               recipeRunner.Run,
+		AppOwnedExecutionID:             recipeRunner.ReserveExecutionID,
+		AppOwnedFlowInspect:             recipeRunner.InspectFlow,
+		AppOwnedFlowRun:                 recipeRunner.RunFlow,
 		GracefulCancellation: func() bool {
 			state := shell.State()
 			return shell.TerminalError() == nil && (state == appshell.StateQuitting || state == appshell.StateStopped)

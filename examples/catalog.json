@@ -1701,6 +1701,36 @@
         "consoleMode": "script"
       }
     },
+    "flow-distribution/notify-demo/main.js": {
+      "title": "Notify Demo",
+      "description": "Send one system notification only after this example Flow is explicitly run.",
+      "category": "Flow Distribution",
+      "level": "beginner",
+      "runPolicy": "manual",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [
+        "Shows one real system notification when explicitly run."
+      ],
+      "expected": "The system notification appears and the fixed console line is printed only after Run.",
+      "tags": [
+        "flow",
+        "odflow",
+        "notify",
+        "install-not-run"
+      ],
+      "legacyNames": [],
+      "docs": "examples/flow-distribution/notify-demo/README.md",
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
     "notifications/lifecycle.js": {
       "title": "Notification Lifecycle",
       "description": "Wait for an own-app notification, inspect delivery metadata, and dismiss it.",

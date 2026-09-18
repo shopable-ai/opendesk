@@ -566,7 +566,7 @@
     }
 
     toolbar.addButton('run', '运行', 'play.fill', runCurrent);
-    toolbar.addButton('stop', '停止', 'stop.fill', async () => { const stopped = await base.stopRun(); await syncToolbar(); return stopped; });
+    toolbar.addButton('stop', '停止', 'stop.fill', async () => { const stopped = await base.stopRun('toolbar-player'); await syncToolbar(); return stopped; });
     toolbar.addButton('previous', '上一个流程', settings.previousIcon || 'backward.fill', () => shiftCurrent(-1));
     toolbar.addLabel('entry', '暂无流程', {width: 168, alignment: 'center', verticalAlignment: 'center', tone: 'secondary'});
     toolbar.addButton('next', '下一个流程', settings.nextIcon || 'forward.fill', () => shiftCurrent(1));
@@ -610,7 +610,7 @@
 
     async function prepareList(message) { return base.prepareList(message); }
     async function openList(message) { await hidePanel(); return base.openList(message); }
-    async function stopRun() { const value = await base.stopRun(); await syncToolbar(); return value; }
+    async function stopRun(source) { const value = await base.stopRun(source); await syncToolbar(); return value; }
     async function restoreDefaultOrder() { if (isRunning()) return false; const value = await base.restoreDefaultOrder(); await syncToolbar(); return value; }
     async function requestRun(queue, source) {
       const pending = base.requestRun(queue, source);

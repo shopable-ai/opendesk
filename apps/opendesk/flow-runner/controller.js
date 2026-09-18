@@ -301,6 +301,7 @@
     const openListOnStart = settings.openListOnStart !== false;
     const hideListOnClose = settings.hideListOnClose === true;
     const closeListOnFlowRunnerExit = settings.closeListOnFlowRunnerExit === true;
+    const onLogicalAction = typeof settings.onLogicalAction === 'function' ? settings.onLogicalAction : null;
 
     if (!file || typeof file.join !== 'function' || typeof file.path !== 'function'
       || typeof file.stat !== 'function' || typeof file.listDir !== 'function'
@@ -357,6 +358,11 @@
       orientation: 'horizontal',
       toolbar: {maxWidth: 360},
     });
+
+    function notifyLogicalAction(action, source) {
+      if (!onLogicalAction) return;
+      try { onLogicalAction(String(action || ''), String(source || '')); } catch (_) {}
+    }
 
     function logRecord(kind, data) {
       const payload = Object.assign({at: new Date().toISOString()}, data || {});
@@ -952,6 +958,7 @@
     }
 
     function requestRun(queue, source) {
+      notifyLogicalAction('run', source);
       if (runPromise) return runPromise;
       if (pendingDeleteKey) {
         setListStatus('正在确认删除自动化，请先完成或取消该操作。');
@@ -992,7 +999,8 @@
       return runPromise;
     }
 
-    async function stopRun() {
+    async function stopRun(source) {
+      notifyLogicalAction('stop', source);
       if (!activeRun) return false;
       activeRun.canceled = true;
       activeRun.controller.abort('flow runner stopped by user');
@@ -1275,7 +1283,7 @@
         }
         return requestRun(queue, 'selected');
       });
-      bind(window, 'stopRun', stopRun);
+      bind(window, 'stopRun', () => stopRun('list'));
       bind(window, 'openDirectory', openRunnableDirectory);
       bind(window, 'emptyOpenDirectory', openRunnableDirectory);
       bind(window, 'refresh', rescan);
@@ -1387,7 +1395,7 @@
       const entry = selectedEntry();
       return requestRun(entry ? [entry] : [], 'toolbar');
     });
-    toolbar.addButton('stop', '停止', 'stop.fill', stopRun);
+    toolbar.addButton('stop', '停止', 'stop.fill', () => stopRun('toolbar'));
     toolbar.addLabel('entry', '暂无流程', {
       width: 168,
       alignment: 'center',

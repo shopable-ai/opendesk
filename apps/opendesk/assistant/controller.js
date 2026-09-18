@@ -61,9 +61,24 @@
     const phase = String(task.phase || '');
     const progress = task.progress && typeof task.progress === 'object' ? task.progress : null;
     if (phase === 'planning') return '正在理解已发布的任务能力…';
-    if (phase === 'awaitingConfirmation') return '已生成可信执行预览；确认前不会产生 Calculator 桌面动作。';
-    if (phase === 'starting') return '已确认，正在开始受控自动化…';
+    if (phase === 'preparing') return '正在建立持久任务并核对资产边界…';
+    if (phase === 'explaining') return '正在按当前允许的信息范围生成说明…';
+    if (phase === 'drafting') return '正在生成不可信候选；不会自动保存或执行…';
+    if (phase === 'candidateReview') return '候选已生成，等待审阅或安全另存；尚未独立验证。';
+    if (phase === 'clarify') return '任务已保存，但执行前仍需要补充明确入口或资产。';
+    if (phase === 'awaitingConfirmation') return '已生成可信执行预览；确认前不会启动新的业务 Execution。';
+    if (phase === 'starting') {
+      if (progress && progress.phase === 'reserved' && progress.executionId) {
+        return '已预留实际 Execution 身份：' + progress.executionId + '；宿主仍在做最终一致性检查并启动，不能据此判断业务已开始。';
+      }
+      return '已确认，宿主正在做最终一致性检查并准备启动受控自动化…';
+    }
     if (phase === 'stopping') return '正在停止；不会提交新的桌面动作。';
+    if (phase === 'unknown') {
+      return progress && progress.executionId
+        ? 'Execution ' + progress.executionId + ' 的终态未能确认；业务效果未知，不会自动重试。'
+        : '任务终态未能确认；业务效果未知，不会自动重试。';
+    }
     if (phase === 'running') {
       if (!progress) return '正在执行受控自动化…';
       const stage = progress.stage === 'first' ? '第一段' : progress.stage === 'second' ? '第二段' : '';
@@ -152,11 +167,34 @@
           </section>
 
           <section class="composer-card">
-            <textarea id="composer" maxlength="20000" rows="4" spellcheck="true" aria-label="聊天消息" placeholder="输入消息。发送只由按钮触发，输入法确认不会自动发送。"></textarea>
+            <div class="task-compose">
+              <select id="taskIntent" aria-label="任务意图">
+                <option value="chat">普通聊天</option>
+                <option value="explain">解释</option>
+                <option value="use">使用</option>
+                <option value="make">制作</option>
+                <option value="improve">改进</option>
+              </select>
+              <select id="assetKind" aria-label="关联资产">
+                <option value="none">无资产</option>
+                <option value="js-file">单个 JS</option>
+                <option value="automation-directory">自动化目录</option>
+                <option value="installed-flow">已安装 Flow</option>
+              </select>
+              <button id="importRunnerAsset" class="task-button" title="一次性带入当前 Runner 选中的自动化" aria-label="从当前 Runner 带入资产">从 Runner 带入</button>
+              <input id="assetRef" maxlength="8192" aria-label="资产引用" placeholder="JS/目录绝对路径，或 canonical installId">
+              <input id="assetEntry" maxlength="8192" aria-label="目录入口" placeholder="目录入口绝对路径（目录资产可选）">
+              <input id="businessCwd" maxlength="8192" aria-label="业务工作目录" placeholder="业务 cwd（可选）">
+              <label class="task-consent"><input id="allowSourceRead" type="checkbox">允许读取已关联源码</label>
+              <label class="task-consent"><input id="allowModelShare" type="checkbox">允许将读取源码发送给当前模型</label>
+              <textarea id="taskInput" maxlength="20000" rows="2" spellcheck="false" aria-label="运行输入 JSON" placeholder="使用任务的 JSON 输入；默认 {}">{}</textarea>
+            </div>
+            <textarea id="composer" maxlength="20000" rows="4" spellcheck="true" aria-label="聊天消息" placeholder="输入需求。普通聊天不会运行脚本；任务模式会先生成可信预览。"></textarea>
             <div class="task-panel" aria-live="polite">
               <p id="taskStatus" class="task-status is-hidden"></p>
               <p id="taskPreview" class="task-preview is-hidden"></p>
               <div class="task-actions"><button id="confirmTask" class="task-button primary is-hidden" data-icon="checkmark.circle" title="确认执行受控任务" aria-label="确认执行受控任务">确认执行</button><button id="cancelTask" class="task-button danger is-hidden" data-icon="xmark.circle" title="取消自动化任务" aria-label="取消自动化任务">取消任务</button></div>
+              <div id="candidateSaveRow" class="candidate-save is-hidden"><input id="candidateSavePath" maxlength="8192" aria-label="候选另存路径" placeholder="候选另存绝对路径"><button id="saveCandidate" class="task-button" title="安全另存候选" aria-label="安全另存候选">另存候选</button></div>
             </div>
             <div class="composer-footer">
               <span id="composerHint" class="subtle">普通聊天不会运行脚本、命令或桌面动作。</span>
@@ -170,7 +208,7 @@
 
   const CSS = `
     :root{color-scheme:dark;--bg:#151515;--surface:#1d1d1f;--surface2:#252529;--line:#3a3a40;--text:#f4f4f5;--muted:#a4a4ad;--accent:#3977dc;--danger:#a74747;--user:#24456e;--assistant:#27272b;--warning:#d9ad68}
-    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}.shell{height:100vh;display:grid;grid-template-columns:270px minmax(0,1fr);overflow:hidden}.sidebar{min-width:0;border-right:1px solid var(--line);background:#191919;padding:14px 12px;display:flex;flex-direction:column;gap:14px;overflow:hidden}.sidebar-head,.section-head,.conversation-head,.composer-footer,.connection-card,.connection-actions,.title-actions{display:flex;align-items:center}.sidebar-head{justify-content:space-between;gap:10px}.sidebar-head strong{font-size:18px}.thread-section{min-height:0;display:flex;flex-direction:column;gap:8px}.recent-section{flex:1}.archived-section{flex:0 0 auto;max-height:42%}.section-head{justify-content:space-between;color:var(--muted);font-size:12px}.conversation-list{display:flex;flex-direction:column;gap:5px;min-height:0;overflow:hidden}.recent-list,.archived-list{overflow-y:auto;overscroll-behavior:contain;padding-right:2px}.conversation-item{position:relative;display:flex;align-items:center;min-width:0}.conversation-row{flex:1;min-width:0;min-height:36px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid transparent;background:transparent;color:#d6d6da;padding:8px 38px 8px 10px;border-radius:7px}.conversation-row:hover:not(:disabled){background:#27272a}.conversation-row.is-selected{background:#30343c;border-color:#4a586c;color:white}.conversation-row.is-active::after{content:"  •";color:#8fb5ff}.conversation-row.archived{color:#b0b0b8}.conversation-delete{position:absolute;right:4px;top:50%;transform:translate(4px,-50%);width:28px;min-width:28px;height:28px;padding:0;border-color:transparent;background:#242428;color:#aaaab2;font-size:0;opacity:0;pointer-events:none;transition:opacity .12s ease,transform .12s ease,background .12s ease,border-color .12s ease}.conversation-item:hover .conversation-delete:not(:disabled),.conversation-item:focus-within .conversation-delete:not(:disabled),.conversation-delete:focus-visible,.conversation-delete.is-armed{opacity:1;pointer-events:auto;transform:translate(0,-50%)}.conversation-delete:hover:not(:disabled){background:#3a2828;border-color:#704343;color:#fff}.conversation-delete::before{content:"";position:absolute;left:50%;top:50%;width:9px;height:10px;transform:translate(-50%,-38%);border:1.5px solid currentColor;border-top:0;border-radius:0 0 2px 2px}.conversation-delete::after{content:"";position:absolute;left:50%;top:6px;width:13px;height:5px;transform:translateX(-50%);background:linear-gradient(currentColor,currentColor) center top/5px 1.5px no-repeat,linear-gradient(currentColor,currentColor) center 3px/13px 1.5px no-repeat}.conversation-delete.is-armed{right:0;width:48px;min-width:48px;background:#4a2b2b;border-color:#8c5050;color:#fff}.conversation-delete.is-armed::before{content:"确认";position:static;width:auto;height:auto;transform:none;border:0;border-radius:0;font-size:11px;line-height:1}.conversation-delete.is-armed::after{content:none}.empty-note{margin:0;padding:8px 4px;color:#777;font-size:12px}.load-more{width:100%;flex:0 0 auto;border-color:transparent;background:transparent;color:#9ea6b4;font-size:12px;padding:7px 8px}.load-more:hover:not(:disabled){background:#27272a;color:#f0f0f2}.list-overflow{width:100%;flex:0 0 auto;border:1px solid #3d3d43;border-radius:7px;background:#232327;color:#c6c6cc;padding:7px 8px;font:inherit;font-size:12px}.workspace{min-width:0;height:100%;padding:16px 18px;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;gap:11px;overflow:hidden}.conversation-head{justify-content:space-between;gap:12px}.title-block{min-width:0;display:flex;flex-direction:column;gap:3px}.title-block strong{font-size:18px;max-width:440px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.subtle{color:var(--muted);font-size:12px}.title-actions{gap:6px}.title-actions input{width:210px}.connection-card{position:relative;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:10px 12px}.model-state,.global-status,.model-help{margin:0}.model-state{font-size:12px;color:#d7d7da}.global-status{font-size:11px;color:var(--muted);margin-top:3px}.connection-actions{gap:6px}.model-help{position:absolute;z-index:2;top:calc(100% + 6px);left:0;right:0;border:1px solid #45454d;background:#222227;border-radius:8px;padding:11px;white-space:pre-wrap;line-height:1.5;color:#c8c8cf;box-shadow:0 10px 30px rgba(0,0,0,.35)}.messages-card{position:relative;min-height:0;border:1px solid var(--line);border-radius:11px;background:var(--surface);padding:12px;overflow:hidden}.message-list{height:100%;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column-reverse;gap:9px;align-items:stretch}.message-empty{position:absolute;z-index:1;inset:12px;margin:0;display:flex;align-items:center;justify-content:center;color:#80808a;text-align:center;line-height:1.6;pointer-events:none}.message-transcript{position:absolute;z-index:2;inset:12px;margin:0;overflow-y:auto;overscroll-behavior:contain;border:1px solid #34343a;border-radius:9px;background:#202024;color:#d5e6ff;padding:10px 11px;white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.message-row{max-width:82%;margin:0;border:1px solid #3a3a40;border-radius:10px;background:var(--assistant);padding:9px 11px;align-self:flex-start;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}.message-row.role-user{align-self:flex-end;background:var(--user);border-color:#315a8d}.message-row.state-failed,.message-row.state-interrupted{border-color:#805151}.message-row.state-stopped{border-color:#6b6262}.message-overflow{width:100%;margin:0;border:1px solid #34343a;border-radius:9px;background:#202024;color:#b8b8c0;padding:10px 11px;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;align-self:stretch}.composer-card{border:1px solid var(--line);border-radius:11px;background:var(--surface);padding:10px}.composer-card textarea,input{border:1px solid #47474f;border-radius:8px;background:#202024;color:var(--text);font:inherit}.composer-card textarea{width:100%;min-height:78px;max-height:190px;resize:vertical;padding:10px 11px;line-height:1.5}.task-panel{display:flex;flex-direction:column;gap:6px}.task-status,.task-preview{margin:0;border-radius:8px;white-space:pre-wrap;line-height:1.45}.task-status{padding:8px 10px;border:1px solid #695b3d;background:#302b22;color:#f0d59a}.task-preview{padding:9px 10px;border:1px solid #3d526d;background:#202a36;color:#d5e6ff}.task-actions{display:flex;gap:7px}.task-button{padding:7px 10px}.task-button[data-icon="checkmark.circle"]::before{content:"✓";margin-right:6px}.task-button[data-icon="xmark.circle"]::before{content:"×";margin-right:6px}.title-actions input{padding:7px 8px}.composer-footer{justify-content:space-between;gap:12px;margin-top:8px}.composer-actions{display:flex;gap:7px}button{border:1px solid #4a4a52;border-radius:7px;background:#2e2e33;color:var(--text);font:inherit;padding:7px 10px}button:not(:disabled){cursor:pointer}button:hover:not(:disabled){background:#393940}button:disabled{opacity:.36}.icon-button{width:34px;height:34px;min-width:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:0}.icon-button::before{font-size:16px;line-height:1}.icon-button[data-icon="plus"]::before{content:"+";font-size:20px}.icon-button[data-icon="pencil"]::before{content:"✎"}.icon-button[data-icon="archivebox"]::before{content:"▣"}.icon-button[data-icon="trash"]::before{content:"×";font-size:18px}.icon-button[data-icon="arrow.up.circle.fill"]::before{content:"↑";font-size:19px}.icon-button[data-icon="stop.fill"]::before{content:"■";font-size:13px}.icon-button[data-icon="arrow.clockwise"]::before{content:"↻"}.icon-button[data-icon="questionmark.circle"]::before{content:"?"}.delete-action:hover:not(:disabled){background:#3a2828;border-color:#704343}.delete-action.is-armed{width:44px;min-width:44px;background:#4a2b2b;border-color:#8c5050}.delete-action.is-armed::before{content:"确认";font-size:11px}.primary{background:#245fbf;border-color:var(--accent)}.danger{background:#3d2828;border-color:#724343}.is-hidden{display:none!important}
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}.shell{height:100vh;display:grid;grid-template-columns:270px minmax(0,1fr);overflow:hidden}.sidebar{min-width:0;border-right:1px solid var(--line);background:#191919;padding:14px 12px;display:flex;flex-direction:column;gap:14px;overflow:hidden}.sidebar-head,.section-head,.conversation-head,.composer-footer,.connection-card,.connection-actions,.title-actions{display:flex;align-items:center}.sidebar-head{justify-content:space-between;gap:10px}.sidebar-head strong{font-size:18px}.thread-section{min-height:0;display:flex;flex-direction:column;gap:8px}.recent-section{flex:1}.archived-section{flex:0 0 auto;max-height:42%}.section-head{justify-content:space-between;color:var(--muted);font-size:12px}.conversation-list{display:flex;flex-direction:column;gap:5px;min-height:0;overflow:hidden}.recent-list,.archived-list{overflow-y:auto;overscroll-behavior:contain;padding-right:2px}.conversation-item{position:relative;display:flex;align-items:center;min-width:0}.conversation-row{flex:1;min-width:0;min-height:36px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid transparent;background:transparent;color:#d6d6da;padding:8px 38px 8px 10px;border-radius:7px}.conversation-row:hover:not(:disabled){background:#27272a}.conversation-row.is-selected{background:#30343c;border-color:#4a586c;color:white}.conversation-row.is-active::after{content:"  •";color:#8fb5ff}.conversation-row.archived{color:#b0b0b8}.conversation-delete{position:absolute;right:4px;top:50%;transform:translate(4px,-50%);width:28px;min-width:28px;height:28px;padding:0;border-color:transparent;background:#242428;color:#aaaab2;font-size:0;opacity:0;pointer-events:none;transition:opacity .12s ease,transform .12s ease,background .12s ease,border-color .12s ease}.conversation-item:hover .conversation-delete:not(:disabled),.conversation-item:focus-within .conversation-delete:not(:disabled),.conversation-delete:focus-visible,.conversation-delete.is-armed{opacity:1;pointer-events:auto;transform:translate(0,-50%)}.conversation-delete:hover:not(:disabled){background:#3a2828;border-color:#704343;color:#fff}.conversation-delete::before{content:"";position:absolute;left:50%;top:50%;width:9px;height:10px;transform:translate(-50%,-38%);border:1.5px solid currentColor;border-top:0;border-radius:0 0 2px 2px}.conversation-delete::after{content:"";position:absolute;left:50%;top:6px;width:13px;height:5px;transform:translateX(-50%);background:linear-gradient(currentColor,currentColor) center top/5px 1.5px no-repeat,linear-gradient(currentColor,currentColor) center 3px/13px 1.5px no-repeat}.conversation-delete.is-armed{right:0;width:48px;min-width:48px;background:#4a2b2b;border-color:#8c5050;color:#fff}.conversation-delete.is-armed::before{content:"确认";position:static;width:auto;height:auto;transform:none;border:0;border-radius:0;font-size:11px;line-height:1}.conversation-delete.is-armed::after{content:none}.empty-note{margin:0;padding:8px 4px;color:#777;font-size:12px}.load-more{width:100%;flex:0 0 auto;border-color:transparent;background:transparent;color:#9ea6b4;font-size:12px;padding:7px 8px}.load-more:hover:not(:disabled){background:#27272a;color:#f0f0f2}.list-overflow{width:100%;flex:0 0 auto;border:1px solid #3d3d43;border-radius:7px;background:#232327;color:#c6c6cc;padding:7px 8px;font:inherit;font-size:12px}.workspace{min-width:0;height:100%;padding:16px 18px;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;gap:11px;overflow:hidden}.conversation-head{justify-content:space-between;gap:12px}.title-block{min-width:0;display:flex;flex-direction:column;gap:3px}.title-block strong{font-size:18px;max-width:440px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.subtle{color:var(--muted);font-size:12px}.title-actions{gap:6px}.title-actions input{width:210px}.connection-card{position:relative;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:10px 12px}.model-state,.global-status,.model-help{margin:0}.model-state{font-size:12px;color:#d7d7da}.global-status{font-size:11px;color:var(--muted);margin-top:3px}.connection-actions{gap:6px}.model-help{position:absolute;z-index:2;top:calc(100% + 6px);left:0;right:0;border:1px solid #45454d;background:#222227;border-radius:8px;padding:11px;white-space:pre-wrap;line-height:1.5;color:#c8c8cf;box-shadow:0 10px 30px rgba(0,0,0,.35)}.messages-card{position:relative;min-height:0;border:1px solid var(--line);border-radius:11px;background:var(--surface);padding:12px;overflow:hidden}.message-list{height:100%;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column-reverse;gap:9px;align-items:stretch}.message-empty{position:absolute;z-index:1;inset:12px;margin:0;display:flex;align-items:center;justify-content:center;color:#80808a;text-align:center;line-height:1.6;pointer-events:none}.message-transcript{position:absolute;z-index:2;inset:12px;margin:0;overflow-y:auto;overscroll-behavior:contain;border:1px solid #34343a;border-radius:9px;background:#202024;color:#d5e6ff;padding:10px 11px;white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.message-row{max-width:82%;margin:0;border:1px solid #3a3a40;border-radius:10px;background:var(--assistant);padding:9px 11px;align-self:flex-start;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}.message-row.role-user{align-self:flex-end;background:var(--user);border-color:#315a8d}.message-row.state-failed,.message-row.state-interrupted{border-color:#805151}.message-row.state-stopped{border-color:#6b6262}.message-overflow{width:100%;margin:0;border:1px solid #34343a;border-radius:9px;background:#202024;color:#b8b8c0;padding:10px 11px;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;align-self:stretch}.composer-card{border:1px solid var(--line);border-radius:11px;background:var(--surface);padding:10px}.composer-card textarea,input,.composer-card select{border:1px solid #47474f;border-radius:8px;background:#202024;color:var(--text);font:inherit}.composer-card textarea{width:100%;min-height:78px;max-height:190px;resize:vertical;padding:10px 11px;line-height:1.5}.task-compose{display:grid;grid-template-columns:140px 160px minmax(180px,1fr);gap:6px;margin-bottom:7px}.task-compose select,.task-compose input{min-width:0;padding:7px 8px}.task-compose #assetEntry,.task-compose #businessCwd{grid-column:auto}.task-consent{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;min-height:34px}.task-consent input{width:auto;margin:0}.task-compose #taskInput{grid-column:1/-1;min-height:42px;max-height:90px}.candidate-save{display:flex;gap:7px;align-items:center}.candidate-save input{flex:1;min-width:0;padding:7px 8px}.task-panel{display:flex;flex-direction:column;gap:6px}.task-status,.task-preview{margin:0;border-radius:8px;white-space:pre-wrap;line-height:1.45}.task-status{padding:8px 10px;border:1px solid #695b3d;background:#302b22;color:#f0d59a}.task-preview{padding:9px 10px;border:1px solid #3d526d;background:#202a36;color:#d5e6ff}.task-actions{display:flex;gap:7px}.task-button{padding:7px 10px}.task-button[data-icon="checkmark.circle"]::before{content:"✓";margin-right:6px}.task-button[data-icon="xmark.circle"]::before{content:"×";margin-right:6px}.title-actions input{padding:7px 8px}.composer-footer{justify-content:space-between;gap:12px;margin-top:8px}.composer-actions{display:flex;gap:7px}button{border:1px solid #4a4a52;border-radius:7px;background:#2e2e33;color:var(--text);font:inherit;padding:7px 10px}button:not(:disabled){cursor:pointer}button:hover:not(:disabled){background:#393940}button:disabled{opacity:.36}.icon-button{width:34px;height:34px;min-width:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:0}.icon-button::before{font-size:16px;line-height:1}.icon-button[data-icon="plus"]::before{content:"+";font-size:20px}.icon-button[data-icon="pencil"]::before{content:"✎"}.icon-button[data-icon="archivebox"]::before{content:"▣"}.icon-button[data-icon="trash"]::before{content:"×";font-size:18px}.icon-button[data-icon="arrow.up.circle.fill"]::before{content:"↑";font-size:19px}.icon-button[data-icon="stop.fill"]::before{content:"■";font-size:13px}.icon-button[data-icon="arrow.clockwise"]::before{content:"↻"}.icon-button[data-icon="questionmark.circle"]::before{content:"?"}.delete-action:hover:not(:disabled){background:#3a2828;border-color:#704343}.delete-action.is-armed{width:44px;min-width:44px;background:#4a2b2b;border-color:#8c5050}.delete-action.is-armed::before{content:"确认";font-size:11px}.primary{background:#245fbf;border-color:var(--accent)}.danger{background:#3d2828;border-color:#724343}.is-hidden{display:none!important}
     @media(max-width:760px){.shell{grid-template-columns:210px minmax(0,1fr)}.title-actions input{width:140px}.message-row{max-width:94%}}
   `;
 
@@ -182,7 +220,10 @@
     const Store = settings.Store || global.OpenDeskAssistantStore;
     const ModelChannel = settings.ModelChannel || global.OpenDeskAssistantModelChannel;
     const Session = settings.Session || global.OpenDeskAssistantSession;
+    const TaskRuntime = settings.TaskRuntime || global.OpenDeskAssistantTaskRuntime;
     const taskService = settings.taskService || null;
+    const runnerAssetProvider = typeof settings.runnerAssetProvider === 'function' ? settings.runnerAssetProvider : null;
+    const execution = settings.execution || global.Execution;
     const llm = settings.llm || global.LLM;
     const agent = settings.agent || global.Agent;
     const AbortControllerImpl = settings.AbortController || global.AbortController;
@@ -193,7 +234,8 @@
     if (!runtimeUI || typeof runtimeUI.createWindow !== 'function') throw new Error('AI assistant requires ui.createWindow()');
     if (!file || typeof file.join !== 'function') throw new Error('AI assistant requires File.join()');
     if (!appDataRoot) throw new Error('AI assistant requires appDataRoot');
-    if (!Store || !ModelChannel || !Session || !taskService) throw new Error('AI assistant modules are not loaded');
+    if (!Store || !ModelChannel || !Session || !TaskRuntime || !taskService) throw new Error('AI assistant modules are not loaded');
+    if (!execution || !execution.id || !execution.workdir || !execution.scriptDir) throw new Error('AI assistant requires Execution identity and directories');
     if (typeof setTimer !== 'function' || typeof clearTimer !== 'function') throw new Error('AI assistant requires timers');
 
     const assistantRoot = file.join(appDataRoot, 'assistant');
@@ -272,36 +314,105 @@
     async function renderRequestControls(record, state) {
       const selected = state.selectedConversation;
       const active = state.activeRequest;
+      const workspace = state.taskWorkspace && state.taskWorkspace.task ? state.taskWorkspace : null;
+      const persistedTask = workspace ? workspace.task : null;
+      const candidate = workspace ? workspace.candidate : null;
+      if (selected && record.taskDraftConversationId !== selected.id) {
+        record.taskDraftConversationId = selected.id;
+        if (persistedTask) {
+          const asset = persistedTask.asset || {kind: 'none'};
+          record.taskDraft = {
+            intent: persistedTask.intent || 'chat',
+            assetKind: asset.kind || 'none',
+            assetRef: asset.kind === 'installed-flow' ? String(asset.installId || '') : String(asset.ref || ''),
+            assetEntry: asset.kind === 'automation-directory' ? String(asset.entryRef || '') : '',
+            businessCwd: String(persistedTask.businessCwd || ''),
+            // Confirmation inputs are deliberately not restored after restart.
+            inputJSON: '{}',
+            readSource: persistedTask.authorizations && persistedTask.authorizations.readSource === true,
+            shareSourceWithModel: persistedTask.authorizations && persistedTask.authorizations.shareSourceWithModel === true,
+          };
+        } else {
+          record.taskDraft = {intent: 'chat', assetKind: 'none', assetRef: '', assetEntry: '', businessCwd: '', inputJSON: '{}', readSource: false, shareSourceWithModel: false};
+        }
+      }
       const busy = !!active || state.submitting;
       const canReplacePreview = !!(active && active.task
         && active.conversationId === state.selectedConversationId
         && active.task.phase === 'awaitingConfirmation');
+
       await update(record, 'composer', {value: selectedDraft(record, state), disabled: !selected || (busy && !canReplacePreview)});
       await update(record, 'send', {disabled: !selected || (busy && !canReplacePreview), busy: state.submitting, text: '发送消息'});
       await update(record, 'stop', {disabled: !active, busy: !!(active && active.stopping), text: '停止当前请求'});
+
+      const selectedTaskIntent = String((record.taskDraft && record.taskDraft.intent) || 'chat');
+      const structured = selectedTaskIntent !== 'chat';
+      const selectedAssetKind = String((record.taskDraft && record.taskDraft.assetKind) || 'none');
+      const assetNeedsRef = structured && selectedAssetKind !== 'none';
+      const directoryAsset = structured && selectedAssetKind === 'automation-directory';
+      const sourceAsset = structured && (selectedAssetKind === 'js-file' || selectedAssetKind === 'automation-directory');
+      const sourceModelIntent = sourceAsset && (selectedTaskIntent === 'explain' || selectedTaskIntent === 'improve');
+      await update(record, 'taskIntent', {disabled: busy && !canReplacePreview, value: selectedTaskIntent});
+      await update(record, 'assetKind', {disabled: !structured || (busy && !canReplacePreview), value: selectedAssetKind});
+      await update(record, 'importRunnerAsset', {
+        disabled: !runnerAssetProvider || (busy && !canReplacePreview),
+        text: '从 Runner 带入',
+      });
+      await update(record, 'assetRef', {disabled: !assetNeedsRef || (busy && !canReplacePreview), value: String(record.taskDraft && record.taskDraft.assetRef || '')});
+      await update(record, 'assetEntry', {disabled: !directoryAsset || (busy && !canReplacePreview), value: String(record.taskDraft && record.taskDraft.assetEntry || '')});
+      await update(record, 'businessCwd', {disabled: !structured || (busy && !canReplacePreview), value: String(record.taskDraft && record.taskDraft.businessCwd || '')});
+      await update(record, 'allowSourceRead', {
+        disabled: !sourceModelIntent || (busy && !canReplacePreview),
+        checked: sourceModelIntent && record.taskDraft && record.taskDraft.readSource === true,
+      });
+      await update(record, 'allowModelShare', {
+        disabled: !sourceModelIntent || !(record.taskDraft && record.taskDraft.readSource === true) || (busy && !canReplacePreview),
+        checked: sourceModelIntent && record.taskDraft && record.taskDraft.shareSourceWithModel === true,
+      });
+      await update(record, 'taskInput', {disabled: selectedTaskIntent !== 'use' || (busy && !canReplacePreview), value: String(record.taskDraft && record.taskDraft.inputJSON || '{}')});
+
       await update(record, 'composerHint', {
         text: active && active.task && active.conversationId === state.selectedConversationId
           ? (active.task.phase === 'awaitingConfirmation'
-            ? '执行预览已冻结。修改并发送新任务会使当前确认失效；普通聊天不会运行桌面动作。'
-            : '当前受控任务正在处理；仍可切换会话并编辑、保存其他草稿。')
-          : busy
-          ? '当前仅允许一个在途模型请求；仍可切换会话并编辑、保存其他草稿。'
-          : '普通聊天不会运行脚本、命令或桌面动作。',
+            ? '执行预览已冻结。修改并发送新任务会使当前确认失效；确认只适用于当前任务 revision。'
+            : active.task.phase === 'stopping'
+              ? '正在停止。模型退出不等于业务动作已结束；在真实 Execution 收口前效果保持未知。'
+              : '当前受控任务正在处理；仍可切换会话并编辑、保存其他草稿。')
+          : persistedTask
+            ? '当前对话有持久任务资料；旧确认和旧运行授权不会因接续自动恢复。'
+            : busy
+              ? '当前仅允许一个在途请求；仍可切换会话并编辑、保存其他草稿。'
+              : '普通聊天不会运行脚本、命令或桌面动作。任务模式会先保存任务并生成可信预览。',
       });
-      const task = active && selected && active.conversationId === selected.id ? active.task : null;
-      const phase = task && String(task.phase || '');
-      const taskVisible = !!task;
-      const previewVisible = !!(task && task.preview);
+
+      const activeTask = active && selected && active.conversationId === selected.id ? active.task : null;
+      const phase = activeTask && String(activeTask.phase || '');
+      const workspaceText = persistedTask
+        ? [
+          '持久任务：' + persistedTask.intent + ' · ' + persistedTask.asset.kind + ' · revision ' + persistedTask.revision,
+          '状态：' + persistedTask.status,
+          active && active.executionId ? 'Execution：' + active.executionId : '',
+          candidate ? '候选：' + candidate.candidateId + ' · ' + candidate.status
+            + (candidate.independentlyVerified ? ' · 已独立验证' : ' · 未独立验证') : '',
+        ].filter(Boolean).join('\n')
+        : '';
+      const taskVisible = !!activeTask || !!persistedTask;
+      const activePreview = activeTask && activeTask.preview ? activeTask.preview : '';
+      const candidatePreview = !activePreview && candidate && candidate.content ? candidate.content : '';
+      const previewText = activePreview || candidatePreview;
+      const previewVisible = !!previewText;
       const confirmVisible = phase === 'awaitingConfirmation';
-      const cancelVisible = ['planning', 'awaitingConfirmation', 'starting', 'running', 'stopping'].includes(phase);
+      const cancelVisible = ['planning', 'preparing', 'explaining', 'drafting', 'awaitingConfirmation', 'starting', 'running', 'stopping'].includes(phase);
+      const candidateSaveVisible = !!(candidate && !candidate.savedTo && ['candidate-pending', 'verified'].includes(String(candidate.status || '')));
+
       await update(record, 'taskStatus', {
         visible: taskVisible,
-        text: taskVisible ? taskProgressText(task) : '',
+        text: activeTask ? (taskProgressText(activeTask) + (workspaceText ? '\n' + workspaceText : '')) : workspaceText,
         classes: classes('task-status', taskVisible),
       });
       await update(record, 'taskPreview', {
         visible: previewVisible,
-        text: previewVisible ? task.preview : '',
+        text: previewText,
         classes: classes('task-preview', previewVisible),
       });
       await update(record, 'confirmTask', {
@@ -315,6 +426,21 @@
         disabled: !cancelVisible || phase === 'stopping',
         text: phase === 'awaitingConfirmation' ? '取消任务' : '停止任务',
         classes: classes('task-button danger', cancelVisible),
+      });
+      await update(record, 'candidateSaveRow', {
+        visible: candidateSaveVisible,
+        classes: classes('candidate-save', candidateSaveVisible),
+      });
+      await update(record, 'candidateSavePath', {
+        visible: candidateSaveVisible,
+        disabled: !candidateSaveVisible,
+        value: String(record.candidateSavePath || ''),
+      });
+      await update(record, 'saveCandidate', {
+        visible: candidateSaveVisible,
+        disabled: !candidateSaveVisible,
+        text: '另存候选',
+        classes: classes('task-button', candidateSaveVisible),
       });
     }
 
@@ -708,6 +834,80 @@
       bind(record, record.handle.control('toggleHelp'), 'click', 'toggle-help', async () => { record.helpVisible = !record.helpVisible; await render(record); });
       bind(record, record.handle.control('refreshModel'), 'click', 'refresh-model', async () => { await render(record); });
 
+      bind(record, record.handle.control('taskIntent'), 'change', 'task-intent', async () => {
+        const control = await record.handle.control('taskIntent').getState();
+        record.taskDraft.intent = String(control && control.value || 'chat');
+        await render(record);
+      });
+      bind(record, record.handle.control('assetKind'), 'change', 'asset-kind', async () => {
+        const control = await record.handle.control('assetKind').getState();
+        record.taskDraft.assetKind = String(control && control.value || 'none');
+        if (record.taskDraft.assetKind !== 'js-file' && record.taskDraft.assetKind !== 'automation-directory') {
+          record.taskDraft.readSource = false;
+          record.taskDraft.shareSourceWithModel = false;
+        }
+        await render(record);
+      });
+      bind(record, record.handle.control('importRunnerAsset'), 'click', 'import-runner-asset', async () => {
+        if (!runnerAssetProvider) throw new Error('当前产品没有可用的 Runner 资产入口。');
+        const asset = await Promise.resolve(runnerAssetProvider());
+        if (!asset) throw new Error('Runner 当前没有已选择的自动化。');
+        if (asset.kind === 'unsupported') {
+          throw new Error('Runner 当前条目不能作为助手资产带入：' + String(asset.displayName || asset.runnerKind || 'unsupported'));
+        }
+        if (asset.kind === 'installed-flow') {
+          record.taskDraft.assetKind = 'installed-flow';
+          record.taskDraft.assetRef = String(asset.installId || '');
+          record.taskDraft.assetEntry = '';
+          record.taskDraft.readSource = false;
+          record.taskDraft.shareSourceWithModel = false;
+        } else if (asset.kind === 'js-file') {
+          record.taskDraft.assetKind = 'js-file';
+          record.taskDraft.assetRef = String(asset.ref || '');
+          record.taskDraft.assetEntry = '';
+        } else {
+          throw new Error('Runner 返回了未知资产类型。');
+        }
+        if (record.taskDraft.intent === 'chat') record.taskDraft.intent = 'use';
+        await render(record);
+      });
+      bind(record, record.handle.control('allowSourceRead'), 'change', 'allow-source-read', async () => {
+        const control = await record.handle.control('allowSourceRead').getState();
+        record.taskDraft.readSource = control && control.checked === true;
+        if (!record.taskDraft.readSource) record.taskDraft.shareSourceWithModel = false;
+        await render(record);
+      });
+      bind(record, record.handle.control('allowModelShare'), 'change', 'allow-model-share', async () => {
+        const control = await record.handle.control('allowModelShare').getState();
+        record.taskDraft.shareSourceWithModel = record.taskDraft.readSource === true && control && control.checked === true;
+        await render(record);
+      });
+      for (const id of ['assetRef', 'assetEntry', 'businessCwd', 'taskInput']) {
+        bind(record, record.handle.control(id), 'input', 'task-' + id, async () => {
+          const control = await record.handle.control(id).getState();
+          const value = String(control && control.value || '');
+          if (id === 'assetRef') record.taskDraft.assetRef = value;
+          else if (id === 'assetEntry') record.taskDraft.assetEntry = value;
+          else if (id === 'businessCwd') record.taskDraft.businessCwd = value;
+          else record.taskDraft.inputJSON = value;
+        });
+      }
+      bind(record, record.handle.control('candidateSavePath'), 'input', 'candidate-save-path', async () => {
+        const control = await record.handle.control('candidateSavePath').getState();
+        record.candidateSavePath = String(control && control.value || '');
+      });
+      bind(record, record.handle.control('saveCandidate'), 'click', 'save-candidate', async () => {
+        const state = record.session.snapshot();
+        const workspace = state.taskWorkspace;
+        if (!workspace || !workspace.task || !workspace.candidate) return;
+        const destinationState = await record.handle.control('candidateSavePath').getState();
+        const destination = String(destinationState && destinationState.value || '').trim();
+        if (!destination) throw new Error('请先填写候选另存的绝对路径。');
+        await record.session.saveCandidate(workspace.task.taskId, workspace.candidate.candidateId, destination);
+        record.candidateSavePath = '';
+        await render(record);
+      });
+
       // There is intentionally no keydown/Enter-to-send binding. The Custom UI
       // public event surface does not need one for P0.1, so IME composition and
       // confirmation cannot accidentally submit a message.
@@ -732,7 +932,48 @@
         if (!text) return;
         record.draftShadow.set(id, '');
         try {
-          await record.session.submit(text);
+          const intent = String(record.taskDraft.intent || 'chat');
+          let taskOptions = null;
+          if (intent !== 'chat') {
+            const assetKind = String(record.taskDraft.assetKind || 'none');
+            const ref = String(record.taskDraft.assetRef || '').trim();
+            const entryRef = String(record.taskDraft.assetEntry || '').trim();
+            let asset = {kind: 'none'};
+            if (assetKind === 'js-file') {
+              if (!ref) throw new Error('单个 JS 任务需要填写绝对文件路径。');
+              asset = {kind: 'js-file', ref};
+            } else if (assetKind === 'automation-directory') {
+              if (!ref) throw new Error('自动化目录任务需要填写绝对目录路径。');
+              asset = {kind: 'automation-directory', ref, entryRef, boundaryResolved: !!entryRef};
+            } else if (assetKind === 'installed-flow') {
+              if (!ref) throw new Error('已安装 Flow 任务需要 canonical installId。');
+              asset = {kind: 'installed-flow', installId: ref};
+            }
+            let structuredInput = {};
+            if (intent === 'use') {
+              const rawInput = String(record.taskDraft.inputJSON || '{}').trim() || '{}';
+              try {
+                structuredInput = JSON.parse(rawInput);
+              } catch (_) {
+                throw new Error('运行输入必须是有效 JSON 对象。');
+              }
+              if (!structuredInput || typeof structuredInput !== 'object' || Array.isArray(structuredInput)) {
+                throw new Error('运行输入必须是 JSON 对象。');
+              }
+            }
+            const businessCwd = String(record.taskDraft.businessCwd || '').trim();
+            taskOptions = {
+              intent,
+              asset,
+              input: structuredInput,
+              businessCwd,
+              authorizations: {
+                readSource: record.taskDraft.readSource === true,
+                shareSourceWithModel: record.taskDraft.shareSourceWithModel === true,
+              },
+            };
+          }
+          await record.session.submit(text, taskOptions);
         } catch (error) {
           record.draftShadow.set(id, String(input && input.value || ''));
           await update(record, 'composer', {value: String(input && input.value || '')});
@@ -808,6 +1049,17 @@
         });
         const store = Store.create({file, rootDir: assistantRoot, logger});
         const channel = ModelChannel.create({llm, agent});
+        const taskRuntime = TaskRuntime.create({
+          file,
+          rootDir: assistantRoot,
+          modelChannel: channel,
+          recipeBridge: global.__opendeskRecipeExecution || null,
+          flowBridge: global.__opendeskFlowExecution || null,
+          // Match the existing Script/Flow Runner execution cwd. The assistant
+          // must not silently switch a selected script to its parent/source directory.
+          defaultBusinessCwd: appDataRoot,
+          protectedRoots: [execution.scriptDir, file.join(appDataRoot, 'flows')],
+        });
         const record = {
           generation,
           handle,
@@ -829,12 +1081,17 @@
           deleteConfirmTimer: null,
           helpVisible: false,
           titleEditing: false,
+          taskDraft: {intent: 'chat', assetKind: 'none', assetRef: '', assetEntry: '', businessCwd: '', inputJSON: '{}', readSource: false, shareSourceWithModel: false},
+          taskDraftConversationId: null,
+          candidateSavePath: '',
           lifecycle: null,
         };
         const session = Session.create({
           store,
           channel,
           taskService,
+          taskRuntime,
+          sessionId: execution.id,
           AbortController: AbortControllerImpl,
           logger,
           onChange: state => render(record, state),
@@ -904,6 +1161,7 @@
         opening: !!openingPromise,
         selectedConversationId: sessionState ? sessionState.selectedConversationId : null,
         activeRequest: sessionState ? sessionState.activeRequest : null,
+        taskWorkspace: sessionState ? sessionState.taskWorkspace : null,
         lastError,
         assistantRoot,
       });

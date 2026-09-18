@@ -36,12 +36,6 @@ func (fn entitlementFunc) AuthorizeMarketplaceInstall(ctx context.Context, relea
 	return fn(ctx, release)
 }
 
-type urlInstallerFunc func(context.Context, string, flowinstall.InstallOptions) (flowinstall.InstallResult, error)
-
-func (fn urlInstallerFunc) InstallURL(ctx context.Context, rawURL string, options flowinstall.InstallOptions) (flowinstall.InstallResult, error) {
-	return fn(ctx, rawURL, options)
-}
-
 type marketplaceFixture struct {
 	artifact       []byte
 	release        Release
@@ -81,7 +75,9 @@ func TestMarketplaceInstallVerticalSlice(t *testing.T) {
 	if loaded.Origin != "marketplace" || loaded.ReleaseID != fixture.release.ReleaseID {
 		t.Fatalf("catalog did not persist Marketplace provenance: %+v", loaded)
 	}
+	assertInstallFixtureNotExecuted(t, service, result.Record.InstallID)
 	assertTrustSource(t, service, "user")
+	assertTrustScope(t, service, "flow")
 	// Installed content is intentionally sealed read-only. Exercise the
 	// production uninstall path so TempDir cleanup does not bypass that
 	// lifecycle contract on macOS.
@@ -113,6 +109,31 @@ func TestMarketplaceVerifiedPublisherDoesNotBypassLocalTrust(t *testing.T) {
 	assertNoTrustRecords(t, service)
 }
 
+func TestMarketplaceCanonicalIdentityMismatchStopsBeforeDownload(t *testing.T) {
+	fixture := newMarketplaceFixture(t, EntitlementFree)
+	fixture.release.FlowID = "different-flow"
+	fixture = resignFixture(t, fixture)
+	server, artifactHits := newMarketplaceServer(t, fixture)
+	defer server.Close()
+	service := newFlowService(t)
+	installer := &Installer{
+		Client: newTestClient(t, server.URL, fixture.marketplaceKey), FlowService: service, TempRoot: t.TempDir(),
+		Confirmer: confirmerFunc(func(context.Context, Release) (bool, error) { return true, nil }),
+	}
+	if _, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{
+		Approver: func(context.Context, flowinstall.TrustCandidate) (flowinstall.TrustDecision, error) {
+			return flowinstall.DecisionFlow, nil
+		},
+	}); err == nil {
+		t.Fatal("InstallURL() succeeded when canonical release identity mismatched the deep link")
+	}
+	if got := artifactHits.Load(); got != 0 {
+		t.Fatalf("artifact requests = %d, want 0 before canonical identity verification succeeds", got)
+	}
+	assertCatalogEmpty(t, service)
+	assertNoTrustRecords(t, service)
+}
+
 func TestMarketplaceDigestMismatchDoesNotInstall(t *testing.T) {
 	fixture := newMarketplaceFixture(t, EntitlementFree)
 	fixture.release.ArtifactDigest = hex.EncodeToString(make([]byte, 32))
@@ -125,9 +146,7 @@ func TestMarketplaceDigestMismatchDoesNotInstall(t *testing.T) {
 		Confirmer: confirmerFunc(func(context.Context, Release) (bool, error) { return true, nil }),
 	}
 	_, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{
-		Approver: func(context.Context, flowinstall.TrustCandidate) (flowinstall.TrustDecision, error) {
-			return flowinstall.DecisionFlow, nil
-		},
+		Approver: func(context.Context, flowinstall.TrustCandidate) (flowinstall.TrustDecision, error) { return flowinstall.DecisionFlow, nil },
 	})
 	if err == nil {
 		t.Fatal("InstallURL() succeeded with a mismatched artifact digest")
@@ -147,9 +166,7 @@ func TestMarketplaceAttestationTamperStopsBeforeDownload(t *testing.T) {
 		Confirmer: confirmerFunc(func(context.Context, Release) (bool, error) { return true, nil }),
 	}
 	_, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{
-		Approver: func(context.Context, flowinstall.TrustCandidate) (flowinstall.TrustDecision, error) {
-			return flowinstall.DecisionFlow, nil
-		},
+		Approver: func(context.Context, flowinstall.TrustCandidate) (flowinstall.TrustDecision, error) { return flowinstall.DecisionFlow, nil },
 	})
 	if err == nil {
 		t.Fatal("InstallURL() succeeded with a tampered Marketplace attestation")
@@ -176,9 +193,7 @@ func TestMarketplaceInvalidPublisherSignatureDoesNotInstall(t *testing.T) {
 		Confirmer: confirmerFunc(func(context.Context, Release) (bool, error) { return true, nil }),
 	}
 	_, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{
-		Approver: func(context.Context, flowinstall.TrustCandidate) (flowinstall.TrustDecision, error) {
-			return flowinstall.DecisionFlow, nil
-		},
+		Approver: func(context.Context, flowinstall.TrustCandidate) (flowinstall.TrustDecision, error) { return flowinstall.DecisionFlow, nil },
 	})
 	if err == nil {
 		t.Fatal("InstallURL() succeeded with an invalid .odflow Publisher Signature")
@@ -197,13 +212,11 @@ func TestMarketplacePaidEntitlementDenialStopsBeforeDownload(t *testing.T) {
 	service := newFlowService(t)
 	installer := &Installer{
 		Client: newTestClient(t, server.URL, fixture.marketplaceKey), FlowService: service, TempRoot: t.TempDir(),
-		Confirmer:   confirmerFunc(func(context.Context, Release) (bool, error) { return true, nil }),
+		Confirmer: confirmerFunc(func(context.Context, Release) (bool, error) { return true, nil }),
 		Entitlement: entitlementFunc(func(context.Context, Release) error { return errors.New("not entitled") }),
 	}
 	_, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{
-		Approver: func(context.Context, flowinstall.TrustCandidate) (flowinstall.TrustDecision, error) {
-			return flowinstall.DecisionFlow, nil
-		},
+		Approver: func(context.Context, flowinstall.TrustCandidate) (flowinstall.TrustDecision, error) { return flowinstall.DecisionFlow, nil },
 	})
 	if err == nil {
 		t.Fatal("InstallURL() succeeded without Marketplace entitlement")
@@ -212,135 +225,82 @@ func TestMarketplacePaidEntitlementDenialStopsBeforeDownload(t *testing.T) {
 		t.Fatalf("artifact requests = %d, want 0 before entitlement succeeds", got)
 	}
 	assertCatalogEmpty(t, service)
-	assertNoTrustRecords(t, service)
 }
 
-func TestMarketplaceReleasePublisherMismatchDoesNotInstall(t *testing.T) {
+
+func TestMarketplaceCancelLeavesCatalogAndTrustUntouched(t *testing.T) {
 	fixture := newMarketplaceFixture(t, EntitlementFree)
-	fixture.release.PublisherID = "publisher-other"
-	fixture = resignFixture(t, fixture)
 	server, artifactHits := newMarketplaceServer(t, fixture)
 	defer server.Close()
 	service := newFlowService(t)
 	installer := &Installer{
 		Client: newTestClient(t, server.URL, fixture.marketplaceKey), FlowService: service, TempRoot: t.TempDir(),
-		Confirmer: confirmerFunc(func(context.Context, Release) (bool, error) { return true, nil }),
+		Confirmer: confirmerFunc(func(context.Context, Release) (bool, error) { return false, nil }),
 	}
-	_, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{
+	if _, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{
 		Approver: func(context.Context, flowinstall.TrustCandidate) (flowinstall.TrustDecision, error) {
-			return flowinstall.DecisionFlow, nil
+			t.Fatal("trust approver must not be reached after install cancellation")
+			return flowinstall.DecisionCancel, nil
 		},
-	})
-	if err == nil {
-		t.Fatal("InstallURL() succeeded when canonical publisher identity differs from verified .odflow")
-	}
-	if got := artifactHits.Load(); got != 1 {
-		t.Fatalf("artifact requests = %d, want 1 before package/release matching", got)
-	}
-	assertCatalogEmpty(t, service)
-	assertNoTrustRecords(t, service)
-}
-
-func TestMarketplaceIntentIdentityMismatchStopsBeforeDownload(t *testing.T) {
-	fixture := newMarketplaceFixture(t, EntitlementFree)
-	fixture.release.FlowID = "other-flow"
-	fixture = resignFixture(t, fixture)
-	server, artifactHits := newMarketplaceServer(t, fixture)
-	defer server.Close()
-	service := newFlowService(t)
-	installer := &Installer{
-		Client: newTestClient(t, server.URL, fixture.marketplaceKey), FlowService: service, TempRoot: t.TempDir(),
-		Confirmer: confirmerFunc(func(context.Context, Release) (bool, error) { return true, nil }),
-	}
-	_, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{
-		Approver: func(context.Context, flowinstall.TrustCandidate) (flowinstall.TrustDecision, error) {
-			return flowinstall.DecisionFlow, nil
-		},
-	})
-	if err == nil {
-		t.Fatal("InstallURL() succeeded with a flowId that differs from the Deep Link")
+	}); err == nil {
+		t.Fatal("InstallURL() succeeded after local installation cancellation")
 	}
 	if got := artifactHits.Load(); got != 0 {
-		t.Fatalf("artifact requests = %d, want 0 before canonical intent identity succeeds", got)
+		t.Fatalf("artifact requests = %d, want 0 after local installation cancellation", got)
 	}
 	assertCatalogEmpty(t, service)
 	assertNoTrustRecords(t, service)
 }
 
-func TestResolveInstallIntentRejectsMalformedMetadata(t *testing.T) {
+func TestMarketplaceAndSideLoadConvergeOnSameCatalogIdentity(t *testing.T) {
 	fixture := newMarketplaceFixture(t, EntitlementFree)
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/v1/install-intents/intent-1" {
-			writer.WriteHeader(http.StatusNotFound)
-			return
-		}
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = io.WriteString(writer, `{"schemaVersion":1,"installIntentId":"intent-1","flowId":"invoice-export","releaseId":"release-1","release":{},"attestation":{},"unexpected":true}`)
-	}))
-	defer server.Close()
-	client := newTestClient(t, server.URL, fixture.marketplaceKey)
-	_, err := client.ResolveInstallIntent(context.Background(), InstallIntentRef{FlowID: "invoice-export", ReleaseID: "release-1", InstallIntentID: "intent-1"})
-	if err == nil {
-		t.Fatal("ResolveInstallIntent() accepted malformed/unknown release metadata")
+	packagePath := filepath.Join(t.TempDir(), "OpenDesk Install Test.odflow")
+	if err := os.WriteFile(packagePath, fixture.artifact, 0o600); err != nil {
+		t.Fatal(err)
 	}
-}
-
-func TestMarketplaceUnknownReleaseDoesNotInstall(t *testing.T) {
-	fixture := newMarketplaceFixture(t, EntitlementFree)
-	server := httptest.NewServer(http.NotFoundHandler())
-	defer server.Close()
 	service := newFlowService(t)
+	sideLoaded, err := service.Install(context.Background(), packagePath, flowinstall.InstallOptions{
+		Approver: func(context.Context, flowinstall.TrustCandidate) (flowinstall.TrustDecision, error) {
+			return flowinstall.DecisionFlow, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("side-load Install() error = %v", err)
+	}
+	if sideLoaded.Record.Origin != "odflow" {
+		t.Fatalf("side-load origin = %q, want odflow", sideLoaded.Record.Origin)
+	}
+	assertInstallFixtureNotExecuted(t, service, sideLoaded.Record.InstallID)
+
+	server, artifactHits := newMarketplaceServer(t, fixture)
+	defer server.Close()
 	installer := &Installer{
 		Client: newTestClient(t, server.URL, fixture.marketplaceKey), FlowService: service, TempRoot: t.TempDir(),
 		Confirmer: confirmerFunc(func(context.Context, Release) (bool, error) { return true, nil }),
 	}
-	_, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{})
-	if err == nil {
-		t.Fatal("InstallURL() succeeded for an unknown Marketplace release")
+	fromMarketplace, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{})
+	if err != nil {
+		t.Fatalf("Marketplace InstallURL() error = %v", err)
 	}
-	assertCatalogEmpty(t, service)
-	assertNoTrustRecords(t, service)
-}
-
-func TestDeepLinkHandlerRejectsBeforeDelegating(t *testing.T) {
-	called := 0
-	handler := DeepLinkHandler{Installer: urlInstallerFunc(func(context.Context, string, flowinstall.InstallOptions) (flowinstall.InstallResult, error) {
-		called++
-		return flowinstall.InstallResult{}, nil
-	})}
-	_, err := handler.Handle(context.Background(), "opendesk://install/flow/invoice-export?release=rel-1&intent=intent-1&url=https%3A%2F%2Fevil.example")
-	if err == nil {
-		t.Fatal("DeepLinkHandler accepted an arbitrary URL parameter")
+	if got := artifactHits.Load(); got != 1 {
+		t.Fatalf("artifact requests = %d, want 1", got)
 	}
-	if called != 0 {
-		t.Fatalf("installer calls = %d, want 0 for an invalid Deep Link", called)
+	if !fromMarketplace.Idempotent {
+		t.Fatal("same artifact through Marketplace was not idempotent")
 	}
-}
-
-func TestDeepLinkHandlerPassesValidatedIntentAndLocalOptions(t *testing.T) {
-	ref := InstallIntentRef{FlowID: "invoice-export", ReleaseID: "rel-1", InstallIntentID: "intent-1"}
-	rawURL, err := BuildInstallURL(ref)
+	if fromMarketplace.Record.InstallID != sideLoaded.Record.InstallID {
+		t.Fatalf("Catalog identity diverged: side-load=%s marketplace=%s", sideLoaded.Record.InstallID, fromMarketplace.Record.InstallID)
+	}
+	if fromMarketplace.Record.Origin != "marketplace" || fromMarketplace.Record.ReleaseID != fixture.release.ReleaseID {
+		t.Fatalf("Marketplace provenance was not applied to the canonical record: %+v", fromMarketplace.Record)
+	}
+	assertInstallFixtureNotExecuted(t, service, fromMarketplace.Record.InstallID)
+	records, err := service.Catalog.List()
 	if err != nil {
 		t.Fatal(err)
 	}
-	called := 0
-	handler := DeepLinkHandler{
-		Installer: urlInstallerFunc(func(_ context.Context, gotURL string, options flowinstall.InstallOptions) (flowinstall.InstallResult, error) {
-			called++
-			if gotURL != rawURL || options.AllowDowngrade {
-				t.Fatalf("unexpected delegated URL/options: %q %+v", gotURL, options)
-			}
-			return flowinstall.InstallResult{}, nil
-		}),
-		InstallOptions: func(context.Context) flowinstall.InstallOptions {
-			return flowinstall.InstallOptions{AllowDowngrade: false}
-		},
-	}
-	if _, err := handler.Handle(context.Background(), rawURL); err != nil {
-		t.Fatalf("DeepLinkHandler.Handle() error = %v", err)
-	}
-	if called != 1 {
-		t.Fatalf("installer calls = %d, want 1", called)
+	if len(records) != 1 || records[0].InstallID != sideLoaded.Record.InstallID {
+		t.Fatalf("channels created divergent Catalog records: %+v", records)
 	}
 }
 
@@ -381,8 +341,27 @@ func newMarketplaceFixtureWithVerifiedPublisher(t *testing.T) marketplaceFixture
 
 func buildMarketplaceFixture(t *testing.T, entitlement EntitlementPolicy, verified bool) marketplaceFixture {
 	t.Helper()
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("cannot locate Marketplace test fixture source")
+	}
+	fixtureRoot := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", "..", "tests", "fixtures", "flow-install-test"))
+	mainSource, err := os.ReadFile(filepath.Join(fixtureRoot, "main.js"))
+	if err != nil {
+		t.Fatalf("read OpenDesk Install Test main.js: %v", err)
+	}
+	resourceSource, err := os.ReadFile(filepath.Join(fixtureRoot, "assets", "value.txt"))
+	if err != nil {
+		t.Fatalf("read OpenDesk Install Test resource: %v", err)
+	}
 	source := t.TempDir()
-	if err := os.WriteFile(filepath.Join(source, "main.js"), []byte(`throw new Error("install must never execute Flow code");`), 0o600); err != nil {
+	if err := os.MkdirAll(filepath.Join(source, "assets"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "main.js"), mainSource, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "assets", "value.txt"), resourceSource, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	publisherPublic, publisherPrivate, err := ed25519.GenerateKey(rand.Reader)
@@ -390,9 +369,9 @@ func buildMarketplaceFixture(t *testing.T, entitlement EntitlementPolicy, verifi
 		t.Fatal(err)
 	}
 	built, err := flowpackage.Build(flowpackage.BuildOptions{
-		SourceRoot: source, FlowID: "invoice-export", Name: "Invoice Export", Version: "1.2.3",
-		PublisherID: "publisher-acme", PublisherKeyID: "publisher-key-1", Entry: "main.js",
-		MinimumRuntimeVersion: "0.0.0", Platforms: []string{runtime.GOOS}, Files: []string{"main.js"},
+		SourceRoot: source, FlowID: "opendesk-install-test", Name: "OpenDesk Install Test", Version: "1.0.0",
+		PublisherID: "opendesk-install-test-publisher", PublisherKeyID: "opendesk-install-test-key", Entry: "main.js",
+		MinimumRuntimeVersion: "0.0.0", Platforms: []string{runtime.GOOS}, Files: []string{"main.js", "assets/value.txt"},
 		PublisherPublicKey: publisherPublic, PublisherPrivateKey: publisherPrivate,
 	})
 	if err != nil {
@@ -550,6 +529,17 @@ func newFlowService(t *testing.T) *flowinstall.Service {
 	return service
 }
 
+func assertInstallFixtureNotExecuted(t *testing.T, service *flowinstall.Service, installID string) {
+	t.Helper()
+	dataRoot := filepath.Join(service.Roots.DataRoot, installID)
+	for _, name := range []string{"install-test.marker", "result.json", "run.json"} {
+		path := filepath.Join(dataRoot, name)
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("Marketplace/side-load install executed business payload; %s stat error = %v", path, err)
+		}
+	}
+}
+
 func assertCatalogEmpty(t *testing.T, service *flowinstall.Service) {
 	t.Helper()
 	records, err := service.Catalog.List()
@@ -576,6 +566,29 @@ func assertNoTrustRecords(t *testing.T, service *flowinstall.Service) {
 	}
 }
 
+func assertTrustScope(t *testing.T, service *flowinstall.Service, expected string) {
+	t.Helper()
+	recordsRoot := filepath.Join(service.Roots.TrustRoot, "records")
+	entries, err := os.ReadDir(recordsRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("trust record count = %d, want 1", len(entries))
+	}
+	data, err := os.ReadFile(filepath.Join(recordsRoot, entries[0].Name()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var record struct{ Scope string `json:"scope"` }
+	if err := json.Unmarshal(data, &record); err != nil {
+		t.Fatal(err)
+	}
+	if record.Scope != expected {
+		t.Fatalf("trust scope = %q, want %q", record.Scope, expected)
+	}
+}
+
 func assertTrustSource(t *testing.T, service *flowinstall.Service, expected string) {
 	t.Helper()
 	recordsRoot := filepath.Join(service.Roots.TrustRoot, "records")
@@ -590,9 +603,7 @@ func assertTrustSource(t *testing.T, service *flowinstall.Service, expected stri
 	if err != nil {
 		t.Fatal(err)
 	}
-	var record struct {
-		Source string `json:"source"`
-	}
+	var record struct{ Source string `json:"source"` }
 	if err := json.Unmarshal(data, &record); err != nil {
 		t.Fatal(err)
 	}

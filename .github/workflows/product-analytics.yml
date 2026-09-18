@@ -4,45 +4,69 @@ on:
   push:
     branches:
       - master
-    paths:
+    paths: &analytics_paths
       - '.github/workflows/product-analytics.yml'
       - 'go.mod'
       - 'go.sum'
       - 'configs/product.json'
       - 'pkg/productanalytics/**'
       - 'pkg/officialconfig/**'
+      - 'pkg/execution/**'
+      - 'pkg/appshell/**'
+      - 'pkg/inspector/**'
+      - 'automation/app_shell.go'
+      - 'automation/recorder*.go'
       - 'internal/officialassets/**'
       - 'internal/flowcli/**'
-      - 'cmd/opendesk/**'
-      - 'apps/opendesk/**'
+      - 'cmd/opendesk/app_mode.go'
+      - 'cmd/opendesk/app_scheduler.go'
+      - 'cmd/opendesk/app_recipe_runner.go'
+      - 'cmd/opendesk/app_recipe_runner_test.go'
+      - 'cmd/opendesk/app_product_analytics.go'
+      - 'cmd/opendesk/app_product_analytics_test.go'
+      - 'cmd/opendesk/app_product_analytics_http_test.go'
+      - 'apps/opendesk/main.js'
+      - 'apps/opendesk/app-controller.js'
+      - 'apps/opendesk/product-analytics/**'
+      - 'apps/opendesk/script-runner/**'
+      - 'apps/opendesk/script-runner-simple.js'
+      - 'apps/opendesk/opendesk.app.json'
+      - 'apps/opendesk/official-shell.js'
+      - 'apps/opendesk/localization.js'
+      - 'apps/opendesk/locales/**'
+      - 'apps/opendesk/.release/app-mode-runtime-files.txt'
+      - 'apps/opendesk/assets/product.odcfg'
       - 'tests/product-analytics/**'
       - 'tests/runtime-api/product-analytics*.js'
-      - 'tests/app-lifecycle/analytics-settings-controller.test.js'
       - 'docs/architecture/product-analytics.md'
   pull_request:
-    paths:
-      - '.github/workflows/product-analytics.yml'
-      - 'go.mod'
-      - 'go.sum'
-      - 'configs/product.json'
-      - 'pkg/productanalytics/**'
-      - 'pkg/officialconfig/**'
-      - 'internal/officialassets/**'
-      - 'internal/flowcli/**'
-      - 'cmd/opendesk/**'
-      - 'apps/opendesk/**'
-      - 'tests/product-analytics/**'
-      - 'tests/runtime-api/product-analytics*.js'
-      - 'tests/app-lifecycle/analytics-settings-controller.test.js'
-      - 'docs/architecture/product-analytics.md'
+    paths: *analytics_paths
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  module-and-js-contract:
+    name: Module and JavaScript Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify Go module graph is read-only complete
+        run: go list -mod=readonly ./pkg/productanalytics ./pkg/officialconfig ./internal/flowcli ./cmd/opendesk ./pkg/execution ./pkg/appshell
+      - name: Product Analytics JavaScript contracts
+        run: >-
+          node --test
+          tests/product-analytics/runner-ui-dedupe.test.cjs
+
   production-contract:
     name: Production Contract
+    needs: module-and-js-contract
     runs-on: macos-latest
     timeout-minutes: 30
     steps:
@@ -61,12 +85,6 @@ jobs:
           ./pkg/execution
           ./pkg/appshell
           -count=1
-      - name: Product Analytics JavaScript contracts
-        run: >-
-          node --test
-          tests/product-analytics/runner-ui-dedupe.test.cjs
-          tests/product-analytics/client-settings.test.cjs
-          tests/app-lifecycle/analytics-settings-controller.test.js
       - name: Build OpenDesk Runtime
         run: |
           mkdir -p dist

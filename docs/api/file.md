@@ -36,6 +36,7 @@ File 是运行时注入的文件系统对象。原有 `read()`、`write()` 等�
 | File.readJSON(filePath, options?) | 异步读取并按 Runtime JSON.parse 解析 JSON |
 | File.readBytes(path) | 读取字节 |
 | File.write(path, text) | 写文本 |
+| File.writeNew(path, text) | 独占创建一个新文本文件；目标或父目录别名存在风险时拒绝 |
 | File.writeJSON(filePath, value, options?) | 异步、安全替换地写入 JSON |
 | File.append(path, text) | 追加文本 |
 | File.writeBytes(path, bytes) | 写字节 |
@@ -59,6 +60,27 @@ File 是运行时注入的文件系统对象。原有 `read()`、`write()` 等�
 | File.open(path, mode) | 按模式打开文件 |
 
 ## File：常用方法
+
+## File.realPath(path)
+
+解析一个**已经存在**的文件或目录，跟随符号链接／Windows reparse point，并返回宿主文件系统的 canonical 绝对路径。它只做路径解析，不创建、删除或修改文件。
+
+```js
+const canonical = File.realPath('./assets/current');
+console.log(canonical);
+```
+
+**签名**
+
+```ts
+File.realPath(path: string): string
+```
+
+- 相对路径先按当前 `Execution.workdir` 解释，然后执行宿主真实路径解析。
+- 目标必须存在；不存在、权限拒绝或无法解析时直接抛出文件系统错误。
+- `File.path()` 只做工作目录下的绝对路径拼接；需要判断 symlink/junction/reparse-point 是否改变真实位置时使用 `File.realPath()`。
+- 返回值可以用于“期望路径”和“真实路径”比较，但它本身不是授权；调用方仍需按业务范围判断真实路径是否允许。
+- 该 API 不创建 watcher、handle 或后台任务。
 
 ## File.cwd()
 
@@ -173,6 +195,31 @@ File.write('./.runtime/examples/result.txt', text);
 - `File.write()` 会按传入内容保留模板字符串中的换行；不会自动增加或删除末尾换行
 - 当前实现不会自动创建父目录
 - 若目录可能不存在，先用 `File.ensureDir()` 或 `File.createWithDirs()`
+
+## File.writeNew(path, text)
+
+安全另存一个**此前不存在**的新文本文件。它用于候选另存、不可覆盖的版本文件等场景，不是现有文件的替换 API。
+
+```js
+File.ensureDir('./.runtime/examples/candidates');
+File.writeNew('./.runtime/examples/candidates/candidate.js', 'console.log("review me");\n');
+```
+
+**签名**
+
+```ts
+File.writeNew(path: string, text: string, encoding?: string): void
+```
+
+**行为与安全边界**
+
+- 同步执行；相对路径继续以不可变的 `Execution.workdir` 为基准。
+- 父目录必须已经存在。该方法不会隐式创建目录。
+- 使用父目录 `os.Root` 和独占创建语义；只要最终目标已经存在（包括普通文件或符号链接），就失败，不会截断或替换。
+- 打开父目录句柄后，Runtime 会重新解析父目录的 symlink / Windows reparse-point 目标并核对目录文件身份；父目录是别名、被重定向，或授权检查期间被替换时失败。
+- 写入、flush 或 close 在提交前失败时，Runtime 会尽力通过已打开的父目录句柄清理本次新建的半文件。
+- 它只保证“新文件独占创建”，**不**是对已有文件的 compare-and-swap，也不提供目录级多文件事务。需要修改已有 JSON 时仍按 `File.writeJSON` 的平台支持语义处理。
+- 因为不会覆盖已有内容，适合保存需人工审阅的候选、不可变 revision 和证据文件；不能用“先 `exists` 再 `write`”替代它。
 
 ## File.append(path, text)
 

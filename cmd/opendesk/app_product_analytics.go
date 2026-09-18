@@ -78,7 +78,6 @@ func registerAppProductAnalytics(owner *appSchedulerRuntime, packageID, appRoot,
 	service.Start()
 
 	mux.HandleFunc("/api/product/analytics/status", analyticsRuntime.authorize(analyticsRuntime.handleStatus))
-	mux.HandleFunc("/api/product/analytics/enabled", analyticsRuntime.authorize(analyticsRuntime.handleEnabled))
 	mux.HandleFunc("/api/product/analytics/screen", analyticsRuntime.authorize(analyticsRuntime.handleScreen))
 	mux.HandleFunc("/api/product/analytics/action", analyticsRuntime.authorize(analyticsRuntime.handleAction))
 	mux.HandleFunc("/api/product/analytics/run/start", analyticsRuntime.authorize(analyticsRuntime.handleRunStart))
@@ -238,25 +237,6 @@ func (r *appProductAnalyticsRuntime) handleStatus(w http.ResponseWriter, request
 	r.writeStatus(w, true, nil)
 }
 
-func (r *appProductAnalyticsRuntime) handleEnabled(w http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	var body struct {
-		Enabled bool `json:"enabled"`
-	}
-	if !decodeAnalyticsBody(w, request, &body) {
-		return
-	}
-	status, err := r.service.SetConsent(body.Enabled)
-	if err != nil {
-		r.writeStatus(w, false, err)
-		return
-	}
-	r.writeStatusValue(w, status, true, nil)
-}
-
 func (r *appProductAnalyticsRuntime) handleScreen(w http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -360,12 +340,15 @@ func (r *appProductAnalyticsRuntime) writeStatus(w http.ResponseWriter, accepted
 
 func (r *appProductAnalyticsRuntime) writeStatusValue(w http.ResponseWriter, status productanalytics.Status, accepted bool, err error) {
 	w.Header().Set("Content-Type", "application/json")
+	code := 0
 	message := "success"
 	if err != nil {
+		code = 1
 		message = "product analytics preference update failed"
+		w.WriteHeader(http.StatusInternalServerError)
 	}
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"code":    0,
+		"code":    code,
 		"message": message,
 		"data": map[string]any{
 			"available":      true,

@@ -1,5 +1,7 @@
 # OpenDesk Flow Distribution / Installation Qualification
 
+> **历史证据说明（2026-09-18）：** 本文件保留 `f7f6daeb...` 基线的 macOS 实窗资格证据，不代表当前 `master` 已重新执行。当前多渠道安装状态以 [flow-install-channel-qualification.md](flow-install-channel-qualification.md) 为准。
+
 本报告只记录当前 checkout 已实际执行并保留的证据。A=真实 macOS
 `dist/OpenDesk.app` / App Shell / Finder / Runner 实窗，B=仓库根目录用当前
 `dist/opendesk` 直接执行的 Runtime gate，C=CLI/Node controller，D=Go 白盒测试。

@@ -82,7 +82,7 @@ func TestAppRecipeAnalyticsFollowsTrueExecutionLifecycle(t *testing.T) {
 	t.Run("startup-rejected", func(t *testing.T) {
 		service := newDebugProductAnalytics(t)
 		request := appAnalyticsRequest(t, context.Background(), "recipe-startup-rejected")
-		request.WorkDir = filepath.Join(t.TempDir(), "missing")
+		request.Environment = map[string]string{"INVALID-NAME": "reject-before-running"}
 		if _, _, err := runAppRecipeWithProductAnalytics(service, request); err == nil {
 			t.Fatal("invalid recipe request unexpectedly started")
 		}

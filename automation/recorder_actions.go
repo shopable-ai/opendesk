@@ -516,9 +516,12 @@ func (r *RecorderRuntime) buildActionsFile(input string) (recorderActionsResult,
 	if err != nil {
 		return recorderActionsResult{}, recorderError(RecorderInvalidRecording, operation, "manifest.json contains invalid recording facts", err)
 	}
-	rawRelative, ok := recorderRawRelativePath(manifest.Storage.RawFile)
-	if !ok {
-		return recorderActionsResult{}, recorderError(RecorderInvalidRecording, operation, "manifest rawFile must be events.ndjson or raw/events.ndjson", nil)
+	rawRelative := "events.ndjson"
+	if manifest.FormatVersion == recorderLegacyRecordingFormatVersion {
+		rawRelative = filepath.ToSlash(filepath.Join("raw", "events.ndjson"))
+	}
+	if filepath.ToSlash(manifest.Storage.RawFile) != rawRelative {
+		return recorderActionsResult{}, recorderError(RecorderInvalidRecording, operation, "manifest rawFile does not match the recording format", nil)
 	}
 	rawPath := filepath.Join(recordingDir, filepath.FromSlash(rawRelative))
 	rawBytes, err := recorderReadRegular(rawPath, recorderMaxRawBytes)
@@ -3520,11 +3523,10 @@ func recorderValidateActions(actions recorderActions, actionsPath, recordingDir 
 			return recorderError(RecorderInvalidRecording, operation, "actions initial window snapshot is invalid", err)
 		}
 	}
-	rawRelative, ok := recorderRawRelativePath(actions.Raw.File)
-	if !ok || !recorderPathWithin(recordingDir, filepath.Join(recordingDir, filepath.FromSlash(rawRelative))) || len(actions.Raw.SHA256) != 64 || actions.Raw.Bytes < 0 {
+	if actions.Raw.File != "events.ndjson" || !recorderPathWithin(recordingDir, filepath.Join(recordingDir, filepath.FromSlash(actions.Raw.File))) || len(actions.Raw.SHA256) != 64 || actions.Raw.Bytes < 0 {
 		return recorderError(RecorderInvalidRecording, operation, "actions raw reference is invalid", nil)
 	}
-	rawPath := filepath.Join(recordingDir, filepath.FromSlash(rawRelative))
+	rawPath := filepath.Join(recordingDir, filepath.FromSlash(actions.Raw.File))
 	rawBytes, err := recorderReadRegular(rawPath, recorderMaxRawBytes)
 	if err != nil || int64(len(rawBytes)) != actions.Raw.Bytes || recorderSHA256(rawBytes) != actions.Raw.SHA256 {
 		return recorderError(RecorderInvalidRecording, operation, "actions raw reference no longer matches the recorded bytes", err)

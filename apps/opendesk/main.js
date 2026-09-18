@@ -14,7 +14,6 @@ if (!globalThis.OpenDeskOfficialShell || typeof OpenDeskOfficialShell.create !==
 const officialShell = OpenDeskOfficialShell.create({
   file: File,
   command: Command,
-  system: System,
   execution: Execution,
   packageRoot: Execution.scriptDir,
 });
@@ -107,8 +106,7 @@ globalThis.OpenDeskFlowRunner = OpenDeskFlowRunnerShortcutController.wrapControl
   OpenDeskFlowRunner,
   {
     globalShortcut: globalThis.globalShortcut,
-    system: System,
-    console: globalThis.console,
+      console: globalThis.console,
   },
 );
 
@@ -151,7 +149,9 @@ const promotionAwareAgent = OpenDeskPromotionsIntegration.wrapAgent(
 
 const assistantEntries = [
   ['store.js', 'OpenDeskAssistantStore'],
+  ['task-contract.js', 'OpenDeskAssistantTaskContract'],
   ['model-channel.js', 'OpenDeskAssistantModelChannel'],
+  ['task-runtime.js', 'OpenDeskAssistantTaskRuntime'],
   ['task-service.js', 'OpenDeskAssistantTaskService'],
   ['session.js', 'OpenDeskAssistantSession'],
   ['controller.js', 'OpenDeskAssistantController'],
@@ -168,6 +168,7 @@ const assistantTaskService = OpenDeskAssistantTaskService.create({
 const assistant = OpenDeskAssistantController.create({
   appDataRoot: globalThis.OpenDeskProductPaths.appDataRoot,
   taskService: assistantTaskService,
+  runnerAssetProvider: () => runner.currentAsset(),
 });
 
 const schedulerClientEntry = File.join(Execution.scriptDir, 'scheduler-client.js');
@@ -221,12 +222,6 @@ if (!globalThis.OpenDeskPermissionsCenter
   || typeof OpenDeskPermissionsCenter.create !== 'function') {
   throw new Error('OpenDesk Permissions Center did not initialize');
 }
-const analyticsSettingsEntry = File.join(Execution.scriptDir, 'product-analytics', 'settings.js');
-(0, eval)(File.read(analyticsSettingsEntry) + '\n//# sourceURL=' + analyticsSettingsEntry);
-if (!globalThis.OpenDeskAnalyticsSettings
-  || typeof OpenDeskAnalyticsSettings.create !== 'function') {
-  throw new Error('OpenDesk Analytics Settings did not initialize');
-}
 const aboutEntry = File.join(Execution.scriptDir, 'about.js');
 (0, eval)(File.read(aboutEntry) + '\n//# sourceURL=' + aboutEntry);
 if (!globalThis.OpenDeskAbout || typeof OpenDeskAbout.create !== 'function') {
@@ -249,7 +244,6 @@ if (!globalThis.OpenDeskProductAppController
 const schedulerCenter = OpenDeskSchedulerCenter.create();
 const runtimeLog = OpenDeskRuntimeLog.create({flowRunner});
 const permissionsCenter = OpenDeskPermissionsCenter.create();
-const analyticsSettings = OpenDeskAnalyticsSettings.create({client: OpenDeskProductAnalytics});
 const about = OpenDeskAbout.create({
   file: File,
   packageRoot: Execution.scriptDir,
@@ -273,6 +267,7 @@ const developerTools = OpenDeskDeveloperTools.create({
   schedulerClient: OpenDeskSchedulerClient,
   runtimeLog,
   inspectorLauncher,
+  system: System,
 });
 const appController = OpenDeskProductAppController.create({
   appRuntime: automation.app,
@@ -281,7 +276,6 @@ const appController = OpenDeskProductAppController.create({
   schedulerCenter,
   runtimeLog,
   permissionsCenter,
-  analyticsSettings,
   about,
   inspectorLauncher,
   developerTools,
@@ -318,7 +312,6 @@ console.log('OPENDESK_PRODUCT_APP_READY=' + JSON.stringify({
   assistant: assistant.state(),
   scheduler: OpenDeskSchedulerClient.getCapabilities(),
   analytics: OpenDeskProductAnalytics.getCapabilities(),
-  analyticsSettings: analyticsSettings.state(),
   promotions: promotionOwner.state(),
   inspector: inspectorLauncher.getCapabilities(),
   permissions: permissionsCenter.state(),

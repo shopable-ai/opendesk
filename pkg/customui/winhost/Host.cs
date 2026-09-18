@@ -191,7 +191,7 @@ internal abstract class Surface : IDisposable
 		if(Closed||!Form.Visible||string.IsNullOrWhiteSpace(J.S(Spec,"interactionGroup")))return;
 		try { Form.BeginInvoke(new Action(()=>{
 			if(Closed||Form.Focused||!Form.Visible)return;
-			var next=Form.ActiveForm;
+			var next=System.Windows.Forms.Form.ActiveForm;
 			bool grouped=next is not null&&Host.Windows.Values.Any(other=>other!=this&&other.Session==Session&&J.S(other.Spec,"interactionGroup")==J.S(Spec,"interactionGroup")&&other.Form==next);
 			if(!grouped)Emit("interactionOutside",reason:next is null?"appDeactivated":"outsideGroup");
 		})); } catch(InvalidOperationException) { }

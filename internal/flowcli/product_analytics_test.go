@@ -126,7 +126,7 @@ func TestInstalledFlowAnalyticsTrueLifecycleAndIsolation(t *testing.T) {
 		environment, recorder, closeServer := newAnalyticsBridgeServer(t)
 		defer closeServer()
 		request := installedFlowAnalyticsRequest(t, context.Background(), "flow-startup-rejected")
-		request.WorkDir = filepath.Join(t.TempDir(), "missing")
+		request.Environment["INVALID-NAME"] = "reject-before-running"
 		if _, _, err := runInstalledFlowExecution(environment, request); err == nil {
 			t.Fatal("invalid Flow request unexpectedly started")
 		}
