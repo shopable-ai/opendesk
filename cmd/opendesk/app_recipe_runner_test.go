@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +17,7 @@ import (
 	"opendesk/pkg/appshell"
 	pkgExecution "opendesk/pkg/execution"
 	"opendesk/pkg/flowinstall"
+	"opendesk/pkg/flowpackage"
 )
 
 func TestAppRecipeRunnerUsesASeparateInProcessExecutionAndArtifacts(t *testing.T) {
@@ -313,7 +317,11 @@ func TestAssistantInstalledFlowVerticalRuntimeUsesCanonicalCatalogAndRealExecuti
 		t.Fatal(err)
 	}
 
-	flowSource := filepath.Join(t.TempDir(), "assistant-business-sample.js")
+	flowSourceRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(flowSourceRoot, "payload"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	flowSource := filepath.Join(flowSourceRoot, "payload", "main.js")
 	if err := os.WriteFile(flowSource, []byte(
 		`const resultPath = File.join(Execution.workdir, "assistant-flow-result.json");
 File.writeNew(resultPath, JSON.stringify({executionId: Execution.id, input: Execution.input}) + "\\n");
@@ -321,7 +329,46 @@ console.log("ASSISTANT_FLOW_BUSINESS_OUTPUT=" + resultPath);`,
 	), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	installed, err := service.InstallScript(context.Background(), flowSource)
+	invocationPath := filepath.Join(flowSourceRoot, appFlowInvocationFile)
+	if err := os.WriteFile(invocationPath, []byte(`{
+  "schemaVersion": 1,
+  "effectSummary": "Write one isolated JSON result file in the selected business working directory.",
+  "parameters": {
+    "amount": {"type": "number", "required": true, "description": "Sample amount."},
+    "nested": {"type": "object", "required": true, "description": "Sample nested input."}
+  }
+}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	built, err := flowpackage.Build(flowpackage.BuildOptions{
+		SourceRoot: flowSourceRoot,
+		FlowID: "assistant-vertical-flow",
+		Name: "Assistant Vertical Flow",
+		Version: "1.0.0",
+		PublisherID: "assistant-test-publisher",
+		PublisherKeyID: "assistant-test-key",
+		Entry: "payload/main.js",
+		MinimumRuntimeVersion: "0.0.0",
+		Platforms: []string{runtime.GOOS},
+		Files: []string{"payload/main.js", appFlowInvocationFile},
+		PublisherPublicKey: publicKey,
+		PublisherPrivateKey: privateKey,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	packagePath := filepath.Join(root, "assistant-vertical.odflow")
+	if err := os.WriteFile(packagePath, built.Bytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Trust.Approve(built.Manifest, flowinstall.TrustScopeFlow, flowinstall.TrustTest); err != nil {
+		t.Fatal(err)
+	}
+	installed, err := service.Install(context.Background(), packagePath, flowinstall.InstallOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
