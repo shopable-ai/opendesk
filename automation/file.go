@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 )
@@ -168,11 +169,36 @@ func (fs *FileSystem) WriteNew(path string, text string, encoding ...string) err
 	root, err := os.OpenRoot(parent)
 	if err != nil { return err }
 	defer root.Close()
+	resolvedParent, err := filepath.EvalSymlinks(parent)
+	if err != nil { return err }
+	resolvedParent, err = filepath.Abs(resolvedParent)
+	if err != nil { return err }
+	parentClean := filepath.Clean(parent)
+	resolvedClean := filepath.Clean(resolvedParent)
+	samePath := parentClean == resolvedClean
+	if runtime.GOOS == "windows" {
+		samePath = strings.EqualFold(parentClean, resolvedClean)
+	}
+	if !samePath {
+		return errors.New("File.writeNew rejects symbolic-link or reparse-point parent directories")
+	}
+	pathInfo, err := os.Stat(parent)
+	if err != nil { return err }
+	rootInfo, err := root.Stat(".")
+	if err != nil { return err }
+	if !os.SameFile(pathInfo, rootInfo) {
+		return errors.New("File.writeNew parent directory changed during authorization")
+	}
 	file, err := root.OpenFile(base, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil { return err }
-	if _, err := io.WriteString(file, text); err != nil { _ = file.Close(); return err }
-	if err := file.Sync(); err != nil { _ = file.Close(); return err }
-	return file.Close()
+	cleanup := func() {
+		_ = file.Close()
+		_ = root.Remove(base)
+	}
+	if _, err := io.WriteString(file, text); err != nil { cleanup(); return err }
+	if err := file.Sync(); err != nil { cleanup(); return err }
+	if err := file.Close(); err != nil { _ = root.Remove(base); return err }
+	return nil
 }
 
 // Append appends text to a file
