@@ -17,6 +17,7 @@ const (
 	ActionProductLogsOpen      = "opendesk.logs.open"
 	ActionProductDebugNormal   = "opendesk.debug.normal"
 	ActionProductDebugDetailed = "opendesk.debug.detailed"
+	ActionProductAnalyticsDiagnostics = "opendesk.analytics.diagnostics"
 	ActionProductHome          = "opendesk.home"
 	ActionProductHelp          = "opendesk.help"
 	ActionProductCustomize     = "opendesk.customize"
@@ -103,6 +104,7 @@ func nativeMenuForManifest(manifest Manifest) []nativeMenuItem {
 
 func openDeskProductMenu(manifest Manifest) []nativeMenuItem {
 	preference := localization.GetLocalePreference()
+	analyticsDiagnosticsVisible := false
 	items := []nativeMenuItem{
 		{ID: ActionOpen, Label: translatedProductLabel("menu.open", "显示主窗口")},
 		{ID: ActionProductInstallFlow, Label: translatedProductLabel("menu.installFlow", "安装 Flow…")},
@@ -113,6 +115,7 @@ func openDeskProductMenu(manifest Manifest) []nativeMenuItem {
 		nativeMenuItem{Type: "separator"},
 		nativeMenuItem{ID: menuProductDeveloper, Label: translatedProductLabel("menu.developer", "开发者"), Children: []nativeMenuItem{
 			{ID: ActionProductStatus, Label: translatedProductLabel("menu.runtimeStatus", "运行状态")},
+			{ID: ActionProductAnalyticsDiagnostics, Label: translatedProductLabel("menu.analyticsDiagnostics", "产品统计诊断…"), Visible: &analyticsDiagnosticsVisible},
 			{ID: ActionProductMeasurement, Label: measurementProductLabel()},
 			{ID: ActionProductInspectorOpen, Label: translatedProductLabel("menu.inspector", "打开 Inspector")},
 			{Type: "separator"},
@@ -197,6 +200,7 @@ func isProductSystemAction(value string) bool {
 		ActionProductLogsOpen,
 		ActionProductDebugNormal,
 		ActionProductDebugDetailed,
+		ActionProductAnalyticsDiagnostics,
 		ActionProductHome,
 		ActionProductHelp,
 		ActionProductCustomize,
