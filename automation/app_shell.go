@@ -153,6 +153,23 @@ func (e *AppOwnedScriptRunError) Unwrap() error {
 	return e.Cause
 }
 
+func appOwnedBridgeJSONValue(value any) (any, error) {
+	// The private App bridge is a JavaScript contract, not a Go struct API.
+	// Normalize successful results through their json tags so Goja sees stable
+	// camelCase keys (installId, executionId, scriptHash, ...), including nested
+	// Flow invocation parameter metadata. This also preserves ordinary JSON
+	// number semantics for JavaScript consumers.
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("encode App-owned bridge result: %w", err)
+	}
+	var normalized any
+	if err := json.Unmarshal(payload, &normalized); err != nil {
+		return nil, fmt.Errorf("decode App-owned bridge result: %w", err)
+	}
+	return normalized, nil
+}
+
 // AppShellRuntime is the execution-scoped bridge for automation.app. Native
 // callbacks retain no Goja state: they push plain ActionEvent values into this
 // bounded queue and schedule exactly one drain on the current EventLoop.
@@ -233,7 +250,11 @@ func (a *AppShellRuntime) attachAppOwnedScriptRunner(inspect AppOwnedScriptInspe
 			_ = reject(appShellJSError(a.runtime, "INVALID_ARGUMENT", "inspectScript", err.Error()))
 			return a.runtime.ToValue(promise)
 		}
-		return a.startAsyncWithSignal("inspectScript", signal, func(ctx context.Context) (any, error) { return inspect(ctx, request) })
+		return a.startAsyncWithSignal("inspectScript", signal, func(ctx context.Context) (any, error) {
+			result, err := inspect(ctx, request)
+			if err != nil { return nil, err }
+			return appOwnedBridgeJSONValue(result)
+		})
 	}); err != nil {
 		return fmt.Errorf("register internal App-owned Script inspector: %w", err)
 	}
@@ -245,7 +266,11 @@ func (a *AppShellRuntime) attachAppOwnedScriptRunner(inspect AppOwnedScriptInspe
 				_ = reject(appShellJSError(a.runtime, "INVALID_ARGUMENT", "readScript", err.Error()))
 				return a.runtime.ToValue(promise)
 			}
-			return a.startAsyncWithSignal("readScript", signal, func(ctx context.Context) (any, error) { return read(ctx, request) })
+			return a.startAsyncWithSignal("readScript", signal, func(ctx context.Context) (any, error) {
+				result, err := read(ctx, request)
+				if err != nil { return nil, err }
+				return appOwnedBridgeJSONValue(result)
+			})
 		}); err != nil {
 			return fmt.Errorf("register internal App-owned Script reader: %w", err)
 		}
@@ -262,7 +287,11 @@ func (a *AppShellRuntime) attachAppOwnedScriptRunner(inspect AppOwnedScriptInspe
 			_ = reject(appShellJSError(a.runtime, "INVALID_ARGUMENT", "runScript", err.Error()))
 			return a.runtime.ToValue(promise)
 		}
-		return a.startAsyncWithSignal("runScript", signal, func(ctx context.Context) (any, error) { return run(ctx, request) })
+		return a.startAsyncWithSignal("runScript", signal, func(ctx context.Context) (any, error) {
+			result, err := run(ctx, request)
+			if err != nil { return nil, err }
+			return appOwnedBridgeJSONValue(result)
+		})
 	}); err != nil {
 		return fmt.Errorf("register internal App-owned Script Runner: %w", err)
 	}
@@ -274,7 +303,11 @@ func (a *AppShellRuntime) attachAppOwnedFlowRunner(inspect AppOwnedFlowInspector
 	if err := object.Set("inspect", func(call goja.FunctionCall) goja.Value {
 		request, signal, err := decodeAppOwnedFlowInspectRequest(call.Argument(0))
 		if err != nil { promise, _, reject := a.runtime.NewPromise(); _ = reject(appShellJSError(a.runtime, "INVALID_ARGUMENT", "inspectFlow", err.Error())); return a.runtime.ToValue(promise) }
-		return a.startAsyncWithSignal("inspectFlow", signal, func(ctx context.Context) (any, error) { return inspect(ctx, request) })
+		return a.startAsyncWithSignal("inspectFlow", signal, func(ctx context.Context) (any, error) {
+			result, err := inspect(ctx, request)
+			if err != nil { return nil, err }
+			return appOwnedBridgeJSONValue(result)
+		})
 	}); err != nil { return fmt.Errorf("register internal App-owned Flow inspector: %w", err) }
 	if reserve != nil {
 		if err := object.Set("reserve", func(goja.FunctionCall) goja.Value {
@@ -284,7 +317,11 @@ func (a *AppShellRuntime) attachAppOwnedFlowRunner(inspect AppOwnedFlowInspector
 	if err := object.Set("run", func(call goja.FunctionCall) goja.Value {
 		request, signal, err := decodeAppOwnedFlowRunRequest(call.Argument(0))
 		if err != nil { promise, _, reject := a.runtime.NewPromise(); _ = reject(appShellJSError(a.runtime, "INVALID_ARGUMENT", "runFlow", err.Error())); return a.runtime.ToValue(promise) }
-		return a.startAsyncWithSignal("runFlow", signal, func(ctx context.Context) (any, error) { return run(ctx, request) })
+		return a.startAsyncWithSignal("runFlow", signal, func(ctx context.Context) (any, error) {
+			result, err := run(ctx, request)
+			if err != nil { return nil, err }
+			return appOwnedBridgeJSONValue(result)
+		})
 	}); err != nil { return fmt.Errorf("register internal App-owned Flow runner: %w", err) }
 	return a.runtime.GlobalObject().DefineDataProperty("__opendeskFlowExecution", object, goja.FLAG_FALSE, goja.FLAG_FALSE, goja.FLAG_FALSE)
 }
