@@ -20,12 +20,12 @@ func TestDiscoverCurrentAppSchedulerUsesOnlyAuthenticatedLiveBridge(t *testing.T
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"code": 0,
+			"code":    0,
 			"message": "success",
 			"data": map[string]any{
-				"available": true,
-				"runnerState": "active",
-				"scriptRoot": filepath.Join(root, "recipes"),
+				"available":    true,
+				"runnerState":  "active",
+				"scriptRoot":   filepath.Join(root, "recipes"),
 				"artifactRoot": filepath.Join(root, ".runtime", "runs"),
 			},
 		})
@@ -33,19 +33,19 @@ func TestDiscoverCurrentAppSchedulerUsesOnlyAuthenticatedLiveBridge(t *testing.T
 	defer server.Close()
 	writeTestSchedulerBridge(t, root, "live.json", schedulerCLIBridge{
 		SchemaVersion: schedulerCLIBridgeSchemaVersion,
-		PackageID: "com.opendesk.desktop",
-		ExecutionID: "exec-live",
-		Endpoint: server.URL,
-		Token: token,
+		PackageID:     "com.opendesk.desktop",
+		ExecutionID:   "exec-live",
+		Endpoint:      server.URL,
+		Token:         token,
 	})
 	// A syntactically valid but dead bridge is stale metadata, not a second
 	// instance. Discovery must probe it before deciding cardinality.
 	writeTestSchedulerBridge(t, root, "stale.json", schedulerCLIBridge{
 		SchemaVersion: schedulerCLIBridgeSchemaVersion,
-		PackageID: "com.opendesk.desktop",
-		ExecutionID: "exec-stale",
-		Endpoint: "http://127.0.0.1:1",
-		Token: strings.Repeat("cd", 32),
+		PackageID:     "com.opendesk.desktop",
+		ExecutionID:   "exec-stale",
+		Endpoint:      "http://127.0.0.1:1",
+		Token:         strings.Repeat("cd", 32),
 	})
 
 	connection, err := discoverCurrentAppScheduler(t.Context())
@@ -65,21 +65,25 @@ func TestDiscoverCurrentAppSchedulerRefusesMultipleLiveInstances(t *testing.T) {
 		token := strings.Repeat(string(rune('a'+index)), 64)
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"code": 0,
+				"code":    0,
 				"message": "success",
-				"data": map[string]any{"available": true, "runnerState": "active"},
+				"data":    map[string]any{"available": true, "runnerState": "active"},
 			})
 		}))
 		servers = append(servers, server)
 		writeTestSchedulerBridge(t, root, "live-"+string(rune('0'+index))+".json", schedulerCLIBridge{
 			SchemaVersion: schedulerCLIBridgeSchemaVersion,
-			PackageID: "com.opendesk.desktop",
-			ExecutionID: "exec-"+string(rune('0'+index)),
-			Endpoint: server.URL,
-			Token: token,
+			PackageID:     "com.opendesk.desktop",
+			ExecutionID:   "exec-" + string(rune('0'+index)),
+			Endpoint:      server.URL,
+			Token:         token,
 		})
 	}
-	defer func() { for _, server := range servers { server.Close() } }()
+	defer func() {
+		for _, server := range servers {
+			server.Close()
+		}
+	}()
 
 	_, err := discoverCurrentAppScheduler(t.Context())
 	var typed *schedulerCommandError
@@ -133,10 +137,16 @@ func TestPrepareSchedulerTestPayloadDoesNotOverwriteConflict(t *testing.T) {
 func writeTestSchedulerBridge(t *testing.T, root, name string, bridge schedulerCLIBridge) {
 	t.Helper()
 	dir := filepath.Join(root, ".runtime", "scheduler-bridges")
-	if err := os.MkdirAll(dir, 0o700); err != nil { t.Fatal(err) }
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	data, err := json.Marshal(bridge)
-	if err != nil { t.Fatal(err) }
-	if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // Keep the test independent of errors.As import churn in the command file.
@@ -144,7 +154,9 @@ func errorAs(err error, target any) bool {
 	switch value := target.(type) {
 	case **schedulerCommandError:
 		current, ok := err.(*schedulerCommandError)
-		if ok { *value = current }
+		if ok {
+			*value = current
+		}
 		return ok
 	default:
 		return false

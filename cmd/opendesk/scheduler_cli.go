@@ -34,10 +34,10 @@ type schedulerCLIBridge struct {
 }
 
 type schedulerCLIStatus struct {
-	Available    bool   `json:"available"`
-	RunnerState  string `json:"runnerState"`
-	ScriptRoot   string `json:"scriptRoot"`
-	ArtifactRoot string `json:"artifactRoot"`
+	Available     bool   `json:"available"`
+	RunnerState   string `json:"runnerState"`
+	ScriptRoot    string `json:"scriptRoot"`
+	ArtifactRoot  string `json:"artifactRoot"`
 	LocalEndpoint string `json:"localEndpoint"`
 }
 
@@ -153,9 +153,15 @@ func schedulerCLICreate(ctx context.Context, args []string) (any, error) {
 		return nil, schedulerCLIError("SCHEDULER_USAGE", "--name and --expression (or --at) are required")
 	}
 	selectedSources := 0
-	if strings.TrimSpace(*script) != "" { selectedSources++ }
-	if strings.TrimSpace(*inline) != "" { selectedSources++ }
-	if strings.TrimSpace(*inlineFile) != "" { selectedSources++ }
+	if strings.TrimSpace(*script) != "" {
+		selectedSources++
+	}
+	if strings.TrimSpace(*inline) != "" {
+		selectedSources++
+	}
+	if strings.TrimSpace(*inlineFile) != "" {
+		selectedSources++
+	}
 	if selectedSources != 1 {
 		return nil, schedulerCLIError("SCHEDULER_USAGE", "choose exactly one of --script, --inline, or --inline-file")
 	}
@@ -183,7 +189,9 @@ func schedulerCLICreate(ctx context.Context, args []string) (any, error) {
 		}
 	}
 	connection, err := discoverCurrentAppScheduler(ctx)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var job pkgScheduler.Job
 	if err := connection.request(ctx, http.MethodPost, "/api/scheduler/jobs", input, &job); err != nil {
 		return nil, err
@@ -196,7 +204,9 @@ func schedulerCLIList(ctx context.Context, args []string) (any, error) {
 		return nil, schedulerCLIError("SCHEDULER_USAGE", "scheduler list does not accept arguments")
 	}
 	connection, err := discoverCurrentAppScheduler(ctx)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var jobs []pkgScheduler.Job
 	if err := connection.request(ctx, http.MethodGet, "/api/scheduler/jobs", nil, &jobs); err != nil {
 		return nil, err
@@ -215,10 +225,16 @@ func schedulerCLIRuns(ctx context.Context, args []string) (any, error) {
 	if flags.NArg() != 0 || strings.TrimSpace(*jobID) == "" {
 		return nil, schedulerCLIError("SCHEDULER_USAGE", "scheduler runs requires --job <jobId>")
 	}
-	if *limit < 1 { *limit = 1 }
-	if *limit > 100 { *limit = 100 }
+	if *limit < 1 {
+		*limit = 1
+	}
+	if *limit > 100 {
+		*limit = 100
+	}
 	connection, err := discoverCurrentAppScheduler(ctx)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var runs []pkgScheduler.JobRun
 	path := "/api/scheduler/jobs/" + url.PathEscape(strings.TrimSpace(*jobID)) + "/runs?limit=" + strconv.Itoa(*limit)
 	if err := connection.request(ctx, http.MethodGet, path, nil, &runs); err != nil {
@@ -238,7 +254,9 @@ func schedulerCLIDelete(ctx context.Context, args []string) (any, error) {
 		return nil, schedulerCLIError("SCHEDULER_USAGE", "scheduler delete requires --job <jobId>")
 	}
 	connection, err := discoverCurrentAppScheduler(ctx)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	var result map[string]any
 	path := "/api/scheduler/jobs/" + url.PathEscape(strings.TrimSpace(*jobID))
 	if err := connection.request(ctx, http.MethodDelete, path, nil, &result); err != nil {
@@ -278,7 +296,9 @@ func discoverCurrentAppScheduler(ctx context.Context) (*schedulerCLIConnection, 
 			continue
 		}
 		data, readErr := os.ReadFile(path)
-		if readErr != nil { continue }
+		if readErr != nil {
+			continue
+		}
 		var bridge schedulerCLIBridge
 		if json.Unmarshal(data, &bridge) != nil || bridge.SchemaVersion != schedulerCLIBridgeSchemaVersion || bridge.PackageID != appdata.DesktopPackageID {
 			continue
@@ -289,10 +309,14 @@ func discoverCurrentAppScheduler(ctx context.Context) (*schedulerCLIConnection, 
 		}
 		bridge.Endpoint = endpoint
 		key := endpoint + "\x00" + bridge.Token
-		if seen[key] { continue }
+		if seen[key] {
+			continue
+		}
 		client := &http.Client{Timeout: 850 * time.Millisecond}
 		status, probeErr := probeSchedulerBridge(ctx, client, bridge)
-		if probeErr != nil || !status.Available { continue }
+		if probeErr != nil || !status.Available {
+			continue
+		}
 		seen[key] = true
 		live = append(live, liveCandidate{bridge: bridge, status: status, client: client})
 	}
@@ -303,7 +327,9 @@ func discoverCurrentAppScheduler(ctx context.Context) (*schedulerCLIConnection, 
 		ids := make([]string, 0, len(live))
 		for _, candidate := range live {
 			id := strings.TrimSpace(candidate.bridge.ExecutionID)
-			if id == "" { id = candidate.bridge.Endpoint }
+			if id == "" {
+				id = candidate.bridge.Endpoint
+			}
 			ids = append(ids, id)
 		}
 		return nil, schedulerCLIError("APP_SCHEDULER_AMBIGUOUS", fmt.Sprintf("multiple live OpenDesk desktop Scheduler instances were found (%s); close extra instances and retry", strings.Join(ids, ", ")))
@@ -316,14 +342,22 @@ func validateSchedulerBridgeEndpoint(raw string) (string, bool) {
 	if err != nil || parsed.Scheme != "http" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return "", false
 	}
-	if parsed.Path != "" && parsed.Path != "/" { return "", false }
+	if parsed.Path != "" && parsed.Path != "/" {
+		return "", false
+	}
 	host := parsed.Hostname()
 	port := parsed.Port()
-	if host == "" || port == "" { return "", false }
+	if host == "" || port == "" {
+		return "", false
+	}
 	ip := net.ParseIP(host)
-	if ip == nil || !ip.IsLoopback() { return "", false }
+	if ip == nil || !ip.IsLoopback() {
+		return "", false
+	}
 	portNumber, err := strconv.Atoi(port)
-	if err != nil || portNumber < 1 || portNumber > 65535 { return "", false }
+	if err != nil || portNumber < 1 || portNumber > 65535 {
+		return "", false
+	}
 	return strings.TrimRight(parsed.Scheme+"://"+parsed.Host, "/"), true
 }
 
@@ -348,24 +382,34 @@ func (c *schedulerCLIConnection) request(ctx context.Context, method, path strin
 	var body io.Reader
 	if input != nil {
 		encoded, err := json.Marshal(input)
-		if err != nil { return schedulerCLIError("SCHEDULER_REQUEST_FAILED", err.Error()) }
+		if err != nil {
+			return schedulerCLIError("SCHEDULER_REQUEST_FAILED", err.Error())
+		}
 		body = bytes.NewReader(encoded)
 	}
 	request, err := http.NewRequestWithContext(ctx, method, c.bridge.Endpoint+path, body)
-	if err != nil { return schedulerCLIError("SCHEDULER_REQUEST_FAILED", err.Error()) }
+	if err != nil {
+		return schedulerCLIError("SCHEDULER_REQUEST_FAILED", err.Error())
+	}
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("X-OpenDesk-App-Token", c.bridge.Token)
-	if input != nil { request.Header.Set("Content-Type", "application/json") }
+	if input != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
 	response, err := c.client.Do(request)
 	if err != nil {
 		return schedulerCLIError("APP_SCHEDULER_UNREACHABLE", fmt.Sprintf("current OpenDesk Scheduler request failed: %v", err))
 	}
 	defer response.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(response.Body, 4<<20))
-	if err != nil { return schedulerCLIError("SCHEDULER_RESPONSE_FAILED", err.Error()) }
+	if err != nil {
+		return schedulerCLIError("SCHEDULER_RESPONSE_FAILED", err.Error())
+	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		message := strings.TrimSpace(string(data))
-		if message == "" { message = response.Status }
+		if message == "" {
+			message = response.Status
+		}
 		return schedulerCLIError("SCHEDULER_REQUEST_REJECTED", message)
 	}
 	var envelope schedulerCLIEnvelope
@@ -374,7 +418,9 @@ func (c *schedulerCLIConnection) request(ctx context.Context, method, path strin
 	}
 	if envelope.Code != 0 {
 		message := strings.TrimSpace(envelope.Message)
-		if message == "" { message = "Scheduler request failed" }
+		if message == "" {
+			message = "Scheduler request failed"
+		}
 		return schedulerCLIError("SCHEDULER_REQUEST_REJECTED", message)
 	}
 	if output != nil && len(envelope.Data) != 0 && string(envelope.Data) != "null" {

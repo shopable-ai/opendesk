@@ -278,10 +278,9 @@ test('Scheduler Center presents actions with icons and accessible labels', async
     ['openCreate', 'plus', '创建计划，展开表单'],
     ['refresh', 'arrow.clockwise', '刷新计划列表'],
     ['closeCreate', 'xmark', '取消创建并收起表单'],
-    ['fillFileExample', 'doc.fill', '填入通知文件示例'],
     ['fillInlineExample', 'doc.text.fill', '填入 ui.toast 文本示例'],
     ['createJob', 'plus', '创建计划'],
-    ['run0', 'play.fill', '立即运行'],
+    ['run0', 'play.fill', '手动立即运行（不计入自动调度验证）'],
     ['toggle0', 'pause.fill', '暂停计划'],
     ['history0', 'list.bullet', '查看运行历史'],
     ['delete0', 'trash.fill', '删除计划'],
@@ -294,9 +293,8 @@ test('Scheduler Center presents actions with icons and accessible labels', async
     ['openCreate', '创建计划，展开表单'],
     ['refresh', '刷新计划列表'],
     ['closeCreate', '取消创建并收起表单'],
-    ['fillFileExample', '填入通知文件示例'],
     ['fillInlineExample', '填入 ui.toast 文本示例'],
-    ['run0', '立即运行'],
+    ['run0', '手动立即运行（不计入自动调度验证）'],
     ['toggle0', '暂停计划'],
     ['history0', '查看运行历史'],
     ['delete0', '删除计划'],
@@ -385,7 +383,7 @@ test('schedule selectors use accessible dark-theme fields and update expression 
   type.state.value = 'at';
   type.handlers.get('change')();
   await settle();
-  assert.equal(window.control('scheduleHint').state.text, '单次示例：2026-09-12T18:30:00+08:00');
+  assert.equal(window.control('scheduleHint').state.text, '单次：填写 RFC3339 时间；测试计划默认使用未来 15 / 45 秒。');
 });
 
 test('Scheduler Center creates inline script jobs from a multiline editor and built-in toast example', async () => {
@@ -424,22 +422,16 @@ test('Scheduler Center creates inline script jobs from a multiline editor and bu
   assert.equal(Object.prototype.hasOwnProperty.call(f.createdInputs[0], 'scriptPath'), false);
   assert.equal(f.createdInputs[0].taskType, 'script');
   assert.equal(window.control('createName').state.value, '');
-  assert.match(window.control('status').state.text, /已创建脚本文本计划：Inline notify fixture/);
+  assert.match(window.control('status').state.text, /已创建真实计划：Inline notify fixture/);
 });
 
-test('Scheduler Center can fill and create the repository notify file example', async () => {
+test('Scheduler Center creates a file plan from an editable relative path', async () => {
   const f = createHarness();
   await f.center.openCreate('file-job');
   const window = f.windows[0];
 
-  window.control('fillFileExample').handlers.get('click')();
-  await settle();
-
-  assert.equal(window.control('createSource').state.value, 'file');
-  assert.equal(window.control('createScript').state.value, 'notify-and-log.js');
-  assert.equal(window.control('createName').state.value, 'UI 文件通知计划');
-  assert.deepEqual(window.control('fileSourceGroup').state.classes, ['source-group']);
-  assert.deepEqual(window.control('inlineSourceGroup').state.classes, ['source-group', 'is-hidden']);
+  window.control('createName').state.value = 'Relative file fixture';
+  window.control('createScript').state.value = 'nested/notify-and-log.js';
 
   window.control('createJob').handlers.get('click')();
   await settle();
@@ -447,9 +439,9 @@ test('Scheduler Center can fill and create the repository notify file example', 
 
   assert.equal(f.createdInputs.length, 1);
   assert.equal(f.createdInputs[0].sourceType, 'file');
-  assert.equal(f.createdInputs[0].scriptPath, 'notify-and-log.js');
+  assert.equal(f.createdInputs[0].scriptPath, 'nested/notify-and-log.js');
   assert.equal(Object.prototype.hasOwnProperty.call(f.createdInputs[0], 'inlineScript'), false);
-  assert.match(window.control('status').state.text, /已创建脚本文件计划：UI 文件通知计划/);
+  assert.match(window.control('status').state.text, /已创建真实计划：Relative file fixture/);
 });
 
 test('history opens with only Custom UI v1 supported elements', async () => {

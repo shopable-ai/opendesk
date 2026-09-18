@@ -40,33 +40,33 @@ type schedulerTestBatchJob struct {
 }
 
 type schedulerTestBatch struct {
-	SchemaVersion       int                     `json:"schemaVersion"`
-	BatchID             string                  `json:"batchId"`
-	RequestID           string                  `json:"requestId"`
-	CreatedAt           time.Time               `json:"createdAt"`
-	UpdatedAt           time.Time               `json:"updatedAt"`
-	Status              string                  `json:"status"`
-	Jobs                []schedulerTestBatchJob `json:"jobs"`
-	PreDueCheckedAt     *time.Time              `json:"preDueCheckedAt,omitempty"`
-	PreDueHistoryEmpty  bool                    `json:"preDueHistoryEmpty"`
-	LastError           string                  `json:"lastError,omitempty"`
-	ReportPath          string                  `json:"reportPath,omitempty"`
-	RemovedAt           *time.Time              `json:"removedAt,omitempty"`
+	SchemaVersion      int                     `json:"schemaVersion"`
+	BatchID            string                  `json:"batchId"`
+	RequestID          string                  `json:"requestId"`
+	CreatedAt          time.Time               `json:"createdAt"`
+	UpdatedAt          time.Time               `json:"updatedAt"`
+	Status             string                  `json:"status"`
+	Jobs               []schedulerTestBatchJob `json:"jobs"`
+	PreDueCheckedAt    *time.Time              `json:"preDueCheckedAt,omitempty"`
+	PreDueHistoryEmpty bool                    `json:"preDueHistoryEmpty"`
+	LastError          string                  `json:"lastError,omitempty"`
+	ReportPath         string                  `json:"reportPath,omitempty"`
+	RemovedAt          *time.Time              `json:"removedAt,omitempty"`
 }
 
 type schedulerTestRunCheck struct {
-	Kind                string                     `json:"kind"`
-	JobID               string                     `json:"jobId"`
-	ExpectedScheduledAt time.Time                  `json:"expectedScheduledAt"`
-	PersistedScheduled  bool                       `json:"persistedScheduled"`
-	RunCount            int                        `json:"runCount"`
-	Run                 *pkgScheduler.JobRun       `json:"run,omitempty"`
-	StartLatencyMs      *int64                     `json:"startLatencyMs,omitempty"`
-	Checks              map[string]bool            `json:"checks"`
-	ArtifactPath        string                     `json:"artifactPath,omitempty"`
-	StdoutPath          string                     `json:"stdoutPath,omitempty"`
-	PayloadEvidence     map[string]any             `json:"payloadEvidence,omitempty"`
-	Problems            []string                   `json:"problems,omitempty"`
+	Kind                string               `json:"kind"`
+	JobID               string               `json:"jobId"`
+	ExpectedScheduledAt time.Time            `json:"expectedScheduledAt"`
+	PersistedScheduled  bool                 `json:"persistedScheduled"`
+	RunCount            int                  `json:"runCount"`
+	Run                 *pkgScheduler.JobRun `json:"run,omitempty"`
+	StartLatencyMs      *int64               `json:"startLatencyMs,omitempty"`
+	Checks              map[string]bool      `json:"checks"`
+	ArtifactPath        string               `json:"artifactPath,omitempty"`
+	StdoutPath          string               `json:"stdoutPath,omitempty"`
+	PayloadEvidence     map[string]any       `json:"payloadEvidence,omitempty"`
+	Problems            []string             `json:"problems,omitempty"`
 }
 
 type schedulerTestVerificationReport struct {
@@ -85,12 +85,12 @@ type schedulerTestVerificationReport struct {
 }
 
 type schedulerTestRemovalResult struct {
-	BatchID          string   `json:"batchId"`
-	DeletedJobIDs    []string `json:"deletedJobIds"`
-	AlreadyMissing   []string `json:"alreadyMissingJobIds,omitempty"`
-	RunningAtRemoval []string `json:"runningAtRemovalJobIds,omitempty"`
-	FutureSchedulesRemoved bool `json:"futureSchedulesRemoved"`
-	ReportPath       string   `json:"reportPath,omitempty"`
+	BatchID                string   `json:"batchId"`
+	DeletedJobIDs          []string `json:"deletedJobIds"`
+	AlreadyMissing         []string `json:"alreadyMissingJobIds,omitempty"`
+	RunningAtRemoval       []string `json:"runningAtRemovalJobIds,omitempty"`
+	FutureSchedulesRemoved bool     `json:"futureSchedulesRemoved"`
+	ReportPath             string   `json:"reportPath,omitempty"`
 }
 
 func runSchedulerTestCLI(ctx context.Context, args []string) (any, error) {
@@ -125,7 +125,9 @@ func schedulerTestAdd(ctx context.Context, args []string) (any, error) {
 		*requestID = newSchedulerTestID("request")
 	}
 	storeRoot, err := schedulerTestStoreRoot()
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	lockCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	lease, err := processlock.Acquire(lockCtx, filepath.Join(storeRoot, ".batch.lock"), 25*time.Millisecond)
@@ -135,14 +137,20 @@ func schedulerTestAdd(ctx context.Context, args []string) (any, error) {
 	defer lease.Close()
 
 	batch, found, err := findSchedulerTestBatchByRequest(storeRoot, strings.TrimSpace(*requestID))
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	connection, err := discoverCurrentAppScheduler(ctx)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	if connection.status.RunnerState != "active" {
 		return nil, schedulerCLIError("APP_SCHEDULER_NOT_OWNER", "the current OpenDesk desktop App is not the active Scheduler owner")
 	}
 	fileRelative, err := prepareSchedulerTestPayloadFile(connection.status.ScriptRoot)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 
 	if !found {
 		base := time.Now().UTC()
@@ -168,8 +176,12 @@ func schedulerTestAdd(ctx context.Context, args []string) (any, error) {
 		// recover a job created just before a client crash without deleting by name.
 		batch.Jobs[0].Name = "OpenDesk 调度测试 · 文本 · " + shortBatchID(batch.BatchID)
 		batch.Jobs[1].Name = "OpenDesk 调度测试 · 文件 · " + shortBatchID(batch.BatchID)
-		if err := saveSchedulerTestBatch(storeRoot, &batch); err != nil { return nil, err }
-		if err := saveCurrentSchedulerTestBatch(storeRoot, batch.BatchID); err != nil { return nil, err }
+		if err := saveSchedulerTestBatch(storeRoot, &batch); err != nil {
+			return nil, err
+		}
+		if err := saveCurrentSchedulerTestBatch(storeRoot, batch.BatchID); err != nil {
+			return nil, err
+		}
 	} else {
 		if batch.Status == "removed" {
 			return batch, nil
@@ -183,20 +195,28 @@ func schedulerTestAdd(ctx context.Context, args []string) (any, error) {
 	// Recover deterministic jobs before creating a missing slot. This closes
 	// the create-response persistence crash window without ever deleting by name.
 	var allJobs []pkgScheduler.Job
-	if err := connection.request(ctx, http.MethodGet, "/api/scheduler/jobs", nil, &allJobs); err != nil { return nil, err }
+	if err := connection.request(ctx, http.MethodGet, "/api/scheduler/jobs", nil, &allJobs); err != nil {
+		return nil, err
+	}
 	for index := range batch.Jobs {
-		if batch.Jobs[index].JobID != "" { continue }
+		if batch.Jobs[index].JobID != "" {
+			continue
+		}
 		if recovered := recoverSchedulerTestJob(allJobs, batch.Jobs[index]); recovered != nil {
 			batch.Jobs[index].JobID = recovered.ID
 			batch.Jobs[index].PersistedScheduled = recovered.NextRunAt != nil && recovered.NextRunAt.Equal(batch.Jobs[index].ExpectedScheduledAt)
 			batch.UpdatedAt = time.Now().UTC()
-			if err := saveSchedulerTestBatch(storeRoot, &batch); err != nil { return nil, err }
+			if err := saveSchedulerTestBatch(storeRoot, &batch); err != nil {
+				return nil, err
+			}
 		}
 	}
 
 	for index := range batch.Jobs {
 		entry := &batch.Jobs[index]
-		if entry.JobID != "" { continue }
+		if entry.JobID != "" {
+			continue
+		}
 		if !time.Now().UTC().Before(entry.ExpectedScheduledAt) {
 			batch.Status = "partial"
 			batch.LastError = fmt.Sprintf("%s test schedule is already due; clean this batch before creating another", entry.Kind)
@@ -230,15 +250,21 @@ func schedulerTestAdd(ctx context.Context, args []string) (any, error) {
 		entry.JobID = created.ID
 		entry.PersistedScheduled = created.NextRunAt != nil && created.NextRunAt.Equal(entry.ExpectedScheduledAt)
 		batch.UpdatedAt = time.Now().UTC()
-		if err := saveSchedulerTestBatch(storeRoot, &batch); err != nil { return nil, err }
+		if err := saveSchedulerTestBatch(storeRoot, &batch); err != nil {
+			return nil, err
+		}
 	}
 
 	// Re-query the server, rather than trusting create responses, and capture the
 	// pre-due invariant while the product default leaves a 15-second safety gap.
 	allJobs = nil
-	if err := connection.request(ctx, http.MethodGet, "/api/scheduler/jobs", nil, &allJobs); err != nil { return nil, err }
+	if err := connection.request(ctx, http.MethodGet, "/api/scheduler/jobs", nil, &allJobs); err != nil {
+		return nil, err
+	}
 	byID := make(map[string]pkgScheduler.Job, len(allJobs))
-	for _, job := range allJobs { byID[job.ID] = job }
+	for _, job := range allJobs {
+		byID[job.ID] = job
+	}
 	persistedOK := true
 	preDueEmpty := true
 	checkedAt := time.Now().UTC()
@@ -248,8 +274,12 @@ func schedulerTestAdd(ctx context.Context, args []string) (any, error) {
 		entry.PersistedScheduled = exists && persisted.NextRunAt != nil && persisted.NextRunAt.Equal(entry.ExpectedScheduledAt)
 		persistedOK = persistedOK && entry.PersistedScheduled
 		var runs []pkgScheduler.JobRun
-		if err := connection.request(ctx, http.MethodGet, schedulerRunsPath(entry.JobID, 20), nil, &runs); err != nil { return nil, err }
-		if !checkedAt.Before(entry.ExpectedScheduledAt) || len(runs) != 0 { preDueEmpty = false }
+		if err := connection.request(ctx, http.MethodGet, schedulerRunsPath(entry.JobID, 20), nil, &runs); err != nil {
+			return nil, err
+		}
+		if !checkedAt.Before(entry.ExpectedScheduledAt) || len(runs) != 0 {
+			preDueEmpty = false
+		}
 	}
 	batch.PreDueCheckedAt = &checkedAt
 	batch.PreDueHistoryEmpty = preDueEmpty
@@ -258,11 +288,17 @@ func schedulerTestAdd(ctx context.Context, args []string) (any, error) {
 		batch.Status = "waiting"
 	} else {
 		batch.Status = "partial"
-		if !persistedOK { batch.LastError = "persisted schedule differs from requested schedule" }
-		if !preDueEmpty { batch.LastError = strings.TrimSpace(batch.LastError + "; pre-due empty-history check was not established") }
+		if !persistedOK {
+			batch.LastError = "persisted schedule differs from requested schedule"
+		}
+		if !preDueEmpty {
+			batch.LastError = strings.TrimSpace(batch.LastError + "; pre-due empty-history check was not established")
+		}
 	}
 	batch.UpdatedAt = time.Now().UTC()
-	if err := saveSchedulerTestBatch(storeRoot, &batch); err != nil { return nil, err }
+	if err := saveSchedulerTestBatch(storeRoot, &batch); err != nil {
+		return nil, err
+	}
 	return batch, nil
 }
 
@@ -283,24 +319,39 @@ func schedulerTestVerify(ctx context.Context, args []string) (any, error) {
 		return nil, schedulerCLIError("SCHEDULER_USAGE", "verify requires non-negative --wait and --latency-tolerance")
 	}
 	storeRoot, err := schedulerTestStoreRoot()
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	batch, err := loadSchedulerTestBatch(storeRoot, strings.TrimSpace(*batchID))
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	connection, err := discoverCurrentAppScheduler(ctx)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 
 	deadline := time.Now().Add(*wait)
 	var report schedulerTestVerificationReport
 	for {
 		report, err = buildSchedulerTestVerification(ctx, connection, batch, *tolerance)
-		if err != nil { return nil, err }
-		if schedulerTestReportTerminal(report) || *wait == 0 || !time.Now().Before(deadline) { break }
+		if err != nil {
+			return nil, err
+		}
+		if schedulerTestReportTerminal(report) || *wait == 0 || !time.Now().Before(deadline) {
+			break
+		}
 		remaining := time.Until(deadline)
 		delay := 250 * time.Millisecond
-		if remaining < delay { delay = remaining }
-		if delay <= 0 { break }
+		if remaining < delay {
+			delay = remaining
+		}
+		if delay <= 0 {
+			break
+		}
 		select {
-		case <-ctx.Done(): return nil, ctx.Err()
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		case <-time.After(delay):
 		}
 	}
@@ -314,42 +365,52 @@ func schedulerTestVerify(ctx context.Context, args []string) (any, error) {
 	}
 	batch.ReportPath = reportPath
 	batch.UpdatedAt = time.Now().UTC()
-	if report.VerificationStatus == "passed" { batch.Status = "verified" } else if schedulerTestReportTerminal(report) { batch.Status = "verification_failed" }
-	if err := saveSchedulerTestBatch(storeRoot, &batch); err != nil { return nil, err }
+	if report.VerificationStatus == "passed" {
+		batch.Status = "verified"
+	} else if schedulerTestReportTerminal(report) {
+		batch.Status = "verification_failed"
+	}
+	if err := saveSchedulerTestBatch(storeRoot, &batch); err != nil {
+		return nil, err
+	}
 	return map[string]any{"batch": batch, "report": report, "reportPath": reportPath}, nil
 }
 
 func buildSchedulerTestVerification(ctx context.Context, connection *schedulerCLIConnection, batch schedulerTestBatch, tolerance time.Duration) (schedulerTestVerificationReport, error) {
 	now := time.Now().UTC()
 	report := schedulerTestVerificationReport{
-		SchemaVersion: schedulerTestBatchSchemaVersion,
-		BatchID: batch.BatchID,
-		CheckedAt: now,
-		VerificationStatus: "waiting",
-		RunnerState: connection.status.RunnerState,
-		LatencyToleranceMs: tolerance.Milliseconds(),
-		PreDueHistoryEmpty: batch.PreDueHistoryEmpty,
+		SchemaVersion:       schedulerTestBatchSchemaVersion,
+		BatchID:             batch.BatchID,
+		CheckedAt:           now,
+		VerificationStatus:  "waiting",
+		RunnerState:         connection.status.RunnerState,
+		LatencyToleranceMs:  tolerance.Milliseconds(),
+		PreDueHistoryEmpty:  batch.PreDueHistoryEmpty,
 		DifferentExecutions: false,
-		Runs: make([]schedulerTestRunCheck, 0, len(batch.Jobs)),
-		NativeVisual: "NOT_RUN",
-		PlatformResults: map[string]string{"macos": "NOT_RUN", "windows": "NOT_RUN"},
+		Runs:                make([]schedulerTestRunCheck, 0, len(batch.Jobs)),
+		NativeVisual:        "NOT_RUN",
+		PlatformResults:     map[string]string{"macos": "NOT_RUN", "windows": "NOT_RUN"},
 	}
 	if !batch.PreDueHistoryEmpty {
 		report.Problems = append(report.Problems, "pre-due empty run history was not established")
 	}
 	var jobs []pkgScheduler.Job
-	if err := connection.request(ctx, http.MethodGet, "/api/scheduler/jobs", nil, &jobs); err != nil { return report, err }
+	if err := connection.request(ctx, http.MethodGet, "/api/scheduler/jobs", nil, &jobs); err != nil {
+		return report, err
+	}
 	byID := make(map[string]pkgScheduler.Job, len(jobs))
-	for _, job := range jobs { byID[job.ID] = job }
+	for _, job := range jobs {
+		byID[job.ID] = job
+	}
 	executionIDs := map[string]bool{}
 	allTerminal := true
 	allObjectiveChecks := batch.PreDueHistoryEmpty
 	for _, expected := range batch.Jobs {
 		check := schedulerTestRunCheck{
-			Kind: expected.Kind,
-			JobID: expected.JobID,
+			Kind:                expected.Kind,
+			JobID:               expected.JobID,
 			ExpectedScheduledAt: expected.ExpectedScheduledAt,
-			Checks: map[string]bool{},
+			Checks:              map[string]bool{},
 		}
 		persisted, exists := byID[expected.JobID]
 		if exists {
@@ -367,7 +428,9 @@ func buildSchedulerTestVerification(ctx context.Context, connection *schedulerCL
 			report.Runs = append(report.Runs, check)
 			continue
 		}
-		if err := connection.request(ctx, http.MethodGet, schedulerRunsPath(expected.JobID, 20), nil, &runs); err != nil { return report, err }
+		if err := connection.request(ctx, http.MethodGet, schedulerRunsPath(expected.JobID, 20), nil, &runs); err != nil {
+			return report, err
+		}
 		check.RunCount = len(runs)
 		check.Checks["ranAtMostOnce"] = len(runs) <= 1
 		if len(runs) == 0 {
@@ -400,7 +463,9 @@ func buildSchedulerTestVerification(ctx context.Context, connection *schedulerCL
 		} else {
 			check.Checks["noNextSchedule"] = !terminal
 		}
-		if run.ExecutionID != "" { executionIDs[run.ExecutionID] = true }
+		if run.ExecutionID != "" {
+			executionIDs[run.ExecutionID] = true
+		}
 		if terminal && run.ExecutionID != "" {
 			artifactPath := filepath.Join(connection.status.ArtifactRoot, run.ExecutionID, schedulerTestEvidenceFile)
 			stdoutPath := filepath.Join(connection.status.ArtifactRoot, run.ExecutionID, "stdout.log")
@@ -428,10 +493,18 @@ func buildSchedulerTestVerification(ctx context.Context, connection *schedulerCL
 				check.Problems = append(check.Problems, name+"=false")
 			}
 		}
-		if len(runs) > 1 { check.Problems = append(check.Problems, fmt.Sprintf("one-time job produced %d runs", len(runs))) }
-		if !terminal { allTerminal = false }
-		if terminal && len(check.Problems) > 0 { allObjectiveChecks = false }
-		if !check.PersistedScheduled || len(runs) > 1 { allObjectiveChecks = false }
+		if len(runs) > 1 {
+			check.Problems = append(check.Problems, fmt.Sprintf("one-time job produced %d runs", len(runs)))
+		}
+		if !terminal {
+			allTerminal = false
+		}
+		if terminal && len(check.Problems) > 0 {
+			allObjectiveChecks = false
+		}
+		if !check.PersistedScheduled || len(runs) > 1 {
+			allObjectiveChecks = false
+		}
 		report.Runs = append(report.Runs, check)
 	}
 	if allTerminal && len(batch.Jobs) == 2 {
@@ -463,31 +536,49 @@ func schedulerTestRemove(ctx context.Context, args []string) (any, error) {
 	if err := flags.Parse(args); err != nil {
 		return nil, schedulerCLIError("SCHEDULER_USAGE", err.Error())
 	}
-	if flags.NArg() != 0 { return nil, schedulerCLIError("SCHEDULER_USAGE", "remove accepts only --batch") }
+	if flags.NArg() != 0 {
+		return nil, schedulerCLIError("SCHEDULER_USAGE", "remove accepts only --batch")
+	}
 	storeRoot, err := schedulerTestStoreRoot()
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	lockCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	lease, err := processlock.Acquire(lockCtx, filepath.Join(storeRoot, ".batch.lock"), 25*time.Millisecond)
-	if err != nil { return nil, schedulerCLIError("SCHEDULER_TEST_BUSY", err.Error()) }
+	if err != nil {
+		return nil, schedulerCLIError("SCHEDULER_TEST_BUSY", err.Error())
+	}
 	defer lease.Close()
 	batch, err := loadSchedulerTestBatch(storeRoot, strings.TrimSpace(*batchID))
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	connection, err := discoverCurrentAppScheduler(ctx)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	result := schedulerTestRemovalResult{BatchID: batch.BatchID, ReportPath: batch.ReportPath}
 	var jobs []pkgScheduler.Job
-	if err := connection.request(ctx, http.MethodGet, "/api/scheduler/jobs", nil, &jobs); err != nil { return nil, err }
+	if err := connection.request(ctx, http.MethodGet, "/api/scheduler/jobs", nil, &jobs); err != nil {
+		return nil, err
+	}
 	present := map[string]bool{}
-	for _, job := range jobs { present[job.ID] = true }
+	for _, job := range jobs {
+		present[job.ID] = true
+	}
 	for _, expected := range batch.Jobs {
-		if expected.JobID == "" { continue }
+		if expected.JobID == "" {
+			continue
+		}
 		if !present[expected.JobID] {
 			result.AlreadyMissing = append(result.AlreadyMissing, expected.JobID)
 			continue
 		}
 		var runs []pkgScheduler.JobRun
-		if err := connection.request(ctx, http.MethodGet, schedulerRunsPath(expected.JobID, 20), nil, &runs); err != nil { return nil, err }
+		if err := connection.request(ctx, http.MethodGet, schedulerRunsPath(expected.JobID, 20), nil, &runs); err != nil {
+			return nil, err
+		}
 		for _, run := range runs {
 			if run.Status == pkgScheduler.RunRunning {
 				result.RunningAtRemoval = append(result.RunningAtRemoval, expected.JobID)
@@ -495,16 +586,24 @@ func schedulerTestRemove(ctx context.Context, args []string) (any, error) {
 			}
 		}
 		var ignored map[string]any
-		if err := connection.request(ctx, http.MethodDelete, "/api/scheduler/jobs/"+urlPathEscape(expected.JobID), nil, &ignored); err != nil { return nil, err }
+		if err := connection.request(ctx, http.MethodDelete, "/api/scheduler/jobs/"+urlPathEscape(expected.JobID), nil, &ignored); err != nil {
+			return nil, err
+		}
 		result.DeletedJobIDs = append(result.DeletedJobIDs, expected.JobID)
 	}
 	jobs = nil
-	if err := connection.request(ctx, http.MethodGet, "/api/scheduler/jobs", nil, &jobs); err != nil { return nil, err }
+	if err := connection.request(ctx, http.MethodGet, "/api/scheduler/jobs", nil, &jobs); err != nil {
+		return nil, err
+	}
 	remaining := map[string]bool{}
-	for _, job := range jobs { remaining[job.ID] = true }
+	for _, job := range jobs {
+		remaining[job.ID] = true
+	}
 	result.FutureSchedulesRemoved = true
 	for _, expected := range batch.Jobs {
-		if expected.JobID != "" && remaining[expected.JobID] { result.FutureSchedulesRemoved = false }
+		if expected.JobID != "" && remaining[expected.JobID] {
+			result.FutureSchedulesRemoved = false
+		}
 	}
 	now := time.Now().UTC()
 	batch.RemovedAt = &now
@@ -515,13 +614,17 @@ func schedulerTestRemove(ctx context.Context, args []string) (any, error) {
 	} else {
 		batch.LastError = ""
 	}
-	if err := saveSchedulerTestBatch(storeRoot, &batch); err != nil { return nil, err }
+	if err := saveSchedulerTestBatch(storeRoot, &batch); err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 
 func schedulerTestStoreRoot() (string, error) {
 	root, err := appdata.Resolve(appdata.DesktopPackageID, nil)
-	if err != nil { return "", schedulerCLIError("SCHEDULER_TEST_STORAGE_FAILED", err.Error()) }
+	if err != nil {
+		return "", schedulerCLIError("SCHEDULER_TEST_STORAGE_FAILED", err.Error())
+	}
 	path := filepath.Join(root, "scheduler-test-batches")
 	if err := os.MkdirAll(path, 0o700); err != nil {
 		return "", schedulerCLIError("SCHEDULER_TEST_STORAGE_FAILED", err.Error())
@@ -545,14 +648,18 @@ func saveSchedulerTestBatch(root string, batch *schedulerTestBatch) error {
 }
 
 func saveCurrentSchedulerTestBatch(root, batchID string) error {
-	if !validSchedulerTestID(batchID, "batch") { return schedulerCLIError("SCHEDULER_TEST_STORAGE_FAILED", "invalid current batch id") }
+	if !validSchedulerTestID(batchID, "batch") {
+		return schedulerCLIError("SCHEDULER_TEST_STORAGE_FAILED", "invalid current batch id")
+	}
 	return writeSchedulerJSONAtomic(filepath.Join(root, "current.json"), map[string]any{"schemaVersion": 1, "batchId": batchID}, 0o600)
 }
 
 func loadSchedulerTestBatch(root, requested string) (schedulerTestBatch, error) {
 	batchID := strings.TrimSpace(requested)
 	if batchID == "" || batchID == "latest" {
-		var pointer struct { BatchID string `json:"batchId"` }
+		var pointer struct {
+			BatchID string `json:"batchId"`
+		}
 		if err := readSchedulerJSONFile(filepath.Join(root, "current.json"), &pointer); err != nil {
 			return schedulerTestBatch{}, schedulerCLIError("SCHEDULER_TEST_NOT_FOUND", "no current Scheduler test batch is available")
 		}
@@ -573,11 +680,17 @@ func loadSchedulerTestBatch(root, requested string) (schedulerTestBatch, error) 
 
 func findSchedulerTestBatchByRequest(root, requestID string) (schedulerTestBatch, bool, error) {
 	entries, err := os.ReadDir(root)
-	if err != nil { return schedulerTestBatch{}, false, schedulerCLIError("SCHEDULER_TEST_STORAGE_FAILED", err.Error()) }
+	if err != nil {
+		return schedulerTestBatch{}, false, schedulerCLIError("SCHEDULER_TEST_STORAGE_FAILED", err.Error())
+	}
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "batch-") || !strings.HasSuffix(entry.Name(), ".json") { continue }
+		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "batch-") || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
 		var batch schedulerTestBatch
-		if readSchedulerJSONFile(filepath.Join(root, entry.Name()), &batch) != nil { continue }
+		if readSchedulerJSONFile(filepath.Join(root, entry.Name()), &batch) != nil {
+			continue
+		}
 		if batch.SchemaVersion == schedulerTestBatchSchemaVersion && batch.RequestID == requestID {
 			return batch, true, nil
 		}
@@ -587,37 +700,59 @@ func findSchedulerTestBatchByRequest(root, requestID string) (schedulerTestBatch
 
 func prepareSchedulerTestPayloadFile(scriptRoot string) (string, error) {
 	root, err := filepath.Abs(strings.TrimSpace(scriptRoot))
-	if err != nil || root == "" { return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", "Scheduler script root is unavailable") }
+	if err != nil || root == "" {
+		return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", "Scheduler script root is unavailable")
+	}
 	info, err := os.Lstat(root)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", "Scheduler script root is not a real directory")
 	}
 	dir := filepath.Join(root, ".opendesk-scheduler-tests")
 	if info, err := os.Lstat(dir); err == nil {
-		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 { return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", "reserved Scheduler test directory is not a real directory") }
+		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", "reserved Scheduler test directory is not a real directory")
+		}
 	} else if errors.Is(err, os.ErrNotExist) {
-		if err := os.Mkdir(dir, 0o700); err != nil { return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", err.Error()) }
-	} else { return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", err.Error()) }
+		if err := os.Mkdir(dir, 0o700); err != nil {
+			return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", err.Error())
+		}
+	} else {
+		return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", err.Error())
+	}
 	path := filepath.Join(dir, "file-reminder-v1.js")
 	content := []byte(schedulerTestPayloadScript("file"))
 	if info, err := os.Lstat(path); err == nil {
-		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 { return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", "reserved Scheduler test payload is not a regular file") }
+		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+			return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", "reserved Scheduler test payload is not a regular file")
+		}
 		existing, readErr := os.ReadFile(path)
-		if readErr != nil { return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", readErr.Error()) }
-		if string(existing) != string(content) { return "", schedulerCLIError("SCHEDULER_TEST_FILE_CONFLICT", "reserved Scheduler test payload already exists with different content; OpenDesk will not overwrite it") }
+		if readErr != nil {
+			return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", readErr.Error())
+		}
+		if string(existing) != string(content) {
+			return "", schedulerCLIError("SCHEDULER_TEST_FILE_CONFLICT", "reserved Scheduler test payload already exists with different content; OpenDesk will not overwrite it")
+		}
 	} else if errors.Is(err, os.ErrNotExist) {
 		file, createErr := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-		if createErr != nil { return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", createErr.Error()) }
+		if createErr != nil {
+			return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", createErr.Error())
+		}
 		_, writeErr := file.Write(content)
 		closeErr := file.Close()
-		if writeErr != nil || closeErr != nil { return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", errors.Join(writeErr, closeErr).Error()) }
-	} else { return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", err.Error()) }
+		if writeErr != nil || closeErr != nil {
+			return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", errors.Join(writeErr, closeErr).Error())
+		}
+	} else {
+		return "", schedulerCLIError("SCHEDULER_TEST_FILE_FAILED", err.Error())
+	}
 	return filepath.ToSlash(filepath.Join(".opendesk-scheduler-tests", "file-reminder-v1.js")), nil
 }
 
 func schedulerTestPayloadScript(kind string) string {
 	label := "文件"
-	if kind == "text" { label = "文本" }
+	if kind == "text" {
+		label = "文本"
+	}
 	return fmt.Sprintf(`'use strict';
 const kind = %q;
 const firedAt = new Date().toISOString();
@@ -661,9 +796,15 @@ return evidence;
 func recoverSchedulerTestJob(jobs []pkgScheduler.Job, expected schedulerTestBatchJob) *pkgScheduler.Job {
 	for index := range jobs {
 		job := &jobs[index]
-		if job.Name != expected.Name || job.ScheduleType != pkgScheduler.ScheduleAt || job.SourceType != pkgScheduler.SourceType(expected.SourceType) { continue }
-		if job.ScheduleExpression != expected.ExpectedScheduledAt.Format(time.RFC3339Nano) { continue }
-		if expected.SourceType == string(pkgScheduler.SourceFile) && job.ScriptPath != expected.ScriptPath { continue }
+		if job.Name != expected.Name || job.ScheduleType != pkgScheduler.ScheduleAt || job.SourceType != pkgScheduler.SourceType(expected.SourceType) {
+			continue
+		}
+		if job.ScheduleExpression != expected.ExpectedScheduledAt.Format(time.RFC3339Nano) {
+			continue
+		}
+		if expected.SourceType == string(pkgScheduler.SourceFile) && job.ScriptPath != expected.ScriptPath {
+			continue
+		}
 		return job
 	}
 	return nil
@@ -690,71 +831,116 @@ func schedulerRunTerminal(status pkgScheduler.RunStatus) bool {
 }
 
 func schedulerTestReportTerminal(report schedulerTestVerificationReport) bool {
-	if len(report.Runs) != 2 { return false }
+	if len(report.Runs) != 2 {
+		return false
+	}
 	for _, run := range report.Runs {
-		if run.Run == nil || !schedulerRunTerminal(run.Run.Status) { return false }
+		if run.Run == nil || !schedulerRunTerminal(run.Run.Status) {
+			return false
+		}
 	}
 	return true
 }
 
 func stringMapValue(values map[string]any, key string) string {
-	if values == nil { return "" }
+	if values == nil {
+		return ""
+	}
 	value, _ := values[key].(string)
 	return value
 }
 
 func boolMapValue(values map[string]any, key string) bool {
-	if values == nil { return false }
+	if values == nil {
+		return false
+	}
 	value, _ := values[key].(bool)
 	return value
 }
 
 func writeSchedulerJSONAtomic(path string, value any, mode os.FileMode) error {
 	data, err := json.MarshalIndent(value, "", "  ")
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	data = append(data, '\n')
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil { return err }
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
 	temp, err := os.CreateTemp(filepath.Dir(path), ".tmp-*.json")
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	tempPath := temp.Name()
 	cleanup := true
-	defer func() { if cleanup { _ = os.Remove(tempPath) } }()
-	if err := temp.Chmod(mode); err != nil { _ = temp.Close(); return err }
-	if _, err := temp.Write(data); err != nil { _ = temp.Close(); return err }
-	if err := temp.Sync(); err != nil { _ = temp.Close(); return err }
-	if err := temp.Close(); err != nil { return err }
-	if err := os.Rename(tempPath, path); err != nil { return err }
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tempPath)
+		}
+	}()
+	if err := temp.Chmod(mode); err != nil {
+		_ = temp.Close()
+		return err
+	}
+	if _, err := temp.Write(data); err != nil {
+		_ = temp.Close()
+		return err
+	}
+	if err := temp.Sync(); err != nil {
+		_ = temp.Close()
+		return err
+	}
+	if err := temp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tempPath, path); err != nil {
+		return err
+	}
 	cleanup = false
 	return nil
 }
 
 func readSchedulerJSONFile(path string, value any) error {
 	info, err := os.Lstat(path)
-	if err != nil { return err }
-	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() > 4<<20 { return fmt.Errorf("not a safe Scheduler JSON file") }
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() > 4<<20 {
+		return fmt.Errorf("not a safe Scheduler JSON file")
+	}
 	data, err := os.ReadFile(path)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	return json.Unmarshal(data, value)
 }
 
 func newSchedulerTestID(prefix string) string {
 	var raw [12]byte
-	if _, err := rand.Read(raw[:]); err == nil { return prefix + "-" + hex.EncodeToString(raw[:]) }
+	if _, err := rand.Read(raw[:]); err == nil {
+		return prefix + "-" + hex.EncodeToString(raw[:])
+	}
 	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
 }
 
 func validSchedulerTestID(value, prefix string) bool {
 	value = strings.TrimSpace(value)
-	if !strings.HasPrefix(value, prefix+"-") || len(value) > 80 { return false }
+	if !strings.HasPrefix(value, prefix+"-") || len(value) > 80 {
+		return false
+	}
 	for _, ch := range value[len(prefix)+1:] {
-		if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') { return false }
+		if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') {
+			return false
+		}
 	}
 	return true
 }
 
 func shortBatchID(value string) string {
 	value = strings.TrimPrefix(value, "batch-")
-	if len(value) > 8 { return value[:8] }
+	if len(value) > 8 {
+		return value[:8]
+	}
 	return value
 }
 

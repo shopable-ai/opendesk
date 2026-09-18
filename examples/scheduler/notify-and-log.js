@@ -2,6 +2,12 @@
 // JobRun.triggerType, written by Scheduler service code. Execution.source is
 // recorded here only to help correlate an Execution; payload code must not use
 // it to declare that automatic scheduling passed.
+
+// Run from the repository root:
+// ./dist/opendesk -ui -script examples/scheduler/notify-and-log.js -console-mode script
+//
+// In the OpenDesk product app, point OPENDESK_FLOW_RUNNER_DIR at this
+// directory and create a Scheduler file task for notify-and-log.js.
 'use strict';
 
 const firedAt = new Date().toISOString();

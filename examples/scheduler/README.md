@@ -146,6 +146,9 @@ unknown   → 历史记录无法确认
 ./dist/opendesk scheduler create --name "测试" --at "2026-09-18T21:00:00+09:00" --script "example.js" --misfire skip
 ./dist/opendesk scheduler runs --job <jobId> --limit 20
 ./dist/opendesk scheduler delete --job <jobId>
+
+# 启动产品 App，并以当前目录作为 Flow Runner 的可运行根。
+OPENDESK_FLOW_RUNNER_DIR="$PWD" ./dist/opendesk -app apps/opendesk -scheduler-db ./.runtime/examples/scheduler/scheduler.db -console-mode script
 ```
 
 完整合同见 `docs/api/scheduler-cli.md`。

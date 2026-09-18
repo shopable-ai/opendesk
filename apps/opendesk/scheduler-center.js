@@ -12,9 +12,24 @@
   const MAX_ROWS = 48;
   const MAX_SCRIPT_CHOICES = 96;
   const MAX_COMMAND_OUTPUT = 2 << 20;
+  // This is a convenience template for ordinary inline plans. It is never
+  // treated as Scheduler provenance: JobRun.triggerType remains server-owned.
+  const INLINE_TOAST_EXAMPLE = `'use strict';
+const firedAt = new Date().toISOString();
+console.log('[SCHEDULER_NOTIFY] stage=start firedAt=' + firedAt);
+const notice = await ui.toast({
+  message: '计划已运行 · ' + firedAt,
+  caption: '这条提示由计划中心的脚本文本任务创建',
+  level: 'success',
+  timeoutMs: 2500,
+  closable: true,
+});
+await notice.waitUntilClosed();
+console.log('[SCHEDULER_NOTIFY] stage=complete firedAt=' + firedAt);
+return {ok: true, firedAt};`;
 
   const BUTTON_ICONS = Object.freeze({
-    refresh: 'arrow.clockwise', create: 'plus', run: 'play.fill', pause: 'pause.fill',
+    refresh: 'arrow.clockwise', create: 'plus', inlineExample: 'doc.text.fill', run: 'play.fill', pause: 'pause.fill',
     resume: 'power', history: 'list.bullet', delete: 'trash.fill', confirm: 'checkmark', close: 'xmark',
   });
 
@@ -182,38 +197,39 @@
         <div class="header-actions">
           <button id="addTestBatch" class="test-button primary" title="创建两条真实的一次性计划；不会立即运行">添加两条测试计划</button>
           <button id="removeTestBatch" class="test-button" title="只按本轮保存的 jobId 清理">清理本轮测试</button>
-          <button id="openCreate" class="icon-button create-entry primary" data-icon="plus" title="创建计划" aria-label="创建计划">创建计划</button>
+          <button id="openCreate" class="icon-button create-entry primary" data-icon="plus" title="创建计划，展开表单" aria-label="创建计划，展开表单">创建计划，展开表单</button>
           <button id="refresh" class="icon-button" data-icon="arrow.clockwise" title="刷新计划列表" aria-label="刷新计划列表">刷新计划列表</button>
         </div>
       </header>
       <p id="status" class="status">正在加载计划…</p>
       <section id="createCard" class="create-card is-hidden" hidden>
-        <div class="create-heading"><div><strong>创建计划</strong><span>选择现有脚本、填写路径，或直接保存脚本文本。</span></div><button id="closeCreate" class="icon-button" data-icon="xmark" title="收起表单" aria-label="收起表单">收起表单</button></div>
+        <div class="create-heading"><div><strong>创建计划</strong><span>选择现有脚本、填写路径，或直接保存脚本文本。</span></div><button id="closeCreate" class="icon-button" data-icon="xmark" title="取消创建并收起表单" aria-label="取消创建并收起表单">取消创建并收起表单</button></div>
         <div class="create-layout">
           <div class="form-panel">
             <div class="group-title"><span class="group-index">1</span><div><strong>执行内容</strong><span>Flow / .odpkg 不通过文件路径调度；当前只支持普通 .js。</span></div></div>
+            <button id="fillInlineExample" class="icon-button example-button" data-icon="doc.text.fill" title="填入 ui.toast 文本示例" aria-label="填入 ui.toast 文本示例">填入 ui.toast 文本示例</button>
             <div class="target-grid">
-              <label for="createName"><span class="field-label">计划名称 *</span><input id="createName" class="scheduler-field scheduler-input" data-opendesk-dialog-focus placeholder="例如：每日数据整理"></label>
-              <label for="createSource"><span class="field-label">脚本来源 *</span><span class="select-shell"><select id="createSource" class="scheduler-field scheduler-select"><option value="file">脚本文件</option><option value="inline">脚本文本</option></select><span class="select-chevron"></span></span></label>
+              <label for="createName"><span class="field-label">计划名称 *</span><input id="createName" class="scheduler-field scheduler-input" data-opendesk-dialog-focus placeholder="例如：每日数据整理" aria-required="true"></label>
+              <label for="createSource"><span class="field-label">脚本来源 *</span><span class="select-shell"><select id="createSource" class="scheduler-field scheduler-select" aria-required="true"><option value="file">脚本文件</option><option value="inline">脚本文本</option></select><span class="select-chevron" aria-hidden="true"></span></span></label>
               <div id="fileSourceGroup" class="source-group">
-                <label for="createScriptChoice"><span class="field-label">已有可调度脚本</span><span class="select-shell"><select id="createScriptChoice" class="scheduler-field scheduler-select">${options}</select><span class="select-chevron"></span></span></label>
-                <div class="path-row"><label for="createScript"><span class="field-label">脚本路径 *</span><input id="createScript" class="scheduler-field scheduler-input" placeholder="相对脚本目录，例如：daily/report.js"></label><button id="browseScript" class="browse-button" type="button">浏览已有文件</button></div>
+                <label for="createScriptChoice"><span class="field-label">已有可调度脚本</span><span class="select-shell"><select id="createScriptChoice" class="scheduler-field scheduler-select">${options}</select><span class="select-chevron" aria-hidden="true"></span></span></label>
+                <div class="path-row"><label for="createScript"><span class="field-label">脚本路径 *</span><input id="createScript" class="scheduler-field scheduler-input" placeholder="相对脚本目录，例如：daily/report.js" aria-required="true"></label><button id="browseScript" class="browse-button" type="button">浏览已有文件</button></div>
                 <span id="scriptHint" class="inline-help">最终创建与实际执行前均由 Scheduler 重新校验文件。</span>
               </div>
-              <div id="inlineSourceGroup" class="source-group is-hidden"><label for="createInlineScript"><span class="field-label">JavaScript 脚本文本 *</span></label><textarea id="createInlineScript" class="scheduler-field scheduler-textarea" maxlength="262144" spellcheck="false" placeholder="const notice = await ui.toast({message: '计划已运行'}); await notice.waitUntilClosed();"></textarea><span class="inline-help">最多 256 KiB；列表和 API 不回传正文。</span></div>
+              <div id="inlineSourceGroup" class="source-group is-hidden"><label for="createInlineScript"><span class="field-label">JavaScript 脚本文本 *</span></label><textarea id="createInlineScript" class="scheduler-field scheduler-textarea" maxlength="262144" spellcheck="false" aria-required="true" placeholder="const notice = await ui.toast({message: '计划已运行'}); await notice.waitUntilClosed();"></textarea><span class="inline-help">最多 256 KiB；列表和 API 不回传正文。</span></div>
             </div>
           </div>
           <div class="form-panel">
             <div class="group-title"><span class="group-index">2</span><div><strong>执行规则</strong><span>真实时间由 Scheduler 保存和领取，不由界面倒计时触发。</span></div></div>
             <div class="schedule-grid">
-              <label for="createType"><span class="field-label">调度类型 *</span><span class="select-shell"><select id="createType" class="scheduler-field scheduler-select"><option value="every">间隔执行</option><option value="cron">Cron 表达式</option><option value="at">单次执行</option></select><span class="select-chevron"></span></span></label>
-              <label for="createExpression"><span class="field-label">执行表达式 *</span><input id="createExpression" class="scheduler-field scheduler-input" value="1h" placeholder="30m / 0 9 * * * / RFC3339"></label>
+              <label for="createType"><span class="field-label">调度类型 *</span><span class="select-shell"><select id="createType" class="scheduler-field scheduler-select" aria-describedby="createTypeHint" aria-required="true"><option value="every">间隔执行</option><option value="cron">Cron 表达式</option><option value="at">单次执行</option></select><span class="select-chevron" aria-hidden="true"></span></span><span id="createTypeHint" class="sr-only">选择间隔、Cron 或单次调度类型。</span></label>
+              <label for="createExpression"><span class="field-label">执行表达式 *</span><input id="createExpression" class="scheduler-field scheduler-input" value="1h" placeholder="30m / 0 9 * * * / RFC3339" aria-required="true"></label>
               <label for="createTimezone"><span class="field-label">时区</span><input id="createTimezone" class="scheduler-field scheduler-input" value="Local" placeholder="Local 或 Asia/Tokyo"></label>
-              <label for="createMisfire"><span class="field-label">错过执行</span><span class="select-shell"><select id="createMisfire" class="scheduler-field scheduler-select"><option value="run_once">补跑一次</option><option value="skip">跳过错过执行</option></select><span class="select-chevron"></span></span></label>
+              <label for="createMisfire"><span class="field-label">错过执行</span><span class="select-shell"><select id="createMisfire" class="scheduler-field scheduler-select" aria-describedby="createMisfireHint"><option value="run_once">补跑一次</option><option value="skip">跳过错过执行</option></select><span class="select-chevron" aria-hidden="true"></span></span><span id="createMisfireHint" class="sr-only">选择错过计划时间后补跑一次，或跳过该次执行。</span></label>
             </div>
           </div>
         </div>
-        <div class="form-actions"><span id="scheduleHint" class="schedule-hint">间隔示例：10m、1h、24h</span><button id="createJob" class="create-button primary">创建计划</button></div>
+        <div class="form-actions"><span id="scheduleHint" class="schedule-hint" role="status" aria-live="polite">间隔示例：10m、1h、24h</span><button id="createJob" class="create-button primary">创建计划</button></div>
       </section>
       <section class="list-card">
         <div class="section-title"><strong>计划列表</strong><span id="jobCount">0 个计划</span></div>
@@ -228,7 +244,15 @@
   }
 
   const CSS = `
-    :root{color-scheme:dark;--bg:#171717;--surface:#1d1d1d;--field:#222933;--hover:#293440;--line:#465365;--text:#f4f6fa;--muted:#a6b0bf;--accent:#8ea7ff;--accent2:#3474d6;--danger:#ffb1b1}html,body{margin:0;background:var(--bg);color:var(--text);font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}main{height:100vh;padding:18px;display:flex;flex-direction:column;gap:11px;overflow:hidden}header{display:flex;justify-content:space-between;align-items:center;gap:14px}.header-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.runtime-context{min-width:0;margin:0;color:#999;font-size:12px}.status{margin:0;padding:8px 10px;border:1px solid #393939;border-radius:7px;background:#202020;color:#d7d7d7;font-size:12px}button,.scheduler-field{font:inherit}button{border:1px solid #505050;border-radius:7px;background:#303030;color:var(--text);padding:7px 11px}button:not(:disabled){cursor:pointer}button:hover:not(:disabled){background:#3c3c3c;border-color:#666}button:focus-visible,.scheduler-field:focus-visible{outline:2px solid var(--accent);outline-offset:2px}button:disabled{opacity:.42}.primary{background:#245fbe;border-color:var(--accent2)}.primary:hover:not(:disabled){background:#2c6dcc}.test-button{height:32px;padding:0 11px;font-size:12px}.icon-button{width:32px;height:32px;min-width:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:0}.icon-button::before{font-size:16px}.icon-button[data-icon="arrow.clockwise"]::before{content:"↻"}.icon-button[data-icon="plus"]::before{content:"+"}.icon-button[data-icon="play.fill"]::before{content:"▶"}.icon-button[data-icon="pause.fill"]::before{content:"Ⅱ"}.icon-button[data-icon="power"]::before{content:"⏻"}.icon-button[data-icon="list.bullet"]::before{content:"☷"}.icon-button[data-icon="trash.fill"]::before{content:"⌫"}.icon-button[data-icon="checkmark"]::before{content:"✓"}.icon-button[data-icon="xmark"]::before{content:"×"}.danger{color:var(--danger)}.create-card,.list-card{border:1px solid #343434;border-radius:10px;background:var(--surface);padding:14px}.create-card.is-create-mode{border-color:var(--accent2)}.create-heading,.section-title{display:flex;align-items:center;justify-content:space-between;gap:14px}.create-heading{margin-bottom:11px}.create-heading>div{display:flex;flex-direction:column;gap:3px}.create-heading>div>span,.section-title span{font-size:12px;color:#999}.create-layout{display:grid;grid-template-columns:minmax(380px,1fr) minmax(460px,1.1fr);gap:12px}.form-panel{padding:11px;border:1px solid #35404e;border-radius:9px;background:#1b2129}.group-title{display:flex;gap:9px;align-items:flex-start;margin-bottom:9px}.group-index{display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;background:rgba(52,116,214,.2);color:#b9c9ff;font-weight:700}.group-title>div{display:flex;flex-direction:column;gap:2px}.group-title strong{font-size:12px}.group-title span{font-size:11px;color:#8490a0}.target-grid,.schedule-grid{display:grid;gap:9px}.target-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.schedule-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.source-group{grid-column:1/-1;display:grid;gap:8px}.source-group label,.target-grid>label,.schedule-grid label{display:flex;flex-direction:column;gap:5px;min-width:0;color:var(--muted);font-size:11px}.path-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px}.path-row label{min-width:0}.browse-button{height:36px;white-space:nowrap}.field-label{font-weight:600}.scheduler-field{width:100%;height:36px;border:1px solid var(--line);border-radius:8px;background:var(--field);color:var(--text)}.scheduler-input{padding:0 11px}.scheduler-textarea{height:92px;resize:vertical;padding:8px 10px;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace}.scheduler-field:focus{border-color:var(--accent)}.select-shell{position:relative;display:block}.scheduler-select{appearance:none;-webkit-appearance:none;padding:0 34px 0 11px}.select-chevron{position:absolute;right:13px;top:50%;width:7px;height:7px;border-right:1.5px solid var(--accent);border-bottom:1.5px solid var(--accent);transform:translateY(-70%) rotate(45deg);pointer-events:none}.inline-help{font-size:11px;color:#8491a2}.form-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:10px;padding-top:10px;border-top:1px solid #313943}.schedule-hint{font-size:11px;color:#9aa6b5}.create-button{height:36px;min-width:118px;font-weight:650}.list-card{flex:1;min-height:0;display:flex;flex-direction:column}.section-title{margin-bottom:8px}.grid{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:minmax(145px,1.05fr) minmax(190px,1.35fr) minmax(170px,1.15fr) minmax(155px,1.05fr) 92px repeat(4,38px);gap:0 7px;align-content:start;align-items:center}.head{margin:0;padding:0 0 7px;color:#888;font-size:11px;border-bottom:1px solid #383838}.name,.schedule,.next,.last,.enabled{margin:0;min-height:46px;display:flex;align-items:center;border-bottom:1px solid #303030;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.name{font-weight:650}.schedule,.next,.last,.enabled{font-size:11px;color:#bbb}.enabled{font-weight:650}.state-active{color:#8dd6ad}.state-paused{color:#d0b27b}.state-ended{color:#aeb9c8}.row-button{margin:6px 0}.empty{margin:auto;max-width:440px;text-align:center;color:#9299a3;line-height:1.6;padding:50px 20px}.is-hidden{display:none!important}@media(max-width:980px){.create-layout{grid-template-columns:1fr}.grid{grid-template-columns:minmax(150px,1.2fr) minmax(180px,1.35fr) 88px repeat(4,36px)}.next,.last,#headNext,#headLast{display:none!important}}@media(max-width:720px){main{height:auto;min-height:100vh;overflow:auto}.target-grid,.schedule-grid{grid-template-columns:1fr}.path-row{grid-template-columns:1fr}.header-actions{justify-content:flex-end}.schedule,#headSchedule{display:none!important}.grid{grid-template-columns:minmax(130px,1fr) 84px repeat(4,34px)}}`;
+    :root{color-scheme:dark;--ui-bg:#171717;--ui-surface:#1d1d1d;--ui-surface-raised:#202832;--ui-field:#222933;--ui-field-hover:#293440;--ui-line:#465365;--ui-line-strong:#617187;--ui-text:#f4f6fa;--ui-muted:#a6b0bf;--ui-accent:#8ea7ff;--ui-accent-strong:#3474d6;--ui-danger:#ffb1b1}
+    html,body{margin:0;background:var(--ui-bg);color:var(--ui-text);font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}main{height:100vh;padding:18px;display:flex;flex-direction:column;gap:11px;overflow:hidden}header{display:flex;justify-content:space-between;align-items:center;gap:14px}.header-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.runtime-context{min-width:0;margin:0;color:#999;font-size:12px}.status{margin:0;padding:8px 10px;border:1px solid #393939;border-radius:7px;background:#202020;color:#d7d7d7;font-size:12px}
+    button,.scheduler-field{font:inherit}button{border:1px solid #505050;border-radius:7px;background:#303030;color:var(--ui-text);padding:7px 11px}button:not(:disabled){cursor:pointer}button:hover:not(:disabled){background:#3c3c3c;border-color:#666}button:focus-visible,.scheduler-field:focus-visible{outline:2px solid var(--ui-accent);outline-offset:2px}button:disabled{opacity:.42}.primary{background:#245fbe;border-color:var(--ui-accent-strong)}.primary:hover:not(:disabled){background:#2c6dcc}.danger{color:var(--ui-danger)}.test-button{height:32px;padding:0 11px;font-size:12px}
+    .icon-button{width:32px;height:32px;min-width:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:0}.icon-button::before{font-size:16px}.icon-button[data-icon="arrow.clockwise"]::before{content:"↻"}.icon-button[data-icon="plus"]::before{content:"+"}.icon-button[data-icon="doc.text.fill"]::before{content:"{ }";font-size:11px;font-weight:750}.icon-button[data-icon="play.fill"]::before{content:"▶"}.icon-button[data-icon="pause.fill"]::before{content:"Ⅱ"}.icon-button[data-icon="power"]::before{content:"⏻"}.icon-button[data-icon="list.bullet"]::before{content:"☷"}.icon-button[data-icon="trash.fill"]::before{content:"⌫"}.icon-button[data-icon="checkmark"]::before{content:"✓"}.icon-button[data-icon="xmark"]::before{content:"×"}.example-button{border-color:#465872;background:#242d39;color:#c8d4ff}
+    .create-card,.list-card{border:1px solid #343434;border-radius:10px;background:var(--ui-surface);padding:14px}.create-card.is-create-mode{border-color:var(--ui-accent-strong)}.create-heading,.section-title{display:flex;align-items:center;justify-content:space-between;gap:14px}.create-heading{margin-bottom:11px}.create-heading>div{display:flex;flex-direction:column;gap:3px}.create-heading>div>span,.section-title span{font-size:12px;color:#999}.create-layout{display:grid;grid-template-columns:minmax(330px,.82fr) minmax(480px,1.18fr);gap:12px}.form-panel{min-width:0;padding:11px;border:1px solid #35404e;border-radius:9px;background:#1b2129}.group-title{display:flex;gap:9px;align-items:flex-start;margin-bottom:9px}.group-index{display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;background:rgba(52,116,214,.2);color:#b9c9ff;font-weight:700}.group-title>div{display:flex;flex-direction:column;gap:2px}.group-title strong{font-size:12px}.group-title span{font-size:11px;color:#8490a0}
+    .target-grid,.schedule-grid{display:grid;gap:9px}.target-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.schedule-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.source-group{grid-column:1/-1;display:grid;gap:8px}.source-group label,.target-grid>label,.schedule-grid label{display:flex;flex-direction:column;gap:5px;min-width:0;color:var(--ui-muted);font-size:11px}.path-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px}.path-row label{min-width:0}.browse-button{height:36px;white-space:nowrap}.field-label{font-weight:600}.scheduler-field{width:100%;height:36px;border:1px solid var(--ui-line);border-radius:8px;background:var(--ui-field);color:var(--ui-text)}.scheduler-field:hover:not(:disabled){background:var(--ui-field-hover);border-color:var(--ui-line-strong)}.scheduler-field:focus-visible{outline:2px solid var(--ui-accent);outline-offset:2px}.scheduler-field:disabled{cursor:not-allowed;opacity:.54;}.scheduler-input{padding:0 11px}.scheduler-textarea{height:92px;resize:vertical;padding:8px 10px;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace}.scheduler-select{appearance:none;-webkit-appearance:none;cursor:pointer;padding:0 38px 0 11px}.scheduler-select option{background:var(--ui-surface-raised);color:var(--ui-text)}.select-shell{position:relative;display:block}.select-chevron{position:absolute;right:13px;top:50%;width:7px;height:7px;border-right:1.5px solid var(--ui-accent);border-bottom:1.5px solid var(--ui-accent);transform:translateY(-70%) rotate(45deg);pointer-events:none}.scheduler-select:disabled+.select-chevron{opacity:.38}.inline-help{font-size:11px;color:#8491a2}
+    .form-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:10px;padding-top:10px;border-top:1px solid #313943}.schedule-hint{font-size:11px;color:#9aa6b5}.create-button{min-width:118px;height:36px;font-weight:650}.list-card{flex:1;min-height:0;display:flex;flex-direction:column}.section-title{margin-bottom:8px}.grid{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:minmax(145px,1.05fr) minmax(190px,1.35fr) minmax(170px,1.15fr) minmax(155px,1.05fr) 92px repeat(4,38px);gap:0 7px;align-content:start;align-items:center}.head{margin:0;padding:0 0 7px;color:#888;font-size:11px;border-bottom:1px solid #383838}.name,.schedule,.next,.last,.enabled{margin:0;min-height:46px;display:flex;align-items:center;border-bottom:1px solid #303030;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.name{font-weight:650}.schedule,.next,.last,.enabled{font-size:11px;color:#bbb}.enabled{font-weight:650}.state-active{color:#8dd6ad}.state-paused{color:#d0b27b}.state-ended{color:#aeb9c8}.row-button{margin:6px 0}.empty{margin:auto;max-width:440px;text-align:center;color:#9299a3;line-height:1.6;padding:50px 20px}.is-hidden{display:none!important}.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+    @media(max-width:960px){.grid{grid-template-columns:minmax(140px,1.15fr) minmax(160px,1.35fr) 66px repeat(4,36px);gap:0 6px}.next,.last,#headNext,#headLast{display:none!important}}@media(max-width:920px){.create-layout{grid-template-columns:1fr}}@media(max-width:780px){main{height:auto;min-height:100vh;overflow:auto;padding:14px}.target-grid,.schedule-grid{grid-template-columns:1fr}.path-row{grid-template-columns:1fr}}@media(max-width:560px){.schedule,#headSchedule{display:none!important}.grid{grid-template-columns:minmax(128px,1fr) 62px repeat(4,34px);gap:0 5px}}
+  `;
 
   function createCenter(options) {
     const settings = options || {};
@@ -284,7 +308,7 @@
 
     function runtimeText() {
       if (!runtimeState) return lastError ? '计划服务连接失败' : '计划服务状态未知';
-      const owner = runtimeState.runnerState === 'active' ? '本机负责执行计划' : '当前 App Scheduler 非活动 owner';
+      const owner = runtimeState.runnerState === 'active' ? '本机负责执行计划' : '由其他 OpenDesk Runtime 执行计划';
       return `${owner} · 脚本目录：${runtimeState.scriptRoot || productPaths.scriptRoot || '未知'}`;
     }
 
@@ -316,14 +340,20 @@
         await updateControl(record, 'emptyState', {visible: !hasRows, classes: classes('empty', !hasRows)});
         await updateControl(record, 'addTestBatch', {disabled: loading || testActionRunning, text: '添加两条测试计划'});
         await updateControl(record, 'removeTestBatch', {disabled: loading || testActionRunning, text: '清理本轮测试'});
-        await updateControl(record, 'openCreate', {visible: !createVisible, disabled: loading || testActionRunning, icon: BUTTON_ICONS.create, text: '创建计划', classes: createVisible ? ['icon-button','create-entry','primary','is-hidden'] : ['icon-button','create-entry','primary']});
-        await updateControl(record, 'refresh', {disabled: loading || testActionRunning, icon: BUTTON_ICONS.refresh, text: '刷新计划列表'});
-        await updateControl(record, 'closeCreate', {visible: createVisible, disabled: loading, icon: BUTTON_ICONS.close, text: '收起表单', classes: createVisible ? ['icon-button'] : ['icon-button','is-hidden']});
+        await updateControl(record, 'openCreate', {visible: !createVisible, disabled: loading || testActionRunning, icon: BUTTON_ICONS.create, text: '创建计划，展开表单', classes: createVisible ? ['icon-button','create-entry','primary','is-hidden'] : ['icon-button','create-entry','primary']});
+        await updateControl(record, 'refresh', {disabled: loading || testActionRunning, icon: BUTTON_ICONS.refresh, text: lastError ? '重试连接并刷新计划列表' : '刷新计划列表'});
+        await updateControl(record, 'closeCreate', {visible: createVisible, disabled: loading, icon: BUTTON_ICONS.close, text: '取消创建并收起表单', classes: createVisible ? ['icon-button'] : ['icon-button','is-hidden']});
         await updateControl(record, 'createCard', {visible: createVisible, classes: createVisible ? ['create-card','is-create-mode'] : ['create-card','is-hidden']});
-        for (const id of ['createJob','createName','createExpression','createTimezone','createSource','createType','createMisfire','createScriptChoice','browseScript','createScript','createInlineScript']) {
+        await updateControl(record, 'fillInlineExample', {disabled: formDisabled, icon: BUTTON_ICONS.inlineExample, text: '填入 ui.toast 文本示例'});
+        await updateControl(record, 'createJob', {disabled: formDisabled, icon: BUTTON_ICONS.create, text: '创建计划'});
+        for (const id of ['createName','createExpression','createTimezone','createSource','createType','createMisfire','createScriptChoice','browseScript','createScript','createInlineScript']) {
           const sourceMismatch = (id === 'createScriptChoice' || id === 'browseScript' || id === 'createScript') && createSourceType !== 'file';
           const inlineMismatch = id === 'createInlineScript' && createSourceType !== 'inline';
-          await updateControl(record, id, {disabled: formDisabled || sourceMismatch || inlineMismatch});
+          const disabled = formDisabled || sourceMismatch || inlineMismatch;
+          const patch = ['createSource', 'createType', 'createMisfire'].includes(id)
+            ? {disabled, classes: disabled ? ['scheduler-field', 'scheduler-select', 'is-disabled'] : ['scheduler-field', 'scheduler-select']}
+            : {disabled};
+          await updateControl(record, id, patch);
         }
         await updateControl(record, 'fileSourceGroup', {visible: createSourceType === 'file', classes: classes('source-group', createSourceType === 'file')});
         await updateControl(record, 'inlineSourceGroup', {visible: createSourceType === 'inline', classes: classes('source-group', createSourceType === 'inline')});
@@ -459,6 +489,20 @@
       }
     }
 
+    async function fillInlineExample() {
+      if (loading || !windowRecord) return null;
+      createSourceType = 'inline';
+      await updateControl(windowRecord, 'createSource', {value: 'inline'});
+      await updateControl(windowRecord, 'createInlineScript', {value: INLINE_TOAST_EXAMPLE});
+      if (!(await readValue('createName'))) {
+        await updateControl(windowRecord, 'createName', {value: 'UI 脚本文本通知计划'});
+      }
+      lastError = '';
+      notice = '已填入 ui.toast 文本示例；设置计划后可创建。';
+      await render();
+      return INLINE_TOAST_EXAMPLE;
+    }
+
     function decodeCLIResult(result, operation) {
       const stdout = result && typeof result.stdout === 'string' ? result.stdout.trim() : '';
       const stderr = result && typeof result.stderr === 'string' ? result.stderr.trim() : '';
@@ -591,10 +635,11 @@
         position: {mode: 'anchor', size: {width: 1120, height: 440}, horizontal: 'center', vertical: 'center', margin: 0, display: 'active'},
         theme: 'dark', alwaysOnTop: false, draggable: true,
         content: {
-          html: `<!doctype html><html><head><meta charset="utf-8"></head><body><main><strong>${escapeHTML(job.name)}</strong><div class="history-grid"><div class="history-head"><span>结果</span><span>计划时间</span><span>实际开始</span><span>启动延迟</span><span>触发方式</span><span>Execution ID</span><span>详情</span></div>${rows || '<p class="history-empty">暂无运行记录</p>'}</div><button id="close">关闭</button></main></body></html>`,
+          html: `<!doctype html><html><head><meta charset="utf-8"></head><body><main><strong>${escapeHTML(job.name)}</strong><div class="history-grid"><div class="history-head"><span>结果</span><span>计划时间</span><span>实际开始</span><span>启动延迟</span><span>触发方式</span><span>Execution ID</span><span>详情</span></div>${rows || '<p class="history-empty">暂无运行记录</p>'}</div><button id="close" class="icon-button" data-icon="xmark" title="关闭" aria-label="关闭">关闭</button></main></body></html>`,
           css: 'html,body{margin:0;background:#171717;color:#f4f4f4;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}main{height:100vh;padding:18px;display:flex;flex-direction:column;gap:12px}main>strong{font-size:18px}.history-grid{flex:1;min-height:0;overflow:auto;border:1px solid #333;border-radius:8px}.history-head,.history-row{display:grid;grid-template-columns:.7fr 1.2fr 1.2fr .8fr .75fr 1.35fr 1.5fr;gap:8px;padding:9px 10px;border-bottom:1px solid #333}.history-head{color:#999;background:#202020;font-size:11px}.history-row span{min-width:0;overflow-wrap:anywhere}.history-empty{padding:20px;color:#999}button{align-self:flex-start;border:1px solid #555;border-radius:7px;background:#303030;color:#fff;padding:7px 12px}',
         },
       });
+      await history.control('close').update({icon: BUTTON_ICONS.close, text: '关闭'});
       history.control('close').on('click', () => { void Promise.resolve(history.close()).catch(() => {}); });
       void Promise.resolve(history.waitUntilClosed()).catch(error => { if (!expectedLifecycleCancellation(error)) logStage('scheduler.history', 'lifecycle', error); });
       await history.show();
@@ -607,8 +652,9 @@
       bindDetached(record, win.control('removeTestBatch'), 'click', 'scheduler.test.remove', removeTestBatch);
       bindDetached(record, win.control('openCreate'), 'click', 'scheduler.show-create', async () => { mode = 'create'; armedDeleteID = ''; lastError = ''; notice = '创建表单已展开。'; await render(); });
       bindDetached(record, win.control('refresh'), 'click', 'scheduler.refresh', () => loadBackend('scheduler.refresh', '计划列表已刷新。'));
-      bindDetached(record, win.control('closeCreate'), 'click', 'scheduler.hide-create', async () => { mode = 'list'; armedDeleteID = ''; lastError = ''; notice = '创建表单已收起；已填写内容保留。'; await render(); });
+      bindDetached(record, win.control('closeCreate'), 'click', 'scheduler.hide-create', async () => { mode = 'list'; armedDeleteID = ''; lastError = ''; notice = '创建表单已收起；已填写内容仍会保留。'; await render(); });
       bindDetached(record, win.control('createJob'), 'click', 'scheduler.create', createJob);
+      bindDetached(record, win.control('fillInlineExample'), 'click', 'scheduler.fill-inline-example', fillInlineExample);
       bindDetached(record, win.control('browseScript'), 'click', 'scheduler.browse-script', openScriptBrowser);
       bindDetached(record, win.control('createScriptChoice'), 'change', 'scheduler.script-choice', async () => {
         const state = await win.control('createScriptChoice').getState();
@@ -679,8 +725,9 @@
     async function performOpen(action, source, requestedMode) {
       const record = await ensureWindow(action);
       await record.handle.show();
+      logStage(action, 'window-visible', null, {generation: record.generation});
       mode = requestedMode;
-      notice = requestedMode === 'create' ? '填写新计划后点击“创建计划”。' : source ? `计划中心已打开 · ${source}` : '';
+      notice = requestedMode === 'create' ? '填写“新建计划”后点击“创建计划”。' : source ? `计划中心已打开 · ${source}` : '';
       await loadBackend(action, notice);
       return state();
     }
@@ -700,7 +747,7 @@
     function openCreate(source) { return openAction('scheduler.new', source || 'scheduler.new', 'create'); }
     function refresh(message) { return !windowRecord || loading ? Promise.resolve(state()) : loadBackend('scheduler.refresh', message || '计划列表已刷新。').then(() => state()); }
     function state() {
-      return Object.freeze({open: !!windowRecord, loading, count: jobs.length, runnerState: runtimeState ? runtimeState.runnerState : '', lastError, mode, windowGeneration, creating: !!creatingPromise, testActionRunning});
+      return Object.freeze({open: !!windowRecord, loading, count: jobs.length, runnerState: runtimeState ? runtimeState.runnerState : '', lastError, mode, windowGeneration, creating: !!creatingPromise, lifecycleActive: !!(windowRecord && !windowRecord.disposed), testActionRunning});
     }
 
     return Object.freeze({open, openCreate, refresh, state});
