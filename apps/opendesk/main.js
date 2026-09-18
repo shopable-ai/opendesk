@@ -14,7 +14,6 @@ if (!globalThis.OpenDeskOfficialShell || typeof OpenDeskOfficialShell.create !==
 const officialShell = OpenDeskOfficialShell.create({
   file: File,
   command: Command,
-  system: System,
   execution: Execution,
   packageRoot: Execution.scriptDir,
 });
@@ -275,7 +274,6 @@ const developerTools = OpenDeskDeveloperTools.create({
   schedulerClient: OpenDeskSchedulerClient,
   runtimeLog,
   inspectorLauncher,
-  analyticsClient: OpenDeskProductAnalytics,
   system: System,
 });
 const appController = OpenDeskProductAppController.create({
