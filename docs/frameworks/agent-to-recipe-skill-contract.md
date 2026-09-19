@@ -4,14 +4,14 @@
 
 ## 1. 定位与唯一职责
 
-本文件维护 Agent-to-Recipe 专业作业的输入、输出、交接和恢复约定，并维护 Human／已有资产进入共同资格与发布出口时的最小适配约束，不另建开发阶段或业务执行引擎。S1—S12 仍是生命周期阶段；专业职责与阶段不是一一对应。当前已有 `application-engineer`、`trace-distill`、`procedure-synthesize`、`code-rebuild` 四个方法文件，支持当前 Agent 显式读取；宿主发现／加载与独立上下文验证仍须另外证明。Human 的两个现有 Skill 保持独立来源和方法，不因复用本合同而改成 Agent 示范。
+本文件维护 Agent-to-Recipe 专业作业的输入、输出、交接和恢复约定，并维护 Human／已有资产进入共同资格与发布出口时的最小适配约束，不另建开发阶段或业务执行引擎。S1—S12 仍是生命周期阶段；专业职责与阶段不是一一对应。当前已有 `application-engineer`、`trace-distill`、`procedure-synthesize`、`code-rebuild`、`recipe-qualify` 五个方法文件，支持当前 Agent 显式读取；宿主发现／加载与独立上下文验证仍须另外证明。Human 的两个现有 Skill 保持独立来源和方法，不因复用本合同而改成 Agent 示范。
 
 - 阶段与完整生命周期：[示范到自动化执行方法](demonstration-to-automation-pipeline.md)。
 - 业务拆解、数据依赖和六类解题模式：[自动化任务求解方法](automation-problem-solving-framework.md)。
 - 专业操作依据：[应用开发框架](app-development-framework.md)、[总体执行闭环](automation-framework.md)。
 - 可调用能力：[API 入口](../api/README.md)、[Execution](../api/execution.md)、[扩展放置原则](runtime-api-extension-framework.md)。
 - 已有质量体系：[G0—G7](../quality/gates-and-evidence.md)、[失败分类](../quality/failure-taxonomy.md)。不另造平行 Gate／Failure 编号。
-- 工作流导航及四个方法文件：[当前入口](../../workflows/agent-to-recipe/WORKFLOW.md)。旧 prompts 目录不是有效入口；方法文件不证明当前存在已安装实现。
+- 工作流导航及五个方法文件：[当前入口](../../workflows/agent-to-recipe/WORKFLOW.md)。旧 prompts 目录不是有效入口；方法文件不证明当前存在已安装实现。
 - 原首个验证任务：[计算器规程](../quality/agent-to-recipe/calculator-validation.md)。行为案例与应用工程评测沿用[当前验证计划](../../workflows/agent-to-recipe/design/validation-plan.md)。
 - 跨 Runtime／Catalog／Authoring 生命周期、CapabilityDefinition／CatalogEntry、运行路由与 P0／P1 优先级：[Automation Capability Lifecycle](../architecture/desktop-automation/task-capability-lifecycle.md)。本文第 10 节只拥有跨来源作者交接约束，不复制第二套运行状态机或能力目录字段。
 
@@ -27,7 +27,7 @@ Agent 使用 OpenDesk 当前能力完成真实任务，保存关键事实，先�
 
 ## 2. 目标专业职责与阶段映射
 
-原六项职责保留为历史来源；当前职责增加 S7 `trace-distill`，并将 `procedure-synthesize` 收窄为 S8—S9。`code-rebuild` 继续作为独立、可选职责。下表是职责合同；四个方法文件的存在不表示宿主已安装它们。
+原六项职责保留为历史来源；当前职责增加 S7 `trace-distill`，并将 `procedure-synthesize` 收窄为 S8—S9。`code-rebuild` 继续作为独立、可选职责；`recipe-qualify` 已形成 S12 正式方法文件。下表是职责合同；方法文件的存在不表示宿主已安装它们。
 
 | 专业职责 | 方法阶段 | 主要输入 | 本环节必须保存的主产物 | 正常消费者 |
 | --- | --- | --- | --- | --- |
@@ -38,7 +38,7 @@ Agent 使用 OpenDesk 当前能力完成真实任务，保存关键事实，先�
 | `procedure-synthesize` | S8—S9 | 合同、DistilledSteps、应用资料及补证 | SemanticProcedure、Business Step、参数与数据依赖 | 应用补强、生成 |
 | `recipe-build` | S11 的路线 A 实现 | 已确认过程、应用资料、当前 API | 普通 JS、CandidateManifest | 按需代码改进或验收 |
 | `code-rebuild`（方法文件已实现） | S11 内可选／独立入口 | 代码基线、明确需求与改进目标、相关应用规则 | 原样保留结论，或新候选、变更理由、检查结果与重验范围 | 验收 |
-| `recipe-qualify` | S12 | 冻结合同、候选版本、验证场景 | QualificationRecord、失败及修复请求 | 协调者／交付者 |
+| `recipe-qualify`（方法文件已实现） | S12 | 冻结合同、候选版本、验证场景 | QualificationRecord、Recipe Review、失败及修复请求 | 协调者／交付者 |
 
 S1 先从用户原始来源形成任务合同和粗粒度业务任务树，再形成可审阅的业务操作计划。初始计划允许明确的 Unknown，禁止编造全部点击细节；需要依赖关键能力的大量后续动作前，应优先核实会推翻路线的高影响未知。S3—S5 是计划、操作、观察、验证和修订的微循环；S6 是整次示范的业务验证。一个工作包完成不代表全部任务完成。
 
@@ -368,7 +368,7 @@ Candidate 不只固定顶层 `.js`。拟发布对象须固定实际入口、导�
 
 发布请求范围必须属于 Candidate 声明范围与 Qualification 已证明范围的交集，还受发布策略限制。环境范围包含所需的实际应用身份、平台、app version/build、layout、locale 与输入子域；关键未知不是通配符。旧 Record 缺范围字段时按未知处理，不推断支持所有平台、按钮或输入。
 
-同一人员可以启动固定 Gate，但切换模型角色不等于独立上下文；没有对应证据不能宣称无历史交接通过。Qualification 方法只有实际入口／宿主／测试落实后才可调用，本节不表示 `recipe-qualify` Skill 已创建或已安装。
+同一人员可以启动固定 Gate，但切换模型角色不等于独立上下文；没有对应证据不能宣称无历史交接通过。`recipe-qualify` 方法文件已创建，可由当前 Agent 显式读取；宿主自动发现／安装、隔离上下文表现和通用真实业务资格仍须分别证明。
 
 ### 10.5 Failure Package 与定向修复接续
 
@@ -405,6 +405,7 @@ Gap／Failure Package 的整体路由由总纲维护。进入本合同的作者�
 ### 修订记录
 
 - 2026-09-19：落地 trace-distill、procedure-synthesize、code-rebuild 方法文件、共用读取基础及相邻工件检查切片；稳定 fixture 与正反测试进入 tests/workflows。没有改变 v1 枚举或 S/G 编号；宿主加载、盲上下文与人类验收未据此通过，实际结果见[质量总览](../quality/agent-to-recipe-workflow-review-20260919.md)。
+- 2026-09-19 本轮续作：增加 `recipe-qualify` S12 方法文件，复用既有 QualificationRecord 与验证计划，不新增 S13、评分 Gate、发布器或公共 schema；高分不能覆盖 requested scope 的 fail/not-run/blocked。
 
 - 2026-09-08：深化应用工程合同并写入正式 application-engineer 方法入口。保留既有主产物和 request／handoff 枚举，明确同一 Agent、工作包内部复用、最小数据和 AppProfile 增量版本。
 - 2026-09-11，v1.1：补自然语言来源与内部结构化合同边界、可读操作计划、planned／actual／planDelta 交接；新增 DistilledSteps 主产物，目标 `trace-distill` 承担 S7，`procedure-synthesize` 收窄为 S8—S9。未据此声明新增 Skill 已安装、宿主已接线或运行验收通过。
