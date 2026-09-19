@@ -4,7 +4,7 @@
 
 ## 2026-09-19 当前续作｜Run Summary
 
-本次续作从远端 `master@64872b6642d32588cbe3a3fabaaedfff7c5d54f7` 开始，直接反向验收既有 r003 黄金 Recipe，没有重做 Calculator、没有修改生产 `calculator.js`、没有恢复 `runtime-api.ai.json`。当前执行环境能够修改并检查 GitHub 仓库，但不能读取用户本机被 `.gitignore` 排除的 `.runtime/automation-authoring/**` 或运行 macOS `./dist/opendesk`；因此历史 q002 live 证据只按已经提交的质量报告／来源关系复用，不伪装成本轮重新读取或重新执行。
+本次续作从远端 `master@64872b6642d32588cbe3a3fabaaedfff7c5d54f7` 开始，直接反向验收既有 r003 黄金 Recipe，没有重做 Calculator、没有修改生产 `calculator.js`、没有恢复 `runtime-api.ai.json`。当前执行容器仍不能读取用户 Mac 上被 `.gitignore` 排除的 `.runtime/automation-authoring/**`，且 `/Users/mac/Documents/workspace/clawdesk` 在本环境不存在；历史 q002 Calculator live 证据因此只按已提交质量报告／来源关系复用。正式 OpenDesk Runtime contract/unit 则已通过 GitHub macOS runner 从当前源码构建真实 `dist/opendesk` 后执行，不用 Node 模拟 Runtime。
 
 | 项目 | 当前结论 | 关键入口 |
 | --- | --- | --- |
@@ -13,7 +13,7 @@
 | S8—S9 | 新合同把最终 Recipe-driving 选择收敛进 `SemanticProcedure.capabilityDecisions`；旧 r003 缺字段时保持 unknown，不倒填 | [共享合同](../frameworks/agent-to-recipe-skill-contract.md)、[procedure-synthesize](../../workflows/agent-to-recipe/skills/procedure-synthesize/SKILL.md) |
 | S10 | 仍由 application-engineer 负责 locator / stability；Calculator 当前使用 exact window + AX semantic preflight + Runtime scoped UI API，不留下裸坐标 | [application-engineer](../../workflows/agent-to-recipe/skills/application-engineer/SKILL.md) |
 | S11 | 生产 Recipe baseline-retained；Candidate 对新链路用 `apiRefs` + `sourceMapping.capabilityDecisionRefs` 固定选择关系 | [calculator.js](../../examples/agent-to-recipe/calculator.js) |
-| S12 | 历史 q002 固定范围资格继续是历史 PASS；本轮当前 HEAD 的 macOS live 没有重跑，保持 **not-run** | [r003 Qualification 说明](agent-to-recipe-calculator-r003.md) |
+| S12 | [recipe-qualify](../../workflows/agent-to-recipe/skills/recipe-qualify/SKILL.md) 已形成正式方法；历史 q002 固定范围资格继续是历史 PASS；当前 HEAD 未重跑 Calculator live，因此不提升为新的 live PASS | [r003 Qualification 说明](agent-to-recipe-calculator-r003.md) |
 | 最终汇总 | 本页即 Run Summary 投影；权威状态仍来自 progress / handoff / QualificationRecord，不新增平行状态文件 | [WORKFLOW](../../workflows/agent-to-recipe/WORKFLOW.md) |
 
 ### 反向闭环结论
@@ -48,6 +48,23 @@ Calculator 当前代码可以从短入口发现并追到 `window.get / window.ac
 | `× / * / x` 怎么处理 | 当前生产只支持真实语义名 `×`；没有证据就不做隐式别名。未来增加别名属于策略变更，需要新候选和重验 |
 | Recipe 如何进入最终结论 | S12 固定 Candidate 后产生 QualificationRecord；本页只汇总，不把历史 PASS 提升为当前 HEAD 新 PASS |
 
+### 正式 Runtime / API 阅读链验收
+
+本轮把用户要求的两条正式命令接入 macOS CI，并从当前源码构建真实 OpenDesk Runtime。执行对象为 `9360b3d74fd8235b44e716fcb706a3b28108eb0c`；后续若只修改本质量总览，Runtime 结果仍绑定该可执行字节。
+
+| 验证 | 结果 | 结论边界 |
+| --- | --- | --- |
+| `OPENDESK_RUNTIME_API_MODE=contract ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script` | **PASS** | Runtime surface、manifest、canonical docs 路径与 types 能闭合；不依赖退役 JSON |
+| `OPENDESK_RUNTIME_API_MODE=unit ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script` | **822 PASS / 12 FAIL** | full unit 仍有现有 Runtime 回归，不能报告全绿；失败不来自旧 JSON 删除 |
+| Calculator exact-owner `unit-selected`：`window-target,ui-target-sequence,ui-semantic-targets,ui-semantic-targets-cancel,accessibility` | **52/52 PASS** | 当前 Recipe 使用的 window identity、`UI.tapTargets`、Accessibility owner 在选定单元范围通过 |
+| `node tests/runtime-api/ui-perception-resolver.unit.cjs` | PASS；其中 `readText` 实际值 110 / macOS display 660 两案 PASS | 证明 resolver 逻辑不会拿 caller expected 当数据源；不是新的 Calculator live |
+| Agent-to-Recipe contract CI | **101/101 PASS** | 检查 Stage/artifact/capability decision 关系，不证明模型 Producer 或真实桌面 |
+| API reader/discovery | **27/27 + 9/9 PASS**，catalog deterministic check PASS | 短 Markdown 入口、目录、canonical contract、退役 JSON 清理闭合 |
+
+full unit 的 12 个失败集中在既有 `window.list` 归一化、visual Locator fallback、Audio capability，以及 legacy `UI.findText / tapText / tapTexts / waitText` 行为测试；**没有** `window.get/current/activate`、`UI.tapTargets`、`UI.readText` contract 或 `Accessibility.snapshot` 的失败。它们作为 Runtime 既有问题保留，不为本轮 Agent-to-Recipe 验收修改成功标准。
+
+formal contract 首轮还真实发现了一个高价值 source-of-truth 缺口：lowercase Custom UI `ui.toast / notify / getCapabilities / createWindow / closeAll / on` 的 Runtime manifest 指向了实际属于大写桌面 `UI` 的 `types/ui.d.ts`。本轮新增 `types/CustomUI.d.ts`，把 Runtime manifest 与 Agent docs type map 指向独立 Custom UI owner，并按 generator 重生成 `presentation.md`；之后 macOS formal contract PASS。仓库仍同时跟踪 case-only 的 `types/UI.d.ts` / `types/ui.d.ts` 重复路径，本轮不贸然删除，留作独立兼容性清理。
+
 ### Recipe Review / Qualification 结论
 
 生产 Recipe 字节没有变化，所以先前 validation-plan 权重下的固定候选 **88/100** 不能因为工作流文档更完整就被抬高。其主要强项是业务数据链、框架能力复用、普通函数职责、fail-fast 与固定场景的历史真实验证；主要扣分仍是当前 HEAD 未重新 live、变化／故障场景有限、跨布局／语言／Windows／更广参数域未资格化。**本轮不虚报 ≥95。**
@@ -59,13 +76,15 @@ Calculator 当前代码可以从短入口发现并追到 `window.get / window.ac
 | 参数化 / 可复用性 | LIMITED-BY-DESIGN | 当前只资格化固定正整数链和指定运算符 |
 | Locator / Stability | PASS（声明范围） | 其他布局、语言、平台未测 |
 | 错误处理 | PASS（源码/既有资格） | unknown / partial 故障注入仍有限 |
-| 验证充分性 | PARTIAL（当前续作） | 正式 Runtime contract/unit 与当前 HEAD macOS live 为 UNRUN |
+| 验证充分性 | PARTIAL（当前续作） | Runtime contract PASS；Calculator exact-owner selected unit 52/52 PASS；full Runtime unit 仍 12 FAIL；当前 HEAD Calculator live 未重跑 |
 
 因此可以继续复用的是“历史已资格化的 fixed-scope Recipe + 已绑定证据”；不能从本轮得出“当前任意环境生产级 95+”或“Windows/其他布局已通过”。这不是代码必须重写的信号，而是后续资格证据边界。
 
 ### 新增结构门禁
 
 当前 frozen fixture 明确为 synthetic，只验证检查器能否识别断链。它现在覆盖：缺 capability decision、绕过短入口、双 selected、selected 无 canonical contract、文档存在但 Runtime not-run、failed 无 evidence、Candidate 丢 decision mapping、Candidate 丢 selected API ref，以及旧 Procedure/Candidate 不含新字段时保持 provenance unknown。fixture 不执行 Calculator，也不把合成 110/660 冒充历史 observation。
+
+新链路的机器门禁还要求 modern Business Step 显式给出 inputSources / preconditions / execution / observation / postconditions / verification / stopConditions / consumers，并把 selected canonical contract 与必要 shared constraints 通过 Candidate `apiRefs`、`sourceMapping.capabilityDecisionRefs` 继续绑定；旧工件缺字段时保留 provenance unknown，不倒填。
 
 以下原有评审段落记录较早的 2026-09-19 本地切片，其中当时的 HEAD、测试次数和“未提交”状态只对那个时点成立；本次续作以上面的 Run Summary 为当前状态，不改写旧执行证据。评审者始终是任务 Agent，不是人类评审或盲上下文评测。
 
