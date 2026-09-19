@@ -6,7 +6,7 @@ order: 10
 
 # Agent-to-Recipe｜工作流导航与应用工程入口
 
-本文件负责整体工作流导航、手工协调执行规程和当前已存在的方法入口，不是自动调度程序。当前已建立 [application-engineer](skills/application-engineer/SKILL.md)、[trace-distill](skills/trace-distill/SKILL.md)、[procedure-synthesize](skills/procedure-synthesize/SKILL.md) 和 [code-rebuild](skills/code-rebuild/SKILL.md) 方法文件，可由当前 Agent 显式读取使用；文件、辅助程序、宿主加载、独立上下文评测和真实业务资格分别判断。本文不复制专业正文，也不自动授予桌面权限。
+本文件负责整体工作流导航、手工协调执行规程和当前已存在的方法入口，不是自动调度程序。当前已建立 [application-engineer](skills/application-engineer/SKILL.md)、[trace-distill](skills/trace-distill/SKILL.md)、[procedure-synthesize](skills/procedure-synthesize/SKILL.md)、[code-rebuild](skills/code-rebuild/SKILL.md) 和 [recipe-qualify](skills/recipe-qualify/SKILL.md) 方法文件，可由当前 Agent 显式读取使用；文件、辅助程序、宿主加载、独立上下文评测和真实业务资格分别判断。本文不复制专业正文，也不自动授予桌面权限。
 
 ## 本轮执行规程：从已有成果继续，而不是重新开始
 
@@ -54,7 +54,7 @@ order: 10
 | S8—S9 | 从必要路径建立业务步骤和参数关系 | SemanticProcedure；稳定步骤标识、输入来源、前后条件、实际输出、验证及消费者明确；Expected 不能冒充运行读值 |
 | S10 | 消费过程及应用缺口；调用现有应用工程方法定向加固 | 有范围与失效条件的定位／读取／等待／动作规则；测量来源、父区域、单位、坐标空间、容差可审阅 |
 | S11 | 依据过程、AppProfile 和当前 API 生成普通 JS；仅按需要改进代码 | 冻结 CandidateManifest、真实入口与依赖 hash；完成生成者自检和无输入预检，不把自检当独立资格 |
-| S12 | 固定候选与请求验证范围，从干净状态执行真实入口 | QualificationRecord、实际命令、环境、结果及证据；分别记录 pass／fail／not-run／blocked，失败定向回流 |
+| S12 | 固定候选与请求验证范围，从干净状态执行真实入口；按 [recipe-qualify](skills/recipe-qualify/SKILL.md) 形成分层结论 | QualificationRecord、Recipe Review、实际命令、环境、结果及证据；分别记录 pass／fail／not-run／blocked，失败定向回流 |
 
 关键交接按同一 S1—S12 解释，不再增加编号：
 
@@ -117,8 +117,9 @@ node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-c
 | S7 | [trace-distill](skills/trace-distill/SKILL.md)：冻结合同／计划、Dossier／Raw Trace → DistilledSteps | 必要读取／准备不误删，重复数字不去重，缺证据／unknown／事后解释被拒绝 |
 | S8—S9 | [procedure-synthesize](skills/procedure-synthesize/SKILL.md)：固定 DistilledSteps → 业务步骤、数据依赖与能力选择记录 | 覆盖及顺序、输出与输入关系、禁止第二套 action disposition；短入口/能力目录、唯一选中方法、内容绑定 canonical contract、Runtime validation 与 Candidate 消费关系不断链 |
 | S11 可选审查 | [code-rebuild](skills/code-rebuild/SKILL.md)：精确代码及需求／过程／应用规则 → 原样保留评审或新候选 | 读取首值却消费固定样例被拒绝；代码变更不能沿用旧 hash |
+| S12 资格 | [recipe-qualify](skills/recipe-qualify/SKILL.md)：冻结 Candidate／标准／场景／环境 → QualificationRecord + Recipe Review | 不改候选或成功标准换 pass；requested 中 fail/not-run/blocked 不可被高分抵消 |
 
-该工具当前只支持 Calculator 形状的 v1 成功路径及直接调用源码模式，既不是通用 schema validator，也不是任意 JS 的控制流证明。它检查选定引用，不递归证明整个依赖闭包，不判断历史真实性、现场、视觉、人类接受或宿主安装。闭包另由候选专用检查核验；实际语义仍需审阅。工具通过不表示三个 Skill 在隔离上下文中的行为评测通过。
+该工具当前只支持 Calculator 形状的 v1 成功路径及直接调用源码模式，既不是通用 schema validator，也不是任意 JS 的控制流证明。它检查选定引用，不递归证明整个依赖闭包，不判断历史真实性、现场、视觉、人类接受或宿主安装。闭包另由候选专用检查核验；实际语义仍需审阅。工具通过不表示相关 Skill 在隔离上下文中的行为评测通过；`recipe-qualify` 文件存在也不等于当前候选已取得新的 live 资格。
 
 可复制的真实只读命令、Frozen Fixture、代码评审及分层结论集中在[工作流质量总览](../../docs/quality/agent-to-recipe-workflow-review-20260919.md)。稳定 fixture 在 `tests/workflows/fixtures/calculator-artifact-chain/`，它明确标为合成测试资料，不是历史示范；临时实例仍写入 `.runtime/tests/workflows/`。S1—S12、G0—G7 不变，最终业务程序仍为普通 JS。
 
@@ -153,7 +154,7 @@ node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-c
 
 进入本链前先消费明确的 Capability Gap、Failure Package 或已有资产工作包，固定目标、来源、允许副作用与预算。已有有效 AppProfile、过程、候选和证据优先复用；仅缺资格时先重验，仅缺登记时走受控发布，不强制重走新示范。用户在 Normal Mode 确认一次运行，不等于授权 Agent 探索、生成、验收和发布。
 
-出口仍是现有合同下的普通 JS Candidate 与独立 QualificationRecord，再由生命周期的显式发布门登记 Capability。任何代码/依赖修复形成新候选，不能热改生产脚本沿用旧资格；完整发布门与 recipe-qualify 正式入口尚待实施，不因本文存在而自动可用。Agent 的 S1—S12、Human 的 H1—H8 与原始来源分别保留，不把来源适配做成第二份 AppProfile 或业务步骤真相。
+出口仍是现有合同下的普通 JS Candidate 与独立 QualificationRecord，再由生命周期的显式发布门登记 Capability。任何代码/依赖修复形成新候选，不能热改生产脚本沿用旧资格；`recipe-qualify` 方法文件已实现，但完整 Catalog 发布门、宿主自动加载和跨来源发布适配仍待独立实施；方法文件存在不自动授予发布或业务运行资格。Agent 的 S1—S12、Human 的 H1—H8 与原始来源分别保留，不把来源适配做成第二份 AppProfile 或业务步骤真相。
 
 application-engineer 保持下述唯一路径，供 Agent、Human 与运行失败维修共享；其局部规则/审阅和资格范围建议不等于整份 Recipe 通过，也不授予最终发布权。详细字段、路由、优先级和跨层任务树只在上述生命周期文档维护。
 
@@ -229,4 +230,4 @@ S10 消费策略选择、风险和定位证据，S11 执行生成者自检，S12
 - 同一个 Agent 可连续承担专业工作和检查；独立上下文测试须真实隔离，不能以在同一对话切换角色冒充通过。
 - 生成与可选改进分开，失败按原因返回，不必所有任务重走完整链。结果可能已经生效时先核对，不从头重放。
 - 正常保存必要事实，异常再展开诊断，不等失败后补造现场。原图、审阅、规则与验证不混用版本；只有认识时不声明已有可靠操作。
-- 当前四个方法入口的文件状态与验证范围见第 4.1 节；实际模型提取、留出规则测试、宿主加载、盲上下文及其他桌面场景仍按验证计划分批完成，未运行项如实保留。
+- 当前五个方法入口的文件状态与验证范围见第 4.1 节；实际模型提取、留出规则测试、宿主加载、盲上下文及其他桌面场景仍按验证计划分批完成，未运行项如实保留。
