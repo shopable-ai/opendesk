@@ -221,7 +221,7 @@ declare global {
     readonly id: string;
     getState(): Promise<ClawdeskUIControlState>;
     update(patch: ClawdeskUIControlPatch): Promise<ClawdeskUIControlState>;
-    on(type: ClawdeskUIEventSelector, listener: ClawdeskUIEventListener): ClawdeskUIUnsubscribe;
+    on(type: EventType | "*", listener: (event: UIEvent) => void | Promise<void>): () => void;
   }
 
   interface ClawdeskUIWindowHandle {
@@ -257,11 +257,11 @@ declare global {
 
   interface ClawdeskUI {
     /** Preferred OpenDesk-owned transient feedback API. */
-    toast(messageOrOptions: string | ClawdeskUIToastOptions): Promise<ClawdeskUIToastHandle>;
+    toast(messageOrOptions: string | ToastOptions): Promise<ToastHandle>;
     /** @deprecated Use toast(). */
-    notify(messageOrOptions: string | ClawdeskUIToastOptions): Promise<ClawdeskUIToastHandle>;
-    getCapabilities(): ClawdeskUICapabilities;
-    createWindow(spec: ClawdeskUIWindowSpec): Promise<ClawdeskUIWindowHandle>;
+    notify(messageOrOptions: string | NotificationOptions): Promise<NotificationHandle>;
+    getCapabilities(): Capabilities;
+    createWindow(spec: WindowSpec): Promise<WindowHandle>;
     closeAll(): Promise<void>;
     on(type: ClawdeskUIEventSelector, listener: ClawdeskUIEventListener): ClawdeskUIUnsubscribe;
   }
