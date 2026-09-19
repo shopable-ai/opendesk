@@ -14,7 +14,7 @@ description: Convert fixed DistilledSteps into an Agent-to-Recipe SemanticProced
 - 解释这条路径所必需的 AppProfile 与定向补证，不默认阅读全部历史。
 
 发现原动作 retain／merge／omit 错误，返回 `trace-distill`；不能在 Procedure 内重读 Raw Trace 并维护第二套 actionDecisions。
-只读检查器可以机械核对上游引用和来源，这不等于让语义 Producer 重新判断 S7。
+只读检查器可以机械核对上游引用和来源，这不等于让语义 Producer 重新判断 S7。 AppProfile 等材料的传递引用也不能成为静默取得全量 Dossier／Raw Trace 的旁路；当前相邻评测入口遇到此情况停止 S9 发包并要求定向补证，不删除引用或伪装材料类型。
 
 ## 方法：生产什么判断
 

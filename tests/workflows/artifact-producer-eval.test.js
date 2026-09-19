@@ -6,8 +6,8 @@ const path = require('node:path');
 const { fixture, REPO } = require('./tools/artifact-fixture.js');
 const { evaluateAdjacent } = require('./tools/adjacent-producer-eval.js');
 
-function setup(t) {
-  const f = fixture(t, () => {}, state => {
+function setup(t, mutate = () => {}) {
+  const f = fixture(t, mutate, state => {
     // Application/API evidence is upstream input; no standard output is put in a packet.
     const procedure = JSON.parse(fs.readFileSync(state.file('procedure.json'), 'utf8'));
     const refs = [];
@@ -125,4 +125,114 @@ test('tampered frozen input is refused even after a successful Producer response
   const result = await evaluateAdjacent(s.request, s.out, s.adapter);
   assert.equal(result.attempts[0].error.code, 'EVAL_INPUT_CHANGED');
   assert.equal(result.stages['procedure-synthesize'], 'not-run');
+});
+
+// Regression cases exercise evaluator mechanics, never model competence.
+const { hash, JSON_LIMIT } = require('../../workflows/agent-to-recipe/scripts/artifact-validation.js');
+
+test('an authorized but unused root does not make valid adjacent inputs fail', async t => {
+  const s = setup(t);
+  const unused = path.join(s.f.root, 'unused'); fs.mkdirSync(unused);
+  s.request.roots.push(['unused', unused]);
+  const result = await evaluateAdjacent(s.request, s.out, s.adapter);
+  assert.deepEqual(result.stages, { 'trace-distill': 'pass', 'procedure-synthesize': 'pass' }, JSON.stringify(result));
+});
+
+test('each attempt binds the exact saved input packet bytes and checker implementation', async t => {
+  const s = setup(t);
+  const result = await evaluateAdjacent(s.request, s.out, s.adapter);
+  for (const attempt of result.attempts) {
+    const bytes = fs.readFileSync(path.join(s.out, attempt.stage, 'input.json'));
+    assert.equal(attempt.inputSha256, hash(bytes));
+    assert.equal(attempt.outputTruncated, false);
+    const output = fs.readFileSync(path.join(s.out, attempt.storedOutput.path));
+    assert.equal(attempt.storedOutput.sha256, hash(output));
+    assert.equal(attempt.outputSha256, hash(output));
+  }
+  const checker = 'workflows/agent-to-recipe/scripts/check-artifact-chain.js';
+  assert.equal(result.checkerVersions[checker], hash(fs.readFileSync(path.join(REPO, checker))));
+});
+
+test('oversized multibyte output is retained within a byte budget with an explicit stored digest', async t => {
+  const s = setup(t);
+  const raw = JSON.stringify({ note: '测'.repeat(JSON_LIMIT / 2) });
+  s.adapter.produce = async () => raw;
+  const result = await evaluateAdjacent(s.request, s.out, s.adapter);
+  const attempt = result.attempts[0];
+  const bytes = fs.readFileSync(path.join(s.out, 'trace-distill/output.raw'));
+  assert.equal(attempt.error.code, 'EVAL_OUTPUT_LIMIT');
+  assert.ok(bytes.length <= JSON_LIMIT);
+  assert.equal(attempt.outputBytes, Buffer.byteLength(raw));
+  assert.equal(attempt.outputSha256, hash(Buffer.from(raw)));
+  assert.equal(attempt.outputTruncated, true);
+  assert.deepEqual(attempt.storedOutput, { path: 'trace-distill/output.raw', bytes: bytes.length, sha256: hash(bytes) });
+  assert.equal(result.stages['procedure-synthesize'], 'not-run');
+});
+
+for (const failure of [null, undefined, 'host refused']) test('a non-Error throw is retained as one failed Producer attempt: ' + String(failure), async t => {
+  const s = setup(t); let calls = 0;
+  s.adapter.produce = async () => { calls++; throw failure; };
+  const result = await evaluateAdjacent(s.request, s.out, s.adapter);
+  assert.equal(calls, 1);
+  assert.equal(result.setupFailure, undefined);
+  assert.equal(result.stages['trace-distill'], 'fail');
+  assert.equal(result.stages['procedure-synthesize'], 'not-run');
+  assert.equal(result.attempts[0].result, 'fail');
+  assert.ok(result.attempts[0].error.message.includes(String(failure)));
+});
+
+test('S9 cannot implicitly acquire Raw Trace through an AppProfile reference', async t => {
+  const s = setup(t);
+  const profile = s.read('profile.json');
+  profile.evidenceRefs.push(s.f.ref('actions.json', 'RawTrace'));
+  s.f.write('profile.json', profile);
+  const dossier = s.read('dossier.json');
+  dossier.appProfileRefs = [s.f.ref('profile.json', 'AppProfile')];
+  s.f.write('dossier.json', dossier);
+  const result = await evaluateAdjacent(s.request, s.out, s.adapter);
+  assert.equal(result.stages['trace-distill'], 'pass', JSON.stringify(result));
+  assert.equal(result.stages['procedure-synthesize'], 'not-run');
+  assert.equal(result.attempts.length, 1);
+  assert.equal(result.setupFailure.code, 'EVAL_INPUT_ROLE');
+  assert.equal(result.setupFailure.stage, 'procedure-synthesize');
+  assert.ok(!fs.existsSync(path.join(s.out, 'procedure-synthesize/input.json')));
+});
+
+
+test('a second legal synthetic data set traverses the same adjacent evaluator without becoming live evidence', async t => {
+  const s = setup(t, source => {
+    const first = [...'12×3+4='], second = [...'6×40='];
+    source.actions.find(a => a.actionId === 'A004').data.names = first;
+    source.actions.find(a => a.actionId === 'A009').data.names = second;
+    Object.assign(source.actions.find(a => a.actionId === 'A005').data, { first: '40', second: '40' });
+    Object.assign(source.actions.find(a => a.actionId === 'A010').data, { first: '240', second: '240' });
+    source.dossier.actualInputs = { first, second };
+    source.dossier.runtimeValues[0].observedValue = '40';
+    source.dossier.runtimeValues[1].observedValue = '240';
+    source.dossier.sideEffects.finalActual = '240';
+    source.procedure.parameters.firstExpression.value = '12×3+4';
+    source.evidence['first-read.txt'] = 'Synthetic UI-read record: 40; not live evidence.';
+    source.evidence['final-read.txt'] = 'Synthetic UI-read record: 240; not live evidence.';
+  });
+  const result = await evaluateAdjacent(s.request, s.out, s.adapter);
+  assert.deepEqual(result.stages, { 'trace-distill': 'pass', 'procedure-synthesize': 'pass' }, JSON.stringify(result));
+  const report = JSON.parse(fs.readFileSync(path.join(s.out, 'procedure-synthesize/check.json')));
+  assert.equal(report.valueLineage[0].observedClaim, '40');
+  assert.equal(result.modelBehaviorVerified, false);
+  assert.equal(result.liveQualificationGranted, false);
+});
+
+test('a failed S9 artifact is retained without erasing the accepted S7 prefix', async t => {
+  const s = setup(t), original = s.adapter.produce;
+  s.adapter.produce = async packet => {
+    const output = await original(packet);
+    if (packet.stage === 'procedure-synthesize') output.runtimeValues[0].source = 'B020 not the read producer';
+    return output;
+  };
+  const result = await evaluateAdjacent(s.request, s.out, s.adapter);
+  assert.deepEqual(result.stages, { 'trace-distill': 'pass', 'procedure-synthesize': 'fail' });
+  assert.equal(result.attempts.length, 2);
+  assert.ok(fs.existsSync(path.join(s.out, 'procedure-synthesize/output.raw')));
+  assert.equal(result.attempts[0].outputSha256,
+    JSON.parse(fs.readFileSync(path.join(s.out, 'procedure-synthesize/input.json'))).inputs.distilled.sha256);
 });

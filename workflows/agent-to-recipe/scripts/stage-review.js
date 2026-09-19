@@ -64,7 +64,7 @@ function artifactViews(entries) {
 
 // A bounded drill-down derived from the very same input snapshots. Missing
 // links remain visible; this is a declaration trace, not a live causal proof.
-function valueLineage(entries) {
+function valueLineage(entries, boundaries = {}) {
   const doc = name => entries[name]?.parsed || {};
   const list = value => Array.isArray(value) ? value : [];
   return list(doc('dossier').runtimeValues).slice(0, 100).map(rawValue => {
@@ -80,7 +80,8 @@ function valueLineage(entries) {
     return { value: value.name, observedClaim: value.observedValue, action: action || 'missing',
       consumers: list(value.consumers), distilled: steps.map(step => step.stepId),
       business: business.map(step => step.stepId), code: mappings.map(mapping => mapping.function),
-      evidence: list(value.evidenceRefs), qualification: entries.qualification ? 'record checked, not live verified' : 'not-run' };
+      evidence: list(value.evidenceRefs), qualification: entries.qualification
+        ? (boundaries.qualification || 'not-run') + ' (record declarations only; not live verified)' : 'not-run' };
   });
 }
 
@@ -109,18 +110,29 @@ function renderReview(report) {
   }
   lines.push('', '## 关键值追溯（声明，不是真实运行证明）', '',
     '最多展示 100 个值；更多值请查固定 Dossier。空白或 missing 表示没有此层映射，不能推断已完成。', '',
-    '| 值／观察声明 | 实际动作来源／消费者 | S7 来源步骤 | S9 业务步骤 | 候选函数 | 证据引用 | 资格范围 |',
+    '| 值／观察声明 | 实际动作来源／消费者 | S7 来源步骤 | S9 业务步骤 | 候选函数 | 证据引用 | 资格检查（非实测） |',
     '| --- | --- | --- | --- | --- | --- | --- |');
   for (const item of report.valueLineage || []) lines.push('| ' + [
     item.value + ': ' + item.observedClaim, item.action + ' → ' + item.consumers.join(', '),
     item.distilled.join(', '), item.business.join(', '), item.code.join(', '),
     JSON.stringify(item.evidence), item.qualification,
   ].map(value => cell(String(value).slice(0, 1800) + (String(value).length > 1800 ? '〔已截断〕' : ''))).join(' | ') + ' |');
+  lines.push('', '## 资格声明与检查状态', '',
+    '资格局部规则：' + cell(report.localChecks.qualification) + '；依赖检查后：' + cell(report.boundaries.qualification) + '。',
+    '以下范围来自固定记录的声明，不代表本次运行或请求范围已获独立核验。', '',
+    '| 字段 | 记录声明 |', '| --- | --- |');
+  const qualification = report.artifacts.find(item => item.name === 'qualification');
+  for (const row of qualification?.rows || []) {
+    if (['verdict', 'qualificationScope', 'skipped', 'failedCriteria'].some(field => row.field === field || row.field.startsWith(field + '['))) {
+      lines.push('| ' + cell(row.field) + ' | ' + cell(row.value) + ' |');
+    }
+  }
+  if (!qualification) lines.push('| — | 未读取资格记录；不得推断通过。 |');
   lines.push('', '## 待 S10 补强（不阻塞已有语义判断，不代表工程通过）', '');
   for (const item of report.pendingEngineering || []) lines.push('- ' + cell(JSON.stringify(item)));
   if (!(report.pendingEngineering || []).length) lines.push('本前缀未记录此类缺口；未检查的工程能力仍不能宣称通过。');
   lines.push('', '## 固定输入与当前成果', '', '| 工件 | 实际路径 | SHA-256 |', '| --- | --- | --- |');
-  for (const item of report.artifacts) lines.push('| ' + cell(item.name) + ' | ' + cell(item.path) + ' | ' + item.sha256 + ' |');
+  for (const item of report.artifacts) lines.push('| ' + cell(item.name) + ' | ' + cell(item.path) + ' | ' + cell(item.sha256) + ' |');
   for (const item of report.artifacts) {
     if (!item.rows.length) continue;
     lines.push('', '### ' + cell(item.name) + '：来源、输入输出与记录声明', '', '| 字段 | 内容 |', '| --- | --- |');

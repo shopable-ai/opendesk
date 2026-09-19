@@ -232,7 +232,12 @@
           "cleanCalculator"
         ],
         "dependencies": [],
-        "classification": "preparation"
+        "classification": "preparation",
+        "preconditions": [
+          "the exact Calculator window is identified"
+        ],
+        "expectedOutcome": "cleanCalculator is confirmed",
+        "verification": "A003 actual clean-state read is 0"
       },
       {
         "stepId": "D020",
@@ -247,7 +252,12 @@
         "dependencies": [
           "D010"
         ],
-        "classification": "business-action"
+        "classification": "business-action",
+        "preconditions": [
+          "D010 prepared the first expression"
+        ],
+        "expectedOutcome": "the first expression has acknowledged input",
+        "verification": "A004 input receipt; result read belongs to D030"
       },
       {
         "stepId": "D030",
@@ -263,7 +273,12 @@
         "dependencies": [
           "D020"
         ],
-        "classification": "runtime-read"
+        "classification": "runtime-read",
+        "preconditions": [
+          "D020 input is acknowledged"
+        ],
+        "expectedOutcome": "firstResult contains the actual display string",
+        "verification": "A005 bounded reads agree; A006 is supplementary evidence"
       },
       {
         "stepId": "D040",
@@ -279,7 +294,12 @@
         "dependencies": [
           "D030"
         ],
-        "classification": "preparation"
+        "classification": "preparation",
+        "preconditions": [
+          "firstResult from D030 remains available"
+        ],
+        "expectedOutcome": "cleanCalculator is confirmed without replacing firstResult",
+        "verification": "A007 receipt and A008 actual clean-state read"
       },
       {
         "stepId": "D050",
@@ -295,7 +315,13 @@
         "dependencies": [
           "D040"
         ],
-        "classification": "business-action"
+        "classification": "business-action",
+        "preconditions": [
+          "D040 prepared the second expression",
+          "firstResult is available from D030"
+        ],
+        "expectedOutcome": "second input consumes the complete observed digit string",
+        "verification": "A009 receipt and digits match the firstResult source"
       },
       {
         "stepId": "D060",
@@ -310,7 +336,12 @@
         "dependencies": [
           "D050"
         ],
-        "classification": "runtime-read"
+        "classification": "runtime-read",
+        "preconditions": [
+          "D050 input is acknowledged"
+        ],
+        "expectedOutcome": "finalResult contains the actual final display string",
+        "verification": "A010 bounded reads agree; Expected is not a read fallback"
       }
     ],
     "actionDecisions": [

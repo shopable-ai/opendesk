@@ -249,7 +249,7 @@ DistilledSteps 只对原始事实做有来源的重建、分段和取舍，不�
 
 包含 `distilledStepsRef / businessSteps / parameters / config / secretRefs / runtimeValues / dataDependencies / capabilityDecisions / retainedReasons / omittedReasons / recoveryCandidates / supportedScope / unresolved / evidenceRefs`。若当前实现尚无 `distilledStepsRef` 字段，可由 inputRefs／sourceMapping／handoff 固定实际消费版本，正式 schema 升级另行实施；不能因此重新读取不受约束的 Raw Trace 作为隐式输入。
 
-每个新生成或有策略修订的 Business Step 至少定义 `stepId / purpose / sourceStepRefs / inputs / inputSources / preconditions / execution / observation / outputs / postconditions / verification / stopConditions / consumers / sideEffects`。`execution` 表达业务层执行方式或 operation/helper 意图；具体 OpenDesk 方法选择由 `capabilityDecisions` 追溯，避免把 API 名称复制成第二份真相。`inputSources` 必须区分参数、配置、Secret、前序实际 observation/runtime value 与常量；`observation` 说明本步实际要读取/保存什么；`stopConditions` 明确何时不得继续副作用；`consumers` 说明输出被谁使用。S8 将 DistilledSteps 的必要操作片段组织成业务步骤，S9 再确认参数、数据角色、分支、循环、Recovery 和支持范围。未证明分支只作为候选或补采请求，不进入支持声明。历史 Procedure 缺这些新增字段时保持未知并按旧版本兼容消费，不事后倒填。
+每个新生成或有策略修订的 Business Step 至少定义 `stepId / purpose / sourceStepRefs / inputs / inputSources / preconditions / execution / observation / outputs / postconditions / verification / stopConditions / consumers / sideEffects`。`execution` 表达业务层执行方式或 operation/helper 意图；具体 OpenDesk 方法选择由 `capabilityDecisions` 追溯，避免把 API 名称复制成第二份真相。`inputSources` 必须区分参数、配置、Secret、前序实际 observation/runtime value 与常量；`observation` 说明本步实际要读取/保存什么；`stopConditions` 明确何时不得继续副作用；`consumers` 说明输出被谁使用。S8 将 DistilledSteps 的必要操作片段组织成业务步骤，S9 再确认参数、数据角色、分支、循环、Recovery 和支持范围。未证明分支只作为候选或补采请求，不进入支持声明。历史 Procedure 缺这些新增字段时保持未知，仅按真实输入版本、来源和调用请求进行其原范围的诊断／审阅，不事后倒填。当前 v1 消费检查按调用者声明的范围适用要求；删除字段不能自行选择 legacy 规则取得 PASS，缺关键语义时拒绝正式消费。
 
 为兼容既有消费者，`retainedReasons / omittedReasons` 可以保留摘要，但原始 action 的 retain／merge／omit／recovery／unresolved 权威取舍属于 DistilledSteps；Procedure 不维护第二套互相漂移的 action disposition。若 Procedure 发现上游取舍错误，应提出 trace-distill 修订并消费新版本。
 
@@ -279,6 +279,8 @@ Capability Discovery、Method Selection、Contract Reading、Runtime Validation 
 ## 7. 发布、消费与恢复
 
 已实现的只读检查分两层：`check-handoff.js` 核对 request／handoff 信封、身份和显式 hash；`check-artifact-chain.js` 检查 Calculator 形状 v1 工件的选定相邻边界及直接 await／spread 源码模式。后者不升级本合同为完整机器 schema，不递归验依赖闭包，不证明任意 JS 的可达性或一般语义；完整输入、计划适用性、历史事实、现场和授权仍由消费者核对。命令及范围见 [WORKFLOW 第 4 节](../../workflows/agent-to-recipe/WORKFLOW.md#4-交接完整性检查可执行但不替代资格)。
+
+当前限定切片还检查 S7 步骤的目的、输入输出、依赖、前提、预期、验证和分类，以及 S9 的运行时声明是否保留同一生产者、消费者和终点 UI 读值。它验证结构和对应关系，不证明自然语言前提／预期的真实性；合法但超出此切片的轨迹应按本合同审阅，不得改写事实适配检查器。S9 语义完整但工程验证尚未通过时，明确交给 S10；语义放行不等于所选方法已验证。S12 当前只检查记录内声明和候选绑定，外部预先确定的请求／场景与真实运行仍由独立消费者核验。
 
 `code-rebuild` 的 `baseline-retained`／`candidate-revised` 是评审处置标签，不新增 executionStatus、Gate 或 continuation.assetDisposition 枚举。评审必须绑定准确脚本／Candidate／Procedure／方法版本，列映射、分项判断、检查和未测范围；可写进现有工作包或质量报告。保持字节不变时不制造新候选；有影响性变化时仍遵循本节新版本与重验规则。
 

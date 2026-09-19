@@ -229,6 +229,11 @@ function checkArtifactChain(options = {}) {
       stepById.set(step.stepId, { step, index });
       requireCheck(array(step.sourceActionRefs, 'SOURCE_ACTIONS', 'Each DistilledStep must cite source actions.').length > 0,
         'SOURCE_ACTIONS', 'A normal-path DistilledStep cannot invent an action without a source.');
+      requireCheck(text(step.purpose) && text(step.classification)
+        && ['inputs', 'outputs', 'dependencies', 'preconditions'].every(field => Array.isArray(step[field])
+          && step[field].every(text) && new Set(step[field]).size === step[field].length)
+        && text(step.expectedOutcome) && text(step.verification), 'STEP_CONTRACT',
+      'DistilledSteps need purpose, typed inputs/outputs/dependencies/preconditions, expected outcome, verification and classification.');
       for (const actionId of step.sourceActionRefs) requireCheck(actionById.has(actionId),
         'UNKNOWN_ACTION', 'A DistilledStep cites an unknown raw action.');
       for (const dependency of array(step.dependencies || [], 'DEPENDENCIES', 'dependencies must be an array.')) {
@@ -393,12 +398,36 @@ function checkArtifactChain(options = {}) {
         edges.add(key);
       });
     }
+    const semanticValues = new Map();
+    for (const [index, value] of array(procedure.runtimeValues, 'DATA_DEPENDENCY_BROKEN',
+      'Procedure must explicitly declare runtimeValues.').entries()) {
+      attempt('procedure-synthesize', 'procedure.runtimeValues[' + index + ']', () => {
+        requireCheck(object(value) && text(value.name) && !semanticValues.has(value.name)
+          && text(value.source) && Array.isArray(value.consumers) && value.consumers.every(text)
+          && new Set(value.consumers).size === value.consumers.length, 'DATA_DEPENDENCY_BROKEN',
+        'Runtime value declarations need a unique name, producer source and explicit consumers.');
+        semanticValues.set(value.name, value);
+      });
+    }
     for (const runtimeValue of dossier && dossier.runtimeValues || []) {
       // Reject changing a runtime role, not an unrelated parameter with equal bytes.
       attempt('procedure-synthesize', 'procedure.parameters.' + runtimeValue.name, () => requireCheck(
         !own(procedure.parameters || {}, runtimeValue.name), 'OBSERVATION_BECAME_PARAMETER',
         'A demonstrated runtime value cannot also be a reusable input parameter.'));
       const rawConsumers = (runtimeValue.consumers || []).filter(id => /^A\d+$/.test(id));
+      attempt('procedure-synthesize', 'procedure.runtimeValues.' + runtimeValue.name + '.lineage', () => {
+        const producerId = String(runtimeValue.origin || '').match(/\bA\d+\b/)?.[0];
+        const decision = id => distilled.actionDecisions.find(item => item.actionRef === id);
+        const producer = sourceToBusiness.get(decision(producerId)?.stepRef);
+        const declaration = semanticValues.get(runtimeValue.name);
+        const consumers = new Set(rawConsumers.map(id => sourceToBusiness.get(decision(id)?.stepRef)?.stepId));
+        const declaredConsumers = declaration?.consumers.filter(id => /^B\d+$/.test(id)) || [];
+        requireCheck(producer && producer.outputs.includes(runtimeValue.name) && declaration
+          && JSON.stringify(referencedSteps(declaration.source)) === JSON.stringify([producer.stepId])
+          && !consumers.has(undefined) && declaredConsumers.length === consumers.size
+          && declaredConsumers.every(id => consumers.has(id)), 'DATA_DEPENDENCY_BROKEN',
+        'Runtime declarations, including terminal reads, must retain the exact S7 producer output and demonstrated consumers.');
+      });
       if (!rawConsumers.length) continue;
       const valueEdges = dependencies.filter(item => item.value === runtimeValue.name);
       for (const step of businessSteps) if ((step.inputs || []).includes(runtimeValue.name)) {
@@ -605,7 +634,7 @@ function checkArtifactChain(options = {}) {
     return {
       tool: 'agent-to-recipe-artifact-chain/v1', verdict: errors.length ? 'fail' : 'pass',
       through, localChecks: status, artifacts: artifactViews(entries),
-      pendingEngineering, valueLineage: valueLineage(entries),
+      pendingEngineering, valueLineage: valueLineage(entries, accepted),
       ignoredInputs: ['dossier', 'actions', 'distilled', 'procedure', 'candidate', 'qualification']
         .filter(name => own(options, name) && !(required || []).includes(name)),
       stageComplete: false, liveQualificationGranted: false,

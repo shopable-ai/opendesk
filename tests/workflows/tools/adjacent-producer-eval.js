@@ -16,10 +16,23 @@ const PREFIX = 'workflows/agent-to-recipe/skills/';
 const METHODS = { 'trace-distill': PREFIX + 'trace-distill/SKILL.md',
   'procedure-synthesize': PREFIX + 'procedure-synthesize/SKILL.md' };
 const CONTRACT = 'docs/frameworks/agent-to-recipe-skill-contract.md';
-const DOC_KINDS = new Set(['TaskContract', 'WorkPlan', 'Dossier', 'RawTrace', 'AppProfile']);
+const DOC_KINDS = new Set(['TaskContract', 'WorkPlan', 'Dossier', 'DemonstrationDossier', 'RawTrace', 'AppProfile']);
+const S9_KINDS = new Set(['TaskContract', 'WorkPlan', 'AppProfile', 'evidence', 'CanonicalAPIContract', 'SharedAPIConstraint']);
+const CHECKERS = ['workflows/agent-to-recipe/scripts/check-artifact-chain.js',
+  'workflows/agent-to-recipe/scripts/artifact-validation.js', 'workflows/agent-to-recipe/scripts/stage-review.js',
+  'tests/workflows/tools/adjacent-producer-eval.js'];
 const ALLOWED_KINDS = new Set([...DOC_KINDS, 'evidence', 'CanonicalAPIContract', 'SharedAPIConstraint']);
 const clone = value => JSON.parse(JSON.stringify(value));
 const refKey = ref => [ref.rootId, ref.path, ref.sha256, ref.schemaVersion, ref.kind].join('\u0000');
+
+function errorDetails(error, fallback) {
+  let code = fallback, message = 'Unprintable thrown value';
+  try {
+    if (text(error?.code)) code = error.code;
+    message = text(error?.message) ? error.message : String(error);
+  } catch { /* A hostile getter/toString must not erase the failed attempt. */ }
+  return { code, message: message.slice(0, 8192), messageTruncated: message.length > 8192 };
+}
 
 /** One attempt per stage, no hidden retries. No adapter means prepare-only.
  * request: {dossier, actions, roots:[[id,path]], sourceSet, timeoutMs?}
@@ -49,7 +62,10 @@ async function evaluateAdjacent(request, out, producer) {
   const save = (name, value) => {
     const target = path.join(out, name);
     fs.mkdirSync(path.dirname(target), { recursive: true });
-    fs.writeFileSync(target, typeof value === 'string' ? value : JSON.stringify(value, null, 2) + '\n', { flag: 'wx' });
+    const bytes = Buffer.isBuffer(value) ? value : Buffer.from(
+      typeof value === 'string' ? value : JSON.stringify(value, null, 2) + '\n');
+    fs.writeFileSync(target, bytes, { flag: 'wx' });
+    return { path: name, bytes: bytes.length, sha256: hash(bytes) };
   };
   const records = { schemaVersion: 'agent-to-recipe-evaluation/v1', sourceSet: request.sourceSet,
     executionMode: producer?.mode || 'prepare-only', hostId: producer?.hostId || 'not-run',
@@ -116,7 +132,7 @@ async function evaluateAdjacent(request, out, producer) {
     save(stored, value.content); frozen.push({ path: path.join(out, stored), sha256: value.sha256 });
     return value;
   }
-  let inputs, options;
+  let inputs, options, currentStage;
   try {
     const dossier = entry(request.dossier, 'Dossier');
     const actions = entry(request.actions, 'RawTrace');
@@ -127,15 +143,19 @@ async function evaluateAdjacent(request, out, producer) {
     const sharedContract = methodFile(CONTRACT);
     records.methodVersions = Object.fromEntries(Object.entries(methods).map(([key, value]) => [key, value.sha256]));
     records.sharedContractVersion = sharedContract.sha256;
+    records.checkerVersions = Object.fromEntries(CHECKERS.map(relative => [relative, methodFile(relative).sha256]));
     records.inputVersions = [...files.values()].map(item => item.ref);
     save('request.json', { ...request, roots: request.roots.map(([id]) => id), inputs });
     options = { dossier: path.join(out, 'inputs', dossier.rootId, dossier.path),
       actions: path.join(out, 'inputs', actions.rootId, actions.path),
-      roots: [...roots.keys()].map(id => [id, path.join(out, 'inputs', id)]) };
+      // Authorization is not an obligation to consume every registered root.
+      roots: [...new Set([...files.values()].map(item => item.ref.rootId))]
+        .map(id => [id, path.join(out, 'inputs', id)]) };
     options.roots.push(['evaluation-output', path.join(out, 'outputs')]);
     fs.mkdirSync(path.join(out, 'outputs'));
     let distilledRef;
     for (const stage of ['trace-distill', 'procedure-synthesize']) {
+      currentStage = stage;
       verifyFrozen();
       if (stage === 'procedure-synthesize') {
         // Recompute, never consume an editable PASS report.
@@ -146,6 +166,8 @@ async function evaluateAdjacent(request, out, producer) {
       function select(ref) {
         const item = files.get(refKey(ref));
         requireCheck(item, 'EVAL_INPUT_ROLE', 'Required packet input is not frozen.');
+        requireCheck(S9_KINDS.has(ref.kind), 'EVAL_INPUT_ROLE',
+          'S9 cannot implicitly consume Dossier/Raw Trace through another artifact; request scoped supplementation.');
         if (selected.has(refKey(ref))) return;
         selected.set(refKey(ref), item);
         if (['TaskContract', 'WorkPlan', 'AppProfile'].includes(ref.kind)) visitRefs(JSON.parse(item.content), select);
@@ -163,9 +185,9 @@ async function evaluateAdjacent(request, out, producer) {
           'Return one JSON artifact. Missing facts must not be invented.',
           'No Expected, reference answer, candidate, qualification or upstream chat is supplied.',
           'S9 may reference validated upstream lineage without rereading Raw Trace; request supplementation when needed.'] };
-      save(stage + '/input.json', packet);
+      const inputRecord = save(stage + '/input.json', packet);
       if (!producer) break;
-      const attempt = { stage, attempt: 1, inputSha256: hash(Buffer.from(JSON.stringify(packet))),
+      const attempt = { stage, attempt: 1, inputSha256: inputRecord.sha256,
         methodSha256: methods[stage].sha256, startedAt: new Date().toISOString(), result: 'not-run' };
       records.attempts.push(attempt);
       const controller = new AbortController(); let timer;
@@ -176,9 +198,12 @@ async function evaluateAdjacent(request, out, producer) {
         ]);
         const raw = typeof output === 'string' ? output : JSON.stringify(output);
         requireCheck(typeof raw === 'string', 'EVAL_OUTPUT_FORMAT', 'Producer returned no JSON.');
-        attempt.outputSha256 = hash(Buffer.from(raw)); attempt.outputBytes = Buffer.byteLength(raw);
-        save(stage + '/output.raw', raw.slice(0, JSON_LIMIT));
-        requireCheck(attempt.outputBytes <= JSON_LIMIT, 'EVAL_OUTPUT_LIMIT', 'Oversized raw output is explicitly truncated.');
+        const outputBytes = Buffer.from(raw);
+        attempt.outputSha256 = hash(outputBytes); attempt.outputBytes = outputBytes.length;
+        attempt.outputTruncated = outputBytes.length > JSON_LIMIT;
+        // Preserve bounded original bytes, not a character slice or a digest of different saved content.
+        attempt.storedOutput = save(stage + '/output.raw', outputBytes.subarray(0, JSON_LIMIT));
+        requireCheck(!attempt.outputTruncated, 'EVAL_OUTPUT_LIMIT', 'Oversized raw output is explicitly truncated; storedOutput binds the retained bytes.');
         const parsed = parseJson(Buffer.from(raw));
         requireCheck(object(parsed), 'EVAL_OUTPUT_FORMAT', 'Producer artifact must be an object.');
         // New output refs may only target actually supplied bytes, not hidden Expected files.
@@ -198,12 +223,12 @@ async function evaluateAdjacent(request, out, producer) {
         if (report.verdict !== 'pass') break;
         if (stage === 'trace-distill') { distilledRef = ref; files.set(refKey(ref), { ref, content: raw }); }
       } catch (error) {
-        attempt.result = 'fail'; attempt.error = { code: error.code || 'EVAL_PRODUCER_FAILED', message: String(error.message) };
+        attempt.result = 'fail'; attempt.error = errorDetails(error, 'EVAL_PRODUCER_FAILED');
         records.stages[stage] = 'fail'; break;
       } finally { clearTimeout(timer); attempt.finishedAt = new Date().toISOString(); }
     }
   } catch (error) {
-    records.setupFailure = { code: error.code || 'EVAL_SETUP_FAILED', message: String(error.message) };
+    records.setupFailure = { ...errorDetails(error, 'EVAL_SETUP_FAILED'), stage: currentStage || 'setup' };
   }
   records.finishedAt = new Date().toISOString();
   save('evaluation.json', records);

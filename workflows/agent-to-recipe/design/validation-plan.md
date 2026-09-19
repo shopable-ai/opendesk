@@ -13,7 +13,7 @@ order: 70
 - 需求验证：是否解决正确问题、没有偷换任务或误读授权；参考实现和正确最终数值不能单独证明需求成立。
 - 计划验证：从用户自然语言到 TaskContract／WorkPlan 的解释是否忠实，业务操作计划能否让路线错误和高影响 Unknown 在长时间执行前尽早暴露；Skill 调用表不能冒充业务操作计划。
 - 设计核对：每项需求有行为判据、任务节点、负责环节、成果与测试；每个新增环节反向有需求依据。
-- Skill 独立评估：指定资料与实际工具是否足以完成本环节，或准确拒绝缺失前提。当前四个方法文件已存在，三个新增方法通过格式检查；宿主加载及盲上下文行为评估仍未运行，不因静态 fixture 通过自动放行。
+- Skill 独立评估：指定资料与实际工具是否足以完成本环节，或准确拒绝缺失前提。application-engineer 与四个补齐方法文件已存在；方法文件格式、宿主加载及盲上下文行为分别核验，后两项仍未运行，不因静态 fixture 通过自动放行。
 - 跨 Skill 交接：文件、版本、事实、计划、局部范围和副作用信息能否被下一环节正确消费；尤其检查 Dossier → DistilledSteps → SemanticProcedure 不依赖复制完整聊天或隐式重读 Raw Trace。
 - 整链评估：按声明入口实际完成开发流程，保存各阶段成果，不把单个案例偶然成功当完整链通过。
 - 候选业务验收：实际交付 JS 的指定字节和依赖是否在约定场景完成任务；生成者自述、参考脚本、mock 不替代实际候选。
@@ -182,7 +182,7 @@ order: 70
 
 ### 2026-09-19 验证切片
 
-稳定测试入口为 `node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-chain.test.js`（仓库根目录）。Frozen Fixture 的 `source.json` 保存结构和合成观测，`expected.json` 单独保存测试 Oracle；测试展开到 `.runtime/tests/workflows/` 后计算真实 hash，不执行其中的候选源码，也不依赖本机历史 `.runtime`。这不是盲模型评测，不能据此给 Skill 准确率。
+稳定测试入口为 `node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-*.test.js`（仓库根目录）。Frozen Fixture 的 `source.json` 保存结构和合成观测，`expected.json` 单独保存测试 Oracle；测试展开到 `.runtime/tests/workflows/` 后计算真实 hash，不执行其中的候选源码，也不依赖本机历史 `.runtime`。这不是盲模型评测，不能据此给 Skill 准确率。
 
 | 边界／行为案例 | 已实现检查 | 仍需分别验证 |
 | --- | --- | --- |
@@ -196,6 +196,23 @@ order: 70
 `check-artifact-chain.js` 只证明表中受支持的静态切片：A/B ID、digit-string、Calculator 形状的动作回执、能力选择内容绑定及直接 await/spread 模式。未知格式不能冒充通用语义通过。没有递归依赖校验或一般 JS 分析器；精确依赖由 Calculator `qualify.cjs --check` 另核，当前现场仍须独立验收。正常例和合法省略非必要截图的例子必须通过，不能靠全拒绝满足负例。
 
 实际次数、命令、内容绑定、原资格复用与限制集中在[质量总览](../../../docs/quality/agent-to-recipe-workflow-review-20260919.md)，不在本计划复制运行状态。
+
+### S7 → S8—S9 相邻评测入口与输入隔离
+
+现有工具 `tests/workflows/tools/adjacent-producer-eval.js` 是有限评测调用器，不是 Workflow Engine、模型宿主或正式 handoff 发布器。字段／版本／Gate 仍由共享合同维护，本节只拥有测试执行与证明范围。
+
+调用 `evaluateAdjacent(request, out, producer?)`，request 预先给出实际 `dossier / actions / roots / sourceSet / timeoutMs`。roots 是调用方获准读取的 ID／目录对；可以登记但不使用某个根，不能因该根未复制而误拒绝其他完整输入。sourceSet 为 development 或 independent-acceptance 的**调用方声明**，不是未见样本证明。超时预算为 1—300000 毫秒，默认 30000；每阶段最多一次尝试，无隐藏重试。out 必须是 `.runtime/` 下的新目录，不能覆盖旧失败。
+
+- 无 producer：CLI `--request <已存在的评测请求.json> --out <新的.runtime目录>` 只准备 S7 输入，两个 Producer 均为 not-run，不生成标准答案或假结果。
+- 有 producer：适配器显式声明 `mode / hostId / modelId`，并实现 `produce(packet, {signal})`。mode 区分 model 与 deterministic-test-double；身份未经认证，上下文和文件权限仍由外部宿主隔离。异常、超时、拒绝输出和失败尝试均保留；返回 null／字符串异常也不能丢失失败记录。超时 abort 是协作式请求，不保证停止外部进程。
+- S7 包：固定合同、计划、Dossier／Raw Trace、必要 AppProfile 和证据，以及实际方法／共享合同；不提供标准 DistilledSteps、Procedure、Candidate、Qualification 或上游聊天。
+- S9 包：重新检查 S7 前缀后，消费本次实际 S7 输出，加固定合同／计划和必要 AppProfile／证据。不默认提供 Raw Trace；经 AppProfile 等引用链隐式传入 Dossier／Raw Trace 也停止发包，提出定向补证责任，不静默删引用。不能靠改 kind、文件名或 Fixture 标签伪装来源放行；角色白名单本身不证明内容真实，也不是 OS 沙箱。
+- 输入／方法版本：inputSha256 固定保存后的 input.json **实际字节**；methodVersions、sharedContractVersion、checkerVersions 固定方法、共享合同、检查器及评测调用器源码。输出保留未经修正的原文和检查结果，后续阶段使用实际产物 hash，不消费可编辑 PASS 页面。
+- 超长输出：outputBytes／outputSha256 描述原始返回；storedOutput 单独保存已留存文件的 path／bytes／sha256，outputTruncated 明示截断。按字节而非字符限额保存 output.raw；截断内容不作为完整成果继续消费。没有返回原文的宿主异常只保存异常，不能补造模型输出。
+
+Expected、验收规则和样本归属由评测方持有，不进入 Producer 包。当前集成测试的适配器持有开发 Fixture 的预制输出，这是公开的测试替身；它只证明调用、来源隔离声明与相邻输入输出传递，**不是从输入生成成果的模型行为测试**。即使把 sourceSet 改为 independent-acceptance，同一上下文、预制答案或未经核验的模型身份也不能成为盲测证据。独立语义 Oracle／未见样本宿主仍待接入。
+
+`evaluation.json` 保存实际模式、版本、预算、每次尝试及阶段前缀结果；准备 S9 输入失败时，setupFailure.stage 指明责任边界，S9 保持 not-run。stages 的 pass 只是相应 Validator 前缀通过；stageComplete、modelBehaviorVerified、liveQualificationGranted 不因此为 true。各阶段 check.json／review.md 来自同次实际检查。实际测试次数及红绿结果见[本轮交付记录](../../../docs/quality/agent-to-recipe-adjacent-review-20260920.md)，历史切片记录保留原证据范围。
 
 ### application-engineer 四层测试
 

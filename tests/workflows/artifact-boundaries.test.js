@@ -132,7 +132,7 @@ test('review drills firstResult through the fixed declarations without inventing
   assert.ok(record.business.includes('B040'));
   assert.ok(record.code.includes('readCalculatorResult'));
   assert.ok(record.evidence[0].sha256);
-  assert.equal(record.qualification, 'record checked, not live verified');
+  assert.equal(record.qualification, 'pass (record declarations only; not live verified)');
 });
 
 test('runtime value inputs cannot silently escape the dependency graph', t => {
@@ -168,3 +168,50 @@ for (const [file, field] of [['dossier.json', 'runtimeValues'], ['distilled.json
     assert.doesNotThrow(() => renderReview(f.check()));
   });
 }
+
+for (const field of ['purpose', 'inputs', 'outputs', 'dependencies', 'preconditions', 'expectedOutcome', 'verification', 'classification']) {
+  test('S7 rejects missing required step semantics: ' + field, t => {
+    const f = fixture(t, source => { delete source.distilled.steps[1][field]; });
+    rejects(checkArtifactChain({ ...f.options, through: 'trace-distill' }), 'STEP_CONTRACT');
+  });
+}
+
+test('S7 rejects string inputs instead of silently using String.includes as a data relation', t => {
+  const f = fixture(t, source => { source.distilled.steps[4].inputs = 'secondMultiplier firstResult'; });
+  rejects(s9(f), 'STEP_CONTRACT');
+});
+
+test('S9 preserves terminal runtime outputs even when no later raw action consumes them', t => {
+  const f = fixture(t, source => { source.procedure.businessSteps.at(-1).outputs = []; });
+  rejects(s9(f), 'DATA_DEPENDENCY_BROKEN');
+});
+
+for (const variant of ['missing', 'producer', 'consumer', 'duplicate']) test('S9 refuses a ' + variant + ' runtime value declaration', t => {
+  const f = fixture(t, source => {
+    const values = source.procedure.runtimeValues;
+    if (variant === 'missing') source.procedure.runtimeValues = [];
+    if (variant === 'producer') values[0].source = 'B020 actual read';
+    if (variant === 'consumer') values[0].consumers = ['B050'];
+    if (variant === 'duplicate') values.push({ ...values[0] });
+  });
+  rejects(s9(f), 'DATA_DEPENDENCY_BROKEN');
+});
+
+test('qualification drill-down exposes upstream blockage instead of advertising a checked record', t => {
+  const f = fixture(t, source => { source.procedure.businessSteps[0].purpose = ''; });
+  const report = f.check();
+  assert.equal(report.boundaries.qualification, 'blocked');
+  assert.match(report.valueLineage[0].qualification, /^blocked/);
+  assert.match(renderReview(report), /资格声明与检查状态/);
+  assert.match(renderReview(report), /fixed-chain/);
+});
+
+
+test('review escapes even a caller-supplied forged file digest without accepting it', t => {
+  const f = fixture(t), report = f.check();
+  report.artifacts[0].sha256 = '<script>execute()</script>|[click](file:///unsafe)';
+  const markdown = renderReview(report);
+  assert.ok(!markdown.includes('<script>'));
+  assert.ok(!markdown.includes('[click]('));
+  assert.match(markdown, /&#60;script&#62;/);
+});
