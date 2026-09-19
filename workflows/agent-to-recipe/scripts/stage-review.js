@@ -20,7 +20,7 @@ const TITLES = Object.freeze({
 const CLAIMS = Object.freeze({
   bindings: ['exact-byte bindings'],
   'trace-distill': ['raw-action disposition coverage', 'runtime-value producer/consumer declarations'],
-  'procedure-synthesize': ['ordered DistilledStep-to-BusinessStep mapping', 'capability discovery → method selection → canonical contract → recorded runtime validation linkage'],
+  'procedure-synthesize': ['ordered DistilledStep-to-BusinessStep mapping', 'capability discovery → method selection → canonical contract → declared validation status (not engineering readiness)'],
   candidate: ['selected API contract refs carried into Candidate source mapping', 'Procedure-to-Candidate direct await/spread source pattern'],
   qualification: ['Candidate-to-Qualification declared scope binding'],
 });
@@ -38,7 +38,7 @@ function artifactViews(entries) {
     dossier: ['planRevision', 'runtimeValues', 'sideEffects'],
     distilled: ['planRevision', 'steps', 'actionDecisions', 'unresolved'],
     procedure: ['businessSteps', 'parameters', 'dataDependencies', 'capabilityDecisions', 'unresolved'],
-    candidate: ['scriptRef', 'sourceMapping', 'supportedScope', 'limitations'],
+    candidate: ['scriptRef', 'dependencies', 'appProfileRefs', 'sourceMapping', 'supportedScope', 'limitations'],
     qualification: ['verdict', 'qualificationScope', 'scenarios', 'failedCriteria', 'skipped', 'limits'],
   };
   return Object.entries(entries).map(([name, entry]) => {
@@ -59,6 +59,28 @@ function artifactViews(entries) {
       if (own(entry.parsed, key)) add(key, entry.parsed[key]);
     }
     return { name, path: entry.filename, sha256: hash(entry.bytes), rows, omitted };
+  });
+}
+
+// A bounded drill-down derived from the very same input snapshots. Missing
+// links remain visible; this is a declaration trace, not a live causal proof.
+function valueLineage(entries) {
+  const doc = name => entries[name]?.parsed || {};
+  const list = value => Array.isArray(value) ? value : [];
+  return list(doc('dossier').runtimeValues).slice(0, 100).map(rawValue => {
+    const value = object(rawValue) ? rawValue : { name: 'invalid runtime value record' };
+    const action = String(value.origin || '').match(/\bA\d+\b/)?.[0];
+    const actionIds = [action, ...list(value.consumers)];
+    const steps = list(doc('distilled').steps).filter(step => object(step)
+      && list(step.sourceActionRefs).some(id => actionIds.includes(id)));
+    const business = list(doc('procedure').businessSteps).filter(step => object(step)
+      && list(step.sourceStepRefs).some(id => steps.some(source => source.stepId === id)));
+    const mappings = list(doc('candidate').sourceMapping).filter(mapping => object(mapping)
+      && business.some(step => (String(mapping.step || '').match(/\bB\d+\b/g) || []).includes(step.stepId)));
+    return { value: value.name, observedClaim: value.observedValue, action: action || 'missing',
+      consumers: list(value.consumers), distilled: steps.map(step => step.stepId),
+      business: business.map(step => step.stepId), code: mappings.map(mapping => mapping.function),
+      evidence: list(value.evidenceRefs), qualification: entries.qualification ? 'record checked, not live verified' : 'not-run' };
   });
 }
 
@@ -85,6 +107,18 @@ function renderReview(report) {
   for (const [name, status] of Object.entries(report.boundaries)) {
     lines.push('| ' + cell(TITLES[name] || name) + ' | ' + cell(report.localChecks[name]) + ' | ' + cell(status) + ' |');
   }
+  lines.push('', '## 关键值追溯（声明，不是真实运行证明）', '',
+    '最多展示 100 个值；更多值请查固定 Dossier。空白或 missing 表示没有此层映射，不能推断已完成。', '',
+    '| 值／观察声明 | 实际动作来源／消费者 | S7 来源步骤 | S9 业务步骤 | 候选函数 | 证据引用 | 资格范围 |',
+    '| --- | --- | --- | --- | --- | --- | --- |');
+  for (const item of report.valueLineage || []) lines.push('| ' + [
+    item.value + ': ' + item.observedClaim, item.action + ' → ' + item.consumers.join(', '),
+    item.distilled.join(', '), item.business.join(', '), item.code.join(', '),
+    JSON.stringify(item.evidence), item.qualification,
+  ].map(value => cell(String(value).slice(0, 1800) + (String(value).length > 1800 ? '〔已截断〕' : ''))).join(' | ') + ' |');
+  lines.push('', '## 待 S10 补强（不阻塞已有语义判断，不代表工程通过）', '');
+  for (const item of report.pendingEngineering || []) lines.push('- ' + cell(JSON.stringify(item)));
+  if (!(report.pendingEngineering || []).length) lines.push('本前缀未记录此类缺口；未检查的工程能力仍不能宣称通过。');
   lines.push('', '## 固定输入与当前成果', '', '| 工件 | 实际路径 | SHA-256 |', '| --- | --- | --- |');
   for (const item of report.artifacts) lines.push('| ' + cell(item.name) + ' | ' + cell(item.path) + ' | ' + item.sha256 + ' |');
   for (const item of report.artifacts) {
@@ -103,4 +137,4 @@ function renderReview(report) {
   return lines.join('\n');
 }
 
-module.exports = { inputsFor, artifactViews, provenChecks, renderReview };
+module.exports = { inputsFor, artifactViews, valueLineage, provenChecks, renderReview };

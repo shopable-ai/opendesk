@@ -55,4 +55,6 @@ node workflows/agent-to-recipe/scripts/check-artifact-chain.js --through trace-d
 程序 PASS 不等于 Stage complete；仍须满足适用 G0—G7、授权及正式交接，`progress` 不能替代这些依据。
 
 对应正反测试：从仓库根目录运行 `node --test tests/workflows/artifact-chain.test.js`。这些测试验证检查器，不冒充模型 Producer 能力评测。
+相邻评测入口为 tests/workflows/tools/adjacent-producer-eval.js：本 Producer 不取得标准 DistilledSteps；评测方保存 Expected，S9 只消费本次实际输出。输入不充分时保留失败／补证请求，不通过无限重试补出熟悉答案。CLI 无模型适配器时仅准备输入并记 not-run；具体预算与宿主隔离要求见 [validation-plan.md](../../design/validation-plan.md)。
+
 字段与返工唯一依据：[共享合同](../../../../docs/frameworks/agent-to-recipe-skill-contract.md)；整体输入输出、例子与未实现部分见[交接审阅地图](../../design/acceptance-map.md)。

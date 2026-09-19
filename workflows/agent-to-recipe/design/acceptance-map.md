@@ -29,20 +29,32 @@ order: 35
 
 ```mermaid
 flowchart TD
-  U[用户要求与已有材料] --> P["S1 明确任务与计划 · automation-plan"]
-  P -->|TaskContract / WorkPlan| A["S2 最小应用认识 · application-engineer / discover"]
-  A -->|AppProfile 与关键可行性| D["S3—S6 真实示范与同步留证 · task-demonstrate"]
-  D -->|Dossier / Raw Trace / Evidence| T["S7 必要步骤提炼 · trace-distill"]
-  T -->|DistilledSteps| S["S8—S9 业务过程与数据关系 · procedure-synthesize"]
-  S -->|SemanticProcedure 与应用缺口| H["S10 补强或复用应用规则 · application-engineer / harden"]
-  H -->|固定 Profile / 必要 helper| B["S11 生成或登记代码 · recipe-build"]
-  B --> R{有明确改进需要？}
-  R -->|是| C["S11 内可选评审改进 · code-rebuild"]
-  R -->|否| F[冻结 Recipe + CandidateManifest]
-  C --> F
-  F --> Q["S12 独立资格验收 · recipe-qualify"]
-  Q --> O["结论 / 评分依据 / 验证范围 / 未测项 / 审阅总览"]
+  U[用户原始要求与材料] -->|保留原始来源| P["S1 合同与计划 · automation-plan"]
+  P -->|TaskContract / WorkPlan| A["S2 应用认识 · application-engineer / discover"]
+  A -->|最小 AppProfile / 可行性| D["S3—S6 示范 · task-demonstrate"]
+  D -->|动作 / 观察 / 验证 / 预算内修订| D
+  D -.->|计划冲突 / planDelta| P
+  D -->|Dossier / Raw Trace / Evidence| T["S7 必要步骤 · trace-distill"]
+  T -.->|缺事实：定向补采，不改旧 Trace| D
+  T -->|DistilledSteps| S["S8—S9 业务过程 · procedure-synthesize"]
+  S -.->|取舍错误：修订请求| T
+  S -->|Procedure / 工程缺口| H["S10 补强 · application-engineer / harden 或 repair"]
+  S -->|无缺口且可复用：固定 Profile / Procedure| B["S11 代码 · recipe-build"]
+  H -->|新规则及新证据：由语义责任方更新版本| S
+  H -->|已验证规则 / helper| B
+  B -->|固定代码及改进目标| R{需要实质改进？}
+  R -->|是：限定改进请求| C["S11 可选 code-rebuild"]
+  R -->|否：原样保留结论| F[Recipe.js / CandidateManifest]
+  C -->|候选 / 改动去向 / 重验范围| F
+  F -->|精确候选及依赖 / 预定范围| Q["S12 独立资格 · recipe-qualify"]
+  Q -.->|代码缺陷 / 修复请求| B
+  Q -.->|应用规则缺陷| H
+  Q -.->|业务语义缺陷| S
+  Q -->|QualificationRecord / 检查 / 限制| O[质量结论 / 成果总览 / 下一责任]
 ```
+
+实线表示正常成果交接或条件复用，虚线表示定向失败回流。图中自循环必须受原任务预算约束；事实不足仍返回示范，不能由 S12 补造历史。控制链允许循环，**Artifact DAG 按固定版本只引用已存在上游**：原始来源 → 合同／计划 → Dossier／Trace → DistilledSteps → Procedure → Candidate（同时绑定 Profile／helper／API／源码）→ Qualification；View 从这些版本和检查结果派生。S10 更新后形成新的规则／Procedure 版本，不循环引用同一版本或互相计算 hash。
+
 
 图中是目标专业职责，不是声称全部方法或自动调度已实现。S2／S10 共用一个 Skill；S11 可以涉及两个职责。
 每个交接都遵守：**固定输入 → 生产固定输出 → 支持范围内的检查 → 适用 G0—G7 → 发布 handoff → 下游核验后消费。**
@@ -62,6 +74,23 @@ flowchart TD
 | S10 · application-engineer / harden／repair | 已确认 Procedure、应用规则缺口 | 有来源和失效条件的定位／读取／动作规则、必要 helper 与局部验证；或精确复用旧版本 | 每项必要操作能否落实；规则错误回应用工程，不改业务要求 |
 | S11 · recipe-build／可选 code-rebuild | 固定过程、实际规则／API、代码基线与允许变更范围 | 普通 JS、CandidateManifest、步骤到函数映射、改进或保留结论 | 代码是否忠实消费实际值；实现错回 S11，语义／规则错回上游 |
 | S12 · recipe-qualify | 精确候选／依赖、预先固定标准、请求场景和授权 | QualificationRecord、实际执行和独立观察、已测／未测范围、修复请求 | 同一候选和真实业务是否合格；按缺陷责任返工，不修改候选后沿用旧资格 |
+
+### Stage Contract Matrix：样例、拒绝条件与检查责任
+
+下表补足上表的证据／Gate／验收视角，共同接受问题与正式字段只维护在共享合同第 5—6 节。G 编号是按本次范围选择的审阅点，不表示该 Gate 已自动通过。S1／S2／S3—S6／S10 的例子是可理解的合同示意，不是本轮实际 Producer 产物。
+
+| 边界 | 有效输入 → 输出示例／下游用途 | 应拒绝反例及原因 | Gate／证据与当前检查方式 |
+| --- | --- | --- | --- |
+| S1 | 原话“6×本次读值” → 合同保留禁止常量替代、计划先核读值能力 | 把成功条件改成输出 660：偷换用户目标 | G0/G3/G6/G7；审阅原始来源、授权、计划与未知；未实现通用自动检查 |
+| S2 | 固定合同＋获准窗口观察 → 有身份、读值依据和限制的最小 Profile | 只有界面截图就宣称允许点击：认识与授权混淆 | G0/G1/G2/G3；应用方法审阅；宿主加载／新现场验证未运行 |
+| S3—S6 | 生效计划＋授权 → A005 读值和 A009 消费的同步记录 | 事后解释 110 充当 A005 实际读值；partial 伪称完成 | G0/G1/G4/G5，必要时 G6；原工具／人工观察来源需核对，当前仅合成记录结构反例 |
+| S7 | 固定 A005/A006 → D030 保留或合法合并，并供 S9 消费 | merge 标记存在却缺 A005；错计划版本：来源丢失 | G0/G1/G3/G7；前缀检查及 artifact-chain、artifact-boundaries 正反测试 |
+| S8—S9 | D030/D050 → B025→firstResult→B040；not-run 工程要求交 S10 | 删除语义字段降级、错生产者、关键 unresolved：下游不能猜 | G0/G3/G4/G7；语义字段、前向数据边、未决项检查；自然语言变换／有效期仍需专业审阅 |
+| S10 | Procedure 指定读值缺口＋旧 Profile → 局部规则及验证，或精确复用有效旧规则 | 以 API 文档存在代替运行验证；修补失败反改业务目标 | G0/G1/G2/G4/G5/G7，必要时 G6；当前只核相邻声明，不新增完整应用验证器 |
+| S11 | 固定过程／规则 → 普通 JS 用实际 firstResult，清单绑定 helper | helper 变更继续用旧清单；读取后仍输入固定 110 | G0/G3/G4/G7；直接依赖 hash、映射及限定源码模式；一般 JS 数据流未证明 |
+| S12 | 精确候选＋预定场景 → 同一对象的资格记录及证据 | 改候选沿用旧资格、未测 requested 移走后声称全过 | G0/G1/G5/G7，必要时 G2/G6；声明绑定／范围一致性检查；真实执行和外部预定范围仍需独立核验 |
+
+正常消费者、失败责任与补证方向以第 3 节和共享合同第 8 节为准。可选材料不等于可省必要证据；每次执行前的窗口、账号、焦点、授权和有效期都不能由历史 PASS 代替。
 
 ## 四、用一个值贯穿检查，而不只看文件名称
 
@@ -92,12 +121,12 @@ S7 的“必要”是有来源的判断，不是检查器对任意任务因果�
 | qualification（默认） | 六项全部 | 无 |
 
 当前实现只支持 **Calculator 形状 v1、单个固定计划版本、成功正常路径**。通用 S1／S2／S10 Validator、任意轨迹和完整 Stage Contract 没有因此实现。
-多计划版本、复杂恢复、仅语义就绪但应用方法尚待验证的过程，不得改写事实以适配此切片；按实际缺口补合同／规则与测试。
+S9 语义完整但所选方法 runtimeValidation 为 not-run／fail／partial 时，按真实状态列 pendingEngineering，允许交 S10；进入 candidate 前必须解决。关键语义未决仍拒绝。多计划版本、复杂恢复、完全未选方法或通用范围无关未决仍未覆盖，不得改写事实适配。
 
 从仓库根目录运行测试：
 
 ```bash
-node --test tests/workflows/artifact-chain.test.js
+node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-*.test.js
 ```
 
 当前任务已有实际文件时，以下为参数模板；不要复制占位值后补造文件：
@@ -113,7 +142,8 @@ node workflows/agent-to-recipe/scripts/check-artifact-chain.js --through trace-d
 
 - 检查截止边界、各边界局部规则结果，以及受上游失败阻塞的结果。
 - 本次读取的工件路径和 SHA-256；实际任务／计划、动作、步骤、输入输出、数据依赖、代码映射和资格声明。
-- 失败位置、原因与责任边界；明确没有检查的内容。
+- firstResult 等关键值到动作、S7 步骤、S9 步骤、候选函数、证据 ref／hash 的同版下钻表；没有该层映射时保持缺失。
+- 待 S10 补强的工程缺口；失败位置、原因与责任边界；明确没有检查的内容。
 - 无下游工件的边界显示 `not-run`，不能出现虚假的 S12 PASS。
 - 文本按不可信数据转义；长内容明确标记截断，检查仍使用完整输入。
 
@@ -143,7 +173,7 @@ application-engineer 继续服务 S2／S10，本次未改变其实现。recipe-q
 | 工件难读；可读 View | 程序生成内容与检查总览，不让模型另写成功故事 | stage-review.js＋CLI Markdown 测试 | 当前只覆盖支持的工件切片，不是完整任务门户 |
 | 方法文件状态互相矛盾 | 分开记录文件、确定性工具、模型行为、宿主加载、真实业务 | 设计入口＋本页＋本轮质量记录 | 不从文件存在外推通用能力 |
 
-下一步优先使用 Frozen Fixture 对真实模型 Producer 做独立输入／输出试验，再推进相邻实际 Skill 集成；保持 Expected 与 Producer 输入隔离。
+新增评测入口 `tests/workflows/tools/adjacent-producer-eval.js` 只负责输入包、有限尝试留存和调用已有检查器，不提供模型宿主。CLI 无适配器时只准备 S7 输入并记录 not-run；导出的 evaluateAdjacent 在显式适配器下消费实际 S7 输出再构造 S9 包，上游失败不调用下游。开发 Fixture／测试替身和真实模型层分别记录，详细调用合同及限制见 validation-plan。下一步接入获准的独立宿主并选定未见验收样本；方法内的开发例子不计为盲测。
 随后才在本地获准环境核对实际任务包、同一候选及必要 Calculator Fresh Run，不重跑已经有有效证据的无关工作。
 API Markdown 体系、Runtime、S1—S12、G0—G7 和普通 JS 交付方式均不重设计。
 

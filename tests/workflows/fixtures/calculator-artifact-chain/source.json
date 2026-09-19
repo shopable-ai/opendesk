@@ -272,9 +272,7 @@
           "A007",
           "A008"
         ],
-        "inputs": [
-          "firstResult"
-        ],
+        "inputs": [],
         "outputs": [
           "cleanCalculator"
         ],
@@ -494,17 +492,13 @@
         "sourceStepRefs": [
           "D040"
         ],
-        "inputs": [
-          "firstResult"
-        ],
+        "inputs": [],
         "outputs": [
           "cleanCalculator"
         ],
         "classification": "preparation",
         "purpose": "prepare a verified zero state for the second calculation without losing firstResult",
-        "inputSources": [
-          "B025.firstResult"
-        ],
+        "inputSources": [],
         "preconditions": [
           "firstResult is retained as task data",
           "exact Calculator window is current and focused"
@@ -925,7 +919,8 @@
     "supportedScope": "fixture-only fixed chain",
     "limitations": [
       "not a desktop execution"
-    ]
+    ],
+    "dependencies": []
   },
   "qualification": {
     "schemaVersion": "agent-to-recipe/v1",

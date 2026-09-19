@@ -8,7 +8,7 @@ const {
   SCHEMA, JSON_LIMIT, FILE_LIMIT, own, object, text, hash, CheckError,
   requireCheck, makeRoots, resolveFile, entryFile, readBytes, parseJson,
 } = require('./artifact-validation.js');
-const { inputsFor, artifactViews, provenChecks, renderReview } = require('./stage-review.js');
+const { inputsFor, artifactViews, valueLineage, provenChecks, renderReview } = require('./stage-review.js');
 
 const BOUNDARIES = ['bindings', 'trace-distill', 'procedure-synthesize', 'candidate', 'qualification'];
 
@@ -95,6 +95,7 @@ function checkArtifactChain(options = {}) {
   let referenceCount = 0;
   let roots;
   const capabilityDecisionById = new Map();
+  const pendingEngineering = [];
 
   const record = (boundary, location, code, message) => errors.push({ boundary, location, code, message });
   const attempt = (boundary, location, action) => {
@@ -148,9 +149,16 @@ function checkArtifactChain(options = {}) {
   const bind = (ref, entryName, boundary, location) => {
     const result = inspectRef(ref, boundary, location);
     if (!result || !entries[entryName]) return;
-    attempt(boundary, location + '.binding', () => requireCheck(result.filename === entries[entryName].filename
-      && ref.sha256 === hash(entries[entryName].bytes), 'WRONG_VERSION',
-    'The reference does not bind the exact supplied artifact version.'));
+    attempt(boundary, location + '.binding', () => {
+      const kinds = { dossier: ['Dossier', 'DemonstrationDossier'], actions: ['RawTrace'],
+        distilled: ['DistilledSteps'], procedure: ['SemanticProcedure'], candidate: ['CandidateManifest'],
+        contract: ['TaskContract'], plan: ['WorkPlan'] };
+      requireCheck(kinds[entryName]?.includes(ref.kind), 'INVALID_REF', 'The reference has the wrong artifact role.');
+      requireCheck(result.filename === entries[entryName].filename
+        && ref.sha256 === hash(entries[entryName].bytes)
+        && ref.schemaVersion === (entries[entryName].parsed?.schemaVersion || SCHEMA), 'WRONG_VERSION',
+      'The reference must bind the exact supplied bytes and their declared schema version.');
+    });
   };
   const inspectRefs = (refs, boundary, location, required = false) => {
     if (required) attempt(boundary, location, () => requireCheck(Array.isArray(refs) && refs.length > 0,
@@ -174,7 +182,8 @@ function checkArtifactChain(options = {}) {
       refIdentity(dossier[field]) === refIdentity(distilled[field]), 'WRONG_VERSION',
       'Dossier and DistilledSteps must bind the same frozen contract and plan.'));
     if (upstream) attempt('bindings', field + '.document', () => {
-      requireCheck(dossier[field].kind === expectedKind && distilled[field].kind === expectedKind,
+      requireCheck(dossier[field].kind === expectedKind && distilled[field].kind === expectedKind
+        && dossier[field].schemaVersion === SCHEMA && distilled[field].schemaVersion === SCHEMA,
         'INVALID_REF', 'Contract and plan references must declare their actual artifact kind.');
       requireCheck(upstream.bytes.length <= JSON_LIMIT, 'SIZE_LIMIT', 'Upstream JSON exceeds the read limit.');
       const parsed = parseJson(upstream.bytes);
@@ -326,16 +335,18 @@ function checkArtifactChain(options = {}) {
     bind(procedure.distilledStepsRef, 'distilled', 'bindings', 'procedure.distilledStepsRef');
     attempt('procedure-synthesize', 'procedure.actionDecisions', () => requireCheck(!own(procedure, 'actionDecisions'),
       'DUPLICATE_DISPOSITION', 'Procedure must consume DistilledSteps rather than maintain a second action disposition.'));
-    const capabilityTraceRequested = (candidate && candidate.sourceMapping || [])
-      .some(mapping => Array.isArray(mapping.capabilityDecisionRefs) && mapping.capabilityDecisionRefs.length > 0);
-    const modernProcedure = capabilityTraceRequested || own(procedure, 'capabilityDecisions');
+    // The caller requests current v1 consumption, not a format inferred from
+    // deletable optional fields. Historical incomplete artifacts stay diagnostic.
+    attempt('procedure-synthesize', 'procedure.unresolved', () => requireCheck(
+      Array.isArray(procedure.unresolved) && procedure.unresolved.length === 0,
+      'UNRESOLVED_ARTIFACT', 'The supported semantic path cannot hide unresolved business requirements.'));
     const businessSteps = array(procedure.businessSteps, 'BUSINESS_STEPS', 'Procedure requires businessSteps.');
     const businessById = new Map();
     const sourceToBusiness = new Map();
     businessSteps.forEach((step, index) => attempt('procedure-synthesize', 'procedure.businessSteps[' + index + ']', () => {
       requireCheck(object(step) && text(step.stepId) && !businessById.has(step.stepId),
         'BUSINESS_STEP_ID', 'Every Business Step needs a unique stepId.');
-      if (modernProcedure) {
+      {
         requireCheck(text(step.purpose)
           && Array.isArray(step.inputs)
           && Array.isArray(step.inputSources)
@@ -350,7 +361,7 @@ function checkArtifactChain(options = {}) {
           && Array.isArray(step.consumers) && step.consumers.length > 0
           && Array.isArray(step.sideEffects),
         'BUSINESS_STEP_CONTRACT',
-        'Modern Business Steps need purpose, input provenance, preconditions, execution, observation, outputs, postconditions, verification, stop conditions, consumers and side effects.');
+        'Business Steps need purpose, input provenance, preconditions, execution, observation, outputs, postconditions, verification, stop conditions, consumers and side effects.');
       }
       businessById.set(step.stepId, step);
       for (const sourceId of array(step.sourceStepRefs, 'SOURCE_STEPS', 'Business Steps must cite DistilledSteps.')) {
@@ -367,44 +378,50 @@ function checkArtifactChain(options = {}) {
       JSON.stringify(businessSteps.flatMap(step => step.sourceStepRefs))
         === JSON.stringify(distilled.steps.map(step => step.stepId)),
       'STEP_ORDER', 'Business Steps must preserve the distilled source order.'));
-    for (const dependency of procedure.dataDependencies || []) {
+    const dependencies = array(procedure.dataDependencies, 'DATA_DEPENDENCY_BROKEN',
+      'Procedure must explicitly declare dataDependencies, including an empty array when none exist.');
+    const edges = new Set();
+    for (const dependency of dependencies) {
       attempt('procedure-synthesize', 'procedure.dataDependencies.' + dependency.value, () => {
         const producer = businessById.get(dependency.producer), consumer = businessById.get(dependency.consumer);
+        const key = [dependency.producer, dependency.value, dependency.consumer].join('\u0000');
         requireCheck(producer && consumer && (producer.outputs || []).includes(dependency.value)
-          && (consumer.inputs || []).includes(dependency.value), 'DATA_DEPENDENCY_BROKEN',
-        'Procedure data dependency must link a declared producer output to a consumer input.');
+          && (consumer.inputs || []).includes(dependency.value)
+          && businessSteps.indexOf(producer) < businessSteps.indexOf(consumer)
+          && !edges.has(key) && text(dependency.transform), 'DATA_DEPENDENCY_BROKEN',
+        'A unique forward edge must link a producer output to a consumer input and name its allowed transform.');
+        edges.add(key);
       });
     }
     for (const runtimeValue of dossier && dossier.runtimeValues || []) {
-      if (!(runtimeValue.consumers || []).some(id => /^A\d+$/.test(id))) continue;
-      const dependency = (procedure.dataDependencies || []).find(item => item.value === runtimeValue.name);
-      attempt('procedure-synthesize', 'procedure.dataDependencies.' + runtimeValue.name, () => requireCheck(dependency,
-        'DATA_DEPENDENCY_BROKEN', 'A demonstrated runtime producer/consumer value needs a Procedure dependency.'));
-      if (dependency) attempt('procedure-synthesize', 'procedure.dataDependencies.' + runtimeValue.name + '.provenance', () => {
+      // Reject changing a runtime role, not an unrelated parameter with equal bytes.
+      attempt('procedure-synthesize', 'procedure.parameters.' + runtimeValue.name, () => requireCheck(
+        !own(procedure.parameters || {}, runtimeValue.name), 'OBSERVATION_BECAME_PARAMETER',
+        'A demonstrated runtime value cannot also be a reusable input parameter.'));
+      const rawConsumers = (runtimeValue.consumers || []).filter(id => /^A\d+$/.test(id));
+      if (!rawConsumers.length) continue;
+      const valueEdges = dependencies.filter(item => item.value === runtimeValue.name);
+      for (const step of businessSteps) if ((step.inputs || []).includes(runtimeValue.name)) {
+        attempt('procedure-synthesize', 'procedure.businessSteps.' + step.stepId + '.runtimeInput', () => requireCheck(
+          valueEdges.some(edge => edge.consumer === step.stepId), 'DATA_DEPENDENCY_BROKEN',
+          'Every declared runtime input needs a producer edge; state-preservation prerequisites belong in preconditions.'));
+      }
+      attempt('procedure-synthesize', 'procedure.dataDependencies.' + runtimeValue.name, () => {
         const producerId = String(runtimeValue.origin || '').match(/\bA\d+\b/)?.[0];
         const decision = id => distilled.actionDecisions.find(item => item.actionRef === id);
         const producer = sourceToBusiness.get(decision(producerId)?.stepRef);
-        requireCheck(producer?.stepId === dependency.producer, 'DATA_DEPENDENCY_BROKEN',
-          'Procedure producer must map to the demonstrated runtime read.');
-        for (const id of runtimeValue.consumers.filter(item => /^A\d+$/.test(item))) {
-          requireCheck(sourceToBusiness.get(decision(id)?.stepRef)?.stepId === dependency.consumer,
-            'DATA_DEPENDENCY_BROKEN', 'Procedure consumer must map to the demonstrated downstream action.');
-        }
+        const consumers = new Set(rawConsumers.map(id => sourceToBusiness.get(decision(id)?.stepRef)?.stepId));
+        requireCheck(producer && !consumers.has(undefined) && valueEdges.length === consumers.size
+          && valueEdges.every(edge => edge.producer === producer.stepId && consumers.has(edge.consumer))
+          && [...consumers].every(id => valueEdges.some(edge => edge.consumer === id)),
+        'DATA_DEPENDENCY_BROKEN', 'Every demonstrated consumer must be linked to the exact actual-read producer.');
       });
-      for (const parameter of Object.values(procedure.parameters || {})) {
-        attempt('procedure-synthesize', 'procedure.parameters.' + runtimeValue.name, () => requireCheck(
-          !object(parameter) || parameter.value !== runtimeValue.observedValue,
-          'OBSERVATION_BECAME_PARAMETER', 'An observed runtime value cannot become a reusable input default.'));
-      }
     }
 
-    const capabilityDecisions = procedure.capabilityDecisions;
-    if (capabilityTraceRequested || own(procedure, 'capabilityDecisions')) {
-      array(capabilityDecisions, 'CAPABILITY_DECISION_REQUIRED',
-        'Procedure requires capabilityDecisions when the Candidate consumes capability decisions.');
-      requireCheck(capabilityDecisions.length > 0, 'CAPABILITY_DECISION_REQUIRED',
-        'At least one Recipe-driving capability choice must be traceable.');
-    }
+    const capabilityDecisions = array(procedure.capabilityDecisions, 'CAPABILITY_DECISION_REQUIRED',
+      'Current v1 consumption requires capabilityDecisions; deleting fields does not select a legacy policy.');
+    requireCheck(capabilityDecisions.length > 0, 'CAPABILITY_DECISION_REQUIRED',
+      'This bounded slice requires recorded method choices; choices may await S10 runtime validation.');
     for (const [index, decision] of (capabilityDecisions || []).entries()) {
       const base = 'procedure.capabilityDecisions[' + index + ']';
       attempt('procedure-synthesize', base, () => {
@@ -440,12 +457,15 @@ function checkArtifactChain(options = {}) {
         requireCheck(object(decision.runtimeValidation)
           && ['pass', 'fail', 'partial', 'not-run'].includes(decision.runtimeValidation.status),
         'METHOD_VALIDATION', 'runtimeValidation needs an explicit status.');
-        requireCheck(decision.runtimeValidation.status === 'pass',
-          'METHOD_NOT_VALIDATED', 'A successful Recipe chain may only consume a method validated in the recorded environment.');
         requireCheck(text(decision.runtimeValidation.environmentScope),
           'METHOD_VALIDATION', 'Runtime validation needs an environment scope.');
         inspectRefs(decision.runtimeValidation.evidenceRefs, 'procedure-synthesize',
-          base + '.runtimeValidation.evidenceRefs', true);
+          base + '.runtimeValidation.evidenceRefs', decision.runtimeValidation.status !== 'not-run');
+        if (decision.runtimeValidation.status !== 'pass') pendingEngineering.push({
+          decisionId: decision.decisionId, businessStepRefs: stepRefs,
+          status: decision.runtimeValidation.status, owner: 'application-engineer/harden-or-repair',
+          required: 'Resolve the recorded method validation gap before Candidate consumption; do not rewrite historical facts.',
+        });
         requireCheck(array(decision.recipeConsumers, 'CAPABILITY_DECISION', 'recipeConsumers must be an array.')
           .every(text) && decision.recipeConsumers.length > 0,
         'CAPABILITY_DECISION', 'A capability decision needs at least one Recipe consumer.');
@@ -460,6 +480,13 @@ function checkArtifactChain(options = {}) {
   if (procedure && candidate) attempt('candidate', 'structure', () => {
     evaluated.add('candidate');
     bind(candidate.procedureRef, 'procedure', 'bindings', 'candidate.procedureRef');
+    attempt('candidate', 'candidate.engineeringReadiness', () => requireCheck(pendingEngineering.length === 0,
+      'METHOD_NOT_VALIDATED', 'Semantic handoff is not engineering validation; resolve S10 gaps before Candidate acceptance.'));
+    array(candidate.dependencies, 'DEPENDENCY_INVENTORY', 'Candidate must declare dependencies, even when empty.')
+      .forEach((ref, index) => inspectRef(ref, 'candidate', 'candidate.dependencies[' + index + ']'));
+    if (own(candidate, 'appProfileRefs')) array(candidate.appProfileRefs, 'DEPENDENCY_INVENTORY',
+      'appProfileRefs must be an array.').forEach((ref, index) => inspectRef(ref, 'candidate', 'candidate.appProfileRefs[' + index + ']'));
+    if (candidate.contractRef) bind(candidate.contractRef, 'contract', 'bindings', 'candidate.contractRef');
     const script = inspectRef(candidate.scriptRef, 'candidate', 'candidate.scriptRef');
     if (script) {
       scriptSource = script.bytes.toString('utf8');
@@ -578,6 +605,7 @@ function checkArtifactChain(options = {}) {
     return {
       tool: 'agent-to-recipe-artifact-chain/v1', verdict: errors.length ? 'fail' : 'pass',
       through, localChecks: status, artifacts: artifactViews(entries),
+      pendingEngineering, valueLineage: valueLineage(entries),
       ignoredInputs: ['dossier', 'actions', 'distilled', 'procedure', 'candidate', 'qualification']
         .filter(name => own(options, name) && !(required || []).includes(name)),
       stageComplete: false, liveQualificationGranted: false,
@@ -589,9 +617,10 @@ function checkArtifactChain(options = {}) {
       notEvaluated: ['truth of historical observations beyond bound evidence', 'desktop actions or OS input events',
         'visual correctness', 'human acceptance', 'host skill discovery/loading', 'blind-context model performance',
         'semantic correctness of a catalog/contract beyond its bound bytes or of runtime evidence beyond its cited record',
-        'capability selection provenance for legacy Procedure/Candidate pairs that do not declare capabilityDecisionRefs',
+        'historical legacy artifacts missing current consumption requirements (diagnosis only, no downgrade)',
+        'semantic truth of prose inputSources, allowed transforms and validity/reacquisition rules',
         'JavaScript reachability, aliasing, shadowing or general data-flow correctness',
-        'transitive dependency closure, arbitrary trace formats or business semantics',
+        'undeclared or transitive dependencies, arbitrary trace formats or business semantics',
         'unsupported inputs, platforms or layouts',
         'complete Stage Contracts, G0-G7 decisions, trusted publisher identity or handoff publication'],
       desktopActionsAuthorized: false,
