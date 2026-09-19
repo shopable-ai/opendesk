@@ -40,8 +40,8 @@ jobs:
       - name: Test handoff and artifact-chain relationships
         run: node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-chain.test.js
   runtime-api-formal:
-    name: OpenDesk Runtime contract and unit
-    runs-on: ubuntu-latest
+    name: OpenDesk Runtime contract and unit (macOS)
+    runs-on: macos-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -49,21 +49,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-      - name: Install Linux desktop build prerequisites
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libasound2-dev \
-            libx11-dev \
-            xorg-dev \
-            libxtst-dev \
-            libpng++-dev \
-            xcb \
-            libxcb-xkb-dev \
-            x11-xkb-utils \
-            libx11-xcb-dev \
-            libxkbcommon-x11-dev \
-            libxkbcommon-dev
       - name: Build OpenDesk Runtime entry binary
         run: |
           mkdir -p dist
