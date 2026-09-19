@@ -240,7 +240,7 @@ declare global {
     setDraggable(enabled: boolean): Promise<ClawdeskUIWindowState>;
     waitUntilClosed(): Promise<ClawdeskUIWindowState>;
     control(id: string): ClawdeskUIControlHandle;
-    on(type: ClawdeskUIEventSelector, listener: ClawdeskUIEventListener): ClawdeskUIUnsubscribe;
+    on(type: EventType | "*", listener: (event: UIEvent) => void | Promise<void>): () => void;
   }
 
   interface ClawdeskUIToastHandle {
@@ -263,7 +263,7 @@ declare global {
     getCapabilities(): Capabilities;
     createWindow(spec: WindowSpec): Promise<WindowHandle>;
     closeAll(): Promise<void>;
-    on(type: ClawdeskUIEventSelector, listener: ClawdeskUIEventListener): ClawdeskUIUnsubscribe;
+    on(type: EventType | "*", listener: (event: UIEvent) => void | Promise<void>): () => void;
   }
 
   /** Lowercase ui owns OpenDesk Custom UI. It is distinct from uppercase UI desktop automation. */
