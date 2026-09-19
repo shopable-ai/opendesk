@@ -33,12 +33,33 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Record exact checked source and test environment
+        run: |
+          mkdir -p .runtime/tests/agent-to-recipe
+          git rev-parse HEAD > .runtime/tests/agent-to-recipe/source-head.txt
+          git status --short > .runtime/tests/agent-to-recipe/worktree-status.txt
+          node --version > .runtime/tests/agent-to-recipe/node-version.txt
+          uname -a > .runtime/tests/agent-to-recipe/environment.txt
+          git archive --format=tar HEAD AGENTS.md workflows tests/workflows examples/agent-to-recipe docs/frameworks docs/quality .github/workflows/api-doc-contract.yml > .runtime/tests/agent-to-recipe/source.tar
+          printf '%s\n' 'Validator and input/output contract tests only; not Producer/model behavior, host loading, visual acceptance or real desktop qualification.' > .runtime/tests/agent-to-recipe/scope.txt
       - name: Validate workflow and golden Recipe syntax
         run: |
           node --check workflows/agent-to-recipe/scripts/check-artifact-chain.js
           node --check examples/agent-to-recipe/calculator.js
       - name: Test handoff and artifact-chain relationships
-        run: node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-chain.test.js
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-*.test.js 2>&1 | tee .runtime/tests/agent-to-recipe/contracts.tap
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agent-to-recipe-contract-evidence
+          path: .runtime/tests/agent-to-recipe/
+          if-no-files-found: error
+          retention-days: 7
   runtime-api-formal:
     name: OpenDesk Runtime contract and unit (macOS)
     runs-on: macos-latest
