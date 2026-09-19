@@ -155,4 +155,4 @@ Runtime 默认预加载的第三方库；按库级能力发现，不把第三方
 
 - `types/sqlite.d.ts` SHA-256 `0026c6278e61d03029ca89dc8f997017db8ded1c77b3f7d5213af7c369dd458c`
 
-- `docs/api/libs.md` SHA-256 `68e835bc9996066afb5fa7916b8593ab1437600a7bcc7a9a28c1eb7cfea994e7`
+- `docs/api/libs.md` SHA-256 `cf4fa75f792cefe5c2d0cfd6ca637c82277c44dfb448a72f4446cba90fa0ad52`
