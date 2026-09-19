@@ -144,6 +144,31 @@ try {
         }
     }
 
+    # Preserve third-party license notices in the portable distribution.
+    # jslibs are Runtime assets, but only top-level .js files are executable;
+    # nested license files are copied verbatim and included in provenance.
+    $jsLibraryLicenseSource = Join-Path $root 'jslibs/licenses'
+    if (Test-Path -LiteralPath $jsLibraryLicenseSource -PathType Container) {
+        $jsLibraryLicenseFiles = @(Get-ChildItem -LiteralPath $jsLibraryLicenseSource -File | Sort-Object -Property Name)
+        if ($jsLibraryLicenseFiles.Count -gt 0) {
+            $jsLibraryLicenseDestination = Join-Path $OutputDirectory 'jslibs/licenses'
+            New-Item -ItemType Directory -Force -Path $jsLibraryLicenseDestination | Out-Null
+            foreach ($licenseFile in $jsLibraryLicenseFiles) {
+                $destinationLicensePath = Join-Path $jsLibraryLicenseDestination $licenseFile.Name
+                Copy-Item -LiteralPath $licenseFile.FullName -Destination $destinationLicensePath -Force
+                $sourceHash = (Get-FileHash -LiteralPath $licenseFile.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+                $destinationHash = (Get-FileHash -LiteralPath $destinationLicensePath -Algorithm SHA256).Hash.ToLowerInvariant()
+                if ($destinationHash -ne $sourceHash) {
+                    throw "Runtime license hash mismatch after staging: $destinationLicensePath"
+                }
+                $runtimeAssetManifest.Add([ordered]@{
+                    path = ('jslibs/licenses/' + $licenseFile.Name)
+                    sha256 = $destinationHash
+                })
+            }
+        }
+    }
+
     $runtimeAssetFiles = @(
         [ordered]@{ source = 'public/icons/opendesk-notification.png'; destination = 'resources/opendesk-notification.png' },
         [ordered]@{ source = 'public/done.mp3'; destination = 'sounds/public/done.mp3' },

@@ -84,6 +84,25 @@ jobs:
         shell: pwsh
         run: pwsh -NoProfile -File scripts/build_windows_distribution.ps1 -Runtime win-x64 -AppModePackage apps/opendesk
 
+      - name: Validate bundled JavaScript libraries from distribution
+        shell: pwsh
+        run: |
+          $distribution = ".\dist\windows\win-x64"
+          $runtime = Join-Path $distribution "opendesk.exe"
+          $requiredLicenses = @(
+            "jslibs\licenses\js-yaml-5.4.1-LICENSE.txt",
+            "jslibs\licenses\PapaParse-5.7.0-LICENSE.txt"
+          )
+          foreach ($relative in $requiredLicenses) {
+            $licensePath = Join-Path $distribution $relative
+            if (-not (Test-Path -LiteralPath $licensePath -PathType Leaf)) {
+              throw "Windows distribution is missing bundled-library license: $relative"
+            }
+          }
+          $evidence = ".runtime/tests/windows-compat/bundled-libraries.log"
+          & $runtime -script "tests/runtime-api/single/window-library.js" -console-mode script *>&1 | Tee-Object -FilePath $evidence
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Run Windows release preflight on the real distribution
         shell: pwsh
         run: pwsh -NoProfile -File scripts/windows_release_preflight.ps1 -ArtifactDirectory dist/windows/win-x64 -Kind Runtime -EvidencePath .runtime/tests/windows-compat/release-preflight.json
