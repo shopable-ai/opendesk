@@ -17,6 +17,12 @@ func TestDarwinFlowTrustPromptSourceContract(t *testing.T) {
 		t.Fatalf("read native_darwin.m: %v", err)
 	}
 	source := string(data)
+	start := strings.Index(source, "int ODAppShellConfirmFlowTrust(")
+	end := strings.Index(source, "int ODAppShellConfirmMarketplaceInstall(")
+	if start < 0 || end < 0 || end <= start {
+		t.Fatal("could not isolate the native Flow trust prompt")
+	}
+	flowTrustPrompt := source[start:end]
 
 	required := []string{
 		`alert.messageText = [NSString stringWithFormat:@"Install “%@”?", flowName];`,
@@ -31,7 +37,7 @@ func TestDarwinFlowTrustPromptSourceContract(t *testing.T) {
 		`*decision = trustPublisher.state == NSControlStateValueOn ? 2 : 1;`,
 	}
 	for _, fragment := range required {
-		if !strings.Contains(source, fragment) {
+		if !strings.Contains(flowTrustPrompt, fragment) {
 			t.Fatalf("native Flow trust prompt is missing contract fragment %q", fragment)
 		}
 	}
@@ -42,12 +48,12 @@ func TestDarwinFlowTrustPromptSourceContract(t *testing.T) {
 		`@"Unverified publisher: %@"`,
 	}
 	for _, fragment := range forbidden {
-		if strings.Contains(source, fragment) {
+		if strings.Contains(flowTrustPrompt, fragment) {
 			t.Fatalf("native Flow trust prompt reintroduced ambiguous UI %q", fragment)
 		}
 	}
 
-	if count := strings.Count(source, `[alert addButtonWithTitle:@"Install"]`); count != 1 {
+	if count := strings.Count(flowTrustPrompt, `[alert addButtonWithTitle:@"Install"]`); count != 1 {
 		t.Fatalf("native Flow trust prompt must expose exactly one Install action, got %d", count)
 	}
 }

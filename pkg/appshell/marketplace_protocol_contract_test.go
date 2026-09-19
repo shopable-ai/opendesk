@@ -19,8 +19,15 @@ func TestDarwinMarketplaceProtocolSourceContract(t *testing.T) {
 		`application:(NSApplication *)application openURLs:(NSArray<NSURL *> *)urls`,
 		`opendeskAppShellDarwinOpenURL(rawURL);`,
 		`Marketplace has verified this publisher identity. This is not local publisher trust.`,
+		`✓ Marketplace release attestation is valid.`,
+		`✓ Package signature is valid.`,
+		`A new local trust record will be created for this Flow only.`,
+		`This Flow already has local trust. No new trust permission will be created.`,
 		`Installing does not run the Flow.`,
-		`[alert addButtonWithTitle:@"Install Release"];`,
+		`[alert addButtonWithTitle:@"Install"];`,
+		`trustRequired && trustPublisher.state == NSControlStateValueOn ? 2 : 1`,
+		`[alert.window setContentMinSize:NSMakeSize(620.0, trustRequired ? 430.0 : 360.0)];`,
+		`[alert.window setContentSize:NSMakeSize(620.0, trustRequired ? 470.0 : 400.0)];`,
 	} {
 		if !strings.Contains(string(nativeSource), fragment) {
 			t.Fatalf("native Marketplace protocol is missing %q", fragment)

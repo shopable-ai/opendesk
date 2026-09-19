@@ -184,19 +184,34 @@ func executeAppMode(config *Config) error {
 			return flowinstall.DecisionCancel, nil
 		}
 	}
-	marketplaceConfirmer := flowmarketplace.InstallConfirmerFunc(func(ctx context.Context, release flowmarketplace.Release) (bool, error) {
+	marketplaceConfirmer := flowmarketplace.InstallConfirmerFunc(func(ctx context.Context, release flowmarketplace.Release, candidate flowinstall.VerifiedInstallCandidate) (flowinstall.VerifiedInstallApproval, error) {
 		host, ok := nativeHost.(appshell.MarketplaceInstallHost)
 		if !ok {
-			return false, fmt.Errorf("native Marketplace install confirmation is unavailable")
+			return flowinstall.VerifiedInstallApproval{}, fmt.Errorf("native Marketplace install confirmation is unavailable")
 		}
-		return host.ConfirmMarketplaceInstall(ctx, appshell.MarketplaceInstallPrompt{
-			FlowID:            release.FlowID,
-			ReleaseID:         release.ReleaseID,
-			Name:              release.FlowName,
-			Version:           release.Version,
-			PublisherID:       release.PublisherID,
-			VerifiedPublisher: release.VerifiedPublisher,
+		decision, err := host.ConfirmMarketplaceInstall(ctx, appshell.MarketplaceInstallPrompt{
+			FlowID:               release.FlowID,
+			ReleaseID:            release.ReleaseID,
+			Name:                 release.FlowName,
+			Version:              release.Version,
+			PublisherID:          candidate.PublisherID,
+			PublisherKeyID:       candidate.PublisherKeyID,
+			PublisherFingerprint: candidate.PublisherFingerprint,
+			VerifiedPublisher:    release.VerifiedPublisher,
+			SignatureVerified:    candidate.SignatureVerified,
+			TrustRequired:        candidate.TrustRequired,
 		})
+		if err != nil {
+			return flowinstall.VerifiedInstallApproval{}, err
+		}
+		switch decision {
+		case appshell.FlowTrustFlow:
+			return flowinstall.VerifiedInstallApproval{Confirmed: true, TrustDecision: flowinstall.DecisionFlow}, nil
+		case appshell.FlowTrustPublisher:
+			return flowinstall.VerifiedInstallApproval{Confirmed: true, TrustDecision: flowinstall.DecisionPublisher}, nil
+		default:
+			return flowinstall.VerifiedInstallApproval{}, nil
+		}
 	})
 	var marketplaceClient *flowmarketplace.Client
 	marketplaceDevelopmentEnabled := false
@@ -235,7 +250,7 @@ func executeAppMode(config *Config) error {
 	marketplaceDeepLinkHandler := flowmarketplace.DeepLinkHandler{
 		Installer: marketplaceInstaller,
 		InstallOptions: func(context.Context) flowinstall.InstallOptions {
-			return flowinstall.InstallOptions{Approver: flowTrustApprover}
+			return flowinstall.InstallOptions{}
 		},
 	}
 	installFlowDocument := func(path string, interactive bool) bool {

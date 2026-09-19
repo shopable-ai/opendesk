@@ -171,30 +171,49 @@ func (h *darwinNativeHost) ConfirmFlowTrust(ctx context.Context, prompt FlowTrus
 	}
 }
 
-func (h *darwinNativeHost) ConfirmMarketplaceInstall(ctx context.Context, prompt MarketplaceInstallPrompt) (bool, error) {
+func (h *darwinNativeHost) ConfirmMarketplaceInstall(ctx context.Context, prompt MarketplaceInstallPrompt) (FlowTrustDecision, error) {
 	if err := ctx.Err(); err != nil {
-		return false, err
+		return FlowTrustCancel, err
 	}
 	flowID := C.CString(prompt.FlowID)
 	releaseID := C.CString(prompt.ReleaseID)
 	name := C.CString(prompt.Name)
 	version := C.CString(prompt.Version)
 	publisherID := C.CString(prompt.PublisherID)
+	keyID := C.CString(prompt.PublisherKeyID)
+	fingerprint := C.CString(prompt.PublisherFingerprint)
 	defer C.free(unsafe.Pointer(flowID))
 	defer C.free(unsafe.Pointer(releaseID))
 	defer C.free(unsafe.Pointer(name))
 	defer C.free(unsafe.Pointer(version))
 	defer C.free(unsafe.Pointer(publisherID))
+	defer C.free(unsafe.Pointer(keyID))
+	defer C.free(unsafe.Pointer(fingerprint))
 	verified := C.int(0)
 	if prompt.VerifiedPublisher {
 		verified = 1
 	}
-	confirmed := C.int(0)
-	var nativeError *C.char
-	if C.ODAppShellConfirmMarketplaceInstall(flowID, releaseID, name, version, publisherID, verified, &confirmed, &nativeError) == 0 {
-		return false, darwinError("show Marketplace install confirmation", nativeError)
+	signature := C.int(0)
+	if prompt.SignatureVerified {
+		signature = 1
 	}
-	return confirmed != 0, nil
+	trustRequired := C.int(0)
+	if prompt.TrustRequired {
+		trustRequired = 1
+	}
+	decision := C.int(0)
+	var nativeError *C.char
+	if C.ODAppShellConfirmMarketplaceInstall(flowID, releaseID, name, version, publisherID, keyID, fingerprint, verified, signature, trustRequired, &decision, &nativeError) == 0 {
+		return FlowTrustCancel, darwinError("show Marketplace install confirmation", nativeError)
+	}
+	switch int(decision) {
+	case 1:
+		return FlowTrustFlow, nil
+	case 2:
+		return FlowTrustPublisher, nil
+	default:
+		return FlowTrustCancel, nil
+	}
 }
 
 func (h *darwinNativeHost) UpdateMenuItem(_ context.Context, id string, patch MenuItemPatch) error {

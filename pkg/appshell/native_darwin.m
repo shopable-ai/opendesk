@@ -345,31 +345,82 @@ int ODAppShellConfirmFlowTrust(const char *flowID, const char *name, const char 
     return success ? 1 : 0;
 }
 
-int ODAppShellConfirmMarketplaceInstall(const char *flowID, const char *releaseID, const char *name, const char *version, const char *publisherID, int verifiedPublisher, int *confirmed, char **errorMessage) {
+int ODAppShellConfirmMarketplaceInstall(const char *flowID, const char *releaseID, const char *name, const char *version, const char *publisherID, const char *keyID, const char *fingerprint, int verifiedPublisher, int signatureVerified, int trustRequired, int *decision, char **errorMessage) {
     __block BOOL success = NO;
     ODOnMainThread(^{
         @autoreleasepool {
+            if (!signatureVerified) {
+                ODSetError(errorMessage, @"Marketplace install confirmation requires a verified package signature");
+                return;
+            }
             NSString *flowName = name ? [NSString stringWithUTF8String:name] : @"Flow";
             NSString *flow = flowID ? [NSString stringWithUTF8String:flowID] : @"unknown";
             NSString *release = releaseID ? [NSString stringWithUTF8String:releaseID] : @"unknown";
             NSString *releaseVersion = version ? [NSString stringWithUTF8String:version] : @"unknown";
             NSString *publisher = publisherID ? [NSString stringWithUTF8String:publisherID] : @"unknown";
-            NSString *verified = verifiedPublisher ? @"Marketplace has verified this publisher identity. This is not local publisher trust." : @"This publisher is not Marketplace-verified.";
+            NSString *key = keyID ? [NSString stringWithUTF8String:keyID] : @"unknown";
+            NSString *finger = fingerprint ? [NSString stringWithUTF8String:fingerprint] : @"unknown";
+            NSString *publisherVerification = verifiedPublisher ? @"✓ Marketplace has verified this publisher identity. This is not local publisher trust." : @"Marketplace has not verified this publisher identity. This does not change local trust.";
+            NSString *trustSummary = trustRequired ? @"A new local trust record will be created for this Flow only. Installing does not run the Flow." : @"This Flow already has local trust. No new trust permission will be created. Installing does not run the Flow.";
 
             NSAlert *alert = [NSAlert new];
             alert.alertStyle = NSAlertStyleInformational;
-            alert.messageText = [NSString stringWithFormat:@"Install “%@”?", flowName];
-            alert.informativeText = [NSString stringWithFormat:@"Release %@ (%@)\nFlow: %@\nPublisher: %@\n\n%@\n\nOpenDesk will download the canonical Marketplace artifact, verify its release attestation and package signature, then ask separately before creating local publisher trust. Installing does not run the Flow.", releaseVersion, release, flow, publisher, verified];
-            [alert addButtonWithTitle:@"Install Release"];
+            alert.messageText = [NSString stringWithFormat:@"Install “%@” from Marketplace?", flowName];
+            alert.informativeText = [NSString stringWithFormat:@"Release: %@ (%@)\nFlow: %@\nPublisher: %@\n\n✓ Marketplace release attestation is valid.\n✓ Package signature is valid.\n%@\n\n%@", releaseVersion, release, flow, publisher, publisherVerification, trustSummary];
+
+            ODFlowTrustDetailsController *detailsController = [ODFlowTrustDetailsController new];
+            detailsController.flowID = flow;
+            detailsController.publisher = publisher;
+            detailsController.keyID = key;
+            detailsController.fingerprint = finger;
+            NSButton *detailsButton = [NSButton buttonWithTitle:@"Security Details…" target:detailsController action:@selector(showSecurityDetails:)];
+            detailsButton.bezelStyle = NSBezelStyleInline;
+            detailsButton.controlSize = NSControlSizeSmall;
+            detailsButton.toolTip = @"Show the Flow ID, signing key, and publisher key fingerprint.";
+
+            NSMutableArray<NSView *> *accessoryViews = [NSMutableArray array];
+            NSButton *trustPublisher = nil;
+            if (trustRequired) {
+                trustPublisher = [NSButton checkboxWithTitle:@"Trust this publisher for future Flows" target:nil action:nil];
+                trustPublisher.state = NSControlStateValueOff;
+                trustPublisher.toolTip = @"Optional. Expands trust to other Flows signed by this exact publisher key.";
+
+                NSTextField *scopeHelp = [NSTextField labelWithString:@"By default, only this Flow is trusted. Publisher-wide trust is optional; Flow permissions and licensing remain separate."];
+                scopeHelp.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
+                scopeHelp.textColor = NSColor.secondaryLabelColor;
+                scopeHelp.maximumNumberOfLines = 0;
+                scopeHelp.lineBreakMode = NSLineBreakByWordWrapping;
+                scopeHelp.preferredMaxLayoutWidth = 500.0;
+                [accessoryViews addObject:trustPublisher];
+                [accessoryViews addObject:scopeHelp];
+            }
+            [accessoryViews addObject:detailsButton];
+            NSStackView *accessory = [NSStackView stackViewWithViews:accessoryViews];
+            accessory.orientation = NSUserInterfaceLayoutOrientationVertical;
+            accessory.alignment = NSLayoutAttributeLeading;
+            accessory.spacing = 6.0;
+            accessory.frame = NSMakeRect(0.0, 0.0, 500.0, trustRequired ? 94.0 : 24.0);
+            [accessory.widthAnchor constraintEqualToConstant:500.0].active = YES;
+            alert.accessoryView = accessory;
+
+            [alert addButtonWithTitle:@"Install"];
             [alert addButtonWithTitle:@"Cancel"];
             alert.buttons.firstObject.keyEquivalent = @"\r";
             alert.buttons.lastObject.keyEquivalent = @"\e";
+            [alert.window setContentMinSize:NSMakeSize(620.0, trustRequired ? 430.0 : 360.0)];
+            [alert.window setContentSize:NSMakeSize(620.0, trustRequired ? 470.0 : 400.0)];
             NSModalResponse response = [alert runModal];
-            if (confirmed) *confirmed = response == NSAlertFirstButtonReturn ? 1 : 0;
+            if (decision) {
+                if (response == NSAlertFirstButtonReturn) {
+                    *decision = trustRequired && trustPublisher.state == NSControlStateValueOn ? 2 : 1;
+                } else {
+                    *decision = 0;
+                }
+            }
             success = YES;
         }
     });
-    if (!success) ODSetError(errorMessage, @"Marketplace install confirmation could not be displayed");
+    if (!success && errorMessage && !*errorMessage) ODSetError(errorMessage, @"Marketplace install confirmation could not be displayed");
     return success ? 1 : 0;
 }
 

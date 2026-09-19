@@ -40,16 +40,52 @@ type TrustCandidate struct {
 
 type TrustApprover func(context.Context, TrustCandidate) (TrustDecision, error)
 
+// VerifiedInstallCandidate is supplied only after the complete .odflow
+// container, publisher signature, and payload digests have been verified.  A
+// caller may use it to present one final local confirmation before this
+// service creates any trust record, Flow files, or Catalog record.
+type VerifiedInstallCandidate struct {
+	TrustCandidate
+	TrustRequired bool
+}
+
+// VerifiedInstallApproval separates the user's install consent from the
+// optional scope of a new trust record. TrustDecision is considered only when
+// Candidate.TrustRequired is true.
+type VerifiedInstallApproval struct {
+	Confirmed     bool
+	TrustDecision TrustDecision
+}
+
+// VerifiedInstallConfirmer is a post-verification, pre-commit consent
+// boundary. Unlike Approver, it is invoked even when an existing trust record
+// makes a new trust decision unnecessary.
+type VerifiedInstallConfirmer func(context.Context, VerifiedInstallCandidate) (VerifiedInstallApproval, error)
+
+// VerifiedPackageValidator runs after the archive, manifest, publisher
+// signature, and payload digests have been checked by flowpackage.ReadFile.
+// It is deliberately before trust evaluation and every local state mutation,
+// so a source-specific identity check can share the same verified package
+// object that will be installed.
+type VerifiedPackageValidator func(context.Context, *flowpackage.Package) error
+
 type InstallOptions struct {
 	AllowDowngrade       bool
 	AllowNeedsActivation bool
 	AuthorizePackage     bool
 	Approver             TrustApprover
-	TrustSource          TrustSource
-	AuthorityProof       *AuthorityProof
+	// Confirmer runs after package verification and before any Flow, trust, or
+	// Catalog state is committed. Marketplace uses it to combine release
+	// consent and a possible Flow-scoped trust choice in one native prompt.
+	Confirmer VerifiedInstallConfirmer
+	// VerifyPackage adds a source-specific identity check to the canonical
+	// package verification boundary. It must not approve trust or mutate state.
+	VerifyPackage  VerifiedPackageValidator
+	TrustSource    TrustSource
+	AuthorityProof *AuthorityProof
 	// Marketplace carries canonical Release provenance only. It never grants
 	// Publisher Trust, capability permission, entitlement, or Runtime authority.
-	Marketplace          *MarketplaceProvenance
+	Marketplace *MarketplaceProvenance
 }
 
 type InstallResult struct {
@@ -90,6 +126,11 @@ func (service *Service) Install(ctx context.Context, packagePath string, options
 	if err != nil {
 		return InstallResult{}, err
 	}
+	if options.VerifyPackage != nil {
+		if err := options.VerifyPackage(ctx, flowPackage); err != nil {
+			return InstallResult{}, err
+		}
+	}
 	manifest := flowPackage.Manifest
 	if options.Marketplace != nil {
 		if err := options.Marketplace.validate(); err != nil {
@@ -116,15 +157,33 @@ func (service *Service) Install(ctx context.Context, packagePath string, options
 		trusted = true
 	}
 	needsApproval := !trusted
-	if needsApproval {
+	candidate := TrustCandidate{
+		FlowID: manifest.FlowID, Name: manifest.Name, PublisherID: manifest.PublisherID,
+		PublisherKeyID: manifest.PublisherKeyID, PublisherFingerprint: manifest.PublisherFingerprint,
+		SignatureVerified: true,
+	}
+	if options.Confirmer != nil {
+		approval, confirmErr := options.Confirmer(ctx, VerifiedInstallCandidate{
+			TrustCandidate: candidate,
+			TrustRequired:  needsApproval,
+		})
+		if confirmErr != nil {
+			return InstallResult{}, confirmErr
+		}
+		if !approval.Confirmed {
+			return InstallResult{}, newError(CodeTrustCanceled, "Flow installation was canceled", nil)
+		}
+		if needsApproval {
+			decision = approval.TrustDecision
+			if decision != DecisionFlow && decision != DecisionPublisher {
+				return InstallResult{}, newError(CodeTrustConflict, "install confirmation returned an invalid trust decision", nil)
+			}
+		}
+	} else if needsApproval {
 		if options.Approver == nil {
 			return InstallResult{}, newError(CodeTrustRequired, "unknown publisher requires an explicit trust decision", nil)
 		}
-		decision, err = options.Approver(ctx, TrustCandidate{
-			FlowID: manifest.FlowID, Name: manifest.Name, PublisherID: manifest.PublisherID,
-			PublisherKeyID: manifest.PublisherKeyID, PublisherFingerprint: manifest.PublisherFingerprint,
-			SignatureVerified: true,
-		})
+		decision, err = options.Approver(ctx, candidate)
 		if err != nil {
 			return InstallResult{}, err
 		}

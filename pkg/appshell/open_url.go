@@ -10,22 +10,28 @@ type OpenURLHost interface {
 	SetOpenURLHandler(func(rawURL string))
 }
 
-// MarketplaceInstallPrompt contains only already-attested Marketplace release
-// display data. It is intentionally separate from FlowTrustPrompt: confirming
-// an installation does not grant either Flow-local or Publisher-wide trust.
+// MarketplaceInstallPrompt contains only canonical Marketplace release and
+// already-verified package display data. A local Flow trust decision is
+// returned separately and is never inferred from Marketplace verification.
 type MarketplaceInstallPrompt struct {
-	FlowID            string
-	ReleaseID         string
-	Name              string
-	Version           string
-	PublisherID       string
-	VerifiedPublisher bool
+	FlowID               string
+	ReleaseID            string
+	Name                 string
+	Version              string
+	PublisherID          string
+	PublisherKeyID       string
+	PublisherFingerprint string
+	VerifiedPublisher    bool
+	SignatureVerified    bool
+	TrustRequired        bool
 }
 
 // MarketplaceInstallHost is the local user-consent boundary for a Marketplace
-// release. The caller must resolve and verify the canonical Release before
-// showing this prompt; this interface must never receive a browser-provided
-// artifact URL, credential, command, or executable content.
+// release. The caller must resolve the canonical Release and verify the
+// complete package before showing this prompt; the returned decision defaults
+// to Flow-scoped trust and can never silently create Publisher-wide trust.
+// This interface must never receive a browser-provided artifact URL,
+// credential, command, or executable content.
 type MarketplaceInstallHost interface {
-	ConfirmMarketplaceInstall(ctx context.Context, prompt MarketplaceInstallPrompt) (bool, error)
+	ConfirmMarketplaceInstall(ctx context.Context, prompt MarketplaceInstallPrompt) (FlowTrustDecision, error)
 }

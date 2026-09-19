@@ -10,18 +10,18 @@ import (
 )
 
 type InstallConfirmer interface {
-	ConfirmMarketplaceInstall(context.Context, Release) (bool, error)
+	ConfirmMarketplaceInstall(context.Context, Release, flowinstall.VerifiedInstallCandidate) (flowinstall.VerifiedInstallApproval, error)
 }
 
 // InstallConfirmerFunc adapts a host-owned local confirmation callback without
 // making the Marketplace package depend on a particular desktop UI toolkit.
-type InstallConfirmerFunc func(context.Context, Release) (bool, error)
+type InstallConfirmerFunc func(context.Context, Release, flowinstall.VerifiedInstallCandidate) (flowinstall.VerifiedInstallApproval, error)
 
-func (fn InstallConfirmerFunc) ConfirmMarketplaceInstall(ctx context.Context, release Release) (bool, error) {
+func (fn InstallConfirmerFunc) ConfirmMarketplaceInstall(ctx context.Context, release Release, candidate flowinstall.VerifiedInstallCandidate) (flowinstall.VerifiedInstallApproval, error) {
 	if fn == nil {
-		return false, errors.New("marketplace installation confirmation is unavailable")
+		return flowinstall.VerifiedInstallApproval{}, errors.New("marketplace installation confirmation is unavailable")
 	}
-	return fn(ctx, release)
+	return fn(ctx, release, candidate)
 }
 
 type EntitlementResolver interface {
@@ -75,10 +75,11 @@ func (handler DeepLinkHandler) Handle(ctx context.Context, rawURL string) (flowi
 }
 
 // InstallURL is the Web/In-App Marketplace orchestration layer. It resolves a
-// controlled identifier-only install intent, requires a local confirmation,
-// checks Marketplace account entitlement, verifies the downloaded Release
-// identity, and then delegates the actual installation to FlowInstallService.
-// It deliberately never calls the Runtime execution path.
+// controlled identifier-only install intent, checks Marketplace account
+// entitlement, downloads the canonical artifact, verifies its release
+// identity and package signature, then asks for one local confirmation before
+// delegating the commit to FlowInstallService. It deliberately never calls the
+// Runtime execution path.
 func (installer *Installer) InstallURL(ctx context.Context, rawURL string, options flowinstall.InstallOptions) (flowinstall.InstallResult, error) {
 	if installer == nil || installer.Client == nil || installer.FlowService == nil {
 		return flowinstall.InstallResult{}, fmt.Errorf("marketplace installer is unavailable")
@@ -95,13 +96,6 @@ func (installer *Installer) InstallURL(ctx context.Context, rawURL string, optio
 		return flowinstall.InstallResult{}, err
 	}
 	release := resolved.Release
-	confirmed, err := installer.Confirmer.ConfirmMarketplaceInstall(ctx, release)
-	if err != nil {
-		return flowinstall.InstallResult{}, err
-	}
-	if !confirmed {
-		return flowinstall.InstallResult{}, fmt.Errorf("marketplace installation was canceled")
-	}
 	if release.EntitlementPolicy != EntitlementFree {
 		if installer.Entitlement == nil {
 			return flowinstall.InstallResult{}, fmt.Errorf("marketplace entitlement is required for this release")
@@ -115,20 +109,19 @@ func (installer *Installer) InstallURL(ctx context.Context, rawURL string, optio
 		return flowinstall.InstallResult{}, err
 	}
 	defer cleanup()
-	flowPackage, err := flowpackage.ReadFile(artifactPath)
-	if err != nil {
-		return flowinstall.InstallResult{}, err
-	}
-	if err := matchReleasePackage(release, flowPackage); err != nil {
-		return flowinstall.InstallResult{}, err
-	}
-
 	// Marketplace attestation proves Release identity only. It must never be
-	// translated into flowinstall.AuthorityProof or Local Publisher Trust.
-	// Unknown publishers still go through the same explicit trust approver as
-	// side-loaded .odflow files. Provenance is committed by the same install
-	// transaction as package content and the Local Flow Catalog record.
+	// translated into flowinstall.AuthorityProof or Local Publisher Trust. The
+	// release/package match executes inside FlowInstall immediately after its
+	// one canonical package read, avoiding a verification-to-install TOCTOU.
+	// The native consent callback follows that verification and precedes every
+	// Flow, trust, and Catalog mutation.
 	options.AuthorityProof = nil
+	options.VerifyPackage = func(_ context.Context, flowPackage *flowpackage.Package) error {
+		return matchReleasePackage(release, flowPackage)
+	}
+	options.Confirmer = func(ctx context.Context, candidate flowinstall.VerifiedInstallCandidate) (flowinstall.VerifiedInstallApproval, error) {
+		return installer.Confirmer.ConfirmMarketplaceInstall(ctx, release, candidate)
+	}
 	options.Marketplace = &flowinstall.MarketplaceProvenance{
 		MarketplaceID: release.MarketplaceID,
 		ReleaseID:     release.ReleaseID,

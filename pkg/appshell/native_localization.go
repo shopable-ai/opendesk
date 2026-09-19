@@ -144,11 +144,11 @@ func (h *localizedNativeHost) ConfirmFlowTrust(ctx context.Context, prompt FlowT
 	return FlowTrustCancel, fmt.Errorf("native Flow trust prompt is unavailable")
 }
 
-func (h *localizedNativeHost) ConfirmMarketplaceInstall(ctx context.Context, prompt MarketplaceInstallPrompt) (bool, error) {
+func (h *localizedNativeHost) ConfirmMarketplaceInstall(ctx context.Context, prompt MarketplaceInstallPrompt) (FlowTrustDecision, error) {
 	if host, ok := h.inner.(MarketplaceInstallHost); ok {
 		return host.ConfirmMarketplaceInstall(ctx, prompt)
 	}
-	return false, fmt.Errorf("native Marketplace install confirmation is unavailable")
+	return FlowTrustCancel, fmt.Errorf("native Marketplace install confirmation is unavailable")
 }
 
 func (h *localizedNativeHost) RunMain(ctx context.Context) error {
