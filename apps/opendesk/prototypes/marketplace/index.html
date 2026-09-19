@@ -167,7 +167,7 @@ dialog.addEventListener('cancel',event=>{event.preventDefault();close();});windo
       return;
     }
     display(afterDispatch ? 'waiting-external-protocol' : 'server-ready', afterDispatch
-      ? '本地服务已就绪；等待 Chrome 确认打开 OpenDesk。确认后仍需分别确认 Release 与 Flow 范围信任。'
+      ? '本地服务已就绪；等待 Chrome 确认打开 OpenDesk。随后会显示一次原生确认，核对 Release 与默认的当前 Flow 信任范围。'
       : (receiver && receiver.message ? `本地服务已就绪。${receiver.message}` : '本地服务已就绪；尚未请求安装。'));
   }
 

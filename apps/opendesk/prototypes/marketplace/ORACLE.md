@@ -20,7 +20,7 @@
 - `docs/architecture/execution/flow-marketplace-protocol-v1.md`
 - `pkg/flowmarketplace/installer.go`（实现核验）
 
-核验结论：架构文档仍标注设计接受 / 实现待完成；更具体的 Protocol V1 已标注客户端基础已实现、OS protocol 与后端待完成。实际 `Installer.InstallURL` 已存在：解析 Install Intent、取得 canonical Release、本地确认、非免费授权、下载、包身份对比，再委派 `flowinstall.Service.Install`。它明确不调用 Runtime 执行路径。
+核验结论：架构文档仍标注设计接受 / 实现待完成；更具体的 Protocol V1 已标注客户端基础已实现、OS protocol 与后端待完成。实际 `Installer.InstallURL` 已存在：解析 Install Intent、取得 canonical Release、非免费授权、下载后校验 artifact/attestation/package signature 与包身份，然后在任何 Flow、Catalog 或 Trust 写入前显示一次本地确认，并委派 `flowinstall.Service.Install` 提交。它明确不调用 Runtime 执行路径。
 
 因此应采用“**客户端基础代码存在，但不能据此宣称完整市场已上线**”的状态，而不是“全无实现”或“市场已经可用”。本轮不重新实现这些底层能力。
 
@@ -30,10 +30,10 @@
 市场首页：搜索 / 分类 / 平台 / 价格筛选
   → Flow 详情：能做什么、输入输出、权限、版本和使用条件
   → 网页交接：只展示受控安装意图，不宣称桌面已安装
-  → OpenDesk 桌面预览：核对 Flow / Release 与本次权限
+  → OpenDesk 桌面：校验 canonical Release、artifact 与已签名 .odflow
   → 非免费 Flow：单独取得模拟授权，再返回安装确认
-  → 模拟校验 .odflow
-  → 本机信任：默认仅当前 Flow，扩大范围需要额外确认
+  → 一次原生确认：Flow / Release / Publisher / Marketplace verification / package signature
+  → 本机信任：默认仅当前 Flow，扩大范围需要明确勾选；已有 Flow trust 则不新建信任
   → 写入模拟 Catalog；安装完成但运行次数不变
   → 单独进入 Flow Runner 预览
   → 用户明确确认模拟运行
@@ -105,7 +105,7 @@ opendesk://install/flow/<flowId>?release=<releaseId>&intent=<installIntentId>
 
 先核对具体 Flow / Release、平台与权限；付费未授权不能开始下载演示。模拟授权成功只返回确认页面，不自动开始安装，权限勾选仍需明确完成。
 
-校验后默认选择「仅批准这个 Flow」。高级选项中才提供 Publisher 范围信任；必须另勾选对更广范围的理解。模拟 Trust 使用稳定 fixture 的 Flow / Publisher / Signing Key 标识，不把市场认证标签或发布者展示名当成授权。
+local HTTP development branch 的真实 receiver 在 canonical artifact、Marketplace attestation、包身份与 package signature 都验证后，显示一次原生确认：其中同时列出 Release、Flow、Publisher、Marketplace verification、签名状态、默认 Flow-scoped trust 和「安装不运行」。只有本次仍需要建立 trust 时才显示 Publisher-wide 范围选项；默认选择「仅批准这个 Flow」，扩大范围必须另勾选。已有 Flow trust 时同一确认仅确认 Release 安装，不新建信任记录。模拟 Trust 使用稳定 fixture 的 Flow / Publisher / Signing Key 标识，不把市场认证标签或发布者展示名当成授权。
 
 真实 TrustStore、签名/摘要计算、protected-package preflight、entitlement、事务安装继续由既有 Go owner 提供；不得将 HTML 中的 `commit()` 或布尔 fixture 复制为生产授权机制。
 
@@ -122,8 +122,8 @@ opendesk://install/flow/<flowId>?release=<releaseId>&intent=<installIntentId>
 模型步骤为演示语义，不是新增生产协议：
 
 ```text
-handoff → confirm → verify → trust → installed
-                   ↘ error       ↗
+handoff → verify → one native confirm + optional Flow trust → installed
+                  ↘ error / cancel                       ↗
 任意未完成阶段 → cancel
 ```
 
@@ -131,7 +131,7 @@ Release 已撤回在进入安装确认/下载演示前即阻止。`verify` 不�
 
 | 场景 | 页面应表达 | 不允许产生 |
 | --- | --- | --- |
-| 正常 | 两类确认、完成、尚未运行 | 自动运行 |
+| 正常 | 一次原生确认、完成、尚未运行 | 自动运行 |
 | 未装客户端 | 先取得客户端、手动方式 | 声称真实检测到设备状态 |
 | 网页未收到唤起确认 | 明确未知，可手动继续演示 | 超时即成功 / 超时即未安装 |
 | 付费未授权 | 先取得独立授权 | 下载或安装 |

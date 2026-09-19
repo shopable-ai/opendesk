@@ -34,9 +34,9 @@
 
 helper 每次创建新的 `.runtime/tests/marketplace/manual-<timestamp>/`，生成一小时有效的临时 Ed25519 root、匹配的开发配置和隔离 Catalog；它会验证并注册当前 `dist/OpenDesk.app`，启动同一配置的 OpenDesk，再用一个无副作用的非法参数 URL 预检 LaunchServices 是否确实交给**本次**接收端，最后自动打开精确页面 URL。它不会占用固定端口，也不会关闭既有 OpenDesk 实例或其他服务；如果检测到共享实例，会安全停止并打印其准确命令。
 
-页面打开后，可点击最简页的「安装 Notify Demo」，或交互原型中任何商品的「安装」。两者均会交接同一个固定 intent；后者不代表 fixture 商品本身已经可发布。依次确认 Chrome 的“打开 OpenDesk”、OpenDesk 的 Release 确认和 Flow 范围信任。只有服务读取到实际 Catalog 的 `state=ready`、`origin=marketplace`、Release ID、包摘要与安装目录全部匹配时，页面才显示「安装成功，尚未运行」。运行仍需在 Flow Runner 中明确点击。
+页面打开后，可点击最简页的「安装 Notify Demo」，或交互原型中任何商品的「安装」。两者均会交接同一个固定 intent；后者不代表 fixture 商品本身已经可发布。先确认 Chrome 的“打开 OpenDesk”；桌面端验证 Release、canonical 包与签名后，再以一次原生确认呈现安装与默认当前 Flow 信任。只有服务读取到实际 Catalog 的 `state=ready`、`origin=marketplace`、Release ID、包摘要与安装目录全部匹配时，页面才显示「安装成功，尚未运行」。运行仍需在 Flow Runner 中明确点击。
 
-页面会把可见状态区分为：本地服务/接收端就绪、等待 Chrome 外部协议确认、OpenDesk 已收到 intent 正在等待两个原生确认、接收端验签或安装拒绝、以及 Catalog 已确认安装。失败页不会转报成功，且会指向同次 `manual-*` 目录中的 `opendesk.log`。
+页面会把可见状态区分为：本地服务/接收端就绪、等待 Chrome 外部协议确认、OpenDesk 已收到 intent 并正在验证后显示一次原生确认、接收端验签或安装拒绝、以及 Catalog 已确认安装。失败页不会转报成功，且会指向同次 `manual-*` 目录中的 `opendesk.log`。
 
 helper 会打印精确的 cleanup 命令；只对该命令生成的 `manual-*` 运行目录执行：
 
@@ -67,6 +67,8 @@ CLI 安装测试通过现有 `OPENDESK_APP_DATA_DIR` 指向 `.runtime/tests/mark
 
 页面中的六个商品 fixture 仍是模拟数据。在 local HTTP development smoke 中，所有商品按钮都暂时映射到公开 Notify Demo 包；包不与 HTML 放在一起，也不安装到 `apps/opendesk/prototypes/marketplace/`。本地服务按需读取 canonical 包，OpenDesk 将安装内容写入显式 `OPENDESK_APP_DATA_DIR` 下的 `flows/`，Catalog 写入其 `flow-state/records/`。
 本次检查未发现该包是应用构建脚本的必需输入；它仍有公开示例与 Runtime 测试职责，不能据此移走。
+
+真实 receiver 只在 canonical artifact、Marketplace attestation、包身份和 package signature 均验证后显示一次原生确认。该确认同时说明 Release、Flow、Publisher、Marketplace verification、签名状态、默认仅当前 Flow 的 trust 范围及「安装不运行」；已有 Flow trust 时不会创建新的 trust record，也不会显示 Publisher-wide 扩展选项。
 
 每轮记录所选包的 SHA-256、Manifest digest、publisher fingerprint，并校验包内源码与配置。
 若以后需要独立稳定的页面下载测试，先在 `tests/prototypes/` 建立有来源路径、摘要和更新规则的

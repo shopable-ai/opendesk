@@ -133,6 +133,8 @@ test('both local pages have a bounded same-origin Catalog oracle and no executio
   assert.match(bridge, /const maxStatusChecks = 180/);
   assert.match(bridge, /waiting-external-protocol/);
   assert.match(bridge, /安装成功，尚未运行/);
+  assert.match(html, /显示一次原生安装确认/);
+  assert.match(script, /一次原生确认中核对 Release 和默认的当前 Flow 信任范围/);
   assert.doesNotMatch(bridge, /preventDefault|location\.assign|flow\.run|runFlow|Execution|localStorage/);
   assert.match(html, /connect-src 'self'/);
   assert.match(script, /fetch\('\/local-smoke\/status'/);
