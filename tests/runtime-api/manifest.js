@@ -170,7 +170,7 @@ globalThis.RuntimeAPIObjects = {
   ] },
   Dialog: { docs: 'docs/api/dialog.md', types: 'types/dialog.d.ts', source: 'automation/dialog.go', status: 'conditional', platforms: ['darwin', 'linux', 'windows'], methods: ['alert', 'confirm', 'prompt', 'getCapabilities'] },
   ui: {
-    docs: 'docs/api/ui.md', types: 'types/ui.d.ts',
+    docs: 'docs/api/ui.md', types: 'types/CustomUI.d.ts',
     source: 'automation/custom_ui.go + automation/custom_ui_notify.go + polyfills/000-ui.js',
     status: 'conditional', platforms: ['darwin', 'linux', 'windows'],
     methods: ['toast', 'notify', 'getCapabilities', 'createWindow', 'closeAll', 'on'],
