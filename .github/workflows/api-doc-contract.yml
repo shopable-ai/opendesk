@@ -36,6 +36,31 @@ jobs:
           node --check examples/agent-to-recipe/calculator.js
       - name: Test handoff and artifact-chain relationships
         run: node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-chain.test.js
+  runtime-api-formal:
+    name: OpenDesk Runtime contract and unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build OpenDesk Runtime entry binary
+        run: |
+          mkdir -p dist
+          go build -o dist/opendesk ./cmd/opendesk
+      - name: Run formal Runtime contract gate
+        run: OPENDESK_RUNTIME_API_MODE=contract ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+      - name: Run formal Runtime unit gate
+        run: OPENDESK_RUNTIME_API_MODE=unit ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: runtime-api-formal-evidence
+          path: .runtime/tests/runtime-api/
+          if-no-files-found: warn
+          retention-days: 7
   agent-api-reading:
     name: Layered Agent API reading
     runs-on: ubuntu-latest
