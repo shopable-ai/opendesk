@@ -5,6 +5,16 @@
 入口：[index.html](index.html)  
 交互与后续实施合同：[ORACLE.md](ORACLE.md)
 
+## 整体方案（已保存，待代码实施）
+
+正式方案：[Flow Marketplace：整体框架、同站点开发与安装方案](../../../../docs/architecture/execution/flow-marketplace.md)。
+
+目标是继续使用本目录的 `index.html`，由现有开发助手自动把页面和已有 Notify Demo 包准备到同一个 HTTP 文件站点；每个版本在 `flows/<flowId>/<releaseId>/` 中并排保存 `release.json` 和 `.odflow`，不拆成 `releases/`、`packages/` 两套目录，也不要求两个域名、手工复制或多条启动命令。
+
+页面和包的维护源不移动；同站点副本只在 `.runtime/` 自动生成，不成为第二份人工维护源。原型中只有真实 Notify Demo 绑定真实包，其他商品保留模拟。完整方案包含文件对应关系、配置前缀、启动方式、CDN/下载参数边界、反方审计及验收标准。
+
+**下面记录的是当前代码及历史验收，不是上述静态方案已实现的证据。** 当前 helper 仍依赖专用服务并打开最简页；普通静态服务器只展示当前原型。架构文档分别列出了现有命令与目标改造，不得将二者混报为通过。
+
 ## 两个本地页面
 
 | 页面 | 实际作用 | 成功依据 |
@@ -139,7 +149,7 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory apps/opendesk/prototype
 node --test tests/prototypes/marketplace.test.cjs tests/prototypes/marketplace-local.test.cjs
 ```
 
-浏览器检查需要 Python、Playwright 和 Chromium。已有这些依赖时，在仓库根目录执行：
+浏览器检查需要 Python、Playwright 和 Chromium。已有这些依赖时，在仓库根目录运行：
 
 ```bash
 python tests/prototypes/marketplace-smoke.py
