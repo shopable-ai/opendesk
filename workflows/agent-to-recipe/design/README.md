@@ -6,7 +6,7 @@ order: 10
 
 # Agent-first Recorder｜设计总纲与文件地图
 
-状态：设计基线 v0.8，2026-09-19 补交接审阅与前缀检查，纠正方法文件状态冲突。保留 v0.6 Structured UI Collection Reading 的现行边界，以及自然语言入口、操作计划、planned／actual 和 DistilledSteps 专业边界。当前已有 application-engineer、trace-distill、procedure-synthesize、code-rebuild 四个方法文件与限定静态检查；宿主加载、盲评与人类验收未证明。实际状态见[质量总览](../../../docs/quality/agent-to-recipe-workflow-review-20260919.md)。本文不新增 Runtime、S13 或第三套工作流。返回[工作流总入口](../../README.md)。
+状态：设计基线 v0.8，2026-09-19 补交接审阅与前缀检查，纠正方法文件状态冲突。保留 v0.6 Structured UI Collection Reading 的现行边界，以及自然语言入口、操作计划、planned／actual 和 DistilledSteps 专业边界。当前已有 application-engineer、trace-distill、procedure-synthesize、code-rebuild、recipe-qualify 五个方法文件与限定静态检查；宿主加载、盲评与人类验收未证明。实际状态见[质量总览](../../../docs/quality/agent-to-recipe-workflow-review-20260919.md)。本文不新增 Runtime、S13 或第三套工作流。返回[工作流总入口](../../README.md)。
 
 ## 先看关键输入输出与实际检查
 
@@ -66,6 +66,7 @@ AX/UIA + OCR + Screenshot/Layout
 - [chain-design.md](chain-design.md)：明确八项目标专业职责、输入输出、组合、复用、跳过、失败和中断返回；`trace-distill=S7`，`procedure-synthesize=S8—S9`；Collection 链保持“Profile → generic item → App Adapter → business object → Recipe”。
 - [application-operations.md](application-operations.md)：负责应用认识与审阅、模型／程序／人工分工、CollectionProfile authoring、定位规则和实际应用操作；不复制集合算法，也不承担原始 action 去噪。
 - [code-rebuild.md](code-rebuild.md)：独立、可选的代码质量改进，不替代 recipe-build。
+- [recipe-qualify/SKILL.md](../skills/recipe-qualify/SKILL.md)：S12 冻结候选的分层资格、Recipe Review、评分证据边界与修复路由；不修改候选换取通过。
 - [validation-plan.md](validation-plan.md)：定义行为案例、计划—事实—DistilledSteps 交接测试、分层应用工程测试及唯一评分依据；集合结构正确、业务映射正确和完整业务流程正确必须分别验证。
 - [共享 Skill 合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)：TaskContract／WorkPlan、AppProfile、Dossier、DistilledSteps、SemanticProcedure、CandidateManifest、QualificationRecord 的字段职责、版本和正式交接唯一正文。
 - [结构化界面集合读取](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)：跨工作流唯一技术正文，定义 ObservationBundle、CollectionProfile、记录分段、字段归属、Validator、VLM proposal、generic Item、App Adapter 和 Recipe 边界。
@@ -193,7 +194,7 @@ application-engineer ↔ trace-distill → procedure-synthesize → recipe-build
 ## 八、实施前仍需核对
 
 - 更新 validation-plan 对 DREQ-30—DREQ-33 的行为案例和反例，确认自然语言入口、操作计划、高影响未知、planned／actual、DistilledSteps 和跨专业交接能实际被验证。
-- `trace-distill` 方法文件和 Calculator 形状的消费 validator 已落地；本次增加了限定切片的同源 Markdown 审阅 View。通用 schema、完整任务门户、宿主加载及模型独立接续测试仍需分别验证，不能从这个切片外推。
+- `trace-distill`、`procedure-synthesize`、`code-rebuild` 与 `recipe-qualify` 方法文件已经落地；Calculator 形状的消费 validator 与限定切片同源 Markdown 审阅 View 只证明各自声明范围，不替代真实业务资格。通用 schema、完整任务门户、宿主加载及模型独立接续测试仍需分别验证，不能从这个切片外推。
 - `procedure-synthesize` 实施／恢复时，从固定 DistilledSteps 开始独立接续，不能靠重新读取完整 Raw Trace 来掩盖上游交接缺陷。
 - 继续按 v0.6 Structured Collection 决策：第一批只做 `ObservationBundle / CollectionProfile / CollectionItem` 合同、离线 fixture 和 current-region deterministic JavaScript prototype；不做公共滚动 collector。
 - 至少用计算器实际数据链、一个含探索／错误／重复点击的轨迹、聊天会话列表、variable-height 消息 timeline、订单／表格验证相邻职责能独立失败。
