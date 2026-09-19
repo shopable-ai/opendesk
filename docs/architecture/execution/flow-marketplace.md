@@ -1,630 +1,396 @@
-# OpenDesk Flow Marketplace：发现、网页安装、授权与更新架构
+# OpenDesk Flow Marketplace：整体框架、同站点开发与安装方案
 
-> 决策日期：2026-09-17  
-> 状态：DESIGN_ACCEPTED / CLIENT_FOUNDATION_IMPLEMENTED / MACOS_DEEP_LINK_RECEIVER_IMPLEMENTED / PRODUCTION_BACKEND_PENDING
-> 设计成熟度自评：97/100。该评分表示架构方案已足够作为实现合同，不表示 Marketplace 已经实现、部署或完成安全审计。  
-> 基础合同：[Flow 分发、安装、信任、授权与运行模型](flow-distribution-installation.md)
+> 更新日期：2026-09-20。  
+> 状态：整体方案已收敛并保存；同站点纯静态安装改造尚未实施，不能作为功能已完成的证明。  
+> 源码核对基线：`c578d5c7442ac24721086d1b14d0d8392dc82e51`。  
+> 本文是整体方案的唯一维护入口，不再另建一份平行的“静态安装方案”。  
+> 当前可运行入口：[原型 README](../../../apps/opendesk/prototypes/marketplace/README.md)；当前协议：[Protocol V1](flow-marketplace-protocol-v1.md)；安装内核：[Flow 分发、安装、信任、授权与运行模型](flow-distribution-installation.md)。
 
-## 1. 核心决策
+## 1. 目标需求与整体框架
 
-OpenDesk Flow Marketplace 采用：
+让用户从**当前已有的 Marketplace HTML 原型**出发，点击一个真实 Flow 的安装按钮，唤起 OpenDesk，由 OpenDesk 通过 HTTP 取得正确的 `.odflow`，验证、确认、安装；最后由用户在 Flow Runner 中另外点击运行。
 
-**Web Marketplace + OpenDesk In-App Marketplace + `.odflow` Side-load，多入口统一到同一个 Flow 安装内核。**
+本轮首先解决本地 HTTP 开发验收，不要求部署外网 Marketplace、购买域名、搭建账号服务或运行多个业务服务器。
 
-Marketplace 不重新发明包格式、安装器或 Runtime。
-
-最终产品结构：
-
-```text
-Web Marketplace
-+
-OpenDesk In-App Marketplace
-+
-.odflow 双击 / 拖入 / 本地选择
-        ↓
-Flow Install Coordinator
-        ↓
-现有 .odflow Verify / Trust / Entitlement / Transaction Install
-        ↓
-Local Flow Catalog
-        ↓
-Flow Runner
-        ↓
-用户明确点击「运行」
-```
-
-必须保持：
+**最终决策：现有原型页面不重做；页面与示例包由同一个本地 HTTP 站点提供；每个版本的发布说明和安装包放在一起；开发者使用一个启动入口。**
 
 ```text
-Purchase ≠ Install ≠ Run
+产品配置 + 当前原型 HTML + 已有 Notify Demo 包
+                   ↓ 开发助手自动准备，不让人手工搬文件
+         一个本地 HTTP 站点、一个地址前缀
+         ├─ index.html：当前原型页面
+         └─ flows/<flowId>/<releaseId>/
+            ├─ release.json：这个版本的签名发布说明
+            └─ notify-demo.odflow：真正要安装的包
+                   ↓ Chrome 点击“安装 Notify Demo”
+         opendesk:// → 操作系统 → OpenDesk
+                   ↓
+         读取配置 → 取得发布说明 → 下载包
+         → 验证 → 原生确认 → 统一安装内核
+                   ↓
+         隔离 Catalog → Flow Runner 显示已安装
+                   ↓ 用户另外点击“运行”
+         既有执行服务 → 新的运行记录与实际结果
 ```
 
-购买、安装、运行是三个独立动作。
+| 层 | 唯一职责 | 不承担的职责 |
+| --- | --- | --- |
+| 配置与发布准备 | 确定默认地址、复用现有页面和包、生成配套发布文件 | 不让人重复维护第二套 HTML、包源码或版本清单 |
+| 页面与文件站点 | 展示商品、发出安装请求、提供 JSON 和 `.odflow` 字节 | 不批准本机信任，不直接执行 Flow |
+| OpenDesk 安装服务 | 解析目标、联网下载、验签、确认、事务安装 | 不把网页参数当授权，不把下载成功当安装成功 |
+| Catalog 与 Runner | 保存安装结果，提供明确运行入口和执行结果 | 不把安装完成当成运行指令 |
 
-安装成功不能自动执行业务代码。
+始终保持：`Purchase ≠ Install ≠ Run`。站点目录、下载暂存目录和已安装目录是三个不同用途，不能混为一个位置。
 
----
+## 2. 当前 HTML 和 `.odflow` 到底有什么关系
 
-## 2. 为什么支持网页安装，但网页不能直接安装或执行
+### 2.1 不另做页面，不移动示例维护源
 
-Marketplace 应支持网页上的主操作：
+| 对象 | 当前仓库中的维护位置 | 在方案中的作用 |
+| --- | --- | --- |
+| 主原型 | `apps/opendesk/prototypes/marketplace/index.html` | 用户正式开发体验的入口，继续使用已有布局、详情和导航 |
+| 最简检查页 | 同目录 `local-deep-link-smoke.html` | 保留为诊断页，不要求用户日常先经过它 |
+| 示例包 | `examples/flow-distribution/notify-demo/notify-demo.odflow` | 唯一维护来源，发布准备时核对真实字节 |
+| 示例源码与配置 | Notify Demo 同目录的 `main.js`、`clawdesk.runtime.json` | 修改业务示例后按已有构建方式更新包 |
+| 包 manifest | Notify Demo 同目录 `flow.json` 与包内 manifest | 用于核对包身份，不替代站点的签名发布说明 |
+| 开发启动助手 | `tests/prototypes/tools/marketplace-local-manual.mjs` | 复用并改造，不另起一套同职责启动器 |
+
+页面文件与示例包在源码仓库中归不同 owner，**不意味着它们需要两个域名、两个端口或两套手工启动步骤**。
+
+### 2.2 自动形成一个 HTTP 文件根目录
+
+“可静态托管的目录”在这里仅表示：**一个文件夹，浏览器和 OpenDesk 通过同一个 HTTP 地址读取其中的文件**。不是另一套应用，不要求独立域名。
+
+目标生成布局如下；这是待实施布局，不是当前已经生成的目录：
 
 ```text
-[ 安装到 OpenDesk ]
+.runtime/tests/marketplace/manual-<本次编号>/
+├─ site/                              # HTTP 只公开这个文件夹
+│  ├─ index.html                      # 由现有原型自动生成/复制，不手工改副本
+│  ├─ local-deep-link-smoke.html       # 由现有诊断页生成，可选使用
+│  └─ flows/
+│     └─ <flowId>/
+│        └─ <releaseId>/
+│           ├─ release.json           # 发布说明及其签名，合在一个文件
+│           └─ notify-demo.odflow     # 从唯一来源复制并核对 digest
+├─ marketplace-development.json       # 本机批准的开发配置，不通过 HTTP 暴露
+├─ app-data/                          # 本次隔离 Catalog 与安装内容
+└─ evidence/                          # 本次诊断/验收记录；复用现有日志命名也可
 ```
 
-但网页本身只负责：
+最小业务集合是“一张已有主页面 + 每个版本两个文件”。源码不增加第二份人工维护的 HTML，也不增加第二份人工维护的包。诊断页和本机证据不属于用户必须理解的安装资源。
 
-- Flow 发现；
-- 搜索与分享；
-- Flow 详情页；
-- 购买 / 订阅入口；
-- 创建受控 Install Intent；
-- 唤起 OpenDesk。
+当前原型是单文件 HTML；以后若增加 CSS、图片或脚本，发布准备必须按依赖清单带上，不能只复制 HTML 导致资源失效。生成物全部可删除再生，不提交 `.runtime/`，不把整个仓库设为 HTTP 根目录，不用指向私有目录的符号链接充当公开文件。
 
-真实安装必须由 OpenDesk Desktop 完成。
+### 2.3 以同一地址访问
 
-推荐链路：
+下面端口仅为说明，实际由启动助手一次确定并同时写给页面和客户端：
 
 ```text
-Marketplace Flow Page
-→ 创建 / 确认 Install Intent
-→ opendesk://install/flow/<flowId>?release=<releaseId>&intent=<installIntentId>
-→ OS 唤起 OpenDesk
-→ OpenDesk 显示目标 Flow 安装确认
-→ OpenDesk 向 Marketplace API 解析 canonical Release
-→ 下载真实 .odflow
-→ 校验 Marketplace Release Metadata
-→ 校验 artifact digest
-→ 使用既有 .odflow verifier 校验 Publisher Signature / Manifest / Inventory
-→ 处理 Publisher Trust
-→ 处理 Entitlement / License
-→ 事务安装
-→ 注册 Local Flow Catalog
-→ Flow Runner 出现 Flow
-→ 用户明确点击运行
+http://127.0.0.1:8765/index.html
+http://127.0.0.1:8765/flows/<flowId>/<releaseId>/release.json
+http://127.0.0.1:8765/flows/<flowId>/<releaseId>/notify-demo.odflow
 ```
 
-网页 Deep Link 不是信任根，也不是下载源授权。
+普通静态服务器就能返回这三个文件；服务可以是现有 Node 工具的通用静态分支，也可以是开发者已有的静态 HTTP 工具。**安装正确性不得依赖专用 `/v1/install-intents` 或 `/local-smoke/status` 路由存在。**
 
----
+### 2.4 页面上的真实商品与真实包一一对应
 
-## 3. Deep Link 安全合同
+主原型保留一个明确标注“本地真实安装”的 Notify Demo。其版本、Flow ID、发布说明入口和 `.odflow` 下载入口均指向同一目标；其他商品没有真实包时只展示模拟体验，不能点击“文件整理”却安装通知 Demo。
 
-Deep Link 只允许携带受控标识，例如：
+发布准备从实际包及签名发布说明生成这一商品的绑定，不在 HTML 再手写一套版本和摘要。页面可以为显示读取 JSON，但客户端仍须独立取得并验证同一发布信息，不能信任 DOM 中的值。
+
+下载链接使用同站点相对地址；安装按钮使用短 `opendesk://`。用户复制或下载 `.odflow` 后进行离线侧载，继续进入已有安装内核；网页自动安装则由 OpenDesk 自己下载，不依赖浏览器“下载”文件夹。
+
+## 3. Release 与 Package：概念要区分，目录不必分开
+
+| 名称 | 用中文理解 | 本方案中的文件 |
+| --- | --- | --- |
+| Release | 某个 Flow 的一次确定发布：版本、发布者、包摘要、状态与下载位置 | `release.json` |
+| Package / Artifact | 这次发布真正交付的代码、资源和 manifest | `notify-demo.odflow` |
+
+**发布说明相当于“版本与文件核对单”，包才是“实际内容”。两者并排保存，不建立顶层 `releases/` 和 `packages/` 两套目录树。**
+
+外层发布说明绑定“网页要求的 Release → 精确包 digest → 被认可的取包位置”；包内 manifest 与发布者签名证明包自身内容和身份。直接双击包可以不读取网页发布说明，但网页安装不能只拿一个任意包就宣称它是目标 Release。
+
+选择 `flows/<flowId>/<releaseId>/` 是为了多个 Flow、多个版本互不覆盖。只有一个包时看起来略长，但规则只维护一次，由助手生成，用户不用手工拼接。目录名不使用可变显示名称；Flow ID、Release ID 都必须先通过受限字符及长度校验。
+
+不额外拆 `signature.json`、`download.json`、`intent.json`；不要求本地最小闭环再有全站 `distribution.json`。将来确有大量版本共用远程地址更新的需要时，再评估全站签名说明，不能把它作为本轮依赖。
+
+## 4. 怎样启动：一个入口，不让开发者搬文件或配多个端口
+
+### 4.1 现在已有的命令，不等于目标静态方案已经实现
+
+当前 README 的 macOS 本地安装检查入口，从仓库根目录执行：
+
+```bash
+./scripts/build_macos_app.sh && node tests/prototypes/tools/marketplace-local-manual.mjs
+```
+
+在核对基线中，它启动专用 loopback 服务、生成临时 Release 和开发配置、启动 OpenDesk，并打开最简页；页面有些交互仍是模拟。这不是本节目标的纯静态分发。本文保存时未运行该命令，不能声明当前 Mac 验收通过。
+
+仅查看当前 HTML 原型时，现有静态入口是：
+
+```bash
+python3 -m http.server 8765 --bind 127.0.0.1 --directory apps/opendesk/prototypes/marketplace
+```
+
+这只展示当前原型，不会凭空生成配套包和发布说明，也不能代替真实安装验收。
+
+### 4.2 改造后的普通开发入口合同
+
+复用同一助手，目标体验仍为从仓库根目录执行：
+
+```bash
+node tests/prototypes/tools/marketplace-local-manual.mjs
+```
+
+**该命令名已经存在；下列“同站点静态准备”行为尚待实现，不能把当前执行它的结果写成静态方案已通过。**
+
+助手负责：检查当前配套构建与原生签名 → 必要时由维护工具刷新配套构建 → 分配本次目录及 loopback 端口 → 从当前原型和真实包生成 `site/` → 生成本机开发配置 → 启动同一配置的 OpenDesk → 用 Chrome 打开主原型 `index.html`。
+
+普通使用者不必知道内部有几个文件，不必复制包、填写密钥、手工传多个地址。已有构建可证明兼容时复用；不能每次修改 HTML 都强制全量编译，也不能为省事加载来源未知的旧宿主。没有 Chrome 或构建条件不满足时明确报错，不悄悄声称已完成 Chrome 验收。
+
+助手在终端及开发页清楚显示本次页面 URL、发布说明 URL、包 URL、包的唯一来源、安装目录和精确清理命令。开发者通常只打开页面并点击安装；地址和文件位置用于查看，不是启动所需的额外输入。
+
+默认随机可用端口。确需固定端口供开发调试时，只设一个受校验的启动参数，同时派生全部配置；占用时报告错误，不结束无关服务。保留现有共享实例检测、稳定 App 身份和只清理本次资源的原则。
+
+### 4.3 复用已经打开的普通静态站点
+
+已经有 serve 一类静态服务时，可让该服务只公开助手生成的 `site/`。开发者最多显式提供一次站点根地址，配套工具据此生成本机开发配置；浏览器不能自行把自己的 origin 注册成客户端可信来源。
+
+把 `site/` 复制到另一个目录，可以继续由静态服务器提供文件；但换地址、换电脑或本地签名证明过期后，仍须重新准备匹配的客户端开发配置。**复制静态文件不等于在任何电脑上自动注册协议、取得信任或完成安装。**
+
+## 5. 配置：先一个默认前缀，必要时才覆盖下载位置
+
+`configs/product.json` 是产品运营与网络配置的唯一明文维护源，经正式编译链生成 `product.odcfg`。`actions.marketplace.url` 继续只是页面入口，不被偷换成 API 或包下载地址。
+
+建议扩展下列字段；它们在核对基线中尚不存在，实施时必须同时更新 schema、编译器、原生读取和测试：
+
+| 建议字段 | 含义 | 最小本地方案 |
+| --- | --- | --- |
+| `flowDistribution.metadataBaseUrl` | 以 `/` 结尾的文件站点前缀 | 本机显式开发配置覆盖为本次 loopback 地址 |
+| `flowDistribution.artifactBaseUrl` | 可选包前缀 | 留空，沿用 metadataBaseUrl |
+| `flowDistribution.resolver` | `static` 或既有动态解析方式 | 静态模式直接读取版本说明，不猜测或自动回退到其他模式 |
+
+可信公钥按既有配置所有权维护，不能由 HTML、链接参数或下载文件自封为可信根。正式配置不存私钥；本次临时开发根只存在于本机批准的会话配置。ODCFG1 的混淆与校验和不是远程真实性签名。
+
+确定性地址规则（`B` 是元数据前缀，`A` 是可选下载前缀，均为目录 URL）：
 
 ```text
-flowId
-releaseId
-installIntentId
+P = flows/<已校验flowId>/<已校验releaseId>/
+版本说明 URL = B + P + release.json
+默认包 URL   = (A 为空时用 B，否则用 A) + P + 发布说明中的文件名
 ```
 
-不得允许网页直接通过 `opendesk://` 传入或控制：
+本地默认包文件名为 `notify-demo.odflow`。文件名是受限 basename，不接受 `../` 或路径分隔符。完整 URL 使用独立且受签名保护的字段，不能把它偷偷放进文件名。使用 URL 解析与受控路径拼接，不用不受限字符串相加；不得丢掉配置中的合法路径前缀，也不得双重拼接 Flow/版本目录。
+
+后期 CDN 迁移优先在稳定入口的 `release.json` 中提供签名的完整文件 URL；这使已具备新解析能力的客户端无需因包位置变化反复升级。修改本地 `product.json` 只影响重新生成的配置，不能自动修改已安装客户端。
+
+## 6. OpenDesk 从页面点击到实际安装
+
+默认 Deep Link 保持短格式：
 
 ```text
-任意 artifact URL
-任意本地文件路径
-JavaScript
-Shell Command
-Content Key
-License Key
-Publisher Private Key
-长期登录 Token
-任意 Runtime 参数
+opendesk://install/flow/<flowId>?release=<releaseId>&intent=<intentId>
 ```
-
-恶意网站即使调用 OpenDesk Deep Link，最多只能：
 
 ```text
-打开 OpenDesk
-→ 进入一个受控的 Flow 安装确认界面
+Chrome 明确点击
+→ 浏览器/操作系统启动或激活 OpenDesk
+→ OpenDesk 严格解析标识，进入受控安装流程
+→ 用本机预配置的地址读取 release.json
+→ 验证发布签名、有效期、发布状态与目标身份
+→ 确定被认可的下载位置
+→ HTTP 下载 .odflow 到私有暂存目录
+→ 验证大小、digest、Publisher Signature、Manifest、Inventory、兼容性
+→ 原生确认本次 Release，再处理 Flow / Publisher Trust
+→ 需要时使用既有 Entitlement / License owner
+→ 统一 FlowInstallService 事务安装并提交来源记录
+→ Catalog ready；Flow Runner 显示已安装
+→ 用户另外点击运行，才调用既有执行服务
 ```
 
-不能：
+HTTP 文件服务不是 `opendesk://` 的接收者：协议先到操作系统和 OpenDesk，之后由 OpenDesk 发 HTTP 请求。页面不能注入任意文件路径、命令、脚本或凭证。
+
+静态模式的 `intent` 仅关联一次用户请求，不伪装成服务器签发、绑定账号、可单次消费的安装授权。用户重复点击应得到幂等安装状态；付费/账号模式继续使用动态授权，不从静态 intent 获得 entitlement。
+
+签名发布说明只增加这套分发所必需的信息：Flow/Release/版本、发布者身份、包 digest/size、文件名或认可的完整地址、状态、有效期和元数据修订号。安全相关字段必须全部进入签名载荷，包括下载位置和用于确认的名称；不得把新增字段放在现有 V1 签名保护范围之外却宣称它可信。
+
+具体序列化和签名域须通过正式 schema 版本、跨语言签名向量及负向测试定义；静态合同实施时与 V1 API 合同分开标识，复用验证逻辑，不让旧客户端把未知结构误当成已验证数据。
+
+安装前以同一个已确认目标再次检查必要的有效性；身份、摘要或权限变化必须重新确认。签名/摘要失败不能用“用户选择信任”覆盖。下载可有限重试，安装和执行不能因网络重试而重复触发。
+
+## 7. 下载地址参数、CDN 与回源都归取包层
+
+### 7.1 默认不传完整地址，可选扩展不授权任意 URL
+
+保留未来受控 `download` 参数的产品能力，但不把它作为本地静态闭环的前置条件。当前 Protocol V1 和解析器仍拒绝额外参数，本文不把设计扩展伪装成已支持接口。
+
+拟扩展格式：
 
 ```text
-静默安装
-静默信任 Publisher
-静默购买
-静默授权
-自动执行 Flow
+opendesk://install/flow/<flowId>?release=<releaseId>&intent=<intentId>&download=<URL编码后的地址>
 ```
 
-OpenDesk 必须根据 `flowId / releaseId / installIntentId` 向受信 Marketplace API 获取 canonical Release Metadata，而不是信任网页传来的下载 URL 或 Manifest。
+只有实施正式协议演进、长度限制和能力兼容后，页面才可产生这种链接。默认仍用三个标识；过长 CDN 签名链接应由可信发布服务给客户端，不为容纳它们无限放宽协议长度，也不把短期下载令牌放进系统 URL 和日志。
 
----
+处理顺序：先从预配置入口验证 Release → 校验参数是否等于默认已认可位置或签名说明列出的具体位置 → 满足网络策略后下载 → 核对实际包 digest。不匹配明确拒绝，不能悄悄忽略参数后装另一个目标，也不能从参数指定的服务器取得新的信任根。
 
-## 4. Marketplace 与 `.odflow` 的职责关系
+正式下载只允许受认可 HTTPS 目标；本地 HTTP 例外限定到本次明确批准的 loopback origin（包含端口），不是整个内网。禁止 userinfo、fragment、非常规协议及路径绕过；正式联网校验 DNS 解析目标和实际连接，避免访问回环、链路本地或私网资源。默认不跟随重定向；需要时逐跳重新批准，不能靠 302 绕过限制。CDN 不继承桌面账号 Cookie/Authorization。
 
-`.odflow` 继续是正式可分发 Flow 的核心 artifact。
+### 7.2 不为未来 CDN 提前拆开发目录
 
-| 层 | 主要职责 |
+| 情况 | 地址怎么变化 | 需要更换安装内核吗 |
+| --- | --- | --- |
+| 本地开发 | HTML、JSON、包都在一个 loopback 文件站点 | 不需要 |
+| 官网同源 | 将同一文件结构发布到正式 HTTPS 站点 | 不需要 |
+| 个别包迁 CDN | 在稳定的 release.json 中更新签名地址，包 digest 不变 | 不需要 |
+| CDN 自行回源 | CDN 向其源站取文件，客户端仍请求同一获准地址 | 不需要 |
+| 官网代理 | 官网下载 URL 直接返回从存储取得的包字节 | 不需要 |
+| 客户端备用源 | 只尝试签名说明批准的镜像，并验证同一 digest | 不需要 |
+| 元数据入口本身迁移 | 保留原入口兼容代理或可信迁移说明；所有旧入口均失联时需另行更新客户端 | 不能只靠网页参数解决 |
+
+Release ID 一旦绑定包 digest，不能悄悄换成另一份包。修改下载位置是元数据修订，不是改包内容；使用修订号、有效期和已知最高修订约束防止接受已经过时的说明。包用不可变版本路径缓存，发布说明必须能够刷新；静态分发不承诺断网时即时获知撤销。
+
+本地最小方案不需要全站 `distribution.json`。它仅在未来需要统一迁移许多版本的元数据/下载前缀时评估，仍由同一产品配置生成并签名，不成为第二个人工 URL 来源。
+
+## 8. 安装目录、浏览器提示与启动边界
+
+| 位置/状态 | 规则 |
 | --- | --- |
-| `.odflow` | Flow 内容、Manifest、Inventory、Publisher Signature、资源与受保护入口 |
-| Flow Install Coordinator | 统一安装状态机、校验、信任、授权、事务安装和恢复 |
-| Local Flow Catalog | 本机已安装 Flow、安装来源、版本、状态与更新来源 |
-| Marketplace | 发现、发布、Release Metadata、购买、Entitlement 关联和更新发现 |
-| Flow Runner | 展示已安装 Flow，并由用户明确运行 |
+| 站点 `.odflow` | 留在 `site/flows/<flowId>/<releaseId>/` 供下载；不是已安装目录 |
+| 下载暂存 | 由已有客户端放在私有下载目录，失败/完成按清理策略处理，不留伪安装记录 |
+| 已安装内容 | 本次 `app-data/flows/<installId>/`；路径由安装内核生成 |
+| Catalog 记录 | 本次 `app-data/flow-state/records/<installId>.json`，绑定来源、Release、摘要和状态 |
+| 执行结果 | 用户单独运行后的 Execution 与日志；安装目录存在不能证明运行状态 |
 
-Marketplace 不复制：
+隔离 Catalog 只表示测试数据不污染用户数据，不等于任意业务代码在安全沙箱内运行。
 
-```text
-verify
-trust
-license resolution
-transaction install
-catalog registration
-runtime execution
-```
+普通静态页只能显示“已请求打开 OpenDesk，请在应用中完成安装”。没有可信回执时，不能通过失焦、超时、DOM 点击或下载完成宣称客户端已安装 Flow，也不能据无响应断定客户端未安装。
 
-这些继续由现有 OpenDesk 安装与运行体系承担。
+原生安装结果和 Catalog 是安装依据；“尚未运行”须由执行记录证明，或只陈述规则“安装不会自动运行”，不能把规则伪装成观测。原型中的模拟 Runner 不替代真实 Flow Runner。
 
----
+已安装但未运行的应用必须单独验收冷启动。开发助手预先启动应用只能证明热启动路径。若冷启动需要恢复开发配置，只能使用本机事先显式批准、仍有效的会话配置；无配置/过期/不匹配时清楚停止，不在协议里传私钥或开宽权限。复用稳定应用身份，不擅自替换系统协议归属或结束共享进程。
 
-## 5. 三类安装入口
+未准备客户端时提供本地准备说明；本轮不跳转外网 Marketplace，也不展示没有真实客户端包的伪下载按钮。正式产品的客户端下载入口与 `.odflow` 包下载入口是两个概念。
 
-正式长期支持三个入口。
+## 9. 保留的长期 Marketplace 合同
 
-### 5.1 `.odflow` Side-load
-
-适用于：
-
-- 开发者直接交付；
-- 企业内部发布；
-- 离线安装；
-- 测试；
-- 无 Marketplace 的第三方分发。
-
-入口包括：
+整体简化不删除既有商业与安全模型：
 
 ```text
-双击 .odflow
-拖入 OpenDesk
-本地文件选择
+Publisher → Flow → Release → Artifact (.odflow)
+
+Web Marketplace / In-App Marketplace / 双击 / 拖入 / 文件选择
+→ 一个安装协调层
+→ 一套 Verify / Trust / Entitlement / Transaction
+→ 一个 Local Flow Catalog
+→ 既有 Runtime
 ```
 
-### 5.2 Web Marketplace
+`Marketplace Verified ≠ Local Trusted Publisher`；Release attestation 不替代 Publisher Signature，不自动批准 Publisher。未知发布者默认可仅信任当前 Flow；扩大为发布者范围须另外明确批准。
 
-适用于：
+付费、订阅、账号授权由已有 Entitlement / License owner 决策，缺适配时拒绝，不能通过静态 JSON 中的声明假装已购买。账号、支付、上传审核、评论、排行榜和结算不进入本地免费 Demo 的前置条件。
 
-- 搜索；
-- SEO；
-- 分享链接；
-- 开发者主页；
-- 购买 / 订阅；
-- 推广；
-- 从浏览器发起安装。
+更新仍校验 Flow/Publisher 身份、发布状态、包摘要与权限变化，采用事务升级和来源记录。新增敏感权限、异常密钥变化需重新确认或拒绝。保留 `draft/published/yanked/revoked`，Key Rotation 与撤销须独立验收，不宣称离线实时撤销；购买、安装、运行始终分开。
 
-### 5.3 OpenDesk In-App Marketplace
+## 10. 源码事实与目标方案的差距
 
-适用于最低摩擦的：
+以下是基线源码/文档核对，不是本轮执行结果：
 
-```text
-浏览
-→ 安装
-→ 更新
-→ 管理
-```
+| 已有事实 | 目标变化 | 主要 owner |
+| --- | --- | --- |
+| 主原型经专用服务才启用真实链接，六个商品映射同一 Notify Demo | 真实 Demo 单独标注并与包匹配；普通静态文件可支撑真实安装 | 原型 HTML 与其测试 |
+| helper 启动专用服务并打开最简页 | 自动准备一个 site，默认 Chrome 打开现有主原型；保留诊断页 | 既有 manual/server 工具 |
+| 包位于公开示例目录，服务内存读取并提供 artifact endpoint | 维护源不动，生成目录中发布说明和包同目录 | 示例发布准备 |
+| 客户端使用动态 intent API 和固定 artifact endpoint | 增加显式静态解析方式，后续复用统一下载及安装内核 | `pkg/flowmarketplace/` |
+| `product.json` 没有上述分发配置块 | 扩展完整配置编译、读取和发行链；不直接手改 odcfg | 产品配置 owner |
+| 当前先确认 Release，再下载/验包 | 目标在验包和身份匹配后确认，不向用户展示未经核对的目标 | Marketplace Installer |
+| 当前 V1 严格拒绝额外 URI 参数 | 可选 download 单独演进，默认短协议继续工作 | 协议合同与解析器 |
+| 服务依据 Catalog 返回“安装成功，尚未运行” | 安装与运行证据分离；纯静态页不依赖本机状态 API | 状态呈现与验收 |
 
-三种入口最终必须进入相同 `Flow Install Coordinator`。
+关键事实来源（实施前重新读取最新内容）：
 
----
+- [本地服务源码](../../../tests/prototypes/tools/marketplace-local-server.mjs)、[启动助手](../../../tests/prototypes/tools/marketplace-local-manual.mjs)。
+- [下载客户端](../../../pkg/flowmarketplace/client.go)、[安装编排](../../../pkg/flowmarketplace/installer.go)、[Release 签名](../../../pkg/flowmarketplace/release.go)、[协议解析](../../../pkg/flowmarketplace/protocol.go)。
+- [产品配置](../../../configs/product.json)、[配置 schema](../../../pkg/officialconfig/config.go)、[官方配置维护 Skill](../../../workflows/official-product-config/skills/manage-official-product-config/SKILL.md)。
+- [App Mode 接入](../../../cmd/opendesk/app_mode.go)、[开发配置加载](../../../cmd/opendesk/app_marketplace_development.go)、[Notify Demo](../../../examples/flow-distribution/notify-demo/README.md)。
 
-## 6. Marketplace Domain Model
+## 11. 多专业视角的反方审计与最终裁决
 
-V1 最小领域模型：
+下面是模型按不同专业角色做的交叉自审，不是实际邀请多位独立专家，也不是外部安全审计认证。
 
-```text
-Publisher
-    ↓
-Flow
-    ↓
-Release
-    ↓
-Artifact (.odflow)
-```
+| 反方视角 | 反对意见 | 裁决与验收约束 |
+| --- | --- | --- |
+| 产品/使用者 | 新站点与原型脱节，仍不知道点击哪里 | 沿用现有 index.html；助手默认打开它；真实 Demo 与真实包一一对应 |
+| 开发体验 | releases/packages 分开放，多配一个域名更麻烦 | 不拆双树；同一版本目录并排两个文件；一个端口一个启动入口 |
+| 维护性 | 复制 HTML 和包会造成两套权威源 | 仅自动生成 .runtime 副本，记录来源与摘要；人只修改原型和示例源码 |
+| 最小复杂度 | 为一个 Demo 建全站索引、intent 文件和配置更新服务过度 | 最小集合不含全站 distribution.json、不含静态 intent 服务；以后有实际需要才增 |
+| 安全 | 为方便把地址放进协议，是否变成任意网络访问器 | 默认短协议；扩展地址须先匹配可信 Release、再受网络限制、最终验证包；失败不降级 |
+| 发布/签名 | 把 V1 签名 JSON 加几个字段就声称地址已签名 | 新字段必须进入版本化签名载荷与跨语言向量；不改写旧合同已支持能力 |
+| 分发运维 | 不拆目录会不会无法迁 CDN | HTTP 目录布局不决定部署拓扑；同一稳定 Release 说明可签发新位置，digest 不变 |
+| 原生体验 | helper 先开应用，是否冒充冷启动通过 | 冷/热启动分开验收；无批准开发配置安全停止，不依赖网页补配置 |
+| QA | 页面说安装完成或“尚未运行”是否可信 | 原生结果+精确 Catalog 证明安装；执行记录证明运行状态；纯静态页只报已发起 |
+| 范围控制 | 为保存方案就重写生产代码或增加服务 | 本次只维护架构文档和原型导航；代码改造进入下一轮，不用文档评分代替测试 |
 
-### Publisher
+### 设计评分
 
-代表发布主体，不等同于字符串名称。
+评分针对本文件的方案完整性与可实施性，不是当前代码完成率。量表总分 100，硬门禁不因分数而豁免。
 
-至少包含稳定身份、当前获准签名身份、状态和 Marketplace 验证状态。
+| 维度 | 得分 | 依据/保留扣分 |
+| --- | ---: | --- |
+| 需求与现有原型衔接 | 20/20 | 明确原型、实际包、同站点地址、安装位置和用户主入口 |
+| 开发操作成本 | 19/20 | 不手工复制、不双域名；原生构建/协议注册仍须真实验证 |
+| 安全与身份一致性 | 19/20 | 信任、签名、包摘要、网络边界完整；新签名 schema 尚需实现测试 |
+| 配置与 CDN 演进 | 14/15 | 一个默认前缀即可运行，保留地址更新；全站入口迁移仍有运营前提 |
+| 兼容与证据 | 14/15 | V1/拟扩展、冷/热、模拟/真实分别表述；尚无本轮桌面证据 |
+| 范围与维护简洁性 | 10/10 | 同版本同目录、一份方案 owner、复用现有安装器 |
+| **设计自评合计** | **96/100** | **不是独立专家认证，不代表实现或生产验收达到 96 分** |
 
-### Flow
+任何任意 URL 绕过、自动执行、错包映射、签名失败可继续或虚假成功，都直接阻止交付，无论设计总分多少。
 
-代表逻辑产品 / 自动化。
+## 12. 实施顺序与完成标准
 
-稳定身份不能依赖显示名称。
+### A. 本次文档交付
 
-### Release
+保存整体框架到本文件，并在原型 README 建立入口。说明同站点关系、同版本并排文件、单启动入口、源码现状与目标差异。不修改生产代码、不生成开发私钥、不运行本地桌面、不改变当前 Protocol V1 的实际行为。
 
-代表某个不可歧义的发布版本。
+### B. 下一轮最小可执行改造
 
-一个已发布 Release 应绑定一个不可替换的 artifact digest。
+复用现有工具准备 `site/` → 接入产品配置及静态 Release 解析 → 实现签名合同与受控取包 → 当前原型只绑定真实 Demo → 一条命令打开主原型 → 完成真实 Chrome/原生安装/Runner 验收。普通静态服务器替换验证必须成立，不得靠隐藏的动态路由通过。
 
-### Artifact
+可选 download 参数、账号/付费 API、全站分发配置迁移、复杂 CDN failover 分别验收，不能把它们全部捆成本地静态闭环的启动条件，也不能在完成 B 后宣称这些扩展全部完成。
 
-正式 Flow artifact 为 `.odflow`。
+### C. 与目标一一对应的验收矩阵
 
-Marketplace 不创建第二种专属包格式。
+| 编号 | 要证明什么 | 通过依据 |
+| --- | --- | --- |
+| G1 | 当前原型就是安装入口 | 当前源码来源/构建身份明确，Chrome 打开主原型并点真实 Notify Demo |
+| G2 | 文件真在一个站点 | HTML、release.json、包都是同一 origin 的普通文件；通用静态服务可替换专用服务 |
+| G3 | 页面和包一一对应 | 商品、协议、签名 Release、包内 manifest、实际 digest 一致 |
+| G4 | 开发者一条命令即可开始 | 自动生成配套文件和地址，无手工复制；冲突不会终止别人的进程 |
+| G5 | 客户端真通过 HTTP 取包 | 同次关联记录、实际请求地址、接收字节数和计算摘要，不拿本地直接侧载代替 |
+| G6 | 默认前缀和完整地址都受控 | 正常相对路径成功；获准地址成功；恶意地址/路径/重定向在适当边界被拒绝 |
+| G7 | 任一验证或确认失败均安全停止 | 签名过期、坏摘要、错 manifest、两层取消都不产生新 ready 记录或 Execution |
+| G8 | 安装与运行分开 | 安装事务/Catalog 精确匹配；安装前后无新增目标执行；显式 Run 后才有新执行和通知/日志 |
+| G9 | 热启动与冷启动分别有效 | 分别记录 OS 实际分发和本次接收端；无开发配置/过期时明确拒绝 |
+| G10 | 重复与恢复正确 | 连续点击、下载中断、幂等重装与取消不造成错版本、半安装或重复执行 |
+| G11 | 迁 CDN 不换身份 | 使用签名的新下载位置取得同一 digest；新内容使用新 Release，不覆盖旧身份 |
+| G12 | 页面不伪造回执 | 无可信回执只显示已请求；模拟 UI 和静态页不能自报安装成功或未运行 |
 
----
+分别记录 `PASS / FAIL / BLOCKED / NOT_RUN`，并区分代码已修改、实际已加载、视觉已确认、功能已验证。macOS 是本轮本地开发目标；Windows 的协议注册和原生安装另记实际测试状态，不从 macOS 成功推断跨平台成功。
 
-## 7. Marketplace Release Metadata
+## 13. 外部参考与适用范围
 
-V1 至少应能表达：
+以下为外部核对，不是 OpenDesk 已实现能力的证据；查阅日期 2026-09-20。
 
-```text
-flowId
-releaseId
-version
-publisherId
-publisherSigningKeyFingerprint
-artifactSha256
-artifactSize
-minimumOpenDeskVersion
-publishedAt
-releaseStatus
-entitlementPolicy
-```
+- [Tauri Updater：静态 JSON 与动态服务](https://v2.tauri.app/plugin/updater/)：证明“客户端从静态发布信息定位下载文件”是可行分层；不复制其自动更新、安装器或权限语义。
+- [OWASP SSRF Prevention](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html)：用于核对不可信 URL、允许目标、DNS 与重定向边界；同站点简化不是忽略网络边界的理由。
+- [TUF Specification](https://theupdateframework.github.io/specification/latest/)：参考签名元数据、版本/过期检查与目标文件身份保护；本文不声称 OpenDesk 实现完整 TUF。
 
-可扩展字段：
+## 14. 最终决策
 
-```text
-supportedPlatforms
-permissionsSummary
-changelog
-updateChannel
-pricingMetadata
-trialPolicy
-```
+**一个已有原型，一个本地 HTTP 文件站点，一个开发启动入口；每个版本的一份签名说明与一个 `.odflow` 放在同一目录。产品配置给出默认前缀，客户端验证后下载并复用既有安装内核，用户单独运行。**
 
-安全相关字段必须由 Marketplace canonical API 返回，并具有完整性 / 来源保证。
-
-下载后的 artifact 必须重新计算 digest，不能只相信服务器声明。
-
----
-
-## 8. Publisher Signature 与 Marketplace Attestation
-
-Marketplace 不替代 Publisher 对 `.odflow` 的签名。
-
-采用双层证明：
-
-```text
-Publisher Signature
-    =
-这个 .odflow 确实由获准 Publisher Key 签名
-
-Marketplace Release Attestation
-    =
-这个 artifact 确实对应 Marketplace 正式发布的这个 Release
-```
-
-这样 Marketplace 可以证明“发布记录”，Publisher 可以证明“artifact 作者身份”。
-
-Marketplace 不应把所有第三方 `.odflow` 重新签成一个 OpenDesk 官方包，否则会破坏真实发布者身份和未来第三方市场兼容性。
-
----
-
-## 9. Verified Publisher 与 Local Trust 必须分离
-
-Marketplace 可以显示：
-
-```text
-Verified Publisher
-```
-
-但其含义只能是：
-
-> Marketplace 已按自己的规则验证该发布主体。
-
-不能自动表示：
-
-> 当前用户已经允许这个 Publisher 在本机安装 / 运行所有 Flow。
-
-因此：
-
-```text
-Marketplace Verified
-≠
-Local Publisher Trust
-```
-
-首次未知发布者仍然可以采用：
-
-```text
-Install This Flow
-```
-
-只批准当前 Flow。
-
-以及单独的：
-
-```text
-Trust Publisher & Install
-```
-
-建立更广的本地 Publisher Trust。
-
-Marketplace 安装不得静默扩大本地 Trust Scope。
-
----
-
-## 10. 商业 Flow / Subscription / Entitlement
-
-商业 Flow 自然接入现有 Entitlement 模型：
-
-```text
-用户购买 / 订阅
-→ Marketplace Account Entitlement
-→ OpenDesk 登录相同账户
-→ Entitlement Resolver
-→ 获得安装 / 运行所需授权
-→ 安装或运行
-```
-
-不得把长期 secret 放进：
-
-```text
-网页 URL
-Deep Link
-.odflow 明文 Metadata
-日志
-本地临时下载参数
-```
-
-尤其不得通过 Deep Link 传递：
-
-```text
-License Key
-Content Key
-长期 Account Token
-```
-
-购买成功不自动安装，安装成功不自动运行。
-
----
-
-## 11. Update Model
-
-Marketplace 安装完成后，Local Flow Catalog 应记录来源信息，例如：
-
-```text
-source = marketplace
-marketplaceId
-flowId
-releaseId
-version
-publisherFingerprint
-updateChannel = stable
-```
-
-未来更新链路：
-
-```text
-Marketplace 发布新 Release
-→ OpenDesk 检查更新
-→ 获取 canonical Release Metadata
-→ 下载新 .odflow
-→ 校验 digest
-→ 校验 Publisher Signature
-→ 比较 Flow identity / Publisher / permission changes
-→ 事务升级
-```
-
-可为未来自动更新建立条件：
-
-```text
-同 Flow identity
-+
-同获准 Publisher
-+
-权限未扩大
-+
-Release 未被撤销
-```
-
-如果发生：
-
-```text
-Publisher Key 非法变化
-权限扩大
-新增敏感 capability
-身份不匹配
-```
-
-必须重新确认或拒绝更新。
-
----
-
-## 12. Release Yank / Revoke / Key Rotation 的预留
-
-V1 数据模型必须至少能够表达 Release 状态，而不能假定 Release 永久有效。
-
-例如：
-
-```text
-draft
-published
-yanked
-revoked
-```
-
-后续可支持：
-
-- Release 下架；
-- 高风险版本撤回；
-- Publisher Key Rotation；
-- Marketplace Publisher 状态变化；
-- 安全通告；
-- 强制阻止新安装。
-
-离线客户端无法即时获知最新撤销状态，因此最大离线窗口和缓存规则必须单独定义，不能宣称离线环境具备实时撤销能力。
-
----
-
-## 13. Marketplace V1 范围
-
-第一阶段优先完成：
-
-```text
-Publish
-→ Discover
-→ Install
-→ Verify
-→ Entitle
-→ Update foundation
-```
-
-暂不把以下功能作为 Marketplace V1 的核心阻塞项：
-
-```text
-评论社区
-点赞
-复杂推荐算法
-排行榜
-广告竞价
-复杂社交系统
-完整开发者结算平台
-```
-
-这些属于 Marketplace 成熟后的产品层能力，不应阻塞安全安装主链路。
-
----
-
-## 14. 建议实施阶段
-
-### M0：Marketplace Foundation / Vertical Slice
-
-完成：
-
-- Marketplace domain / release contract；
-- Deep Link contract；
-- `Flow Install Coordinator` 统一入口设计与必要重构；
-- Web install intent → OpenDesk 安装确认的最小闭环；
-- Marketplace metadata / artifact digest / `.odflow` verifier 的完整校验链；
-- 自动测试。
-
-M0 目标不是做完整商店 UI，而是证明 Web → Desktop → `.odflow` 安装闭环成立。
-
-### M1：Marketplace Backend + Web Catalog
-
-完成：
-
-- Publisher / Flow / Release API；
-- Artifact storage；
-- Release publish；
-- Flow detail page；
-- Install Intent；
-- Web `安装到 OpenDesk`；
-- Account / Entitlement 对接。
-
-### M2：OpenDesk In-App Marketplace
-
-完成：
-
-- 搜索 / 浏览；
-- Flow detail；
-- 安装状态；
-- 已安装状态；
-- 更新入口；
-- Account / purchase 状态。
-
-### M3：Publisher Console / Update / Operations
-
-完成：
-
-- Publisher 管理；
-- Release 管理；
-- Rollout / Yank / Revoke；
-- Key Rotation；
-- 更新策略；
-- 运营能力。
-
----
-
-## 15. 完整验收合同
-
-最终 Marketplace 链路成立时必须能够证明：
-
-```text
-开发者发布合法 .odflow
-→ Marketplace 建立不可歧义 Release
-→ 用户通过网页或 App 内市场发现 Flow
-→ 点击安装
-→ OpenDesk 获取 canonical Release
-→ 下载正确 artifact
-→ digest 验证成功
-→ .odflow Publisher Signature / Manifest / Inventory 验证成功
-→ Publisher Trust 正确处理
-→ Entitlement 正确处理
-→ 事务安装
-→ Local Flow Catalog 注册
-→ Flow Runner 正确显示
-→ 安装完成后不会自动运行业务
-```
-
-失败场景必须证明：
-
-- 非法 Marketplace Metadata 不安装；
-- artifact digest 不一致不安装；
-- `.odflow` 签名失败不安装；
-- Manifest / Inventory 不一致不安装；
-- 未授权商业 Flow 不执行；
-- Marketplace Verified 不会自动升级成 Local Trusted Publisher；
-- Deep Link 不能执行任意 URL / Path / Command；
-- 安装失败不会留下半安装状态；
-- Purchase / Install / Run 状态严格分离。
-
----
-
-## 16. 最终决策
-
-OpenDesk Marketplace 的正确定位不是新的执行系统，而是现有 Flow 分发体系上方的：
-
-```text
-Discovery
-+
-Publishing
-+
-Release Registry
-+
-Commerce / Entitlement Entry
-+
-Update Discovery
-```
-
-所有实际安装安全继续收敛到：
-
-```text
-.odflow
-+
-Flow Install Coordinator
-+
-Trust Store
-+
-Entitlement Resolver
-+
-Transactional Installer
-+
-Local Flow Catalog
-+
-Existing Runtime
-```
-
-因此长期架构保持：
-
-```text
-多个发现 / 分发入口
-+
-一个 artifact 格式
-+
-一个安装安全内核
-+
-一个本地 Catalog
-+
-一个既有 Runtime
-```
-
-这是后续实现、测试和 Marketplace 服务端设计的正式基线。
+逻辑上区分 Release 与 Package，是为了验证正确；物理上把它们放在一起，是为了开发和发布简单。以后换官网、CDN 或源站，只扩展取包位置，不重建安装系统。
