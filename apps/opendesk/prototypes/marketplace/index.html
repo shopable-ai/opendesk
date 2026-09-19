@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
 <title>OpenDesk · Flow 市场交互原型</title>
 <style>
 :root{--ink:#172a36;--muted:#657480;--line:#e1e7e9;--paper:#f5f7f8;--brand:#17695c;--soft:#e8f3ef;--warn:#865711;--bad:#a43434;--shadow:0 16px 55px #17362d12;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans CJK SC","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--paper);font-size:14px;line-height:1.6}
@@ -18,7 +18,7 @@
 </style>
 </head>
 <body>
-<div class="demo-bar"><span><strong>交互原型</strong>　<span class="demo-extra">全部为示例数据 · </span>不会真实安装、扣费或运行<br><a href="local-deep-link-smoke.html">本地 URL 分发检查（会请求打开客户端）</a></span><button data-action="settings">演示设置</button></div>
+<div class="demo-bar"><span><strong>交互原型</strong>　<span class="demo-extra">全部为示例数据；浏览、授权与 Runner 均为模拟。 </span>在本地 HTTP 开发检查中，所有“安装”会交接固定 Notify Demo。<br><a href="local-deep-link-smoke.html">最简本地 URL 分发检查</a></span><button data-action="settings">演示设置</button></div>
 <header class="header"><button class="brand" data-action="home" aria-label="OpenDesk 市场首页"><span class="brandmark" id="brand-icon"></span>OpenDesk</button><nav aria-label="主导航"><button class="navbtn active" data-action="home" id="nav-market">Flow 市场</button><button class="navbtn" data-action="local" id="nav-local">本机演示 <span id="local-count"></span></button></nav><div class="header-right"><button class="btn small quiet" data-action="publisher">发布 Flow</button></div></header>
 <div class="layout"><aside class="sidebar"><div class="side-caption">EXPLORE FLOWS</div><div class="categories" id="categories"></div><div class="side-guide"><div class="side-guide-title"><span class="guide-icon" id="guide-icon"></span><h3>第一次使用？</h3></div><p>在 OpenDesk 中确认安装。<br>是否运行，由你决定。</p><button class="textbtn small" data-action="guide">查看安装指南 →</button></div></aside><main class="main" id="main" tabindex="-1"></main></div>
 <dialog class="dialog" id="dialog" aria-labelledby="dialog-title"><div class="dialog-head"><span class="small" id="dialog-context"></span><button class="close" data-action="close" aria-label="关闭对话框">×</button></div><div class="dialog-body" id="dialog-body"></div></dialog>
@@ -104,6 +104,136 @@ document.addEventListener('click',event=>{const b=event.target.closest('[data-ac
 document.addEventListener('keydown',event=>{const tab=event.target.closest('.tab');if(!tab||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const values=['overview','usage','versions'];let i=values.indexOf(tab.dataset.value);i=event.key==='Home'?0:event.key==='End'?2:(i+(event.key==='ArrowRight'?1:2))%3;state.tab=values[i];detail(detailId);document.querySelector('.tab[data-value="'+state.tab+'"]').focus();});
 dialog.addEventListener('cancel',event=>{event.preventDefault();close();});window.addEventListener('hashchange',renderRoute);renderRoute();
 })();
+</script>
+<script id="local-marketplace-bridge">
+/*
+ * This bridge is intentionally available only from the local HTTP smoke
+ * server. It converts every catalog install affordance into one ordinary
+ * external-protocol anchor for the fixed Notify Demo intent, then uses the
+ * same-origin Catalog status endpoint as the only success oracle. The page
+ * never downloads an artifact, writes a Flow, or starts a Flow execution.
+ */
+(function () {
+  'use strict';
+  const intent = 'opendesk://install/flow/com.example.opendesk.notify-demo?release=local-notify-demo-1&intent=local-notify-demo-intent-1';
+  const statusPath = '/local-smoke/status';
+  const maxStatusChecks = 180;
+  let enabled = false;
+  let polling = false;
+  let statusChecks = 0;
+  const oracle = document.createElement('p');
+  oracle.className = 'note';
+  oracle.id = 'local-install-oracle';
+  oracle.setAttribute('role', 'status');
+  oracle.setAttribute('aria-live', 'polite');
+  oracle.dataset.state = 'checking';
+  document.querySelector('.demo-bar').insertAdjacentElement('afterend', oracle);
+
+  function display(state, message) {
+    oracle.dataset.state = state;
+    oracle.textContent = message;
+  }
+
+  async function readInstallStatus() {
+    const response = await fetch(statusPath, {cache: 'no-store', credentials: 'omit'});
+    const status = await response.json();
+    if (!response.ok || !status || typeof status.state !== 'string') throw new Error('invalid local install status');
+    return status;
+  }
+
+  function applyStatus(status, afterDispatch) {
+    const receiver = status && status.receiver;
+    if (status.state === 'installed') {
+      polling = false;
+      display('installed', '安装成功，尚未运行。请在 OpenDesk Flow Runner 中明确点击运行。');
+      return;
+    }
+    if (status.state === 'invalid' || status.state === 'error') {
+      polling = false;
+      display(status.state, status.message || '安装状态校验失败；不会报告成功。');
+      return;
+    }
+    if (receiver && receiver.state === 'failed') {
+      polling = false;
+      display('install-failed', receiver.message);
+      return;
+    }
+    if (receiver && receiver.state === 'received') {
+      display('receiver-received', receiver.message);
+      return;
+    }
+    if (receiver && receiver.state === 'starting') {
+      display('receiver-starting', receiver.message);
+      return;
+    }
+    display(afterDispatch ? 'waiting-external-protocol' : 'server-ready', afterDispatch
+      ? '本地服务已就绪；等待 Chrome 确认打开 OpenDesk。确认后仍需分别确认 Release 与 Flow 范围信任。'
+      : (receiver && receiver.message ? `本地服务已就绪。${receiver.message}` : '本地服务已就绪；尚未请求安装。'));
+  }
+
+  async function checkInstallStatus() {
+    if (!polling) return;
+    statusChecks += 1;
+    try {
+      applyStatus(await readInstallStatus(), true);
+    } catch (_) {
+      // Transient status loss remains unknown; it cannot manufacture success
+      // and never redispatches the external-protocol URL.
+    }
+    if (polling && statusChecks < maxStatusChecks) setTimeout(checkInstallStatus, 500);
+    else if (polling) {
+      polling = false;
+      display('unknown', '尚未从隔离 Catalog 确认安装结果。不会自动重试安装，请核对 OpenDesk 日志。');
+    }
+  }
+
+  function startPolling() {
+    if (polling) return;
+    polling = true;
+    statusChecks = 0;
+    setTimeout(checkInstallStatus, 250);
+  }
+
+  function replaceInstallButtons() {
+    if (!enabled) return;
+    for (const button of document.querySelectorAll('button[data-action="install"]')) {
+      if (button.disabled) continue;
+      const link = document.createElement('a');
+      link.className = button.className;
+      link.href = intent;
+      link.dataset.localMarketplaceInstall = 'notify-demo';
+      link.setAttribute('aria-label', '安装 Notify Demo（本地开发检查）');
+      link.textContent = button.textContent;
+      const hint = button.nextElementSibling;
+      if (hint && hint.matches('p.muted')) {
+        hint.textContent = '本地开发检查会请求固定 Notify Demo；只有隔离 Catalog 确认后才可显示安装成功。';
+      }
+      button.replaceWith(link);
+    }
+  }
+
+  document.addEventListener('click', event => {
+    const link = event.target.closest('a[data-local-marketplace-install="notify-demo"]');
+    if (!link) return;
+    display('pending', '浏览器正在交接 OpenDesk；请先确认 Chrome 的“打开 OpenDesk”。');
+    startPolling();
+    // Do not prevent the ordinary anchor navigation or script-dispatch intent.
+  }, true);
+
+  async function initialize() {
+    try {
+      const status = await readInstallStatus();
+      enabled = true;
+      replaceInstallButtons();
+      new MutationObserver(replaceInstallButtons).observe(document.body, {childList: true, subtree: true});
+      applyStatus(status, false);
+    } catch (_) {
+      display('prototype-only', '当前为交互原型模拟状态。使用 README 的 local HTTP development smoke 启动后，所有商品的“安装”才会请求固定 Notify Demo。');
+    }
+  }
+
+  void initialize();
+}());
 </script>
 </body>
 </html>

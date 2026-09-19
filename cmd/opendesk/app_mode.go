@@ -22,7 +22,13 @@ import (
 )
 
 func validateAppModeConfig(config *Config) error {
-	if config == nil || strings.TrimSpace(config.AppPath) == "" {
+	if config == nil {
+		return nil
+	}
+	if strings.TrimSpace(config.AppPath) == "" {
+		if strings.TrimSpace(config.MarketplaceDevelopmentConfig) != "" {
+			return errors.New("-marketplace-development-config requires -app")
+		}
 		return nil
 	}
 	conflicts := make([]string, 0, 6)
@@ -192,18 +198,39 @@ func executeAppMode(config *Config) error {
 			VerifiedPublisher: release.VerifiedPublisher,
 		})
 	})
+	var marketplaceClient *flowmarketplace.Client
+	marketplaceDevelopmentEnabled := false
+	if strings.TrimSpace(config.MarketplaceDevelopmentConfig) != "" {
+		if !appshell.IsOpenDeskProduct(appPackage.Manifest) {
+			return errors.New("Marketplace development client is available only to the OpenDesk product App Mode package")
+		}
+		marketplaceClient, err = loadMarketplaceDevelopmentClient(config.MarketplaceDevelopmentConfig)
+		if err != nil {
+			return fmt.Errorf("initialize Marketplace development client: %w", err)
+		}
+		marketplaceLog, logErr := configureMarketplaceDevelopmentLog(config.MarketplaceDevelopmentConfig)
+		if logErr != nil {
+			return fmt.Errorf("initialize Marketplace development diagnostics: %w", logErr)
+		}
+		if marketplaceLog != nil {
+			defer marketplaceLog.Close()
+		}
+		marketplaceDevelopmentEnabled = true
+		log.Printf("[MARKETPLACE_INSTALL] loopback development client enabled")
+	}
 	// A production Marketplace Client is intentionally not constructed from
-	// environment variables, Deep Link values, or arbitrary local files. This
-	// repository has no deployed Marketplace origin, pinned attestation roots,
-	// or desktop account adapter yet. Keep the protocol receiver fail-closed
-	// until those product-owned inputs are shipped together.
+	// environment variables or Deep Link values. This repository has no
+	// deployed Marketplace origin, pinned production attestation roots, or
+	// desktop account adapter yet. Without the explicit loopback-only
+	// development config above, keep the receiver fail-closed.
 	marketplaceInstaller := &flowmarketplace.Installer{
-		// Client stays nil until the product ships its pinned Marketplace
-		// origin/root configuration. Keeping the real confirmer and shared Flow
-		// service here makes that future wiring additive rather than a second
-		// installation path.
+		// Production leaves Client nil until the product ships its pinned
+		// Marketplace inputs. The development client exercises the same confirmer
+		// and Flow installation service rather than a second installation path.
+		Client:      marketplaceClient,
 		FlowService: flowService,
 		Confirmer:   marketplaceConfirmer,
+		TempRoot:    filepath.Join(artifactsRoot, "marketplace-downloads"),
 	}
 	marketplaceDeepLinkHandler := flowmarketplace.DeepLinkHandler{
 		Installer: marketplaceInstaller,
@@ -308,13 +335,14 @@ func executeAppMode(config *Config) error {
 					log.Printf("[MARKETPLACE_INSTALL] rejected invalid install intent error=%v", parseErr)
 					return
 				}
+				log.Printf("[MARKETPLACE_INSTALL] received flowId=%s releaseId=%s installIntentId=%s", ref.FlowID, ref.ReleaseID, ref.InstallIntentID)
 				result, installErr := marketplaceDeepLinkHandler.Handle(appContext, rawURL)
 				if installErr != nil {
 					log.Printf("[MARKETPLACE_INSTALL] blocked flowId=%s releaseId=%s installIntentId=%s error=%v", ref.FlowID, ref.ReleaseID, ref.InstallIntentID, installErr)
 					return
 				}
 				log.Printf("[MARKETPLACE_INSTALL] installed flowId=%s releaseId=%s installIntentId=%s installId=%s idempotent=%t", ref.FlowID, ref.ReleaseID, ref.InstallIntentID, result.Record.InstallID, result.Idempotent)
-				if activateErr := shell.Activate("marketplace-install"); activateErr != nil {
+				if activateErr := shell.Activate("flow-marketplace-install"); activateErr != nil {
 					log.Printf("[MARKETPLACE_INSTALL] Runner refresh activation failed: %v", activateErr)
 				}
 			}()
@@ -477,6 +505,13 @@ func executeAppMode(config *Config) error {
 	defer recipeRunner.Close()
 	if err := shell.Start(appContext); err != nil {
 		return fmt.Errorf("start App Shell: %w", err)
+	}
+	if marketplaceDevelopmentEnabled {
+		// The development client being configured is not enough for an OS URL
+		// event: AppKit must first have installed the native delegate and this
+		// process must have bound its URL handler. The manual helper waits for
+		// this marker before sending its no-side-effect protocol preflight.
+		log.Printf("[MARKETPLACE_INSTALL] receiver-ready")
 	}
 	flowInstallMu.Lock()
 	installedBeforeShellStart := flowDocumentInstalled

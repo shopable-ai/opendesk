@@ -279,6 +279,7 @@ type Config struct {
 	ExperimentalNativeExtension           bool
 	ExperimentalUnsafeNativeExtensionCall bool
 	AllowRecorderCapture                  bool
+	MarketplaceDevelopmentConfig          string
 	CustomUI                              bool
 	CustomUIDisabled                      bool
 	RuntimeConfigPath                     string
@@ -327,6 +328,7 @@ func parseFlags() *Config {
 	flag.BoolVar(&config.ExperimentalNativeExtension, "experimental-native-extension", false, "Deprecated compatibility flag; local CLI JavaScript already enables manifest-discovered NativeExtensions")
 	flag.BoolVar(&config.ExperimentalUnsafeNativeExtensionCall, "experimental-unsafe-native-extension-call", false, "Enable unsafe low-level NativeExtension.call for explicit local diagnostics")
 	flag.BoolVar(&config.AllowRecorderCapture, "allow-recorder-capture", false, "Allow this trusted local script execution to start Recorder global input capture")
+	flag.StringVar(&config.MarketplaceDevelopmentConfig, "marketplace-development-config", "", "Enable the explicit loopback Marketplace development client from a local config file")
 	flag.BoolVar(&config.CustomUI, "ui", false, "Explicitly enable custom UI for this CLI execution or HTTP server")
 	flag.BoolVar(&config.CustomUIDisabled, "no-ui", false, "Explicitly disable custom UI, overriding every other activation source")
 	flag.StringVar(&config.RuntimeConfigPath, "config", "", "Runtime project configuration path")

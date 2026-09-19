@@ -77,6 +77,9 @@ func TestValidateAppModeConfigRejectsEveryCompetingStartupMode(t *testing.T) {
 	if err := validateAppModeConfig(&Config{AppPath: "example"}); err != nil {
 		t.Fatalf("standalone App Mode rejected: %v", err)
 	}
+	if err := validateAppModeConfig(&Config{MarketplaceDevelopmentConfig: "local.json"}); err == nil || !strings.Contains(err.Error(), "requires -app") {
+		t.Fatalf("development Marketplace config without App Mode error=%v", err)
+	}
 }
 
 func TestValidateAppModeHelperConflictRunsBeforePrivateHelperDispatch(t *testing.T) {

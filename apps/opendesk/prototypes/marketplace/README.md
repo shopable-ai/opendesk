@@ -1,6 +1,6 @@
 # Flow Marketplace HTML 原型
 
-状态：**可运行交互原型，待用户确认；不是生产 Marketplace。**
+状态：**可运行交互原型，含 local HTTP development smoke；不是 production Web-to-Desktop。**
 
 入口：[index.html](index.html)  
 交互与后续实施合同：[ORACLE.md](ORACLE.md)
@@ -9,29 +9,32 @@
 
 | 页面 | 实际作用 | 成功依据 |
 | --- | --- | --- |
-| [交互原型](index.html) | 浏览、筛选、模拟安装与模拟 Runner；不调用客户端 | 页面交互和模拟状态 |
-| [最简分发检查](local-deep-link-smoke.html) | 显式点击后请求浏览器打开固定 `opendesk://` URI | macOS 实际接收进程、接收端日志；网页无法确认交付 |
+| [交互原型](index.html) | 浏览、筛选和模拟 Runner；本地 smoke 服务可达时，所有商品安装映射到固定 Notify Demo | 同源 Catalog 的实际 `ready` 记录；其余交互仍是模拟 |
+| [最简安装检查](local-deep-link-smoke.html) | 显式点击后打开固定 `opendesk://` URI，并轮询同源测试服务 | 实际隔离 Catalog 中与 Release 完全匹配的 `ready` 记录 |
 
-原型顶部可进入最简页，最简页可返回原型。原型内的「安装到 OpenDesk」仍是模拟动作。
-最简页不需要 HTTPS，没有网络 client、凭证、下载 URL 或真实 Release；不会通过超时、失焦或点击成功推断安装完成。
+原型顶部可进入最简页，最简页可返回原型。由 `tests/prototypes/tools/marketplace-local-server.mjs` 提供本地 HTTP loopback 时，原型会把每个商品的安装按钮替换为普通、默认导航的 `opendesk://` anchor；固定 intent/package 都是 Notify Demo。原型的商品元数据、授权对话框和 Runner 则保持模拟，不会被标作真实安装成功。
+这两个页面都只支持 local HTTP development smoke。测试服务为每次运行生成临时 Ed25519 root 和签名 Release，Desktop 必须通过显式开发配置启用该 root；页面不会通过超时、失焦或 URL 点击推断安装完成。
 它取代 `.runtime/tests/marketplace/local-deep-link-smoke.html` 作为可维护入口；旧文件只属于历史运行产物。
 
-从仓库根目录直接打开最简页（macOS）：
+从仓库根目录执行这一条命令即可开始一次新的手工验收：
 
 ```bash
-open apps/opendesk/prototypes/marketplace/local-deep-link-smoke.html
+./scripts/build_macos_app.sh && node tests/prototypes/tools/marketplace-local-manual.mjs
 ```
 
-这条命令只打开页面。先核对当前 OpenDesk 的 PID、主程序/UI host 路径、构建来源、签名与单实例状态，
-再点击「请求打开 OpenDesk」。不得为测试覆盖或终止其他任务的实例。
-未配置 Marketplace client 时，合法意图的预期接收日志为
-`[MARKETPLACE_INSTALL] blocked ... error=marketplace installer is unavailable`；
-「请求检查非法参数」的预期日志为 `[MARKETPLACE_INSTALL] rejected invalid install intent`。
-该 fail-closed 分支在 Release 解析和安装确认 UI 之前停止，没有确认窗口不代表分发失败；
-没有接收端日志也不能判为接收成功。安装确认 UI 的正向验收需要已配置 client 和已验证 Release。
+helper 每次创建新的 `.runtime/tests/marketplace/manual-<timestamp>/`，生成一小时有效的临时 Ed25519 root、匹配的开发配置和隔离 Catalog；它会验证并注册当前 `dist/OpenDesk.app`，启动同一配置的 OpenDesk，再用一个无副作用的非法参数 URL 预检 LaunchServices 是否确实交给**本次**接收端，最后自动打开精确页面 URL。它不会占用固定端口，也不会关闭既有 OpenDesk 实例或其他服务；如果检测到共享实例，会安全停止并打印其准确命令。
 
-本地静态 HTTP 也可使用下方的同一启动命令，最简页路径为 `/local-deep-link-smoke.html`。
-这只改变 HTML 的访问方式，不放宽 Desktop Marketplace client 的 HTTPS / pinned root 要求。
+页面打开后，可点击最简页的「安装 Notify Demo」，或交互原型中任何商品的「安装」。两者均会交接同一个固定 intent；后者不代表 fixture 商品本身已经可发布。依次确认 Chrome 的“打开 OpenDesk”、OpenDesk 的 Release 确认和 Flow 范围信任。只有服务读取到实际 Catalog 的 `state=ready`、`origin=marketplace`、Release ID、包摘要与安装目录全部匹配时，页面才显示「安装成功，尚未运行」。运行仍需在 Flow Runner 中明确点击。
+
+页面会把可见状态区分为：本地服务/接收端就绪、等待 Chrome 外部协议确认、OpenDesk 已收到 intent 正在等待两个原生确认、接收端验签或安装拒绝、以及 Catalog 已确认安装。失败页不会转报成功，且会指向同次 `manual-*` 目录中的 `opendesk.log`。
+
+helper 会打印精确的 cleanup 命令；只对该命令生成的 `manual-*` 运行目录执行：
+
+```bash
+node tests/prototypes/tools/marketplace-local-manual.mjs --cleanup <manual-run-dir>
+```
+
+未传 `-marketplace-development-config` 时，接收端继续 fail closed；未知 URI 参数也在联网与确认之前拒绝。该开发开关只接受本地普通配置文件和 HTTP loopback origin，不改变生产 client 的 HTTPS、pinned root、session 或 entitlement 要求。
 
 `.odflow` 侧载独立使用现有 [Notify Demo](../../../../examples/flow-distribution/notify-demo/README.md)。
 测试前对**实际包字节**执行 inspect / verify，不假定并行工作树里的包等于 HEAD。
@@ -50,11 +53,9 @@ CLI 安装测试通过现有 `OPENDESK_APP_DATA_DIR` 指向 `.runtime/tests/mark
 | 重建与来源说明 | 同目录的 `build.sh`、`README.md`；重建默认示例输出在 `.runtime/examples/notify-demo/` |
 | 公开示例入口 | `examples/flow-distribution/README.md`、`examples/catalog.json` |
 | Runtime 契约消费者 | `tests/runtime-api/flow-installation.js` 直接检查公开包、源码与配置一致性 |
-| Marketplace 本地检查 | 本文与最简页只引用上述路径，不提供另一份下载包 |
+| Marketplace 本地检查 | `tests/prototypes/tools/marketplace-local-server.mjs` 在运行时读取上述唯一来源并提供 HTTP artifact，不保存第二份包 |
 
-页面中的六个商品 fixture 是模拟数据，与 Notify Demo 没有可安装 Release 的映射。
-最简页不读取包，因此当前不需要在页面目录新增二进制 fixture。
-服务根目录仅为页面目录时，仓库文件路径是操作说明，不应伪装成可下载的 HTTP 链接。
+页面中的六个商品 fixture 仍是模拟数据。在 local HTTP development smoke 中，所有商品按钮都暂时映射到公开 Notify Demo 包；包不与 HTML 放在一起，也不安装到 `apps/opendesk/prototypes/marketplace/`。本地服务按需读取 canonical 包，OpenDesk 将安装内容写入显式 `OPENDESK_APP_DATA_DIR` 下的 `flows/`，Catalog 写入其 `flow-state/records/`。
 本次检查未发现该包是应用构建脚本的必需输入；它仍有公开示例与 Runtime 测试职责，不能据此移走。
 
 每轮记录所选包的 SHA-256、Manifest digest、publisher fingerprint，并校验包内源码与配置。
@@ -62,7 +63,7 @@ CLI 安装测试通过现有 `OPENDESK_APP_DATA_DIR` 指向 `.runtime/tests/mark
 fixture reference；优先从唯一来源解析。确需冻结副本时，应显式标明 owner、来源和生成/校验命令，
 不得手工维护第二套权威包。运行时副本与下载结果只写 `.runtime/tests/marketplace/`。
 
-### 当前 HTTP 验收范围（2026-09-19）
+### 历史 HTTP 验收基线（2026-09-19，改造前）
 
 现有 `serve` 站点 `http://localhost:51807/` 已在真实 Chrome 加载。模拟安装走完权限确认、
 默认 Flow 范围信任和安装完成；模拟 Runner 显示运行次数 `0`。详情、安装结果与最简页已有当前截图。
@@ -72,8 +73,15 @@ fixture reference；优先从唯一来源解析。确需冻结副本时，应显
 
 本轮独立 bundle CLI 侧载通过，33 项 Node 检查通过；没有进行 GUI 侧载或运行 Flow。
 生产 Web→Desktop 仍缺少固定 HTTPS origin、pinned root、session/entitlement adapter 和受控 release。
-本机 URL 默认注册目标与正在运行的开发实例不同，后续 receiver 验收须先统一构建来源并取得接收日志；
-不能仅凭网页状态或单实例激活推断 URL 已交付。
+该历史结果解释了为何旧页面点击后看不到安装成功；不能作为当前真实安装页的完成证据。当前实测结果以 `.runtime/tests/marketplace/` 下后续验收报告为准。
+
+### 早期本地真实安装证据（2026-09-19；不代表当前 run）
+
+早期真实 Chrome HTTP 页面曾成功安装公开 Notify Demo 包；该隔离 Catalog 随后由用户在 Flow 列表中显式删除。不要把该用户删除的 Catalog 空状态解释为安装失败。旧临时 Release 的一小时签名到期后，接收端会正确拒绝重新安装；新的 helper 每次生成 fresh root，因此旧页面、旧 config 和旧 log 不能用于新的手工验收。
+
+同轮还验证了两个 receiver 拒绝条件：页面点击包含 `unsupported=1` 的 URI 时在解析阶段拒绝；同一构建不传开发配置时，合法 URI 以 `marketplace installer is unavailable` fail closed。完整日志、Catalog、execution summary 和实窗截图位于 `.runtime/tests/marketplace/html-install-live-20260919/acceptance.md`。这些是历史证据；新的临时 root、当前 bundle 和当前 Chrome 点击必须重新验收，不能继承该结论。
+
+当前 helper 只在 AppKit URL delegate 和 App Mode URL handler 都已绑定后记录 `receiver-ready`。若检测到同一 workspace 的 `dist/opendesk -app apps/opendesk`（包括稳定 symlink 入口）已持有 single-instance lease，helper 会在创建新 run 前停止，绝不关闭共享进程；关闭该实例后才可开始下一次 fresh live 验收。
 
 每次验收分别记录：代码已修改 / 实际已加载 / 视觉已确认 / 功能已验证。
 本轮本地证据统一写入 `.runtime/tests/marketplace/`；浏览器/系统限制或签名失败时记为未运行，
@@ -81,7 +89,7 @@ fixture reference；优先从唯一来源解析。确需冻结副本时，应显
 
 ## 打开
 
-`index.html` 是自包含 HTML，CSS、图标、示例数据和脚本均内置；无 CDN、构建步骤或真实网络依赖。
+`index.html` 是自包含 HTML，CSS、图标、示例数据和脚本均内置；无 CDN 或构建步骤。以文件或普通静态服务打开时保留全部模拟行为；只有 local smoke server 的同源状态 endpoint 可达时，安装按钮才变为固定 Notify Demo 的真实外部协议入口。
 
 从仓库根目录，在 macOS 可直接打开：
 
@@ -95,7 +103,7 @@ open apps/opendesk/prototypes/marketplace/index.html
 python3 -m http.server 8765 --bind 127.0.0.1 --directory apps/opendesk/prototypes/marketplace
 ```
 
-然后访问 `http://127.0.0.1:8765/`。静态服务不是 Marketplace Backend。
+然后访问 `http://127.0.0.1:8765/`。静态服务不是 Marketplace Backend，且不会启用原型中的真实安装桥接。
 
 ## 可以体验什么
 
@@ -115,7 +123,7 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory apps/opendesk/prototype
 
 ## 安全与实现边界
 
-- 不调用真实 Marketplace API，不注册或打开 `opendesk://`，不连接 OpenDesk Runtime。
+- 通过 local smoke server 时，仅安装 anchor 会请求固定 `opendesk://` URI；其余原型交互不连接 OpenDesk Runtime，也不调用生产 Marketplace API。
 - 不提供无效 `.odflow` 下载来伪装安装成功；不接收上传，不创建订单、不扣费。
 - 数据、发布者身份、签名 Key ID、版本、系统要求与价格全部为 fixture。市场验证不自动产生本地信任。
 - 原型仅用内存 / `localStorage` key `opendesk.marketplace.prototype.v1` 保存模拟状态；存储不可用时降级为内存，不清除其他网站数据。
