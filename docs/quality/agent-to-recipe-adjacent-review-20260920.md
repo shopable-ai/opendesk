@@ -6,6 +6,8 @@
 
 **已证明：限定 Calculator 形状 v1 的输入输出、错误拒绝、相邻调用及同源审阅。尚未证明：实际模型 Producer、独立上下文、真实 UI 数据链、宿主加载和整条新生成链。** 单个前缀 PASS 不是阶段完成，159 项测试不是 159 次模型任务，也不是业务可靠性百分比。
 
+补充质量审计见[200 回合多角色反方审计与 95+ 方案评审](agent-to-recipe-adversarial-review-200-rounds-20260920.md)。该记录给当前**设计方案** 97/100，明确不把这 97 分外推成模型 Producer、宿主加载、Fresh Run 或生产资格的 95+；运行证据仍按本页和 `validation-plan.md` 的硬门禁判断。
+
 当前决定／需求覆盖表在[交接审阅地图](../../workflows/agent-to-recipe/design/acceptance-map.md#2026-09-20-接续决定与需求覆盖)；字段与兼容规则在[共享合同](../frameworks/agent-to-recipe-skill-contract.md)，评测执行与唯一评分规则在[validation-plan](../../workflows/agent-to-recipe/design/validation-plan.md)。需求、完整任务树、三个循环和职责划分保留各自权威位置；旧材料按范围继承，不按新旧日期整体废弃。
 
 ## 实际修复、原逻辑去向与检查
