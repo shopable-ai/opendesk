@@ -22,6 +22,9 @@ jobs:
         run: |
           node --check apps/opendesk/flow-runner.js
           node --check apps/opendesk/scheduler-center.js
+          node --check jslibs/js-yaml-5.4.1.opendesk.js
+          node --check jslibs/papaparse-5.7.0.min.js
+          node --check jslibs/zz-runtime-library-aliases.js
       - name: Test API-adjacent documentation consumers
         run: node --test tests/app-package/app-builder-docs.test.js
   agent-to-recipe-chain:
@@ -65,6 +68,8 @@ jobs:
         run: |
           mkdir -p dist
           go build -o dist/opendesk ./cmd/opendesk
+      - name: Run bundled JavaScript library Runtime smoke
+        run: ./dist/opendesk -script tests/runtime-api/single/window-library.js -console-mode script
       - name: Run formal Runtime contract gate
         run: OPENDESK_RUNTIME_API_MODE=contract ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
       - name: Run formal Runtime unit gate
