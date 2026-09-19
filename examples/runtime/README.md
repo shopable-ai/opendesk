@@ -16,6 +16,17 @@
 
 这些条目在 `examples/catalog.json` 中标记为 `safe`，适合 Example Explorer 一键运行。
 
+## Runtime 内置数据处理库
+
+这些示例不需要 `import` / `require`，直接使用 Runtime 默认注入的 bundled library，并在结果不正确时抛错。
+
+| 示例 | 直接运行 | 说明 |
+| --- | --- | --- |
+| [yaml.js](yaml.js) | `./dist/opendesk -script examples/runtime/yaml.js -console-mode script` | 使用 `YAML.parse()` / `YAML.stringify()` 做内存 YAML round-trip；成功输出 `YAML_EXAMPLE_OK`。 |
+| [csv.js](csv.js) | `./dist/opendesk -script examples/runtime/csv.js -console-mode script` | 使用 `CSV.parse()` / `CSV.stringify()` 做带表头 CSV round-trip；成功输出 `CSV_EXAMPLE_OK`。 |
+
+正式回归仍由 `tests/runtime-api/unit/window-library.test.js` 承担；这里的两个脚本同时作为开发者可直接阅读、复制和运行的最小示例。
+
 ## ESM 模块入口
 
 需要把脚本拆成多个文件时，使用 `.mjs` 入口和静态 `import` / `export`。模块示例见 [modules/README.md](modules/README.md)。

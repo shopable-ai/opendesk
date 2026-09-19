@@ -76,6 +76,15 @@ jobs:
         run: |
           mkdir -p dist
           go build -o dist/opendesk ./cmd/opendesk
+      - name: Run bundled data library examples
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p .runtime/tests/bundled-libraries
+          ./dist/opendesk -script examples/runtime/yaml.js -console-mode script 2>&1 | tee .runtime/tests/bundled-libraries/yaml-example.log
+          grep -F 'YAML_EXAMPLE_OK' .runtime/tests/bundled-libraries/yaml-example.log
+          ./dist/opendesk -script examples/runtime/csv.js -console-mode script 2>&1 | tee .runtime/tests/bundled-libraries/csv-example.log
+          grep -F 'CSV_EXAMPLE_OK' .runtime/tests/bundled-libraries/csv-example.log
       - name: Run bundled JavaScript library Runtime smoke
         run: ./dist/opendesk -script tests/runtime-api/single/window-library.js -console-mode script
       - name: Run formal Runtime contract gate

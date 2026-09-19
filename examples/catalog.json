@@ -1952,6 +1952,62 @@
         "consoleMode": "script"
       }
     },
+    "runtime/csv.js": {
+      "title": "CSV with Bundled Papa Parse",
+      "description": "Parse and serialize a small in-memory CSV table through the default CSV facade.",
+      "category": "Runtime",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "docs": "docs/api/libs.md",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [],
+      "expected": "CSV data round-trips successfully and the script prints CSV_EXAMPLE_OK.",
+      "tags": [
+        "runtime",
+        "csv",
+        "papaparse",
+        "bundled-library"
+      ],
+      "legacyNames": [],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
+    "runtime/yaml.js": {
+      "title": "YAML with Bundled js-yaml",
+      "description": "Parse and serialize a small in-memory YAML document through the default YAML facade.",
+      "category": "Runtime",
+      "level": "beginner",
+      "runPolicy": "safe",
+      "docs": "docs/api/libs.md",
+      "platforms": [
+        "darwin",
+        "linux",
+        "windows"
+      ],
+      "prerequisites": [],
+      "expected": "YAML data round-trips successfully and the script prints YAML_EXAMPLE_OK.",
+      "tags": [
+        "runtime",
+        "yaml",
+        "js-yaml",
+        "bundled-library"
+      ],
+      "legacyNames": [],
+      "requiredEnv": [],
+      "launch": {
+        "kind": "script",
+        "ui": false,
+        "consoleMode": "script"
+      }
+    },
     "runtime/file-json.js": {
       "title": "JSON Files",
       "description": "Read and write JSON through the OpenDesk File API using execution-owned async operations.",

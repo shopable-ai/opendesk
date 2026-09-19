@@ -102,6 +102,20 @@ jobs:
               throw "Windows distribution is missing bundled-library license: $relative"
             }
           }
+          $yamlEvidence = ".runtime/tests/windows-compat/yaml-example.log"
+          & $runtime -script "examples/runtime/yaml.js" -console-mode script *>&1 | Tee-Object -FilePath $yamlEvidence
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Select-String -LiteralPath $yamlEvidence -Pattern 'YAML_EXAMPLE_OK' -Quiet)) {
+            throw "YAML example did not emit the expected marker"
+          }
+
+          $csvEvidence = ".runtime/tests/windows-compat/csv-example.log"
+          & $runtime -script "examples/runtime/csv.js" -console-mode script *>&1 | Tee-Object -FilePath $csvEvidence
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Select-String -LiteralPath $csvEvidence -Pattern 'CSV_EXAMPLE_OK' -Quiet)) {
+            throw "CSV example did not emit the expected marker"
+          }
+
           $evidence = ".runtime/tests/windows-compat/bundled-libraries.log"
           & $runtime -script "tests/runtime-api/single/window-library.js" -console-mode script *>&1 | Tee-Object -FilePath $evidence
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

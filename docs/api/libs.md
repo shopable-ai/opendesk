@@ -74,6 +74,7 @@ const text = YAML.stringify({ name: 'OpenDesk', count: 2 });
 ```
 
 兼容入口 `YAML.load` / `YAML.dump` 也保留，分别与 `parse` / `stringify` 指向同一上游能力。
+可运行示例：[examples/runtime/yaml.js](../../examples/runtime/yaml.js)，会执行 parse → stringify → parse 自校验并输出 `YAML_EXAMPLE_OK`。
 复杂 schema、tag、merge 或安全敏感输入不要只根据模型记忆猜选项，应按固定版本核对上游文档并设置业务输入边界。
 
 ## CSV
@@ -100,6 +101,8 @@ const text = CSV.stringify([
   { name: 'B', count: 2 }
 ]);
 ```
+
+可运行示例：[examples/runtime/csv.js](../../examples/runtime/csv.js)，会执行 parse → stringify → parse 自校验并输出 `CSV_EXAMPLE_OK`。
 
 CSV 作为外部业务交换格式时，还需要由 Recipe 自己决定字段 schema、编码、公式注入防护、空值和失败数据处理；
 “解析成功”不等于业务数据已经验证。
