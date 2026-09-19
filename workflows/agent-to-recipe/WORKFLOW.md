@@ -8,6 +8,34 @@ order: 10
 
 本文件负责整体工作流导航、手工协调执行规程和当前已存在的方法入口，不是自动调度程序。当前已建立 [application-engineer](skills/application-engineer/SKILL.md)、[trace-distill](skills/trace-distill/SKILL.md)、[procedure-synthesize](skills/procedure-synthesize/SKILL.md)、[code-rebuild](skills/code-rebuild/SKILL.md) 和 [recipe-qualify](skills/recipe-qualify/SKILL.md) 方法文件，可由当前 Agent 显式读取使用；文件、辅助程序、宿主加载、独立上下文评测和真实业务资格分别判断。本文不复制专业正文，也不自动授予桌面权限。
 
+
+## 先看这里：S1—S12 一页主框架
+
+Agent-to-Recipe 的核心目标不是“把桌面操作记录下来”，而是把一次真实完成的任务，逐步转成**有来源、有数据依赖、可复用、可生成普通 JavaScript、并能独立验收**的自动化 Recipe。
+
+主链只保留下面八组阶段；后面的 handoff、validator、API 阅读和测试说明都服务于这条主链，不应反过来淹没它。
+
+| 阶段 | 这一阶段解决什么 | 主要输入 | 主要输出 | 怎么判断做对；失败回哪里 |
+| --- | --- | --- | --- | --- |
+| **S1｜明确任务与制定计划** `automation-plan` | 把用户真正要完成的业务任务、限制、授权和成功标准说清楚，并形成可执行计划 | 用户原始要求、已有材料、业务输入、授权、限制 | **TaskContract + WorkPlan** | 要求不能遗漏或被改写；计划不能越权；会推翻后续路线的高影响 Unknown 要尽早暴露。目标／授权／计划错误回 S1，不改写用户原始来源 |
+| **S2｜认识应用与核查关键可行性** `application-engineer / discover` | 只认识“下一步安全推进所必需”的应用、窗口、目标、读取和前提，不从零研究整个软件 | TaskContract、当前 WorkPlan、可复用旧资料、必要现场观察 | **最小 AppProfile**，或对仍有效旧版本的精确引用 | 后续必须操作和读取的对象要有依据；“认识界面”不等于“已允许点击”。应用资料不足回应用工程；路线不可行或授权冲突回 S1 |
+| **S3—S6｜真实示范、逐步验证与同步留证** `task-demonstrate` | 在真实任务中执行、观察、验证，保存“实际发生了什么”，而不是只保存预期 | 固定 TaskContract、实际生效的 WorkPlan、AppProfile、获准业务输入 | **DemonstrationDossier + Raw Trace / Evidence** | 必须区分 planned / actual，保存真实动作、观察、业务值、消费者、验证和副作用状态。缺历史事实只能定向补采，不能事后编造 |
+| **S7｜提炼必要步骤** `trace-distill` | 从真实轨迹中去掉探索噪声，但保留真正必要的准备、动作、读取、验证和数据依赖 | 固定合同／计划、Dossier、Raw Trace、必要 Evidence | **DistilledSteps** | 每个原动作都要有 retain / merge / omit / recovery / unresolved 处置及依据；真实消费者关系不能丢。取舍错回 S7，事实不足回 S3—S6 |
+| **S8—S9｜形成业务过程与数据关系** `procedure-synthesize` | 把必要步骤变成稳定 Business Step，并明确参数、运行时值、生产者→消费者和支持范围 | 固定 DistilledSteps、TaskContract、必要 AppProfile、已验证的能力选择事实 | **SemanticProcedure** | 每步明确目的、来源、输入、前提、执行意图、观察、输出、后置、验证、停止条件、消费者；用户输入 / 配置 / Secret / 运行时值 / Expected / Unknown 必须分开。业务解释错回 S8—S9，动作取舍错回 S7，缺事实回 S3—S6 |
+| **S10｜补强或复用应用操作规则** `application-engineer / harden / repair` | 只补 Procedure 真正需要的定位、读取、等待、动作和失效规则；已有规则可直接复用 | 已确认 SemanticProcedure、旧 AppProfile、具体工程缺口 | **有来源和适用范围的 AppProfile / locator / stability / helper 增量** | 操作必须能落实，失效条件和安全停止必须明确；无缺口不重新研究应用。应用规则问题回 S10；真正 Runtime 缺口单独处理，不通过改业务目标掩盖 |
+| **S11｜生成代码与按需优化** `recipe-build`；可选 `code-rebuild` | 把已确认 Procedure 和应用规则实现成普通 OpenDesk JavaScript；只有有收益时才优化 | 固定 Procedure、AppProfile／helper、正式 API contract；优化时再加精确代码基线和允许变更范围 | **Recipe.js + CandidateManifest** | 代码必须忠实实现业务语义、真实数据关系和停止边界；固定入口、源码、依赖、上游版本与步骤映射。实现错回 S11；语义错回 S8—S9；应用规则错回 S10 |
+| **S12｜独立资格验收、评审与最终结论** `recipe-qualify` | 固定同一个 Candidate 后，用预先确定的范围和场景验证真实行为，再给最终结论 | 精确冻结 Candidate、TaskContract、验收范围、场景、环境、测试授权 | **QualificationRecord + Recipe Review / Run Summary** | 必须运行同一候选，记录实际命令、环境、观察、证据及 pass / fail / not-run / blocked；验收不能改候选或降低标准。失败按缺陷责任返回对应上游 |
+
+### 这条主链的四条总规则
+
+1. **阶段 ≠ Skill ≠ 文件 ≠ Agent。** S2 与 S10 可以复用同一个 `application-engineer`；S11 可以包含生成和可选代码改进；一个 Agent 也可以连续完成多个阶段。
+2. **能力发现不是额外的 S13。** 当某个业务步骤需要框架能力时，在 S2、S3—S6 或 S10 的真实上下文中完成：**能力需求 → Capability Discovery → Method Selection → Canonical Contract Reading → Runtime Validation**，然后把最终决定收敛进 S8—S9 的 `capabilityDecisions`，由 S11 的 Candidate 继续绑定。
+3. **事实、语义、代码、资格不能互相替代。** Raw Trace 记录实际发生；DistilledSteps 决定哪些动作必要；SemanticProcedure 定义业务过程和数据关系；Recipe 是实现；Qualification 才说明某个固定候选在什么范围真正通过。
+4. **已有成果优先接续，不从零重跑。** 先核对已有 TaskContract、AppProfile、Dossier、Procedure、Candidate、Qualification 的版本和证据，只从第一个真实缺口继续。
+
+如果只想理解工作流，先读本节；如果要看“每个交接怎样拒绝错误结果”，再读 [交接审阅地图](design/acceptance-map.md)；如果要看完整子任务和恢复循环，再读 [task-decomposition.md](design/task-decomposition.md)；字段和版本规则按需读[共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)。
+
+
 ## 本轮执行规程：从已有成果继续，而不是重新开始
 
 本节是现有 S1—S12 的**手工协调执行清单**，不是自动调度器或数据格式。默认由当前 Agent 消费真实文件后连续推进；Skill 方法文件并不是同名 CLI 命令，不能虚构 `automation-plan`、`trace-distill`、`recipe-build` 或 `recipe-qualify` 命令。专业方法、字段和完整任务树仍分别以原文件为准。
