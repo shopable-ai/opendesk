@@ -49,7 +49,7 @@ const types = {
   mouse: ['mouse'], input: ['keyboard', 'touchscreen'], clipboard: ['clipboard'], 'global-shortcut': ['globalShortcut'],
   events: ['Events'], notifications: ['Notifications'], file: ['File'], path: ['path'], storage: ['AppStorage'],
   sqlite: ['sqlite'], execution: ['Execution'], 'global-apis': ['global', 'console'], system: ['System'],
-  command: ['Command'], audio: ['Audio'], sound: ['Sound'], ui: ['FloatingWindow'], dialog: ['dialog'],
+  command: ['Command'], audio: ['Audio'], sound: ['Sound'], ui: ['CustomUI', 'FloatingWindow'], dialog: ['dialog'],
   'automation-app': ['automation-app'], http: ['http', 'axios'], webhook: ['Webhook'], llm: ['LLM'], agent: ['Agent'],
   'recorder-runtime': ['recorder'], 'native-extension': ['NativeExtension'],
 };
