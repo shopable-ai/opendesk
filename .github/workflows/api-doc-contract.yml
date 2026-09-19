@@ -86,7 +86,7 @@ jobs:
         if: always()
         run: |
           OPENDESK_RUNTIME_API_MODE=unit-selected \
-          OPENDESK_RUNTIME_API_UNIT_FILTER=window-target,ui-target-sequence,ui-semantic-targets,ui-scope-locator,accessibility \
+          OPENDESK_RUNTIME_API_UNIT_FILTER=window-target,ui-target-sequence,ui-semantic-targets,ui-semantic-targets-cancel,accessibility \
           ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
       - uses: actions/upload-artifact@v4
         if: always()
