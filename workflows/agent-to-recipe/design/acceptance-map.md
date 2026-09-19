@@ -121,21 +121,22 @@ node workflows/agent-to-recipe/scripts/check-artifact-chain.js --through trace-d
 `localChecks` 是局部规则诊断；`boundaries` 加上前置依赖判断。这里的 `blocked` 不是新增 G 编号或修改 handoff 枚举。
 `stageComplete=false`、`liveQualificationGranted=false` 明确表示本工具没有完成全部 Stage 接受责任。
 
-## 六、三个新增方法的实际边界
+## 六、四个补齐方法的实际边界
 
 | 方法 | 本次可用成果 | 仍需独立证明 |
 | --- | --- | --- |
 | [trace-distill](../skills/trace-distill/SKILL.md) | 输入输出样例、S7 前缀检查、保留／合并来源反例、返工方法 | 模型能否从未见轨迹稳定产生正确 DistilledSteps |
 | [procedure-synthesize](../skills/procedure-synthesize/SKILL.md) | 语义与数据关系样例、S9 前缀检查、错误映射反例 | 独立上下文 Producer 行为、跨应用与多消费者泛化 |
 | [code-rebuild](../skills/code-rebuild/SKILL.md) | 固定基线评审方法、必须交付的结论表、无需先有资格的候选检查 | 多种代码缺陷的实际审阅能力、评审一致性、当前候选真实重验 |
+| [recipe-qualify](../skills/recipe-qualify/SKILL.md) | S12 冻结 Candidate 的场景计划、QualificationRecord、Recipe Review／评分证据边界与返修路由 | 宿主自动加载、跨任务资格一致性、隔离上下文审阅和新的 live 业务样本 |
 
-application-engineer 继续服务 S2／S10，本次未改变其实现。automation-plan、task-demonstrate、recipe-build、recipe-qualify 仍是共享合同中的职责，不能虚构同名命令或把它们列成已安装方法。
+application-engineer 继续服务 S2／S10，本次未改变其实现。recipe-qualify 已有方法文件；automation-plan、task-demonstrate、recipe-build 仍是共享合同中的目标职责，不能虚构同名命令或把它们列成已安装方法。
 
 ## 七、问题清单与推进顺序
 
 | 本轮问题／旧任务树来源 | 方案决定 | 实现与验证位置 | 后续缺口 |
 | --- | --- | --- | --- |
-| 主链看不出产物是否正确；S1—S12／三个循环 | 保留完整任务树，用交接地图、字段例子和反例审阅 | 本页＋三个方法文件 | 在更多真实任务中验证覆盖 |
+| 主链看不出产物是否正确；S1—S12／三个循环 | 保留完整任务树，用交接地图、字段例子和反例审阅 | 本页＋四个补齐方法文件 | 在更多真实任务中验证覆盖 |
 | S7／S9／S11 要等 S12 才能检查 | 在原检查器增加显式前缀 | check-artifact-chain.js；artifact-chain.test.js | 不是全部 Stage Validator |
 | 输入版本／事实关系可能错误 | 核对合同与计划绑定、计划修订、动作来源及消费者 | 正反 Fixture 合同测试 | 可信宿主记录、签名／隔离和多修订轨迹 |
 | 代码优化后缺清楚结论；S11 质量作业 | 固定对象、改动去向、评分依据、未测范围与下一步 | code-rebuild 方法中的结论表 | 评审 Producer 的行为数据集与校准 |
