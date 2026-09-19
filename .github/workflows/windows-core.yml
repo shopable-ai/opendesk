@@ -81,10 +81,13 @@ jobs:
         run: go test ./automation -run '^TestWindows(CommandHideWindow|WindowManager)' -count=1
 
       - name: Build portable Windows distribution
+        id: bundled_library_distribution
+        if: always()
         shell: pwsh
         run: pwsh -NoProfile -File scripts/build_windows_distribution.ps1 -Runtime win-x64 -AppModePackage apps/opendesk
 
       - name: Validate bundled JavaScript libraries from distribution
+        if: ${{ always() && steps.bundled_library_distribution.outcome == 'success' }}
         shell: pwsh
         run: |
           $distribution = ".\dist\windows\win-x64"
