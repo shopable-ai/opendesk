@@ -21,6 +21,19 @@ import (
 
 const maxReleaseResponseSize int64 = 256 << 10
 
+type ResolverMode string
+
+const (
+	ResolverDynamic ResolverMode = "dynamic"
+	ResolverStatic  ResolverMode = "static"
+)
+
+type SignedReleaseDocument struct {
+	SchemaVersion int                `json:"schemaVersion"`
+	Release       Release            `json:"release"`
+	Attestation   ReleaseAttestation `json:"attestation"`
+}
+
 type ResolvedInstallIntent struct {
 	SchemaVersion   int                `json:"schemaVersion"`
 	InstallIntentID string             `json:"installIntentId"`
@@ -32,6 +45,8 @@ type ResolvedInstallIntent struct {
 
 type ClientOptions struct {
 	BaseURL                       string
+	ArtifactBaseURL               string
+	Resolver                      ResolverMode
 	HTTPClient                    *http.Client
 	MarketplaceRoots              map[string]ed25519.PublicKey
 	Authorize                     func(*http.Request) error
@@ -40,20 +55,32 @@ type ClientOptions struct {
 }
 
 type Client struct {
-	base      *url.URL
-	http      *http.Client
-	authorize func(*http.Request) error
-	verifier  ReleaseVerifier
+	resolver      ResolverMode
+	base          *url.URL
+	artifactBase  *url.URL
+	http          *http.Client
+	authorize     func(*http.Request) error
+	verifier      ReleaseVerifier
+	allowLoopback bool
 }
 
 func NewClient(options ClientOptions) (*Client, error) {
-	base, err := url.Parse(strings.TrimSpace(options.BaseURL))
-	if err != nil || base.Scheme == "" || base.Host == "" || base.User != nil || base.Fragment != "" || base.RawQuery != "" {
-		return nil, fmt.Errorf("marketplace API base URL is invalid")
+	resolver := options.Resolver
+	if resolver == "" {
+		resolver = ResolverDynamic
 	}
-	if base.Scheme != "https" {
-		if !options.AllowInsecureLoopbackForTests || base.Scheme != "http" || !isLoopbackHost(base.Hostname()) {
-			return nil, fmt.Errorf("marketplace API base URL must use HTTPS")
+	if resolver != ResolverDynamic && resolver != ResolverStatic {
+		return nil, fmt.Errorf("marketplace resolver is invalid")
+	}
+	base, err := parseDistributionBaseURL(options.BaseURL, options.AllowInsecureLoopbackForTests)
+	if err != nil {
+		return nil, fmt.Errorf("marketplace metadata base URL is invalid: %w", err)
+	}
+	artifactBase := base
+	if strings.TrimSpace(options.ArtifactBaseURL) != "" {
+		artifactBase, err = parseDistributionBaseURL(options.ArtifactBaseURL, options.AllowInsecureLoopbackForTests)
+		if err != nil {
+			return nil, fmt.Errorf("marketplace artifact base URL is invalid: %w", err)
 		}
 	}
 	client := options.HTTPClient
@@ -67,11 +94,10 @@ func NewClient(options ClientOptions) (*Client, error) {
 		roots[keyID] = append(ed25519.PublicKey(nil), key...)
 	}
 	return &Client{
-		base: base, http: &copyClient, authorize: options.Authorize,
-		verifier: ReleaseVerifier{Roots: roots, Now: options.Now},
+		resolver: resolver, base: base, artifactBase: artifactBase, http: &copyClient, authorize: options.Authorize,
+		verifier: ReleaseVerifier{Roots: roots, Now: options.Now}, allowLoopback: options.AllowInsecureLoopbackForTests,
 	}, nil
 }
-
 func (client *Client) ResolveInstallIntent(ctx context.Context, ref InstallIntentRef) (ResolvedInstallIntent, error) {
 	var resolved ResolvedInstallIntent
 	if client == nil {
@@ -80,16 +106,43 @@ func (client *Client) ResolveInstallIntent(ctx context.Context, ref InstallInten
 	if err := ref.Validate(); err != nil {
 		return resolved, err
 	}
-	requestURL := client.endpoint("v1", "install-intents", ref.InstallIntentID)
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if client.resolver == ResolverStatic {
+		requestURL := endpointFrom(client.base, "flows", ref.FlowID, ref.ReleaseID, "release.json")
+		request, err := client.newGET(ctx, requestURL, "application/json")
+		if err != nil {
+			return resolved, err
+		}
+		response, err := client.http.Do(request)
+		if err != nil {
+			return resolved, fmt.Errorf("resolve marketplace static release: %w", err)
+		}
+		defer response.Body.Close()
+		if response.StatusCode != http.StatusOK {
+			return resolved, fmt.Errorf("marketplace static release returned HTTP %d", response.StatusCode)
+		}
+		var document SignedReleaseDocument
+		if err := decodeBoundedJSON(response.Body, &document); err != nil {
+			return resolved, fmt.Errorf("decode marketplace static release: %w", err)
+		}
+		if document.SchemaVersion != 1 || document.Release.SchemaVersion != 2 {
+			return resolved, fmt.Errorf("marketplace static release schema is unsupported")
+		}
+		if document.Release.FlowID != ref.FlowID || document.Release.ReleaseID != ref.ReleaseID {
+			return resolved, fmt.Errorf("marketplace static release identity does not match the deep link")
+		}
+		if err := client.verifier.Verify(document.Release, document.Attestation); err != nil {
+			return resolved, err
+		}
+		return ResolvedInstallIntent{
+			SchemaVersion: 1, InstallIntentID: ref.InstallIntentID, FlowID: ref.FlowID, ReleaseID: ref.ReleaseID,
+			Release: document.Release, Attestation: document.Attestation,
+		}, nil
+	}
+
+	requestURL := endpointFrom(client.base, "v1", "install-intents", ref.InstallIntentID)
+	request, err := client.newGET(ctx, requestURL, "application/json")
 	if err != nil {
 		return resolved, err
-	}
-	request.Header.Set("Accept", "application/json")
-	if client.authorize != nil {
-		if err := client.authorize(request); err != nil {
-			return resolved, fmt.Errorf("authorize marketplace request: %w", err)
-		}
 	}
 	response, err := client.http.Do(request)
 	if err != nil {
@@ -99,14 +152,8 @@ func (client *Client) ResolveInstallIntent(ctx context.Context, ref InstallInten
 	if response.StatusCode != http.StatusOK {
 		return resolved, fmt.Errorf("marketplace install intent returned HTTP %d", response.StatusCode)
 	}
-	decoder := json.NewDecoder(io.LimitReader(response.Body, maxReleaseResponseSize+1))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&resolved); err != nil {
+	if err := decodeBoundedJSON(response.Body, &resolved); err != nil {
 		return ResolvedInstallIntent{}, fmt.Errorf("decode marketplace install intent: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		return ResolvedInstallIntent{}, fmt.Errorf("marketplace install intent contains trailing data")
 	}
 	if resolved.SchemaVersion != 1 || resolved.InstallIntentID != ref.InstallIntentID || resolved.FlowID != ref.FlowID || resolved.ReleaseID != ref.ReleaseID {
 		return ResolvedInstallIntent{}, fmt.Errorf("marketplace install intent identity does not match the deep link")
@@ -119,7 +166,6 @@ func (client *Client) ResolveInstallIntent(ctx context.Context, ref InstallInten
 	}
 	return resolved, nil
 }
-
 func (client *Client) DownloadArtifact(ctx context.Context, release Release, tempRoot string) (string, func(), error) {
 	if client == nil {
 		return "", nil, fmt.Errorf("marketplace client is unavailable")
@@ -127,7 +173,10 @@ func (client *Client) DownloadArtifact(ctx context.Context, release Release, tem
 	if err := release.ValidateInstallable(); err != nil {
 		return "", nil, err
 	}
-	requestURL := client.endpoint("v1", "releases", release.ReleaseID, "artifact")
+	requestURL, err := client.artifactURL(release)
+	if err != nil {
+		return "", nil, err
+	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		return "", nil, err
@@ -190,8 +239,51 @@ func (client *Client) DownloadArtifact(ctx context.Context, release Release, tem
 	return filePath, cleanup, nil
 }
 
-func (client *Client) endpoint(segments ...string) string {
-	copyURL := *client.base
+func (client *Client) newGET(ctx context.Context, requestURL, accept string) (*http.Request, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Accept", accept)
+	if client.authorize != nil {
+		if err := client.authorize(request); err != nil {
+			return nil, fmt.Errorf("authorize marketplace request: %w", err)
+		}
+	}
+	return request, nil
+}
+
+func decodeBoundedJSON(reader io.Reader, target any) error {
+	decoder := json.NewDecoder(io.LimitReader(reader, maxReleaseResponseSize+1))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return fmt.Errorf("marketplace response contains trailing data")
+	}
+	return nil
+}
+
+func parseDistributionBaseURL(raw string, allowLoopback bool) (*url.URL, error) {
+	base, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || base.Scheme == "" || base.Host == "" || base.User != nil || base.Fragment != "" || base.RawQuery != "" {
+		return nil, fmt.Errorf("URL must be an absolute origin or path prefix")
+	}
+	if base.Scheme != "https" {
+		if !allowLoopback || base.Scheme != "http" || !isLoopbackHost(base.Hostname()) {
+			return nil, fmt.Errorf("URL must use HTTPS")
+		}
+	}
+	if strings.Contains(base.EscapedPath(), "\\") {
+		return nil, fmt.Errorf("URL path is invalid")
+	}
+	return base, nil
+}
+
+func endpointFrom(base *url.URL, segments ...string) string {
+	copyURL := *base
 	parts := append([]string{strings.TrimSuffix(copyURL.Path, "/")}, segments...)
 	copyURL.Path = path.Join(parts...)
 	if !strings.HasPrefix(copyURL.Path, "/") {
@@ -201,6 +293,35 @@ func (client *Client) endpoint(segments ...string) string {
 	copyURL.RawQuery = ""
 	copyURL.Fragment = ""
 	return copyURL.String()
+}
+
+func (client *Client) artifactURL(release Release) (string, error) {
+	if release.SchemaVersion == 1 {
+		if client.resolver != ResolverDynamic {
+			return "", fmt.Errorf("marketplace static resolver requires a v2 signed artifact location")
+		}
+		return endpointFrom(client.base, "v1", "releases", release.ReleaseID, "artifact"), nil
+	}
+	location := strings.TrimSpace(release.ArtifactLocation)
+	parsed, err := url.Parse(location)
+	if err != nil {
+		return "", fmt.Errorf("marketplace artifact location is invalid")
+	}
+	if parsed.IsAbs() {
+		absolute, err := parseDistributionBaseURL(location, client.allowLoopback)
+		if err != nil {
+			return "", fmt.Errorf("marketplace artifact location is not an approved network URL: %w", err)
+		}
+		return absolute.String(), nil
+	}
+	if location == "" || strings.HasPrefix(location, "/") || strings.Contains(location, "\\") || parsed.Host != "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Path != location {
+		return "", fmt.Errorf("marketplace artifact location must be a canonical relative path or absolute approved URL")
+	}
+	clean := path.Clean(location)
+	if clean != location || clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
+		return "", fmt.Errorf("marketplace artifact location escapes its configured prefix")
+	}
+	return endpointFrom(client.artifactBase, strings.Split(clean, "/")...), nil
 }
 
 func isLoopbackHost(host string) bool {

@@ -38,12 +38,14 @@ type Release struct {
 	FlowID                         string            `json:"flowId"`
 	FlowName                       string            `json:"flowName"`
 	ReleaseID                      string            `json:"releaseId"`
+	MetadataRevision               int               `json:"metadataRevision,omitempty"`
 	Version                        string            `json:"version"`
 	PublisherID                    string            `json:"publisherId"`
 	PublisherSigningKeyID          string            `json:"publisherSigningKeyId"`
 	PublisherSigningKeyFingerprint string            `json:"publisherSigningKeyFingerprint"`
 	ArtifactDigest                 string            `json:"artifactDigest"`
 	ArtifactSize                   int64             `json:"artifactSize"`
+	ArtifactLocation               string            `json:"artifactLocation,omitempty"`
 	MinimumOpenDeskVersion         string            `json:"minimumOpenDeskVersion"`
 	PublishedAt                    string            `json:"publishedAt"`
 	ReleaseStatus                  ReleaseStatus     `json:"releaseStatus"`
@@ -53,7 +55,19 @@ type Release struct {
 }
 
 func (release Release) Validate() error {
-	if release.SchemaVersion != 1 {
+	switch release.SchemaVersion {
+	case 1:
+		if release.MetadataRevision != 0 || release.ArtifactLocation != "" {
+			return fmt.Errorf("marketplace release v1 cannot carry static distribution fields")
+		}
+	case 2:
+		if release.MetadataRevision < 1 || release.MetadataRevision > 1_000_000_000 {
+			return fmt.Errorf("marketplace release metadataRevision is invalid")
+		}
+		if strings.TrimSpace(release.ArtifactLocation) != release.ArtifactLocation || release.ArtifactLocation == "" || len(release.ArtifactLocation) > 2048 || strings.ContainsAny(release.ArtifactLocation, "\r\n\x00") {
+			return fmt.Errorf("marketplace release artifactLocation is invalid")
+		}
+	default:
 		return fmt.Errorf("marketplace release schema version is unsupported")
 	}
 	for name, value := range map[string]string{
@@ -121,12 +135,14 @@ type releaseAttestationClaims struct {
 	MarketplaceID                  string            `json:"marketplaceId"`
 	FlowID                         string            `json:"flowId"`
 	ReleaseID                      string            `json:"releaseId"`
+	MetadataRevision               int               `json:"metadataRevision,omitempty"`
 	Version                        string            `json:"version"`
 	PublisherID                    string            `json:"publisherId"`
 	PublisherSigningKeyID          string            `json:"publisherSigningKeyId"`
 	PublisherSigningKeyFingerprint string            `json:"publisherSigningKeyFingerprint"`
 	ArtifactDigest                 string            `json:"artifactDigest"`
 	ArtifactSize                   int64             `json:"artifactSize"`
+	ArtifactLocation               string            `json:"artifactLocation,omitempty"`
 	MinimumOpenDeskVersion         string            `json:"minimumOpenDeskVersion"`
 	PublishedAt                    string            `json:"publishedAt"`
 	ReleaseStatus                  ReleaseStatus     `json:"releaseStatus"`
@@ -137,12 +153,16 @@ type releaseAttestationClaims struct {
 }
 
 func ReleaseAttestationMessage(release Release, attestation ReleaseAttestation) ([]byte, error) {
+	if release.SchemaVersion != attestation.SchemaVersion || (release.SchemaVersion != 1 && release.SchemaVersion != 2) {
+		return nil, fmt.Errorf("marketplace release and attestation schema versions do not match")
+	}
 	claims := releaseAttestationClaims{
 		SchemaVersion: attestation.SchemaVersion, RootKeyID: attestation.RootKeyID, Usage: attestation.Usage,
 		MarketplaceID: release.MarketplaceID, FlowID: release.FlowID, ReleaseID: release.ReleaseID,
-		Version: release.Version, PublisherID: release.PublisherID, PublisherSigningKeyID: release.PublisherSigningKeyID,
+		MetadataRevision: release.MetadataRevision, Version: release.Version,
+		PublisherID: release.PublisherID, PublisherSigningKeyID: release.PublisherSigningKeyID,
 		PublisherSigningKeyFingerprint: release.PublisherSigningKeyFingerprint,
-		ArtifactDigest: release.ArtifactDigest, ArtifactSize: release.ArtifactSize,
+		ArtifactDigest: release.ArtifactDigest, ArtifactSize: release.ArtifactSize, ArtifactLocation: release.ArtifactLocation,
 		MinimumOpenDeskVersion: release.MinimumOpenDeskVersion, PublishedAt: release.PublishedAt,
 		ReleaseStatus: release.ReleaseStatus, EntitlementPolicy: release.EntitlementPolicy,
 		UpdateChannel: release.UpdateChannel, VerifiedPublisher: release.VerifiedPublisher, ExpiresAt: attestation.ExpiresAt,
@@ -151,19 +171,17 @@ func ReleaseAttestationMessage(release Release, attestation ReleaseAttestation) 
 	if err != nil {
 		return nil, err
 	}
-	return append([]byte("OpenDeskMarketplaceReleaseAttestation/v1\x00"), data...), nil
+	prefix := "OpenDeskMarketplaceReleaseAttestation/v1\x00"
+	if release.SchemaVersion == 2 {
+		prefix = "OpenDeskMarketplaceReleaseAttestation/v2\x00"
+	}
+	return append([]byte(prefix), data...), nil
 }
-
-type ReleaseVerifier struct {
-	Roots map[string]ed25519.PublicKey
-	Now   func() time.Time
-}
-
 func (verifier ReleaseVerifier) Verify(release Release, attestation ReleaseAttestation) error {
 	if err := release.ValidateInstallable(); err != nil {
 		return err
 	}
-	if attestation.SchemaVersion != 1 || attestation.Usage != releaseAttestationUsage || !marketplaceIdentifierPattern.MatchString(attestation.RootKeyID) {
+	if attestation.SchemaVersion != release.SchemaVersion || (attestation.SchemaVersion != 1 && attestation.SchemaVersion != 2) || attestation.Usage != releaseAttestationUsage || !marketplaceIdentifierPattern.MatchString(attestation.RootKeyID) {
 		return fmt.Errorf("marketplace release attestation metadata is invalid")
 	}
 	root := verifier.Roots[attestation.RootKeyID]
