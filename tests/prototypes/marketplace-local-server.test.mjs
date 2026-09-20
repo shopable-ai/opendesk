@@ -5,7 +5,7 @@ import {mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile} from 'node:fs
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {releaseAttestationMessage, startLocalMarketplaceServer} from './tools/marketplace-local-server.mjs';
+import {prepareLocalMarketplaceSite, releaseAttestationMessage, startLocalMarketplaceServer} from './tools/marketplace-local-server.mjs';
 
 const sha256 = data => createHash('sha256').update(data).digest('hex');
 
@@ -79,7 +79,7 @@ test('Node static publisher uses the exact Go Release v2 attestation bytes', () 
     verifiedPublisher: false,
   };
   const attestation = {schemaVersion: 2, rootKeyId: 'root', usage: 'flow-marketplace-release', expiresAt: '2026-09-21T00:00:00Z'};
-  const expected = 'OpenDeskMarketplaceReleaseAttestation/v2\\0'
+  const expected = 'OpenDeskMarketplaceReleaseAttestation/v2\0'
     + '{"schemaVersion":2,"rootKeyId":"root","usage":"flow-marketplace-release","marketplaceId":"market","flowId":"flow.demo","flowName":"Demo","releaseId":"release-1","metadataRevision":3,"version":"1.2.3","publisherId":"publisher","publisherSigningKeyId":"publisher-key","publisherSigningKeyFingerprint":"'
     + 'a'.repeat(64) + '","artifactDigest":"' + 'b'.repeat(64)
     + '","artifactSize":42,"artifactLocation":"flows/flow.demo/release-1/demo.odflow","minimumOpenDeskVersion":"2.0.1","publishedAt":"2026-09-20T00:00:00Z","releaseStatus":"published","entitlementPolicy":"free","updateChannel":"stable","expiresAt":"2026-09-21T00:00:00Z"}';
