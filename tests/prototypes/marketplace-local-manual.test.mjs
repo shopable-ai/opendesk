@@ -62,3 +62,10 @@ test('manual Marketplace helper exposes a real cold-start receiver check and sel
   assert.match(helperSource, /session\.configPath/);
   assert.match(helperSource, /mode: 'cold'/);
 });
+
+test('manual Marketplace run exposes development-session expiry and clears it on startup failure', () => {
+  assert.match(helperSource, /developmentSession: \{sessionId: server\.ready\.sessionId, expiresAt: server\.ready\.expiresAt\}/);
+  assert.match(helperSource, /Development session expires: \$\{run\.developmentSession\.expiresAt\}/);
+  assert.match(helperSource, /Cold-start check: node tests\/prototypes\/tools\/marketplace-local-manual\.mjs --cold-start-check/);
+  assert.match(helperSource, /sessionCleared=\$\{clearedSession\}/);
+});
