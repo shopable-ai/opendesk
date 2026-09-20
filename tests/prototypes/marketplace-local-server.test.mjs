@@ -42,7 +42,24 @@ test('local Marketplace prepares one same-site static page, signed release and r
   assert.match(page, /Notify Demo/);
   assert.doesNotMatch(page, /\/local-smoke\/status/);
 
+  const bindingMatch = /<script type="application\\/json" id="opendesk-marketplace-release">([^<]+)<\\/script>/.exec(page);
+  assert.ok(bindingMatch, 'prepared Marketplace page must contain the generated release binding');
+  const binding = JSON.parse(bindingMatch[1]);
+
   const document = await (await fetch(running.releaseURL)).json();
+  assert.equal(binding.flowId, document.release.flowId);
+  assert.equal(binding.releaseId, document.release.releaseId);
+  assert.equal(binding.catalogItem.name, document.release.flowName);
+  assert.equal(binding.catalogItem.version, document.release.version);
+  assert.equal(binding.catalogItem.publisherId, document.release.publisherId);
+  assert.equal(binding.catalogItem.signingKeyId, document.release.publisherSigningKeyId);
+  const deepLink = new URL(binding.deepLink);
+  assert.equal(deepLink.protocol, 'opendesk:');
+  assert.equal(deepLink.hostname, 'install');
+  assert.equal(deepLink.pathname, '/flow/' + document.release.flowId);
+  assert.equal(deepLink.searchParams.get('release'), document.release.releaseId);
+  assert.equal(deepLink.searchParams.get('intent'), binding.intentId);
+
   assert.equal(document.schemaVersion, 1);
   assert.equal(document.release.schemaVersion, 2);
   assert.equal(document.release.flowId, 'com.example.opendesk.notify-demo');
@@ -72,6 +89,8 @@ test('local Marketplace prepares one same-site static page, signed release and r
   assert.equal(config.appDataRoot, appDataRoot);
 
   assert.deepEqual((await readdir(siteRoot)).sort(), ['flows', 'index.html', 'local-deep-link-smoke.html']);
+  assert.deepEqual((await readdir(path.join(siteRoot, 'flows', document.release.flowId, document.release.releaseId))).sort(),
+    ['notify-demo.odflow', 'release.json']);
 
   const generic = await startGenericStaticServer(siteRoot);
   t.after(() => new Promise(resolve => generic.server.close(resolve)));
