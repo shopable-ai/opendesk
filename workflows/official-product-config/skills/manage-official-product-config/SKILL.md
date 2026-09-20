@@ -67,6 +67,21 @@ System.product.website
 
 它是只读投影，不是第二个维护源。
 
+### Flow 分发配置
+
+`flowDistribution` 仍属于同一 publisher-owned、language-neutral 产品配置 owner，只允许保存：
+
+```text
+resolver
+metadataBaseUrl
+artifactBaseUrl
+releaseRoots
+```
+
+production URL 必须为 HTTPS 目录前缀；releaseRoots 只能是公开 Ed25519 roots，禁止私钥、token、Cookie 或账号凭证。当前没有正式发布地址/root 时保持字段缺失并 fail closed，不能编造 production 值。HTTP loopback 只允许通过 Marketplace 明确的本地开发配置，不写入 `configs/product.json`。
+
+Marketplace Release/协议/下载位置签名的详细合同由 `docs/architecture/execution/flow-marketplace.md` 维护；本 Skill 只负责产品配置 owner、编译和读取链一致性。
+
 ## 编译合同
 
 官方发行路径：
@@ -184,6 +199,7 @@ macOS / Windows staging use the same generated product resource contract
 Product source: pass/fail
 Old basename cleanup: pass/fail
 System.product.website: pass/fail
+flowDistribution schema/native client: pass/fail/not configured
 ODCFG compile/inspect/verify: pass/fail
 Script Runner title: pass/fail/not run
 Recorder title: pass/fail/not run

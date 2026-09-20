@@ -38,7 +38,7 @@ locale / i18n provider
 
 仓库已经存在 `apps/opendesk/opendesk.app.json`，它是真正的 App package manifest，因此不能再使用含义过宽且容易冲突的 `app.json` / `app-config.json`。
 
-`configs/product.json` 表示 OpenDesk 自身的产品级、发行方拥有的静态运营配置。当前 schema 只有 `actions`，但文件名不再把实现永久绑定在“只有 action”这一种字段上。
+`configs/product.json` 表示 OpenDesk 自身的产品级、发行方拥有的静态运营配置。当前 schema 包含 `actions`、可选 `analytics`，以及可选 `flowDistribution`。`flowDistribution` 只保存语言无关的发布网络前缀、resolver 选择和公开 Release trust roots；具体 Marketplace 安装协议与 Release 合同仍由 `docs/architecture/execution/flow-marketplace.md` 维护。
 
 边界必须保持：
 
@@ -106,6 +106,28 @@ System.product.website
 
 Script Runner、Recorder、Tray 或其他官方品牌入口不得重新硬编码官网 URL。
 
+## Flow 分发配置边界
+
+`flowDistribution` 是可选产品配置。当前字段：
+
+```text
+resolver
+metadataBaseUrl
+artifactBaseUrl
+releaseRoots
+```
+
+规则：
+
+- production `metadataBaseUrl` / `artifactBaseUrl` 只接受 HTTPS 目录前缀；
+- `artifactBaseUrl` 为空时由客户端沿用 metadata 前缀；
+- `releaseRoots` 只保存公开 Ed25519 root，不保存私钥、token 或账号凭证；
+- Deep Link、HTML、环境变量不能覆盖这些 production trust/network roots；
+- 当前仓库没有正式生产发布地址和可信 root，因此维护源中不配置 `flowDistribution`，Native Marketplace client 明确 fail closed；
+- 本地 loopback 例外由站点外的受限开发配置管理，不写回 `configs/product.json`。
+
+静态 Release v2、同站点开发目录和安装安全边界只在 [Flow Marketplace 整体方案](../../docs/architecture/execution/flow-marketplace.md) 中维护，不在本工作流重复定义。
+
 ## 编译与验证
 
 从仓库根目录：
@@ -171,6 +193,7 @@ Official Shell 固定 basename 为 `product`：
 configs/product.json
 -> config compile / inspect / verify
 -> System.product.website derivation
+-> flowDistribution schema / generated resource / native client construction
 -> Official Shell parser / fallback tests
 -> Script Runner / Recorder product integration
 -> App Mode runtime-file manifest
@@ -208,6 +231,7 @@ source validation
 ODCFG compile / inspect / verify
 Runtime load
 System.product.website derivation
+flowDistribution schema / generated resource / native client construction
 Script Runner title / product actions
 Recorder title / product actions
 App Mode payload
