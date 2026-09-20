@@ -53,6 +53,8 @@ test('local Marketplace prepares one same-site static page, signed release and r
   assert.equal(binding.catalogItem.version, document.release.version);
   assert.equal(binding.catalogItem.publisherId, document.release.publisherId);
   assert.equal(binding.catalogItem.signingKeyId, document.release.publisherSigningKeyId);
+  assert.equal(binding.catalogItem.minimumOpenDeskVersion, document.release.minimumOpenDeskVersion);
+  assert.deepEqual(binding.catalogItem.platforms, document.release.platforms || binding.catalogItem.platforms);
   const deepLink = new URL(binding.deepLink);
   assert.equal(deepLink.protocol, 'opendesk:');
   assert.equal(deepLink.hostname, 'install');
