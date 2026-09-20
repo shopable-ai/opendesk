@@ -119,7 +119,7 @@ releaseRoots
 
 规则：
 
-- production `metadataBaseUrl` / `artifactBaseUrl` 只接受 HTTPS 目录前缀；
+- production `metadataBaseUrl` / `artifactBaseUrl` 只接受公开网络上的 HTTPS 目录前缀；localhost、私有/链路本地地址和单标签内网主机必须拒绝；
 - `artifactBaseUrl` 为空时由客户端沿用 metadata 前缀；
 - `releaseRoots` 只保存公开 Ed25519 root，不保存私钥、token 或账号凭证；
 - Deep Link、HTML、环境变量不能覆盖这些 production trust/network roots；

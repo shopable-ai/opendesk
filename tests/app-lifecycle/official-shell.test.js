@@ -126,6 +126,40 @@ test('validateConfig rejects non-HTTPS URLs and hidden core actions', () => {
   assert.deepEqual(Shell.validateConfig(config()), config());
 });
 
+
+test('flowDistribution accepts only public production HTTPS prefixes and public release roots', () => {
+  const root = '00'.repeat(32);
+  const valid = {
+    ...config(),
+    flowDistribution: {
+      resolver: 'static',
+      metadataBaseUrl: 'https://downloads.example.test/opendesk/',
+      artifactBaseUrl: 'https://cdn.example.test/flows/',
+      releaseRoots: {'release-root-1': root},
+    },
+  };
+  assert.deepEqual(Shell.validateConfig(valid), valid);
+
+  for (const metadataBaseUrl of [
+    'http://127.0.0.1:51807/',
+    'https://127.0.0.1/',
+    'https://10.0.0.1/',
+    'https://192.168.1.5/',
+    'https://[::1]/',
+    'https://localhost/',
+    'https://printer.local/',
+    'https://intranet/',
+  ]) {
+    assert.throws(() => Shell.validateConfig({
+      ...valid,
+      flowDistribution: {...valid.flowDistribution, metadataBaseUrl},
+    }), /metadataBaseUrl/);
+  }
+  assert.throws(() => Shell.validateConfig({
+    ...valid,
+    flowDistribution: {...valid.flowDistribution, releaseRoots: {'release-root-1': '00'}},
+  }), /release root/);
+});
 test('validateConfig rejects missing actions, unknown actions and unknown fields', () => {
   const missing = config();
   delete missing.actions.upgrade;

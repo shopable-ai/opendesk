@@ -113,6 +113,35 @@
     });
   }
 
+  function isPublicFlowDistributionPrefix(candidate) {
+    const value = String(candidate || '').trim();
+    if (!/^https:\/\/[^\s/?#\\]+(?:\/[^\s?#\\]*)?\/$/.test(value)) return false;
+    const authority = value.slice('https://'.length).split('/')[0];
+    let host = authority;
+    if (host.startsWith('[')) {
+      const end = host.indexOf(']');
+      if (end < 0) return false;
+      host = host.slice(1, end).toLowerCase();
+      if (host === '::' || host === '::1' || /^f[cd]/i.test(host) || /^fe[89ab]/i.test(host)) return false;
+      return true;
+    }
+    const colon = host.lastIndexOf(':');
+    if (colon >= 0) host = host.slice(0, colon);
+    host = host.toLowerCase().replace(/\.$/, '');
+    if (!host || host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return false;
+    const parts = host.split('.');
+    if (parts.length === 4 && parts.every(part => /^\d{1,3}$/.test(part) && Number(part) <= 255)) {
+      const bytes = parts.map(Number);
+      if (bytes[0] === 0 || bytes[0] === 10 || bytes[0] === 127 || bytes[0] >= 224) return false;
+      if (bytes[0] === 100 && bytes[1] >= 64 && bytes[1] <= 127) return false;
+      if (bytes[0] === 169 && bytes[1] === 254) return false;
+      if (bytes[0] === 172 && bytes[1] >= 16 && bytes[1] <= 31) return false;
+      if (bytes[0] === 192 && bytes[1] === 168) return false;
+      return true;
+    }
+    return host.includes('.');
+  }
+
   function validateFlowDistribution(value) {
     if (value == null) return null;
     requireExactFields(value, ['resolver', 'metadataBaseUrl', 'artifactBaseUrl', 'releaseRoots'], 'official shell flowDistribution config');
@@ -120,7 +149,7 @@
     const metadataBaseUrl = String(value.metadataBaseUrl || '').trim();
     const artifactBaseUrl = String(value.artifactBaseUrl || '').trim();
     if (!['static', 'dynamic'].includes(resolver)) throw new Error('official shell flowDistribution resolver is invalid');
-    const validPrefix = candidate => /^https:\/\/[^\s/?#\\]+(?:\/[^\s?#\\]*)?\/$/.test(candidate)
+    const validPrefix = candidate => isPublicFlowDistributionPrefix(candidate)
       && !candidate.split('/').some(part => part === '.' || part === '..');
     if (!validPrefix(metadataBaseUrl)) throw new Error('official shell flowDistribution metadataBaseUrl must be an https URL prefix ending in /');
     if (artifactBaseUrl && !validPrefix(artifactBaseUrl)) throw new Error('official shell flowDistribution artifactBaseUrl must be an https URL prefix ending in /');
