@@ -107,6 +107,9 @@ func TestMarketplaceDevelopmentPrivateLogRejectsPublicAndSymlinkedPaths(t *testi
 	if err != nil || resolved != valid {
 		t.Fatalf("private log path result=%q err=%v", resolved, err)
 	}
+	if _, err := validateMarketplaceDevelopmentPrivateFilePath(configPath, configPath, "logFile"); err == nil || !strings.Contains(err.Error(), "must not overwrite") {
+		t.Fatalf("config overwrite log path error = %v", err)
+	}
 
 	public := filepath.Join(root, "site", "receiver.log")
 	if _, err := validateMarketplaceDevelopmentPrivateFilePath(configPath, public, "logFile"); err == nil || !strings.Contains(err.Error(), "outside the public site") {
