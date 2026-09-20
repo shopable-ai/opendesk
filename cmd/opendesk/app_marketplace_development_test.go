@@ -98,6 +98,30 @@ func TestMarketplaceDevelopmentConfigRejectsSymlink(t *testing.T) {
 	}
 }
 
+func TestMarketplaceDevelopmentPrivateLogRejectsPublicAndSymlinkedPaths(t *testing.T) {
+	configPath, _ := writeMarketplaceDevelopmentConfig(t, nil)
+	root := filepath.Dir(configPath)
+
+	valid := filepath.Join(root, "receiver.log")
+	resolved, err := validateMarketplaceDevelopmentPrivateFilePath(configPath, valid, "logFile")
+	if err != nil || resolved != valid {
+		t.Fatalf("private log path result=%q err=%v", resolved, err)
+	}
+
+	public := filepath.Join(root, "site", "receiver.log")
+	if _, err := validateMarketplaceDevelopmentPrivateFilePath(configPath, public, "logFile"); err == nil || !strings.Contains(err.Error(), "outside the public site") {
+		t.Fatalf("public log path error = %v", err)
+	}
+
+	alias := filepath.Join(root, "private-alias")
+	if err := os.Symlink(filepath.Join(root, "site"), alias); err != nil {
+		t.Skipf("cannot create log parent symlink: %v", err)
+	}
+	if _, err := validateMarketplaceDevelopmentPrivateFilePath(configPath, filepath.Join(alias, "receiver.log"), "logFile"); err == nil || !strings.Contains(err.Error(), "outside the public site") {
+		t.Fatalf("symlinked public log path error = %v", err)
+	}
+}
+
 func TestMarketplaceDevelopmentSessionRoundTripAndTamperRejection(t *testing.T) {
 	sessionRoot := filepath.Join(t.TempDir(), "persistent")
 	configPath, appData := writeMarketplaceDevelopmentConfig(t, nil)
