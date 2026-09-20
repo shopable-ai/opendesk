@@ -254,7 +254,9 @@ async function startServer(runDirectory) {
     child.stderr.destroy();
     child.unref();
     await new Promise(resolve => serverLog.end(resolve));
-    return {child, serverLogPath, configPath, appData, siteRoot, appLogPath, requestLogPath, appRuntimeLogDir, ready};
+    const identity = processIdentity(child.pid);
+    if (!identity.startedAt) throw new Error('could not record the local Marketplace server process identity');
+    return {child, startedAt: identity.startedAt, serverLogPath, configPath, appData, siteRoot, appLogPath, requestLogPath, appRuntimeLogDir, ready};
   } catch (error) {
     child.kill('SIGTERM');
     child.stdout.destroy();
@@ -267,7 +269,7 @@ async function startServer(runDirectory) {
 function findRecordedOpenDeskProcess(configPath) {
   const marker = `-marketplace-development-config ${configPath}`;
   const process = runningProcesses().find(value => value.command.includes(EXECUTABLE) && value.command.includes(marker));
-  return process ? {pid: process.pid, command: process.command} : undefined;
+  return process ? processIdentity(process.pid) : undefined;
 }
 
 async function startOpenDesk(configPath, appData, appLogPath, appRuntimeLogDir) {
@@ -288,7 +290,7 @@ async function startOpenDesk(configPath, appData, appLogPath, appRuntimeLogDir) 
     await waitFor(() => logContains(appLogPath, '[MARKETPLACE_INSTALL] receiver-ready'), 'OpenDesk development receiver did not become ready');
     return app;
   } catch (error) {
-    if (app) await stopRecordedProcess(app.pid, [EXECUTABLE, configPath]).catch(() => {});
+    if (app) await stopRecordedProcess(app.pid, [EXECUTABLE, configPath], app.startedAt).catch(() => {});
     throw error;
   }
 }
@@ -304,11 +306,22 @@ function processCommand(pid) {
   return result.status === 0 ? result.stdout.trim() : '';
 }
 
-async function stopRecordedProcess(pid, markers) {
-  if (!Number.isInteger(pid) || pid < 1) return;
+function processIdentity(pid) {
+  if (!Number.isInteger(pid) || pid < 1) return {pid, command: '', startedAt: ''};
   const command = processCommand(pid);
-  if (!command) return;
-  if (!markers.every(marker => command.includes(marker))) {
+  if (!command) return {pid, command: '', startedAt: ''};
+  const started = commandOutput('/bin/ps', ['-p', String(pid), '-o', 'lstart=']);
+  return {pid, command, startedAt: started.status === 0 ? started.stdout.trim() : ''};
+}
+
+async function stopRecordedProcess(pid, markers, expectedStartedAt = '') {
+  if (!Number.isInteger(pid) || pid < 1) return;
+  const identity = processIdentity(pid);
+  if (!identity.command) return;
+  if (expectedStartedAt && identity.startedAt !== expectedStartedAt) {
+    throw new Error(`refusing to stop pid ${pid}: its process start identity no longer matches this recorded run`);
+  }
+  if (!markers.every(marker => identity.command.includes(marker))) {
     throw new Error(`refusing to stop pid ${pid}: its current command no longer matches this recorded run`);
   }
   process.kill(pid, 'SIGTERM');
@@ -322,8 +335,8 @@ export async function cleanupRun(runDirectory) {
   const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
   if (metadata.runDirectory !== resolved || !metadata.server || !metadata.app) throw new Error('run.json is not a valid manual Marketplace run record');
   const appMarkers = metadata.app.mode === 'cold' ? [EXECUTABLE] : [EXECUTABLE, metadata.configPath];
-  await stopRecordedProcess(metadata.app.pid, appMarkers);
-  await stopRecordedProcess(metadata.server.pid, [SERVER_SCRIPT, metadata.configPath]);
+  await stopRecordedProcess(metadata.app.pid, appMarkers, metadata.app.startedAt);
+  await stopRecordedProcess(metadata.server.pid, [SERVER_SCRIPT, metadata.configPath], metadata.server.startedAt);
   const clearedSession = await clearDevelopmentSessionForConfig(metadata.configPath);
   await appendFile(path.join(resolved, 'supervisor.log'), `cleanup completed at ${new Date().toISOString()} sessionCleared=${clearedSession}\n`, {mode: 0o600});
 }
@@ -356,8 +369,8 @@ export async function startManualRun() {
       deepLink: server.ready.deepLink,
       developmentSession: {sessionId: server.ready.sessionId, expiresAt: server.ready.expiresAt},
       siteRoot: server.siteRoot,
-      server: {pid: server.child.pid, log: server.serverLogPath, requestLog: server.requestLogPath},
-      app: {pid: app.pid, log: server.appLogPath, runtimeLogDir: server.appRuntimeLogDir, mode: 'warm'},
+      server: {pid: server.child.pid, startedAt: server.startedAt, log: server.serverLogPath, requestLog: server.requestLogPath},
+      app: {pid: app.pid, startedAt: app.startedAt, log: server.appLogPath, runtimeLogDir: server.appRuntimeLogDir, mode: 'warm'},
     };
     await writeJSON(path.join(runDirectory, 'run.json'), metadata);
     // This non-installing parser rejection proves LaunchServices can deliver
@@ -370,7 +383,7 @@ export async function startManualRun() {
     return metadata;
   } catch (error) {
     if (app) await stopRecordedProcess(app.pid, [EXECUTABLE, server.configPath]).catch(() => {});
-    await stopRecordedProcess(server.child.pid, [SERVER_SCRIPT, server.configPath]).catch(() => {});
+    await stopRecordedProcess(server.child.pid, [SERVER_SCRIPT, server.configPath], server.startedAt).catch(() => {});
     const clearedSession = await clearDevelopmentSessionForConfig(server.configPath).catch(() => false);
     await appendFile(supervisorLog, `failed at ${new Date().toISOString()} sessionCleared=${clearedSession}\n${error.stack || error}\n`, {mode: 0o600});
     throw error;
@@ -391,19 +404,19 @@ export async function coldStartCheck(runDirectory) {
   }
 
   const appMarkers = metadata.app.mode === 'cold' ? [EXECUTABLE] : [EXECUTABLE, metadata.configPath];
-  await stopRecordedProcess(metadata.app.pid, appMarkers);
+  await stopRecordedProcess(metadata.app.pid, appMarkers, metadata.app.startedAt);
   await waitFor(() => !runningProcesses().some(value => value.command.includes(EXECUTABLE)), 'OpenDesk bundle still has a running process before cold-start check');
 
   const offset = await logSize(metadata.app.log);
   directOpen(`${metadata.deepLink}&unsupported=1`, BUNDLE);
   const coldProcess = await waitFor(() => {
     const found = runningProcesses().find(value => value.command.includes(EXECUTABLE));
-    return found ? {pid: found.pid, command: found.command} : undefined;
+    return found ? processIdentity(found.pid) : undefined;
   }, 'LaunchServices did not cold-start the OpenDesk bundle');
   await waitFor(() => logContainsAfter(metadata.app.log, offset, '[MARKETPLACE_INSTALL] development session restored'), 'cold-started OpenDesk did not restore the approved Marketplace development session');
   await waitFor(() => logContainsAfter(metadata.app.log, offset, '[MARKETPLACE_INSTALL] rejected invalid install intent'), 'cold-started OpenDesk did not receive the LaunchServices URL');
 
-  metadata.app = {...metadata.app, pid: coldProcess.pid, mode: 'cold'};
+  metadata.app = {...metadata.app, pid: coldProcess.pid, startedAt: coldProcess.startedAt, mode: 'cold'};
   metadata.coldStartCheckedAt = new Date().toISOString();
   await writeJSON(metadataPath, metadata);
   await appendFile(path.join(resolved, 'supervisor.log'), `cold-start check passed at ${metadata.coldStartCheckedAt} pid=${coldProcess.pid}\n`, {mode: 0o600});
