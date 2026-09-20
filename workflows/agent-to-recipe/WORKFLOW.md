@@ -15,13 +15,15 @@ Agent-to-Recipe 的核心目标不是“把桌面操作记录下来”，而是�
 
 主链只保留下面八组阶段；后面的 handoff、validator、API 阅读和测试说明都服务于这条主链，不应反过来淹没它。
 
+开发时：S1 合同／计划 → S2 应用认识 → S3—S6 真实示范／留证 → S7 必要步骤 → S8—S9 业务过程／数据关系 → S10 补强或复用规则 → S11 普通 JS／候选 → S12 独立资格／交付。业务运行时消费已交付的普通 JS，不重新走十二阶段；循环与失败回流见交接审阅地图和完整任务树。
+
 | 阶段 | 这一阶段解决什么 | 主要输入 | 主要输出 | 怎么判断做对；失败回哪里 |
 | --- | --- | --- | --- | --- |
 | **S1｜明确任务与制定计划** `automation-plan` | 把用户真正要完成的业务任务、限制、授权和成功标准说清楚，并形成可执行计划 | 用户原始要求、已有材料、业务输入、授权、限制 | **TaskContract + WorkPlan** | 要求不能遗漏或被改写；计划不能越权；会推翻后续路线的高影响 Unknown 要尽早暴露。目标／授权／计划错误回 S1，不改写用户原始来源 |
 | **S2｜认识应用与核查关键可行性** `application-engineer / discover` | 只认识“下一步安全推进所必需”的应用、窗口、目标、读取和前提，不从零研究整个软件 | TaskContract、当前 WorkPlan、可复用旧资料、必要现场观察 | **最小 AppProfile**，或对仍有效旧版本的精确引用 | 后续必须操作和读取的对象要有依据；“认识界面”不等于“已允许点击”。应用资料不足回应用工程；路线不可行或授权冲突回 S1 |
 | **S3—S6｜真实示范、逐步验证与同步留证** `task-demonstrate` | 在真实任务中执行、观察、验证，保存“实际发生了什么”，而不是只保存预期 | 固定 TaskContract、实际生效的 WorkPlan、AppProfile、获准业务输入 | **DemonstrationDossier + Raw Trace / Evidence** | 必须区分 planned / actual，保存真实动作、观察、业务值、消费者、验证和副作用状态。缺历史事实只能定向补采，不能事后编造 |
 | **S7｜提炼必要步骤** `trace-distill` | 从真实轨迹中去掉探索噪声，但保留真正必要的准备、动作、读取、验证和数据依赖 | 固定合同／计划、Dossier、Raw Trace、必要 Evidence | **DistilledSteps** | 每个原动作都要有 retain / merge / omit / recovery / unresolved 处置及依据；真实消费者关系不能丢。取舍错回 S7，事实不足回 S3—S6 |
-| **S8—S9｜形成业务过程与数据关系** `procedure-synthesize` | 把必要步骤变成稳定 Business Step，并明确参数、运行时值、生产者→消费者和支持范围 | 固定 DistilledSteps、TaskContract、必要 AppProfile、已验证的能力选择事实 | **SemanticProcedure** | 每步明确目的、来源、输入、前提、执行意图、观察、输出、后置、验证、停止条件、消费者；用户输入 / 配置 / Secret / 运行时值 / Expected / Unknown 必须分开。业务解释错回 S8—S9，动作取舍错回 S7，缺事实回 S3—S6 |
+| **S8—S9｜形成业务过程与数据关系** `procedure-synthesize` | 把必要步骤变成稳定 Business Step，并明确参数、运行时值、生产者→消费者和支持范围 | 固定 DistilledSteps、TaskContract／WorkPlan、必要 AppProfile、有来源的能力选择记录及其实际验证状态 | **SemanticProcedure** | 每步明确目的、来源、输入、前提、执行意图、观察、输出、后置、验证、停止条件、消费者；用户输入 / 配置 / Secret / 运行时值 / Expected / Unknown 必须分开。业务解释错回 S8—S9，动作取舍错回 S7，缺事实回 S3—S6 |
 | **S10｜补强或复用应用操作规则** `application-engineer / harden / repair` | 只补 Procedure 真正需要的定位、读取、等待、动作和失效规则；已有规则可直接复用 | 已确认 SemanticProcedure、旧 AppProfile、具体工程缺口 | **有来源和适用范围的 AppProfile / locator / stability / helper 增量** | 操作必须能落实，失效条件和安全停止必须明确；无缺口不重新研究应用。应用规则问题回 S10；真正 Runtime 缺口单独处理，不通过改业务目标掩盖 |
 | **S11｜生成代码与按需优化** `recipe-build`；可选 `code-rebuild` | 把已确认 Procedure 和应用规则实现成普通 OpenDesk JavaScript；只有有收益时才优化 | 固定 Procedure、AppProfile／helper、正式 API contract；优化时再加精确代码基线和允许变更范围 | **Recipe.js + CandidateManifest** | 代码必须忠实实现业务语义、真实数据关系和停止边界；固定入口、源码、依赖、上游版本与步骤映射。实现错回 S11；语义错回 S8—S9；应用规则错回 S10 |
 | **S12｜独立资格验收、评审与最终结论** `recipe-qualify` | 固定同一个 Candidate 后，用预先确定的范围和场景验证真实行为，再给最终结论 | 精确冻结 Candidate、TaskContract、验收范围、场景、环境、测试授权 | **QualificationRecord + Recipe Review / Run Summary** | 必须运行同一候选，记录实际命令、环境、观察、证据及 pass / fail / not-run / blocked；验收不能改候选或降低标准。失败按缺陷责任返回对应上游 |
@@ -35,6 +37,36 @@ Agent-to-Recipe 的核心目标不是“把桌面操作记录下来”，而是�
 
 如果只想理解工作流，先读本节；如果要看“每个交接怎样拒绝错误结果”，再读 [交接审阅地图](design/acceptance-map.md)；如果要看完整子任务和恢复循环，再读 [task-decomposition.md](design/task-decomposition.md)；字段和版本规则按需读[共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)。
 
+
+## 当前 Skill 划分与下游输入充分性
+
+2026-09-20 核对基线：`0a6fa1b4a7826802ebd812c30c4452010e78082b`。本目录实际有 **5 个 SKILL.md、8 组阶段交接、8 项专业职责**；数量不是完成率。下面是现有方法与共享合同的阅读投影，不新增字段、状态或调度器。
+
+| 已有方法文件 | 主要输入 | 主输出与消费者 | 仍须单独证明 |
+| --- | --- | --- | --- |
+| [application-engineer](skills/application-engineer/SKILL.md) | discover：合同、近期目标和观察；harden：过程及工程缺口；repair：旧规则、失败与授权范围 | AppProfile、必要 helper、观察／审阅／局部验证引用 → 示范、过程、生成、资格各按范围消费 | 认识、规则实测、业务资格不能混为一项；不同模式的输入是否充分 |
+| [trace-distill](skills/trace-distill/SKILL.md) | 固定合同／计划、Dossier／Raw Trace、必要应用资料与证据 | DistilledSteps、动作取舍与未决项 → S8—S9 | 关键值类型、来源、消费者及必要解释是否足以脱离聊天接续 |
+| [procedure-synthesize](skills/procedure-synthesize/SKILL.md) | 固定必要步骤、合同／计划、必要 Profile 与定向补证 | SemanticProcedure、数据关系及工程要求 → S10／S11 | 实际输入包能否支撑输出语义、能力选择记录和允许引用，而不读取标准答案 |
+| [code-rebuild](skills/code-rebuild/SKILL.md) | 精确代码／依赖／候选、需求／过程、规则、改进目标与范围 | 原样保留结论，或新候选＋改动去向＋重验范围 → S12 | 评审一致性、实际控制流及修改后的候选资格；不替代初次生成 |
+| [recipe-qualify](skills/recipe-qualify/SKILL.md) | 精确候选及依赖、合同、预定场景／范围、环境和测试授权 | QualificationRecord、评审与修复请求 → 交付者或对应返工责任 | 真实运行、独立结果来源、宿主加载、模型行为与人工接受各自的证据 |
+
+`automation-plan`（S1）、`task-demonstrate`（S3—S6）、`recipe-build`（S11 初次生成）当前没有本目录下的同名 SKILL.md。职责已在主链、共享合同和执行规程中定义，不等于完全没有作业依据，也不能列成已实现方法。下一轮先审查这些依据是否足以让执行者稳定生产必要成果；存在明确方法缺口才补正式入口，不机械凑齐八个或十二个文件。S2／S10 继续共用应用工程，S7／S9 继续分离取舍与解释，代码改进继续可选。
+
+**下游充分性不是“上一份文件包含所有东西”。** 本次请求＋上游主产物＋获准的固定公共／应用资料与必要证据，应能覆盖下游必需内容；不要求复制全量原始资料，也不能把只有路径或 hash、没有可读取内容的引用当成已提供信息。静态资料充分仍不等于现场、权限和执行前提有效。
+
+审查每条交接时，在既有[交接审阅地图](design/acceptance-map.md)记录：**下游必需内容 → 允许输入中的实际来源与版本 → 可读取内容及事实／解释／期望边界 → 缺口和责任 → 实际行为验证**。字段只回到共享合同维护，测试与评分只回到验证计划维护；不在各 Skill 复制完整 schema。
+
+### 下一轮优先验证什么，而不是继续扩充流程图
+
+当前 [相邻评测入口](../../tests/workflows/tools/adjacent-producer-eval.js) 会把本次 S7 输出固定后交 S9，并重新检查上游。但 [相邻测试](../../tests/workflows/artifact-producer-eval.test.js) 的测试替身通过 `read('distilled.json')`、`read('procedure.json')` 读取预制答案；测试准备还从预制 Procedure 提取证据引用放入合成 Profile。这是明确标注的接线测试，**不能证明真实 Producer 仅凭输入包即可生成合格成果**。参见[分层质量记录](../../docs/quality/agent-to-recipe-adjacent-review-20260920.md)。
+
+下一轮 P0 聚焦三个可验收结果：
+
+1. **输入足以作业。** 逐项检查 S9 必需的运行时值含义／类型、生产者／消费者、允许变换、有效期／重取条件、应用关系、能力选择决定及证据，是否真的存在于它获准取得的输入中。特别区分“有 API 或证据文件”与“有来源的实际选型决定”。检查器能打开 Dossier，不代表 Producer 得到了这些内容。
+2. **失败后能够接续。** 当前入口遇到 Profile 传递引用中包含 Raw Trace 会停止 S9 发包；不能删引用或改标签绕过。验证定向补证请求怎样交回责任方、补充材料如何固定版本、受影响输出如何重验。已有 request／handoff 的 failures、unresolved、nextRequest／repairRequests 各按原合同使用；评测入口尚未证明补证后接续，不能写成已有自动恢复。
+3. **验证不借答案。** 至少用输入驱动的合法变化检查相邻交接，并覆盖一个失败→修复／补证→重新消费的切片，保留原失败与有效上游。有获准独立模型宿主时执行真实 Producer；没有时只交付隔离输入、评测入口与确定性验证，模型行为仍未运行。测试替身、开发样本、独立验收、真实 UI 分开报告。
+
+本节是下一轮审查目标与源码发现，不是本轮完成了上述行为验证。复杂恢复、多计划版本和更多应用仍按 P1 推进，不为了通过当前切片把合法输入强改成 Calculator 形状。
 
 ## 本轮执行规程：从已有成果继续，而不是重新开始
 
@@ -89,8 +121,8 @@ Agent-to-Recipe 的核心目标不是“把桌面操作记录下来”，而是�
 | 交接 | Owner / Skill 或能力 | 输入 | 可消费输出 | Gate / 下一消费者 |
 | --- | --- | --- | --- | --- |
 | 任务事实 → 能力需求 | S1 → S2 / application-engineer | TaskContract、WorkPlan、高影响 Unknown | 当前业务步骤需要的窗口／动作／读取／验证能力 | 需求明确且获准；进入 capability discovery |
-| 能力需求 → Discovery / Selection / Contract / Validation | S2、S3—S6，必要时 S10 | `docs/api/agent/README.md`、相关 catalog、当前现场 | 原工作包中的轻量选择记录与真实 evidence；失败候选保留 | 选中方法合同已读且当前环境有证据；S8—S9 收敛 |
-| 必要路径 → 稳定业务 Procedure | S7 → S8—S9 / trace-distill → procedure-synthesize | DistilledSteps、AppProfile、选择记录 | SemanticProcedure；业务步骤、数据依赖及 `capabilityDecisions` | 每项 Recipe-driving 选择可追到 catalog、候选、canonical contract 和 Runtime validation；S10/S11 消费 |
+| 能力需求 → Discovery / Selection / Contract / Validation | S2、S3—S6，必要时 S10 | `docs/api/agent/README.md`、相关 catalog、当前现场 | 原工作包中的轻量选择记录与真实 evidence；失败候选保留 | 选型与契约来源可核对；验证状态如实记录，未验证工程要求交 S10；S8—S9 收敛 |
+| 必要路径 → 稳定业务 Procedure | S7 → S8—S9 / trace-distill → procedure-synthesize | DistilledSteps、AppProfile、选择记录 | SemanticProcedure；业务步骤、数据依赖及 `capabilityDecisions` | 每项 Recipe-driving 选择可追到 catalog、候选、canonical contract 和 Runtime validation 的真实状态；语义完整可交 S10，工程就绪再交 S11 |
 | Procedure → Locator / Stability | S10 / application-engineer | Procedure、AppProfile、失败／缺口 | 有范围、坐标空间、父区域、容差、重验条件的规则；无坐标方案时也明确其语义定位依据 | 无裸坐标／未知失效条件；S11 消费 |
 | Validated Procedure → Recipe | S11 / recipe-build，按需 code-rebuild | Procedure、AppProfile、已选 API contract | 普通 JS + CandidateManifest；`apiRefs` / `sourceMapping.capabilityDecisionRefs` 固定选择链 | Candidate 字节、依赖、入口和来源映射冻结；S12 消费 |
 | Recipe → 最终结论 | S12 / recipe-qualify | 冻结 Candidate、请求范围、独立场景 | QualificationRecord + Recipe Review + Run Summary 投影 | 请求范围无 fail/not-run/blocked 才能 pass；交付／定向返修 |
@@ -160,6 +192,20 @@ node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-c
 任务结束时还应提供一个**Run Summary 投影**。它优先由现有 progress／handoff／QualificationRecord 和质量报告组织，不成为新的权威状态文件，也不复制全部工件。最小视图显示：任务与当前状态、S1—S12 完成情况、关键输入／输出、最终 capability decisions、已验证 Procedure、locator/stability 策略、最终 Recipe、Recipe Qualification、剩余风险及关键工件链接。任何一项只存在历史证据或未运行，都在摘要中原样标记，不因“汇总”提升成熟度。
 
 网页环境止于能够完成的源文件、离线检查和明确交接；本地再补当前主程序／UI host 的构建与加载证明、真实窗口／业务结果、视觉及平台资格。macOS 通过不外推 Windows 通过；缺设备的项目标未测，不补写通过。需要安装 Skill、统一调度或 Catalog 发布时仍须单独实现与验证，本规程不宣称这些能力已经落地。
+
+### 5.1 出错以后先判断什么，再决定是否继续
+
+这是上述接续规程的操作检查表，责任与字段仍以共享合同第 7—8 节为准，不新增公共失败枚举或自动重试引擎。
+
+| 遇到的问题 | 保留与核查 | 下一最小动作 |
+| --- | --- | --- |
+| 输入缺失、内容截断、引用不可读 | 哪项下游必需信息缺失、对应版本与允许根 | 向来源责任方定向补证；不靠整段聊天或猜测填齐 |
+| 成果违反合同，或检查器不支持合法输入 | 分开记录成果错误与检查覆盖限制，保存实际输出 | 前者修生产方法／成果；后者审查检查规则，不强改业务或降低标准 |
+| 动作可能已经发生、回执不完整 | 保存副作用状态、现场观察和最后可信检查点 | 先核对实际效果；只有重放安全且获准时才重试，不能超时就重复输入 |
+| 版本变化、旧资格或进度落后 | 核对有效成果和影响范围；不修改冻结历史 | 发布新版本后只重验受影响下游；成果有效时补核进度，不重做业务 |
+| 权限／宿主能力缺失、预算耗尽或同错无新证据 | 保留局部成果、原请求未完成范围、责任与解除条件 | 停止相关路径；可独立且安全的工作继续，不承诺强行跑通 |
+
+恢复是否可用，要验证“能检出错误＋能交给正确责任＋修复后能够重新消费＋没有重放未知副作用”，不只统计拒绝用例。跨会话接续至少让下一执行者取得第 5 节列出的实际成果引用、当前失败、剩余预算与授权边界；摘要不能替代原始证据。本次文档补齐不代表已验证宿主恢复、真实桌面或完整 E2E。
 
 ## 能力发现与实际调用：两个接入位置
 
@@ -258,4 +304,4 @@ S10 消费策略选择、风险和定位证据，S11 执行生成者自检，S12
 - 同一个 Agent 可连续承担专业工作和检查；独立上下文测试须真实隔离，不能以在同一对话切换角色冒充通过。
 - 生成与可选改进分开，失败按原因返回，不必所有任务重走完整链。结果可能已经生效时先核对，不从头重放。
 - 正常保存必要事实，异常再展开诊断，不等失败后补造现场。原图、审阅、规则与验证不混用版本；只有认识时不声明已有可靠操作。
-- 当前五个方法入口的文件状态与验证范围见第 4.1 节；实际模型提取、留出规则测试、宿主加载、盲上下文及其他桌面场景仍按验证计划分批完成，未运行项如实保留。
+- 当前五个方法入口见“当前 Skill 划分与下游输入充分性”，限定检查与验证范围见第 4.1 节；实际模型提取、留出规则测试、宿主加载、盲上下文及其他桌面场景仍按验证计划分批完成，未运行项如实保留。
