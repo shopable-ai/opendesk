@@ -181,6 +181,12 @@ func ReleaseAttestationMessage(release Release, attestation ReleaseAttestation) 
 	}
 	return append([]byte(prefix), data...), nil
 }
+
+type ReleaseVerifier struct {
+	Roots map[string]ed25519.PublicKey
+	Now   func() time.Time
+}
+
 func (verifier ReleaseVerifier) Verify(release Release, attestation ReleaseAttestation) error {
 	if err := release.ValidateInstallable(); err != nil {
 		return err
