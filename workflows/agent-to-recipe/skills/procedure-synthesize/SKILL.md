@@ -57,3 +57,11 @@ node workflows/agent-to-recipe/scripts/check-artifact-chain.js --through procedu
 相邻作业评测使用 tests/workflows/tools/adjacent-producer-eval.js；S9 接收 S7 实际固定输出，不取得标准 Procedure。CLI 默认只准备输入、没有模型调用；测试替身通过不能称 Producer 行为通过。预算、身份、输入隔离与限制统一见 [validation-plan.md](../../design/validation-plan.md)。
 
 字段唯一依据：[共享合同](../../../../docs/frameworks/agent-to-recipe-skill-contract.md)；全链解释见[交接审阅地图](../../design/acceptance-map.md)。
+
+## 实际收件检查与定向续接
+
+在输出过程前，逐项核对[共享合同的输入充分性增量](../../../../docs/frameworks/agent-to-recipe-skill-contract.md#s7--s9-的输入充分性增量2026-09-20)：本输入包是否实际提供必要值说明、读取证据、实际消费绑定、政策、应用关系以及上游选型记录。检查器能打开 Dossier／Raw Trace，或者包里已有 API 文档，都不能代替这些材料。
+
+收到缺少内容的包，指出缺失字段／来源并保留失败输出。先由协调者交付已经存在的获准材料；资料本身缺失再交原责任方。不要自己读取全部历史、删除阻止读取的引用，或从测试答案补造。S7 投影错误回 S7；业务映射、运行时值误参数化或终点遗漏由 S9 修订；仅工程验证待完成继续明确交 S10。
+
+相邻评测可以保存固定 `resume-request.json`：协调者完成指定补证／修复后，新建输出目录，重检未变 S7，再只调用本阶段。相同失败无新处理不能盲重试；旧输入／方法变化或总预算不足时停止。该请求只负责离线评测，不是新调度器或真实业务重放入口。完整操作和分层限制见 [validation-plan](../../design/validation-plan.md#输入充分性与失败接续切片2026-09-20)。

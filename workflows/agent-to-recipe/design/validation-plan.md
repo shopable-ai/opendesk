@@ -203,7 +203,7 @@ order: 70
 
 调用 `evaluateAdjacent(request, out, producer?)`，request 预先给出实际 `dossier / actions / roots / sourceSet / timeoutMs`。roots 是调用方获准读取的 ID／目录对；可以登记但不使用某个根，不能因该根未复制而误拒绝其他完整输入。sourceSet 为 development 或 independent-acceptance 的**调用方声明**，不是未见样本证明。超时预算为 1—300000 毫秒，默认 30000；每阶段最多一次尝试，无隐藏重试。out 必须是 `.runtime/` 下的新目录，不能覆盖旧失败。
 
-- 无 producer：CLI `--request <已存在的评测请求.json> --out <新的.runtime目录>` 只准备 S7 输入，两个 Producer 均为 not-run，不生成标准答案或假结果。
+- 无 producer：未带续接来源时，CLI `--request <已存在的评测请求.json> --out <新的.runtime目录>` 只准备 S7 输入，两个 Producer 均为 not-run；带有效续接来源时可重检 S7 并准备 S9，但不调用模型，不生成标准答案或假结果。
 - 有 producer：适配器显式声明 `mode / hostId / modelId`，并实现 `produce(packet, {signal})`。mode 区分 model 与 deterministic-test-double；身份未经认证，上下文和文件权限仍由外部宿主隔离。异常、超时、拒绝输出和失败尝试均保留；返回 null／字符串异常也不能丢失失败记录。超时 abort 是协作式请求，不保证停止外部进程。
 - S7 包：固定合同、计划、Dossier／Raw Trace、必要 AppProfile 和证据，以及实际方法／共享合同；不提供标准 DistilledSteps、Procedure、Candidate、Qualification 或上游聊天。
 - S9 包：重新检查 S7 前缀后，消费本次实际 S7 输出，加固定合同／计划和必要 AppProfile／证据。不默认提供 Raw Trace；经 AppProfile 等引用链隐式传入 Dossier／Raw Trace 也停止发包，提出定向补证责任，不静默删引用。不能靠改 kind、文件名或 Fixture 标签伪装来源放行；角色白名单本身不证明内容真实，也不是 OS 沙箱。
@@ -364,3 +364,50 @@ Pagination、Load More、custom click-next 不自动进入 Phase 1—6。需要�
 ### 2026-09-10 v0.5 修订
 
 新增 Structured UI Collection Reading 专项矩阵 SC-A—SC-P 与 Phase 1—7 验证阶梯，覆盖 AX/UIA fallback、OCR、VLM proposal/conflict、重复文字、variable-height timeline、overlap、continuity、virtualization、mutation、end detection、budget stop 与 business mapping 边界。所有测试当前均保持 planned/not-run；本文写入不构成 Runtime 或真实应用通过。
+
+## 输入充分性与失败接续切片（2026-09-20）
+
+这是同一 `adjacent-producer-eval.js` 的增量，不是新工作流引擎。原 `artifact-producer-eval.test.js` 保留为预制输出接线回归；新增 `artifact-input-sufficiency.test.js` 只构造上游来源，由 `tools/input-sufficiency/probe.cjs` 的独立进程从实际输入包产生输出，再由下游消费。探针是确定性测试替身，不是模型，也不执行 Skill 的一般专业推理。
+
+### 固定输入和继续执行
+
+调用仍为 `evaluateAdjacent(request, out, explicitAdapter?)`。评测工具参数不是业务 request／handoff 的替代 schema，业务字段唯一由共享合同维护：
+
+| 参数／记录 | 本工具的明确含义 |
+| --- | --- |
+| `checkerScope` | 默认 `calculator-v1` 保持原有限检查；显式 `sequential-dataflow-v1` 使用顺序读值／消费切片。两者都不授予 Stage complete 或资格 |
+| `s9InputRefs` | 仅在顺序切片提供获准 S9 定向材料的固定引用。它们在 S9 发包时加入，不偷偷改变 S7 输入，也不携带预制下游结果。选择记录、相关契约和证据均需实际字节 |
+| `resumeFrom` | `EvaluationRecord` 的 rootId／path／sha256／schemaVersion；该记录本身、原 S7 输入及输出均重新核对。只接续 S7 有效、S9 失败或未运行的有限相邻作业 |
+| `maxCalls / timeoutMs` | 每阶段每次作业最多调用一次；总调用预算默认 4、可显式设 1—32；单次超时 1—300000 ms，默认 30000。恢复继承原总预算、超时和已耗调用，不能重置。无生产调用的重检不计作一次模型调用 |
+| `reusableS7 / reusedS7` | 仅为评测证据：固定输入／原输出／原返回摘要，以及是否重新核对通过；不更新工作流 progress，不代表新跑过 S7 |
+| `resume-request.json` | 在可接续的停止点生成，引用本次已冻结资料而不是原作者工作区。先按 nextRequest 完成指定补证／修复，再在新输出目录显式调用；不是无条件自动重试 |
+
+评测保存方法、共享合同、检查器和调用器版本；每次输入包、输出原文、失败和检查结果都有内容摘要。一个完整输入包最多 4 MiB，单文件与总读取预算沿用工具现有界限；超过范围应定向缩小材料，不截断关键事实或复制全部聊天。
+
+S9 的运行时证据从 S7 已确认的值投影按需传递；原 `dossierRef / sourceActionRefs` 只是 lineage，不能递归带入整个 Dossier／Raw Trace。Profile 的非法传递引用仍拒绝；补证不能通过改角色或删除引用绕过。记录中有原资料却没有交付时，`nextRequest` 先交协调者并指出原来源责任；资料本身错误再定向回原环节。
+
+接续必须满足：原记录未被改、S7 当前输入包与方法／共享合同相同、S7 按当前检查器重新通过、总预算尚足。S7 输入或方法变化不复用旧结果；新候选的业务资格仍按原资格合同处理。本工具只统计所提供的接续链，不能看见未报告或并行分叉的调用；唯一协调者仍负责整个任务的预算和进度。
+
+从仓库根目录运行固定离线回归：
+
+```bash
+node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-*.test.js
+```
+
+从已核对的评测恢复请求准备下一输入包（下列路径必须替换为已有真实路径；先完成该记录指出的补证／修复）：
+
+```bash
+node tests/workflows/tools/adjacent-producer-eval.js --request <resume-request.json> --out <新的.runtime目录>
+```
+
+该 CLI 没有模型适配器，因此只重检／发包。真正模型生产必须由获准宿主显式传入 adapter，记录独立上下文、实际模型／工具、外发授权与费用／调用预算；宿主身份自报不能证明隔离，改 `sourceSet` 也不能变成留出集证据。没有宿主时保持 modelBehaviorVerified=false。
+
+### 已实现的判据及仍需专业判断的部分
+
+正常接受要求：必要值都有来源说明和实际证据；实际消费者绑定不被允许转换清单代替；应用关系和源选择记录确实收到；所有终点读取保留；合法变化不是一律拒绝。反例要求：缺证据、错版本、错误生产／消费关系、终点遗漏、运行值误参数化、伪选择、源文件篡改、未知副作用及预算不足都不获正常放行。
+
+原示范的失败不覆盖。至少保存一次“缺选择来源 → S9 失败 → 定向补交新版本 → S7 复核复用 → S9 重新消费”切片；另以故障注入验证 S9 映射修正后只重做本阶段。恢复请求在原工作目录不可用时仍应通过冻结资料接续。
+
+顺序检查器只核对声明及源字节的一致性，支持任意本地标识、text／digit-string、identity／characters、单 Profile 内的跨应用同记录键关系、前向数据边及不破坏这些关系的相邻合并。它不证明来源真实性、任意自然语言的业务正确性、因果必要性、复杂省略／分支／循环／恢复、通用 schema、完整 Gate 或实际 API 已可用。`CHECKER_COVERAGE` 表示本工具不能放行，不表示该业务输入本身非法；交验证责任方，不改数据迎合检查器。
+
+探针使用单独 Node 进程、stdin 输入及文件读取许可清单，并实际检查越界读取被拒绝；每次调用保存命令、工作目录、Node／探针版本、输入输出摘要、退出码和限制。它不是完整 OS／网络沙箱，也不建立模型上下文独立性。原相邻模型评测、真实宿主加载和真实业务资格继续分别记 not-run；当前结果见原质量记录的本轮章节，不把测试数量解释为生产成功率。

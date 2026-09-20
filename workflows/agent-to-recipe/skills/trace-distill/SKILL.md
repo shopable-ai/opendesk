@@ -58,3 +58,13 @@ node workflows/agent-to-recipe/scripts/check-artifact-chain.js --through trace-d
 相邻评测入口为 tests/workflows/tools/adjacent-producer-eval.js：本 Producer 不取得标准 DistilledSteps；评测方保存 Expected，S9 只消费本次实际输出。输入不充分时保留失败／补证请求，不通过无限重试补出熟悉答案。CLI 无模型适配器时仅准备输入并记 not-run；具体预算与宿主隔离要求见 [validation-plan.md](../../design/validation-plan.md)。
 
 字段与返工唯一依据：[共享合同](../../../../docs/frameworks/agent-to-recipe-skill-contract.md)；整体输入输出、例子与未实现部分见[交接审阅地图](../../design/acceptance-map.md)。
+
+## 输入充分性补强：不能把信息丢给下游猜
+
+对每个下游必需值，按[共享合同的输入充分性增量](../../../../docs/frameworks/agent-to-recipe-skill-contract.md#s7--s9-的输入充分性增量2026-09-20)保留来源说明、应用目标、实际消费绑定及复用政策。先核对原材料确实存在，再做有来源的投影；不得从标准 Procedure 或最终代码反推。只有值名、动作编号或一句依赖说明不够。
+
+原始事实与授权政策分开：事实缺失回示范；政策缺失回 S1／原说明者；应用关系缺失回应用工程；S7 自己漏投影则修订 S7。原动作 lineage 可以保留，但实际交给 S9 的必要证据正文必须明确列入其输入包，不通过传递引用偷偷提供全量轨迹。
+
+同一相邻评测入口新增显式 `checkerScope: sequential-dataflow-v1`，验证顺序读值／消费／终点读值的声明切片，不替代原 Calculator 检查。它允许非 Calculator 标识、合法相邻合并和非必需诊断材料省略；不支持的类型或路径明确交验证责任方，不改造事实。确定性探针不是实际模型生产能力。
+
+失败接续时，本阶段输入包、方法与共享合同字节相同且重新检查通过，可以复用原 S7 输出；任何影响性变化都不能沿用旧输出标签。下一次只重做受影响作业，禁止为重建历史重放未知副作用。

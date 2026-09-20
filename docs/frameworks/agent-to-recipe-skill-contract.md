@@ -245,6 +245,42 @@ DistilledSteps 只对原始事实做有来源的重建、分段和取舍，不�
 
 指定步骤需要试执行时，复用 task-demonstrate 的执行／观察／验证方法，形成新的 execution／Dossier／evidence；不得把新执行结果写回成原历史事实。如果执行者临时补了 DistilledSteps 中没有的必要动作才成功，应修订 DistilledSteps，而不是宣布旧版本步骤通过。
 
+### S7 → S9 的输入充分性增量（2026-09-20）
+
+**事实在上游存在，不等于下游已经取得。** S9 获准输入必须实际包含必要步骤、运行时值的有来源说明、相关应用关系、实际选型记录及其必要证据／契约字节。检查器可以只读核对 Dossier／Raw Trace；这不授权语义 Producer 阅读它们。S7 的 `dossierRef / sourceActionRefs` 可以保留为历史 lineage，但不能被当成已经交付给 S9 的事实正文。
+
+本增量继续使用既有 v1 引用和主产物，不新建状态体系。旧成果缺增量表示未知；不得填假值、删除引用或把旧成果自动升级。不同形状的有效材料可由专业作业按固定来源审阅；下述顺序切片不支持它们时记录检查覆盖限制，不改造业务事实迎合检查器。
+
+**运行时值。** S7 在既有 DistilledSteps 内保存 `runtimeValues` 的必要投影，而不是只写一个值名或一句数据依赖。保留 Dossier 的 `name / type / observedValue / origin / evidenceRefs / consumers / validity / reacquireOnFreshRun`，并明确以下内容的来源：
+
+| 信息 | 本合同中的表达与来源 | 消费规则 |
+| --- | --- | --- |
+| 业务含义与复用政策 | `meaning / allowedTransforms` 与既有有效期、重新读取要求，来自固定 TaskContract 或获准的定向说明；当前顺序评测把这些政策按值名放在 `TaskContract.runtimeValuePolicies` | 不要求 S1 预知全部未来读值；信息后来确认时形成新版本。政策缺失由 S1／原说明责任方补齐，不能把观察样例当默认值 |
+| 实际读取 | 当前结构化切片的 `origin` 为 `actionRef / applicationId / targetId`，`observedValue` 与原始读取和证据一致 | 历史字符串式 origin 保持原格式与原消费范围；不了解该形式的消费者拒绝自动消费，不能丢掉应用／目标约束 |
+| S7 步骤对应 | `producerStep / consumerSteps` 来自原 action 到必要步骤的明确映射；终点用既有 `final output` 语义表达 | 终点没有下一原动作，也必须保留读取与输出；合并可以改变步骤数量，不能丢源动作或跨数据依赖偷换顺序 |
+| 实际消费方式 | `consumerBindings` 每项为 `actionRef / targetId / transform / observedInput`，从原实际消费者记录派生，只保留本值相关片段 | “允许字符展开”与“当次确实使用字符展开”是两件事；S9 必须取得后者，不能从允许清单中猜选。不能借此复制整条原始轨迹 |
+| 应用关系 | 使用固定 AppProfile 的 targets／relations 及对应来源，连接读取目标和消费目标 | 关系 ID 或字段存在不证明关系真实；缺关系回应用工程，不由 S9 根据常见界面补造 |
+
+`runtimeValuePolicies` 的当前评测项为 `name / meaning / type / allowedTransforms / validity / reacquireOnFreshRun`，只表达已确认政策，不放实际观察值。顺序切片仅自动检查 text／digit-string、identity／characters 和前向数据边；金额、分支、循环、恢复等不属于其自动放行范围。政策自然语言是否充分、单位精度及应用真实性仍需对应专业审阅。S7 同时保留本次已知 `sideEffects`；unknown／partial 不能成为正常可消费的成功路径。
+
+S9 保留上述有来源的值说明，并把 `producerStep / consumerSteps` 映射为 Business Step；`dataDependencies` 与实际 `consumerBindings` 相接，`inputSources` 明确引用运行时生产者。运行时值不得同时变成 parameters／config／Secret 默认答案。新增或缺失读取、错误取舍回 S7／示范；仅业务解释或映射错误由 S9 修订。
+
+**选型与定向证据。** S2—S6 在原工作包保存实际决定，S9 取得明确固定引用及内容后才收敛 `capabilityDecisions`。该来源不能从标准 Procedure、最终代码或 API 文档反推。当前结构化证据仍使用 v1 与既有 `evidence` 引用角色，用 `recordKind` 限定内容，不创建 Registry：
+
+| recordKind | 当前切片的最小内容 |
+| --- | --- |
+| `observation` | `taskId / actionRef / name / value / applicationId / targetId`，支持一个必要读值 |
+| `application-relation` | `taskId / from / to / kind`，支持本次必要应用关系 |
+| `capability-selection` | `taskId / planRevision / capabilityDecisions`；来源记录中的每项使用 `sourceActionRefs` 指向已发生的相关动作，其他选型字段沿用下节唯一定义 |
+
+这些记录包含 `schemaVersion`，可有说明其真实／合成来源的 `sourceNote`；不能嵌入全量 actions／Dossier／聊天，也不能改名为 evidence 规避限制。记录中的显式 ref 必须属于获准输入；canonical 与 shared constraint 保留其原角色和内容绑定。普通文本证据或契约的 hash 只证明字节，不认证历史主张。
+
+S9 产物的选型项保存 `sourceRef` 指向实际提供的选择记录，并把来源 `sourceActionRefs` 转为 `businessStepRefs`；不再维护第二份原动作取舍。`runtimeValidation` 为 not-run 时允许交 S10 的 harden 工作包；有 pass／fail／partial 声明仍要有来源和证据，不能把“有文档”写成“已运行”。
+
+**缺口与接续。** 已有材料没有交付给 Producer，先由协调者补交获准固定材料；原资料本身缺事实再返回示范，缺应用规则／关系返回应用工程，缺政策返回 S1，错误投影返回 S7，错误语义返回 S9。`nextRequest` 应指出缺哪项、原来源责任和下一安全动作，不能只说“需要更多上下文”。每次新尝试新目录；有效 S7 的输入与方法未变时仅重检并复用其字节，只重做受影响的 S9。源输入／方法变更、旧文件被改或预算不足时拒绝旧输出接续。失败输出、先前来源与旧资格不被覆盖；候选变更仍走原重验规则。
+
+离线评测入口及版本化续接请求见 [validation-plan 的输入充分性切片](../../workflows/agent-to-recipe/design/validation-plan.md#输入充分性与失败接续切片2026-09-20)。评测记录不是 request／handoff 的替代品，不发布 Gate，不修改 progress，也不操作桌面。
+
 ### SemanticProcedure
 
 包含 `distilledStepsRef / businessSteps / parameters / config / secretRefs / runtimeValues / dataDependencies / capabilityDecisions / retainedReasons / omittedReasons / recoveryCandidates / supportedScope / unresolved / evidenceRefs`。若当前实现尚无 `distilledStepsRef` 字段，可由 inputRefs／sourceMapping／handoff 固定实际消费版本，正式 schema 升级另行实施；不能因此重新读取不受约束的 Raw Trace 作为隐式输入。
