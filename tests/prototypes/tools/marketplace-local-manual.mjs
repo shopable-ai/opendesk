@@ -354,6 +354,7 @@ export async function startManualRun() {
       releaseURL: server.ready.releaseURL,
       artifactURL: server.ready.artifactURL,
       deepLink: server.ready.deepLink,
+      developmentSession: {sessionId: server.ready.sessionId, expiresAt: server.ready.expiresAt},
       siteRoot: server.siteRoot,
       server: {pid: server.child.pid, log: server.serverLogPath, requestLog: server.requestLogPath},
       app: {pid: app.pid, log: server.appLogPath, runtimeLogDir: server.appRuntimeLogDir, mode: 'warm'},
@@ -370,7 +371,8 @@ export async function startManualRun() {
   } catch (error) {
     if (app) await stopRecordedProcess(app.pid, [EXECUTABLE, server.configPath]).catch(() => {});
     await stopRecordedProcess(server.child.pid, [SERVER_SCRIPT, server.configPath]).catch(() => {});
-    await appendFile(supervisorLog, `failed at ${new Date().toISOString()}\n${error.stack || error}\n`, {mode: 0o600});
+    const clearedSession = await clearDevelopmentSessionForConfig(server.configPath).catch(() => false);
+    await appendFile(supervisorLog, `failed at ${new Date().toISOString()} sessionCleared=${clearedSession}\n${error.stack || error}\n`, {mode: 0o600});
     throw error;
   }
 }
@@ -411,7 +413,7 @@ export async function coldStartCheck(runDirectory) {
 async function main(argv) {
   if (argv.length === 0) {
     const run = await startManualRun();
-    process.stdout.write(`Marketplace local manual run is ready.\nMain page: ${run.url}\nRelease: ${run.releaseURL}\nPackage: ${run.artifactURL}\nPrepared site: ${run.siteRoot}\nHTTP request log: ${run.server.requestLog}\nInstall data: ${run.appData}\nRun directory: ${run.runDirectory}\nOpenDesk log: ${run.app.log}\nCleanup: node tests/prototypes/tools/marketplace-local-manual.mjs --cleanup ${run.runDirectory}\n`);
+    process.stdout.write(`Marketplace local manual run is ready.\nMain page: ${run.url}\nRelease: ${run.releaseURL}\nPackage: ${run.artifactURL}\nPrepared site: ${run.siteRoot}\nHTTP request log: ${run.server.requestLog}\nInstall data: ${run.appData}\nDevelopment session expires: ${run.developmentSession.expiresAt}\nRun directory: ${run.runDirectory}\nOpenDesk log: ${run.app.log}\nCold-start check: node tests/prototypes/tools/marketplace-local-manual.mjs --cold-start-check ${run.runDirectory}\nCleanup: node tests/prototypes/tools/marketplace-local-manual.mjs --cleanup ${run.runDirectory}\n`);
     return;
   }
   if (argv.length === 2 && argv[0] === '--cold-start-check') {
