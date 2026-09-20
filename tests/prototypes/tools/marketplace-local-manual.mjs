@@ -382,7 +382,7 @@ export async function startManualRun() {
     directOpen(metadata.url);
     return metadata;
   } catch (error) {
-    if (app) await stopRecordedProcess(app.pid, [EXECUTABLE, server.configPath]).catch(() => {});
+    if (app) await stopRecordedProcess(app.pid, [EXECUTABLE, server.configPath], app.startedAt).catch(() => {});
     await stopRecordedProcess(server.child.pid, [SERVER_SCRIPT, server.configPath], server.startedAt).catch(() => {});
     const clearedSession = await clearDevelopmentSessionForConfig(server.configPath).catch(() => false);
     await appendFile(supervisorLog, `failed at ${new Date().toISOString()} sessionCleared=${clearedSession}\n${error.stack || error}\n`, {mode: 0o600});
