@@ -388,17 +388,23 @@ func parseDistributionBaseURL(raw string, allowLoopback bool) (*url.URL, error) 
 	if err != nil || base.Scheme == "" || base.Host == "" || base.User != nil || base.Fragment != "" || base.RawQuery != "" {
 		return nil, fmt.Errorf("URL must be an absolute origin or path prefix")
 	}
-	if base.Scheme != "https" {
-		if !allowLoopback || base.Scheme != "http" || !isLoopbackHost(base.Hostname()) {
-			return nil, fmt.Errorf("URL must use HTTPS")
-		}
-	}
-	if !allowLoopback {
-		if err := validatePublicMarketplaceHost(base.Hostname()); err != nil {
+	switch base.Scheme {
+	case "https":
+		if isLoopbackHost(base.Hostname()) {
+			if !allowLoopback {
+				return nil, fmt.Errorf("URL loopback target is allowed only in development mode")
+			}
+		} else if err := validatePublicMarketplaceHost(base.Hostname()); err != nil {
 			return nil, err
 		}
+	case "http":
+		if !allowLoopback || !isLoopbackHost(base.Hostname()) {
+			return nil, fmt.Errorf("URL must use HTTPS except for explicit loopback development")
+		}
+	default:
+		return nil, fmt.Errorf("URL must use HTTPS")
 	}
-	if strings.Contains(base.EscapedPath(), "\\") {
+	if strings.Contains(base.Path, "\\") || strings.Contains(base.EscapedPath(), "\\") {
 		return nil, fmt.Errorf("URL path is invalid")
 	}
 	for _, segment := range strings.Split(base.Path, "/") {
