@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import {createHash, generateKeyPairSync, sign} from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {lstat, mkdir, readFile, readdir, writeFile} from 'node:fs/promises';
+import {appendFile, lstat, mkdir, readFile, readdir, writeFile} from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -19,18 +19,19 @@ const INTENT_ID = 'local-notify-demo-intent-1';
 const BINDING_MARKER = '<!-- OPENDESK_LOCAL_RELEASE_BINDING -->';
 
 function parseArgs(argv) {
-  const result = {host: '127.0.0.1', port: 0, siteRoot: '', configOutput: '', opendeskLog: ''};
+  const result = {host: '127.0.0.1', port: 0, siteRoot: '', configOutput: '', opendeskLog: '', requestLog: ''};
   for (let index = 0; index < argv.length; index += 2) {
     const key = argv[index];
     const value = argv[index + 1];
-    if (!value || !['--host', '--port', '--site-root', '--config-output', '--opendesk-log'].includes(key)) {
-      throw new Error('usage: marketplace-local-server.mjs --host 127.0.0.1 --port 0 --site-root <absolute-dir> --config-output <new-file> [--opendesk-log <absolute-file>]');
+    if (!value || !['--host', '--port', '--site-root', '--config-output', '--opendesk-log', '--request-log'].includes(key)) {
+      throw new Error('usage: marketplace-local-server.mjs --host 127.0.0.1 --port 0 --site-root <absolute-dir> --config-output <new-file> [--opendesk-log <absolute-file>] [--request-log <absolute-file>]');
     }
     if (key === '--host') result.host = value;
     if (key === '--port') result.port = Number(value);
     if (key === '--site-root') result.siteRoot = value;
     if (key === '--config-output') result.configOutput = value;
     if (key === '--opendesk-log') result.opendeskLog = value;
+    if (key === '--request-log') result.requestLog = value;
   }
   if (!['127.0.0.1', '::1'].includes(result.host) || !Number.isInteger(result.port) || result.port < 0 || result.port > 65535) {
     throw new Error('the local Marketplace static server accepts only a loopback host and a valid port');
@@ -39,6 +40,7 @@ function parseArgs(argv) {
     if (!value || !path.isAbsolute(value)) throw new Error(`--${name} must be an absolute path`);
   }
   if (result.opendeskLog && !path.isAbsolute(result.opendeskLog)) throw new Error('--opendesk-log must be an absolute path');
+  if (result.requestLog && !path.isAbsolute(result.requestLog)) throw new Error('--request-log must be an absolute path');
   return result;
 }
 
@@ -262,14 +264,35 @@ async function staticFile(siteRoot, requestPath) {
   }
 }
 
+function isInsideDirectory(root, candidate) {
+  const relative = path.relative(path.resolve(root), path.resolve(candidate));
+  return relative === '' || (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative));
+}
+
+async function recordStaticRequest(logPath, event) {
+  if (!logPath) return;
+  await mkdir(path.dirname(logPath), {recursive: true, mode: 0o700});
+  await appendFile(logPath, JSON.stringify(event) + '\n', {encoding: 'utf8', mode: 0o600});
+}
+
 export async function startLocalMarketplaceServer(options) {
   const prepared = await prepareLocalMarketplaceSite(options.siteRoot);
+  if (isInsideDirectory(prepared.siteRoot, options.configOutput)) throw new Error('Marketplace development config must remain outside the public site root');
+  if (options.opendeskLog && isInsideDirectory(prepared.siteRoot, options.opendeskLog)) throw new Error('OpenDesk receiver log must remain outside the public site root');
+  if (options.requestLog && isInsideDirectory(prepared.siteRoot, options.requestLog)) throw new Error('Marketplace request log must remain outside the public site root');
   const server = http.createServer(async (request, response) => {
     try {
-      if (request.method !== 'GET' && request.method !== 'HEAD') { response.writeHead(405); response.end(); return; }
       const requestURL = new URL(request.url, `http://${options.host}`);
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        await recordStaticRequest(options.requestLog, {at: new Date().toISOString(), method: request.method, path: requestURL.pathname, status: 405, bytes: 0});
+        response.writeHead(405); response.end(); return;
+      }
       const found = await staticFile(prepared.siteRoot, requestURL.pathname);
-      if (!found) { response.writeHead(404); response.end('not found'); return; }
+      if (!found) {
+        await recordStaticRequest(options.requestLog, {at: new Date().toISOString(), method: request.method, path: requestURL.pathname, status: 404, bytes: 0});
+        response.writeHead(404); response.end('not found'); return;
+      }
+      await recordStaticRequest(options.requestLog, {at: new Date().toISOString(), method: request.method, path: requestURL.pathname, status: 200, bytes: found.body.length});
       response.writeHead(200, {'Content-Type': contentType(found.file), 'Content-Length': found.body.length, 'Cache-Control': 'no-store'});
       response.end(request.method === 'HEAD' ? undefined : found.body);
     } catch (error) {
@@ -315,6 +338,7 @@ if (path.resolve(process.argv[1] || '') === fileURLToPath(import.meta.url)) {
     siteRoot: running.siteRoot,
     config: options.configOutput,
     opendeskLog: options.opendeskLog || undefined,
+    requestLog: options.requestLog || undefined,
     releaseURL: running.releaseURL,
     artifactURL: running.artifactURL,
     flowId: running.state.release.flowId,

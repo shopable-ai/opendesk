@@ -192,6 +192,7 @@ async function startServer(runDirectory) {
   const appData = path.join(runDirectory, 'app-data');
   const siteRoot = path.join(runDirectory, 'site');
   const appLogPath = path.join(runDirectory, 'receiver.log');
+  const requestLogPath = path.join(runDirectory, 'http-requests.log');
   const appRuntimeLogDir = path.join(runDirectory, 'app-runtime');
   await mkdir(appRuntimeLogDir, {recursive: true, mode: 0o700});
   const child = spawn(process.execPath, [
@@ -201,6 +202,7 @@ async function startServer(runDirectory) {
     '--site-root', siteRoot,
     '--config-output', configPath,
     '--opendesk-log', appLogPath,
+    '--request-log', requestLogPath,
   ], {cwd: ROOT, detached: true, stdio: ['ignore', 'pipe', 'pipe']});
   let output = '';
   child.stdout.setEncoding('utf8');
@@ -216,7 +218,7 @@ async function startServer(runDirectory) {
     child.stderr.destroy();
     child.unref();
     await new Promise(resolve => serverLog.end(resolve));
-    return {child, serverLogPath, configPath, appData, siteRoot, appLogPath, appRuntimeLogDir, ready};
+    return {child, serverLogPath, configPath, appData, siteRoot, appLogPath, requestLogPath, appRuntimeLogDir, ready};
   } catch (error) {
     child.kill('SIGTERM');
     child.stdout.destroy();
@@ -314,7 +316,7 @@ export async function startManualRun() {
       releaseURL: server.ready.releaseURL,
       artifactURL: server.ready.artifactURL,
       siteRoot: server.siteRoot,
-      server: {pid: server.child.pid, log: server.serverLogPath},
+      server: {pid: server.child.pid, log: server.serverLogPath, requestLog: server.requestLogPath},
       app: {pid: app.pid, log: server.appLogPath, runtimeLogDir: server.appRuntimeLogDir},
     };
     await writeJSON(path.join(runDirectory, 'run.json'), metadata);
@@ -337,7 +339,7 @@ export async function startManualRun() {
 async function main(argv) {
   if (argv.length === 0) {
     const run = await startManualRun();
-    process.stdout.write(`Marketplace local manual run is ready.\nMain page: ${run.url}\nRelease: ${run.releaseURL}\nPackage: ${run.artifactURL}\nPrepared site: ${run.siteRoot}\nInstall data: ${run.appData}\nRun directory: ${run.runDirectory}\nOpenDesk log: ${run.app.log}\nCleanup: node tests/prototypes/tools/marketplace-local-manual.mjs --cleanup ${run.runDirectory}\n`);
+    process.stdout.write(`Marketplace local manual run is ready.\nMain page: ${run.url}\nRelease: ${run.releaseURL}\nPackage: ${run.artifactURL}\nPrepared site: ${run.siteRoot}\nHTTP request log: ${run.server.requestLog}\nInstall data: ${run.appData}\nRun directory: ${run.runDirectory}\nOpenDesk log: ${run.app.log}\nCleanup: node tests/prototypes/tools/marketplace-local-manual.mjs --cleanup ${run.runDirectory}\n`);
     return;
   }
   if (argv.length === 2 && argv[0] === '--cleanup') {

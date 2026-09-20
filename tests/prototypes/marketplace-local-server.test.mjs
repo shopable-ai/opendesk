@@ -30,7 +30,8 @@ test('local Marketplace prepares one same-site static page, signed release and r
   t.after(() => rm(root, {recursive: true, force: true}));
   const siteRoot = path.join(root, 'site');
   const configOutput = path.join(root, 'marketplace-development.json');
-  const running = await startLocalMarketplaceServer({host: '127.0.0.1', port: 0, siteRoot, configOutput});
+  const requestLog = path.join(root, 'http-requests.log');
+  const running = await startLocalMarketplaceServer({host: '127.0.0.1', port: 0, siteRoot, configOutput, requestLog});
   t.after(() => new Promise(resolve => running.server.close(resolve)));
 
   const page = await (await fetch(running.baseURL + '/index.html')).text();
@@ -49,6 +50,11 @@ test('local Marketplace prepares one same-site static page, signed release and r
   const artifact = Buffer.from(await (await fetch(running.artifactURL)).arrayBuffer());
   assert.equal(sha256(artifact), document.release.artifactDigest);
   assert.equal(artifact.length, document.release.artifactSize);
+
+  const requestEvents = (await readFile(requestLog, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+  assert.ok(requestEvents.some(event => event.status === 200 && event.path === running.state.relativeReleaseURL));
+  assert.ok(requestEvents.some(event => event.status === 200 && event.path === running.state.relativeArtifactURL && event.bytes === artifact.length));
+  assert.equal(path.dirname(requestLog), root);
 
   for (const obsolete of ['/v1/install-intents/local-notify-demo-intent-1', '/v1/releases/local-notify-demo-1/artifact', '/local-smoke/status']) {
     assert.equal((await fetch(running.baseURL + obsolete)).status, 404, obsolete);
@@ -102,4 +108,18 @@ test('local Marketplace preparation refuses symlinked or pre-populated public ro
   await mkdir(populatedSite);
   await writeFile(path.join(populatedSite, 'unexpected.txt'), 'stale');
   await assert.rejects(() => prepareLocalMarketplaceSite(populatedSite), /must be empty/);
+});
+
+
+test('local Marketplace server refuses private config and request logs inside public site', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'opendesk-marketplace-private-'));
+  t.after(() => rm(root, {recursive: true, force: true}));
+  const siteRoot = path.join(root, 'site');
+  await assert.rejects(
+    () => startLocalMarketplaceServer({
+      host: '127.0.0.1', port: 0, siteRoot,
+      configOutput: path.join(siteRoot, 'marketplace-development.json'),
+    }),
+    /config must remain outside/,
+  );
 });

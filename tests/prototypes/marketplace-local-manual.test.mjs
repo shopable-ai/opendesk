@@ -47,3 +47,9 @@ test('manual Marketplace helper refreshes stale native code before opening the s
   assert.match(helperSource, /await ensureCurrentBundle\(runDirectory\);\s*await verifyAndRegisterBundle/);
   assert.match(helperSource, /spawnSync\('\/bin\/bash', \[BUILD_SCRIPT\]/);
 });
+
+test('manual Marketplace helper retains an HTTP request evidence log outside the public site', () => {
+  assert.match(helperSource, /path\.join\(runDirectory, 'http-requests\.log'\)/);
+  assert.match(helperSource, /'--request-log', requestLogPath/);
+  assert.match(helperSource, /HTTP request log: \$\{run\.server\.requestLog\}/);
+});
