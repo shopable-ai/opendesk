@@ -154,9 +154,8 @@ func (installer *Installer) rejectKnownMetadataRollback(release Release) error {
 			return fmt.Errorf("marketplace release metadata revision rollback is not allowed")
 		}
 		if release.MetadataRevision == current.MarketplaceMetadataRevision &&
-			current.MarketplaceArtifactLocation != "" &&
 			release.ArtifactLocation != current.MarketplaceArtifactLocation {
-			return fmt.Errorf("marketplace artifact location change requires a higher metadata revision")
+			return fmt.Errorf("marketplace artifact location is unproven or changed; a higher metadata revision is required")
 		}
 	}
 	return nil
