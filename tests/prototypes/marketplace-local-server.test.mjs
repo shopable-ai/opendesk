@@ -5,9 +5,11 @@ import {mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile} from 'node:fs
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import {prepareLocalMarketplaceSite, releaseAttestationMessage, startLocalMarketplaceServer} from './tools/marketplace-local-server.mjs';
+import {fileURLToPath} from 'node:url';
+import {prepareLocalMarketplaceSite, releaseAttestationMessage, startLocalMarketplaceServer, verifyCanonicalPackage} from './tools/marketplace-local-server.mjs';
 
 const sha256 = data => createHash('sha256').update(data).digest('hex');
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 async function startGenericStaticServer(siteRoot) {
   const server = createServer(async (request, response) => {
@@ -78,6 +80,15 @@ test('local Marketplace prepares one same-site static page, signed release and r
   assert.equal(genericRelease.release.artifactDigest, sha256(genericArtifact));
   assert.equal((await fetch(generic.baseURL + '/v1/install-intents/local-notify-demo-intent-1')).status, 404);
   assert.equal((await fetch(generic.baseURL + '/local-smoke/status')).status, 404);
+});
+
+test('local publisher rejects generated flow.json drift before preparing a Release', async () => {
+  const packageRoot = path.join(repoRoot, 'examples', 'flow-distribution', 'notify-demo');
+  const artifact = await readFile(path.join(packageRoot, 'notify-demo.odflow'));
+  const manifest = JSON.parse(await readFile(path.join(packageRoot, 'flow.json'), 'utf8'));
+  assert.doesNotThrow(() => verifyCanonicalPackage(artifact, manifest));
+  manifest.version = '9.9.9';
+  assert.throws(() => verifyCanonicalPackage(artifact, manifest), /generated manifest digest/);
 });
 
 test('Node static publisher uses the exact Go Release v2 attestation bytes', () => {

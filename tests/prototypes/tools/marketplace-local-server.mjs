@@ -59,12 +59,17 @@ function platformLabel(value) {
   return value;
 }
 
-function verifyCanonicalPackage(artifact, manifest) {
+export function verifyCanonicalPackage(artifact, manifest) {
   const readme = readFileSync(path.join(PACKAGE_ROOT, 'README.md'), 'utf8');
   const documented = /archive SHA-256:\s*`([0-9a-f]{64})`/.exec(readme)?.[1];
+  const documentedManifest = /manifest SHA-256:\s*`([0-9a-f]{64})`/.exec(readme)?.[1];
   const digest = sha256(artifact);
   if (!documented || documented !== digest) {
     throw new Error('Notify Demo checked-in package does not match its documented archive digest; rebuild and re-verify the canonical example before publishing it');
+  }
+  const manifestDigest = sha256(Buffer.from(JSON.stringify(manifest)));
+  if (!documentedManifest || documentedManifest !== manifestDigest) {
+    throw new Error('Notify Demo flow.json does not match its documented generated manifest digest; rebuild and re-verify the canonical example before publishing it');
   }
   // flow.json also lists package-generated entries such as trust/publisher.pub.
   // Only author-maintained source files are expected beside the checked-in package;

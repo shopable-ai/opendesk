@@ -29,6 +29,7 @@ on:
       - 'tests/prototypes/tools/marketplace-local-manual.mjs'
       - 'tests/prototypes/marketplace-smoke.py'
       - 'apps/opendesk/prototypes/marketplace/**'
+      - 'examples/flow-distribution/**'
       - 'tests/runtime-api/gates/**'
       - 'scripts/test_runtime_apis.js'
       - 'scripts/build_windows_distribution.ps1'
