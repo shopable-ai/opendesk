@@ -317,6 +317,7 @@ func TestStaticArtifactLocationRejectsTraversalAndMutableRelativeURLParts(t *tes
 		"flows\\demo.odflow",
 		"https://downloads.example.test/base/../escape.odflow",
 		"https://downloads.example.test/base/%2e%2e/escape.odflow",
+		"https://downloads.example.test/base/%5c..%5cescape.odflow",
 		".",
 	} {
 		release.ArtifactLocation = location
@@ -429,6 +430,24 @@ func TestResolvedMarketplaceDNSAddressesRejectAnyPrivateTarget(t *testing.T) {
 	}
 	if _, err := validateResolvedMarketplaceIPs([]net.IPAddr{{IP: net.ParseIP("8.8.8.8")}, {IP: net.ParseIP("10.0.0.8")}}); err == nil {
 		t.Fatal("post-DNS Marketplace validation accepted a result set containing a private address")
+	}
+}
+
+func TestDevelopmentModeDoesNotBroadenHTTPSPrivateNetworkTargets(t *testing.T) {
+	for _, raw := range []string{
+		"https://10.0.0.8/private.odflow",
+		"https://192.168.1.8/private.odflow",
+		"https://169.254.1.8/private.odflow",
+	} {
+		if _, err := parseDistributionBaseURL(raw, true); err == nil {
+			t.Fatalf("development Marketplace accepted non-loopback private HTTPS target %q", raw)
+		}
+	}
+	if _, err := parseDistributionBaseURL("https://127.0.0.1/local.odflow", true); err != nil {
+		t.Fatalf("explicit HTTPS loopback development target rejected: %v", err)
+	}
+	if _, err := parseDistributionBaseURL("https://downloads.example.test/public.odflow", true); err != nil {
+		t.Fatalf("public HTTPS target rejected in development mode: %v", err)
 	}
 }
 
