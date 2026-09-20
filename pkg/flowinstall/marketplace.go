@@ -50,9 +50,13 @@ func applyMarketplaceProvenance(record Record, provenance *MarketplaceProvenance
 		if provenance.MetadataRevision < record.MarketplaceMetadataRevision {
 			return Record{}, false, fmt.Errorf("Marketplace metadata revision rollback is not allowed")
 		}
-		if provenance.MetadataRevision == record.MarketplaceMetadataRevision &&
-			provenance.ArtifactLocation != record.MarketplaceArtifactLocation {
-			return Record{}, false, fmt.Errorf("Marketplace artifact location is unproven or changed; a higher metadata revision is required")
+		if provenance.MetadataRevision == record.MarketplaceMetadataRevision {
+			if provenance.ArtifactLocation != record.MarketplaceArtifactLocation {
+				return Record{}, false, fmt.Errorf("Marketplace artifact location is unproven or changed; a higher metadata revision is required")
+			}
+			if provenance.UpdateChannel != record.UpdateChannel {
+				return Record{}, false, fmt.Errorf("Marketplace update channel changed without a higher metadata revision")
+			}
 		}
 	}
 	updated := record
