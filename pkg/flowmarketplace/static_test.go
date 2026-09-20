@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync"
 	"strings"
 	"testing"
@@ -262,4 +263,95 @@ func TestStaticInstallRejectsKnownMetadataRevisionRollbackBeforeDownloadOrConfir
 		t.Fatalf("persisted revision after rollback = %+v err=%v", persisted, err)
 	}
 	if err := service.Uninstall(context.Background(), result.Record.InstallID, false); err != nil { t.Fatal(err) }
+}
+
+
+func TestStaticArtifactLocationRejectsTraversalAndMutableRelativeURLParts(t *testing.T) {
+	client, err := NewClient(ClientOptions{
+		BaseURL: "https://downloads.example.test/base/",
+		Resolver: ResolverStatic,
+	})
+	if err != nil { t.Fatal(err) }
+	release := Release{SchemaVersion: 2, MetadataRevision: 1}
+	for _, location := range []string{
+		"../escape.odflow",
+		"flows/../escape.odflow",
+		"/absolute/path.odflow",
+		"flows/demo.odflow?token=mutable",
+		"flows/demo.odflow#fragment",
+		"flows\\demo.odflow",
+		".",
+	} {
+		release.ArtifactLocation = location
+		if _, err := client.artifactURL(release); err == nil {
+			t.Fatalf("unsafe artifact location %q was accepted", location)
+		}
+	}
+}
+
+func TestMarketplaceArtifactDownloadCancellationTimeoutAndInterruptionLeaveNoTempFile(t *testing.T) {
+	fixture := newMarketplaceFixture(t, EntitlementFree)
+	release := fixture.release
+	release.SchemaVersion = 2
+	release.MetadataRevision = 1
+	release.ArtifactLocation = "artifact.odflow"
+
+	t.Run("canceled context", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+			response.Header().Set("Content-Length", fmt.Sprintf("%d", len(fixture.artifact)))
+			_, _ = response.Write(fixture.artifact)
+		}))
+		defer server.Close()
+		client, err := NewClient(ClientOptions{BaseURL: server.URL + "/", Resolver: ResolverStatic, AllowInsecureLoopbackForTests: true})
+		if err != nil { t.Fatal(err) }
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		root := t.TempDir()
+		if _, _, err := client.DownloadArtifact(ctx, release, root); err == nil {
+			t.Fatal("canceled artifact download unexpectedly succeeded")
+		}
+		if entries, err := os.ReadDir(root); err != nil || len(entries) != 0 {
+			t.Fatalf("canceled artifact download left temp files: entries=%v err=%v", entries, err)
+		}
+	})
+
+	t.Run("http timeout", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+			select {
+			case <-request.Context().Done():
+			case <-time.After(250 * time.Millisecond):
+				response.WriteHeader(http.StatusGatewayTimeout)
+			}
+		}))
+		defer server.Close()
+		client, err := NewClient(ClientOptions{
+			BaseURL: server.URL + "/", Resolver: ResolverStatic, AllowInsecureLoopbackForTests: true,
+			HTTPClient: &http.Client{Timeout: 20 * time.Millisecond},
+		})
+		if err != nil { t.Fatal(err) }
+		root := t.TempDir()
+		if _, _, err := client.DownloadArtifact(context.Background(), release, root); err == nil {
+			t.Fatal("timed-out artifact download unexpectedly succeeded")
+		}
+		if entries, err := os.ReadDir(root); err != nil || len(entries) != 0 {
+			t.Fatalf("timed-out artifact download left temp files: entries=%v err=%v", entries, err)
+		}
+	})
+
+	t.Run("truncated response", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+			response.Header().Set("Content-Length", fmt.Sprintf("%d", len(fixture.artifact)))
+			_, _ = response.Write(fixture.artifact[:len(fixture.artifact)/2])
+		}))
+		defer server.Close()
+		client, err := NewClient(ClientOptions{BaseURL: server.URL + "/", Resolver: ResolverStatic, AllowInsecureLoopbackForTests: true})
+		if err != nil { t.Fatal(err) }
+		root := t.TempDir()
+		if _, _, err := client.DownloadArtifact(context.Background(), release, root); err == nil {
+			t.Fatal("truncated artifact download unexpectedly succeeded")
+		}
+		if entries, err := os.ReadDir(root); err != nil || len(entries) != 0 {
+			t.Fatalf("truncated artifact download left temp files: entries=%v err=%v", entries, err)
+		}
+	})
 }
