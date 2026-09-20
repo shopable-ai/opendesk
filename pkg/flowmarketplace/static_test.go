@@ -424,6 +424,15 @@ func TestProductionMarketplaceRejectsPrivateAndLocalNetworkTargets(t *testing.T)
 	}
 }
 
+func TestResolvedDevelopmentHostnameRejectsAnyNonLoopbackTarget(t *testing.T) {
+	if ips, err := validateResolvedLoopbackMarketplaceIPs([]net.IPAddr{{IP: net.ParseIP("127.0.0.1")}, {IP: net.ParseIP("::1")}}); err != nil || len(ips) != 2 {
+		t.Fatalf("loopback resolved target rejected: ips=%v err=%v", ips, err)
+	}
+	if _, err := validateResolvedLoopbackMarketplaceIPs([]net.IPAddr{{IP: net.ParseIP("127.0.0.1")}, {IP: net.ParseIP("192.168.1.8")}}); err == nil {
+		t.Fatal("development Marketplace accepted a hostname result set containing non-loopback address")
+	}
+}
+
 func TestResolvedMarketplaceDNSAddressesRejectAnyPrivateTarget(t *testing.T) {
 	if ips, err := validateResolvedMarketplaceIPs([]net.IPAddr{{IP: net.ParseIP("8.8.8.8")}}); err != nil || len(ips) != 1 {
 		t.Fatalf("public resolved target rejected: ips=%v err=%v", ips, err)
