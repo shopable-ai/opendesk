@@ -1,8 +1,8 @@
 # OpenDesk Flow Marketplace：整体框架、同站点开发与安装方案
 
 > 更新日期：2026-09-20。  
-> 状态：整体方案已收敛并保存；同站点纯静态安装改造尚未实施，不能作为功能已完成的证明。  
-> 相关源码复核基线：`d737c4a14a1607d41045c4359adef1f855e77688`；本次写入前分支头为 `91ba86ad5882998770ee575547f72a110cdaec60`。  
+> 状态：同站点静态分发核心实现已写入；自动化与真实 macOS 桌面验收分开记录，代码已写不等于桌面验收通过。  
+> 当前实现事实以最新 `master`、本文件状态表和实际测试证据为准；历史提交只用于追溯，不能代替当前代码事实。  
 > 本文是整体方案的唯一维护入口，不再另建一份平行的“静态安装方案”。  
 > 当前可运行入口：[原型 README](../../../apps/opendesk/prototypes/marketplace/README.md)；当前协议：[Protocol V1](flow-marketplace-protocol-v1.md)；安装内核：[Flow 分发、安装、信任、授权与运行模型](flow-distribution-installation.md)。
 
@@ -61,7 +61,7 @@
 
 “可静态托管的目录”在这里仅表示：**一个文件夹，浏览器和 OpenDesk 通过同一个 HTTP 地址读取其中的文件**。不是另一套应用，不要求独立域名。
 
-目标生成布局如下；这是待实施布局，不是当前已经生成的目录：
+当前开发助手会在每次本地手动会话中生成如下隔离布局；目录位于 `.runtime/`，不提交：
 
 ```text
 .runtime/tests/marketplace/manual-<本次编号>/
@@ -97,7 +97,7 @@ examples/flow-distribution/notify-demo/notify-demo.odflow
 
 ### 2.3 以同一地址访问
 
-下面使用当前 Notify Demo 的标识举例；端口仅为说明，实际由启动助手一次确定并同时写给页面和客户端。以下静态 URL 是目标布局，不是当前已经可用的接口：
+下面使用当前 Notify Demo 的标识举例；端口由启动助手一次确定并同时写给页面和客户端。当前本地实现会生成同构静态 URL：
 
 ```text
 http://127.0.0.1:8765/index.html
@@ -147,15 +147,15 @@ http://127.0.0.1:8765/flows/com.example.opendesk.notify-demo/local-notify-demo-1
 
 ## 4. 怎样启动：一个入口，不让开发者搬文件或配多个端口
 
-### 4.1 现在已有的命令，不等于目标静态方案已经实现
+### 4.1 当前一条命令开发入口
 
-当前 README 的 macOS 本地安装检查入口，从仓库根目录执行：
+从仓库根目录执行：
 
 ```bash
-./scripts/build_macos_app.sh && node tests/prototypes/tools/marketplace-local-manual.mjs
+node tests/prototypes/tools/marketplace-local-manual.mjs
 ```
 
-在核对基线中，它启动专用 loopback 服务、生成临时 Release 和开发配置、启动 OpenDesk，并打开最简页；页面有些交互仍是模拟。这不是本节目标的纯静态分发。本文修订时未运行该命令，不能声明当前 Mac 验收通过。
+助手先核对当前源码与已签名 App 的构建指纹；能够证明兼容时复用，否则调用现有 macOS build script 刷新。随后生成只包含普通文件的 `site/`、临时签名 Release/root 和受限 loopback 开发配置，启动匹配 OpenDesk，并用 Chrome 打开主 `index.html`。当前环境仍没有真实 macOS 点击证据，因此不能声明 Desktop PASS。
 
 仅查看当前 HTML 原型时，现有静态入口是：
 
@@ -165,15 +165,15 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory apps/opendesk/prototype
 
 这只展示当前原型，不会凭空生成配套包和发布说明，也不能代替真实安装验收。
 
-### 4.2 改造后的普通开发入口合同
+### 4.2 已实现的一条命令合同
 
-复用同一助手，目标体验仍为从仓库根目录执行：
+复用同一助手，当前入口为：
 
 ```bash
 node tests/prototypes/tools/marketplace-local-manual.mjs
 ```
 
-**该命令名已经存在；下列“同站点静态准备”行为尚待实现，不能把当前执行它的结果写成静态方案已通过。**
+**同站点静态准备已经写入实现；是否通过仍以当前自动化结果和真实 macOS 桌面证据分别判断。**
 
 助手负责：检查当前配套构建与原生签名 → 必要时由维护工具刷新配套构建 → 分配本次目录及 loopback 端口 → 从当前原型和真实包生成 `site/` → 生成本机开发配置 → 启动同一配置的 OpenDesk → 用 Chrome 打开主原型 `index.html`。
 
@@ -195,13 +195,14 @@ node tests/prototypes/tools/marketplace-local-manual.mjs
 
 `configs/product.json` 是产品运营与网络配置的唯一明文维护源，经正式编译链生成 `product.odcfg`。`actions.marketplace.url` 继续只是页面入口，不被偷换成 API 或包下载地址。
 
-建议扩展下列字段；它们在核对基线中尚不存在，实施时必须同时更新 schema、编译器、原生读取和测试：
+正式 Product Config schema 与原生读取链已支持下列可选字段；当前没有真实 production HTTPS 地址和可信 Release root，因此 `configs/product.json` 保持未配置，生产客户端 fail closed：
 
 | 建议字段 | 含义 | 最小本地方案 |
 | --- | --- | --- |
 | `flowDistribution.metadataBaseUrl` | 以 `/` 结尾的文件站点前缀 | 本机显式开发配置覆盖为本次 loopback 地址 |
 | `flowDistribution.artifactBaseUrl` | 可选包前缀 | 留空，沿用 metadataBaseUrl |
 | `flowDistribution.resolver` | `static` 或既有动态解析方式 | 静态模式直接读取版本说明，不猜测或自动回退到其他模式 |
+| `flowDistribution.releaseRoots` | Release attestation 的可信根 | production 必须显式配置；本地助手只在站点外开发配置中使用本次临时 root |
 
 可信公钥按既有配置所有权维护，不能由 HTML、链接参数或下载文件自封为可信根。正式配置不存私钥；本次临时开发根只存在于本机批准的会话配置。ODCFG1 的混淆与校验和不是远程真实性签名。
 
@@ -210,7 +211,7 @@ node tests/prototypes/tools/marketplace-local-manual.mjs
 ```text
 P = flows/<已校验flowId>/<已校验releaseId>/
 版本说明 URL = B + P + release.json
-默认包 URL   = (A 为空时用 B，否则用 A) + P + 发布说明中的文件名
+默认包 URL   = (A 为空时用 B，否则用 A) + Release v2 中受签名保护的 canonical artifactLocation
 ```
 
 本地默认包文件名为 `notify-demo.odflow`。文件名是受限 basename，不接受 `../` 或路径分隔符。完整 URL 使用独立且受签名保护的字段，不能把它偷偷放进文件名。使用 URL 解析与受控路径拼接，不用不受限字符串相加；不得丢掉配置中的合法路径前缀，也不得双重拼接 Flow/版本目录。
@@ -333,18 +334,19 @@ Web Marketplace / In-App Marketplace / 双击 / 拖入 / 文件选择
 
 ## 10. 源码事实与目标方案的差距
 
-以下是相关源码复核基线的源码/文档事实，不是本轮执行结果：
+当前实现状态如下；“已实现”不自动等于真实桌面 PASS：
 
-| 已有事实 | 目标变化 | 主要 owner |
+| 子系统 | 当前实现 | 仍需证明 |
 | --- | --- | --- |
-| 主原型经专用服务才启用真实链接，六个商品映射同一 Notify Demo | 真实 Demo 单独标注并与包匹配；普通静态文件可支撑真实安装 | 原型 HTML 与其测试 |
-| helper 启动专用服务并打开最简页 | 自动准备一个 site，默认 Chrome 打开现有主原型；保留诊断页 | 既有 manual/server 工具 |
-| 包位于公开示例目录，服务内存读取并提供 artifact endpoint | 维护源不动，生成目录中发布说明和包同目录 | 示例发布准备 |
-| 客户端使用动态 intent API 和固定 artifact endpoint | 增加显式静态解析方式，后续复用统一下载及安装内核 | `pkg/flowmarketplace/` |
-| `product.json` 没有上述分发配置块 | 扩展完整配置编译、读取和发行链；不直接手改 odcfg | 产品配置 owner |
-| 最新安装器已在 canonical 包验证/Release 匹配之后调用原生确认，合并安装与必要的 Flow trust | 保留同一验证候选、同一确认和事务边界；静态解析接入这里，不恢复旧两次弹窗 | Marketplace / FlowInstall |
-| 当前 V1 严格拒绝额外 URI 参数 | 可选 download 单独演进，默认短协议继续工作 | 协议合同与解析器 |
-| 服务依据 Catalog 返回“安装成功，尚未运行” | 安装与运行证据分离；纯静态页不依赖本机状态 API | 状态呈现与验收 |
+| 主原型 | 生成站点只给真实 Notify Demo 接实际协议；其他商品保持模拟；删除 Catalog/status 轮询 | 真实 Chrome 点击 |
+| helper | 自动刷新或复用匹配构建，生成隔离 site/开发配置/静态服务并打开主原型 | 真实 LaunchServices 与 Chrome |
+| 发布资源 | canonical 包与 `flow.json` 全部声明源先核对，再将 `release.json` 与 `.odflow` 放同一版本目录 | 当前自动化必须 PASS |
+| static resolver | 显式 static/dynamic；static 只取普通 release 文件和受签名 artifact location，不失败回退 | production CDN 尚未配置/部署 |
+| Product Config | schema/正式读取链支持 `flowDistribution`；当前 production 未配置真实地址/root，明确 fail closed | 未来 production 地址和 root 的运营配置 |
+| Release v2 | `flowName`、revision、artifact location 进入版本化签名载荷；v1 dynamic 兼容 | 当前 Go/Node golden 与负向测试必须 PASS |
+| revision state | 同 Release 最高 revision 保存在现有 Catalog provenance，回退在下载/确认前拒绝且事务层重验 | 当前自动化必须 PASS |
+| 安装内核 | 继续使用 canonical 包验证后的一个原生确认和 `flowinstall.Service`；安装不执行 | 真实原生 prompt、Flow Runner 与 explicit Run |
+| Deep Link | 默认严格短协议保持不变 | `download` 扩展仍未实施 |
 
 关键事实来源（实施前重新读取最新内容）：
 
@@ -370,7 +372,7 @@ Web Marketplace / In-App Marketplace / 双击 / 拖入 / 文件选择
 | 原生体验 | 两个安全概念是否必须弹两次窗，是否又推翻最新实现 | 不必须；保留验包后的一次原生确认，安装同意与信任范围仍分别明确，扩大信任需显式选择 |
 | 冷启动 | helper 先开应用，是否冒充冷启动通过 | 冷/热启动分开验收；无批准开发配置安全停止，不依赖网页补配置 |
 | QA | 页面说安装完成或“尚未运行”是否可信 | 原生结果+精确 Catalog 证明安装；执行记录证明运行状态；纯静态页只报已发起 |
-| 范围控制 | 为保存方案就重写生产代码或增加服务 | 本次仅修订现有架构文档，复用原型 README 已有入口；代码改造进入下一轮，不用文档评分代替测试 |
+| 范围控制 | 静态分发是否又造一套安装器或业务服务 | 只增加 resolver 与静态文件准备，继续复用现有 Installer/FlowInstall/Catalog；文档评分不能替代测试 |
 
 ### 设计评分
 
@@ -380,7 +382,7 @@ Web Marketplace / In-App Marketplace / 双击 / 拖入 / 文件选择
 | --- | ---: | --- |
 | 需求与现有原型衔接 | 20/20 | 明确原型、实际包、同站点地址、安装位置和用户主入口 |
 | 开发操作成本 | 19/20 | 不手工复制、不双域名；原生构建/协议注册仍须真实验证 |
-| 安全与身份一致性 | 19/20 | 信任、签名、包摘要、网络边界完整；新签名 schema 尚需实现测试 |
+| 安全与身份一致性 | 19/20 | Release v2 已实现显示名、地址与 revision 保护并补负向测试；production CDN/真实桌面仍需验收 |
 | 配置与 CDN 演进 | 14/15 | 一个默认前缀即可运行，保留地址更新；全站入口迁移仍有运营前提 |
 | 兼容与证据 | 14/15 | V1/拟扩展、冷/热、模拟/真实分别表述；尚无本轮桌面证据 |
 | 范围与维护简洁性 | 10/10 | 同版本同目录、一份方案 owner、复用现有安装器与一次原生确认 |
@@ -390,13 +392,13 @@ Web Marketplace / In-App Marketplace / 双击 / 拖入 / 文件选择
 
 ## 12. 实施顺序与完成标准
 
-### A. 本次文档交付
+### A. 当前已经写入的核心实现
 
-在本文件保存并修订整体框架，复用原型 README 已有入口。说明同站点关系、原型到站点文件的对应、同版本并排文件、单启动入口、源码现状与目标差异；同步最新一次原生确认的实现边界。不修改生产代码、不生成开发私钥、不运行本地桌面、不改变当前 Protocol V1 的实际行为。
+现有主原型、canonical Notify Demo、Product Config 读取链、Release v2、static resolver、HTTP 下载、统一 Installer、Catalog provenance 和一条命令开发助手已经接通；本地站点只包含普通静态文件，不依赖旧动态 intent/artifact/status 路由。代码实现必须继续由当前自动化证明，不能用本段文字替代测试。
 
-### B. 下一轮最小可执行改造
+### B. 剩余真实桌面验收
 
-复用现有工具准备 `site/` → 接入产品配置及静态 Release 解析 → 实现签名合同与受控取包 → 当前原型只绑定真实 Demo → 一条命令打开主原型 → 完成真实 Chrome/原生安装/Runner 验收。普通静态服务器替换验证必须成立，不得靠隐藏的动态路由通过。
+在真实 macOS 上用当前一条命令完成 Chrome → OS protocol → OpenDesk → HTTP 下载 → 原生确认 → Catalog/Flow Runner → explicit Run，并分别证明热启动、冷启动、取消、重复点击、配置错误、安装前后无 Execution。失败时只修当前失败链并重跑受影响测试，不回退到动态 smoke API 或本地侧载。
 
 可选 download 参数、账号/付费 API、全站分发配置迁移、复杂 CDN failover 分别验收，不能把它们全部捆成本地静态闭环的启动条件，也不能在完成 B 后宣称这些扩展全部完成。
 
@@ -432,3 +434,33 @@ Web Marketplace / In-App Marketplace / 双击 / 拖入 / 文件选择
 **一个已有原型，一个本地 HTTP 文件站点，一个开发启动入口；每个版本的一份签名说明与一个 `.odflow` 放在同一目录。产品配置给出默认前缀，客户端验证后下载并复用既有安装内核和一次原生确认，用户单独运行。**
 
 逻辑上区分 Release 与 Package，是为了验证正确；物理上把它们放在一起，是为了开发和发布简单。以后换官网、CDN 或源站，只扩展取包位置，不重建安装系统。
+
+## 15. 2026-09-20 实施状态与证据口径
+
+当前主链已经写成：
+
+```text
+现有 Marketplace index.html + canonical Notify Demo
+→ run/site 中同站点 index.html / release.json / .odflow
+→ ID-only opendesk://
+→ Product Config 或受限开发配置选择 explicit resolver
+→ signed Release v2
+→ HTTP artifact download
+→ 现有 flowmarketplace.Installer
+→ 现有 flowinstall.Service / Catalog
+→ 用户另外在 Flow Runner 运行
+```
+
+状态必须把实现与验证分开：
+
+| 子任务 | 实现状态 | 验证结果口径 |
+| --- | --- | --- |
+| 差距核对与最小范围 | 已实现 | 源码职责已核对 |
+| Product Config + Release v2 | 已实现 | 以当前 CI/专项测试为准 |
+| 同站点静态资源准备 | 已实现 | 以当前 Node/静态站点测试为准 |
+| static resolver + HTTP + unified installer | 已实现 | 以当前 Go 集成测试为准 |
+| 主原型 + 一条开发命令 | 已实现 | 自动化与真实 Chrome 分开；Chrome 仍 NOT_RUN |
+| 失败路径 / revision / 地址变化 / 通用静态 server | 已实现测试 | 以当前测试结果为准 |
+| macOS 热/冷启动 + 原生确认 + Runner + 实际 Run | 待真实验收 | NOT_RUN |
+
+可选 `download` Deep Link 参数仍为 **未实施**，不计入本轮主闭环已完成项。
