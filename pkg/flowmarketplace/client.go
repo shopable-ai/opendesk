@@ -282,31 +282,34 @@ func decodeBoundedJSON(reader io.Reader, target any) error {
 
 func defaultMarketplaceHTTPClient(allowLoopback bool) *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	if !allowLoopback {
-		transport.Proxy = nil
-		dialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
-		transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
-			host, port, err := net.SplitHostPort(address)
-			if err != nil {
-				return nil, fmt.Errorf("parse marketplace network address: %w", err)
-			}
-			ips, err := resolvePublicMarketplaceIPs(ctx, host)
-			if err != nil {
-				return nil, err
-			}
-			var lastErr error
-			for _, ip := range ips {
-				conn, dialErr := dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
-				if dialErr == nil {
-					return conn, nil
-				}
-				lastErr = dialErr
-			}
-			if lastErr == nil {
-				lastErr = fmt.Errorf("no public Marketplace address is available")
-			}
-			return nil, lastErr
+	transport.Proxy = nil
+	dialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, fmt.Errorf("parse marketplace network address: %w", err)
 		}
+		var ips []net.IP
+		if allowLoopback && isLoopbackHost(host) {
+			ips, err = resolveLoopbackMarketplaceIPs(ctx, host)
+		} else {
+			ips, err = resolvePublicMarketplaceIPs(ctx, host)
+		}
+		if err != nil {
+			return nil, err
+		}
+		var lastErr error
+		for _, ip := range ips {
+			conn, dialErr := dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+			if dialErr == nil {
+				return conn, nil
+			}
+			lastErr = dialErr
+		}
+		if lastErr == nil {
+			lastErr = fmt.Errorf("no approved Marketplace address is available")
+		}
+		return nil, lastErr
 	}
 	return &http.Client{Timeout: 30 * time.Second, Transport: transport}
 }
@@ -320,10 +323,38 @@ func (client *Client) validateRequestTarget(ctx context.Context, raw string) err
 		return fmt.Errorf("marketplace request URL is invalid")
 	}
 	if client.allowLoopback && isLoopbackHost(parsed.Hostname()) {
-		return nil
+		_, err = resolveLoopbackMarketplaceIPs(ctx, parsed.Hostname())
+		return err
 	}
 	_, err = resolvePublicMarketplaceIPs(ctx, parsed.Hostname())
 	return err
+}
+
+func resolveLoopbackMarketplaceIPs(ctx context.Context, host string) ([]net.IP, error) {
+	if literal := net.ParseIP(host); literal != nil {
+		if !literal.IsLoopback() {
+			return nil, fmt.Errorf("marketplace development target is not loopback")
+		}
+		return []net.IP{append(net.IP(nil), literal...)}, nil
+	}
+	if !strings.EqualFold(strings.TrimSuffix(strings.TrimSpace(host), "."), "localhost") {
+		return nil, fmt.Errorf("marketplace development hostname is not loopback")
+	}
+	addresses, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, fmt.Errorf("resolve marketplace development loopback target: %w", err)
+	}
+	if len(addresses) == 0 {
+		return nil, fmt.Errorf("marketplace development loopback target resolved to no addresses")
+	}
+	ips := make([]net.IP, 0, len(addresses))
+	for _, address := range addresses {
+		if address.IP == nil || !address.IP.IsLoopback() {
+			return nil, fmt.Errorf("marketplace development hostname resolved outside loopback")
+		}
+		ips = append(ips, append(net.IP(nil), address.IP...))
+	}
+	return ips, nil
 }
 
 func resolvePublicMarketplaceIPs(ctx context.Context, host string) ([]net.IP, error) {
