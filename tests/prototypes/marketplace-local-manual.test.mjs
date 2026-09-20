@@ -37,6 +37,7 @@ test('manual Marketplace helper opens the main prepared prototype and reports st
   assert.match(helperSource, /baseURL\}\/index\.html/);
   assert.match(helperSource, /Release: \$\{run\.releaseURL\}/);
   assert.match(helperSource, /Package: \$\{run\.artifactURL\}/);
+  assert.match(helperSource, /directOpen\(metadata\.url, 'Google Chrome'\)/);
   assert.doesNotMatch(helperSource, /baseURL\}\/local-deep-link-smoke\.html/);
 });
 
