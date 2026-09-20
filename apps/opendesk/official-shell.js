@@ -195,12 +195,17 @@
       actions[name] = Object.freeze({visible: action.visible, url});
     }
 
-    return Object.freeze({
+    const normalized = {
       schemaVersion: CONFIG_SCHEMA_VERSION,
       actions: Object.freeze(actions),
-      analytics: validateAnalytics(value.analytics),
-      flowDistribution: validateFlowDistribution(value.flowDistribution),
-    });
+    };
+    if (Object.prototype.hasOwnProperty.call(value, 'analytics')) {
+      normalized.analytics = validateAnalytics(value.analytics);
+    }
+    if (Object.prototype.hasOwnProperty.call(value, 'flowDistribution')) {
+      normalized.flowDistribution = validateFlowDistribution(value.flowDistribution);
+    }
+    return Object.freeze(normalized);
   }
 
   function parseConfig(text) {
