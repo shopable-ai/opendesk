@@ -4,6 +4,7 @@
 // did not start. Use the printed cleanup command only for a recorded manual run.
 import {appendFile, mkdir, readFile, writeFile} from 'node:fs/promises';
 import {createWriteStream} from 'node:fs';
+import {createHash} from 'node:crypto';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawn, spawnSync} from 'node:child_process';
@@ -13,6 +14,12 @@ const ROOT = path.resolve(TOOL_DIR, '../../..');
 const MANUAL_ROOT = path.join(ROOT, '.runtime', 'tests', 'marketplace');
 const SERVER_SCRIPT = path.join(TOOL_DIR, 'marketplace-local-server.mjs');
 const BUNDLE = path.join(ROOT, 'dist', 'OpenDesk.app');
+const BUILD_SCRIPT = path.join(ROOT, 'scripts', 'build_macos_app.sh');
+const BUILD_STATE = path.join(MANUAL_ROOT, 'build-current.json');
+const BUILD_INPUTS = [
+  'go.mod', 'go.sum', 'VERSION', 'cmd/opendesk', 'pkg/flowmarketplace', 'pkg/flowinstall', 'pkg/flowpackage',
+  'pkg/officialconfig', 'internal/officialassets', 'apps/opendesk', 'scripts/build_macos_app.sh',
+];
 const EXECUTABLE = path.join(BUNDLE, 'Contents', 'MacOS', 'opendesk');
 const APP_ROOT = path.join(ROOT, 'apps', 'opendesk');
 const LSREGISTER = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
@@ -109,6 +116,49 @@ async function logContains(logPath, fragment) {
     if (error && error.code === 'ENOENT') return false;
     throw error;
   }
+}
+
+function gitCommand(args) {
+  return spawnSync('/usr/bin/git', ['-C', ROOT, ...args], {encoding: 'utf8'});
+}
+
+async function currentBuildFingerprint() {
+  const head = gitCommand(['rev-parse', 'HEAD']);
+  const diff = gitCommand(['diff', '--binary', 'HEAD', '--', ...BUILD_INPUTS]);
+  const untracked = gitCommand(['ls-files', '--others', '--exclude-standard', '--', ...BUILD_INPUTS]);
+  for (const result of [head, diff, untracked]) {
+    if (result.status !== 0 || result.error) throw new Error(`cannot compute current OpenDesk build fingerprint: ${result.stderr || result.error}`);
+  }
+  const hash = createHash('sha256')
+    .update(head.stdout).update('\0').update(diff.stdout).update('\0').update(untracked.stdout)
+    .digest('hex');
+  return {fingerprint: hash, reusable: untracked.stdout.trim() === ''};
+}
+
+async function ensureCurrentBundle(runDirectory) {
+  if (process.platform !== 'darwin') throw new Error('the manual Marketplace helper is macOS-only');
+  await mkdir(MANUAL_ROOT, {recursive: true, mode: 0o700});
+  const current = await currentBuildFingerprint();
+  let previous;
+  try { previous = JSON.parse(await readFile(BUILD_STATE, 'utf8')); } catch (_) { previous = null; }
+
+  const signature = commandOutput('/usr/bin/codesign', ['--verify', '--deep', '--strict', BUNDLE]);
+  if (current.reusable && previous?.fingerprint === current.fingerprint && signature.status === 0 && !signature.error) {
+    await writeFile(path.join(runDirectory, 'build.log'), `reused current signed bundle\nfingerprint=${current.fingerprint}\n`, {mode: 0o600});
+    return;
+  }
+
+  const build = spawnSync('/bin/bash', [BUILD_SCRIPT], {cwd: ROOT, encoding: 'utf8', env: process.env});
+  const report = `$ /bin/bash ${BUILD_SCRIPT}\n${build.stdout || ''}${build.stderr || ''}${build.error ? String(build.error) : ''}`;
+  await writeFile(path.join(runDirectory, 'build.log'), report, {mode: 0o600});
+  if (build.status !== 0 || build.error) throw new Error(`OpenDesk macOS build failed; see ${path.join(runDirectory, 'build.log')}`);
+
+  const after = await currentBuildFingerprint();
+  if (!after.reusable) {
+    await writeFile(BUILD_STATE, JSON.stringify({fingerprint: '', reusable: false}, null, 2) + '\n', {mode: 0o600});
+    return;
+  }
+  await writeFile(BUILD_STATE, JSON.stringify({fingerprint: after.fingerprint}, null, 2) + '\n', {mode: 0o600});
 }
 
 function verifyAndRegisterBundle(runDirectory) {
@@ -245,6 +295,7 @@ export async function startManualRun() {
   }
   const runDirectory = await createRunDirectory();
   const supervisorLog = path.join(runDirectory, 'supervisor.log');
+  await ensureCurrentBundle(runDirectory);
   await verifyAndRegisterBundle(runDirectory);
   const server = await startServer(runDirectory);
   let app;

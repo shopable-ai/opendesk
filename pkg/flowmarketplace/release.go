@@ -134,6 +134,7 @@ type releaseAttestationClaims struct {
 	Usage                          string            `json:"usage"`
 	MarketplaceID                  string            `json:"marketplaceId"`
 	FlowID                         string            `json:"flowId"`
+	FlowName                       string            `json:"flowName,omitempty"`
 	ReleaseID                      string            `json:"releaseId"`
 	MetadataRevision               int               `json:"metadataRevision,omitempty"`
 	Version                        string            `json:"version"`
@@ -166,6 +167,9 @@ func ReleaseAttestationMessage(release Release, attestation ReleaseAttestation) 
 		MinimumOpenDeskVersion: release.MinimumOpenDeskVersion, PublishedAt: release.PublishedAt,
 		ReleaseStatus: release.ReleaseStatus, EntitlementPolicy: release.EntitlementPolicy,
 		UpdateChannel: release.UpdateChannel, VerifiedPublisher: release.VerifiedPublisher, ExpiresAt: attestation.ExpiresAt,
+	}
+	if release.SchemaVersion == 2 {
+		claims.FlowName = release.FlowName
 	}
 	data, err := json.Marshal(claims)
 	if err != nil {

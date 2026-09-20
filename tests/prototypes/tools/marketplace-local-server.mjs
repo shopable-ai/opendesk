@@ -80,6 +80,7 @@ export function releaseAttestationMessage(release, attestation) {
     usage: attestation.usage,
     marketplaceId: release.marketplaceId,
     flowId: release.flowId,
+    flowName: release.flowName,
     releaseId: release.releaseId,
     metadataRevision: release.metadataRevision,
     version: release.version,
@@ -93,7 +94,8 @@ export function releaseAttestationMessage(release, attestation) {
     publishedAt: release.publishedAt,
     releaseStatus: release.releaseStatus,
     entitlementPolicy: release.entitlementPolicy,
-    updateChannel: release.updateChannel,
+    ...(release.updateChannel ? {updateChannel: release.updateChannel} : {}),
+    ...(release.verifiedPublisher ? {verifiedPublisher: true} : {}),
     expiresAt: attestation.expiresAt,
   };
   return Buffer.concat([

@@ -39,3 +39,11 @@ test('manual Marketplace helper opens the main prepared prototype and reports st
   assert.match(helperSource, /Package: \$\{run\.artifactURL\}/);
   assert.doesNotMatch(helperSource, /baseURL\}\/local-deep-link-smoke\.html/);
 });
+
+test('manual Marketplace helper refreshes stale native code before opening the static site', () => {
+  assert.match(helperSource, /scripts', 'build_macos_app\.sh'/);
+  assert.match(helperSource, /currentBuildFingerprint/);
+  assert.match(helperSource, /ensureCurrentBundle/);
+  assert.match(helperSource, /await ensureCurrentBundle\(runDirectory\);\s*await verifyAndRegisterBundle/);
+  assert.match(helperSource, /spawnSync\('\/bin\/bash', \[BUILD_SCRIPT\]/);
+});

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"strings"
 	"testing"
 	"time"
 
@@ -123,4 +124,85 @@ func signStaticRelease(t *testing.T, release Release, rootKeyID string, private 
 	if err != nil { t.Fatal(err) }
 	attestation.Signature = hex.EncodeToString(ed25519.Sign(private, message))
 	return attestation
+}
+
+func TestReleaseV2AttestationMessageGolden(t *testing.T) {
+	release := Release{
+		SchemaVersion: 2, MarketplaceID: "market", FlowID: "flow.demo", FlowName: "Demo", ReleaseID: "release-1",
+		MetadataRevision: 3, Version: "1.2.3", PublisherID: "publisher", PublisherSigningKeyID: "publisher-key",
+		PublisherSigningKeyFingerprint: strings.Repeat("a", 64), ArtifactDigest: strings.Repeat("b", 64), ArtifactSize: 42,
+		ArtifactLocation: "flows/flow.demo/release-1/demo.odflow", MinimumOpenDeskVersion: "2.0.1",
+		PublishedAt: "2026-09-20T00:00:00Z", ReleaseStatus: ReleasePublished, EntitlementPolicy: EntitlementFree, UpdateChannel: "stable",
+	}
+	attestation := ReleaseAttestation{SchemaVersion: 2, RootKeyID: "root", Usage: releaseAttestationUsage, ExpiresAt: "2026-09-21T00:00:00Z"}
+	message, err := ReleaseAttestationMessage(release, attestation)
+	if err != nil { t.Fatal(err) }
+	want := "OpenDeskMarketplaceReleaseAttestation/v2\x00" +
+		"{\"schemaVersion\":2,\"rootKeyId\":\"root\",\"usage\":\"flow-marketplace-release\",\"marketplaceId\":\"market\",\"flowId\":\"flow.demo\",\"flowName\":\"Demo\",\"releaseId\":\"release-1\",\"metadataRevision\":3,\"version\":\"1.2.3\",\"publisherId\":\"publisher\",\"publisherSigningKeyId\":\"publisher-key\",\"publisherSigningKeyFingerprint\":\"" + strings.Repeat("a", 64) + "\",\"artifactDigest\":\"" + strings.Repeat("b", 64) + "\",\"artifactSize\":42,\"artifactLocation\":\"flows/flow.demo/release-1/demo.odflow\",\"minimumOpenDeskVersion\":\"2.0.1\",\"publishedAt\":\"2026-09-20T00:00:00Z\",\"releaseStatus\":\"published\",\"entitlementPolicy\":\"free\",\"updateChannel\":\"stable\",\"expiresAt\":\"2026-09-21T00:00:00Z\"}"
+	if string(message) != want { t.Fatalf("v2 attestation message drifted:\n got: %q\nwant: %q", string(message), want) }
+}
+
+func TestStaticReleaseUsesExplicitArtifactBaseForRelativeLocation(t *testing.T) {
+	fixture := newMarketplaceFixture(t, EntitlementFree)
+	rootPublic, rootPrivate, _ := ed25519.GenerateKey(rand.Reader)
+	release := fixture.release
+	release.SchemaVersion = 2
+	release.MetadataRevision = 1
+	release.ArtifactLocation = "files/demo.odflow"
+	document := SignedReleaseDocument{SchemaVersion: 1, Release: release, Attestation: signStaticRelease(t, release, "static-root", rootPrivate, time.Now().Add(time.Hour))}
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/metadata/flows/" + release.FlowID + "/" + release.ReleaseID + "/release.json":
+			_ = json.NewEncoder(response).Encode(document)
+		case "/artifacts/files/demo.odflow":
+			response.Header().Set("Content-Length", fmt.Sprintf("%d", len(fixture.artifact)))
+			_, _ = response.Write(fixture.artifact)
+		default:
+			http.NotFound(response, request)
+		}
+	}))
+	defer server.Close()
+	client, err := NewClient(ClientOptions{
+		BaseURL: server.URL + "/metadata/", ArtifactBaseURL: server.URL + "/artifacts/", Resolver: ResolverStatic,
+		MarketplaceRoots: map[string]ed25519.PublicKey{"static-root": rootPublic}, AllowInsecureLoopbackForTests: true,
+	})
+	if err != nil { t.Fatal(err) }
+	ref, _ := ParseInstallURL(fixture.deepLink)
+	resolved, err := client.ResolveInstallIntent(context.Background(), ref)
+	if err != nil { t.Fatal(err) }
+	if _, cleanup, err := client.DownloadArtifact(context.Background(), resolved.Release, t.TempDir()); err != nil { t.Fatal(err) } else { cleanup() }
+}
+
+func TestStaticReleaseAcceptsSignedAbsoluteLoopbackLocationOnlyInExplicitDevelopmentMode(t *testing.T) {
+	fixture := newMarketplaceFixture(t, EntitlementFree)
+	rootPublic, rootPrivate, _ := ed25519.GenerateKey(rand.Reader)
+	var document SignedReleaseDocument
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/metadata/flows/" + fixture.release.FlowID + "/" + fixture.release.ReleaseID + "/release.json":
+			_ = json.NewEncoder(response).Encode(document)
+		case "/absolute.odflow":
+			response.Header().Set("Content-Length", fmt.Sprintf("%d", len(fixture.artifact)))
+			_, _ = response.Write(fixture.artifact)
+		default:
+			http.NotFound(response, request)
+		}
+	}))
+	defer server.Close()
+	release := fixture.release
+	release.SchemaVersion = 2
+	release.MetadataRevision = 1
+	release.ArtifactLocation = server.URL + "/absolute.odflow"
+	document = SignedReleaseDocument{SchemaVersion: 1, Release: release, Attestation: signStaticRelease(t, release, "static-root", rootPrivate, time.Now().Add(time.Hour))}
+
+	development, err := NewClient(ClientOptions{BaseURL: server.URL + "/metadata/", Resolver: ResolverStatic, MarketplaceRoots: map[string]ed25519.PublicKey{"static-root": rootPublic}, AllowInsecureLoopbackForTests: true})
+	if err != nil { t.Fatal(err) }
+	ref, _ := ParseInstallURL(fixture.deepLink)
+	resolved, err := development.ResolveInstallIntent(context.Background(), ref)
+	if err != nil { t.Fatal(err) }
+	if _, cleanup, err := development.DownloadArtifact(context.Background(), resolved.Release, t.TempDir()); err != nil { t.Fatal(err) } else { cleanup() }
+
+	if _, err := NewClient(ClientOptions{BaseURL: server.URL + "/metadata/", Resolver: ResolverStatic, MarketplaceRoots: map[string]ed25519.PublicKey{"static-root": rootPublic}}); err == nil {
+		t.Fatal("production client accepted an insecure HTTP metadata prefix")
+	}
 }
