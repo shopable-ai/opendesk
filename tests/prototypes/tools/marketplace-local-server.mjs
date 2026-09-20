@@ -311,11 +311,11 @@ async function recordStaticRequest(logPath, event) {
 
 export async function startLocalMarketplaceServer(options) {
   const prepared = await prepareLocalMarketplaceSite(options.siteRoot);
-  await ensureEmptyRealDirectory(options.appDataRoot);
   if (await isInsideDirectory(prepared.siteRoot, options.configOutput)) throw new Error('Marketplace development config must remain outside the public site root');
   if (await isInsideDirectory(prepared.siteRoot, options.appDataRoot)) throw new Error('Marketplace app data must remain outside the public site root');
   if (options.opendeskLog && await isInsideDirectory(prepared.siteRoot, options.opendeskLog)) throw new Error('OpenDesk receiver log must remain outside the public site root');
   if (options.requestLog && await isInsideDirectory(prepared.siteRoot, options.requestLog)) throw new Error('Marketplace request log must remain outside the public site root');
+  await ensureEmptyRealDirectory(options.appDataRoot);
   const server = http.createServer(async (request, response) => {
     try {
       const requestURL = new URL(request.url, `http://${options.host}`);
