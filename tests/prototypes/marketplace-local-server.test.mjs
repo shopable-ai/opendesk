@@ -82,6 +82,45 @@ test('local Marketplace prepares one same-site static page, signed release and r
   assert.equal((await fetch(generic.baseURL + '/local-smoke/status')).status, 404);
 });
 
+test('local Marketplace static server refuses an intermediate symlink escape', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'opendesk-marketplace-static-symlink-'));
+  t.after(() => rm(root, {recursive: true, force: true}));
+  const siteRoot = path.join(root, 'site');
+  const running = await startLocalMarketplaceServer({
+    host: '127.0.0.1',
+    port: 0,
+    siteRoot,
+    configOutput: path.join(root, 'marketplace-development.json'),
+    appDataRoot: path.join(root, 'app-data'),
+  });
+  t.after(() => new Promise(resolve => running.server.close(resolve)));
+
+  const outside = path.join(root, 'outside');
+  await mkdir(outside);
+  await writeFile(path.join(outside, 'secret.txt'), 'private');
+  await symlink(outside, path.join(siteRoot, 'leak'), 'dir');
+
+  const response = await fetch(running.baseURL + '/leak/secret.txt');
+  assert.equal(response.status, 404);
+});
+
+test('local Marketplace private-output containment resolves symlinked parents', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'opendesk-marketplace-output-symlink-'));
+  t.after(() => rm(root, {recursive: true, force: true}));
+  const siteRoot = path.join(root, 'site');
+  await mkdir(siteRoot);
+  const alias = path.join(root, 'private-alias');
+  await symlink(siteRoot, alias, 'dir');
+
+  await assert.rejects(() => startLocalMarketplaceServer({
+    host: '127.0.0.1',
+    port: 0,
+    siteRoot,
+    configOutput: path.join(root, 'marketplace-development.json'),
+    appDataRoot: path.join(alias, 'app-data'),
+  }), /app data must remain outside/);
+});
+
 test('local publisher rejects generated flow.json drift before preparing a Release', async () => {
   const packageRoot = path.join(repoRoot, 'examples', 'flow-distribution', 'notify-demo');
   const artifact = await readFile(path.join(packageRoot, 'notify-demo.odflow'));
