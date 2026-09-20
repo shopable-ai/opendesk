@@ -389,6 +389,11 @@ func parseDistributionBaseURL(raw string, allowLoopback bool) (*url.URL, error) 
 	if strings.Contains(base.EscapedPath(), "\\") {
 		return nil, fmt.Errorf("URL path is invalid")
 	}
+	for _, segment := range strings.Split(base.Path, "/") {
+		if segment == "." || segment == ".." {
+			return nil, fmt.Errorf("URL path is invalid")
+		}
+	}
 	return base, nil
 }
 
