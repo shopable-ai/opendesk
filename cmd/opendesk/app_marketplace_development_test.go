@@ -105,7 +105,15 @@ func TestMarketplaceDevelopmentSessionRoundTripAndTamperRejection(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if session.ConfigPath != configPath || session.AppDataRoot != appData || session.SessionID != developmentSessionID {
+	canonicalConfigPath, err := filepath.EvalSymlinks(configPath)
+	if err != nil { t.Fatal(err) }
+	canonicalConfigPath, err = filepath.Abs(canonicalConfigPath)
+	if err != nil { t.Fatal(err) }
+	canonicalAppData, err := filepath.EvalSymlinks(appData)
+	if err != nil { t.Fatal(err) }
+	canonicalAppData, err = filepath.Abs(canonicalAppData)
+	if err != nil { t.Fatal(err) }
+	if session.ConfigPath != filepath.Clean(canonicalConfigPath) || session.AppDataRoot != filepath.Clean(canonicalAppData) || session.SessionID != developmentSessionID {
 		t.Fatalf("unexpected session: %+v", session)
 	}
 	recovered, err := recoverMarketplaceDevelopmentSessionAt(sessionRoot, time.Now)
@@ -129,6 +137,54 @@ func TestMarketplaceDevelopmentSessionRoundTripAndTamperRejection(t *testing.T) 
 	}
 	if _, err := recoverMarketplaceDevelopmentSessionAt(sessionRoot, time.Now); err == nil || !strings.Contains(err.Error(), "digest") {
 		t.Fatalf("tampered config recovery error = %v", err)
+	}
+}
+
+func TestMarketplaceDevelopmentSessionCanonicalizesSymlinkedParentPaths(t *testing.T) {
+	realRoot := t.TempDir()
+	realRun := filepath.Join(realRoot, "run")
+	if err := os.MkdirAll(filepath.Join(realRun, "app-data"), 0o700); err != nil { t.Fatal(err) }
+	if err := os.MkdirAll(filepath.Join(realRun, "site"), 0o700); err != nil { t.Fatal(err) }
+	configValue := map[string]any{
+		"schemaVersion":   3,
+		"sessionId":       developmentSessionID,
+		"expiresAt":       time.Now().UTC().Add(time.Hour).Truncate(time.Second).Format(time.RFC3339),
+		"resolver":        "static",
+		"metadataBaseUrl": "http://127.0.0.1:51807/",
+		"artifactBaseUrl": "",
+		"appDataRoot":     filepath.Join(realRun, "app-data"),
+		"rootKeyId":       "local-smoke-root",
+		"rootPublicKey":   developmentRootKey,
+	}
+	encoded, err := json.Marshal(configValue)
+	if err != nil { t.Fatal(err) }
+	realConfig := filepath.Join(realRun, "marketplace-development.json")
+	if err := os.WriteFile(realConfig, encoded, 0o600); err != nil { t.Fatal(err) }
+
+	aliasParent := t.TempDir()
+	aliasRun := filepath.Join(aliasParent, "current")
+	if err := os.Symlink(realRun, aliasRun); err != nil {
+		t.Skipf("cannot create parent symlink: %v", err)
+	}
+	aliasConfig := filepath.Join(aliasRun, "marketplace-development.json")
+	aliasAppData := filepath.Join(aliasRun, "app-data")
+	sessionRoot := filepath.Join(t.TempDir(), "persistent")
+	session, err := registerMarketplaceDevelopmentSessionAt(sessionRoot, aliasConfig, aliasAppData, time.Now)
+	if err != nil { t.Fatal(err) }
+	if session.ConfigPath != filepath.Clean(realConfig) || session.AppDataRoot != filepath.Clean(filepath.Join(realRun, "app-data")) {
+		t.Fatalf("session did not bind canonical targets: %+v", session)
+	}
+
+	evilRun := filepath.Join(realRoot, "evil")
+	if err := os.MkdirAll(filepath.Join(evilRun, "app-data"), 0o700); err != nil { t.Fatal(err) }
+	if err := os.MkdirAll(filepath.Join(evilRun, "site"), 0o700); err != nil { t.Fatal(err) }
+	if err := os.Remove(aliasRun); err != nil { t.Fatal(err) }
+	if err := os.Symlink(evilRun, aliasRun); err != nil { t.Fatal(err) }
+
+	recovered, err := recoverMarketplaceDevelopmentSessionAt(sessionRoot, time.Now)
+	if err != nil { t.Fatal(err) }
+	if recovered == nil || recovered.ConfigPath != filepath.Clean(realConfig) || recovered.AppDataRoot != filepath.Clean(filepath.Join(realRun, "app-data")) {
+		t.Fatalf("recovery followed a replaced parent symlink: %+v", recovered)
 	}
 }
 
