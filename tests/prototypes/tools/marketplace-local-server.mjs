@@ -346,6 +346,8 @@ if (path.resolve(process.argv[1] || '') === fileURLToPath(import.meta.url)) {
     artifactURL: running.artifactURL,
     flowId: running.state.release.flowId,
     releaseId: running.state.release.releaseId,
+    sessionId: running.state.sessionId,
+    expiresAt: running.state.attestation.expiresAt,
     deepLink: running.deepLink,
   }) + '\n');
   const stop = () => running.server.close(() => process.exit(0));
