@@ -69,3 +69,11 @@ test('manual Marketplace run exposes development-session expiry and clears it on
   assert.match(helperSource, /Cold-start check: node tests\/prototypes\/tools\/marketplace-local-manual\.mjs --cold-start-check/);
   assert.match(helperSource, /sessionCleared=\$\{clearedSession\}/);
 });
+
+test('manual Marketplace cleanup binds every recorded process to its start identity', () => {
+  assert.match(helperSource, /function processIdentity\(pid\)/);
+  assert.match(helperSource, /expectedStartedAt && identity\.startedAt !== expectedStartedAt/);
+  assert.match(helperSource, /startedAt: server\.startedAt/);
+  assert.match(helperSource, /startedAt: app\.startedAt/);
+  assert.match(helperSource, /startedAt: coldProcess\.startedAt/);
+});
