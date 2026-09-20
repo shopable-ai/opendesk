@@ -344,6 +344,10 @@ func resolveLoopbackMarketplaceIPs(ctx context.Context, host string) ([]net.IP, 
 	if err != nil {
 		return nil, fmt.Errorf("resolve marketplace development loopback target: %w", err)
 	}
+	return validateResolvedLoopbackMarketplaceIPs(addresses)
+}
+
+func validateResolvedLoopbackMarketplaceIPs(addresses []net.IPAddr) ([]net.IP, error) {
 	if len(addresses) == 0 {
 		return nil, fmt.Errorf("marketplace development loopback target resolved to no addresses")
 	}
