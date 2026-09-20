@@ -1,6 +1,7 @@
 package flowmarketplace
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -392,6 +393,14 @@ func TestMarketplaceArtifactDownloadCancellationTimeoutAndInterruptionLeaveNoTem
 	})
 }
 
+
+func TestMarketplaceReleaseResponseRejectsTotalBytesBeyondBound(t *testing.T) {
+	payload := append([]byte(`{"schemaVersion":1}`), bytes.Repeat([]byte(" "), int(maxReleaseResponseSize))...)
+	var target map[string]any
+	if err := decodeBoundedJSON(bytes.NewReader(payload), &target); err == nil {
+		t.Fatal("oversized Marketplace response with only trailing whitespace was accepted")
+	}
+}
 
 func TestProductionMarketplaceRejectsPrivateAndLocalNetworkTargets(t *testing.T) {
 	for _, raw := range []string{
