@@ -22,6 +22,12 @@ func TestMarketplaceProvenanceRejectsSameReleaseRevisionRollback(t *testing.T) {
 	}); err == nil {
 		t.Fatal("same metadata revision changed artifact location")
 	}
+	if _, _, err := applyMarketplaceProvenance(record, &MarketplaceProvenance{
+		MarketplaceID: "market", ReleaseID: "release-1", UpdateChannel: "preview", MetadataRevision: 3,
+		ArtifactLocation: "flows/flow.demo/release-1/a.odflow",
+	}); err == nil {
+		t.Fatal("same metadata revision changed update channel")
+	}
 	legacyWithoutLocation := record
 	legacyWithoutLocation.MarketplaceArtifactLocation = ""
 	if _, _, err := applyMarketplaceProvenance(legacyWithoutLocation, &MarketplaceProvenance{
