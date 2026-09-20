@@ -19,24 +19,25 @@ const INTENT_ID = 'local-notify-demo-intent-1';
 const BINDING_MARKER = '<!-- OPENDESK_LOCAL_RELEASE_BINDING -->';
 
 function parseArgs(argv) {
-  const result = {host: '127.0.0.1', port: 0, siteRoot: '', configOutput: '', opendeskLog: '', requestLog: ''};
+  const result = {host: '127.0.0.1', port: 0, siteRoot: '', configOutput: '', appDataRoot: '', opendeskLog: '', requestLog: ''};
   for (let index = 0; index < argv.length; index += 2) {
     const key = argv[index];
     const value = argv[index + 1];
-    if (!value || !['--host', '--port', '--site-root', '--config-output', '--opendesk-log', '--request-log'].includes(key)) {
-      throw new Error('usage: marketplace-local-server.mjs --host 127.0.0.1 --port 0 --site-root <absolute-dir> --config-output <new-file> [--opendesk-log <absolute-file>] [--request-log <absolute-file>]');
+    if (!value || !['--host', '--port', '--site-root', '--config-output', '--app-data-root', '--opendesk-log', '--request-log'].includes(key)) {
+      throw new Error('usage: marketplace-local-server.mjs --host 127.0.0.1 --port 0 --site-root <absolute-dir> --config-output <new-file> --app-data-root <absolute-dir> [--opendesk-log <absolute-file>] [--request-log <absolute-file>]');
     }
     if (key === '--host') result.host = value;
     if (key === '--port') result.port = Number(value);
     if (key === '--site-root') result.siteRoot = value;
     if (key === '--config-output') result.configOutput = value;
+    if (key === '--app-data-root') result.appDataRoot = value;
     if (key === '--opendesk-log') result.opendeskLog = value;
     if (key === '--request-log') result.requestLog = value;
   }
   if (!['127.0.0.1', '::1'].includes(result.host) || !Number.isInteger(result.port) || result.port < 0 || result.port > 65535) {
     throw new Error('the local Marketplace static server accepts only a loopback host and a valid port');
   }
-  for (const [name, value] of [['site-root', result.siteRoot], ['config-output', result.configOutput]]) {
+  for (const [name, value] of [['site-root', result.siteRoot], ['config-output', result.configOutput], ['app-data-root', result.appDataRoot]]) {
     if (!value || !path.isAbsolute(value)) throw new Error(`--${name} must be an absolute path`);
   }
   if (result.opendeskLog && !path.isAbsolute(result.opendeskLog)) throw new Error('--opendesk-log must be an absolute path');
@@ -278,7 +279,9 @@ async function recordStaticRequest(logPath, event) {
 
 export async function startLocalMarketplaceServer(options) {
   const prepared = await prepareLocalMarketplaceSite(options.siteRoot);
+  await ensureEmptyRealDirectory(options.appDataRoot);
   if (isInsideDirectory(prepared.siteRoot, options.configOutput)) throw new Error('Marketplace development config must remain outside the public site root');
+  if (isInsideDirectory(prepared.siteRoot, options.appDataRoot)) throw new Error('Marketplace app data must remain outside the public site root');
   if (options.opendeskLog && isInsideDirectory(prepared.siteRoot, options.opendeskLog)) throw new Error('OpenDesk receiver log must remain outside the public site root');
   if (options.requestLog && isInsideDirectory(prepared.siteRoot, options.requestLog)) throw new Error('Marketplace request log must remain outside the public site root');
   const server = http.createServer(async (request, response) => {
@@ -312,6 +315,7 @@ export async function startLocalMarketplaceServer(options) {
     schemaVersion: 3,
     sessionId: prepared.state.sessionId,
     expiresAt: prepared.state.attestation.expiresAt,
+    appDataRoot: path.resolve(options.appDataRoot),
     resolver: 'static',
     metadataBaseUrl: baseURL + '/',
     artifactBaseUrl: '',
