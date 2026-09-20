@@ -215,6 +215,11 @@ func executeAppMode(config *Config) error {
 	})
 	var marketplaceClient *flowmarketplace.Client
 	marketplaceDevelopmentEnabled := false
+	if appshell.IsOpenDeskProduct(appPackage.Manifest) {
+		marketplaceClient, err = loadMarketplaceProductClient()
+		if err != nil { return fmt.Errorf("initialize Marketplace product client: %w", err) }
+		if marketplaceClient != nil { log.Printf("[MARKETPLACE_INSTALL] product distribution client enabled") }
+	}
 	if strings.TrimSpace(config.MarketplaceDevelopmentConfig) != "" {
 		if !appshell.IsOpenDeskProduct(appPackage.Manifest) {
 			return errors.New("Marketplace development client is available only to the OpenDesk product App Mode package")
@@ -233,11 +238,10 @@ func executeAppMode(config *Config) error {
 		marketplaceDevelopmentEnabled = true
 		log.Printf("[MARKETPLACE_INSTALL] loopback development client enabled")
 	}
-	// A production Marketplace Client is intentionally not constructed from
-	// environment variables or Deep Link values. This repository has no
-	// deployed Marketplace origin, pinned production attestation roots, or
-	// desktop account adapter yet. Without the explicit loopback-only
-	// development config above, keep the receiver fail-closed.
+	// Product distribution is constructed only from the generated product
+	// configuration. The current checked-in product config deliberately leaves
+	// it unconfigured until a real HTTPS prefix and trusted release root exist.
+	// Deep Link values and environment variables never become network roots.
 	marketplaceInstaller := &flowmarketplace.Installer{
 		// Production leaves Client nil until the product ships its pinned
 		// Marketplace inputs. The development client exercises the same confirmer

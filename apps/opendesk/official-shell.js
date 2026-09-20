@@ -33,6 +33,7 @@
       upgrade: Object.freeze({visible: false, url: ''}),
     }),
     analytics: null,
+    flowDistribution: null,
   });
 
   function checksum16(text) {
@@ -112,10 +113,34 @@
     });
   }
 
+  function validateFlowDistribution(value) {
+    if (value == null) return null;
+    requireExactFields(value, ['resolver', 'metadataBaseUrl', 'artifactBaseUrl', 'releaseRoots'], 'official shell flowDistribution config');
+    const resolver = String(value.resolver || '').trim().toLowerCase();
+    const metadataBaseUrl = String(value.metadataBaseUrl || '').trim();
+    const artifactBaseUrl = String(value.artifactBaseUrl || '').trim();
+    if (!['static', 'dynamic'].includes(resolver)) throw new Error('official shell flowDistribution resolver is invalid');
+    const validPrefix = candidate => /^https:\/\/[^\s/?#\\]+(?:\/[^\s?#\\]*)?\/$/.test(candidate)
+      && !candidate.split('/').some(part => part === '.' || part === '..');
+    if (!validPrefix(metadataBaseUrl)) throw new Error('official shell flowDistribution metadataBaseUrl must be an https URL prefix ending in /');
+    if (artifactBaseUrl && !validPrefix(artifactBaseUrl)) throw new Error('official shell flowDistribution artifactBaseUrl must be an https URL prefix ending in /');
+    if (!value.releaseRoots || typeof value.releaseRoots !== 'object' || Array.isArray(value.releaseRoots) || Object.keys(value.releaseRoots).length === 0) {
+      throw new Error('official shell flowDistribution releaseRoots are required');
+    }
+    const releaseRoots = {};
+    for (const [keyId, root] of Object.entries(value.releaseRoots)) {
+      if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(keyId) || !/^[0-9a-f]{64}$/.test(String(root || ''))) {
+        throw new Error('official shell flowDistribution release root is invalid');
+      }
+      releaseRoots[keyId] = String(root);
+    }
+    return Object.freeze({resolver, metadataBaseUrl, artifactBaseUrl, releaseRoots: Object.freeze(releaseRoots)});
+  }
+
   function validateConfig(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('official shell config must be an object');
     for (const name of Object.keys(value)) {
-      if (name !== 'schemaVersion' && name !== 'actions' && name !== 'analytics') throw new Error(`official shell config contains unknown field: ${name}`);
+      if (name !== 'schemaVersion' && name !== 'actions' && name !== 'analytics' && name !== 'flowDistribution') throw new Error(`official shell config contains unknown field: ${name}`);
     }
     if (value.schemaVersion !== CONFIG_SCHEMA_VERSION) throw new Error('official shell config schemaVersion is unsupported');
     if (!value.actions || typeof value.actions !== 'object' || Array.isArray(value.actions)) throw new Error('official shell config actions must be an object');
@@ -145,6 +170,7 @@
       schemaVersion: CONFIG_SCHEMA_VERSION,
       actions: Object.freeze(actions),
       analytics: validateAnalytics(value.analytics),
+      flowDistribution: validateFlowDistribution(value.flowDistribution),
     });
   }
 

@@ -23,8 +23,10 @@ const maxMarketplaceDevelopmentConfigSize int64 = 16 << 10
 var marketplaceDevelopmentKeyIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 
 type marketplaceDevelopmentConfig struct {
-	SchemaVersion int    `json:"schemaVersion"`
-	BaseURL       string `json:"baseUrl"`
+	SchemaVersion   int    `json:"schemaVersion"`
+	Resolver        string `json:"resolver"`
+	MetadataBaseURL string `json:"metadataBaseUrl"`
+	ArtifactBaseURL string `json:"artifactBaseUrl,omitempty"`
 	RootKeyID     string `json:"rootKeyId"`
 	RootPublicKey string `json:"rootPublicKey"`
 	LogFile       string `json:"logFile,omitempty"`
@@ -68,7 +70,9 @@ func loadMarketplaceDevelopmentClient(configPath string) (*flowmarketplace.Clien
 		return nil, fmt.Errorf("Marketplace development rootPublicKey must use lowercase hex")
 	}
 	return flowmarketplace.NewClient(flowmarketplace.ClientOptions{
-		BaseURL: config.BaseURL,
+		BaseURL:         config.MetadataBaseURL,
+		ArtifactBaseURL: config.ArtifactBaseURL,
+		Resolver:        flowmarketplace.ResolverStatic,
 		MarketplaceRoots: map[string]ed25519.PublicKey{
 			config.RootKeyID: append(ed25519.PublicKey(nil), root...),
 		},
@@ -79,44 +83,43 @@ func loadMarketplaceDevelopmentClient(configPath string) (*flowmarketplace.Clien
 func readMarketplaceDevelopmentConfig(configPath string) (marketplaceDevelopmentConfig, error) {
 	var config marketplaceDevelopmentConfig
 	path := strings.TrimSpace(configPath)
-	if path == "" {
-		return config, fmt.Errorf("Marketplace development config path is empty")
-	}
+	if path == "" { return config, fmt.Errorf("Marketplace development config path is empty") }
 	absolute, err := filepath.Abs(path)
-	if err != nil {
-		return config, fmt.Errorf("resolve Marketplace development config: %w", err)
-	}
+	if err != nil { return config, fmt.Errorf("resolve Marketplace development config: %w", err) }
 	info, err := os.Lstat(absolute)
-	if err != nil {
-		return config, fmt.Errorf("inspect Marketplace development config: %w", err)
-	}
+	if err != nil { return config, fmt.Errorf("inspect Marketplace development config: %w", err) }
 	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() < 1 || info.Size() > maxMarketplaceDevelopmentConfigSize {
 		return config, fmt.Errorf("Marketplace development config must be a bounded regular file")
 	}
 	data, err := os.ReadFile(absolute)
-	if err != nil {
-		return config, fmt.Errorf("read Marketplace development config: %w", err)
-	}
+	if err != nil { return config, fmt.Errorf("read Marketplace development config: %w", err) }
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&config); err != nil {
-		return marketplaceDevelopmentConfig{}, fmt.Errorf("decode Marketplace development config: %w", err)
-	}
+	if err := decoder.Decode(&config); err != nil { return marketplaceDevelopmentConfig{}, fmt.Errorf("decode Marketplace development config: %w", err) }
 	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		return marketplaceDevelopmentConfig{}, fmt.Errorf("Marketplace development config contains trailing data")
-	}
-	if config.SchemaVersion != 1 || !marketplaceDevelopmentKeyIDPattern.MatchString(config.RootKeyID) {
+	if err := decoder.Decode(&trailing); err != io.EOF { return marketplaceDevelopmentConfig{}, fmt.Errorf("Marketplace development config contains trailing data") }
+	if config.SchemaVersion != 2 || config.Resolver != string(flowmarketplace.ResolverStatic) || !marketplaceDevelopmentKeyIDPattern.MatchString(config.RootKeyID) {
 		return marketplaceDevelopmentConfig{}, fmt.Errorf("Marketplace development config metadata is invalid")
 	}
-	base, err := url.Parse(config.BaseURL)
-	if err != nil || base.Scheme != "http" || base.Host == "" || base.User != nil || base.RawQuery != "" || base.Fragment != "" {
-		return marketplaceDevelopmentConfig{}, fmt.Errorf("Marketplace development baseUrl must be an HTTP loopback origin")
+	if err := validateMarketplaceDevelopmentBaseURL(config.MetadataBaseURL, "metadataBaseUrl", true); err != nil { return marketplaceDevelopmentConfig{}, err }
+	if err := validateMarketplaceDevelopmentBaseURL(config.ArtifactBaseURL, "artifactBaseUrl", false); err != nil { return marketplaceDevelopmentConfig{}, err }
+	return config, nil
+}
+
+func validateMarketplaceDevelopmentBaseURL(raw, field string, required bool) error {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		if required { return fmt.Errorf("Marketplace development %s is required", field) }
+		return nil
+	}
+	base, err := url.Parse(value)
+	if err != nil || base.Scheme != "http" || base.Host == "" || base.User != nil || base.RawQuery != "" || base.Fragment != "" || !strings.HasSuffix(base.Path, "/") {
+		return fmt.Errorf("Marketplace development %s must be an HTTP loopback URL prefix ending in /", field)
 	}
 	host := base.Hostname()
 	address := net.ParseIP(host)
 	if !strings.EqualFold(host, "localhost") && (address == nil || !address.IsLoopback()) {
-		return marketplaceDevelopmentConfig{}, fmt.Errorf("Marketplace development baseUrl must be an HTTP loopback origin")
+		return fmt.Errorf("Marketplace development %s must be an HTTP loopback URL prefix ending in /", field)
 	}
-	return config, nil
+	return nil
 }

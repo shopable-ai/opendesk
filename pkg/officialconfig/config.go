@@ -31,6 +31,7 @@ const (
 )
 
 var httpsURLPattern = regexp.MustCompile(`^https://[^\s/?#\\]+(?:[/?#][^\s]*)?$`)
+var flowDistributionKeyIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 
 var requiredActions = []string{"home", "help", "customize", "marketplace", "upgrade"}
 var optionalActions = []string{"examples", "apiDocs"}
@@ -79,10 +80,18 @@ type Analytics struct {
 	Session       AnalyticsSession `json:"session"`
 }
 
+type FlowDistribution struct {
+	Resolver        string            `json:"resolver"`
+	MetadataBaseURL string            `json:"metadataBaseUrl"`
+	ArtifactBaseURL string            `json:"artifactBaseUrl"`
+	ReleaseRoots    map[string]string `json:"releaseRoots"`
+}
+
 type Config struct {
-	SchemaVersion int               `json:"schemaVersion"`
-	Actions       map[string]Action `json:"actions"`
-	Analytics     *Analytics        `json:"analytics,omitempty"`
+	SchemaVersion    int               `json:"schemaVersion"`
+	Actions          map[string]Action `json:"actions"`
+	Analytics        *Analytics        `json:"analytics,omitempty"`
+	FlowDistribution *FlowDistribution `json:"flowDistribution,omitempty"`
 }
 
 // ParseSource parses the developer-owned plaintext source configuration.
@@ -152,6 +161,60 @@ func Validate(config Config) error {
 	if config.Analytics != nil {
 		if err := validateAnalytics(*config.Analytics); err != nil {
 			return err
+		}
+	}
+	if config.FlowDistribution != nil {
+		if err := validateFlowDistribution(*config.FlowDistribution); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateFlowDistribution(config FlowDistribution) error {
+	resolver := strings.ToLower(strings.TrimSpace(config.Resolver))
+	if resolver != "static" && resolver != "dynamic" {
+		return fmt.Errorf("official config flowDistribution resolver %q is unsupported", config.Resolver)
+	}
+	if err := validateFlowDistributionBaseURL(config.MetadataBaseURL, "metadataBaseUrl", true); err != nil {
+		return err
+	}
+	if err := validateFlowDistributionBaseURL(config.ArtifactBaseURL, "artifactBaseUrl", false); err != nil {
+		return err
+	}
+	if len(config.ReleaseRoots) == 0 {
+		return fmt.Errorf("official config flowDistribution releaseRoots are required")
+	}
+	for keyID, encoded := range config.ReleaseRoots {
+		if !flowDistributionKeyIDPattern.MatchString(keyID) {
+			return fmt.Errorf("official config flowDistribution release root key id is invalid")
+		}
+		if len(encoded) != 64 || strings.ToLower(encoded) != encoded {
+			return fmt.Errorf("official config flowDistribution release root %q must be lowercase Ed25519 hex", keyID)
+		}
+		decoded, err := hex.DecodeString(encoded)
+		if err != nil || len(decoded) != 32 {
+			return fmt.Errorf("official config flowDistribution release root %q must be lowercase Ed25519 hex", keyID)
+		}
+	}
+	return nil
+}
+
+func validateFlowDistributionBaseURL(raw, field string, required bool) error {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		if required {
+			return fmt.Errorf("official config flowDistribution %s is required", field)
+		}
+		return nil
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme != "https" || parsed.Hostname() == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || !strings.HasSuffix(parsed.Path, "/") || strings.Contains(parsed.EscapedPath(), "\\") {
+		return fmt.Errorf("official config flowDistribution %s must be an https URL prefix ending in /", field)
+	}
+	for _, segment := range strings.Split(parsed.Path, "/") {
+		if segment == "." || segment == ".." {
+			return fmt.Errorf("official config flowDistribution %s path is invalid", field)
 		}
 	}
 	return nil
@@ -390,7 +453,19 @@ func normalize(config Config) Config {
 		copy.Environment = strings.ToLower(strings.TrimSpace(copy.Environment))
 		analytics = &copy
 	}
-	return Config{SchemaVersion: SchemaVersion, Actions: actions, Analytics: analytics}
+	var distribution *FlowDistribution
+	if config.FlowDistribution != nil {
+		copy := *config.FlowDistribution
+		copy.Resolver = strings.ToLower(strings.TrimSpace(copy.Resolver))
+		copy.MetadataBaseURL = strings.TrimSpace(copy.MetadataBaseURL)
+		copy.ArtifactBaseURL = strings.TrimSpace(copy.ArtifactBaseURL)
+		copy.ReleaseRoots = make(map[string]string, len(config.FlowDistribution.ReleaseRoots))
+		for keyID, root := range config.FlowDistribution.ReleaseRoots {
+			copy.ReleaseRoots[keyID] = strings.TrimSpace(root)
+		}
+		distribution = &copy
+	}
+	return Config{SchemaVersion: SchemaVersion, Actions: actions, Analytics: analytics, FlowDistribution: distribution}
 }
 
 func checksum16(payload []byte) uint16 {
