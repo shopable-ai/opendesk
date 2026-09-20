@@ -260,8 +260,7 @@ func registerMarketplaceDevelopmentSessionAt(sessionRoot, configPath, appDataRoo
 	} else if !os.IsNotExist(statErr) {
 		return marketplaceDevelopmentSession{}, fmt.Errorf("inspect Marketplace development session: %w", statErr)
 	}
-	if err := os.WriteFile(sessionPath, append(encoded, '
-'), 0o600); err != nil {
+	if err := os.WriteFile(sessionPath, append(encoded, '\n'), 0o600); err != nil {
 		return marketplaceDevelopmentSession{}, fmt.Errorf("write Marketplace development session: %w", err)
 	}
 	return session, nil
