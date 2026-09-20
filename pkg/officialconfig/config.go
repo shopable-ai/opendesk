@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -212,10 +213,33 @@ func validateFlowDistributionBaseURL(raw, field string, required bool) error {
 	if err != nil || parsed.Scheme != "https" || parsed.Hostname() == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || !strings.HasSuffix(parsed.Path, "/") || strings.Contains(parsed.EscapedPath(), "\\") {
 		return fmt.Errorf("official config flowDistribution %s must be an https URL prefix ending in /", field)
 	}
+	if err := validatePublicFlowDistributionHost(parsed.Hostname()); err != nil {
+		return fmt.Errorf("official config flowDistribution %s is not a public network target: %w", field, err)
+	}
 	for _, segment := range strings.Split(parsed.Path, "/") {
 		if segment == "." || segment == ".." {
 			return fmt.Errorf("official config flowDistribution %s path is invalid", field)
 		}
+	}
+	return nil
+}
+
+func validatePublicFlowDistributionHost(host string) error {
+	normalized := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
+	if normalized == "" || normalized == "localhost" || strings.HasSuffix(normalized, ".localhost") || strings.HasSuffix(normalized, ".local") {
+		return fmt.Errorf("local hostname is not allowed")
+	}
+	if ip := net.ParseIP(normalized); ip != nil {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsMulticast() {
+			return fmt.Errorf("private or local IP is not allowed")
+		}
+		if v4 := ip.To4(); v4 != nil && (v4[0] == 0 || (v4[0] == 100 && v4[1]&0xc0 == 0x40) || v4[0] >= 224) {
+			return fmt.Errorf("non-public IPv4 address is not allowed")
+		}
+		return nil
+	}
+	if !strings.Contains(normalized, ".") {
+		return fmt.Errorf("hostname must be qualified")
 	}
 	return nil
 }

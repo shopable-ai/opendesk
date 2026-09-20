@@ -85,7 +85,7 @@ func NewClient(options ClientOptions) (*Client, error) {
 	}
 	client := options.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		client = defaultMarketplaceHTTPClient(options.AllowInsecureLoopbackForTests)
 	}
 	copyClient := *client
 	copyClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
@@ -177,6 +177,9 @@ func (client *Client) DownloadArtifact(ctx context.Context, release Release, tem
 	if err != nil {
 		return "", nil, err
 	}
+	if err := client.validateRequestTarget(ctx, requestURL); err != nil {
+		return "", nil, err
+	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		return "", nil, err
@@ -240,6 +243,9 @@ func (client *Client) DownloadArtifact(ctx context.Context, release Release, tem
 }
 
 func (client *Client) newGET(ctx context.Context, requestURL, accept string) (*http.Request, error) {
+	if err := client.validateRequestTarget(ctx, requestURL); err != nil {
+		return nil, err
+	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		return nil, err
@@ -266,6 +272,105 @@ func decodeBoundedJSON(reader io.Reader, target any) error {
 	return nil
 }
 
+func defaultMarketplaceHTTPClient(allowLoopback bool) *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if !allowLoopback {
+		transport.Proxy = nil
+		dialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+		transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(address)
+			if err != nil {
+				return nil, fmt.Errorf("parse marketplace network address: %w", err)
+			}
+			ips, err := resolvePublicMarketplaceIPs(ctx, host)
+			if err != nil {
+				return nil, err
+			}
+			var lastErr error
+			for _, ip := range ips {
+				conn, dialErr := dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+				if dialErr == nil {
+					return conn, nil
+				}
+				lastErr = dialErr
+			}
+			if lastErr == nil {
+				lastErr = fmt.Errorf("no public Marketplace address is available")
+			}
+			return nil, lastErr
+		}
+	}
+	return &http.Client{Timeout: 30 * time.Second, Transport: transport}
+}
+
+func (client *Client) validateRequestTarget(ctx context.Context, raw string) error {
+	if client == nil {
+		return fmt.Errorf("marketplace client is unavailable")
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Hostname() == "" {
+		return fmt.Errorf("marketplace request URL is invalid")
+	}
+	if client.allowLoopback && isLoopbackHost(parsed.Hostname()) {
+		return nil
+	}
+	_, err = resolvePublicMarketplaceIPs(ctx, parsed.Hostname())
+	return err
+}
+
+func resolvePublicMarketplaceIPs(ctx context.Context, host string) ([]net.IP, error) {
+	if err := validatePublicMarketplaceHost(host); err != nil {
+		return nil, err
+	}
+	if literal := net.ParseIP(host); literal != nil {
+		return []net.IP{literal}, nil
+	}
+	addresses, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, fmt.Errorf("resolve marketplace network target: %w", err)
+	}
+	if len(addresses) == 0 {
+		return nil, fmt.Errorf("marketplace network target resolved to no addresses")
+	}
+	ips := make([]net.IP, 0, len(addresses))
+	for _, address := range addresses {
+		if !isPublicMarketplaceIP(address.IP) {
+			return nil, fmt.Errorf("marketplace network target resolved to a private or local address")
+		}
+		ips = append(ips, append(net.IP(nil), address.IP...))
+	}
+	return ips, nil
+}
+
+func validatePublicMarketplaceHost(host string) error {
+	normalized := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
+	if normalized == "" || normalized == "localhost" || strings.HasSuffix(normalized, ".localhost") || strings.HasSuffix(normalized, ".local") {
+		return fmt.Errorf("marketplace network target is local")
+	}
+	if ip := net.ParseIP(normalized); ip != nil {
+		if !isPublicMarketplaceIP(ip) {
+			return fmt.Errorf("marketplace network target is private or local")
+		}
+		return nil
+	}
+	if !strings.Contains(normalized, ".") {
+		return fmt.Errorf("marketplace network target must be a qualified public hostname")
+	}
+	return nil
+}
+
+func isPublicMarketplaceIP(ip net.IP) bool {
+	if ip == nil || ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsMulticast() {
+		return false
+	}
+	if v4 := ip.To4(); v4 != nil {
+		if v4[0] == 0 || (v4[0] == 100 && v4[1]&0xc0 == 0x40) || v4[0] >= 224 {
+			return false
+		}
+	}
+	return ip.IsGlobalUnicast()
+}
+
 func parseDistributionBaseURL(raw string, allowLoopback bool) (*url.URL, error) {
 	base, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || base.Scheme == "" || base.Host == "" || base.User != nil || base.Fragment != "" || base.RawQuery != "" {
@@ -274,6 +379,11 @@ func parseDistributionBaseURL(raw string, allowLoopback bool) (*url.URL, error) 
 	if base.Scheme != "https" {
 		if !allowLoopback || base.Scheme != "http" || !isLoopbackHost(base.Hostname()) {
 			return nil, fmt.Errorf("URL must use HTTPS")
+		}
+	}
+	if !allowLoopback {
+		if err := validatePublicMarketplaceHost(base.Hostname()); err != nil {
+			return nil, err
 		}
 	}
 	if strings.Contains(base.EscapedPath(), "\\") {

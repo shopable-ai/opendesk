@@ -36,6 +36,10 @@ func TestFlowDistributionRejectsUnsafeOrIncompleteConfig(t *testing.T) {
 		{Resolver: "static", MetadataBaseURL: "http://127.0.0.1:8080/", ReleaseRoots: map[string]string{"root": testDistributionRoot}},
 		{Resolver: "static", MetadataBaseURL: "https://downloads.example.test/no-slash", ReleaseRoots: map[string]string{"root": testDistributionRoot}},
 		{Resolver: "static", MetadataBaseURL: "https://downloads.example.test/", ReleaseRoots: nil},
+		{Resolver: "static", MetadataBaseURL: "https://127.0.0.1/", ReleaseRoots: map[string]string{"root": testDistributionRoot}},
+		{Resolver: "static", MetadataBaseURL: "https://10.0.0.1/", ReleaseRoots: map[string]string{"root": testDistributionRoot}},
+		{Resolver: "static", MetadataBaseURL: "https://localhost/", ReleaseRoots: map[string]string{"root": testDistributionRoot}},
+		{Resolver: "static", MetadataBaseURL: "https://intranet/", ReleaseRoots: map[string]string{"root": testDistributionRoot}},
 		{Resolver: "static", MetadataBaseURL: "https://downloads.example.test/", ReleaseRoots: map[string]string{"root": "00"}},
 	}
 	for index := range tests {

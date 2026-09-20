@@ -355,3 +355,34 @@ func TestMarketplaceArtifactDownloadCancellationTimeoutAndInterruptionLeaveNoTem
 		}
 	})
 }
+
+
+func TestProductionMarketplaceRejectsPrivateAndLocalNetworkTargets(t *testing.T) {
+	for _, raw := range []string{
+		"https://127.0.0.1/releases/",
+		"https://10.0.0.8/releases/",
+		"https://192.168.1.8/releases/",
+		"https://[::1]/releases/",
+		"https://localhost/releases/",
+		"https://printer.local/releases/",
+		"https://intranet/releases/",
+	} {
+		if _, err := NewClient(ClientOptions{BaseURL: raw, Resolver: ResolverStatic}); err == nil {
+			t.Fatalf("production Marketplace accepted private/local base URL %q", raw)
+		}
+	}
+	if _, err := NewClient(ClientOptions{
+		BaseURL: "http://127.0.0.1:51807/", Resolver: ResolverStatic, AllowInsecureLoopbackForTests: true,
+	}); err != nil {
+		t.Fatalf("explicit loopback development URL rejected: %v", err)
+	}
+}
+
+func TestSignedAbsoluteArtifactCannotTargetPrivateProductionAddress(t *testing.T) {
+	client, err := NewClient(ClientOptions{BaseURL: "https://downloads.example.test/", Resolver: ResolverStatic})
+	if err != nil { t.Fatal(err) }
+	release := Release{SchemaVersion: 2, MetadataRevision: 1, ArtifactLocation: "https://127.0.0.1/private.odflow"}
+	if _, err := client.artifactURL(release); err == nil {
+		t.Fatal("signed absolute artifact URL bypassed production private-network policy")
+	}
+}
