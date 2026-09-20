@@ -171,6 +171,7 @@ function fixture() {
     verified: false,
     version: manifest.version,
     release: RELEASE_ID,
+    minimumOpenDeskVersion: manifest.minimumRuntimeVersion,
     date: publishedAt.slice(0, 10),
     platforms: (manifest.platforms || []).map(platformLabel),
     policy: 'free',
