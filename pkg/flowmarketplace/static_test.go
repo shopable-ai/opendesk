@@ -294,6 +294,16 @@ func TestStaticInstallRejectsKnownMetadataRevisionRollbackBeforeDownloadOrConfir
 		t.Fatalf("same-revision location change reached download or confirmation: artifactHits=%d confirmations=%d", artifactHits, confirmations)
 	}
 
+	sameRevisionChannel := release
+	sameRevisionChannel.UpdateChannel = "preview"
+	current = SignedReleaseDocument{SchemaVersion: 1, Release: sameRevisionChannel, Attestation: signStaticRelease(t, sameRevisionChannel, "static-root", rootPrivate, time.Now().Add(time.Hour))}
+	if _, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{}); err == nil {
+		t.Fatal("same metadata revision silently changed update channel")
+	}
+	if artifactHits != 1 || confirmations != 1 {
+		t.Fatalf("same-revision channel change reached download or confirmation: artifactHits=%d confirmations=%d", artifactHits, confirmations)
+	}
+
 	moved := sameRevisionMove
 	moved.MetadataRevision = 3
 	current = SignedReleaseDocument{SchemaVersion: 1, Release: moved, Attestation: signStaticRelease(t, moved, "static-root", rootPrivate, time.Now().Add(time.Hour))}
