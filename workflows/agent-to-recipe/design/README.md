@@ -6,7 +6,7 @@ order: 10
 
 # Agent-first Recorder｜设计总纲与文件地图
 
-状态：设计基线 v0.8，2026-09-19 补交接审阅与前缀检查，纠正方法文件状态冲突。保留 v0.6 Structured UI Collection Reading 的现行边界，以及自然语言入口、操作计划、planned／actual 和 DistilledSteps 专业边界。当前已有 application-engineer、trace-distill、procedure-synthesize、code-rebuild、recipe-qualify 五个方法文件与限定静态检查；宿主加载、盲评与人类验收未证明。实际状态见[质量总览](../../../docs/quality/agent-to-recipe-workflow-review-20260919.md)。本文不新增 Runtime、S13 或第三套工作流。返回[工作流总入口](../../README.md)。
+状态：设计基线 v0.9，2026-09-21 增加正式主链总图，收口多入口、同步证据、Target Grounding、Fresh Qualification 与定向维修的高层关系。保留 v0.6 Structured UI Collection Reading 的现行边界，以及自然语言入口、操作计划、planned／actual 和 DistilledSteps 专业边界。当前已有 application-engineer、trace-distill、procedure-synthesize、code-rebuild、recipe-qualify 五个方法文件与限定静态检查；宿主加载、盲评与人类验收未证明。实际状态见[质量总览](../../../docs/quality/agent-to-recipe-workflow-review-20260919.md)。本文不新增 Runtime、S13 或第三套工作流。返回[工作流总入口](../../README.md)。
 
 ## 先看关键输入输出与实际检查
 
@@ -30,6 +30,71 @@ order: 10
 - 业务执行工作流：生成后的程序每次实际完成的业务步骤，计算器例子是首次计算 → 真实读数 → 再次计算 → 读取并打印。
 - Capability 是需要具备的业务能力；业务 Function 不等于 JS 函数；Agent Skill 是专业作业；已有 API 和普通函数是实现方式。这些对象不能一一硬配。
 - 业务运行继续按“框架原语 → 应用语义操作 → 组合业务能力 → 完整业务流程”理解粒度，不新增 Runtime 层。
+
+### 自动化开发工作流的正式主链
+
+下面这张图是本目录的**权威高层主链总图**。它用于快速判断 Agent-to-Recipe 从输入到可资格化 Recipe 的整体关系；它不新增 S13、不替代 S1—S12 的完整任务树，也不创建新的 Runtime／IR。
+
+```text
+┌────────────────────────────────────────────────────────┐
+│ User Goal / Existing Asset / Human Recorder Source     │
+└──────────────────────────┬─────────────────────────────┘
+                           ▼
+                 Goal & Task Contract
+                           │
+                     Operation Plan
+                           ▼
+              Minimal Discover & Feasibility
+                           │
+                           ▼
+                 Execute + Observe + Verify
+                           │
+          ┌────────────────┼────────────────────┐
+          ▼                ▼                    ▼
+     Raw Action          AX/UIA        Screenshot / OCR /
+                                      Vision / Layout
+          └────────────────┼────────────────────┘
+                           ▼
+                 Demonstration Dossier
+                           │
+                           ▼
+                    DistilledSteps
+          retain / merge / omit / recovery / unknown
+                           │
+                           ▼
+                   SemanticProcedure
+       BusinessStep / Params / Data Flow / Branch / State
+                           │
+                           ▼
+                Application Hardening
+       Target Grounding / Locator / Wait / Read / Verify
+                           │
+                           ▼
+                     OpenDesk JS
+                        Recipe
+                           │
+                  [optional] code-rebuild
+                           │
+                           ▼
+                 Fresh Qualification
+                    ┌──────┴──────┐
+                    ▼             ▼
+                  PASS           FAIL
+                    │             │
+                    ▼             ▼
+                 Promote    Targeted Repair
+                                  │
+                                  └──→ 返回对应责任环节后重验
+```
+
+读图时保持以下边界：
+
+- `Raw Action / AX/UIA / Screenshot / OCR / Vision / Layout` 是同一任务中的**证据来源与观察手段**，不是生命周期上的多个串行阶段。S2 的最小发现和 S10 的工程化补强也可按需要使用这些来源；图中把它们画在执行旁路，是为了突出真实操作时的同步留证。
+- `Minimal Discover & Feasibility` 只建立足以安全推进的最小认识并优先核查会推翻路线的高影响 Unknown；`Application Hardening` 才把已确认业务需要落实成可重复运行的 Target／Locator／Wait／Read／Verifier／Recovery 规则。
+- `Demonstration Dossier` 证明“实际发生了什么”；`DistilledSteps` 证明“哪些实际动作构成必要路径”；`SemanticProcedure` 说明“这些步骤的业务含义、数据关系与复用规则”。三者不得合并成一份模糊说明。
+- Human Recorder、Agent-first 和 Existing Asset 保留各自 lineage；它们并不因此获得相同来源资格。图表示它们在满足各自前置条件后进入共同的专业开发主线，具体入口、可跳过环节和证明边界见 [chain-design.md](chain-design.md)。
+- `Fresh Qualification` 的 PASS 只对冻结候选和声明范围成立；最终 `Promote` 与 FAIL 后的 `Targeted Repair` 都属于现有 S12／维护闭环，不新增新的生命周期阶段。
+- FAIL 不默认回到 S1。目标／授权问题返回规划，应用／Target／Locator 问题返回 application-engineer，事实不足返回示范补采，必要路径错误返回 trace-distill，业务语义／参数化错误返回 procedure-synthesize，代码错误返回 recipe-build／code-rebuild，验收设置或证据问题返回 recipe-qualify。
 
 这里特别区分六类不同证明对象：
 
@@ -216,4 +281,5 @@ application-engineer ↔ trace-distill → procedure-synthesize → recipe-build
 - **v0.5**：接入 Structured Collection 初版，并曾保留 `UI.collectCollection()` / scroll collector 作为未来目标合同。
 - **v0.6**：依据最新批准方案取消“公共 `UI.collectCollection()` / Runtime traversal”方向；Collection 只负责当前明确观察范围，App Adapter 负责业务解释，Recipe 负责滚动、分页、跨批去重、结束判断和业务控制。
 - **v0.7**：补自然语言入口后的可审阅操作计划、planned／actual／planDelta、Dossier → DistilledSteps → SemanticProcedure 工件链；目标 `trace-distill` 负责 S7，`procedure-synthesize` 收窄为 S8—S9，并明确 Human Recorder 与 Agent-first 的共享专业边界。
-- **v0.8（当前）**：保留完整任务树，新增交接审阅投影、原检查器的前缀检查与派生 View，完善三个方法的输入输出／反例／结论；纠正文件存在与行为资格混用，不改变 S1—S12、G0—G7 或 Runtime。
+- **v0.8**：保留完整任务树，新增交接审阅投影、原检查器的前缀检查与派生 View，完善三个方法的输入输出／反例／结论；纠正文件存在与行为资格混用，不改变 S1—S12、G0—G7 或 Runtime。
+- **v0.9（当前）**：新增自动化开发工作流的正式主链总图，明确 Raw Action／AX/UIA／OCR／Vision/Layout 是并行证据来源而非串行阶段；区分最小发现与工程化 Target Grounding，并把 Fresh Qualification → Promote／Targeted Repair 的闭环显式化。不新增阶段、Skill、Runtime 或可执行 IR。
