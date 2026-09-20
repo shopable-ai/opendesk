@@ -18,8 +18,13 @@ const BUNDLE = path.join(ROOT, 'dist', 'OpenDesk.app');
 const BUILD_SCRIPT = path.join(ROOT, 'scripts', 'build_macos_app.sh');
 const BUILD_STATE = path.join(MANUAL_ROOT, 'build-current.json');
 const BUILD_INPUTS = [
-  'go.mod', 'go.sum', 'VERSION', 'cmd/opendesk', 'pkg/flowmarketplace', 'pkg/flowinstall', 'pkg/flowpackage',
-  'pkg/officialconfig', 'internal/officialassets', 'apps/opendesk', 'scripts/build_macos_app.sh',
+  'go.mod', 'go.sum', 'VERSION',
+  'cmd', 'automation', 'pkg', 'internal',
+  'apps/opendesk', 'apps/inspector_web',
+  'polyfills', 'jslibs',
+  'public/icons/opendesk.icns',
+  'examples/native-extensions/macos-vision',
+  'scripts',
 ];
 const EXECUTABLE = path.join(BUNDLE, 'Contents', 'MacOS', 'opendesk');
 const APP_ROOT = path.join(ROOT, 'apps', 'opendesk');

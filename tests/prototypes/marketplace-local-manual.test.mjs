@@ -48,6 +48,18 @@ test('manual Marketplace helper refreshes stale native code before opening the s
   assert.match(helperSource, /spawnSync\('\/bin\/bash', \[BUILD_SCRIPT\]/);
 });
 
+test('manual Marketplace build fingerprint covers transitive native and staged bundle inputs for dirty-tree reuse', () => {
+  for (const required of [
+    "'cmd'", "'automation'", "'pkg'", "'internal'",
+    "'apps/opendesk'", "'apps/inspector_web'", "'polyfills'", "'jslibs'",
+    "'public/icons/opendesk.icns'", "'examples/native-extensions/macos-vision'", "'scripts'",
+  ]) {
+    assert.ok(helperSource.includes(required), `missing build fingerprint input: ${required}`);
+  }
+  assert.match(helperSource, /gitCommand\(\['diff', '--binary', 'HEAD', '--', \.\.\.BUILD_INPUTS\]\)/);
+  assert.match(helperSource, /gitCommand\(\['ls-files', '--others', '--exclude-standard', '--', \.\.\.BUILD_INPUTS\]\)/);
+});
+
 test('manual Marketplace helper retains an HTTP request evidence log outside the public site', () => {
   assert.match(helperSource, /path\.join\(runDirectory, 'http-requests\.log'\)/);
   assert.match(helperSource, /'--request-log', requestLogPath/);

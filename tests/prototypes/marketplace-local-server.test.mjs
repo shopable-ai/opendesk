@@ -116,17 +116,40 @@ test('local Marketplace preparation refuses symlinked or pre-populated public ro
 });
 
 
-test('local Marketplace server refuses private config and request logs inside public site', async t => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'opendesk-marketplace-private-'));
-  t.after(() => rm(root, {recursive: true, force: true}));
-  const siteRoot = path.join(root, 'site');
-  const appDataRoot = path.join(root, 'app-data');
-  await assert.rejects(
-    () => startLocalMarketplaceServer({
-      host: '127.0.0.1', port: 0, siteRoot,
-      configOutput: path.join(siteRoot, 'marketplace-development.json'),
-      appDataRoot,
-    }),
-    /config must remain outside/,
-  );
+test('local Marketplace server refuses every private development output inside the public site', async t => {
+  const cases = [
+    {
+      name: 'config',
+      mutate: ({siteRoot, configOutput, appDataRoot}) => ({siteRoot, configOutput: path.join(siteRoot, 'marketplace-development.json'), appDataRoot}),
+      error: /config must remain outside/,
+    },
+    {
+      name: 'app data',
+      mutate: ({siteRoot, configOutput}) => ({siteRoot, configOutput, appDataRoot: path.join(siteRoot, 'app-data')}),
+      error: /app data must remain outside/,
+    },
+    {
+      name: 'receiver log',
+      mutate: base => ({...base, opendeskLog: path.join(base.siteRoot, 'receiver.log')}),
+      error: /receiver log must remain outside/,
+    },
+    {
+      name: 'request log',
+      mutate: base => ({...base, requestLog: path.join(base.siteRoot, 'http-requests.log')}),
+      error: /request log must remain outside/,
+    },
+  ];
+
+  for (const item of cases) {
+    const root = await mkdtemp(path.join(os.tmpdir(), `opendesk-marketplace-private-${item.name.replace(/\s+/g, '-')}-`));
+    t.after(() => rm(root, {recursive: true, force: true}));
+    const base = {
+      host: '127.0.0.1',
+      port: 0,
+      siteRoot: path.join(root, 'site'),
+      configOutput: path.join(root, 'marketplace-development.json'),
+      appDataRoot: path.join(root, 'app-data'),
+    };
+    await assert.rejects(() => startLocalMarketplaceServer(item.mutate(base)), item.error, item.name);
+  }
 });
