@@ -256,3 +256,98 @@ test('scoped selection cannot replace a canonical contract with evidence', async
   assert.equal(result.stages['procedure-synthesize'], 'fail');
   assert.equal(stageError(s, out, 'procedure-synthesize').code, 'CAPABILITY_SOURCE');
 });
+
+
+// 2026-09-21 continuation audit: exercise source identity, complete consumers,
+// legal many-action merges and immutable failure history through the real runner.
+function saveSourceChanges(s) {
+  s.write('actions.json', s.actions);
+  s.dossier.actionsRef = s.ref('actions.json', 'RawTrace');
+  s.write('dossier.json', s.dossier);
+  s.write('selection-r1.json', s.selection);
+  s.request.s9InputRefs = [s.ref('selection-r1.json')];
+}
+function addConsumer(s, { recorded = true, merge = false, transform = 'identity' } = {}) {
+  const second = clone(s.actions[1]);
+  second.actionId = 'lookup-again'; second.purpose = '在同一授权查询目标再次消费当前编号';
+  second.mergeWithPrevious = merge;
+  second.data.bindings[0] = { name: 'ticketCode', transform,
+    actual: transform === 'characters' ? [...s.dossier.runtimeValues[0].observedValue] : s.dossier.runtimeValues[0].observedValue };
+  s.actions.splice(2, 0, second);
+  if (recorded) s.dossier.runtimeValues[0].consumers.push(second.actionId);
+  s.selection.capabilityDecisions[1].sourceActionRefs.push(second.actionId);
+  saveSourceChanges(s);
+}
+
+for (const defect of ['read-target', 'read-application', 'consumer-application', 'omitted-consumer', 'undeclared-input']) {
+  test('source identity and all actual consumers are checked before S9: ' + defect, async () => {
+    const s = fixture(), out = s.out('source-' + defect);
+    if (defect === 'read-target') s.actions[0].data.targetId = 'unrelated-target';
+    if (defect === 'read-application') s.actions[0].data.applicationId = 'unrelated-app';
+    if (defect === 'consumer-application') s.actions[1].data.applicationId = 'unrelated-app';
+    if (defect === 'omitted-consumer') addConsumer(s, { recorded: false });
+    if (defect === 'undeclared-input') s.actions[1].inputs.push('unobserved-runtime-value');
+    saveSourceChanges(s);
+    const result = await evaluateAdjacent(s.request, out, s.adapter);
+    assert.equal(result.stages['trace-distill'], 'fail', JSON.stringify(result));
+    assert.equal(result.stages['procedure-synthesize'], 'not-run');
+    assert.equal(s.calls(), 1);
+    assert.equal(result.nextRequest.owner, 'task-demonstrate');
+    assert.equal(stageError(s, out, 'trace-distill').code,
+      defect.startsWith('read-') ? 'OBSERVATION_MISMATCH' : defect === 'consumer-application' ? 'APPLICATION_SOURCE' : 'DATA_RELATION');
+  });
+}
+
+test('legal merge retains two actual consumption transforms in the same business step', async () => {
+  const s = fixture({ value: '0040', type: 'digit-string', optional: false });
+  addConsumer(s, { merge: true, transform: 'identity' });
+  const out = s.out('merged-consumers');
+  const result = await evaluateAdjacent(s.request, out, s.adapter);
+  assert.deepEqual(result.stages, { 'trace-distill': 'pass', 'procedure-synthesize': 'pass' }, JSON.stringify(result));
+  const procedure = s.read(out, 'outputs/procedure.json');
+  assert.equal(procedure.businessSteps.length, 3);
+  assert.deepEqual(procedure.dataDependencies.map(edge => edge.transform), ['characters', 'identity']);
+  assert.deepEqual(procedure.runtimeValues[0].consumerBindings.map(b => b.observedInput), [['0', '0', '4', '0'], '0040']);
+  assert.ok(procedure.dataDependencies.every(edge => edge.consumer === 'business-1'));
+  assert.equal(procedure.runtimeValues[1].consumerSteps[0], 'final output');
+});
+
+for (const defect of ['conflicting-input-source', 'lost-business-consumer']) {
+  test('S9 rejects contradictory business declarations and repairs only S9: ' + defect, async () => {
+    const s = fixture(), original = s.adapter.produce, first = s.out(defect);
+    s.adapter.produce = async (packet, options) => {
+      const output = JSON.parse(await original(packet, options));
+      if (packet.stage === 'procedure-synthesize') {
+        if (defect === 'conflicting-input-source') output.businessSteps[1].inputSources.push({ name: 'ticketCode', kind: 'expected', value: 'T-042' });
+        else output.businessSteps[0].consumers = [];
+      }
+      return output;
+    };
+    const failed = await evaluateAdjacent(s.request, first, s.adapter);
+    assert.deepEqual(failed.stages, { 'trace-distill': 'pass', 'procedure-synthesize': 'fail' });
+    assert.equal(failed.nextRequest.owner, 'procedure-synthesize');
+    assert.equal(stageError(s, first, 'procedure-synthesize').code, 'DATA_RELATION');
+    const rawHash = hash(fs.readFileSync(path.join(first, 'procedure-synthesize/output.raw')));
+    s.adapter.produce = original;
+    const second = s.out('repaired-' + defect);
+    const repaired = await evaluateAdjacent(s.read(first, 'resume-request.json'), second, s.adapter);
+    assert.deepEqual(repaired.stages, { 'trace-distill': 'pass', 'procedure-synthesize': 'pass' });
+    assert.equal(repaired.reusedS7.rechecked, true);
+    assert.equal(repaired.budget.usedCalls, 3); assert.equal(repaired.attempts.length, 1);
+    assert.equal(hash(fs.readFileSync(path.join(first, 'procedure-synthesize/output.raw'))), rawHash);
+  });
+}
+
+for (const item of ['procedure-synthesize/output.raw', 'procedure-synthesize/input.json', 'procedure-synthesize/check.json']) {
+  test('resume rejects changed S9 failure evidence before any new invocation: ' + item, async () => {
+    const s = fixture(), first = s.out('failed-history'); s.request.s9InputRefs = [];
+    const failed = await evaluateAdjacent(s.request, first, s.adapter);
+    assert.equal(failed.stages['procedure-synthesize'], 'fail');
+    fs.appendFileSync(path.join(first, item), ' ');
+    const resumed = await evaluateAdjacent(s.resume(first, [s.ref('selection-r1.json')]), s.out('refuse-history'), s.adapter);
+    assert.equal(s.calls(), 2, JSON.stringify(resumed));
+    assert.equal(resumed.setupFailure?.code, 'EVAL_RESUME_CHANGED', JSON.stringify(resumed));
+    assert.equal(resumed.budget.usedCalls, 2, 'Refused reuse must still account for the pinned prior calls.');
+    assert.notEqual(resumed.stages['procedure-synthesize'], 'pass');
+  });
+}

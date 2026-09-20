@@ -183,6 +183,11 @@ function checkSequential(packet, output, outputSha256) {
       check(actions.every(a => ['actual-read', 'actual-input'].includes(a.kind)), 'CHECKER_COVERAGE',
         'This slice covers sequential actual reads and inputs only.', 'validation', 'actions.kind');
       values(packet, dossier.runtimeValues, contract, profile, 'task-demonstrate');
+      // Check the source ledger itself, not only the projection made from it.
+      const names = dossier.runtimeValues.map(v => v.name);
+      check(actions.every(a => Array.isArray(a.inputs) && Array.isArray(a.outputs)
+        && a.inputs.every(name => names.includes(name)) && a.outputs.every(name => names.includes(name))),
+      'DATA_RELATION', 'Every declared action input/output needs a supplied runtime source in this slice.', 'task-demonstrate', 'actions.inputs/outputs');
       check(output.schemaVersion === SCHEMA && output.planRevision === plan.revision
         && key(output.dossierRef) === key(packet.inputs.dossier), 'WRONG_VERSION', 'S7 output lineage/version is wrong.', stage, 'DistilledSteps');
       check(key(output.contractRef) === key(packet.inputs.contract) && key(output.workPlanRef) === key(packet.inputs.plan)
@@ -220,6 +225,13 @@ function checkSequential(packet, output, outputSha256) {
         const producer = actions.find(a => a.actionId === v.origin.actionRef);
         check(producer?.kind === 'actual-read' && producer.outputs.includes(v.name) && equal(producer.data.value, v.observedValue),
           'RUNTIME_SOURCE', 'Runtime producer is not the recorded read.', 'task-demonstrate', v.name);
+        check(producer.data.applicationId === v.origin.applicationId && producer.data.targetId === v.origin.targetId,
+          'OBSERVATION_MISMATCH', 'The actual read and its observation name different application targets.', 'task-demonstrate', v.name + '.origin');
+        check(equal(actions.filter(a => a.outputs.includes(v.name)).map(a => a.actionId), [producer.actionId]),
+          'DATA_RELATION', 'A runtime value must identify its one actual source read in this slice.', 'task-demonstrate', v.name + '.producer');
+        check(equal([...v.consumers.filter(id => id !== 'final output')].sort(),
+          actions.filter(a => a.inputs.includes(v.name)).map(a => a.actionId).sort()),
+        'DATA_RELATION', 'The source ledger omitted, duplicated or invented an actual consumer.', 'task-demonstrate', v.name + '.consumers');
         const producerStep = outputStep(output.steps, producer.actionId).stepId;
         const consumers = v.consumers.map(id => id === 'final output' ? id : outputStep(output.steps, id)?.stepId);
         const bindings = v.consumers.filter(id => id !== 'final output').map(id => {
@@ -232,7 +244,12 @@ function checkSequential(packet, output, outputSha256) {
           'DATA_RELATION', 'S7 producer/consumer mapping is wrong.', stage, v.name);
         for (const id of v.consumers.filter(id => id !== 'final output')) {
           const consumer = actions.find(a => a.actionId === id);
-          const binding = consumer?.data?.bindings?.find(b => b.name === v.name);
+          const bindings = list(consumer?.data?.bindings).filter(b => b.name === v.name);
+          const binding = bindings[0];
+          check(bindings.length === 1, 'DATA_RELATION', 'Each actual consumer needs one unambiguous binding for this value.', 'task-demonstrate', v.name);
+          const target = profile.targets.find(t => t.id === consumer?.data?.targetId);
+          check(target && target.applicationId === consumer.data.applicationId, 'APPLICATION_SOURCE',
+            'The actual consumer target/application disagrees with the supplied profile.', 'task-demonstrate', v.name + '.consumers');
           check(actionIds.indexOf(id) > actionIds.indexOf(producer.actionId) && consumer.inputs.includes(v.name)
             && v.allowedTransforms.includes(binding?.transform)
             && equal(binding.actual, binding.transform === 'characters' ? [...v.observedValue] : v.observedValue),
@@ -261,6 +278,12 @@ function checkSequential(packet, output, outputSha256) {
         check(equal([...new Set(sources.flatMap(s => s.inputs))].sort(), [...step.inputs].sort())
           && equal([...new Set(sources.flatMap(s => s.outputs))].sort(), [...step.outputs].sort()),
         'DATA_RELATION', 'Business input/output differs from S7.', stage, step.stepId);
+        check(equal(step.inputSources.map(s => s.name).sort(), [...step.inputs].sort()),
+          'DATA_RELATION', 'Every business input needs exactly one source; conflicting extra sources are not evidence.', stage, step.stepId + '.inputSources');
+        const expectedConsumers = [...new Set(distilled.runtimeValues
+          .filter(v => mapped(v.producerStep) === step.stepId).flatMap(v => v.consumerSteps.map(mapped)))];
+        check(equal([...step.consumers].sort(), expectedConsumers.sort()), 'DATA_RELATION',
+          'Business consumers must preserve the same runtime and terminal destinations.', stage, step.stepId + '.consumers');
       }
       unique(output.runtimeValues, 'name', stage, 'runtimeValues');
       for (const role of ['parameters', 'config', 'secretRefs']) {
@@ -279,12 +302,14 @@ function checkSequential(packet, output, outputSha256) {
         check(actual.producerStep === producer && equal(actual.consumerSteps, consumers)
           && output.businessSteps.find(s => s.stepId === producer)?.outputs.includes(v.name),
         'DATA_RELATION', 'S9 runtime producer/consumer is wrong.', stage, v.name);
-        for (const consumer of consumers.filter(id => id !== 'final output')) {
+        // Different actions can legally merge into one step while consuming the
+        // same value via different transforms. Bind by action, not first step match.
+        for (const binding of v.consumerBindings) {
+          const sourceStep = outputStep(distilled.steps, binding.actionRef)?.stepId;
+          const consumer = mapped(sourceStep);
           check(ids.indexOf(producer) < ids.indexOf(consumer), 'CHECKER_COVERAGE',
             'This checker requires cross-business-step forward data edges.', 'validation', v.name);
-          const sourceStep = v.consumerSteps[consumers.indexOf(consumer)];
-          const binding = v.consumerBindings.find(b => outputStep(distilled.steps, b.actionRef)?.stepId === sourceStep);
-          expectedEdges.push([producer, v.name, consumer, binding?.transform].join('\0'));
+          expectedEdges.push([producer, v.name, consumer, binding.transform].join('\0'));
           const step = output.businessSteps.find(s => s.stepId === consumer);
           check(step.inputSources.some(s => s.name === v.name && s.kind === 'runtime-value' && s.producer === producer),
             'DATA_RELATION', 'Business input source must explicitly bind the actual runtime producer.', stage, v.name);

@@ -172,6 +172,17 @@ async function evaluateAdjacent(request, out, producer) {
       records.resumeFrom = clone(ref); records.budget.usedCalls = report.budget.usedCalls;
       records.previousExecution = { mode: report.executionMode, hostId: report.hostId, modelId: report.modelId };
       save('previous-evaluation.json', bytes);
+      // A valid S7 is insufficient when the stopped attempt's failure evidence was
+      // changed or lost. Verify the predecessor before any new Producer call.
+      requireCheck(Array.isArray(report.attempts), 'EVAL_RESUME', 'Prior attempt records are missing.');
+      for (const attempt of report.attempts) {
+        requireCheck(Object.hasOwn(METHODS, attempt.stage), 'EVAL_RESUME', 'Unsupported prior attempt stage.');
+        readPrevious({ path: attempt.stage + '/input.json', sha256: attempt.inputSha256 });
+        if (attempt.storedOutput) readPrevious(attempt.storedOutput);
+        if (attempt.check) readPrevious(attempt.check);
+        else if (attempt.result === 'fail' && attempt.storedOutput) records.limits.push(
+          'Legacy predecessor check.json was not hash-bound; only its input/raw bytes and current S7 recheck are verified.');
+      }
     }
     const dossier = entry(request.dossier, 'Dossier');
     const actions = entry(request.actions, 'RawTrace');
@@ -292,7 +303,7 @@ async function evaluateAdjacent(request, out, producer) {
           schemaVersion: 'agent-to-recipe/v1', sha256: attempt.outputSha256 };
         frozen.push({ path: path.join(out, 'outputs', outputName), sha256: ref.sha256 });
         const report = checkStage(stage);
-        save(stage + '/check.json', report); save(stage + '/review.md', renderReview(report));
+        attempt.check = save(stage + '/check.json', report); save(stage + '/review.md', renderReview(report));
         attempt.result = report.verdict; records.stages[stage] = report.verdict;
         if (report.verdict !== 'pass') { records.nextRequest = report.nextRequest || { owner: stage, required: 'check.json', reason: 'Repair the reported defect without changing the requested scope.' }; break; }
         if (stage === 'trace-distill') {

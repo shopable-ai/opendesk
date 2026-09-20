@@ -263,6 +263,12 @@ DistilledSteps 只对原始事实做有来源的重建、分段和取舍，不�
 
 `runtimeValuePolicies` 的当前评测项为 `name / meaning / type / allowedTransforms / validity / reacquireOnFreshRun`，只表达已确认政策，不放实际观察值。顺序切片仅自动检查 text／digit-string、identity／characters 和前向数据边；金额、分支、循环、恢复等不属于其自动放行范围。政策自然语言是否充分、单位精度及应用真实性仍需对应专业审阅。S7 同时保留本次已知 `sideEffects`；unknown／partial 不能成为正常可消费的成功路径。
 
+**来源一致性与合并（2026-09-21 复核）。** 投影之前先核对原读取动作、对应 observation 与 `origin` 的值、应用和目标一致；只比较读到的字符串相同不够。实际消费者的应用身份须与固定 AppProfile 中该目标一致，不能只检查目标 ID。按原动作核对完整生产／消费集合，不能照抄一份已经漏掉消费者的 Dossier。上述来源互相矛盾时返回示范资料责任方核实；缺少应用关系依据则返回应用工程，不由 S7 选择相信某份来源。
+
+当前顺序切片要求每个值一个明确原读取生产者、每个原消费者一个明确绑定；它不把这些限制外推为通用业务规则。多个原消费者合并到同一步时，仍逐个 `actionRef` 保留 `consumerBindings` 的实际输入和变换；同一步内的 characters 与 identity 不能被“找到的第一项”替代。消费者应用身份由已经核对的固定 AppProfile 目标映射取得，不另增一份可漂移的应用字段。
+
+S9 的每个业务输入必须只有一个与实际值相接的来源；已有正确 runtime 来源不能掩盖另一条 Expected／常量来源。步骤的 `consumers` 与值的消费去向、终点输出保持一致，不能只在 `runtimeValues` 中保留而在业务步骤中丢失。生产和消费合并到同一业务步骤的内部时序仍超出当前检查器的前向跨步覆盖，交验证责任方审阅，不改造合法业务来迎合检查器。
+
 S9 保留上述有来源的值说明，并把 `producerStep / consumerSteps` 映射为 Business Step；`dataDependencies` 与实际 `consumerBindings` 相接，`inputSources` 明确引用运行时生产者。运行时值不得同时变成 parameters／config／Secret 默认答案。新增或缺失读取、错误取舍回 S7／示范；仅业务解释或映射错误由 S9 修订。
 
 **选型与定向证据。** S2—S6 在原工作包保存实际决定，S9 取得明确固定引用及内容后才收敛 `capabilityDecisions`。该来源不能从标准 Procedure、最终代码或 API 文档反推。当前结构化证据仍使用 v1 与既有 `evidence` 引用角色，用 `recordKind` 限定内容，不创建 Registry：
