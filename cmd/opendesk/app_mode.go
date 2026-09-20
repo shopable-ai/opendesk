@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"opendesk/automation"
+	"opendesk/pkg/appdata"
 	"opendesk/pkg/appshell"
 	"opendesk/pkg/customui"
 	pkgExecution "opendesk/pkg/execution"
@@ -104,10 +105,25 @@ func executeAppMode(config *Config) error {
 	if err != nil {
 		return fmt.Errorf("read App Mode entry: %w", err)
 	}
+	inheritedEnvironment := os.Environ()
+	var recoveredMarketplaceSession *marketplaceDevelopmentSession
+	var recoveredMarketplaceSessionPath string
+	if appshell.IsOpenDeskProduct(appPackage.Manifest) &&
+		strings.TrimSpace(config.MarketplaceDevelopmentConfig) == "" {
+		if bundled := bundledAppModePath(); bundled != "" && samePath(appPackage.Root, bundled) {
+			recoveredMarketplaceSession, recoveredMarketplaceSessionPath, err = recoverMarketplaceDevelopmentSession()
+			if err != nil {
+				log.Printf("[MARKETPLACE_INSTALL] development session rejected error=%v", err)
+			} else if recoveredMarketplaceSession != nil {
+				config.MarketplaceDevelopmentConfig = recoveredMarketplaceSession.ConfigPath
+				inheritedEnvironment = append(inheritedEnvironment, appdata.RootEnvironment+"="+recoveredMarketplaceSession.AppDataRoot)
+			}
+		}
+	}
 	environment, err := runtimeenv.Resolve(runtimeenv.Options{
 		WorkingDirectory: appPackage.Root,
 		File:             config.EnvironmentFile,
-		Inherited:        os.Environ(),
+		Inherited:        inheritedEnvironment,
 	})
 	if err != nil {
 		return fmt.Errorf("resolve App Mode environment: %w", err)
@@ -234,6 +250,19 @@ func executeAppMode(config *Config) error {
 		}
 		if marketplaceLog != nil {
 			defer marketplaceLog.Close()
+		}
+		if recoveredMarketplaceSession != nil {
+			log.Printf("[MARKETPLACE_INSTALL] development session restored sessionId=%s expiresAt=%s state=%s", recoveredMarketplaceSession.SessionID, recoveredMarketplaceSession.ExpiresAt, recoveredMarketplaceSessionPath)
+		} else {
+			appDataRoot, rootErr := appdata.Root(appdata.DesktopPackageID, environment.Values)
+			if rootErr != nil {
+				return fmt.Errorf("resolve Marketplace development app data root: %w", rootErr)
+			}
+			session, sessionPath, sessionErr := registerMarketplaceDevelopmentSession(config.MarketplaceDevelopmentConfig, appDataRoot)
+			if sessionErr != nil {
+				return fmt.Errorf("register Marketplace development session: %w", sessionErr)
+			}
+			log.Printf("[MARKETPLACE_INSTALL] development session registered sessionId=%s expiresAt=%s state=%s", session.SessionID, session.ExpiresAt, sessionPath)
 		}
 		marketplaceDevelopmentEnabled = true
 		log.Printf("[MARKETPLACE_INSTALL] loopback development client enabled")
