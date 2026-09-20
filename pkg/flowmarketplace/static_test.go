@@ -12,13 +12,36 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"sync"
+	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"opendesk/pkg/flowinstall"
+	"opendesk/pkg/flowpackage"
 )
+
+func TestCanonicalNotifyDemoPackagePassesFormalVerifier(t *testing.T) {
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("cannot locate Marketplace test source")
+	}
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
+	packagePath := filepath.Join(repoRoot, "examples", "flow-distribution", "notify-demo", "notify-demo.odflow")
+	verified, err := flowpackage.ReadFile(packagePath)
+	if err != nil {
+		t.Fatalf("formal verifier rejected canonical Notify Demo package: %v", err)
+	}
+	manifest := verified.Manifest
+	if manifest.FlowID != "com.example.opendesk.notify-demo" || manifest.Name != "Notify Demo" || manifest.Entry != "main.js" {
+		t.Fatalf("unexpected canonical Notify Demo manifest: %+v", manifest)
+	}
+	if verified.ArchiveDigest == "" || verified.ManifestDigest == "" {
+		t.Fatalf("formal verifier returned incomplete Notify Demo digests: archive=%q manifest=%q", verified.ArchiveDigest, verified.ManifestDigest)
+	}
+}
 
 func TestStaticMarketplaceInstallDownloadsSignedArtifactAndUsesSharedInstaller(t *testing.T) {
 	fixture := newMarketplaceFixture(t, EntitlementFree)
