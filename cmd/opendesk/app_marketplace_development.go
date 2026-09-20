@@ -149,7 +149,15 @@ func readMarketplaceDevelopmentConfigAt(configPath string, now func() time.Time)
 	if err := validateMarketplaceDevelopmentBaseURL(config.ArtifactBaseURL, "artifactBaseUrl", false); err != nil {
 		return marketplaceDevelopmentConfig{}, err
 	}
-	appDataRoot, err := validateMarketplaceDevelopmentAppDataRoot(absolute, config.AppDataRoot)
+	canonicalConfigPath, err := filepath.EvalSymlinks(absolute)
+	if err != nil {
+		return marketplaceDevelopmentConfig{}, fmt.Errorf("resolve Marketplace development config canonical path: %w", err)
+	}
+	canonicalConfigPath, err = filepath.Abs(canonicalConfigPath)
+	if err != nil {
+		return marketplaceDevelopmentConfig{}, fmt.Errorf("resolve Marketplace development config canonical absolute path: %w", err)
+	}
+	appDataRoot, err := validateMarketplaceDevelopmentAppDataRoot(canonicalConfigPath, config.AppDataRoot)
 	if err != nil {
 		return marketplaceDevelopmentConfig{}, err
 	}
@@ -182,21 +190,45 @@ func validateMarketplaceDevelopmentAppDataRoot(configPath, raw string) (string, 
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return "", fmt.Errorf("Marketplace development appDataRoot must be a real directory")
 	}
-	configDir := filepath.Dir(filepath.Clean(configPath))
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve Marketplace development appDataRoot canonical path: %w", err)
+	}
+	canonicalRoot, err = filepath.Abs(canonicalRoot)
+	if err != nil {
+		return "", fmt.Errorf("resolve Marketplace development appDataRoot canonical absolute path: %w", err)
+	}
+	canonicalConfigPath, err := filepath.EvalSymlinks(filepath.Clean(configPath))
+	if err != nil {
+		return "", fmt.Errorf("resolve Marketplace development config canonical path: %w", err)
+	}
+	canonicalConfigPath, err = filepath.Abs(canonicalConfigPath)
+	if err != nil {
+		return "", fmt.Errorf("resolve Marketplace development config canonical absolute path: %w", err)
+	}
+	configDir := filepath.Dir(canonicalConfigPath)
 	siteRoot := filepath.Join(configDir, "site")
 	siteInfo, err := os.Lstat(siteRoot)
 	if err != nil || !siteInfo.IsDir() || siteInfo.Mode()&os.ModeSymlink != 0 {
 		return "", fmt.Errorf("Marketplace development config must be beside a real public site directory")
 	}
-	relative, err := filepath.Rel(configDir, root)
+	canonicalSiteRoot, err := filepath.EvalSymlinks(siteRoot)
+	if err != nil {
+		return "", fmt.Errorf("resolve Marketplace development public site canonical path: %w", err)
+	}
+	canonicalSiteRoot, err = filepath.Abs(canonicalSiteRoot)
+	if err != nil {
+		return "", fmt.Errorf("resolve Marketplace development public site canonical absolute path: %w", err)
+	}
+	relative, err := filepath.Rel(configDir, canonicalRoot)
 	if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
 		return "", fmt.Errorf("Marketplace development appDataRoot must be a private child of the config directory")
 	}
-	publicRelative, err := filepath.Rel(siteRoot, root)
+	publicRelative, err := filepath.Rel(canonicalSiteRoot, canonicalRoot)
 	if err == nil && (publicRelative == "." || (publicRelative != ".." && !strings.HasPrefix(publicRelative, ".."+string(os.PathSeparator)) && !filepath.IsAbs(publicRelative))) {
 		return "", fmt.Errorf("Marketplace development appDataRoot must remain outside the public site directory")
 	}
-	return root, nil
+	return filepath.Clean(canonicalRoot), nil
 }
 
 func validateMarketplaceDevelopmentBaseURL(raw, field string, required bool) error {
@@ -251,9 +283,18 @@ func registerMarketplaceDevelopmentSessionAt(sessionRoot, configPath, appDataRoo
 	if err != nil {
 		return session, fmt.Errorf("resolve Marketplace development session config path: %w", err)
 	}
+	configPath, err = filepath.EvalSymlinks(configPath)
+	if err != nil {
+		return session, fmt.Errorf("resolve Marketplace development session canonical config path: %w", err)
+	}
+	configPath = filepath.Clean(configPath)
 	appDataRoot, err = filepath.Abs(appDataRoot)
 	if err != nil {
 		return session, fmt.Errorf("resolve Marketplace development session app data root: %w", err)
+	}
+	appDataRoot, err = filepath.EvalSymlinks(appDataRoot)
+	if err != nil {
+		return session, fmt.Errorf("resolve Marketplace development session canonical app data root: %w", err)
 	}
 	appDataRoot = filepath.Clean(appDataRoot)
 	if appDataRoot != config.AppDataRoot {
