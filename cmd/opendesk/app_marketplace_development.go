@@ -60,14 +60,9 @@ func configureMarketplaceDevelopmentLog(configPath string) (io.Closer, error) {
 	if err != nil || strings.TrimSpace(config.LogFile) == "" {
 		return nil, err
 	}
-	configDir := filepath.Dir(configPath)
-	logPath, err := filepath.Abs(config.LogFile)
+	logPath, err := validateMarketplaceDevelopmentPrivateFilePath(configPath, config.LogFile, "logFile")
 	if err != nil {
-		return nil, fmt.Errorf("resolve Marketplace development logFile: %w", err)
-	}
-	relative, err := filepath.Rel(configDir, logPath)
-	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
-		return nil, fmt.Errorf("Marketplace development logFile must be inside the config directory")
+		return nil, err
 	}
 	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
@@ -75,6 +70,55 @@ func configureMarketplaceDevelopmentLog(configPath string) (io.Closer, error) {
 	}
 	log.SetOutput(io.MultiWriter(os.Stderr, file))
 	return file, nil
+}
+
+func validateMarketplaceDevelopmentPrivateFilePath(configPath, raw, field string) (string, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" || !filepath.IsAbs(value) {
+		return "", fmt.Errorf("Marketplace development %s must be an absolute private path", field)
+	}
+	configCanonical, err := filepath.EvalSymlinks(filepath.Clean(configPath))
+	if err != nil {
+		return "", fmt.Errorf("resolve Marketplace development %s config path: %w", field, err)
+	}
+	configCanonical, err = filepath.Abs(configCanonical)
+	if err != nil {
+		return "", fmt.Errorf("resolve Marketplace development %s config absolute path: %w", field, err)
+	}
+	configDir := filepath.Dir(configCanonical)
+	siteCanonical, err := filepath.EvalSymlinks(filepath.Join(configDir, "site"))
+	if err != nil {
+		return "", fmt.Errorf("resolve Marketplace development %s public site: %w", field, err)
+	}
+	siteCanonical, err = filepath.Abs(siteCanonical)
+	if err != nil {
+		return "", fmt.Errorf("resolve Marketplace development %s public site absolute path: %w", field, err)
+	}
+	parentCanonical, err := filepath.EvalSymlinks(filepath.Dir(filepath.Clean(value)))
+	if err != nil {
+		return "", fmt.Errorf("resolve Marketplace development %s parent path: %w", field, err)
+	}
+	parentCanonical, err = filepath.Abs(parentCanonical)
+	if err != nil {
+		return "", fmt.Errorf("resolve Marketplace development %s parent absolute path: %w", field, err)
+	}
+	canonical := filepath.Join(parentCanonical, filepath.Base(value))
+	insideConfig, err := filepath.Rel(configDir, canonical)
+	if err != nil || insideConfig == "." || insideConfig == ".." || strings.HasPrefix(insideConfig, ".."+string(os.PathSeparator)) || filepath.IsAbs(insideConfig) {
+		return "", fmt.Errorf("Marketplace development %s must be inside the private config directory", field)
+	}
+	insideSite, err := filepath.Rel(siteCanonical, canonical)
+	if err == nil && (insideSite == "." || (insideSite != ".." && !strings.HasPrefix(insideSite, ".."+string(os.PathSeparator)) && !filepath.IsAbs(insideSite))) {
+		return "", fmt.Errorf("Marketplace development %s must remain outside the public site directory", field)
+	}
+	if info, statErr := os.Lstat(canonical); statErr == nil {
+		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+			return "", fmt.Errorf("Marketplace development %s must be a regular file when it already exists", field)
+		}
+	} else if !os.IsNotExist(statErr) {
+		return "", fmt.Errorf("inspect Marketplace development %s: %w", field, statErr)
+	}
+	return canonical, nil
 }
 
 func loadMarketplaceDevelopmentClient(configPath string) (*flowmarketplace.Client, error) {
