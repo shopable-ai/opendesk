@@ -292,6 +292,8 @@ func TestStaticArtifactLocationRejectsTraversalAndMutableRelativeURLParts(t *tes
 		"flows/demo.odflow?token=mutable",
 		"flows/demo.odflow#fragment",
 		"flows\\demo.odflow",
+		"https://downloads.example.test/base/../escape.odflow",
+		"https://downloads.example.test/base/%2e%2e/escape.odflow",
 		".",
 	} {
 		release.ArtifactLocation = location
