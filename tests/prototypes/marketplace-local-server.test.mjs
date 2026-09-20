@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {createServer} from 'node:http';
-import {mkdtemp, readFile, readdir, rm} from 'node:fs/promises';
+import {mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -84,4 +84,22 @@ test('Node static publisher uses the exact Go Release v2 attestation bytes', () 
     + 'a'.repeat(64) + '","artifactDigest":"' + 'b'.repeat(64)
     + '","artifactSize":42,"artifactLocation":"flows/flow.demo/release-1/demo.odflow","minimumOpenDeskVersion":"2.0.1","publishedAt":"2026-09-20T00:00:00Z","releaseStatus":"published","entitlementPolicy":"free","updateChannel":"stable","expiresAt":"2026-09-21T00:00:00Z"}';
   assert.deepEqual(releaseAttestationMessage(release, attestation), Buffer.from(expected));
+});
+
+
+test('local Marketplace preparation refuses symlinked or pre-populated public roots', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'opendesk-marketplace-root-'));
+  t.after(() => rm(root, {recursive: true, force: true}));
+
+  const privateRoot = path.join(root, 'private');
+  await mkdir(privateRoot);
+  await writeFile(path.join(privateRoot, 'secret.txt'), 'not public');
+  const linkedSite = path.join(root, 'linked-site');
+  await symlink(privateRoot, linkedSite, 'dir');
+  await assert.rejects(() => prepareLocalMarketplaceSite(linkedSite), /real directory/);
+
+  const populatedSite = path.join(root, 'populated-site');
+  await mkdir(populatedSite);
+  await writeFile(path.join(populatedSite, 'unexpected.txt'), 'stale');
+  await assert.rejects(() => prepareLocalMarketplaceSite(populatedSite), /must be empty/);
 });

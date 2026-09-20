@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import {createHash, generateKeyPairSync, sign} from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {lstat, mkdir, readFile, writeFile} from 'node:fs/promises';
+import {lstat, mkdir, readFile, readdir, writeFile} from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -58,21 +58,18 @@ function platformLabel(value) {
 
 function verifyCanonicalPackage(artifact, manifest) {
   const readme = readFileSync(path.join(PACKAGE_ROOT, 'README.md'), 'utf8');
-  const documented = /archive SHA-256:\s*`([0-9a-f]{64})`/.exec(readme)?.[1];
+  const documented = /archive SHA-256:\\s*\`([0-9a-f]{64})\`/.exec(readme)?.[1];
   const digest = sha256(artifact);
   if (!documented || documented !== digest) {
     throw new Error('Notify Demo checked-in package does not match its documented archive digest; rebuild and re-verify the canonical example before publishing it');
   }
-  if (!Array.isArray(manifest.files) || manifest.files.length === 0) {
-    throw new Error('Notify Demo flow.json contains no declared files');
-  }
-  for (const declared of manifest.files) {
-    const relative = String(declared.path || '');
-    if (!relative || relative.includes('\\\\') || path.posix.isAbsolute(relative) || path.posix.normalize(relative) !== relative || relative.split('/').some(part => part === '..')) {
-      throw new Error('Notify Demo flow.json contains an unsafe source path');
-    }
-    const source = readFileSync(path.join(PACKAGE_ROOT, ...relative.split('/')));
-    if (declared.sha256 !== sha256(source) || declared.size !== source.length) {
+  // flow.json also lists package-generated entries such as trust/publisher.pub.
+  // Only author-maintained source files are expected beside the checked-in package;
+  // the canonical .odflow verifier owns generated inventory/signature validation.
+  for (const relative of ['main.js', 'clawdesk.runtime.json']) {
+    const declared = manifest.files?.find(file => file.path === relative);
+    const source = readFileSync(path.join(PACKAGE_ROOT, relative));
+    if (!declared || declared.sha256 !== sha256(source) || declared.size !== source.length) {
       throw new Error(`Notify Demo source ${relative} does not match flow.json; rebuild the canonical .odflow before publishing it`);
     }
   }
@@ -202,9 +199,29 @@ function prepareHTML(source, state) {
   return source.replace(BINDING_MARKER, renderBinding(state));
 }
 
+async function ensureEmptyRealDirectory(directory) {
+  try {
+    const info = await lstat(directory);
+    if (!info.isDirectory() || info.isSymbolicLink()) {
+      throw new Error('Marketplace site root must be a real directory');
+    }
+    const entries = await readdir(directory);
+    if (entries.length !== 0) {
+      throw new Error('Marketplace site root must be empty before preparation');
+    }
+  } catch (error) {
+    if (!error || error.code !== 'ENOENT') throw error;
+    await mkdir(directory, {recursive: true, mode: 0o700});
+    const info = await lstat(directory);
+    if (!info.isDirectory() || info.isSymbolicLink()) {
+      throw new Error('Marketplace site root must be a real directory');
+    }
+  }
+}
+
 export async function prepareLocalMarketplaceSite(siteRoot, state = fixture()) {
   const resolvedRoot = path.resolve(siteRoot);
-  await mkdir(resolvedRoot, {recursive: true, mode: 0o700});
+  await ensureEmptyRealDirectory(resolvedRoot);
   const releaseDir = path.join(resolvedRoot, 'flows', state.release.flowId, state.release.releaseId);
   await mkdir(releaseDir, {recursive: true, mode: 0o700});
   const mainSource = await readFile(path.join(WEB_ROOT, 'index.html'), 'utf8');
