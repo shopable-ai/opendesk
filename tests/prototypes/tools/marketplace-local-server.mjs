@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import {createHash, generateKeyPairSync, randomUUID, sign} from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {appendFile, lstat, mkdir, readFile, readdir, writeFile} from 'node:fs/promises';
+import {appendFile, lstat, mkdir, readFile, readdir, realpath, writeFile} from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -253,6 +253,36 @@ function contentType(file) {
   return 'application/octet-stream';
 }
 
+function isResolvedPathInside(root, candidate) {
+  const relative = path.relative(path.resolve(root), path.resolve(candidate));
+  return relative === '' || (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative));
+}
+
+async function canonicalContainmentPath(candidate) {
+  let current = path.resolve(candidate);
+  const suffix = [];
+  while (true) {
+    try {
+      const canonical = await realpath(current);
+      return path.join(canonical, ...suffix);
+    } catch (error) {
+      if (!error || error.code !== 'ENOENT') throw error;
+      const parent = path.dirname(current);
+      if (parent === current) throw error;
+      suffix.unshift(path.basename(current));
+      current = parent;
+    }
+  }
+}
+
+async function isInsideDirectory(root, candidate) {
+  const [canonicalRoot, canonicalCandidate] = await Promise.all([
+    canonicalContainmentPath(root),
+    canonicalContainmentPath(candidate),
+  ]);
+  return isResolvedPathInside(canonicalRoot, canonicalCandidate);
+}
+
 async function staticFile(siteRoot, requestPath) {
   let decoded;
   try { decoded = decodeURIComponent(requestPath); } catch (_) { return undefined; }
@@ -264,16 +294,13 @@ async function staticFile(siteRoot, requestPath) {
   try {
     const info = await lstat(file);
     if (!info.isFile() || info.isSymbolicLink()) return undefined;
-    return {file, body: await readFile(file)};
+    const [canonicalRoot, canonicalFile] = await Promise.all([realpath(root), realpath(file)]);
+    if (!isResolvedPathInside(canonicalRoot, canonicalFile)) return undefined;
+    return {file: canonicalFile, body: await readFile(canonicalFile)};
   } catch (error) {
     if (error && error.code === 'ENOENT') return undefined;
     throw error;
   }
-}
-
-function isInsideDirectory(root, candidate) {
-  const relative = path.relative(path.resolve(root), path.resolve(candidate));
-  return relative === '' || (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative));
 }
 
 async function recordStaticRequest(logPath, event) {
@@ -285,10 +312,10 @@ async function recordStaticRequest(logPath, event) {
 export async function startLocalMarketplaceServer(options) {
   const prepared = await prepareLocalMarketplaceSite(options.siteRoot);
   await ensureEmptyRealDirectory(options.appDataRoot);
-  if (isInsideDirectory(prepared.siteRoot, options.configOutput)) throw new Error('Marketplace development config must remain outside the public site root');
-  if (isInsideDirectory(prepared.siteRoot, options.appDataRoot)) throw new Error('Marketplace app data must remain outside the public site root');
-  if (options.opendeskLog && isInsideDirectory(prepared.siteRoot, options.opendeskLog)) throw new Error('OpenDesk receiver log must remain outside the public site root');
-  if (options.requestLog && isInsideDirectory(prepared.siteRoot, options.requestLog)) throw new Error('Marketplace request log must remain outside the public site root');
+  if (await isInsideDirectory(prepared.siteRoot, options.configOutput)) throw new Error('Marketplace development config must remain outside the public site root');
+  if (await isInsideDirectory(prepared.siteRoot, options.appDataRoot)) throw new Error('Marketplace app data must remain outside the public site root');
+  if (options.opendeskLog && await isInsideDirectory(prepared.siteRoot, options.opendeskLog)) throw new Error('OpenDesk receiver log must remain outside the public site root');
+  if (options.requestLog && await isInsideDirectory(prepared.siteRoot, options.requestLog)) throw new Error('Marketplace request log must remain outside the public site root');
   const server = http.createServer(async (request, response) => {
     try {
       const requestURL = new URL(request.url, `http://${options.host}`);
