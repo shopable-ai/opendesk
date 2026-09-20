@@ -183,9 +183,18 @@ func validateMarketplaceDevelopmentAppDataRoot(configPath, raw string) (string, 
 		return "", fmt.Errorf("Marketplace development appDataRoot must be a real directory")
 	}
 	configDir := filepath.Dir(filepath.Clean(configPath))
+	siteRoot := filepath.Join(configDir, "site")
+	siteInfo, err := os.Lstat(siteRoot)
+	if err != nil || !siteInfo.IsDir() || siteInfo.Mode()&os.ModeSymlink != 0 {
+		return "", fmt.Errorf("Marketplace development config must be beside a real public site directory")
+	}
 	relative, err := filepath.Rel(configDir, root)
 	if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
 		return "", fmt.Errorf("Marketplace development appDataRoot must be a private child of the config directory")
+	}
+	publicRelative, err := filepath.Rel(siteRoot, root)
+	if err == nil && (publicRelative == "." || (publicRelative != ".." && !strings.HasPrefix(publicRelative, ".."+string(os.PathSeparator)) && !filepath.IsAbs(publicRelative))) {
+		return "", fmt.Errorf("Marketplace development appDataRoot must remain outside the public site directory")
 	}
 	return root, nil
 }

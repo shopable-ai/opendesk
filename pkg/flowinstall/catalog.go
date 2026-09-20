@@ -42,7 +42,8 @@ type Record struct {
 	MarketplaceID        string    `json:"marketplaceId,omitempty"`
 	ReleaseID            string    `json:"releaseId,omitempty"`
 	UpdateChannel        string    `json:"updateChannel,omitempty"`
-	MarketplaceMetadataRevision int `json:"marketplaceMetadataRevision,omitempty"`
+	MarketplaceMetadataRevision int    `json:"marketplaceMetadataRevision,omitempty"`
+	MarketplaceArtifactLocation string `json:"marketplaceArtifactLocation,omitempty"`
 }
 
 var (
@@ -142,7 +143,7 @@ func validateRecord(record Record) error {
 	}
 	switch record.Origin {
 	case "js", "odflow":
-		if record.MarketplaceID != "" || record.ReleaseID != "" || record.UpdateChannel != "" || record.MarketplaceMetadataRevision != 0 {
+		if record.MarketplaceID != "" || record.ReleaseID != "" || record.UpdateChannel != "" || record.MarketplaceMetadataRevision != 0 || record.MarketplaceArtifactLocation != "" {
 			return fmt.Errorf("non-Marketplace Flow catalog record contains Marketplace provenance")
 		}
 	case "marketplace":
@@ -151,6 +152,9 @@ func validateRecord(record Record) error {
 		}
 		if record.UpdateChannel != "" && !catalogSourcePattern.MatchString(record.UpdateChannel) {
 			return fmt.Errorf("Marketplace Flow update channel is invalid")
+		}
+		if record.MarketplaceArtifactLocation != "" && (strings.TrimSpace(record.MarketplaceArtifactLocation) != record.MarketplaceArtifactLocation || len(record.MarketplaceArtifactLocation) > 2048 || strings.ContainsAny(record.MarketplaceArtifactLocation, "\r\n\x00")) {
+			return fmt.Errorf("Marketplace Flow artifact location provenance is invalid")
 		}
 	default:
 		return fmt.Errorf("invalid Flow catalog origin")

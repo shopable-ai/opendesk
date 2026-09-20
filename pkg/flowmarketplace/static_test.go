@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -48,7 +49,7 @@ func TestStaticMarketplaceInstallDownloadsSignedArtifactAndUsesSharedInstaller(t
 	installer := &Installer{Client: client, FlowService: service, TempRoot: t.TempDir(), Confirmer: confirmerFunc(approveMarketplaceInstall)}
 	result, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{})
 	if err != nil { t.Fatalf("static InstallURL() error = %v", err) }
-	if result.Record.ReleaseID != release.ReleaseID || result.Record.Origin != "marketplace" || result.Record.MarketplaceMetadataRevision != 1 { t.Fatalf("unexpected Catalog provenance: %+v", result.Record) }
+	if result.Record.ReleaseID != release.ReleaseID || result.Record.Origin != "marketplace" || result.Record.MarketplaceMetadataRevision != 1 || result.Record.MarketplaceArtifactLocation != release.ArtifactLocation { t.Fatalf("unexpected Catalog provenance: %+v", result.Record) }
 	assertInstallFixtureNotExecuted(t, service, result.Record.InstallID)
 	mu.Lock(); got := append([]string(nil), requests...); mu.Unlock()
 	if len(got) != 2 { t.Fatalf("static requests = %v, want release + artifact only", got) }
@@ -221,7 +222,7 @@ func TestStaticInstallRejectsKnownMetadataRevisionRollbackBeforeDownloadOrConfir
 		switch request.URL.Path {
 		case "/base/flows/" + release.FlowID + "/" + release.ReleaseID + "/release.json":
 			_ = json.NewEncoder(response).Encode(current)
-		case "/base/files/demo.odflow":
+		case "/base/files/demo.odflow", "/base/files/moved.odflow":
 			artifactHits++
 			response.Header().Set("Content-Length", fmt.Sprintf("%d", len(fixture.artifact)))
 			_, _ = response.Write(fixture.artifact)
@@ -259,19 +260,40 @@ func TestStaticInstallRejectsKnownMetadataRevisionRollbackBeforeDownloadOrConfir
 		t.Fatalf("rollback reached download or confirmation: artifactHits=%d confirmations=%d", artifactHits, confirmations)
 	}
 
-	rebound := release
-	rebound.MetadataRevision = 3
+	sameRevisionMove := release
+	sameRevisionMove.ArtifactLocation = "files/moved.odflow"
+	current = SignedReleaseDocument{SchemaVersion: 1, Release: sameRevisionMove, Attestation: signStaticRelease(t, sameRevisionMove, "static-root", rootPrivate, time.Now().Add(time.Hour))}
+	if _, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{}); err == nil {
+		t.Fatal("same metadata revision silently changed artifactLocation")
+	}
+	if artifactHits != 1 || confirmations != 1 {
+		t.Fatalf("same-revision location change reached download or confirmation: artifactHits=%d confirmations=%d", artifactHits, confirmations)
+	}
+
+	moved := sameRevisionMove
+	moved.MetadataRevision = 3
+	current = SignedReleaseDocument{SchemaVersion: 1, Release: moved, Attestation: signStaticRelease(t, moved, "static-root", rootPrivate, time.Now().Add(time.Hour))}
+	movedResult, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{})
+	if err != nil {
+		t.Fatalf("higher-revision signed location move rejected: %v", err)
+	}
+	if movedResult.Record.MarketplaceMetadataRevision != 3 || movedResult.Record.MarketplaceArtifactLocation != moved.ArtifactLocation || artifactHits != 2 || confirmations != 2 {
+		t.Fatalf("higher-revision location move evidence record=%+v artifactHits=%d confirmations=%d", movedResult.Record, artifactHits, confirmations)
+	}
+
+	rebound := moved
+	rebound.MetadataRevision = 4
 	rebound.ArtifactDigest = strings.Repeat("0", 64)
 	current = SignedReleaseDocument{SchemaVersion: 1, Release: rebound, Attestation: signStaticRelease(t, rebound, "static-root", rootPrivate, time.Now().Add(time.Hour))}
 	if _, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{}); err == nil {
 		t.Fatal("same Release identity was rebound to a different artifact digest")
 	}
-	if artifactHits != 1 || confirmations != 1 {
+	if artifactHits != 2 || confirmations != 2 {
 		t.Fatalf("digest rebinding reached download or confirmation: artifactHits=%d confirmations=%d", artifactHits, confirmations)
 	}
 
 	persisted, err := service.Catalog.Load(result.Record.InstallID)
-	if err != nil || persisted.MarketplaceMetadataRevision != 2 {
+	if err != nil || persisted.MarketplaceMetadataRevision != 3 || persisted.MarketplaceArtifactLocation != moved.ArtifactLocation {
 		t.Fatalf("persisted revision after rollback = %+v err=%v", persisted, err)
 	}
 	if err := service.Uninstall(context.Background(), result.Record.InstallID, false); err != nil { t.Fatal(err) }
@@ -389,6 +411,15 @@ func TestProductionMarketplaceRejectsPrivateAndLocalNetworkTargets(t *testing.T)
 		BaseURL: "http://127.0.0.1:51807/", Resolver: ResolverStatic, AllowInsecureLoopbackForTests: true,
 	}); err != nil {
 		t.Fatalf("explicit loopback development URL rejected: %v", err)
+	}
+}
+
+func TestResolvedMarketplaceDNSAddressesRejectAnyPrivateTarget(t *testing.T) {
+	if ips, err := validateResolvedMarketplaceIPs([]net.IPAddr{{IP: net.ParseIP("8.8.8.8")}}); err != nil || len(ips) != 1 {
+		t.Fatalf("public resolved target rejected: ips=%v err=%v", ips, err)
+	}
+	if _, err := validateResolvedMarketplaceIPs([]net.IPAddr{{IP: net.ParseIP("8.8.8.8")}, {IP: net.ParseIP("10.0.0.8")}}); err == nil {
+		t.Fatal("post-DNS Marketplace validation accepted a result set containing a private address")
 	}
 }
 

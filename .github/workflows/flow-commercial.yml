@@ -8,7 +8,9 @@ on:
       - 'pkg/flowpackage/**'
       - 'pkg/flowinstall/**'
       - 'pkg/flowmarketplace/**'
+      - 'pkg/officialconfig/**'
       - 'pkg/appdata/**'
+      - 'configs/product.json'
       - 'pkg/execution/**'
       - 'pkg/customui/winhost/**'
       - 'internal/flowcli/**'
@@ -112,8 +114,8 @@ jobs:
           mkdir -p .runtime/tests
           set -o pipefail
           {
-            go test ./pkg/flowpackage ./pkg/flowinstall ./pkg/flowmarketplace ./pkg/appdata -count=1
-            go test ./cmd/opendesk -run '^TestMarketplaceDevelopment' -count=1
+            go test ./pkg/flowpackage ./pkg/flowinstall ./pkg/flowmarketplace ./pkg/officialconfig ./pkg/appdata -count=1
+            go test ./cmd/opendesk -run '^TestMarketplace(Development|Product)' -count=1
           } 2>&1 | tee .runtime/tests/flow-commercial-go-test.log
       - name: Upload portable Flow evidence
         if: always()

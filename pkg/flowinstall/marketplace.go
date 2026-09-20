@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"opendesk/internal/processlock"
@@ -14,6 +15,7 @@ type MarketplaceProvenance struct {
 	ReleaseID         string `json:"releaseId"`
 	UpdateChannel     string `json:"updateChannel,omitempty"`
 	MetadataRevision int    `json:"metadataRevision,omitempty"`
+	ArtifactLocation string `json:"artifactLocation,omitempty"`
 }
 
 func (provenance MarketplaceProvenance) validate() error {
@@ -25,6 +27,9 @@ func (provenance MarketplaceProvenance) validate() error {
 	}
 	if provenance.MetadataRevision < 0 || provenance.MetadataRevision > 1_000_000_000 {
 		return fmt.Errorf("Marketplace provenance metadata revision is invalid")
+	}
+	if provenance.ArtifactLocation != "" && (strings.TrimSpace(provenance.ArtifactLocation) != provenance.ArtifactLocation || len(provenance.ArtifactLocation) > 2048 || strings.ContainsAny(provenance.ArtifactLocation, "\r\n\x00")) {
+		return fmt.Errorf("Marketplace provenance artifact location is invalid")
 	}
 	return nil
 }
@@ -41,9 +46,15 @@ func applyMarketplaceProvenance(record Record, provenance *MarketplaceProvenance
 	}
 	if record.Origin == "marketplace" &&
 		record.MarketplaceID == provenance.MarketplaceID &&
-		record.ReleaseID == provenance.ReleaseID &&
-		provenance.MetadataRevision < record.MarketplaceMetadataRevision {
-		return Record{}, false, fmt.Errorf("Marketplace metadata revision rollback is not allowed")
+		record.ReleaseID == provenance.ReleaseID {
+		if provenance.MetadataRevision < record.MarketplaceMetadataRevision {
+			return Record{}, false, fmt.Errorf("Marketplace metadata revision rollback is not allowed")
+		}
+		if provenance.MetadataRevision == record.MarketplaceMetadataRevision &&
+			record.MarketplaceArtifactLocation != "" &&
+			provenance.ArtifactLocation != record.MarketplaceArtifactLocation {
+			return Record{}, false, fmt.Errorf("Marketplace artifact location change requires a higher metadata revision")
+		}
 	}
 	updated := record
 	updated.Origin = "marketplace"
@@ -51,6 +62,7 @@ func applyMarketplaceProvenance(record Record, provenance *MarketplaceProvenance
 	updated.ReleaseID = provenance.ReleaseID
 	updated.UpdateChannel = provenance.UpdateChannel
 	updated.MarketplaceMetadataRevision = provenance.MetadataRevision
+	updated.MarketplaceArtifactLocation = provenance.ArtifactLocation
 	return updated, updated != record, nil
 }
 

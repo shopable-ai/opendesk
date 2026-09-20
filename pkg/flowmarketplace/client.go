@@ -329,6 +329,10 @@ func resolvePublicMarketplaceIPs(ctx context.Context, host string) ([]net.IP, er
 	if err != nil {
 		return nil, fmt.Errorf("resolve marketplace network target: %w", err)
 	}
+	return validateResolvedMarketplaceIPs(addresses)
+}
+
+func validateResolvedMarketplaceIPs(addresses []net.IPAddr) ([]net.IP, error) {
 	if len(addresses) == 0 {
 		return nil, fmt.Errorf("marketplace network target resolved to no addresses")
 	}

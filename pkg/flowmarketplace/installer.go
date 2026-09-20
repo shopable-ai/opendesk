@@ -130,6 +130,7 @@ func (installer *Installer) InstallURL(ctx context.Context, rawURL string, optio
 		ReleaseID:         release.ReleaseID,
 		UpdateChannel:     release.UpdateChannel,
 		MetadataRevision: release.MetadataRevision,
+		ArtifactLocation: release.ArtifactLocation,
 	}
 	return installer.FlowService.Install(ctx, artifactPath, options)
 }
@@ -151,6 +152,11 @@ func (installer *Installer) rejectKnownMetadataRollback(release Release) error {
 		}
 		if release.MetadataRevision < current.MarketplaceMetadataRevision {
 			return fmt.Errorf("marketplace release metadata revision rollback is not allowed")
+		}
+		if release.MetadataRevision == current.MarketplaceMetadataRevision &&
+			current.MarketplaceArtifactLocation != "" &&
+			release.ArtifactLocation != current.MarketplaceArtifactLocation {
+			return fmt.Errorf("marketplace artifact location change requires a higher metadata revision")
 		}
 	}
 	return nil

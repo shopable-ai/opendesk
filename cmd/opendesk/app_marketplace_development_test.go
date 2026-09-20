@@ -19,6 +19,9 @@ func writeMarketplaceDevelopmentConfig(t *testing.T, mutate func(map[string]any)
 	if err := os.MkdirAll(appData, 0o700); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Join(root, "site"), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	value := map[string]any{
 		"schemaVersion":   3,
 		"sessionId":       developmentSessionID,
@@ -67,6 +70,11 @@ func TestMarketplaceDevelopmentClientRejectsRemoteDynamicExpiredAndMalformedConf
 		{"relative app data", func(v map[string]any) { v["appDataRoot"] = "app-data" }},
 		{"config dir as app data", func(v map[string]any) { v["appDataRoot"] = filepath.Dir(v["appDataRoot"].(string)) }},
 		{"outside config dir", func(v map[string]any) { v["appDataRoot"] = t.TempDir() }},
+		{"inside public site", func(v map[string]any) {
+			publicData := filepath.Join(filepath.Dir(v["appDataRoot"].(string)), "site", "app-data")
+			if err := os.MkdirAll(publicData, 0o700); err != nil { t.Fatal(err) }
+			v["appDataRoot"] = publicData
+		}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -121,6 +129,51 @@ func TestMarketplaceDevelopmentSessionRoundTripAndTamperRejection(t *testing.T) 
 	}
 	if _, err := recoverMarketplaceDevelopmentSessionAt(sessionRoot, time.Now); err == nil || !strings.Contains(err.Error(), "digest") {
 		t.Fatalf("tampered config recovery error = %v", err)
+	}
+}
+
+func TestMarketplaceDevelopmentSessionRejectsIdentityAppDataAndPathTampering(t *testing.T) {
+	sessionRoot := filepath.Join(t.TempDir(), "persistent")
+	configPath, appData := writeMarketplaceDevelopmentConfig(t, nil)
+	if _, err := registerMarketplaceDevelopmentSessionAt(sessionRoot, configPath, appData, time.Now); err != nil {
+		t.Fatal(err)
+	}
+	sessionPath := filepath.Join(sessionRoot, marketplaceDevelopmentSessionFileName)
+
+	rewrite := func(mutate func(map[string]any)) {
+		t.Helper()
+		data, err := os.ReadFile(sessionPath)
+		if err != nil { t.Fatal(err) }
+		var value map[string]any
+		if err := json.Unmarshal(data, &value); err != nil { t.Fatal(err) }
+		mutate(value)
+		encoded, err := json.Marshal(value)
+		if err != nil { t.Fatal(err) }
+		if err := os.WriteFile(sessionPath, encoded, 0o600); err != nil { t.Fatal(err) }
+	}
+
+	rewrite(func(value map[string]any) { value["sessionId"] = "ffeeddccbbaa99887766554433221100" })
+	if _, err := recoverMarketplaceDevelopmentSessionAt(sessionRoot, time.Now); err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("sessionId tamper recovery error = %v", err)
+	}
+	if _, err := registerMarketplaceDevelopmentSessionAt(sessionRoot, configPath, appData, time.Now); err != nil { t.Fatal(err) }
+
+	rewrite(func(value map[string]any) {
+		value["appDataRoot"] = filepath.Join(filepath.Dir(appData), "site", "app-data")
+	})
+	if _, err := recoverMarketplaceDevelopmentSessionAt(sessionRoot, time.Now); err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("appDataRoot tamper recovery error = %v", err)
+	}
+	if _, err := registerMarketplaceDevelopmentSessionAt(sessionRoot, configPath, appData, time.Now); err != nil { t.Fatal(err) }
+
+	realData := filepath.Join(t.TempDir(), "replacement")
+	if err := os.MkdirAll(realData, 0o700); err != nil { t.Fatal(err) }
+	if err := os.RemoveAll(appData); err != nil { t.Fatal(err) }
+	if err := os.Symlink(realData, appData); err != nil {
+		t.Skipf("cannot replace appDataRoot with symlink: %v", err)
+	}
+	if _, err := recoverMarketplaceDevelopmentSessionAt(sessionRoot, time.Now); err == nil || !strings.Contains(err.Error(), "real directory") {
+		t.Fatalf("appDataRoot symlink replacement recovery error = %v", err)
 	}
 }
 

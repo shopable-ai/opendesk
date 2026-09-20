@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, '../..');
 const page = fs.readFileSync(path.join(root, 'apps/opendesk/prototypes/marketplace/index.html'), 'utf8');
 const smoke = fs.readFileSync(path.join(root, 'apps/opendesk/prototypes/marketplace/local-deep-link-smoke.html'), 'utf8');
 const server = fs.readFileSync(path.join(root, 'tests/prototypes/tools/marketplace-local-server.mjs'), 'utf8');
+const notifyDemo = fs.readFileSync(path.join(root, 'examples/flow-distribution/notify-demo/main.js'), 'utf8');
 
 test('canonical prototype contains one generated static-release binding seam', () => {
   assert.equal((page.match(/OPENDESK_LOCAL_RELEASE_BINDING/g) || []).length, 1);
@@ -37,4 +38,11 @@ test('static site owns release and artifact files instead of dynamic business ro
   assert.match(server, /release\.json/);
   assert.match(server, /notify-demo\.odflow/);
   assert.doesNotMatch(server, /local-smoke\/status/);
+});
+
+
+test('Notify Demo business entrypoint remains OpenDesk Runtime JavaScript, not Node.js tool code', () => {
+  assert.match(notifyDemo, /ui\.getCapabilities\(\)/);
+  assert.match(notifyDemo, /await ui\.toast\(/);
+  assert.doesNotMatch(notifyDemo, /\brequire\s*\(|\bprocess\.|\bchild_process\b|\bnode:|\bfs\.|\bpath\./);
 });
