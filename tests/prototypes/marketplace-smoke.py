@@ -152,7 +152,7 @@ def main() -> None:
                 settings(page, 'noapp'); detail(page); click(page, 'install')
                 expect(page.locator('#dialog-title')).to_contain_text('还没有安装')
                 click(page, 'manual')
-                expect(page.locator('#dialog-body')).to_contain_text('不提供客户端或有效 .odflow 下载')
+                expect(page.locator('#dialog-body')).to_contain_text('普通源码原型不提供客户端或真实安装资源')
                 click(page, 'handoff'); click(page, 'client-ready')
                 expect(page.locator('#dialog-title')).to_have_text('确认安装 Flow')
             exercise('missing client and manual .odflow instructions', missing)
