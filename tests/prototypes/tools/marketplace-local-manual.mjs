@@ -384,7 +384,7 @@ export async function startManualRun() {
     directOpen(`${server.ready.deepLink}&unsupported=1`, BUNDLE);
     await waitFor(() => logContains(server.appLogPath, '[MARKETPLACE_INSTALL] rejected invalid install intent'), 'LaunchServices did not route the preflight URL to this OpenDesk run');
     await appendFile(supervisorLog, `ready at ${new Date().toISOString()}\nurl=${metadata.url}\n`, {mode: 0o600});
-    directOpen(metadata.url);
+    directOpen(metadata.url, 'Google Chrome');
     return metadata;
   } catch (error) {
     if (app) await stopRecordedProcess(app.pid, [EXECUTABLE, server.configPath], app.startedAt).catch(() => {});
