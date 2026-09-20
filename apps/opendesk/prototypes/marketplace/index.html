@@ -18,7 +18,7 @@
 </style>
 </head>
 <body>
-<div class="demo-bar"><span><strong>交互原型</strong>　<span class="demo-extra">全部为示例数据；浏览、授权与 Runner 均为模拟。 </span>在本地 HTTP 开发检查中，所有“安装”会交接固定 Notify Demo。<br><a href="local-deep-link-smoke.html">最简本地 URL 分发检查</a></span><button data-action="settings">演示设置</button></div>
+<div class="demo-bar"><span><strong>交互原型</strong>　<span class="demo-extra">普通源码原型不会真实安装、扣费或运行；浏览、授权与 Runner 均为模拟。 </span>使用本地静态开发入口后，只有真实 Notify Demo 会接入实际安装协议。<br><a href="local-deep-link-smoke.html">最简本地 URL 分发检查</a></span><button data-action="settings">演示设置</button></div>
 <header class="header"><button class="brand" data-action="home" aria-label="OpenDesk 市场首页"><span class="brandmark" id="brand-icon"></span>OpenDesk</button><nav aria-label="主导航"><button class="navbtn active" data-action="home" id="nav-market">Flow 市场</button><button class="navbtn" data-action="local" id="nav-local">本机演示 <span id="local-count"></span></button></nav><div class="header-right"><button class="btn small quiet" data-action="publisher">发布 Flow</button></div></header>
 <div class="layout"><aside class="sidebar"><div class="side-caption">EXPLORE FLOWS</div><div class="categories" id="categories"></div><div class="side-guide"><div class="side-guide-title"><span class="guide-icon" id="guide-icon"></span><h3>第一次使用？</h3></div><p>在 OpenDesk 中确认安装。<br>是否运行，由你决定。</p><button class="textbtn small" data-action="guide">查看安装指南 →</button></div></aside><main class="main" id="main" tabindex="-1"></main></div>
 <dialog class="dialog" id="dialog" aria-labelledby="dialog-title"><div class="dialog-head"><span class="small" id="dialog-context"></span><button class="close" data-action="close" aria-label="关闭对话框">×</button></div><div class="dialog-body" id="dialog-body"></div></dialog>
