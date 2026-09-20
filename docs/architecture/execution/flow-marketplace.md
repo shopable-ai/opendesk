@@ -155,7 +155,7 @@ http://127.0.0.1:8765/flows/com.example.opendesk.notify-demo/local-notify-demo-1
 node tests/prototypes/tools/marketplace-local-manual.mjs
 ```
 
-助手先核对当前源码与已签名 App 的构建指纹；能够证明兼容时复用，否则调用现有 macOS build script 刷新。随后生成只包含普通文件的 `site/`、临时签名 Release/root 和受限 loopback 开发配置，启动匹配 OpenDesk，并用 Chrome 打开主 `index.html`。当前环境仍没有真实 macOS 点击证据，因此不能声明 Desktop PASS。
+助手先核对当前源码与已签名 App 的构建指纹；能够证明兼容时复用，否则调用现有 macOS build script 刷新。随后生成只包含普通文件的 `site/`、临时签名 Release/root 和 schema v3 受限 loopback 开发配置，启动匹配 OpenDesk，并用 Chrome 打开主 `index.html`。开发配置包含 `sessionId + expiresAt`，显式启动后由 OpenDesk 自己登记短期本机会话，供正式 bundle 冷启动重新验证恢复；Deep Link 不携带配置路径、密钥或 Runtime 参数。当前环境仍没有真实 macOS 点击证据，因此不能声明 Desktop PASS。
 
 仅查看当前 HTML 原型时，现有静态入口是：
 
@@ -175,11 +175,11 @@ node tests/prototypes/tools/marketplace-local-manual.mjs
 
 **同站点静态准备已经写入实现；是否通过仍以当前自动化结果和真实 macOS 桌面证据分别判断。**
 
-助手负责：检查当前配套构建与原生签名 → 必要时由维护工具刷新配套构建 → 分配本次目录及 loopback 端口 → 从当前原型和真实包生成 `site/` → 生成本机开发配置 → 启动同一配置的 OpenDesk → 用 Chrome 打开主原型 `index.html`。
+助手负责：检查当前配套构建与原生签名 → 必要时由维护工具刷新配套构建 → 分配本次目录及 loopback 端口 → 从当前原型和真实包生成 `site/` → 生成短期本机开发配置 → 启动同一配置的 OpenDesk → 登记可验证的本地 session pointer → 用 Chrome 打开主原型 `index.html`。终端同时给出 HTTP request log、session expiry、`--cold-start-check` 和精确 cleanup 命令。
 
 普通使用者不必知道内部有几个文件，不必复制包、填写密钥、手工传多个地址。已有构建可证明兼容时复用；不能每次修改 HTML 都强制全量编译，也不能为省事加载来源未知的旧宿主。没有 Chrome 或构建条件不满足时明确报错，不悄悄声称已完成 Chrome 验收。
 
-助手在终端及开发页清楚显示本次页面 URL、发布说明 URL、包 URL、包的唯一来源、安装目录和精确清理命令。开发者通常只打开页面并点击安装；地址和文件位置用于查看，不是启动所需的额外输入。
+助手在终端清楚显示本次页面 URL、发布说明 URL、包 URL、HTTP request log、隔离安装目录、session 到期时间、冷启动检查命令和精确清理命令。开发者通常只打开页面并点击安装；这些路径用于证据和诊断，不是安装协议的额外输入。
 
 默认随机可用端口。确需固定端口供开发调试时，只设一个受校验的启动参数，同时派生全部配置；占用时报告错误，不结束无关服务。保留现有共享实例检测、稳定 App 身份和只清理本次资源的原则。
 
@@ -308,7 +308,7 @@ Release ID 一旦绑定包 digest，不能悄悄换成另一份包。修改下�
 
 原生安装结果和 Catalog 是安装依据；“尚未运行”须由执行记录证明，或只陈述规则“安装不会自动运行”，不能把规则伪装成观测。原型中的模拟 Runner 不替代真实 Flow Runner。
 
-已安装但未运行的应用必须单独验收冷启动。开发助手预先启动应用只能证明热启动路径。若冷启动需要恢复开发配置，只能使用本机事先显式批准、仍有效的会话配置；无配置/过期/不匹配时清楚停止，不在协议里传私钥或开宽权限。复用稳定应用身份，不擅自替换系统协议归属或结束共享进程。
+已安装但未运行的应用必须单独验收冷启动。开发助手预先启动应用只能证明热启动路径。当前实现会在显式 loopback 配置验证成功后，将 `configPath + configDigest + appDataRoot + sessionId + expiresAt` 写入默认 OpenDesk App Data 的短期 session pointer；正式 bundled App Mode 冷启动且 CLI 未显式给配置时，才允许重新读取并验证该 pointer。过期、digest 变化、symlink、路径失效或 ID/expiry 不匹配都会 fail closed。`--cold-start-check <run-dir>` 会实际停止本次热启动进程，再只靠 LaunchServices + ID-only URL 冷启动 bundle；协议本身不携带配置路径、root、App Data 或任意 Runtime 参数。
 
 未准备客户端时提供本地准备说明；本轮不跳转外网 Marketplace，也不展示没有真实客户端包的伪下载按钮。正式产品的客户端下载入口与 `.odflow` 包下载入口是两个概念。
 
@@ -339,12 +339,12 @@ Web Marketplace / In-App Marketplace / 双击 / 拖入 / 文件选择
 | 子系统 | 当前实现 | 仍需证明 |
 | --- | --- | --- |
 | 主原型 | 生成站点只给真实 Notify Demo 接实际协议；其他商品保持模拟；删除 Catalog/status 轮询 | 真实 Chrome 点击 |
-| helper | 自动刷新或复用匹配构建，生成隔离 site/开发配置/静态服务并打开主原型 | 真实 LaunchServices 与 Chrome |
-| 发布资源 | canonical 包与 `flow.json` 全部声明源先核对，再将 `release.json` 与 `.odflow` 放同一版本目录 | 当前自动化必须 PASS |
+| helper | 自动刷新或复用匹配构建，生成隔离 site/开发配置/静态服务并打开主原型；保留 HTTP request log；支持短期 session 恢复与 `--cold-start-check` | 真实 Chrome 点击、原生确认和 Runner |
+| 发布资源 | canonical 包 archive digest 与作者维护的 `main.js` / `clawdesk.runtime.json` 先核对，再将 `release.json` 与 `.odflow` 放同一版本目录；包内生成 inventory/signature 仍由正式 verifier 负责 | 当前自动化 PASS |
 | static resolver | 显式 static/dynamic；static 只取普通 release 文件和受签名 artifact location，不失败回退 | production CDN 尚未配置/部署 |
 | Product Config | schema/正式读取链支持 `flowDistribution`；当前 production 未配置真实地址/root，明确 fail closed | 未来 production 地址和 root 的运营配置 |
-| Release v2 | `flowName`、revision、artifact location 进入版本化签名载荷；v1 dynamic 兼容 | 当前 Go/Node golden 与负向测试必须 PASS |
-| revision state | 同 Release 最高 revision 保存在现有 Catalog provenance，回退在下载/确认前拒绝且事务层重验 | 当前自动化必须 PASS |
+| Release v2 | `flowName`、revision、artifact location 进入版本化签名载荷；v1 dynamic 兼容 | Go/Node golden 与负向测试 PASS |
+| revision state | 同 Release 最高 revision 保存在现有 Catalog provenance，回退在下载/确认前拒绝且事务层重验；同 Release 不得换 artifact digest | 自动化 PASS |
 | 安装内核 | 继续使用 canonical 包验证后的一个原生确认和 `flowinstall.Service`；安装不执行 | 真实原生 prompt、Flow Runner 与 explicit Run |
 | Deep Link | 默认严格短协议保持不变 | `download` 扩展仍未实施 |
 
@@ -456,11 +456,57 @@ Web Marketplace / In-App Marketplace / 双击 / 拖入 / 文件选择
 | 子任务 | 实现状态 | 验证结果口径 |
 | --- | --- | --- |
 | 差距核对与最小范围 | 已实现 | 源码职责已核对 |
-| Product Config + Release v2 | 已实现 | 以当前 CI/专项测试为准 |
-| 同站点静态资源准备 | 已实现 | 以当前 Node/静态站点测试为准 |
-| static resolver + HTTP + unified installer | 已实现 | 以当前 Go 集成测试为准 |
-| 主原型 + 一条开发命令 | 已实现 | 自动化与真实 Chrome 分开；Chrome 仍 NOT_RUN |
-| 失败路径 / revision / 地址变化 / 通用静态 server | 已实现测试 | 以当前测试结果为准 |
-| macOS 热/冷启动 + 原生确认 + Runner + 实际 Run | 待真实验收 | NOT_RUN |
+| Product Config + Release v2 | 已实现 | PASS：portable owners / macOS Runtime / signing & negative tests |
+| 同站点静态资源准备 | 已实现 | PASS：Marketplace prototype/static/Chromium |
+| static resolver + HTTP + unified installer | 已实现 | PASS：portable owners + macOS Runtime |
+| 主原型 + 一条开发命令 | 已实现 | 自动化 PASS；真实 Chrome 点击仍 NOT_RUN |
+| HTTP request evidence | 已实现 | PASS：request log contract；真实安装同次关联仍需本机 |
+| 短期开发 session + 冷启动恢复 | 已实现 | PASS：schema/expiry/digest/symlink 单测；真实 LaunchServices 冷启动安装仍 NOT_RUN |
+| 失败路径 / revision / 地址变化 / 通用静态 server | 已实现测试 | PASS |
+| macOS 原生确认 + Runner + 实际 Run | 待真实验收 | NOT_RUN |
+| Windows 完整 Flow Runtime | 部分通过 | BLOCKED：既有 `ATOMIC_REPLACE_UNSUPPORTED` 导致 formal gate 失败，后续 distribution/B1 跳过 |
+
+### 15.1 当前自动化证据
+
+Flow Commercial Qualification run `35505482751`，基线 `a2ca6a0ad6542fae00d2512d1f68d3651d61b9d3`：
+
+| Gate | 结果 |
+| --- | --- |
+| Marketplace prototype / same-site static / Chromium | PASS |
+| portable owners | PASS |
+| Marketplace development schema/session tests | PASS |
+| macOS Marketplace + B0/B1 Runtime | PASS |
+| Windows Marketplace contract | PASS |
+| Windows distribution build | PASS |
+| Windows B0 direct Runtime | PASS |
+| Windows full formal Runtime | BLOCKED / FAIL：`ATOMIC_REPLACE_UNSUPPORTED` |
+
+Windows full gate 的失败发生在通用 Runtime evidence 文件原子替换基础设施，后续 Flow distribution/B1 被跳过。本文件不把它归因于 Marketplace static resolver，也不把 Windows 完整回归计作 PASS。
+
+production 网络边界也已落实为双层 fail-closed：Product Config 拒绝明显 local/private 目标；请求期解析 DNS 并拒绝 loopback/private/link-local，默认 transport 只拨号到已校验公共 IP，redirect 保持禁用。
+
+### 15.2 当前本机验收入口
+
+热启动开发入口：
+
+```bash
+node tests/prototypes/tools/marketplace-local-manual.mjs
+```
+
+冷启动接收器检查：
+
+```bash
+node tests/prototypes/tools/marketplace-local-manual.mjs \
+  --cold-start-check <manual-run-dir>
+```
+
+清理：
+
+```bash
+node tests/prototypes/tools/marketplace-local-manual.mjs \
+  --cleanup <manual-run-dir>
+```
+
+真实桌面仍需在同次 run 中核对 Chrome 点击、HTTP request log、原生确认、Catalog/Runner、安装前后 Execution 数量和 explicit Run 结果。
 
 可选 `download` Deep Link 参数仍为 **未实施**，不计入本轮主闭环已完成项。
