@@ -103,6 +103,9 @@ func validateMarketplaceDevelopmentPrivateFilePath(configPath, raw, field string
 		return "", fmt.Errorf("resolve Marketplace development %s parent absolute path: %w", field, err)
 	}
 	canonical := filepath.Join(parentCanonical, filepath.Base(value))
+	if samePath(canonical, configCanonical) {
+		return "", fmt.Errorf("Marketplace development %s must not overwrite its config file", field)
+	}
 	insideConfig, err := filepath.Rel(configDir, canonical)
 	if err != nil || insideConfig == "." || insideConfig == ".." || strings.HasPrefix(insideConfig, ".."+string(os.PathSeparator)) || filepath.IsAbs(insideConfig) {
 		return "", fmt.Errorf("Marketplace development %s must be inside the private config directory", field)
