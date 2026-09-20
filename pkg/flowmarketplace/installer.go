@@ -145,9 +145,13 @@ func (installer *Installer) rejectKnownMetadataRollback(release Release) error {
 	}
 	if current.Origin == "marketplace" &&
 		current.MarketplaceID == release.MarketplaceID &&
-		current.ReleaseID == release.ReleaseID &&
-		release.MetadataRevision < current.MarketplaceMetadataRevision {
-		return fmt.Errorf("marketplace release metadata revision rollback is not allowed")
+		current.ReleaseID == release.ReleaseID {
+		if current.ArchiveDigest != release.ArtifactDigest {
+			return fmt.Errorf("marketplace release identity cannot be rebound to a different artifact digest")
+		}
+		if release.MetadataRevision < current.MarketplaceMetadataRevision {
+			return fmt.Errorf("marketplace release metadata revision rollback is not allowed")
+		}
 	}
 	return nil
 }

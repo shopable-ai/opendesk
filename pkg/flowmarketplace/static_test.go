@@ -258,6 +258,18 @@ func TestStaticInstallRejectsKnownMetadataRevisionRollbackBeforeDownloadOrConfir
 	if artifactHits != 1 || confirmations != 1 {
 		t.Fatalf("rollback reached download or confirmation: artifactHits=%d confirmations=%d", artifactHits, confirmations)
 	}
+
+	rebound := release
+	rebound.MetadataRevision = 3
+	rebound.ArtifactDigest = strings.Repeat("0", 64)
+	current = SignedReleaseDocument{SchemaVersion: 1, Release: rebound, Attestation: signStaticRelease(t, rebound, "static-root", rootPrivate, time.Now().Add(time.Hour))}
+	if _, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{}); err == nil {
+		t.Fatal("same Release identity was rebound to a different artifact digest")
+	}
+	if artifactHits != 1 || confirmations != 1 {
+		t.Fatalf("digest rebinding reached download or confirmation: artifactHits=%d confirmations=%d", artifactHits, confirmations)
+	}
+
 	persisted, err := service.Catalog.Load(result.Record.InstallID)
 	if err != nil || persisted.MarketplaceMetadataRevision != 2 {
 		t.Fatalf("persisted revision after rollback = %+v err=%v", persisted, err)
