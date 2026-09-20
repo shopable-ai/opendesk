@@ -38,7 +38,7 @@ node tests/prototypes/tools/marketplace-local-manual.mjs
 1. 核对当前源码与 `dist/OpenDesk.app` 的构建指纹；可证明兼容时复用，否则调用现有 `scripts/build_macos_app.sh`。
 2. 验证 bundle 签名并注册稳定 `opendesk://` handler。
 3. 准备本次 `site/`、真实 Notify Demo、Release v2、临时 Ed25519 release root。
-4. 生成 schema v3 的受限开发配置：`sessionId + expiresAt + resolver + metadata/artifact base + public root`。
+4. 生成 schema v3 的受限开发配置：`sessionId + expiresAt + appDataRoot + resolver + metadata/artifact base + public root`；`appDataRoot` 必须是配置文件目录下真实、私有的子目录，并位于公开 `site/` 外。
 5. 启动同一 loopback 静态站点和匹配 OpenDesk。
 6. 用 Chrome 打开生成后的主 `index.html`。
 
@@ -69,9 +69,9 @@ explicit local config
 → restore same isolated appData and static resolver
 ```
 
-会话过期、配置字节变化、symlink、路径失效或 metadata 不匹配都会 fail closed。会话最长只允许短期存在；当前 helper 使用与 Release attestation 相同的约 1 小时 expiry。
+warm path 与 cold path 都从已验证开发配置取得同一个 `appDataRoot`；OpenDesk 在创建 FlowInstall/Catalog 之前绑定它，不再依赖 `/usr/bin/open` 是否继承调用者环境。会话过期、配置字节变化、appDataRoot 变化、symlink、路径失效或 metadata 不匹配都会 fail closed。会话最长只允许短期存在；当前 helper 使用与 Release attestation 相同的约 1 小时 expiry。
 
-清理命令只删除与本次 `configPath` 精确匹配的 session pointer，并只停止本次记录的进程：
+清理命令只删除与本次 `configPath` 精确匹配的 session pointer，并只停止本次记录的进程；停止前同时核对 PID、命令标记和记录时的进程启动时间，避免 PID 复用误伤共享进程：
 
 ```bash
 node tests/prototypes/tools/marketplace-local-manual.mjs \
@@ -154,13 +154,13 @@ Release v1 继续服务已有 dynamic resolver；static resolver 不会失败后
 
 ## 当前自动化证据
 
-Flow Commercial Qualification run `35505482751`，代码基线 `a2ca6a0ad6542fae00d2512d1f68d3651d61b9d3`：
+Flow Commercial Qualification run `35506679830`，代码基线 `ce94bca4f89a47560b1551a1d1274e81d6745309`：
 
 | Gate | 结果 |
 | --- | --- |
 | Marketplace prototype / static distribution / Chromium | PASS |
 | portable owners | PASS |
-| `cmd/opendesk TestMarketplaceDevelopment*` | PASS |
+| `cmd/opendesk TestMarketplaceDevelopment*` | PASS（包含 schema v3、appDataRoot、expiry、session digest/symlink/recovery） |
 | macOS Marketplace + Flow Runtime | PASS |
 | Windows Marketplace contract | PASS |
 | Windows distribution build | PASS |

@@ -129,6 +129,7 @@ accepted revision=2
 ```text
 sessionId
 expiresAt
+appDataRoot
 resolver=static
 metadataBaseUrl
 artifactBaseUrl
@@ -137,7 +138,7 @@ rootPublicKey
 logFile（可选）
 ```
 
-只允许 HTTP loopback，且 expiry 必须是 canonical UTC RFC3339、未过期、短期有效。
+只允许 HTTP loopback，且 expiry 必须是 canonical UTC RFC3339、未过期、短期有效。`appDataRoot` 必须是配置文件目录下真实、非 symlink 的私有子目录，且不能位于公开 `site/`。OpenDesk 在初始化 FlowInstall/Catalog 之前从该已验证配置绑定 appData；不能依赖 LaunchServices 环境继承。
 
 显式 helper 启动后，OpenDesk 才允许登记一个本机 session pointer：
 
@@ -159,7 +160,8 @@ expiresAt
 - session 尚未过期；
 - session/config ID 与 expiry 一致；
 - config digest 未变化；
-- config 与 appData 仍是真实可用路径。
+- config 与 appData 仍是真实可用路径；
+- config.appDataRoot 与 session.appDataRoot 精确一致。
 
 Deep Link 仍只有 Flow/Release/intent 三个 ID，不能携带 configPath、root、appData 或任意 Runtime 参数。
 
@@ -175,7 +177,7 @@ node tests/prototypes/tools/marketplace-local-manual.mjs \
 该检查必须：
 
 1. 确认本次静态 server 仍存活；
-2. 只停止本次记录的 OpenDesk；
+2. 只停止本次记录的 OpenDesk；停止前同时核对 PID、命令标记与记录的进程启动时间；
 3. 确认没有残留 bundle 进程；
 4. 只通过 LaunchServices + ID-only URL 冷启动 bundle；
 5. 在本次 receiver log 的新增部分观察到：
@@ -265,13 +267,13 @@ before install execution count
 
 ## 12. 自动化证据
 
-Flow Commercial Qualification run `35505482751`，基线 `a2ca6a0ad6542fae00d2512d1f68d3651d61b9d3`：
+Flow Commercial Qualification run `35506679830`，基线 `ce94bca4f89a47560b1551a1d1274e81d6745309`：
 
 | Gate | Result |
 | --- | --- |
 | Marketplace prototype/static/Chromium | PASS |
 | portable owners | PASS |
-| Marketplace development schema/session tests | PASS |
+| Marketplace development schema/session/appDataRoot tests | PASS |
 | macOS Marketplace + B0/B1 Runtime | PASS |
 | Windows Marketplace contract | PASS |
 | Windows distribution build | PASS |
