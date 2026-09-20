@@ -30,8 +30,9 @@ test('local Marketplace prepares one same-site static page, signed release and r
   t.after(() => rm(root, {recursive: true, force: true}));
   const siteRoot = path.join(root, 'site');
   const configOutput = path.join(root, 'marketplace-development.json');
+  const appDataRoot = path.join(root, 'app-data');
   const requestLog = path.join(root, 'http-requests.log');
-  const running = await startLocalMarketplaceServer({host: '127.0.0.1', port: 0, siteRoot, configOutput, requestLog});
+  const running = await startLocalMarketplaceServer({host: '127.0.0.1', port: 0, siteRoot, configOutput, appDataRoot, requestLog});
   t.after(() => new Promise(resolve => running.server.close(resolve)));
 
   const page = await (await fetch(running.baseURL + '/index.html')).text();
@@ -66,6 +67,7 @@ test('local Marketplace prepares one same-site static page, signed release and r
   });
   assert.match(config.sessionId, /^[0-9a-f]{32}$/);
   assert.equal(config.expiresAt, document.attestation.expiresAt);
+  assert.equal(config.appDataRoot, appDataRoot);
 
   assert.deepEqual((await readdir(siteRoot)).sort(), ['flows', 'index.html', 'local-deep-link-smoke.html']);
 
@@ -118,10 +120,12 @@ test('local Marketplace server refuses private config and request logs inside pu
   const root = await mkdtemp(path.join(os.tmpdir(), 'opendesk-marketplace-private-'));
   t.after(() => rm(root, {recursive: true, force: true}));
   const siteRoot = path.join(root, 'site');
+  const appDataRoot = path.join(root, 'app-data');
   await assert.rejects(
     () => startLocalMarketplaceServer({
       host: '127.0.0.1', port: 0, siteRoot,
       configOutput: path.join(siteRoot, 'marketplace-development.json'),
+      appDataRoot,
     }),
     /config must remain outside/,
   );

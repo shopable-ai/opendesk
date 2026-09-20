@@ -108,9 +108,14 @@ func executeAppMode(config *Config) error {
 	inheritedEnvironment := os.Environ()
 	var recoveredMarketplaceSession *marketplaceDevelopmentSession
 	var recoveredMarketplaceSessionPath string
-	if appshell.IsOpenDeskProduct(appPackage.Manifest) &&
-		strings.TrimSpace(config.MarketplaceDevelopmentConfig) == "" {
-		if bundled := bundledAppModePath(); bundled != "" && samePath(appPackage.Root, bundled) {
+	if appshell.IsOpenDeskProduct(appPackage.Manifest) {
+		if strings.TrimSpace(config.MarketplaceDevelopmentConfig) != "" {
+			developmentConfig, configErr := readMarketplaceDevelopmentConfig(config.MarketplaceDevelopmentConfig)
+			if configErr != nil {
+				return fmt.Errorf("initialize Marketplace development config: %w", configErr)
+			}
+			inheritedEnvironment = append(inheritedEnvironment, appdata.RootEnvironment+"="+developmentConfig.AppDataRoot)
+		} else if bundled := bundledAppModePath(); bundled != "" && samePath(appPackage.Root, bundled) {
 			recoveredMarketplaceSession, recoveredMarketplaceSessionPath, err = recoverMarketplaceDevelopmentSession()
 			if err != nil {
 				log.Printf("[MARKETPLACE_INSTALL] development session rejected error=%v", err)

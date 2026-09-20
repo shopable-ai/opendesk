@@ -237,6 +237,7 @@ async function startServer(runDirectory) {
     '--port', '0',
     '--site-root', siteRoot,
     '--config-output', configPath,
+    '--app-data-root', appData,
     '--opendesk-log', appLogPath,
     '--request-log', requestLogPath,
   ], {cwd: ROOT, detached: true, stdio: ['ignore', 'pipe', 'pipe']});
@@ -272,7 +273,7 @@ function findRecordedOpenDeskProcess(configPath) {
   return process ? processIdentity(process.pid) : undefined;
 }
 
-async function startOpenDesk(configPath, appData, appLogPath, appRuntimeLogDir) {
+async function startOpenDesk(configPath, appLogPath, appRuntimeLogDir) {
   let app;
   try {
     const child = spawn('/usr/bin/open', ['-n', '-a', BUNDLE, '--args',
@@ -282,7 +283,6 @@ async function startOpenDesk(configPath, appData, appLogPath, appRuntimeLogDir) 
       '-console-mode', 'script',
     ], {
       cwd: ROOT,
-      env: {...process.env, OPENDESK_APP_DATA_DIR: appData},
       stdio: 'ignore',
     });
     child.unref();
@@ -353,7 +353,7 @@ export async function startManualRun() {
   const server = await startServer(runDirectory);
   let app;
   try {
-    app = await startOpenDesk(server.configPath, server.appData, server.appLogPath, server.appRuntimeLogDir);
+    app = await startOpenDesk(server.configPath, server.appLogPath, server.appRuntimeLogDir);
     const metadata = {
       schemaVersion: 1,
       createdAt: new Date().toISOString(),

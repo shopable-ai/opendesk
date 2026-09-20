@@ -40,6 +40,7 @@ type marketplaceDevelopmentConfig struct {
 	Resolver        string `json:"resolver"`
 	MetadataBaseURL string `json:"metadataBaseUrl"`
 	ArtifactBaseURL string `json:"artifactBaseUrl,omitempty"`
+	AppDataRoot     string `json:"appDataRoot"`
 	RootKeyID       string `json:"rootKeyId"`
 	RootPublicKey   string `json:"rootPublicKey"`
 	LogFile         string `json:"logFile,omitempty"`
@@ -148,6 +149,11 @@ func readMarketplaceDevelopmentConfigAt(configPath string, now func() time.Time)
 	if err := validateMarketplaceDevelopmentBaseURL(config.ArtifactBaseURL, "artifactBaseUrl", false); err != nil {
 		return marketplaceDevelopmentConfig{}, err
 	}
+	appDataRoot, err := validateMarketplaceDevelopmentAppDataRoot(absolute, config.AppDataRoot)
+	if err != nil {
+		return marketplaceDevelopmentConfig{}, err
+	}
+	config.AppDataRoot = appDataRoot
 	return config, nil
 }
 
@@ -164,6 +170,24 @@ func validateMarketplaceDevelopmentExpiry(value string, now time.Time) (time.Tim
 		return time.Time{}, fmt.Errorf("Marketplace development config lifetime is too long")
 	}
 	return parsed, nil
+}
+
+func validateMarketplaceDevelopmentAppDataRoot(configPath, raw string) (string, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" || !filepath.IsAbs(value) {
+		return "", fmt.Errorf("Marketplace development appDataRoot must be an absolute path")
+	}
+	root := filepath.Clean(value)
+	info, err := os.Lstat(root)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return "", fmt.Errorf("Marketplace development appDataRoot must be a real directory")
+	}
+	configDir := filepath.Dir(filepath.Clean(configPath))
+	relative, err := filepath.Rel(configDir, root)
+	if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("Marketplace development appDataRoot must be a private child of the config directory")
+	}
+	return root, nil
 }
 
 func validateMarketplaceDevelopmentBaseURL(raw, field string, required bool) error {
@@ -221,6 +245,10 @@ func registerMarketplaceDevelopmentSessionAt(sessionRoot, configPath, appDataRoo
 	appDataRoot, err = filepath.Abs(appDataRoot)
 	if err != nil {
 		return session, fmt.Errorf("resolve Marketplace development session app data root: %w", err)
+	}
+	appDataRoot = filepath.Clean(appDataRoot)
+	if appDataRoot != config.AppDataRoot {
+		return session, fmt.Errorf("Marketplace development session app data root does not match its config")
 	}
 	if info, err := os.Lstat(appDataRoot); err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return session, fmt.Errorf("Marketplace development session app data root must be a real directory")
@@ -315,7 +343,7 @@ func recoverMarketplaceDevelopmentSessionAt(sessionRoot string, now func() time.
 	if err != nil {
 		return nil, err
 	}
-	if config.SessionID != session.SessionID || config.ExpiresAt != session.ExpiresAt {
+	if config.SessionID != session.SessionID || config.ExpiresAt != session.ExpiresAt || config.AppDataRoot != session.AppDataRoot {
 		return nil, fmt.Errorf("Marketplace development session does not match its config")
 	}
 	configBytes, err := os.ReadFile(session.ConfigPath)

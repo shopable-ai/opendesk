@@ -12,8 +12,13 @@ import (
 const developmentRootKey = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
 const developmentSessionID = "00112233445566778899aabbccddeeff"
 
-func marketplaceDevelopmentConfigText(t *testing.T, mutate func(map[string]any)) string {
+func writeMarketplaceDevelopmentConfig(t *testing.T, mutate func(map[string]any)) (string, string) {
 	t.Helper()
+	root := t.TempDir()
+	appData := filepath.Join(root, "app-data")
+	if err := os.MkdirAll(appData, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	value := map[string]any{
 		"schemaVersion":   3,
 		"sessionId":       developmentSessionID,
@@ -21,6 +26,7 @@ func marketplaceDevelopmentConfigText(t *testing.T, mutate func(map[string]any))
 		"resolver":        "static",
 		"metadataBaseUrl": "http://127.0.0.1:51807/prefix/",
 		"artifactBaseUrl": "",
+		"appDataRoot":     appData,
 		"rootKeyId":       "local-smoke-root",
 		"rootPublicKey":   developmentRootKey,
 	}
@@ -31,20 +37,15 @@ func marketplaceDevelopmentConfigText(t *testing.T, mutate func(map[string]any))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return string(data)
-}
-
-func writeMarketplaceDevelopmentConfig(t *testing.T, content string) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "marketplace-development.json")
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+	path := filepath.Join(root, "marketplace-development.json")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	return path
+	return path, appData
 }
 
 func TestMarketplaceDevelopmentClientAcceptsExplicitStaticLoopbackConfig(t *testing.T) {
-	path := writeMarketplaceDevelopmentConfig(t, marketplaceDevelopmentConfigText(t, nil))
+	path, _ := writeMarketplaceDevelopmentConfig(t, nil)
 	if _, err := loadMarketplaceDevelopmentClient(path); err != nil {
 		t.Fatalf("loadMarketplaceDevelopmentClient() error = %v", err)
 	}
@@ -63,10 +64,13 @@ func TestMarketplaceDevelopmentClientRejectsRemoteDynamicExpiredAndMalformedConf
 		{"expired", func(v map[string]any) { v["expiresAt"] = time.Now().UTC().Add(-time.Minute).Truncate(time.Second).Format(time.RFC3339) }},
 		{"too long lived", func(v map[string]any) { v["expiresAt"] = time.Now().UTC().Add(24 * time.Hour).Truncate(time.Second).Format(time.RFC3339) }},
 		{"invalid session", func(v map[string]any) { v["sessionId"] = "not-a-session" }},
+		{"relative app data", func(v map[string]any) { v["appDataRoot"] = "app-data" }},
+		{"config dir as app data", func(v map[string]any) { v["appDataRoot"] = filepath.Dir(v["appDataRoot"].(string)) }},
+		{"outside config dir", func(v map[string]any) { v["appDataRoot"] = t.TempDir() }},
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			path := writeMarketplaceDevelopmentConfig(t, marketplaceDevelopmentConfigText(t, test.mutate))
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			path, _ := writeMarketplaceDevelopmentConfig(t, tc.mutate)
 			if _, err := loadMarketplaceDevelopmentClient(path); err == nil {
 				t.Fatal("invalid Marketplace development config was accepted")
 			}
@@ -75,7 +79,7 @@ func TestMarketplaceDevelopmentClientRejectsRemoteDynamicExpiredAndMalformedConf
 }
 
 func TestMarketplaceDevelopmentConfigRejectsSymlink(t *testing.T) {
-	target := writeMarketplaceDevelopmentConfig(t, marketplaceDevelopmentConfigText(t, nil))
+	target, _ := writeMarketplaceDevelopmentConfig(t, nil)
 	link := filepath.Join(t.TempDir(), "config-link.json")
 	if err := os.Symlink(target, link); err != nil {
 		t.Skipf("cannot create symlink: %v", err)
@@ -88,15 +92,7 @@ func TestMarketplaceDevelopmentConfigRejectsSymlink(t *testing.T) {
 
 func TestMarketplaceDevelopmentSessionRoundTripAndTamperRejection(t *testing.T) {
 	sessionRoot := filepath.Join(t.TempDir(), "persistent")
-	configRoot := t.TempDir()
-	configPath := filepath.Join(configRoot, "marketplace-development.json")
-	if err := os.WriteFile(configPath, []byte(marketplaceDevelopmentConfigText(t, nil)), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	appData := filepath.Join(configRoot, "app-data")
-	if err := os.MkdirAll(appData, 0o700); err != nil {
-		t.Fatal(err)
-	}
+	configPath, appData := writeMarketplaceDevelopmentConfig(t, nil)
 	session, err := registerMarketplaceDevelopmentSessionAt(sessionRoot, configPath, appData, time.Now)
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +108,15 @@ func TestMarketplaceDevelopmentSessionRoundTripAndTamperRejection(t *testing.T) 
 		t.Fatalf("recovered session = %+v", recovered)
 	}
 
-	if err := os.WriteFile(configPath, append([]byte(marketplaceDevelopmentConfigText(t, nil)), ' '), 0o600); err != nil {
+	if _, err := registerMarketplaceDevelopmentSessionAt(sessionRoot, configPath, t.TempDir(), time.Now); err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("mismatched appDataRoot registration error = %v", err)
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, append(data, ' '), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := recoverMarketplaceDevelopmentSessionAt(sessionRoot, time.Now); err == nil || !strings.Contains(err.Error(), "digest") {
@@ -122,21 +126,9 @@ func TestMarketplaceDevelopmentSessionRoundTripAndTamperRejection(t *testing.T) 
 
 func TestMarketplaceDevelopmentSessionRejectsExpiredAndSymlinkState(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
-	configRoot := t.TempDir()
-	configPath := filepath.Join(configRoot, "marketplace-development.json")
-	value := map[string]any{}
-	if err := json.Unmarshal([]byte(marketplaceDevelopmentConfigText(t, nil)), &value); err != nil {
-		t.Fatal(err)
-	}
-	value["expiresAt"] = now.Add(time.Hour).Format(time.RFC3339)
-	data, _ := json.Marshal(value)
-	if err := os.WriteFile(configPath, data, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	appData := filepath.Join(configRoot, "app-data")
-	if err := os.MkdirAll(appData, 0o700); err != nil {
-		t.Fatal(err)
-	}
+	configPath, appData := writeMarketplaceDevelopmentConfig(t, func(v map[string]any) {
+		v["expiresAt"] = now.Add(time.Hour).Format(time.RFC3339)
+	})
 	sessionRoot := filepath.Join(t.TempDir(), "persistent")
 	if _, err := registerMarketplaceDevelopmentSessionAt(sessionRoot, configPath, appData, func() time.Time { return now }); err != nil {
 		t.Fatal(err)

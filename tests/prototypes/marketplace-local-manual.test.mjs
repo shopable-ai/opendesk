@@ -77,3 +77,9 @@ test('manual Marketplace cleanup binds every recorded process to its start ident
   assert.match(helperSource, /startedAt: app\.startedAt/);
   assert.match(helperSource, /startedAt: coldProcess\.startedAt/);
 });
+
+
+test('manual Marketplace helper makes app-data a signed-off local config input rather than an open(1) environment assumption', () => {
+  assert.match(helperSource, /'--app-data-root', appData/);
+  assert.doesNotMatch(helperSource, /OPENDESK_APP_DATA_DIR:\s*appData/);
+});
