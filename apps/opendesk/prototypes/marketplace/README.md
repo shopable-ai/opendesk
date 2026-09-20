@@ -1,6 +1,6 @@
 # OpenDesk Marketplace 原型与本地静态安装
 
-状态：**同站点静态 Notify Demo 核心实现和核心自动化已通过；真实 macOS Chrome/原生确认/Runner 链路仍需本机验收。**
+状态：**WEB_PREFLIGHT_READY：非 GUI 同站点静态分发、安装安全边界、开发 session 与自动化 Gate 已完成；真实 macOS Chrome/原生确认/Runner/显式 Run 仍为 NOT_RUN。**
 
 主原型：`index.html`  
 交互/安全 Oracle：`ORACLE.md`  
@@ -154,20 +154,25 @@ Release v1 继续服务已有 dynamic resolver；static resolver 不会失败后
 
 ## 当前自动化证据
 
-Flow Commercial Qualification run `35506679830`，代码基线 `ce94bca4f89a47560b1551a1d1274e81d6745309`：
+最终网页端 Gate 使用 Flow Commercial Qualification run `35520877637`，代码基线 `f004db354cdba63b645e8cac8024ad29084de9ce`：
 
 | Gate | 结果 |
 | --- | --- |
-| Marketplace prototype / static distribution / Chromium | PASS |
+| Marketplace prototype / static distribution / Node contracts | PASS |
+| Chromium browser smoke | PASS |
+| Catalog → Flow Runner 显式 Run 边界 | PASS |
 | portable owners | PASS |
-| `cmd/opendesk TestMarketplaceDevelopment*` | PASS（包含 schema v3、appDataRoot、expiry、session digest/symlink/recovery） |
+| 当前 Notify Demo 正式 `.odflow` verifier | PASS |
+| Marketplace development config/session/path tamper tests | PASS |
 | macOS Marketplace + Flow Runtime | PASS |
 | Windows Marketplace contract | PASS |
 | Windows distribution build | PASS |
 | Windows B0 direct Runtime | PASS |
-| Windows full formal Runtime | BLOCKED：仓库既有 `ATOMIC_REPLACE_UNSUPPORTED`，后续 Flow distribution/B1 被跳过 |
+| Windows full formal Runtime | BLOCKED：既有 `ATOMIC_REPLACE_UNSUPPORTED`，后续 Flow distribution/B1 被跳过 |
 
-Windows 这一失败发生在通用 Runtime evidence 文件原子替换层，不把它伪报为 Marketplace resolver 失败，也不能把 Windows 完整回归写成 PASS。
+同一轮中 Windows 的 Marketplace contract、distribution build 和 B0 direct Runtime 均通过；formal Runtime 仍在通用 evidence 文件原子替换层失败，因此不能把 Windows 完整回归写成 PASS。
+
+本轮还已自动覆盖：Release 响应大小上限、artifact/revision/update-channel provenance、页面与 Release/package compatibility 对齐、public-site 私有路径隔离、中间 symlink、开发 loopback DNS 绑定、production private-network/redirect/timeout/cancel/truncate 清理，以及 OpenDesk Runtime JS 与 Node 工具 JS 的边界。
 
 ## 可选 download 协议参数
 
