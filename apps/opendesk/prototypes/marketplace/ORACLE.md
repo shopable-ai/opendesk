@@ -2,7 +2,7 @@
 
 日期：2026-09-20
 
-状态：**STATIC_IMPLEMENTED / CORE_AUTOMATION_PASS / WINDOWS_FULL_RUNTIME_BLOCKED / MACOS_DESKTOP_NOT_RUN**
+状态：**WEB_PREFLIGHT_READY / CORE_AUTOMATION_PASS / WINDOWS_FULL_RUNTIME_BLOCKED / MACOS_DESKTOP_NOT_RUN**
 
 本文件定义当前主原型、本地真实 Notify Demo 和开发冷启动会话的可观察正确行为。整体架构只维护在 `docs/architecture/execution/flow-marketplace.md`。
 
@@ -267,22 +267,25 @@ before install execution count
 
 ## 12. 自动化证据
 
-Flow Commercial Qualification run `35506679830`，基线 `ce94bca4f89a47560b1551a1d1274e81d6745309`：
+最终网页端 Gate 使用 Flow Commercial Qualification run `35520877637`，基线 `f004db354cdba63b645e8cac8024ad29084de9ce`：
 
 | Gate | Result |
 | --- | --- |
-| Marketplace prototype/static/Chromium | PASS |
+| Marketplace prototype/static Node contracts | PASS |
+| Chromium smoke | PASS |
+| Catalog → Runner explicit Run boundary | PASS |
 | portable owners | PASS |
-| Marketplace development schema/session/appDataRoot tests | PASS |
+| canonical Notify Demo formal package verifier | PASS |
+| development config/session/canonical-path/symlink tests | PASS |
 | macOS Marketplace + B0/B1 Runtime | PASS |
 | Windows Marketplace contract | PASS |
 | Windows distribution build | PASS |
 | Windows B0 direct Runtime | PASS |
 | Windows full formal Runtime | BLOCKED / FAIL：`ATOMIC_REPLACE_UNSUPPORTED` |
 
-Windows full gate 的失败发生在通用 Runtime evidence 原子替换基础设施，后续 distribution/B1 被跳过；不把它伪报成 static Marketplace 失败，也不把 Windows 完整回归计 PASS。
+Windows full gate 的失败仍发生在通用 Runtime evidence 原子替换基础设施；同次 run 中 Marketplace contract、Windows distribution build 和 B0 direct Runtime 已通过，formal gate 在 `flow-package` evidence 阶段失败，后续 distribution/B1 被跳过。这里不把它伪报成 static Marketplace 失败，也不把 Windows 完整回归计 PASS。
 
-App Mode Payload 当前仍存在并行 Flow Runner / assistant asset snapshot 的无关失败；Official Product Config / flowDistribution parser 相关测试已恢复通过。
+`WEB_PREFLIGHT_READY` 只表示当前非 GUI Gate 完成。真实 Chrome 点击、LaunchServices 安装接收、原生确认、真实 Catalog/Runner 与 explicit Run 仍必须按下一节保留为 `NOT_RUN`。
 
 ## 13. 仍需真实 macOS Desktop
 
