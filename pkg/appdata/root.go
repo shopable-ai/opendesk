@@ -63,6 +63,37 @@ func Root(packageID string, environment map[string]string) (string, error) {
 	return Resolve(packageID, environment)
 }
 
+// DefaultRoot resolves the persistent per-product root while deliberately
+// ignoring OPENDESK_APP_DATA_DIR. It is reserved for tiny host-owned control
+// records that must survive an isolated development process ending, such as a
+// short-lived Marketplace development-session pointer. Business Flow data
+// continues to use Resolve/Root and their explicit override.
+func DefaultRoot(packageID string) (string, error) {
+	packageID = strings.TrimSpace(packageID)
+	if packageID == "" {
+		return "", fmt.Errorf("OpenDesk package id is required for default user data root")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || strings.TrimSpace(home) == "" {
+		return "", fmt.Errorf("resolve OpenDesk default user data home: %w", err)
+	}
+	return defaultRootForHome(packageID, home)
+}
+
+func defaultRootForHome(packageID, home string) (string, error) {
+	packageID = strings.TrimSpace(packageID)
+	home = strings.TrimSpace(home)
+	if packageID == "" || home == "" {
+		return "", fmt.Errorf("OpenDesk package id and home are required for default user data root")
+	}
+	root := filepath.Join(home, ".opendesk", "apps", packageID)
+	if err := ensureDataRoot(root); err != nil {
+		return "", fmt.Errorf("create OpenDesk default App data root: %w", err)
+	}
+	return filepath.Clean(root), nil
+}
+
+
 func ensureDataRoot(root string) error {
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return err
