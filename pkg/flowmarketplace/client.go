@@ -1,6 +1,7 @@
 package flowmarketplace
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
@@ -260,7 +261,14 @@ func (client *Client) newGET(ctx context.Context, requestURL, accept string) (*h
 }
 
 func decodeBoundedJSON(reader io.Reader, target any) error {
-	decoder := json.NewDecoder(io.LimitReader(reader, maxReleaseResponseSize+1))
+	data, err := io.ReadAll(io.LimitReader(reader, maxReleaseResponseSize+1))
+	if err != nil {
+		return err
+	}
+	if int64(len(data)) > maxReleaseResponseSize {
+		return fmt.Errorf("marketplace response exceeds the maximum allowed size")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
 		return err
