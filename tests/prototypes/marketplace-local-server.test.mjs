@@ -54,7 +54,8 @@ test('local Marketplace prepares one same-site static page, signed release and r
   assert.equal(binding.catalogItem.publisherId, document.release.publisherId);
   assert.equal(binding.catalogItem.signingKeyId, document.release.publisherSigningKeyId);
   assert.equal(binding.catalogItem.minimumOpenDeskVersion, document.release.minimumOpenDeskVersion);
-  assert.deepEqual(binding.catalogItem.platforms, document.release.platforms || binding.catalogItem.platforms);
+  const canonicalManifest = JSON.parse(await readFile(path.join(repoRoot, 'examples', 'flow-distribution', 'notify-demo', 'flow.json'), 'utf8'));
+  assert.deepEqual(binding.catalogItem.platforms, canonicalManifest.platforms.map(value => value === 'darwin' ? 'macOS' : value === 'windows' ? 'Windows' : value));
   const deepLink = new URL(binding.deepLink);
   assert.equal(deepLink.protocol, 'opendesk:');
   assert.equal(deepLink.hostname, 'install');
