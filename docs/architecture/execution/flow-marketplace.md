@@ -1,7 +1,7 @@
 # OpenDesk Flow Marketplace：整体框架、同站点开发与安装方案
 
 > 更新日期：2026-09-20。  
-> 状态：同站点静态分发核心实现已写入；自动化与真实 macOS 桌面验收分开记录，代码已写不等于桌面验收通过。  
+> 状态：**WEB_PREFLIGHT_READY**。所有当前可在非 GUI 环境完成的同站点静态分发、Release/package 绑定、resolver/网络边界、统一安装、开发 session、CI 与文档 Gate 已完成；真实 macOS Chrome/原生确认/Runner/显式 Run 仍保持 `NOT_RUN`。  
 > 当前实现事实以最新 `master`、本文件状态表和实际测试证据为准；历史提交只用于追溯，不能代替当前代码事实。  
 > 本文是整体方案的唯一维护入口，不再另建一份平行的“静态安装方案”。  
 > 当前可运行入口：[原型 README](../../../apps/opendesk/prototypes/marketplace/README.md)；当前协议：[Protocol V1](flow-marketplace-protocol-v1.md)；安装内核：[Flow 分发、安装、信任、授权与运行模型](flow-distribution-installation.md)。
@@ -468,22 +468,27 @@ Web Marketplace / In-App Marketplace / 双击 / 拖入 / 文件选择
 
 ### 15.1 当前自动化证据
 
-Flow Commercial Qualification run `35506679830`，基线 `ce94bca4f89a47560b1551a1d1274e81d6745309`：
+最终网页端 Gate 使用 Flow Commercial Qualification run `35520877637`，代码基线 `f004db354cdba63b645e8cac8024ad29084de9ce`：
 
 | Gate | 结果 |
 | --- | --- |
-| Marketplace prototype / same-site static / Chromium | PASS |
-| portable owners | PASS |
-| Marketplace development schema/session/appDataRoot tests | PASS |
+| Marketplace prototype / same-site static / Node contract | PASS |
+| Chromium browser smoke | PASS |
+| Catalog → Flow Runner 显式执行边界 | PASS |
+| portable owners（package/install/Marketplace/config/appdata/AppKit source contract） | PASS |
+| canonical Notify Demo 正式 `.odflow` verifier | PASS |
+| Marketplace development schema/session/appDataRoot/path tamper tests | PASS |
 | macOS Marketplace + B0/B1 Runtime | PASS |
 | Windows Marketplace contract | PASS |
 | Windows distribution build | PASS |
 | Windows B0 direct Runtime | PASS |
 | Windows full formal Runtime | BLOCKED / FAIL：`ATOMIC_REPLACE_UNSUPPORTED` |
 
-Windows full gate 的失败发生在通用 Runtime evidence 文件原子替换基础设施，后续 Flow distribution/B1 被跳过。本文件不把它归因于 Marketplace static resolver，也不把 Windows 完整回归计作 PASS。
+Windows full gate 的失败仍发生在通用 Runtime evidence 文件原子替换基础设施；同次 run 中 Windows Marketplace contract、distribution build 和 B0 direct Runtime 均已通过，formal gate 在 `flow-package` evidence 写入阶段失败，后续 Flow distribution/B1 被跳过。本文件不把它归因于 Marketplace static resolver，也不把 Windows 完整回归计作 PASS。
 
-production 网络边界也已落实为双层 fail-closed：Product Config 拒绝明显 local/private 目标；请求期解析 DNS 并拒绝 loopback/private/link-local，默认 transport 只拨号到已校验公共 IP，redirect 保持禁用。
+本轮补齐的非 GUI 边界包括：Release 响应总字节上限、signed `artifactLocation`/revision/update-channel provenance、当前 canonical Notify Demo 的正式 package 验证、页面 Flow/Release/package compatibility 派生一致性、开发 session canonical path 绑定、公开 `site/` 与 appData/log/config 隔离、中间 symlink containment、开发 HTTPS 不能扩大到私网目标，以及 `localhost` 实际 DNS 结果仍必须全部是 loopback。生产 resolver 继续要求 public HTTPS、DNS 后 public target、禁止 redirect，并在下载取消/超时/截断后清理临时文件。
+
+因此当前网页端状态为 **WEB_PREFLIGHT_READY**；这只表示不依赖真实 macOS GUI 的实现与自动化 Gate 已完成，不表示 Desktop 已验收。
 
 ### 15.2 当前本机验收入口
 
