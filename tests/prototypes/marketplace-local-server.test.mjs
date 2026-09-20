@@ -42,7 +42,7 @@ test('local Marketplace prepares one same-site static page, signed release and r
   assert.match(page, /Notify Demo/);
   assert.doesNotMatch(page, /\/local-smoke\/status/);
 
-  const bindingMatch = /<script type="application\\/json" id="opendesk-marketplace-release">([^<]+)<\\/script>/.exec(page);
+  const bindingMatch = /<script type="application\/json" id="opendesk-marketplace-release">([^<]+)<\/script>/.exec(page);
   assert.ok(bindingMatch, 'prepared Marketplace page must contain the generated release binding');
   const binding = JSON.parse(bindingMatch[1]);
 
