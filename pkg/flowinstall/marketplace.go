@@ -10,9 +10,10 @@ import (
 )
 
 type MarketplaceProvenance struct {
-	MarketplaceID string `json:"marketplaceId"`
-	ReleaseID     string `json:"releaseId"`
-	UpdateChannel string `json:"updateChannel,omitempty"`
+	MarketplaceID     string `json:"marketplaceId"`
+	ReleaseID         string `json:"releaseId"`
+	UpdateChannel     string `json:"updateChannel,omitempty"`
+	MetadataRevision int    `json:"metadataRevision,omitempty"`
 }
 
 func (provenance MarketplaceProvenance) validate() error {
@@ -21,6 +22,9 @@ func (provenance MarketplaceProvenance) validate() error {
 	}
 	if provenance.UpdateChannel != "" && !catalogSourcePattern.MatchString(provenance.UpdateChannel) {
 		return fmt.Errorf("Marketplace provenance update channel is invalid")
+	}
+	if provenance.MetadataRevision < 0 || provenance.MetadataRevision > 1_000_000_000 {
+		return fmt.Errorf("Marketplace provenance metadata revision is invalid")
 	}
 	return nil
 }
@@ -35,11 +39,18 @@ func applyMarketplaceProvenance(record Record, provenance *MarketplaceProvenance
 	if err := provenance.validate(); err != nil {
 		return Record{}, false, err
 	}
+	if record.Origin == "marketplace" &&
+		record.MarketplaceID == provenance.MarketplaceID &&
+		record.ReleaseID == provenance.ReleaseID &&
+		provenance.MetadataRevision < record.MarketplaceMetadataRevision {
+		return Record{}, false, fmt.Errorf("Marketplace metadata revision rollback is not allowed")
+	}
 	updated := record
 	updated.Origin = "marketplace"
 	updated.MarketplaceID = provenance.MarketplaceID
 	updated.ReleaseID = provenance.ReleaseID
 	updated.UpdateChannel = provenance.UpdateChannel
+	updated.MarketplaceMetadataRevision = provenance.MetadataRevision
 	return updated, updated != record, nil
 }
 

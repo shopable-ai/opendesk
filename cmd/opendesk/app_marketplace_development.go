@@ -116,6 +116,11 @@ func validateMarketplaceDevelopmentBaseURL(raw, field string, required bool) err
 	if err != nil || base.Scheme != "http" || base.Host == "" || base.User != nil || base.RawQuery != "" || base.Fragment != "" || !strings.HasSuffix(base.Path, "/") {
 		return fmt.Errorf("Marketplace development %s must be an HTTP loopback URL prefix ending in /", field)
 	}
+	for _, segment := range strings.Split(base.Path, "/") {
+		if segment == "." || segment == ".." {
+			return fmt.Errorf("Marketplace development %s path is invalid", field)
+		}
+	}
 	host := base.Hostname()
 	address := net.ParseIP(host)
 	if !strings.EqualFold(host, "localhost") && (address == nil || !address.IsLoopback()) {

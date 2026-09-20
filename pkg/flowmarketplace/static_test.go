@@ -47,7 +47,7 @@ func TestStaticMarketplaceInstallDownloadsSignedArtifactAndUsesSharedInstaller(t
 	installer := &Installer{Client: client, FlowService: service, TempRoot: t.TempDir(), Confirmer: confirmerFunc(approveMarketplaceInstall)}
 	result, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{})
 	if err != nil { t.Fatalf("static InstallURL() error = %v", err) }
-	if result.Record.ReleaseID != release.ReleaseID || result.Record.Origin != "marketplace" { t.Fatalf("unexpected Catalog provenance: %+v", result.Record) }
+	if result.Record.ReleaseID != release.ReleaseID || result.Record.Origin != "marketplace" || result.Record.MarketplaceMetadataRevision != 1 { t.Fatalf("unexpected Catalog provenance: %+v", result.Record) }
 	assertInstallFixtureNotExecuted(t, service, result.Record.InstallID)
 	mu.Lock(); got := append([]string(nil), requests...); mu.Unlock()
 	if len(got) != 2 { t.Fatalf("static requests = %v, want release + artifact only", got) }
@@ -205,4 +205,61 @@ func TestStaticReleaseAcceptsSignedAbsoluteLoopbackLocationOnlyInExplicitDevelop
 	if _, err := NewClient(ClientOptions{BaseURL: server.URL + "/metadata/", Resolver: ResolverStatic, MarketplaceRoots: map[string]ed25519.PublicKey{"static-root": rootPublic}}); err == nil {
 		t.Fatal("production client accepted an insecure HTTP metadata prefix")
 	}
+}
+
+func TestStaticInstallRejectsKnownMetadataRevisionRollbackBeforeDownloadOrConfirmation(t *testing.T) {
+	fixture := newMarketplaceFixture(t, EntitlementFree)
+	rootPublic, rootPrivate, _ := ed25519.GenerateKey(rand.Reader)
+	release := fixture.release
+	release.SchemaVersion = 2
+	release.MetadataRevision = 2
+	release.ArtifactLocation = "files/demo.odflow"
+	current := SignedReleaseDocument{SchemaVersion: 1, Release: release, Attestation: signStaticRelease(t, release, "static-root", rootPrivate, time.Now().Add(time.Hour))}
+	artifactHits := 0
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/base/flows/" + release.FlowID + "/" + release.ReleaseID + "/release.json":
+			_ = json.NewEncoder(response).Encode(current)
+		case "/base/files/demo.odflow":
+			artifactHits++
+			response.Header().Set("Content-Length", fmt.Sprintf("%d", len(fixture.artifact)))
+			_, _ = response.Write(fixture.artifact)
+		default:
+			http.NotFound(response, request)
+		}
+	}))
+	defer server.Close()
+	client, err := NewClient(ClientOptions{BaseURL: server.URL + "/base/", Resolver: ResolverStatic, MarketplaceRoots: map[string]ed25519.PublicKey{"static-root": rootPublic}, AllowInsecureLoopbackForTests: true})
+	if err != nil { t.Fatal(err) }
+	service := newFlowService(t)
+	confirmations := 0
+	installer := &Installer{
+		Client: client, FlowService: service, TempRoot: t.TempDir(),
+		Confirmer: confirmerFunc(func(_ context.Context, _ Release, candidate flowinstall.VerifiedInstallCandidate) (flowinstall.VerifiedInstallApproval, error) {
+			confirmations++
+			decision := flowinstall.DecisionFlow
+			if !candidate.TrustRequired { decision = "" }
+			return flowinstall.VerifiedInstallApproval{Confirmed: true, TrustDecision: decision}, nil
+		}),
+	}
+	result, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{})
+	if err != nil { t.Fatalf("initial revision install error = %v", err) }
+	if result.Record.MarketplaceMetadataRevision != 2 || artifactHits != 1 || confirmations != 1 {
+		t.Fatalf("initial revision evidence record=%+v artifactHits=%d confirmations=%d", result.Record, artifactHits, confirmations)
+	}
+
+	stale := release
+	stale.MetadataRevision = 1
+	current = SignedReleaseDocument{SchemaVersion: 1, Release: stale, Attestation: signStaticRelease(t, stale, "static-root", rootPrivate, time.Now().Add(time.Hour))}
+	if _, err := installer.InstallURL(context.Background(), fixture.deepLink, flowinstall.InstallOptions{}); err == nil {
+		t.Fatal("known lower metadata revision was accepted")
+	}
+	if artifactHits != 1 || confirmations != 1 {
+		t.Fatalf("rollback reached download or confirmation: artifactHits=%d confirmations=%d", artifactHits, confirmations)
+	}
+	persisted, err := service.Catalog.Load(result.Record.InstallID)
+	if err != nil || persisted.MarketplaceMetadataRevision != 2 {
+		t.Fatalf("persisted revision after rollback = %+v err=%v", persisted, err)
+	}
+	if err := service.Uninstall(context.Background(), result.Record.InstallID, false); err != nil { t.Fatal(err) }
 }

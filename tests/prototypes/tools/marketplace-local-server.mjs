@@ -63,10 +63,16 @@ function verifyCanonicalPackage(artifact, manifest) {
   if (!documented || documented !== digest) {
     throw new Error('Notify Demo checked-in package does not match its documented archive digest; rebuild and re-verify the canonical example before publishing it');
   }
-  for (const relative of ['main.js', 'clawdesk.runtime.json']) {
-    const declared = manifest.files?.find(file => file.path === relative);
-    const source = readFileSync(path.join(PACKAGE_ROOT, relative));
-    if (!declared || declared.sha256 !== sha256(source) || declared.size !== source.length) {
+  if (!Array.isArray(manifest.files) || manifest.files.length === 0) {
+    throw new Error('Notify Demo flow.json contains no declared files');
+  }
+  for (const declared of manifest.files) {
+    const relative = String(declared.path || '');
+    if (!relative || relative.includes('\\\\') || path.posix.isAbsolute(relative) || path.posix.normalize(relative) !== relative || relative.split('/').some(part => part === '..')) {
+      throw new Error('Notify Demo flow.json contains an unsafe source path');
+    }
+    const source = readFileSync(path.join(PACKAGE_ROOT, ...relative.split('/')));
+    if (declared.sha256 !== sha256(source) || declared.size !== source.length) {
       throw new Error(`Notify Demo source ${relative} does not match flow.json; rebuild the canonical .odflow before publishing it`);
     }
   }

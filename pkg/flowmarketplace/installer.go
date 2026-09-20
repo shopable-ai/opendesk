@@ -96,6 +96,9 @@ func (installer *Installer) InstallURL(ctx context.Context, rawURL string, optio
 		return flowinstall.InstallResult{}, err
 	}
 	release := resolved.Release
+	if err := installer.rejectKnownMetadataRollback(release); err != nil {
+		return flowinstall.InstallResult{}, err
+	}
 	if release.EntitlementPolicy != EntitlementFree {
 		if installer.Entitlement == nil {
 			return flowinstall.InstallResult{}, fmt.Errorf("marketplace entitlement is required for this release")
@@ -124,10 +127,29 @@ func (installer *Installer) InstallURL(ctx context.Context, rawURL string, optio
 	}
 	options.Marketplace = &flowinstall.MarketplaceProvenance{
 		MarketplaceID: release.MarketplaceID,
-		ReleaseID:     release.ReleaseID,
-		UpdateChannel: release.UpdateChannel,
+		ReleaseID:         release.ReleaseID,
+		UpdateChannel:     release.UpdateChannel,
+		MetadataRevision: release.MetadataRevision,
 	}
 	return installer.FlowService.Install(ctx, artifactPath, options)
+}
+
+func (installer *Installer) rejectKnownMetadataRollback(release Release) error {
+	installID := flowinstall.InstallID(release.PublisherSigningKeyFingerprint, release.FlowID)
+	current, err := installer.FlowService.Catalog.Load(installID)
+	if err != nil {
+		if flowinstall.CodeOf(err) == flowinstall.CodeNotFound {
+			return nil
+		}
+		return fmt.Errorf("read current Marketplace install provenance: %w", err)
+	}
+	if current.Origin == "marketplace" &&
+		current.MarketplaceID == release.MarketplaceID &&
+		current.ReleaseID == release.ReleaseID &&
+		release.MetadataRevision < current.MarketplaceMetadataRevision {
+		return fmt.Errorf("marketplace release metadata revision rollback is not allowed")
+	}
+	return nil
 }
 
 func matchReleasePackage(release Release, flowPackage *flowpackage.Package) error {
