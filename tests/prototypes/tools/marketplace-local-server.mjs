@@ -58,7 +58,7 @@ function platformLabel(value) {
 
 function verifyCanonicalPackage(artifact, manifest) {
   const readme = readFileSync(path.join(PACKAGE_ROOT, 'README.md'), 'utf8');
-  const documented = /archive SHA-256:\\s*\`([0-9a-f]{64})\`/.exec(readme)?.[1];
+  const documented = /archive SHA-256:\s*`([0-9a-f]{64})`/.exec(readme)?.[1];
   const digest = sha256(artifact);
   if (!documented || documented !== digest) {
     throw new Error('Notify Demo checked-in package does not match its documented archive digest; rebuild and re-verify the canonical example before publishing it');
