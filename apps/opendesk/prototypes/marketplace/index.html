@@ -23,12 +23,19 @@
 <div class="layout"><aside class="sidebar"><div class="side-caption">EXPLORE FLOWS</div><div class="categories" id="categories"></div><div class="side-guide"><div class="side-guide-title"><span class="guide-icon" id="guide-icon"></span><h3>第一次使用？</h3></div><p>在 OpenDesk 中确认安装。<br>是否运行，由你决定。</p><button class="textbtn small" data-action="guide">查看安装指南 →</button></div></aside><main class="main" id="main" tabindex="-1"></main></div>
 <dialog class="dialog" id="dialog" aria-labelledby="dialog-title"><div class="dialog-head"><span class="small" id="dialog-context"></span><button class="close" data-action="close" aria-label="关闭对话框">×</button></div><div class="dialog-body" id="dialog-body"></div></dialog>
 <div class="toast" id="toast" role="status" hidden></div>
+<!-- OPENDESK_LOCAL_RELEASE_BINDING -->
 <script id="marketplace-model">
 /* Pure demo domain. No network, native bridge, executable package, or real credential is used. */
 (function(root){
 'use strict';
 const KEY='opendesk.marketplace.prototype.v1';
+let localRelease=null;
+try{
+  const node=document.getElementById('opendesk-marketplace-release');
+  if(node)localRelease=JSON.parse(node.textContent);
+}catch(_){localRelease=null;}
 const catalog=[
+...(localRelease&&localRelease.catalogItem?[localRelease.catalogItem]:[]),
 {id:'demo-file-organizer',name:'文件自动整理',category:'文件管理',icon:'folder',tone:'',publisherId:'demo-opendesk',signingKeyId:'demo-opendesk-key-1',publisher:'OpenDesk 示例团队',verified:true,version:'1.2.0',release:'demo-files-120',date:'2026-09-17',platforms:['macOS','Windows'],policy:'free',price:'免费',desc:'按类型和日期整理文件，让下载目录重新井井有条。',permissions:['读取你选择的文件夹','在目标文件夹创建目录、移动文件'],steps:['选择文件夹','按规则分类','预览后整理'],inputs:'来源目录、目标目录、分类规则',output:'分类后的文件目录与操作清单',size:'148 KB'},
 {id:'demo-daily-report',name:'表格日报汇总',category:'办公效率',icon:'table',tone:'blue',publisherId:'demo-efficiency',signingKeyId:'demo-efficiency-key-1',publisher:'效率工坊 · 示例',verified:true,version:'2.1.0',release:'demo-report-210',date:'2026-09-16',platforms:['macOS','Windows'],policy:'subscription',price:'¥29 / 月 · 示意',desc:'汇总多份表格，按指定模板生成一份清晰的日报。',permissions:['读取你选择的表格文件','在目标文件夹写入汇总报告'],steps:['选择表格','按模板汇总','保存日报'],inputs:'表格文件、汇总模板、输出目录',output:'汇总报告与异常项清单',size:'320 KB'},
 {id:'demo-web-collect',name:'网页资料收集',category:'网页自动化',icon:'globe',tone:'purple',publisherId:'demo-linmu',signingKeyId:'demo-linmu-key-1',publisher:'林木工具箱 · 示例',verified:false,version:'1.0.3',release:'demo-web-103',date:'2026-09-15',platforms:['macOS','Windows'],policy:'free',price:'免费',desc:'把公开页面的标题、链接和摘要整理到本地表格。',permissions:['访问你确认的网页地址','在目标文件夹写入资料表'],steps:['输入公开链接','提取指定字段','保存资料表'],inputs:'公开网页列表、提取字段、输出文件',output:'资料表；不处理登录凭证或绕过访问限制',size:'212 KB'},
@@ -106,133 +113,47 @@ dialog.addEventListener('cancel',event=>{event.preventDefault();close();});windo
 })();
 </script>
 <script id="local-marketplace-bridge">
-/*
- * This bridge is intentionally available only from the local HTTP smoke
- * server. It converts every catalog install affordance into one ordinary
- * external-protocol anchor for the fixed Notify Demo intent, then uses the
- * same-origin Catalog status endpoint as the only success oracle. The page
- * never downloads an artifact, writes a Flow, or starts a Flow execution.
- */
 (function () {
   'use strict';
-  const intent = 'opendesk://install/flow/com.example.opendesk.notify-demo?release=local-notify-demo-1&intent=local-notify-demo-intent-1';
-  const statusPath = '/local-smoke/status';
-  const maxStatusChecks = 180;
-  let enabled = false;
-  let polling = false;
-  let statusChecks = 0;
+  const node = document.getElementById('opendesk-marketplace-release');
+  if (!node) return;
+  let binding;
+  try { binding = JSON.parse(node.textContent); } catch (_) { return; }
+  if (!binding || binding.schemaVersion !== 1 || !binding.catalogId || !binding.deepLink) return;
+
   const oracle = document.createElement('p');
   oracle.className = 'note';
   oracle.id = 'local-install-oracle';
   oracle.setAttribute('role', 'status');
   oracle.setAttribute('aria-live', 'polite');
-  oracle.dataset.state = 'checking';
+  oracle.innerHTML = '本地真实包已准备：<a data-local-release href="' + binding.releaseUrl + '">查看发布说明</a> · <a data-local-artifact href="' + binding.artifactUrl + '">下载 .odflow</a>。安装与运行是两个独立操作。';
   document.querySelector('.demo-bar').insertAdjacentElement('afterend', oracle);
 
-  function display(state, message) {
-    oracle.dataset.state = state;
-    oracle.textContent = message;
-  }
-
-  async function readInstallStatus() {
-    const response = await fetch(statusPath, {cache: 'no-store', credentials: 'omit'});
-    const status = await response.json();
-    if (!response.ok || !status || typeof status.state !== 'string') throw new Error('invalid local install status');
-    return status;
-  }
-
-  function applyStatus(status, afterDispatch) {
-    const receiver = status && status.receiver;
-    if (status.state === 'installed') {
-      polling = false;
-      display('installed', '安装成功，尚未运行。请在 OpenDesk Flow Runner 中明确点击运行。');
-      return;
-    }
-    if (status.state === 'invalid' || status.state === 'error') {
-      polling = false;
-      display(status.state, status.message || '安装状态校验失败；不会报告成功。');
-      return;
-    }
-    if (receiver && receiver.state === 'failed') {
-      polling = false;
-      display('install-failed', receiver.message);
-      return;
-    }
-    if (receiver && receiver.state === 'received') {
-      display('receiver-received', receiver.message);
-      return;
-    }
-    if (receiver && receiver.state === 'starting') {
-      display('receiver-starting', receiver.message);
-      return;
-    }
-    display(afterDispatch ? 'waiting-external-protocol' : 'server-ready', afterDispatch
-      ? '本地服务已就绪；等待 Chrome 确认打开 OpenDesk。随后会显示一次原生确认，核对 Release 与默认的当前 Flow 信任范围。'
-      : (receiver && receiver.message ? `本地服务已就绪。${receiver.message}` : '本地服务已就绪；尚未请求安装。'));
-  }
-
-  async function checkInstallStatus() {
-    if (!polling) return;
-    statusChecks += 1;
-    try {
-      applyStatus(await readInstallStatus(), true);
-    } catch (_) {
-      // Transient status loss remains unknown; it cannot manufacture success
-      // and never redispatches the external-protocol URL.
-    }
-    if (polling && statusChecks < maxStatusChecks) setTimeout(checkInstallStatus, 500);
-    else if (polling) {
-      polling = false;
-      display('unknown', '尚未从隔离 Catalog 确认安装结果。不会自动重试安装，请核对 OpenDesk 日志。');
-    }
-  }
-
-  function startPolling() {
-    if (polling) return;
-    polling = true;
-    statusChecks = 0;
-    setTimeout(checkInstallStatus, 250);
-  }
-
-  function replaceInstallButtons() {
-    if (!enabled) return;
-    for (const button of document.querySelectorAll('button[data-action="install"]')) {
+  function replaceInstallButton() {
+    for (const button of document.querySelectorAll('button[data-action="install"][data-id="' + binding.catalogId + '"]')) {
       if (button.disabled) continue;
       const link = document.createElement('a');
       link.className = button.className;
-      link.href = intent;
-      link.dataset.localMarketplaceInstall = 'notify-demo';
-      link.setAttribute('aria-label', '安装 Notify Demo（本地开发检查）');
-      link.textContent = button.textContent;
+      link.href = binding.deepLink;
+      link.dataset.localMarketplaceInstall = binding.catalogId;
+      link.setAttribute('aria-label', '安装真实 Notify Demo 到 OpenDesk');
+      link.textContent = '安装到 OpenDesk';
       const hint = button.nextElementSibling;
       if (hint && hint.matches('p.muted')) {
-        hint.textContent = '本地开发检查会请求固定 Notify Demo；只有隔离 Catalog 确认后才可显示安装成功。';
+        hint.textContent = '真实本地包：OpenDesk 验证 Release、摘要、签名和包身份后，只显示一次原生安装/信任确认；安装不会运行。';
       }
       button.replaceWith(link);
     }
   }
 
   document.addEventListener('click', event => {
-    const link = event.target.closest('a[data-local-marketplace-install="notify-demo"]');
+    const link = event.target.closest('a[data-local-marketplace-install="' + binding.catalogId + '"]');
     if (!link) return;
-    display('pending', '浏览器正在交接 OpenDesk；请先确认 Chrome 的“打开 OpenDesk”。');
-    startPolling();
-    // Do not prevent the ordinary anchor navigation or script-dispatch intent.
+    oracle.textContent = '已请求打开 OpenDesk，请在应用中完成安装。网页不会根据点击、失焦或超时推断安装结果。安装成功后请到真实 Flow Runner 查看；只有你另外点击“运行”才会执行。';
   }, true);
 
-  async function initialize() {
-    try {
-      const status = await readInstallStatus();
-      enabled = true;
-      replaceInstallButtons();
-      new MutationObserver(replaceInstallButtons).observe(document.body, {childList: true, subtree: true});
-      applyStatus(status, false);
-    } catch (_) {
-      display('prototype-only', '当前为交互原型模拟状态。使用 README 的 local HTTP development smoke 启动后，所有商品的“安装”才会请求固定 Notify Demo。');
-    }
-  }
-
-  void initialize();
+  replaceInstallButton();
+  new MutationObserver(replaceInstallButton).observe(document.body, {childList: true, subtree: true});
 }());
 </script>
 </body>

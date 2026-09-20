@@ -1,151 +1,34 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'">
-  <title>OpenDesk · 本地安装检查</title>
-  <style>
-    :root { font: 16px/1.65 system-ui, sans-serif; color: #172a36; background: #f5f7f8; }
-    * { box-sizing: border-box; }
-    body { max-width: 760px; margin: 0 auto; padding: 32px 20px; }
-    h1 { font-size: clamp(24px, 5vw, 32px); line-height: 1.3; }
-    h2 { font-size: 19px; margin-top: 28px; }
-    a { color: #17695c; }
-    a:focus-visible { outline: 3px solid #56a899; outline-offset: 4px; }
-    .action { display: inline-block; padding: 10px 16px; margin: 4px 0; border: 1px solid #17695c; border-radius: 8px; text-decoration: none; }
-    .primary { background: #17695c; color: white; }
-    code { overflow-wrap: anywhere; font-size: 13px; }
-    #result { border-left: 3px solid #17695c; background: #e8f3ef; padding: 14px; overflow-wrap: anywhere; }
-    .muted { color: #52626e; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OpenDesk Marketplace · 本地静态安装检查</title>
+<style>
+body{font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;max-width:720px;margin:56px auto;padding:0 20px;color:#1f2937}
+.card{border:1px solid #d1d5db;border-radius:14px;padding:24px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}
+a{color:#0f766e}.btn{display:inline-block;padding:10px 14px;border-radius:9px;background:#111827;color:white;text-decoration:none}
+.note{background:#f3f4f6;border-radius:10px;padding:12px 14px}.muted{color:#6b7280}
+</style>
 </head>
 <body>
-  <nav><a href="index.html">← 交互原型（模拟安装）</a></nav>
-  <main>
-    <p class="muted">本地开发检查 · HTTP loopback · 隔离 Catalog</p>
-    <h1>从网页安装 Notify Demo</h1>
-    <p>本页会请求 macOS 打开已注册的 OpenDesk。桌面端会验证本地签名的 Release、canonical 包和 package signature，再显示一次原生安装确认；首次安装默认只信任当前 Flow。浏览器页面只在隔离 Catalog 出现完全匹配的 <code>ready</code> 记录后显示成功。</p>
-    <p>安装不会运行 Flow。成功后请在 OpenDesk Flow Runner 中另行点击运行。</p>
-
-    <h2>1. 合法的安装意图</h2>
-    <p><code>opendesk://install/flow/com.example.opendesk.notify-demo?release=local-notify-demo-1&amp;intent=local-notify-demo-intent-1</code></p>
-    <a class="action primary" data-dispatch="valid" href="opendesk://install/flow/com.example.opendesk.notify-demo?release=local-notify-demo-1&amp;intent=local-notify-demo-intent-1">安装 Notify Demo</a>
-    <p class="muted">需要用 README 中的本地服务与显式开发配置启动当前 OpenDesk 构建。浏览器或 macOS 可能先询问是否打开应用。</p>
-
-    <h2>2. 未知参数拒绝检查</h2>
-    <p>此请求仅比上面的 URI 多一个 <code>unsupported=1</code> 参数，应在解析阶段拒绝。</p>
-    <a class="action" data-dispatch="invalid" href="opendesk://install/flow/com.example.opendesk.notify-demo?release=local-notify-demo-1&amp;intent=local-notify-demo-intent-1&amp;unsupported=1">请求检查非法参数</a>
-    <p class="muted">接收端应在联网和确认之前拒绝未知参数。该按钮不会轮询安装结果。</p>
-
-    <p id="result" role="status" aria-live="polite" data-state="idle">正在检查本地服务与 OpenDesk 接收端。</p>
-    <h2>独立检查 .odflow 侧载</h2>
-    <p>仓库内的 <code>examples/flow-distribution/notify-demo/notify-demo.odflow</code> 可用于现有文件安装路径。侧载成功不代表上面的 Marketplace 安装已通过；安装后仍需用户另行点击运行。</p>
-    <p><a href="README.md">查看检查步骤与证据要求</a></p>
-  </main>
-  <script id="local-dispatch">
-    'use strict';
-    const result = document.querySelector('#result');
-    const maxStatusChecks = 180;
-    let statusChecks = 0;
-    let polling = false;
-
-    async function readInstallStatus() {
-      const response = await fetch('/local-smoke/status', {cache: 'no-store', credentials: 'omit'});
-      const status = await response.json();
-      if (!response.ok || !status || typeof status.state !== 'string') throw new Error('invalid status');
-      return status;
-    }
-
-    function showInstalled() {
-      polling = false;
-      result.dataset.state = 'installed';
-      result.textContent = '安装成功，尚未运行。请在 OpenDesk Flow Runner 中明确点击运行。';
-    }
-
-    function showPending(status, afterDispatch) {
-      const receiver = status && status.receiver;
-      if (receiver && receiver.state === 'failed') {
-        polling = false;
-        result.dataset.state = 'install-failed';
-        result.textContent = receiver.message;
-        return;
-      }
-      if (receiver && receiver.state === 'received') {
-        result.dataset.state = 'receiver-received';
-        result.textContent = receiver.message;
-        return;
-      }
-      if (receiver && receiver.state === 'starting') {
-        result.dataset.state = 'receiver-starting';
-        result.textContent = receiver.message;
-        return;
-      }
-      result.dataset.state = afterDispatch ? 'waiting-external-protocol' : 'server-ready';
-      result.textContent = afterDispatch
-        ? '本地服务已就绪；等待 Chrome 确认打开 OpenDesk。若确认后状态不变，请查看本次 opendesk.log。'
-        : (receiver && receiver.message ? `本地服务已就绪。${receiver.message}` : '本地服务已就绪；尚未请求安装。');
-    }
-
-    async function checkInstallStatus() {
-      if (!polling) return;
-      statusChecks += 1;
-      try {
-        const status = await readInstallStatus();
-        if (status.state === 'installed') {
-          showInstalled();
-          return;
-        }
-        if (status.state === 'invalid' || status.state === 'error') {
-          polling = false;
-          result.dataset.state = status.state;
-          result.textContent = status.message || '安装状态校验失败；不会报告成功。';
-          return;
-        }
-        showPending(status, true);
-      } catch (_) {
-        // A transient status failure is unknown. It does not redispatch the URL
-        // and cannot turn into success without a verified Catalog response.
-      }
-      if (statusChecks < maxStatusChecks) {
-        setTimeout(checkInstallStatus, 500);
-      } else {
-        polling = false;
-        result.dataset.state = 'unknown';
-        result.textContent = '尚未从隔离 Catalog 确认安装结果。不会自动重试安装，请核对 OpenDesk 日志。';
-      }
-    }
-
-    async function checkExistingInstall() {
-      try {
-        const status = await readInstallStatus();
-        if (status.state === 'installed') showInstalled();
-        else if (status.state === 'pending') showPending(status, false);
-        else {
-          result.dataset.state = status.state || 'error';
-          result.textContent = status.message || '本地安装检查服务返回了无效状态。';
-        }
-      } catch (_) {
-        result.dataset.state = 'server-unavailable';
-        result.textContent = '无法连接本地安装检查服务。请使用本次 manual-* 目录中的启动命令，不要用普通静态服务器。';
-      }
-    }
-
-    for (const link of document.querySelectorAll('[data-dispatch]')) {
-      link.addEventListener('click', () => {
-        const valid = link.dataset.dispatch === 'valid';
-        result.dataset.state = valid ? 'pending' : 'invalid-requested';
-        result.textContent = valid
-          ? '浏览器正在交接 OpenDesk；请先确认 Chrome 的“打开 OpenDesk”，再在一次原生确认中核对 Release 和默认的当前 Flow 信任范围。'
-          : '已请求接收端检查非法参数；该请求不应开始安装。';
-        if (valid && !polling) {
-          polling = true;
-          statusChecks = 0;
-          setTimeout(checkInstallStatus, 250);
-        }
-      });
-    }
-    void checkExistingInstall();
-  </script>
+<div class="card">
+<h1>Notify Demo · 本地静态安装检查</h1>
+<p>此页与主原型、<code>release.json</code>、真实 <code>.odflow</code> 由同一个静态站点提供。网页只发起 ID-only 安装请求，不判断安装成功。</p>
+<div id="content" class="note">当前只是源码原型。请用仓库根目录的一条本地 Marketplace 启动命令生成本次静态站点。</div>
+</div>
+<!-- OPENDESK_LOCAL_RELEASE_BINDING -->
+<script>
+(function(){
+  const node=document.getElementById('opendesk-marketplace-release');
+  if(!node)return;
+  let binding;try{binding=JSON.parse(node.textContent);}catch(_){return;}
+  const content=document.getElementById('content');
+  content.innerHTML='<div class="actions"><a class="btn" id="install" href="'+binding.deepLink+'">安装到 OpenDesk</a><a href="'+binding.releaseUrl+'">查看 release.json</a><a href="'+binding.artifactUrl+'">下载 .odflow</a></div><p class="muted" id="status">尚未请求打开客户端。安装完成也不会自动运行。</p>';
+  document.getElementById('install').addEventListener('click',()=>{
+    document.getElementById('status').textContent='已请求打开 OpenDesk，请在应用中完成安装。网页不推断结果；安装成功后请到 Flow Runner 另行点击运行。';
+  },true);
+}());
+</script>
 </body>
 </html>

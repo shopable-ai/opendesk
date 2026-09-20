@@ -1,53 +1,70 @@
 import assert from 'node:assert/strict';
-import {mkdtemp, mkdir, rm, writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {createServer} from 'node:http';
+import {mkdtemp, readFile, readdir, rm} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {startLocalMarketplaceServer} from './tools/marketplace-local-server.mjs';
 
-test('local Marketplace server exposes a signed intent, the canonical package, and real Catalog status', async t => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'opendesk-marketplace-server-'));
+const sha256 = data => createHash('sha256').update(data).digest('hex');
+
+async function startGenericStaticServer(siteRoot) {
+  const server = createServer(async (request, response) => {
+    const relative = request.url === '/' ? 'index.html' : request.url.replace(/^\/+/, '');
+    if (!relative || relative.includes('..') || relative.includes('\\')) { response.writeHead(404); response.end(); return; }
+    try {
+      const body = await readFile(path.join(siteRoot, relative));
+      response.writeHead(200, {'Content-Length': body.length});
+      response.end(body);
+    } catch (_) {
+      response.writeHead(404); response.end();
+    }
+  });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  return {server, baseURL: `http://127.0.0.1:${server.address().port}`};
+}
+
+test('local Marketplace prepares one same-site static page, signed release and real package', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'opendesk-marketplace-static-'));
   t.after(() => rm(root, {recursive: true, force: true}));
-  const appData = path.join(root, 'app-data');
+  const siteRoot = path.join(root, 'site');
   const configOutput = path.join(root, 'marketplace-development.json');
-  const running = await startLocalMarketplaceServer({host: '127.0.0.1', port: 0, appData, configOutput});
+  const running = await startLocalMarketplaceServer({host: '127.0.0.1', port: 0, siteRoot, configOutput});
   t.after(() => new Promise(resolve => running.server.close(resolve)));
 
-  const intent = await (await fetch(running.baseURL + '/v1/install-intents/local-notify-demo-intent-1')).json();
-  assert.equal(intent.flowId, 'com.example.opendesk.notify-demo');
-  assert.equal(intent.release.origin, undefined);
-  assert.equal(intent.release.artifactDigest, running.state.release.artifactDigest);
-  assert.equal(intent.attestation.rootKeyId, 'local-smoke-root');
+  const page = await (await fetch(running.baseURL + '/index.html')).text();
+  assert.match(page, /id="opendesk-marketplace-release"/);
+  assert.match(page, /Notify Demo/);
+  assert.doesNotMatch(page, /\/local-smoke\/status/);
 
-  const artifact = Buffer.from(await (await fetch(running.baseURL + '/v1/releases/local-notify-demo-1/artifact')).arrayBuffer());
-  assert.deepEqual(artifact, running.state.artifact);
-  assert.deepEqual(await (await fetch(running.baseURL + '/local-smoke/status')).json(), {state: 'pending', message: '等待 OpenDesk 完成确认和安装。'});
+  const document = await (await fetch(running.releaseURL)).json();
+  assert.equal(document.schemaVersion, 1);
+  assert.equal(document.release.schemaVersion, 2);
+  assert.equal(document.release.flowId, 'com.example.opendesk.notify-demo');
+  assert.equal(document.release.metadataRevision, 1);
+  assert.equal(document.release.artifactLocation, 'flows/com.example.opendesk.notify-demo/local-notify-demo-1/notify-demo.odflow');
+  assert.equal(document.attestation.schemaVersion, 2);
 
-  await mkdir(path.join(appData, 'flow-state', 'records'), {recursive: true});
-  await mkdir(path.join(appData, 'flows', running.state.installId), {recursive: true});
-  const record = {installId: running.state.installId, flowId: running.state.release.flowId, archiveDigest: running.state.release.artifactDigest, state: 'ready', origin: 'marketplace', marketplaceId: 'opendesk-local-smoke', releaseId: 'local-notify-demo-1'};
-  const {writeFile} = await import('node:fs/promises');
-  await writeFile(path.join(appData, 'flow-state', 'records', running.state.installId + '.json'), JSON.stringify(record));
-  const status = await (await fetch(running.baseURL + '/local-smoke/status')).json();
-  assert.equal(status.state, 'installed');
-  assert.equal(status.record.installId, running.state.installId);
-});
+  const artifact = Buffer.from(await (await fetch(running.artifactURL)).arrayBuffer());
+  assert.equal(sha256(artifact), document.release.artifactDigest);
+  assert.equal(artifact.length, document.release.artifactSize);
 
-test('local Marketplace status exposes only bounded receiver diagnostics from this run log', async t => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'opendesk-marketplace-server-'));
-  t.after(() => rm(root, {recursive: true, force: true}));
-  const appData = path.join(root, 'app-data');
-  const configOutput = path.join(root, 'marketplace-development.json');
-  const opendeskLog = path.join(root, 'opendesk.log');
-  const running = await startLocalMarketplaceServer({host: '127.0.0.1', port: 0, appData, configOutput, opendeskLog});
-  t.after(() => new Promise(resolve => running.server.close(resolve)));
+  for (const obsolete of ['/v1/install-intents/local-notify-demo-intent-1', '/v1/releases/local-notify-demo-1/artifact', '/local-smoke/status']) {
+    assert.equal((await fetch(running.baseURL + obsolete)).status, 404, obsolete);
+  }
 
-  await writeFile(opendeskLog, '[MARKETPLACE_INSTALL] loopback development client enabled\n[MARKETPLACE_INSTALL] received flowId=com.example.opendesk.notify-demo releaseId=local-notify-demo-1 installIntentId=local-notify-demo-intent-1\n');
-  const received = await (await fetch(running.baseURL + '/local-smoke/status')).json();
-  assert.deepEqual(received.receiver, {state: 'received', message: 'OpenDesk 已收到本地 intent；请依次确认 Release 与 Flow 信任窗口。'});
+  const config = JSON.parse(await readFile(configOutput, 'utf8'));
+  assert.deepEqual({schemaVersion: config.schemaVersion, resolver: config.resolver, metadataBaseUrl: config.metadataBaseUrl, artifactBaseUrl: config.artifactBaseUrl}, {
+    schemaVersion: 2, resolver: 'static', metadataBaseUrl: running.baseURL + '/', artifactBaseUrl: '',
+  });
+  assert.deepEqual((await readdir(siteRoot)).sort(), ['flows', 'index.html', 'local-deep-link-smoke.html']);
 
-  await writeFile(opendeskLog, '[MARKETPLACE_INSTALL] blocked flowId=com.example.opendesk.notify-demo releaseId=local-notify-demo-1 installIntentId=local-notify-demo-intent-1 error=verification failed\n', {flag: 'a'});
-  const failed = await (await fetch(running.baseURL + '/local-smoke/status')).json();
-  assert.deepEqual(failed.receiver, {state: 'failed', message: 'OpenDesk 已收到请求，但验证或安装被拒绝；请查看本次 opendesk.log。'});
-  assert.doesNotMatch(JSON.stringify(failed), /verification failed/);
+  const generic = await startGenericStaticServer(siteRoot);
+  t.after(() => new Promise(resolve => generic.server.close(resolve)));
+  const genericRelease = await (await fetch(generic.baseURL + running.state.relativeReleaseURL)).json();
+  const genericArtifact = Buffer.from(await (await fetch(generic.baseURL + running.state.relativeArtifactURL)).arrayBuffer());
+  assert.equal(genericRelease.release.artifactDigest, sha256(genericArtifact));
+  assert.equal((await fetch(generic.baseURL + '/v1/install-intents/local-notify-demo-intent-1')).status, 404);
+  assert.equal((await fetch(generic.baseURL + '/local-smoke/status')).status, 404);
 });

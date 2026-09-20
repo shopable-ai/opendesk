@@ -31,3 +31,11 @@ test('receiver diagnostics do not share the App Mode execution stderr path', () 
 test('local server survives after the one-shot helper exits', () => {
   assert.match(helperSource, /detached:\s*true,\s*stdio:\s*\['ignore', 'pipe', 'pipe'\]/);
 });
+
+test('manual Marketplace helper opens the main prepared prototype and reports static resources', () => {
+  assert.match(helperSource, /path\.join\(runDirectory, 'site'\)/);
+  assert.match(helperSource, /baseURL\}\/index\.html/);
+  assert.match(helperSource, /Release: \$\{run\.releaseURL\}/);
+  assert.match(helperSource, /Package: \$\{run\.artifactURL\}/);
+  assert.doesNotMatch(helperSource, /baseURL\}\/local-deep-link-smoke\.html/);
+});
