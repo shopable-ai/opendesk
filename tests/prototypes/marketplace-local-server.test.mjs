@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {createServer} from 'node:http';
-import {mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile} from 'node:fs/promises';
+import {lstat, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -112,13 +112,16 @@ test('local Marketplace private-output containment resolves symlinked parents', 
   const alias = path.join(root, 'private-alias');
   await symlink(siteRoot, alias, 'dir');
 
+  const appDataRoot = path.join(alias, 'app-data');
   await assert.rejects(() => startLocalMarketplaceServer({
     host: '127.0.0.1',
     port: 0,
     siteRoot,
     configOutput: path.join(root, 'marketplace-development.json'),
-    appDataRoot: path.join(alias, 'app-data'),
+    appDataRoot,
   }), /app data must remain outside/);
+  await assert.rejects(() => lstat(appDataRoot), error => error && error.code === 'ENOENT',
+    'rejected private output must not be created inside the public site');
 });
 
 test('local publisher rejects generated flow.json drift before preparing a Release', async () => {
