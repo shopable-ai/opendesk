@@ -126,7 +126,7 @@ dialog.addEventListener('cancel',event=>{event.preventDefault();close();});windo
   oracle.id = 'local-install-oracle';
   oracle.setAttribute('role', 'status');
   oracle.setAttribute('aria-live', 'polite');
-  oracle.innerHTML = '本地真实包已准备：<a data-local-release href="' + binding.releaseUrl + '">查看发布说明</a> · <a data-local-artifact href="' + binding.artifactUrl + '">下载 .odflow</a>。安装与运行是两个独立操作。';
+  oracle.textContent = '本地同站点 Release 与真实 .odflow 已准备；浏览器只发起安装请求，资源由 OpenDesk 读取并验证。安装与运行是两个独立操作。';
   document.querySelector('.demo-bar').insertAdjacentElement('afterend', oracle);
 
   function replaceInstallButton() {

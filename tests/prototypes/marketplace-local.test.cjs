@@ -22,6 +22,12 @@ test('real local install is scoped only to the generated Notify Demo catalog ite
   assert.doesNotMatch(page, /querySelectorAll\('button\[data-action="install"\]'\)/);
 });
 
+test('main Marketplace browser surface only launches install and never exposes an artifact side-load link', () => {
+  assert.doesNotMatch(page, /data-local-artifact|data-local-release/);
+  assert.doesNotMatch(page, /href="' \+ binding\.artifactUrl|href="' \+ binding\.releaseUrl/);
+  assert.match(page, /浏览器只发起安装请求，资源由 OpenDesk 读取并验证/);
+});
+
 test('browser never polls or infers installation success', () => {
   assert.doesNotMatch(page, /local-smoke\/status|readInstallStatus|startPolling|maxStatusChecks/);
   assert.doesNotMatch(smoke, /local-smoke\/status|visibilitychange|window\.blur/);
