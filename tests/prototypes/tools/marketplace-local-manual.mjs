@@ -2,10 +2,11 @@
 // Start one isolated, reproducible local HTML → OpenDesk Marketplace check.
 // It intentionally never kills an existing OpenDesk instance or a listener it
 // did not start. Use the printed cleanup command only for a recorded manual run.
-import {appendFile, mkdir, readFile, writeFile} from 'node:fs/promises';
+import {appendFile, mkdir, readFile, unlink, writeFile} from 'node:fs/promises';
 import {createWriteStream} from 'node:fs';
 import {createHash} from 'node:crypto';
 import path from 'node:path';
+import os from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {spawn, spawnSync} from 'node:child_process';
 
@@ -23,9 +24,10 @@ const BUILD_INPUTS = [
 const EXECUTABLE = path.join(BUNDLE, 'Contents', 'MacOS', 'opendesk');
 const APP_ROOT = path.join(ROOT, 'apps', 'opendesk');
 const LSREGISTER = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
+const DEVELOPMENT_SESSION_FILE = path.join(os.homedir(), '.opendesk', 'apps', 'com.opendesk.desktop', 'marketplace-development-session.json');
 
 function usage() {
-  return `usage:\n  node tests/prototypes/tools/marketplace-local-manual.mjs\n  node tests/prototypes/tools/marketplace-local-manual.mjs --cleanup <manual-run-dir>`;
+  return `usage:\n  node tests/prototypes/tools/marketplace-local-manual.mjs\n  node tests/prototypes/tools/marketplace-local-manual.mjs --cold-start-check <manual-run-dir>\n  node tests/prototypes/tools/marketplace-local-manual.mjs --cleanup <manual-run-dir>`;
 }
 
 export function isManualRunDirectory(runDirectory) {
@@ -71,7 +73,9 @@ export function isCurrentOpenDeskAppModeCommand(command, cwd) {
 function findConflictingOpenDeskProcesses() {
   return runningProcesses().flatMap(({pid, command}) => {
     const cwd = processWorkingDirectory(pid);
-    return isCurrentOpenDeskAppModeCommand(command, cwd) ? [`${pid} ${command}`] : [];
+    const currentDevelopment = isCurrentOpenDeskAppModeCommand(command, cwd);
+    const currentBundle = command.includes(EXECUTABLE);
+    return currentDevelopment || currentBundle ? [`${pid} ${command}`] : [];
   });
 }
 
@@ -116,6 +120,38 @@ async function logContains(logPath, fragment) {
     if (error && error.code === 'ENOENT') return false;
     throw error;
   }
+}
+
+async function logSize(logPath) {
+  try {
+    return Buffer.byteLength(await readFile(logPath));
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return 0;
+    throw error;
+  }
+}
+
+async function logContainsAfter(logPath, offset, fragment) {
+  try {
+    const data = await readFile(logPath);
+    return data.subarray(Math.min(offset, data.length)).toString('utf8').includes(fragment);
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+async function clearDevelopmentSessionForConfig(configPath) {
+  let session;
+  try {
+    session = JSON.parse(await readFile(DEVELOPMENT_SESSION_FILE, 'utf8'));
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return false;
+    return false;
+  }
+  if (!session || path.resolve(String(session.configPath || '')) !== path.resolve(configPath)) return false;
+  await unlink(DEVELOPMENT_SESSION_FILE);
+  return true;
 }
 
 function gitCommand(args) {
@@ -285,9 +321,11 @@ export async function cleanupRun(runDirectory) {
   const metadataPath = path.join(resolved, 'run.json');
   const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
   if (metadata.runDirectory !== resolved || !metadata.server || !metadata.app) throw new Error('run.json is not a valid manual Marketplace run record');
-  await stopRecordedProcess(metadata.app.pid, [EXECUTABLE, metadata.configPath]);
+  const appMarkers = metadata.app.mode === 'cold' ? [EXECUTABLE] : [EXECUTABLE, metadata.configPath];
+  await stopRecordedProcess(metadata.app.pid, appMarkers);
   await stopRecordedProcess(metadata.server.pid, [SERVER_SCRIPT, metadata.configPath]);
-  await appendFile(path.join(resolved, 'supervisor.log'), `cleanup completed at ${new Date().toISOString()}\n`, {mode: 0o600});
+  const clearedSession = await clearDevelopmentSessionForConfig(metadata.configPath);
+  await appendFile(path.join(resolved, 'supervisor.log'), `cleanup completed at ${new Date().toISOString()} sessionCleared=${clearedSession}\n`, {mode: 0o600});
 }
 
 export async function startManualRun() {
@@ -315,9 +353,10 @@ export async function startManualRun() {
       url: `${server.ready.baseURL}/index.html`,
       releaseURL: server.ready.releaseURL,
       artifactURL: server.ready.artifactURL,
+      deepLink: server.ready.deepLink,
       siteRoot: server.siteRoot,
       server: {pid: server.child.pid, log: server.serverLogPath, requestLog: server.requestLogPath},
-      app: {pid: app.pid, log: server.appLogPath, runtimeLogDir: server.appRuntimeLogDir},
+      app: {pid: app.pid, log: server.appLogPath, runtimeLogDir: server.appRuntimeLogDir, mode: 'warm'},
     };
     await writeJSON(path.join(runDirectory, 'run.json'), metadata);
     // This non-installing parser rejection proves LaunchServices can deliver
@@ -336,10 +375,48 @@ export async function startManualRun() {
   }
 }
 
+export async function coldStartCheck(runDirectory) {
+  const resolved = path.resolve(runDirectory);
+  if (!isManualRunDirectory(resolved)) throw new Error('cold-start-check accepts only a direct .runtime/tests/marketplace/manual-* directory');
+  const metadataPath = path.join(resolved, 'run.json');
+  const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
+  if (metadata.runDirectory !== resolved || !metadata.server || !metadata.app || !metadata.deepLink) {
+    throw new Error('run.json is not a valid manual Marketplace run record');
+  }
+  const serverCommand = processCommand(metadata.server.pid);
+  if (!serverCommand || !serverCommand.includes(SERVER_SCRIPT) || !serverCommand.includes(metadata.configPath)) {
+    throw new Error('the recorded static server is not running; start a new manual Marketplace run');
+  }
+
+  const appMarkers = metadata.app.mode === 'cold' ? [EXECUTABLE] : [EXECUTABLE, metadata.configPath];
+  await stopRecordedProcess(metadata.app.pid, appMarkers);
+  await waitFor(() => !runningProcesses().some(value => value.command.includes(EXECUTABLE)), 'OpenDesk bundle still has a running process before cold-start check');
+
+  const offset = await logSize(metadata.app.log);
+  directOpen(`${metadata.deepLink}&unsupported=1`, BUNDLE);
+  const coldProcess = await waitFor(() => {
+    const found = runningProcesses().find(value => value.command.includes(EXECUTABLE));
+    return found ? {pid: found.pid, command: found.command} : undefined;
+  }, 'LaunchServices did not cold-start the OpenDesk bundle');
+  await waitFor(() => logContainsAfter(metadata.app.log, offset, '[MARKETPLACE_INSTALL] development session restored'), 'cold-started OpenDesk did not restore the approved Marketplace development session');
+  await waitFor(() => logContainsAfter(metadata.app.log, offset, '[MARKETPLACE_INSTALL] rejected invalid install intent'), 'cold-started OpenDesk did not receive the LaunchServices URL');
+
+  metadata.app = {...metadata.app, pid: coldProcess.pid, mode: 'cold'};
+  metadata.coldStartCheckedAt = new Date().toISOString();
+  await writeJSON(metadataPath, metadata);
+  await appendFile(path.join(resolved, 'supervisor.log'), `cold-start check passed at ${metadata.coldStartCheckedAt} pid=${coldProcess.pid}\n`, {mode: 0o600});
+  return metadata;
+}
+
 async function main(argv) {
   if (argv.length === 0) {
     const run = await startManualRun();
     process.stdout.write(`Marketplace local manual run is ready.\nMain page: ${run.url}\nRelease: ${run.releaseURL}\nPackage: ${run.artifactURL}\nPrepared site: ${run.siteRoot}\nHTTP request log: ${run.server.requestLog}\nInstall data: ${run.appData}\nRun directory: ${run.runDirectory}\nOpenDesk log: ${run.app.log}\nCleanup: node tests/prototypes/tools/marketplace-local-manual.mjs --cleanup ${run.runDirectory}\n`);
+    return;
+  }
+  if (argv.length === 2 && argv[0] === '--cold-start-check') {
+    const run = await coldStartCheck(argv[1]);
+    process.stdout.write(`Marketplace cold-start receiver check passed.\nMain page: ${run.url}\nOpenDesk PID: ${run.app.pid}\nNext: click the real Notify Demo in Chrome and complete the native confirmation.\n`);
     return;
   }
   if (argv.length === 2 && argv[0] === '--cleanup') {

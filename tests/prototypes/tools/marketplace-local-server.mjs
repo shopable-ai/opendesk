@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import {createHash, generateKeyPairSync, sign} from 'node:crypto';
+import {createHash, generateKeyPairSync, randomUUID, sign} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {appendFile, lstat, mkdir, readFile, readdir, writeFile} from 'node:fs/promises';
 import http from 'node:http';
@@ -113,6 +113,7 @@ function fixture() {
   const artifact = readFileSync(PACKAGE);
   const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'));
   const artifactDigest = verifyCanonicalPackage(artifact, manifest);
+  const sessionId = randomUUID().replace(/-/g, '');
   const publishedAt = canonicalUTC(new Date(Math.floor(Date.now() / 1000) * 1000));
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
   expiresAt.setMilliseconds(0);
@@ -175,7 +176,7 @@ function fixture() {
     output: '显式运行后显示 Toast，并写入 Notify Demo 固定 console 日志',
     size: `${sizeKB} KB`,
   };
-  return {artifact, manifest, release, attestation, rootPublicKey, deepLink, relativeReleaseURL, relativeArtifactURL, catalogItem};
+  return {artifact, manifest, release, attestation, sessionId, rootPublicKey, deepLink, relativeReleaseURL, relativeArtifactURL, catalogItem};
 }
 
 function renderBinding(state) {
@@ -308,7 +309,9 @@ export async function startLocalMarketplaceServer(options) {
   const host = options.host.includes(':') ? `[${options.host}]` : options.host;
   const baseURL = `http://${host}:${address.port}`;
   const config = {
-    schemaVersion: 2,
+    schemaVersion: 3,
+    sessionId: prepared.state.sessionId,
+    expiresAt: prepared.state.attestation.expiresAt,
     resolver: 'static',
     metadataBaseUrl: baseURL + '/',
     artifactBaseUrl: '',

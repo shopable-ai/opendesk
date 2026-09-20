@@ -53,3 +53,12 @@ test('manual Marketplace helper retains an HTTP request evidence log outside the
   assert.match(helperSource, /'--request-log', requestLogPath/);
   assert.match(helperSource, /HTTP request log: \$\{run\.server\.requestLog\}/);
 });
+
+test('manual Marketplace helper exposes a real cold-start receiver check and selective session cleanup', () => {
+  assert.match(helperSource, /--cold-start-check/);
+  assert.match(helperSource, /development session restored/);
+  assert.match(helperSource, /coldStartCheck/);
+  assert.match(helperSource, /DEVELOPMENT_SESSION_FILE/);
+  assert.match(helperSource, /session\.configPath/);
+  assert.match(helperSource, /mode: 'cold'/);
+});

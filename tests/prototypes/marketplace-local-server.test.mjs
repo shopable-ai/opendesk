@@ -62,8 +62,11 @@ test('local Marketplace prepares one same-site static page, signed release and r
 
   const config = JSON.parse(await readFile(configOutput, 'utf8'));
   assert.deepEqual({schemaVersion: config.schemaVersion, resolver: config.resolver, metadataBaseUrl: config.metadataBaseUrl, artifactBaseUrl: config.artifactBaseUrl}, {
-    schemaVersion: 2, resolver: 'static', metadataBaseUrl: running.baseURL + '/', artifactBaseUrl: '',
+    schemaVersion: 3, resolver: 'static', metadataBaseUrl: running.baseURL + '/', artifactBaseUrl: '',
   });
+  assert.match(config.sessionId, /^[0-9a-f]{32}$/);
+  assert.equal(config.expiresAt, document.attestation.expiresAt);
+
   assert.deepEqual((await readdir(siteRoot)).sort(), ['flows', 'index.html', 'local-deep-link-smoke.html']);
 
   const generic = await startGenericStaticServer(siteRoot);
