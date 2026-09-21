@@ -351,20 +351,33 @@ func (d *ProcessDriver) ensureStarted(ctx context.Context) error {
 	var process hostProcess
 	var stdin io.WriteCloser
 	var stdout io.ReadCloser
+
+	// Serialize the final closed check, OS process creation, and ownership
+	// publication with Close(). Without this boundary, Close could observe
+	// process == nil and return while a concurrent start was still capable of
+	// materializing an unowned native host immediately afterwards.
+	d.mu.Lock()
+	if d.closed {
+		d.mu.Unlock()
+		d.failStart(&Error{Code: CodeCanceled, Operation: "startHost", Message: "custom UI driver is closed"})
+		d.releaseLease()
+		return d.waitReady(ctx)
+	}
 	if d.opts.Command != nil {
 		process, stdin, stdout, err = startCommandHostProcess(d.opts.Command(path), d.opts.Stderr)
 	} else {
 		process, stdin, stdout, err = startPlatformHostProcess(path, d.opts.Stderr)
 	}
+	if err == nil {
+		d.process = process
+		d.stdin = stdin
+	}
+	d.mu.Unlock()
 	if err != nil {
 		d.failStart(wrapDriver("startHost", "", err))
 		d.releaseLease()
 		return d.waitReady(ctx)
 	}
-	d.mu.Lock()
-	d.process = process
-	d.stdin = stdin
-	d.mu.Unlock()
 	go d.readFrames(stdout)
 	go func() {
 		err := process.Wait()

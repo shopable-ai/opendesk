@@ -77,6 +77,82 @@ func TestProcessDriverCloseIsBoundedWhenForcedTerminationDoesNotExit(t *testing.
 	}
 }
 
+func TestProcessDriverCloseDuringHostStartCannotLeaveLateHost(t *testing.T) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	released := false
+	defer func() {
+		if !released {
+			close(release)
+		}
+	}()
+
+	driver := NewProcessDriver(ProcessDriverOptions{
+		StartupTimeout:   2 * time.Second,
+		ShutdownTimeout:  250 * time.Millisecond,
+		ForceExitTimeout: 500 * time.Millisecond,
+		Command: func(string) *exec.Cmd {
+			close(entered)
+			<-release
+			command := exec.Command(os.Args[0], "-test.run=^TestProcessDriverHelper$")
+			command.Env = append(os.Environ(), "GO_WANT_CUSTOM_UI_HELPER=1")
+			return command
+		},
+	})
+
+	createDone := make(chan error, 1)
+	go func() {
+		_, err := driver.Create(context.Background(), "close-during-start", testWindowSpec("panel"), nil)
+		createDone <- err
+	}()
+
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("host start did not reach the controlled launch boundary")
+	}
+
+	closeStarted := make(chan struct{})
+	closeDone := make(chan error, 1)
+	go func() {
+		close(closeStarted)
+		closeDone <- driver.Close()
+	}()
+	<-closeStarted
+
+	// While the OS-process creation boundary is deliberately blocked, Close
+	// must not be able to conclude that there is no process to own.
+	select {
+	case err := <-closeDone:
+		t.Fatalf("Close() returned before the concurrent host start resolved: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(release)
+	released = true
+
+	select {
+	case err := <-closeDone:
+		if err != nil {
+			t.Fatalf("Close() = %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close() did not finish after the controlled host start was released")
+	}
+
+	select {
+	case <-createDone:
+		// Either a canceled Create or a Create that lost the race to Close is
+		// acceptable; the lifecycle invariant is that no host remains owned.
+	case <-time.After(2 * time.Second):
+		t.Fatal("Create() did not settle after Close()")
+	}
+
+	if counts := driver.ResourceCounts(); counts.HostProcesses != 0 || counts.Sinks != 0 {
+		t.Fatalf("resources after concurrent start/close = %#v", counts)
+	}
+}
+
 func TestProcessDriverHostCrashFailsRequestWithoutRespawn(t *testing.T) {
 	driver := NewProcessDriver(ProcessDriverOptions{
 		StartupTimeout: 2 * time.Second,

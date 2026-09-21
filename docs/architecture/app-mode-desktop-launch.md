@@ -54,11 +54,13 @@ starts with accessory activation policy; a normal document-style Custom UI windo
 activation so it can receive normal keyboard/window focus, while floating/measurement surfaces remain accessory-style. Dock
 visibility is therefore a separate observation from process count.
 
-Normal shutdown first requests the host protocol `shutdown`. If the graceful deadline expires, Runtime closes the host input
-and requests forced termination, then waits only for a second bounded deadline. If forced termination still cannot be
-confirmed, cleanup returns an error and the process-wide native lease remains reserved until the host Wait path actually
-observes exit; Runtime must not claim the helper is gone and start a second native session. On macOS, stdin EOF is also an
-explicit AppKit shutdown signal. On Windows, the UI Host is created inside a dedicated Job Object with
+Host creation and owner shutdown are serialized across the final closed check, OS process creation and ownership publication.
+This prevents a concurrent `Close()` from returning "no process" while a delayed start is still capable of materializing a
+late UI Host. Normal shutdown first requests the host protocol `shutdown`. If the graceful deadline expires, Runtime closes
+the host input and requests forced termination, then waits only for a second bounded deadline. If forced termination still
+cannot be confirmed, cleanup returns an error and the process-wide native lease remains reserved until the host Wait path
+actually observes exit; Runtime must not claim the helper is gone and start a second native session. On macOS, stdin EOF is
+also an explicit AppKit shutdown signal. On Windows, the UI Host is created inside a dedicated Job Object with
 `KILL_ON_JOB_CLOSE`, so abnormal owner death also bounds Runtime-owned descendants.
 
 Other on-demand helpers and WebKit / WebView2 engine processes are counted separately from the OpenDesk main process and UI
