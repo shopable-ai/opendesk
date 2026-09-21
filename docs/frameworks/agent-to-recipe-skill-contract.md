@@ -1,17 +1,17 @@
 # Agent-to-Recipe：独立 Skill 与成果交接合同
 
-状态：作业规范文档 v1.2，2026-09-13 增补跨来源 Capability 发布交接；2026-09-11 修订计划—事实—关键步骤交接与目标专业职责，应用工程增量原修订于 2026-09-08。原记录日期：2026-09-06；实际执行仍须核对当次代码、构建物、Skill 宿主与接口。文档版本不自动升级 request／handoff／AppProfile 或 Human schema。规范、职责名称或 Skill 文件不证明宿主调度、权限隔离、自动校验或桌面测试已经实现／通过。
+状态：作业规范文档 v1.2；2026-09-22 同步八个方法包的当前文件状态，不改变 request／handoff／AppProfile schema；2026-09-13 增补跨来源 Capability 发布交接；2026-09-11 修订计划—事实—关键步骤交接与目标专业职责，应用工程增量原修订于 2026-09-08。原记录日期：2026-09-06；实际执行仍须核对当次代码、构建物、Skill 宿主与接口。文档版本不自动升级 request／handoff／AppProfile 或 Human schema。规范、职责名称或 Skill 文件不证明宿主调度、权限隔离、自动校验或桌面测试已经实现／通过。
 
 ## 1. 定位与唯一职责
 
-本文件维护 Agent-to-Recipe 专业作业的输入、输出、交接和恢复约定，并维护 Human／已有资产进入共同资格与发布出口时的最小适配约束，不另建开发阶段或业务执行引擎。S1—S12 仍是生命周期阶段；专业职责与阶段不是一一对应。当前已有 `application-engineer`、`trace-distill`、`procedure-synthesize`、`code-rebuild`、`recipe-qualify` 五个方法文件，支持当前 Agent 显式读取；宿主发现／加载与独立上下文验证仍须另外证明。Human 的两个现有 Skill 保持独立来源和方法，不因复用本合同而改成 Agent 示范。
+本文件维护 Agent-to-Recipe 专业作业的输入、输出、交接和恢复约定，并维护 Human／已有资产进入共同资格与发布出口时的最小适配约束，不另建开发阶段或业务执行引擎。S1—S12 仍是生命周期阶段；专业职责与阶段不是一一对应。当前八项专业职责均已有同名方法文件：`automation-plan`、`application-engineer`、`task-demonstrate`、`trace-distill`、`procedure-synthesize`、`recipe-build`、`code-rebuild`、`recipe-qualify`，支持当前 Agent 显式读取；宿主发现／加载、独立上下文行为与真实业务资格仍须另外证明。Human 的两个现有 Skill 保持独立来源和方法，不因复用本合同而改成 Agent 示范。
 
 - 阶段与完整生命周期：[示范到自动化执行方法](demonstration-to-automation-pipeline.md)。
 - 业务拆解、数据依赖和六类解题模式：[自动化任务求解方法](automation-problem-solving-framework.md)。
 - 专业操作依据：[应用开发框架](app-development-framework.md)、[总体执行闭环](automation-framework.md)。
 - 可调用能力：[API 入口](../api/README.md)、[Execution](../api/execution.md)、[扩展放置原则](runtime-api-extension-framework.md)。
 - 已有质量体系：[G0—G7](../quality/gates-and-evidence.md)、[失败分类](../quality/failure-taxonomy.md)。不另造平行 Gate／Failure 编号。
-- 工作流导航及五个方法文件：[当前入口](../../workflows/agent-to-recipe/WORKFLOW.md)。旧 prompts 目录不是有效入口；方法文件不证明当前存在已安装实现。
+- 工作流导航及八个方法文件：[当前入口](../../workflows/agent-to-recipe/WORKFLOW.md)。旧 prompts 目录不是有效入口；方法文件存在不证明宿主已自动安装／加载，也不证明对应业务资格通过。
 - 原首个验证任务：[计算器规程](../quality/agent-to-recipe/calculator-validation.md)。行为案例与应用工程评测沿用[当前验证计划](../../workflows/agent-to-recipe/design/validation-plan.md)。
 - 跨 Runtime／Catalog／Authoring 生命周期、CapabilityDefinition／CatalogEntry、运行路由与 P0／P1 优先级：[Automation Capability Lifecycle](../architecture/desktop-automation/task-capability-lifecycle.md)。本文第 10 节只拥有跨来源作者交接约束，不复制第二套运行状态机或能力目录字段。
 
@@ -31,12 +31,12 @@ Agent 使用 OpenDesk 当前能力完成真实任务，保存关键事实，先�
 
 | 专业职责 | 方法阶段 | 主要输入 | 本环节必须保存的主产物 | 正常消费者 |
 | --- | --- | --- | --- | --- |
-| `automation-plan` | S1，含前置拆解与操作计划 | 用户自然语言／样例／已有资产、授权来源 | TaskContract、WorkPlan、可读任务／操作计划视图 | 应用工程、示范及所有后续环节 |
-| `application-engineer` | S2、S10 | 合同、所需操作、观察证据或定向缺口 | AppProfile、必要普通 JS helper、同版审阅／验证记录 | 示范、提炼、生成与验收，各按限定范围消费 |
-| `task-demonstrate` | S3—S6 | 合同、操作计划、应用资料、获准业务输入 | DemonstrationDossier、planned／actual 对应、关键业务值及证据索引 | trace-distill／诊断 |
+| `automation-plan`（方法文件已实现） | S1，含前置拆解与操作计划 | 用户自然语言／样例／已有资产、授权来源 | TaskContract、WorkPlan、可读任务／操作计划视图 | 应用工程、示范及所有后续环节 |
+| `application-engineer`（方法文件已实现） | S2、S10 | 合同、所需操作、观察证据或定向缺口 | AppProfile、必要普通 JS helper、同版审阅／验证记录 | 示范、提炼、生成与验收，各按限定范围消费 |
+| `task-demonstrate`（方法文件已实现） | S3—S6 | 合同、操作计划、应用资料、获准业务输入 | DemonstrationDossier、planned／actual 对应、关键业务值及证据索引 | trace-distill／诊断 |
 | `trace-distill`（方法文件已实现） | S7 | 合同／计划、Dossier／Raw Trace、必要应用资料 | DistilledSteps、原 action 取舍、必要路径、恢复候选与未决项 | procedure-synthesize、步骤试执行、诊断 |
-| `procedure-synthesize` | S8—S9 | 合同、DistilledSteps、应用资料及补证 | SemanticProcedure、Business Step、参数与数据依赖 | 应用补强、生成 |
-| `recipe-build` | S11 的路线 A 实现 | 已确认过程、应用资料、当前 API | 普通 JS、CandidateManifest | 按需代码改进或验收 |
+| `procedure-synthesize`（方法文件已实现） | S8—S9 | 合同、DistilledSteps、应用资料及补证 | SemanticProcedure、Business Step、参数与数据依赖 | 应用补强、生成 |
+| `recipe-build`（方法文件已实现） | S11 的路线 A 实现 | 已确认过程、应用资料、当前 API | 普通 JS、CandidateManifest | 按需代码改进或验收 |
 | `code-rebuild`（方法文件已实现） | S11 内可选／独立入口 | 代码基线、明确需求与改进目标、相关应用规则 | 原样保留结论，或新候选、变更理由、检查结果与重验范围 | 验收 |
 | `recipe-qualify`（方法文件已实现） | S12 | 冻结合同、候选版本、验证场景 | QualificationRecord、Recipe Review、失败及修复请求 | 协调者／交付者 |
 
