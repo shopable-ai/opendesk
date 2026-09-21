@@ -98,16 +98,22 @@ func TestProcessDriverGlobalNativeSessionLease(t *testing.T) {
 }
 
 func TestValidateFileDropEventIsBoundedAndExtensionScoped(t *testing.T) {
-	valid := Event{WindowID: "runner", Type: "fileDrop", Sequence: 1, Paths: []string{"/tmp/example.odflow", "/tmp/recipe.mjs"}}
+	baseDir := t.TempDir()
+	flowPath := filepath.Join(baseDir, "example.odflow")
+	modulePath := filepath.Join(baseDir, "recipe.mjs")
+	scriptPath := filepath.Join(baseDir, "recipe.js")
+	unsupportedPath := filepath.Join(baseDir, "notes.txt")
+
+	valid := Event{WindowID: "runner", Type: "fileDrop", Sequence: 1, Paths: []string{flowPath, modulePath}}
 	if err := validateFileDropEvent(valid, 0); err != nil {
 		t.Fatal(err)
 	}
 	for name, event := range map[string]Event{
 		"relative":    {WindowID: "runner", Type: "fileDrop", Sequence: 1, Paths: []string{"recipe.js"}},
-		"unsupported": {WindowID: "runner", Type: "fileDrop", Sequence: 1, Paths: []string{"/tmp/notes.txt"}},
-		"target":      {WindowID: "runner", Type: "fileDrop", TargetID: "button", Sequence: 1, Paths: []string{"/tmp/recipe.js"}},
+		"unsupported": {WindowID: "runner", Type: "fileDrop", Sequence: 1, Paths: []string{unsupportedPath}},
+		"target":      {WindowID: "runner", Type: "fileDrop", TargetID: "button", Sequence: 1, Paths: []string{scriptPath}},
 		"empty":       {WindowID: "runner", Type: "fileDrop", Sequence: 1},
-		"duplicate":   {WindowID: "runner", Type: "fileDrop", Sequence: 1, Paths: []string{"/tmp/recipe.js", "/tmp/recipe.js"}},
+		"duplicate":   {WindowID: "runner", Type: "fileDrop", Sequence: 1, Paths: []string{scriptPath, scriptPath}},
 	} {
 		if err := validateFileDropEvent(event, 0); err == nil {
 			t.Fatalf("%s file-drop event unexpectedly accepted", name)
