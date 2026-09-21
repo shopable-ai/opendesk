@@ -13,7 +13,7 @@ order: 30
 - 以[主方法](../../../docs/frameworks/demonstration-to-automation-pipeline.md)第 0 节十二阶段总表、[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)的 S1—S12 映射为主编号；业务分解依据[任务求解方法](../../../docs/frameworks/automation-problem-solving-framework.md)。
 - 本文保留五个需求结果层次，下面写实际要完成的大任务和小任务；阶段是开发自动化的方法，不是生成后每次业务运行都要重走的步骤。
 - 讨论中的十三节点视图也保留在后文，但用 R1—R13 标识其原节点，防止“讨论 S4＝状态重建”与“合同 S4＝动作后验证”混用。这是来源对照，不是新增运行阶段或悄悄修订上游文档。
-- 应用操作细化见[应用操作建模与封装](application-operations.md)；S11 的按需质量改进见[code-rebuild](code-rebuild.md)。当前四个方法文件及验证切片见 [WORKFLOW 第 4.1 节](../WORKFLOW.md#41-相邻工件消费检查与方法入口)；宿主自动调用和独立上下文验收尚未证明，任务树与 S1—S12 编号不变。
+- 应用操作细化见[应用操作建模与封装](application-operations.md)；S11 的按需质量改进见[code-rebuild](code-rebuild.md)。当前八项专业职责均已有同名方法文件；方法入口、输入输出适用规格和当前验证边界见 [WORKFLOW](../WORKFLOW.md) 与[交接审阅地图](acceptance-map.md)。宿主自动加载、独立上下文行为和真实业务资格仍须分别证明，任务树与 S1—S12 编号不变。
 - Structured Collection Reading 作为 S1—S12 内的跨应用数据读取能力整合，**不新增 S13，也不新增 collection/ui-understanding/VLM Skill**。`UI.readCollection()`／`UI.collectCollection()` 当前只是在专项架构冻结的 Working Contract，真正实现前生成代码只能使用当前 API。
 - 本文回答完整需要做什么；[requirements.md](requirements.md)明确来源和需求基线，[chain-design.md](chain-design.md)明确环节、输入输出和组合，[validation-plan.md](validation-plan.md)明确凭什么通过。不在任务树复制完整专业方法和数据合同。
 
