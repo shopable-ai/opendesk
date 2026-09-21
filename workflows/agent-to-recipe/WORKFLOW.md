@@ -6,7 +6,7 @@ order: 10
 
 # Agent-to-Recipe｜工作流导航与应用工程入口
 
-本文件负责整体工作流导航、手工协调执行规程和当前已存在的方法入口，不是自动调度程序。当前已建立 [application-engineer](skills/application-engineer/SKILL.md)、[trace-distill](skills/trace-distill/SKILL.md)、[procedure-synthesize](skills/procedure-synthesize/SKILL.md)、[code-rebuild](skills/code-rebuild/SKILL.md) 和 [recipe-qualify](skills/recipe-qualify/SKILL.md) 方法文件，可由当前 Agent 显式读取使用；文件、辅助程序、宿主加载、独立上下文评测和真实业务资格分别判断。本文不复制专业正文，也不自动授予桌面权限。
+本文件负责整体工作流导航、手工协调执行规程和当前已存在的方法入口，不是自动调度程序。当前八项专业职责均已有正式方法入口：[automation-plan](skills/automation-plan/SKILL.md)、[application-engineer](skills/application-engineer/SKILL.md)、[task-demonstrate](skills/task-demonstrate/SKILL.md)、[trace-distill](skills/trace-distill/SKILL.md)、[procedure-synthesize](skills/procedure-synthesize/SKILL.md)、[recipe-build](skills/recipe-build/SKILL.md)、[code-rebuild](skills/code-rebuild/SKILL.md) 和 [recipe-qualify](skills/recipe-qualify/SKILL.md)，可由当前 Agent 显式读取使用；文件、辅助程序、宿主加载、独立上下文评测和真实业务资格分别判断。本文不复制专业正文，也不自动授予桌面权限。
 
 
 ## 先看这里：S1—S12 一页主框架
@@ -40,22 +40,22 @@ Agent-to-Recipe 的核心目标不是“把桌面操作记录下来”，而是�
 
 ## 当前 Skill 划分与下游输入充分性
 
-2026-09-20 本轮读取基线：`0ff69b4e3872ddc21fd879f52b8eccd1a9b7de5d`。仍为 **5 个 SKILL.md、8 项专业职责、8 组交接**；本轮没有新增 Skill。方法版本用仓库提交／方法 hash 核对；业务输入版本仍必须由每次 request 的固定 ref／hash 核对，二者不能混用。
+2026-09-22 当前 HEAD 已为 **8 个 SKILL.md、8 项专业职责、8 组交接**。9 月 20 日的五方法输入充分性审查仍作为其当时基线证据保留，但 `automation-plan`、`task-demonstrate`、`recipe-build` 已在 9 月 21 日补成正式方法包及输入输出适用规格；不能继续把“当时没有同名 Skill”当作当前事实。方法版本用仓库提交／方法 hash 核对；业务输入版本仍必须由每次 request 的固定 ref／hash 核对，二者不能混用。
 
 ### 职责与输入充分性审查决定
 
 | 阶段／Skill／模式 | 下游必须知道什么 | 实际输入来源及版本 | 应产出 → 正常消费者 | 缺口、失败责任与本轮决定 |
 | --- | --- | --- | --- | --- |
-| S1／automation-plan；无同名 Skill | 原始目标、授权、成功标准、数据政策及未知 | 原始用户来源；固定 TaskContract／WorkPlan；方法为当前 chain-design、任务求解方法及共享合同 | 合同／计划 → 后续各环节 | 既有方法能指导当前任务的目标与计划，不证明独立生产。未发现必须另建方法的重复机制缺口；保留职责，政策缺口回 S1 |
+| S1／automation-plan | 原始目标、授权、成功标准、数据政策及未知 | 原始用户来源；固定 request／来源；方法包读取共享合同、任务求解方法及实际旧产物 | TaskContract／WorkPlan → 后续各环节 | 正式方法与 io-spec 已落地；规划范围可检查，但宿主自动加载、独立上下文生产和真实业务使用仍分别验证。政策／授权缺口回 S1 |
 | S2、S10／application-engineer；discover／harden／repair | 应用身份、关系、规则、证据范围和失效条件 | discover：合同／近期目标／观察；harden：已确认过程／工程缺口；repair：旧规则／失败／范围，均固定版本 | AppProfile／helper／局部验证 → 示范、过程、生成 | 保留三模式。认识、工程验证、业务资格分别判断；应用关系缺口回本职责，不能由 S9 猜 |
-| S3—S6／task-demonstrate；无同名 Skill | 实际动作、读值、消费者、选型记录及副作用 | 固定合同／计划／应用资料＋获准现场；既有同步 Capture 作业方法 | Dossier／原始证据／来源记录 → S7及获准定向补证 | 本轮补强共享合同中的同步留存与投影来源；不新增事后追记 Skill。缺事实回本职责，新观察不能冒充过去事实；真实示范未运行 |
+| S3—S6／task-demonstrate | 实际动作、读值、消费者、选型记录及副作用 | 固定合同／计划／应用资料＋获准现场；方法包要求同步 Capture、实际观察和 planned／actual 绑定 | Dossier／Raw Trace／Evidence → S7 及获准定向补证 | 正式方法与 io-spec 已落地；缺事实回本职责，新观察不能冒充过去事实。方法存在不代表真实示范或桌面资格已经运行通过 |
 | S7／trace-distill | 必要路径、值的含义／类型、读值与实际消费、政策、应用目标 | 固定 Dossier／Trace＋合同政策／Profile／证据；输出保留精确 lineage | 有来源的 DistilledSteps → S9 | **补强运行时值投影和实际消费绑定**。S7 丢信息由 S7 修；来源原本不足回原责任方；顺序切片已做输入驱动验证，模型行为未运行 |
 | S8—S9／procedure-synthesize | 业务步骤、值来源、实际转换、有效期／重读、应用关系、有来源的选型 | S7 实际输出＋获准且实际交付的 Profile、读值证据、选择记录／API；不取得全量 Trace | SemanticProcedure／待工程事项 → S10／S11 | **补强收件核对、缺口拒绝和定向重消费**。材料未交付先找协调者，源资料缺失回原记录者，语义映射错误留 S9；未完成工程验证仍可明确交 S10 |
-| S11／recipe-build；无同名 Skill | 完整语义、已落实操作、当前 API、入口和依赖 | 固定 Procedure／Profile／API，按既有路线 A 与 Candidate 合同 | 普通 JS／CandidateManifest → 按需改进或 S12 | 现有依据支持受限编写，但没有独立方法入口／行为证明。本轮未发生可归因的初次生成失败，不为凑数建文件；未来有重复方法缺口再建正式入口 |
+| S11／recipe-build | 完整语义、已落实操作、当前 API、入口和依赖 | 固定 Procedure／Profile／API／helper；方法包明确使用 canonical contract 和真实数据依赖 | 普通 JS／CandidateManifest → 按需 code-rebuild 或 S12 | 正式方法与 io-spec 已落地；实现错误由 S11 修，语义／规则缺口定向返回。方法存在不代表模型生成能力、宿主加载或 Candidate 业务资格已通过 |
 | S11／code-rebuild；可选 | 精确代码基线、改进目标、允许变更与旧资格范围 | 固定代码／候选／过程／应用规则／API | 保留结论或新候选／重验范围 → S12 | 保留；不改合格代码，不补造上游语义；改变候选字节不能沿用旧资格 |
 | S12／recipe-qualify | 固定候选、预定场景、环境、授权、预算及独立结果 | Candidate／依赖／合同／验收请求／当前环境的固定来源 | QualificationRecord／定向修复 → 交付者或原责任 | 保留；只有实际运行可证明业务资格，本轮未调用真实桌面或模型资格 |
 
-三个缺少同名文件的职责不是“已经实现的独立 Skill”，也不是“完全没有方法”。本轮只把已经观察到的输入缺口修回原合同／方法位置。独立生产是否稳定仍是待验证项，不以文件数量代替答案。
+原先缺少同名方法文件的 `automation-plan`、`task-demonstrate`、`recipe-build` 已补齐；现在八项职责都有方法入口。**方法文件齐全只解决“方法可找到、输入输出可读”这一层，不自动证明宿主加载、独立 Producer 行为、真实桌面执行或端到端资格。** 后续评测仍按实际证据逐层记录。
 
 ### 本轮打通的最小相邻链
 
@@ -73,7 +73,7 @@ Agent-to-Recipe 的核心目标不是“把桌面操作记录下来”，而是�
 
 ### 接续复核：来源身份、合法合并与失败历史（2026-09-21）
 
-本次读取 `master` 基线 `ab4775c77c26f98c567b04912f8d36c6f118864d`，复用上轮实现，不增加 Skill 或阶段。五个方法文件保持原职责；三个未设同名 Skill 的职责继续按已有作业依据执行，独立生产能力仍未验证。
+本段记录的是提交 `ab4775c77c26f98c567b04912f8d36c6f118864d` 当时的接续复核：彼时仍是五个方法文件、三个职责未设同名 Skill。该历史证据继续有效，但**当前 HEAD 已在后续提交中补齐八个方法包**；不能用本段旧状态覆盖当前目录事实。独立生产能力、宿主加载和真实业务资格仍须分别验证。
 
 本次实际修复四类缺口：**S7 原读取／消费的应用身份漏核对；原消费者集合与 S9 步骤声明漏项或冲突；多个消费者合法合并后不同变换被第一项覆盖；接续时只核对 S7 而漏核对直接前次 S9 的失败证据。** 来源错误回原记录者，语义映射错误由 S9 修，历史被改则协调者先核实，不调用下一 Producer；拒绝接续也保留已耗预算。
 
@@ -317,4 +317,4 @@ S10 消费策略选择、风险和定位证据，S11 执行生成者自检，S12
 - 同一个 Agent 可连续承担专业工作和检查；独立上下文测试须真实隔离，不能以在同一对话切换角色冒充通过。
 - 生成与可选改进分开，失败按原因返回，不必所有任务重走完整链。结果可能已经生效时先核对，不从头重放。
 - 正常保存必要事实，异常再展开诊断，不等失败后补造现场。原图、审阅、规则与验证不混用版本；只有认识时不声明已有可靠操作。
-- 当前五个方法入口见“当前 Skill 划分与下游输入充分性”，限定检查与验证范围见第 4.1 节；实际模型提取、留出规则测试、宿主加载、盲上下文及其他桌面场景仍按验证计划分批完成，未运行项如实保留。
+- 当前八个方法入口见“当前 Skill 划分与下游输入充分性”，限定检查与验证范围见第 4.1 节；实际模型提取、留出规则测试、宿主加载、盲上下文及其他桌面场景仍按验证计划分批完成，未运行项如实保留。
