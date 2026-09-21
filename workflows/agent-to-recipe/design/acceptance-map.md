@@ -155,22 +155,27 @@ node workflows/agent-to-recipe/scripts/check-artifact-chain.js --through trace-d
 `localChecks` 是局部规则诊断；`boundaries` 加上前置依赖判断。这里的 `blocked` 不是新增 G 编号或修改 handoff 枚举。
 `stageComplete=false`、`liveQualificationGranted=false` 明确表示本工具没有完成全部 Stage 接受责任。
 
-## 六、四个补齐方法的实际边界
+## 六、八个方法文件的当前边界
 
-| 方法 | 本次可用成果 | 仍需独立证明 |
+当前八项专业职责均已有正式方法文件和各自输入输出适用规格。下面区分“方法可找到／输入输出可读”和“实际 Producer／宿主／业务资格已证明”；后者仍必须靠独立证据。
+
+| 方法 | 当前已经落库／可检查 | 仍需独立证明 |
 | --- | --- | --- |
+| [automation-plan](../skills/automation-plan/SKILL.md) | S1 方法、TaskContract／WorkPlan 输入输出边界、正常／拒绝／修订／复用样例 | 宿主加载、独立上下文规划质量、复杂真实任务的目标与授权保持 |
+| [application-engineer](../skills/application-engineer/SKILL.md) | discover／harden／repair 方法、AppProfile／规则边界、三模式 io-spec | 真实模型提取、跨环境定位稳定性、真实桌面操作与 repair 回归 |
+| [task-demonstrate](../skills/task-demonstrate/SKILL.md) | S3—S6 同步示范、planned／actual、runtime value／consumer、失败接续方法 | 真实桌面示范、未知副作用处理、模型／宿主下的稳定证据生产 |
 | [trace-distill](../skills/trace-distill/SKILL.md) | 输入输出样例、S7 前缀检查、保留／合并来源反例、返工方法 | 模型能否从未见轨迹稳定产生正确 DistilledSteps |
 | [procedure-synthesize](../skills/procedure-synthesize/SKILL.md) | 语义与数据关系样例、S9 前缀检查、错误映射反例 | 独立上下文 Producer 行为、跨应用与多消费者泛化 |
+| [recipe-build](../skills/recipe-build/SKILL.md) | S11 构建方法、CandidateManifest／sourceMapping／真实数据流与 API 边界、io-spec | 不同任务上的实际代码生成质量、宿主执行兼容、冻结候选的真实 Fresh Run |
 | [code-rebuild](../skills/code-rebuild/SKILL.md) | 固定基线评审方法、必须交付的结论表、无需先有资格的候选检查 | 多种代码缺陷的实际审阅能力、评审一致性、当前候选真实重验 |
 | [recipe-qualify](../skills/recipe-qualify/SKILL.md) | S12 冻结 Candidate 的场景计划、QualificationRecord、Recipe Review／评分证据边界与返修路由 | 宿主自动加载、跨任务资格一致性、隔离上下文审阅和新的 live 业务样本 |
 
-application-engineer 继续服务 S2／S10，本次未改变其实现。recipe-qualify 已有方法文件；automation-plan、task-demonstrate、recipe-build 仍是共享合同中的目标职责，不能虚构同名命令或把它们列成已安装方法。
-
+八个方法文件齐全不表示存在八个 CLI 命令，也不表示宿主自动扫描目录。真实调用方式、权限、上下文隔离、模型／工具版本和业务资格仍按实际宿主与证据记录。
 ## 七、问题清单与推进顺序
 
 | 本轮问题／旧任务树来源 | 方案决定 | 实现与验证位置 | 后续缺口 |
 | --- | --- | --- | --- |
-| 主链看不出产物是否正确；S1—S12／三个循环 | 保留完整任务树，用交接地图、字段例子和反例审阅 | 本页＋四个补齐方法文件 | 在更多真实任务中验证覆盖 |
+| 主链看不出产物是否正确；S1—S12／三个循环 | 保留完整任务树，用交接地图、字段例子和反例审阅 | 本页＋八个方法文件 | 在更多真实任务中验证覆盖 |
 | S7／S9／S11 要等 S12 才能检查 | 在原检查器增加显式前缀 | check-artifact-chain.js；artifact-chain.test.js | 不是全部 Stage Validator |
 | 输入版本／事实关系可能错误 | 核对合同与计划绑定、计划修订、动作来源及消费者 | 正反 Fixture 合同测试 | 可信宿主记录、签名／隔离和多修订轨迹 |
 | 代码优化后缺清楚结论；S11 质量作业 | 固定对象、改动去向、评分依据、未测范围与下一步 | code-rebuild 方法中的结论表 | 评审 Producer 的行为数据集与校准 |
@@ -187,7 +192,7 @@ API Markdown 体系、Runtime、S1—S12、G0—G7 和普通 JS 交付方式均�
 
 | 问题／来源 | 决定、责任与权威位置 | 对应实现／验收 | 当前证据与未决项 |
 | --- | --- | --- | --- |
-| 主链、八边界、三个循环；完整任务树与本页 | 保留，按范围适用；任务树拥有完整工作，chain-design 分配职责，共享合同拥有字段 | 本页主图／两张矩阵；已存在五个方法文件 | 已审阅关系；文件存在不证明宿主加载，三个目标职责仍非已实现 Skill |
+| 主链、八边界、三个循环；完整任务树与本页 | 保留，按范围适用；任务树拥有完整工作，chain-design 分配职责，共享合同拥有字段 | 本页主图／两张矩阵；当前八个方法文件均已存在 | 已审阅关系；文件存在不证明宿主加载、独立 Producer 行为或真实业务资格 |
 | S7 最小内容已明确，检查却允许缺失；共享合同 §6／用户交接要求 | 修正原检查器，合成 Fixture 补真实适用的字段，不改历史 Dossier | STEP_CONTRACT；缺目的、输入输出、依赖、前提、预期、验证、分类及字符串冒充数组的反例 | 已离线验证；自然语言语义、通用轨迹和无关未决仍需范围审阅 |
 | S9 可漏掉终点值或保留相互冲突的 runtimeValues；数据生产／消费合同 | 修正同一语义检查，终点读取也必须保留，声明与 S7／数据边一致 | finalResult 输出丢失、错误生产者／消费者、重复／缺失声明反例 | 已离线验证；不能替代实际 UI 数据链 |
 | 相邻作业的输入和失败保存；用户预算／隔离要求 | 修正原评测调用器；唯一调用合同补在 validation-plan §4 | 精确 input.json hash；实际 checker 版本；多字节截断；null 异常；未用根正例；S9 间接 Raw Trace 反例 | 已验证有限调用与传递；模型身份、OS 隔离、未见样本与独立语义 Oracle 尚未验证 |
