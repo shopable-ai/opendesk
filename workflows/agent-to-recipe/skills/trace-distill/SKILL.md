@@ -8,6 +8,9 @@ description: Distill a frozen Agent-to-Recipe Dossier and Raw Trace into source-
 从固定事实重建必要路径，交给业务过程提炼；不参数化业务、不生成代码、不补造历史。
 本文件是可显式读取的方法，不是同名 CLI、自动安装声明或已通过模型行为评测的证明。
 
+
+本方法的必需输入、实际读取、下游消费、拒绝和修复／复用样例见 [输入输出适用规格](references/io-spec.md)。开始作业时与本方法一起读取并固定各自实际内容版本；它不另建 schema 或评分规则。
+
 ## 输入：必须拿到什么
 
 - TaskContract／WorkPlan 的固定引用：目标、约束、计划版本和本次范围。

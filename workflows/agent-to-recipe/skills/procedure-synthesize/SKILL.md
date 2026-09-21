@@ -7,6 +7,9 @@ description: Convert fixed DistilledSteps into an Agent-to-Recipe SemanticProced
 
 把已确认必要路径表达为业务步骤、参数和运行时数据关系。只拥有业务解释，不重新拥有原始动作取舍。
 
+
+本方法的必需输入、实际读取、下游消费、拒绝和修复／复用样例见 [输入输出适用规格](references/io-spec.md)。开始作业时与本方法一起读取并固定各自实际内容版本；它不另建 schema 或评分规则。
+
 ## 输入：必须拿到什么
 
 - 固定 TaskContract／WorkPlan：目标、约束、计划和本次复用范围。

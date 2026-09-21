@@ -7,6 +7,9 @@ description: Review and minimally improve an existing OpenDesk JavaScript candid
 
 审查精确代码基线，作出有依据的保留或最小改进结论。它不替代 recipe-build，也不要求为了优化而修改已经合格的程序。
 
+
+本方法的必需输入、实际读取、下游消费、拒绝和修复／复用样例见 [输入输出适用规格](references/io-spec.md)。开始作业时与本方法一起读取并固定各自实际内容版本；它不另建 schema 或评分规则。
+
 ## 输入：必须拿到什么
 
 - 精确脚本和 helper 引用／hash、入口命令、工作目录、依赖，以及已有 CandidateManifest。

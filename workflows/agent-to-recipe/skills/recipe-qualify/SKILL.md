@@ -7,6 +7,9 @@ description: Independently qualify a frozen Agent-to-Recipe Candidate at S12. Us
 
 Qualify one exact Candidate and declared scope. This is the S12 professional method, not a new stage, CLI command, publisher, or runtime.
 
+
+本方法的必需输入、实际读取、下游消费、拒绝和修复／复用样例见 [输入输出适用规格](references/io-spec.md)。开始作业时与本方法一起读取并固定各自实际内容版本；它不另建 schema 或评分规则。
+
 ## Required input
 
 - Fixed TaskContract / successCriteria / failureCriteria / stopConditions.
@@ -26,7 +29,7 @@ If the Candidate or a material dependency changes, stop and create a new Candida
 5. **Observe the business result independently where the criterion requires it.** Use a result source that does not supply values back into the Candidate. Preserve actual UI/business values, screenshots or other evidence according to the TaskContract; visual review and human acceptance remain separate states.
 6. **Judge each criterion and scope explicitly.** Scenario states are `pass / fail / not-run / blocked`. `qualificationScope.requested` may be reported as overall pass only when every requested item was exercised and has sufficient evidence to enter `qualified`; requested work may not be moved into `excluded` or silently omitted to obtain pass.
 7. **Produce the Recipe Review.** Review the exact Candidate from these evidence-backed dimensions: business correctness; actual UI/runtime data dependency; framework capability reuse; readability; parameterization; locator/stability; error handling; validation sufficiency; maintainability; reusability. Distinguish code risks from application/environment limits. Use the weighting in [validation-plan.md](../../design/validation-plan.md) only when the required evidence exists; score `not-evaluated` items as missing evidence rather than inventing points. A target such as 95/100 never overrides a failed criterion or missing live evidence.
-8. **Publish without rewriting history.** Write the QualificationRecord, failedCriteria/skipped/repairRequests and an optional human-readable Recipe Review / Run Summary projection. Keep the frozen Candidate unchanged. Route failures to the responsible stage: facts to demonstration, necessary-path errors to trace-distill, business/data semantics to procedure-synthesize, locator/application rules to application-engineer, implementation errors to recipe-build/code-rebuild, and Oracle/test-evidence defects remain in recipe-qualify.
+8. **Publish without rewriting history.** Write the QualificationRecord, failedCriteria/skipped/repairRequests and an optional human-readable Recipe Review / Run Summary projection. Keep the frozen Candidate unchanged. Route Agent-source failures to the responsible stage: facts to demonstration, necessary-path errors to trace-distill, business/data semantics to procedure-synthesize, locator/application rules to application-engineer, implementation errors to recipe-build/code-rebuild, and Oracle/test-evidence defects remain in recipe-qualify. Human-source failures retain the original Human collection, review, engineering, code or qualification responsibility as specified in io-spec; never relabel them as Agent demonstration.
 
 ## Output and acceptance
 

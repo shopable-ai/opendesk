@@ -7,6 +7,9 @@ description: 为 OpenDesk 桌面自动化认识应用界面、审阅纠错并补
 
 版本：0.2，2026-09-10。正式方法入口已编写；不表示宿主已经安装、自动发现、隔离权限或通过模型提取、真实桌面及端到端验收。不要把本文中的未来辅助程序和未验证接口当成已存在工具。
 
+
+本方法的必需输入、实际读取、下游消费、拒绝和修复／复用样例见 [输入输出适用规格](references/io-spec.md)。开始作业时与本方法一起读取并固定各自实际内容版本；它不另建 schema 或评分规则。
+
 ## 目标与责任
 
 帮助当前开发者知道：正在处理哪个应用、页面和业务对象；完成当前任务必须关注什么；哪些认识有证据、哪些仍未知；下次凭什么重新定位与操作；出错应修哪里、重验什么。
@@ -34,7 +37,7 @@ description: 为 OpenDesk 桌面自动化认识应用界面、审阅纠错并补
 
 ## 入口、输入与完成范围
 
-保留三种模式；正式 request 的 mode 用法以共享合同为准，不发明 skill run 命令。
+保留三种独立适用的模式，不是每次依次执行 discover → harden → repair 的固定流程；正式 request 的 mode 用法以共享合同为准，不发明 skill run 命令。模式选择不授予桌面、上传或外部副作用权限。
 
 | 模式 | 本次需要的依据 | 边界 |
 | --- | --- | --- |
@@ -47,6 +50,12 @@ description: 为 OpenDesk 桌面自动化认识应用界面、审阅纠错并补
 必要目标包括直接操作／读取对象及其父区域、锚点、进入路径、结果区域、阻塞因素和影响判断的重名对象。次要项可以延后，记录原因、影响及重新处理条件；不能因难以识别而降级原本必需的对象。真实总数未知时不称全量识别。
 
 检查合同、输入版本和 hash、获准证据根、读取／上传权限、模型工具、现场身份及实际入口。已有资料可复用不表示当前窗口、账号、焦点或状态仍有效。观察不足只阻塞依赖它的工作，不一律拒绝其他可完成部分。
+
+## 三模式的实际作业顺序
+
+- **discover**：对照近期目标复核旧资料 → 确定最小观察缺口 → 整理必要身份、状态、目标与关系 → 分开事实／解释／未知 → 核对来源、几何和范围 → 发布最小 AppProfile 与审阅结论。只有需要新认识才进入下文第 2 节。
+- **harden**：逐项对照已确认过程与旧规则 → 只选择当前待补操作 → 补定位、读取、等待、动作、停止和恢复规则 → 核对实际 API → 按获准层级验证 → 发布规则增量或有效规则复用结论。无缺口不强制改版。
+- **repair**：固定原失败和旧规则 → 核对实际副作用与问题责任 → 定向补证／修订 → 列出保留与受影响依赖 → 冻结新规则并重验 → 仅接续受影响工作。新观察不补写成旧事实，未知副作用不盲重放。
 
 ## 正常作业路径
 
@@ -120,7 +129,7 @@ CollectionProfile 发布前至少回答：适用 window/page/region、collection
 - 抽取前先判 owner：应用按钮表、模式和恢复规则留在 AppProfile／Recipe；纯公开 API 组合才是 JavaScript helper 候选；需要把确切 PID／窗口身份、坐标投影和原生动作做成一个不可分割生命周期时，记录为 native Runtime／Go 缺口。只有同一应用的重复不能证明公共 API，不能据此向 `UI`、`Accessibility` 或 `mouse` 增加方法。
 - Structured Collection 场景再额外区分：当前 viewport segmentation 是公共结构候选；CollectionProfile 是应用工程资产；业务字段 parser 是下游业务代码；scroll collector 是有副作用 orchestration。不要用一个 `extractList` helper 把四层重新合并。
 - 向 recipe-build 交付时区分“本次动作所需运行门禁”和“资格验证规则”：前者保护目标、布局、权限和控制流，后者固定来源、逐步 Oracle、截图及证据。不要要求生产 Recipe 携带完整资格 Gate，也不要因 Gate 独立而删除高风险动作所需的即时检查。
-- 向 recipe-build 的同版 handoff 必须逐项目给出 `target、locator、geometry、actionStrategy、runtimeGuards、recoveryRule、qualificationClaims、sourceRefs、unknowns`，并把每个来源 action 标为业务动作、运行门禁、资格断言、Evidence 或排除。应用工程只提供这些确定输入与缺口，不生成或润色最终代码；未分类、歧义或相互冲突的 action 明确返回 H4/H5，不能交给代码阶段猜。
+- 向 recipe-build 的同版 handoff 必须逐项目给出 `target、locator、geometry、actionStrategy、runtimeGuards、recoveryRule、qualificationClaims、sourceRefs、unknowns`，其中 Agent 原动作取舍由 S7 唯一维护，应用工程只核对已确认过程所需规则；Human 的业务动作、运行门禁、资格断言、Evidence 或排除由其 Human plan 维护。本 Skill 只交付确定规则与缺口，不生成或润色最终代码。Agent 历史事实或实际读值缺失返回 S3—S6，原动作取舍错误返回 S7，业务含义、参数或数据关系错误返回 S8—S9，定位、读取或操作规则错误留在 application-engineer。Human 来源按其 H2 事实、H3 整理、H4 审阅／意图、H5 增强／应用工程责任定向返回，不改标为 Agent 示范；详细适用表见 io-spec。
 - 对窗口／显示器相对坐标，优先交付已有 `Geometry.pointOffset()`／`pointPercent()` 可消费的 offset/percent 和边界条件；不要交付 `win.x + offset` 代码。Geometry 只是快照投影：需要把确切窗口重验、投影和动作原子化时仍标 native 缺口。在路线图批次 C/D 实现并资格前，不得把现有 Geometry 或 `mouse.clickForPID()` 描述成 exact-window 原子动作。
 - 在未参与建模的画面和声明支持变化中测试重新定位；有环境和授权时实测操作、读取、等待与后置状态。离线、mock、人审和模型评测均不能替代真实应用验收。
 
@@ -135,8 +144,10 @@ CollectionProfile 发布前至少回答：适用 window/page/region、collection
 | continuity failure / collection mutation | 保留当前已读 partial/evidence 并停止依赖动作；按 chain-design 归因到 collector/现场变化，不通过 text-only 去重硬拼 |
 | runtime VLM unavailable | 若 deterministic 结果已达到所需验证则继续并记录 assist 未使用；若 VLM 是本次必要证据则 blocked/返回补能力，不无限重试 |
 | 定位、状态准备、读取或操作约定失效 | harden／repair，保留有效部分，提出重验范围 |
-| 缺真实过程或业务值证据 | 返回 task-demonstrate 定向补采，不事后重造原现场 |
-| 因果、参数或业务分段错误 | 返回 procedure-synthesize，不自行改业务 |
+| Agent 历史事实或实际读值缺失 | 返回 S3—S6／task-demonstrate 定向补采，不事后重造原现场 |
+| Agent 原动作取舍错误 | 返回 S7／trace-distill，保留原始事实 |
+| Human 事实、归组、意图或增强缺口 | 按 io-spec 的 Human 来源路由返回 H2／H3／H4／H5 对应责任，不统一退某一阶段 |
+| Agent 业务含义、参数、数据关系或业务分段错误 | 返回 S8—S9／procedure-synthesize；源政策缺失回 S1，不自行改业务 |
 | JS API、顺序或错误处理错误 | 返回 recipe-build |
 | 目标、授权或成功条件改变 | 停止依赖动作，返回需求负责人 |
 | 动作可能已发生而结果不明 | 先核对实际效果；未确认前不换路、重放或重新提交 |
@@ -162,7 +173,7 @@ CollectionProfile 发布前至少回答：适用 window/page/region、collection
 按四部分简报：核心目标完成情况；必要依赖与安全前提；次要候选及延后事项；认识核验、定位验证、操作实测和业务结果的各自状态。执行结束不是 gate 通过，未调用不是已通过。
 
 - task-demonstrate 消费最小认识及缺口，执行中继续核对并留证，不把候选操作当 qualified。
-- procedure-synthesize 消费应用术语、关系与证据解释，真实过程仍依据 Dossier；generic CollectionItem 到业务字段的 Mapping 也在业务/过程责任下明确，不回塞 Profile。
+- procedure-synthesize 正常消费固定 DistilledSteps，以及本次明确交付且实际可读的必要应用资料、政策、选择记录与定向证据。Dossier 只是历史事实来源；lineage 不等于授权 S9 静默重读完整 Dossier／Raw Trace。generic CollectionItem 到业务字段的 Mapping 仍由业务／过程责任明确，不回塞 Profile。
 - recipe-build 消费明确版本的规则、操作合同、helper 和当前 API；只有认识材料时，不能伪装成已有可执行操作。Working `readCollection/collectCollection` 未实现时必须返回 Runtime gap 或使用实际存在的较低层 API，不写占位调用。
 - recipe-qualify 消费冻结候选及依赖，用预定标准和独立结果来源核验。集合任务至少按 validation-plan 的 SC-A—SC-P 选取适用场景，分别验证 visible collection、traversal 和 business parser；允许同一 Agent 执行检查，但不能冒充独立上下文或以自述替代证据。
 
