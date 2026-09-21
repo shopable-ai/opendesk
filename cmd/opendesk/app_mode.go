@@ -142,7 +142,11 @@ func executeAppMode(config *Config) error {
 		return err
 	}
 	sharedUIDriver := customui.NewProcessDriver(customui.ProcessDriverOptions{HostPath: config.CustomUIHostPath})
-	defer sharedUIDriver.Close()
+	defer func() {
+		if closeErr := sharedUIDriver.Close(); closeErr != nil {
+			log.Printf("Custom UI host cleanup failed: %v", closeErr)
+		}
+	}()
 	artifactsRoot, artifactsConfigured, err := appModeRuntimeArtifactsRoot(
 		appPackage.Root,
 		appPackage.Manifest.ID,

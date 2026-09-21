@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-func TestUIHostCandidatesPreferPackagedWindowsHostWithCompatibilityFallbacks(t *testing.T) {
+func TestUIHostCandidatesPreferCanonicalHostWithCompatibilityFallbacks(t *testing.T) {
 	executable := filepath.Join(string(filepath.Separator), "Applications", "OpenDesk.app", "Contents", "MacOS", "opendesk")
 	if runtime.GOOS == "windows" {
 		executable = filepath.Join(`C:\`, "Program Files", "OpenDesk", "opendesk.exe")
@@ -30,10 +30,10 @@ func TestUIHostCandidatesPreferPackagedWindowsHostWithCompatibilityFallbacks(t *
 		}
 	} else {
 		want = []string{
-			filepath.Join(filepath.Dir(executable), "clawdesk-ui-host"),
-			filepath.Join(filepath.Dir(executable), "..", "Helpers", "clawdesk-ui-host"),
 			filepath.Join(filepath.Dir(executable), "opendesk-ui-host"),
 			filepath.Join(filepath.Dir(executable), "..", "Helpers", "opendesk-ui-host"),
+			filepath.Join(filepath.Dir(executable), "clawdesk-ui-host"),
+			filepath.Join(filepath.Dir(executable), "..", "Helpers", "clawdesk-ui-host"),
 		}
 	}
 	if len(candidates) != len(want) {

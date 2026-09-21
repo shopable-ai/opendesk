@@ -19,14 +19,22 @@ import (
 	"time"
 )
 
-const defaultHostStartupTimeout = 5 * time.Second
+const (
+	defaultHostStartupTimeout   = 5 * time.Second
+	defaultHostShutdownTimeout  = 2 * time.Second
+	defaultHostForceExitTimeout = 2 * time.Second
+)
 
 var nativeSessionLease = make(chan struct{}, 1)
 
 type ProcessDriverOptions struct {
-	HostPath       string
-	Stderr         io.Writer
-	StartupTimeout time.Duration
+	HostPath         string
+	Stderr           io.Writer
+	StartupTimeout   time.Duration
+	ShutdownTimeout  time.Duration
+	ForceExitTimeout time.Duration
+	// ShutdownTimeout and ForceExitTimeout are internal lifecycle test seams.
+	// Product callers leave them unset so bounded production defaults apply.
 	// Platform is an internal cross-platform behavior test seam. Product
 	// callers leave it empty so runtime.GOOS remains authoritative.
 	Platform string
@@ -67,6 +75,12 @@ type ProcessDriver struct {
 func NewProcessDriver(opts ProcessDriverOptions) *ProcessDriver {
 	if opts.StartupTimeout <= 0 {
 		opts.StartupTimeout = defaultHostStartupTimeout
+	}
+	if opts.ShutdownTimeout <= 0 {
+		opts.ShutdownTimeout = defaultHostShutdownTimeout
+	}
+	if opts.ForceExitTimeout <= 0 {
+		opts.ForceExitTimeout = defaultHostForceExitTimeout
 	}
 	if opts.Stderr == nil {
 		opts.Stderr = os.Stderr
@@ -238,23 +252,56 @@ func (d *ProcessDriver) Close() error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	_ = d.call(ctx, "", "", "shutdown", nil, nil)
+	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), d.opts.ShutdownTimeout)
+	shutdownErr := d.call(shutdownCtx, "", "", "shutdown", nil, nil)
+	if shutdownErr != nil {
+		// A failed shutdown request cannot make forward progress. Enter the
+		// bounded forced-termination path immediately instead of spending the
+		// remainder of the graceful deadline waiting for a response that failed.
+		cancelShutdown()
+	}
 
 	d.mu.RLock()
 	process := d.process
+	stdin := d.stdin
 	exited := d.exited
 	d.mu.RUnlock()
 	if exited != nil {
 		select {
 		case <-exited:
-		case <-ctx.Done():
-			if process != nil {
-				_ = process.Kill()
+			cancelShutdown()
+		case <-shutdownCtx.Done():
+			cancelShutdown()
+			// Closing stdin is also the parent-death/EOF signal used by the macOS
+			// AppKit host. Kill remains the final bounded fallback on every platform.
+			if stdin != nil {
+				_ = stdin.Close()
 			}
-			<-exited
+			var killErr error
+			if process != nil {
+				killErr = process.Kill()
+			}
+			forceCtx, cancelForce := context.WithTimeout(context.Background(), d.opts.ForceExitTimeout)
+			select {
+			case <-exited:
+				cancelForce()
+			case <-forceCtx.Done():
+				forceErr := forceCtx.Err()
+				cancelForce()
+				d.clearAllWindowResources()
+				// Do not release the process-wide native lease here. The host has
+				// not been observed exiting, so allowing another host to start could
+				// create two live native sessions. handleExit releases the lease when
+				// Wait eventually proves that the owned process is gone.
+				return &Error{
+					Code: CodeDriverFailure, Operation: "shutdown",
+					Message: "native UI host did not exit after forced termination",
+					Cause: errors.Join(killErr, forceErr),
+				}
+			}
 		}
+	} else {
+		cancelShutdown()
 	}
 	d.clearAllWindowResources()
 	d.releaseLease()
@@ -661,7 +708,7 @@ func resolveUIHostPath(configured string) (string, error) {
 			return filepath.Clean(candidate), nil
 		}
 	}
-	return "", &Error{Code: CodeHostNotFound, Operation: "startHost", Capability: "ui", Message: "clawdesk-ui-host or opendesk-ui-host was not found beside the runtime executable, in Contents/Helpers, or in the Windows ui-host directory"}
+	return "", &Error{Code: CodeHostNotFound, Operation: "startHost", Capability: "ui", Message: "opendesk-ui-host or legacy clawdesk-ui-host was not found beside the runtime executable, in Contents/Helpers, or in the Windows ui-host directory"}
 }
 
 func usableUIHostFile(info os.FileInfo, platform string) bool {
@@ -678,10 +725,10 @@ func uiHostCandidates(executable string) []string {
 		}
 	}
 	return []string{
-		filepath.Join(dir, "clawdesk-ui-host"),
-		filepath.Join(dir, "..", "Helpers", "clawdesk-ui-host"),
 		filepath.Join(dir, "opendesk-ui-host"),
 		filepath.Join(dir, "..", "Helpers", "opendesk-ui-host"),
+		filepath.Join(dir, "clawdesk-ui-host"),
+		filepath.Join(dir, "..", "Helpers", "clawdesk-ui-host"),
 	}
 }
 

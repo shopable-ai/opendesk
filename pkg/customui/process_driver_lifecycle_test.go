@@ -31,6 +31,52 @@ func TestProcessDriverNormalShutdownAndRepeatedClose(t *testing.T) {
 	}
 }
 
+type stalledHostProcess struct {
+	pid       int
+	killCalls int
+}
+
+func (p *stalledHostProcess) PID() int     { return p.pid }
+func (p *stalledHostProcess) Wait() error { return nil }
+func (p *stalledHostProcess) Kill() error {
+	p.killCalls++
+	return nil
+}
+
+func TestProcessDriverCloseIsBoundedWhenForcedTerminationDoesNotExit(t *testing.T) {
+	driver := NewProcessDriver(ProcessDriverOptions{
+		ShutdownTimeout:  10 * time.Millisecond,
+		ForceExitTimeout: 20 * time.Millisecond,
+	})
+	process := &stalledHostProcess{pid: 4242}
+	driver.mu.Lock()
+	driver.process = process
+	driver.started = true
+	driver.exited = make(chan struct{})
+	driver.mu.Unlock()
+
+	started := time.Now()
+	err := driver.Close()
+	elapsed := time.Since(started)
+
+	var uiErr *Error
+	if !errors.As(err, &uiErr) || uiErr.Code != CodeDriverFailure || uiErr.Operation != "shutdown" {
+		t.Fatalf("Close() error = %#v", err)
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("Close() exceeded bounded forced-exit wait: %v", elapsed)
+	}
+	if process.killCalls != 1 {
+		t.Fatalf("Kill() calls = %d, want 1", process.killCalls)
+	}
+	// A timed-out forced termination must remain counted as live/unknown rather
+	// than being reported as cleaned up. Production keeps its native lease until
+	// the Wait goroutine actually observes process exit.
+	if counts := driver.ResourceCounts(); counts.HostProcesses != 1 || counts.Sinks != 0 {
+		t.Fatalf("resources after unconfirmed forced exit = %#v", counts)
+	}
+}
+
 func TestProcessDriverHostCrashFailsRequestWithoutRespawn(t *testing.T) {
 	driver := NewProcessDriver(ProcessDriverOptions{
 		StartupTimeout: 2 * time.Second,

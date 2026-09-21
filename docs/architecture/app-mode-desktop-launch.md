@@ -22,6 +22,49 @@ Framework/HTTP startup path. The official OpenDesk product may start an auxiliar
 Mode process. It uses a random port, begins with loopback-only access policy, and does not create another Runtime, App Shell,
 Tray/Menu, Scheduler, Recorder, or main App Mode execution.
 
+## Official product process ownership model
+
+The diagram below is a **logical ownership diagram, not a captured parent/child PID tree**. A live qualification must still
+record PID, PPID, executable path, build identity and launch arguments from the target machine.
+
+```text
+one official OpenDesk product identity
+└── opendesk main process                         (single-instance owner)
+    ├── App Shell / tray / Scheduler / Goja executions
+    │   └── stay inside the main OS process
+    └── one shared ProcessDriver                  (lazy owner)
+        └── 0 → 1 opendesk-ui-host                (starts on first host-backed UI)
+            └── platform web-engine helpers       (count separately in live evidence)
+```
+
+For the official `com.opendesk.desktop` package, the main App execution, Recorder, Desktop Measurement, Scheduler executions
+and App-owned Recipe / Flow executions receive session-scoped views of that same ProcessDriver. Closing one execution or
+window closes only its session resources; it does not own or terminate the shared host. The App Mode owner closes the native
+host only during actual product shutdown. Therefore multiple Goja executions, Recorder re-open operations, or product windows
+must not be interpreted as permission to create one UI Host per execution.
+
+The driver is lazy. Constructing App Mode or a standalone CLI execution does not by itself start a UI Host. A CLI script that
+never uses host-backed Custom UI should remain at zero UI Host processes. A separate trusted CLI/App that does use Custom UI may
+own its own host; that is a different product/execution boundary and must not be force-shared with the official desktop app.
+
+On macOS release builds, `Contents/Helpers/opendesk-ui-host` is the canonical helper. The bundle currently also stages
+`clawdesk-ui-host` as a compatibility alias, but runtime discovery must prefer the canonical OpenDesk name and use the legacy
+name only as a fallback. Two helper files on disk are not evidence that two helper processes are running. The AppKit UI Host
+starts with accessory activation policy; a normal document-style Custom UI window may temporarily promote that host to regular
+activation so it can receive normal keyboard/window focus, while floating/measurement surfaces remain accessory-style. Dock
+visibility is therefore a separate observation from process count.
+
+Normal shutdown first requests the host protocol `shutdown`. If the graceful deadline expires, Runtime closes the host input
+and requests forced termination, then waits only for a second bounded deadline. If forced termination still cannot be
+confirmed, cleanup returns an error and the process-wide native lease remains reserved until the host Wait path actually
+observes exit; Runtime must not claim the helper is gone and start a second native session. On macOS, stdin EOF is also an
+explicit AppKit shutdown signal. On Windows, the UI Host is created inside a dedicated Job Object with
+`KILL_ON_JOB_CLOSE`, so abnormal owner death also bounds Runtime-owned descendants.
+
+Other on-demand helpers and WebKit / WebView2 engine processes are counted separately from the OpenDesk main process and UI
+Host. Their presence must be attributed to the feature and platform instance that created them; name matching alone is not
+sufficient evidence of an extra OpenDesk product instance.
+
 ## Development launch
 
 Run these commands from the repository root after `make build`:
