@@ -612,8 +612,8 @@ function checkArtifactChain(options = {}) {
       requireCheck(requested.length > 0 && requested.every(item => exercised.has(item) && qualified.has(item)),
         'PARTIAL_QUALIFICATION', 'A pass cannot omit requested scope from exercised or qualified scope.');
       requireCheck([...qualified].every(item => requested.includes(item) && exercised.has(item)),
-        'QUALIFICATION_SCOPE', 'Qualified scope must stay within requested and exercised scope.');
-      requireCheck(requested.every(item => !excluded.has(item)), 'QUALIFICATION_SCOPE',
+        'PARTIAL_QUALIFICATION', 'Qualified scope must stay within requested and exercised scope.');
+      requireCheck(requested.every(item => !excluded.has(item)), 'PARTIAL_QUALIFICATION',
         'Requested scope cannot also be excluded.');
       const skipped = new Set((qualification.skipped || []).flatMap(item => typeof item === 'string' ? [item] : [item.scope, item.id]));
       requireCheck(requested.every(item => !skipped.has(item)), 'PARTIAL_QUALIFICATION',
