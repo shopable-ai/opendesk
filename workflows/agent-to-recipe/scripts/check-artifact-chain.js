@@ -590,11 +590,12 @@ function checkArtifactChain(options = {}) {
     attempt('qualification', 'qualification.normalPath', () => requireCheck(qualification.verdict === 'pass',
       'QUALIFICATION_NOT_PASSED', 'This consumer check requires a passed qualification; failed records remain diagnostic evidence.'));
     const scope = qualification.qualificationScope;
+    let requested = [], exercised = new Set(), qualified = new Set(), excluded = new Set();
     attempt('qualification', 'qualification.qualificationScope', () => {
       requireCheck(object(scope), 'QUALIFICATION_SCOPE', 'Qualification requires explicit requested/exercised/qualified scope.');
       requireCheck(['reference-only', 'continuation-chain', 'new-generation-chain'].includes(scope.lineage),
         'QUALIFICATION_SCOPE', 'qualificationScope.lineage must identify the actual qualification lineage.');
-      const requested = array(scope.requested, 'QUALIFICATION_SCOPE', 'requested scope must be an array.');
+      requested = array(scope.requested, 'QUALIFICATION_SCOPE', 'requested scope must be an array.');
       const exercisedList = array(scope.exercised, 'QUALIFICATION_SCOPE', 'exercised scope must be an array.');
       const qualifiedList = array(scope.qualified, 'QUALIFICATION_SCOPE', 'qualified scope must be an array.');
       const excludedList = array(scope.excluded || [], 'QUALIFICATION_SCOPE', 'excluded scope must be an array.');
@@ -605,9 +606,9 @@ function checkArtifactChain(options = {}) {
         requireCheck(new Set(values).size === values.length, 'QUALIFICATION_SCOPE',
           name + ' scope entries must be unique.');
       }
-      const exercised = new Set(exercisedList);
-      const qualified = new Set(qualifiedList);
-      const excluded = new Set(excludedList);
+      exercised = new Set(exercisedList);
+      qualified = new Set(qualifiedList);
+      excluded = new Set(excludedList);
       requireCheck(requested.length > 0 && requested.every(item => exercised.has(item) && qualified.has(item)),
         'PARTIAL_QUALIFICATION', 'A pass cannot omit requested scope from exercised or qualified scope.');
       requireCheck([...qualified].every(item => requested.includes(item) && exercised.has(item)),
