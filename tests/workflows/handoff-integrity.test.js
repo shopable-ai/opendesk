@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
-const { checkHandoff } = require('../../workflows/agent-to-recipe/scripts/check-handoff.js');
+const { checkHandoff, checkHandoffConsumption } = require('../../workflows/agent-to-recipe/scripts/check-handoff.js');
 const REPO = path.resolve(__dirname, '../..');
 const TOOL = path.join(REPO, 'workflows/agent-to-recipe/scripts/check-handoff.js');
 const BASE = path.join(REPO, '.runtime/tests/workflows');
@@ -63,6 +63,42 @@ test('valid envelope verifies bytes without running candidate or mutating the ta
   const before = fs.readdirSync(f.root).map(name => [name, fs.readFileSync(f.file(name)).toString('base64')]);
   assert.deepEqual(checkHandoff(f.options), report);
   assert.deepEqual(fs.readdirSync(f.root).map(name => [name, fs.readFileSync(f.file(name)).toString('base64')]), before);
+});
+
+function downstream(f, overrides = {}) {
+  const request = { ...f.request, workPackageId: 'W020', attemptId: 'a002', skill: 'recipe-build', mode: 'normal',
+    inputRefs: [f.ref('candidate.js', 'candidate')], requiredOutputs: ['candidate-review'], ...overrides };
+  f.write('consumer-request.json', request);
+  return { ...f.options, consumerRequest: f.file('consumer-request.json') };
+}
+
+test('formal downstream request consumes an exact artifact published by the handoff', t => {
+  const f = fixture(t); f.check();
+  const report = checkHandoffConsumption(downstream(f));
+  assert.equal(report.integrity, 'pass', JSON.stringify(report));
+  assert.equal(report.producerIntegrity, 'pass');
+  assert.equal(report.consumedArtifacts.length, 1);
+  assert.equal(report.consumedArtifacts[0].sha256, f.handoff.artifacts[0].sha256);
+  assert.equal(report.desktopActionsAuthorized, false);
+});
+
+test('formal downstream request rejects an un-published or stale artifact version', t => {
+  const f = fixture(t); f.check();
+  f.write('old-candidate.js', fs.readFileSync(f.file('candidate.js'), 'utf8'));
+  const report = checkHandoffConsumption(downstream(f, { inputRefs: [f.ref('old-candidate.js', 'candidate')] }));
+  fails(report, 'CONSUMER_INPUT_NOT_PUBLISHED');
+});
+
+test('failed producer handoff cannot be promoted through the normal consumption proof', t => {
+  const f = fixture(t); f.handoff.gate.verdict = 'fail'; f.handoff.executionStatus = 'failed'; f.check();
+  const report = checkHandoffConsumption(downstream(f));
+  fails(report, 'PRODUCER_GATE');
+});
+
+test('formal downstream request cannot cross task identity', t => {
+  const f = fixture(t); f.check();
+  const report = checkHandoffConsumption(downstream(f, { taskId: 'another-task' }));
+  fails(report, 'TASK_MISMATCH');
 });
 for (const field of ['taskId', 'workPackageId', 'attemptId', 'skill']) {
   test('rejects a handoff from another ' + field, t => {
