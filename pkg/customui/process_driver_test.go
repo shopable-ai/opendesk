@@ -15,27 +15,22 @@ import (
 	"time"
 )
 
-func TestUIHostCandidatesPreferCanonicalHostWithCompatibilityFallbacks(t *testing.T) {
+func TestUIHostCandidatesContainOnlyCanonicalOpenDeskHost(t *testing.T) {
+	platform := "darwin"
 	executable := filepath.Join(string(filepath.Separator), "Applications", "OpenDesk.app", "Contents", "MacOS", "opendesk")
-	if runtime.GOOS == "windows" {
-		executable = filepath.Join(`C:\`, "Program Files", "OpenDesk", "opendesk.exe")
+	want := []string{
+		filepath.Join(filepath.Dir(executable), "opendesk-ui-host"),
+		filepath.Join(filepath.Dir(executable), "..", "Helpers", "opendesk-ui-host"),
 	}
-	candidates := uiHostCandidates(executable)
-	want := []string{}
 	if runtime.GOOS == "windows" {
+		platform = "windows"
+		executable = filepath.Join(`C:\\`, "Program Files", "OpenDesk", "opendesk.exe")
 		want = []string{
 			filepath.Join(filepath.Dir(executable), "ui-host", "opendesk-ui-host.exe"),
 			filepath.Join(filepath.Dir(executable), "opendesk-ui-host.exe"),
-			filepath.Join(filepath.Dir(executable), "clawdesk-ui-host.exe"),
-		}
-	} else {
-		want = []string{
-			filepath.Join(filepath.Dir(executable), "opendesk-ui-host"),
-			filepath.Join(filepath.Dir(executable), "..", "Helpers", "opendesk-ui-host"),
-			filepath.Join(filepath.Dir(executable), "clawdesk-ui-host"),
-			filepath.Join(filepath.Dir(executable), "..", "Helpers", "clawdesk-ui-host"),
 		}
 	}
+	candidates := uiHostCandidates(executable, platform)
 	if len(candidates) != len(want) {
 		t.Fatalf("candidates = %#v, want %#v", candidates, want)
 	}
@@ -43,10 +38,42 @@ func TestUIHostCandidatesPreferCanonicalHostWithCompatibilityFallbacks(t *testin
 		if filepath.Clean(candidates[index]) != filepath.Clean(want[index]) {
 			t.Fatalf("candidate[%d] = %s, want %s", index, candidates[index], want[index])
 		}
+		if strings.Contains(strings.ToLower(candidates[index]), "clawdesk") {
+			t.Fatalf("legacy ClawDesk host leaked into candidates: %s", candidates[index])
+		}
 	}
 }
 
-func TestProcessDriverRoundTripAndEvents(t *testing.T) {
+func TestResolveUIHostPathDoesNotFallBackToLegacyClawDeskHost(t *testing.T) {
+	root := t.TempDir()
+	platform := "darwin"
+	executable := filepath.Join(root, "OpenDesk.app", "Contents", "MacOS", "opendesk")
+	legacy := filepath.Join(root, "OpenDesk.app", "Contents", "Helpers", "clawdesk-ui-host")
+	if runtime.GOOS == "windows" {
+		platform = "windows"
+		executable = filepath.Join(root, "opendesk.exe")
+		legacy = filepath.Join(root, "clawdesk-ui-host.exe")
+	}
+	if err := os.MkdirAll(filepath.Dir(legacy), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacy, []byte("legacy host"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	_, err := resolveUIHostPathForExecutable(executable, platform)
+	var uiErr *Error
+	if !errors.As(err, &uiErr) || uiErr.Code != CodeHostNotFound {
+		t.Fatalf("legacy-only resolution error = %#v", err)
+	}
+	if strings.Contains(strings.ToLower(err.Error()), "clawdesk-ui-host") {
+		t.Fatalf("legacy helper appeared in canonical missing-host diagnostics: %v", err)
+	}
+	if !strings.Contains(err.Error(), "opendesk-ui-host") {
+		t.Fatalf("canonical expected path missing from diagnostic: %v", err)
+	}
+}
+
+func TestProcessDriverRoundTripAndEventsfunc TestProcessDriverRoundTripAndEvents(t *testing.T) {
 	driver := newHelperProcessDriver()
 	defer driver.Close()
 	events := make(chan Event, 4)
@@ -182,7 +209,7 @@ func TestProtocolFailurePreservesTransportCause(t *testing.T) {
 
 func TestProtocolEventAcceptsEscapedRFC3339Offset(t *testing.T) {
 	var frame protocolFrame
-	err := json.Unmarshal([]byte(`{"version":"1.12.0","kind":"event","event":{"sessionId":"portable","windowId":"panel","type":"close","sequence":1,"timestamp":"2026-09-11T11:41:03.7059140\u002B00:00","reason":"script"}}`), &frame)
+	err := json.Unmarshal([]byte(`{"version":"1.14.0","kind":"event","event":{"sessionId":"portable","windowId":"panel","type":"close","sequence":1,"timestamp":"2026-09-11T11:41:03.7059140\u002B00:00","reason":"script"}}`), &frame)
 	if err != nil {
 		t.Fatal(err)
 	}

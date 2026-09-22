@@ -7,6 +7,70 @@ import (
 	"testing"
 )
 
+func TestAppModeInstanceHandoffQueuesUntilPrimaryIsReady(t *testing.T) {
+	handoff := &appModeInstanceHandoff{}
+	first := []string{"/tmp/one.odflow"}
+	if !handoff.accept(first) {
+		t.Fatal("startup handoff rejected a bounded pending activation")
+	}
+	first[0] = "/tmp/mutated.odflow"
+	var received [][]string
+	if drained := handoff.bind(func(paths []string) bool {
+		received = append(received, append([]string(nil), paths...))
+		return true
+	}); drained != 1 {
+		t.Fatalf("drained=%d, want 1", drained)
+	}
+	if len(received) != 1 || len(received[0]) != 1 || received[0][0] != "/tmp/one.odflow" {
+		t.Fatalf("pending handoff = %#v", received)
+	}
+	if !handoff.accept(nil) || len(received) != 2 {
+		t.Fatalf("live activation was not delivered immediately: %#v", received)
+	}
+}
+
+func TestAppModeInstanceHandoffIsBoundedDuringStartup(t *testing.T) {
+	handoff := &appModeInstanceHandoff{}
+	for index := 0; index < maxPendingAppModeInstanceActivations; index++ {
+		if !handoff.accept(nil) {
+			t.Fatalf("pending activation %d rejected before limit", index)
+		}
+	}
+	if handoff.accept(nil) {
+		t.Fatal("pending activation queue exceeded its startup bound")
+	}
+}
+
+func TestAppModeSingleInstanceGatePrecedesPrimaryOnlyServices(t *testing.T) {
+	data, err := os.ReadFile("app_mode.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(data)
+	gate := strings.Index(source, "AcquireSingleInstanceWithDocuments")
+	if gate < 0 {
+		t.Fatal("single-instance gate call is missing")
+	}
+	for _, token := range []string{
+		"runtimeenv.Resolve(",
+		"appshell.NewNativeHost(",
+		"customui.NewProcessDriver(",
+		"measurement.NewService(",
+		"flowinstall.NewProductService(",
+		"loadMarketplaceProductClient(",
+		"startAppSchedulerWithActivity(",
+		"newAppRecipeRunner(",
+	} {
+		position := strings.Index(source, token)
+		if position < 0 {
+			t.Fatalf("primary-only initializer %q is missing", token)
+		}
+		if position < gate {
+			t.Fatalf("primary-only initializer %q runs before the single-instance gate", token)
+		}
+	}
+}
+
 func TestBundledAppModePathIsOptInForDesktopEntries(t *testing.T) {
 	root := t.TempDir()
 	macExecutable := filepath.Join(root, "OpenDesk.app", "Contents", "MacOS", "opendesk")

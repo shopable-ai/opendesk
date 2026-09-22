@@ -10,6 +10,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $projectPath = Join-Path $root 'pkg/customui/winhost/OpenDesk.UIHost.csproj'
+$protocolVersion = '1.14.0'
 
 if (!$OutputDirectory) {
     $OutputDirectory = Join-Path $root 'dist/ui-host'
@@ -65,6 +66,10 @@ try {
     if (-not (Test-Path -LiteralPath $hostPath -PathType Leaf)) {
         throw "Windows native UI host was not produced at $hostPath"
     }
+    $legacyHostPath = Join-Path $OutputDirectory 'clawdesk-ui-host.exe'
+    if (Test-Path -LiteralPath $legacyHostPath) {
+        throw "Legacy ClawDesk UI host must not be produced in a current OpenDesk UI host payload: $legacyHostPath"
+    }
     foreach ($dependency in @('Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.WinForms.dll')) {
         $dependencyPath = Join-Path $OutputDirectory $dependency
         if (-not (Test-Path -LiteralPath $dependencyPath -PathType Leaf)) {
@@ -90,7 +95,7 @@ try {
         artifact = 'opendesk-native-ui-host'
         sourceCommit = $sha
         sourceDirty = $dirty
-        protocolVersion = '1.12.0'
+        protocolVersion = $protocolVersion
         runtime = $Runtime
         hostOnly = $true
         wholeApplicationSupport = if ($Runtime -eq 'win-x64') { 'verified-via-windows-distribution-gate' } else { 'unverified' }

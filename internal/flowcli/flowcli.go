@@ -324,7 +324,7 @@ func run(args []string, stdout, _ io.Writer) int {
 	// Flow Runner invokes this exact `flow run <installId>` command. Resolve
 	// capability configuration from the verified installed entry, rather than
 	// from the Runner process's working directory, so a signed/recorded
-	// adjacent clawdesk.runtime.json grants UI only to that Flow execution.
+	// adjacent opendesk.runtime.json (or the legacy ClawDesk filename) grants UI only to that Flow execution.
 	activation, err := runtimeconfig.ResolveUI(runtimeconfig.UIResolveOptions{ScriptPath: lease.Entry})
 	if err != nil {
 		return writeCommandError(stdout, command, err)

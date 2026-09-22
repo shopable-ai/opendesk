@@ -46,7 +46,7 @@ docType: reference
 1. `-no-ui`
 2. `-ui`
 3. `-config <path>`
-4. 脚本目录中的 `clawdesk.runtime.json`（迁移期缺失时才回退 `opendesk.runtime.json`）
+4. 脚本目录中的 `opendesk.runtime.json`（旧项目缺失时兼容回退 `clawdesk.runtime.json`）
 5. 默认禁用
 
 HTTP UI 还要求 server 已启用 UI、单次请求声明 `"capabilities":["ui"]` 且 socket 来自 loopback；详见 [HTTP Server API](http-server.md)。
@@ -379,7 +379,7 @@ ui.createWindow(spec: WindowSpec): Promise<WindowHandle>
 | `position` | discriminated union | 推荐：absolute `{mode:'absolute',bounds}` 或 anchor `{mode:'anchor',size,horizontal,vertical,margin?,display?}`。 |
 | `bounds` | bounds | 已发布的 absolute compatibility 写法；新代码优先 `position`。 |
 | `alwaysOnTop` | boolean | native 置顶。 |
-| `draggable` | boolean | 是否允许声明 `data-clawdesk-drag` 区域。 |
+| `draggable` | boolean | 是否允许声明 `data-opendesk-drag` 区域；旧内容中的 `data-clawdesk-drag` 仍作为兼容别名读取。 |
 | `keyEvents` | boolean | 仅 normal HTML surface：由固定 bridge 发送 `key` 事件；不会开放 document script。 |
 | `interactionGroup` | string | 同一 execution 内相关 surface 的稳定组名；组内切换不产生 `interactionOutside`。 |
 | `theme` | `system \| dark` | 默认 `system`。 |
@@ -813,7 +813,7 @@ host readback。
 
 **行为与错误**
 
-HTML 中只有允许的 `data-clawdesk-drag` 区域参与拖动。
+HTML 中只有允许的 `data-opendesk-drag` 区域参与拖动；旧内容的 `data-clawdesk-drag` 仅作为兼容别名读取。
 
 **示例**
 

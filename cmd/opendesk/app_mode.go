@@ -94,6 +94,49 @@ type appModeExecutionResult struct {
 	err     error
 }
 
+const maxPendingAppModeInstanceActivations = 16
+
+type appModeInstanceHandoff struct {
+	mu      sync.Mutex
+	handler func([]string) bool
+	pending [][]string
+}
+
+func (h *appModeInstanceHandoff) accept(paths []string) bool {
+	copied := append([]string(nil), paths...)
+	h.mu.Lock()
+	handler := h.handler
+	if handler == nil {
+		if len(h.pending) >= maxPendingAppModeInstanceActivations {
+			h.mu.Unlock()
+			return false
+		}
+		h.pending = append(h.pending, copied)
+		h.mu.Unlock()
+		return true
+	}
+	h.mu.Unlock()
+	return handler(copied)
+}
+
+func (h *appModeInstanceHandoff) bind(handler func([]string) bool) int {
+	if handler == nil {
+		return 0
+	}
+	h.mu.Lock()
+	h.handler = handler
+	pending := h.pending
+	h.pending = nil
+	h.mu.Unlock()
+	handled := 0
+	for _, paths := range pending {
+		if handler(paths) {
+			handled++
+		}
+	}
+	return handled
+}
+
 func executeAppMode(config *Config) error {
 	recorderCaptureAllowed := appModeRecorderCaptureAllowed(config)
 	appPackage, err := appshell.LoadPackage(config.AppPath)
@@ -105,6 +148,27 @@ func executeAppMode(config *Config) error {
 	if err != nil {
 		return fmt.Errorf("read App Mode entry: %w", err)
 	}
+
+	signalContext, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+	appContext, cancelApp := context.WithCancel(signalContext)
+	defer cancelApp()
+	instanceHandoff := &appModeInstanceHandoff{}
+	lease, primary, err := appshell.AcquireSingleInstanceWithDocuments(appContext, appPackage.Manifest, config.FlowDocumentPaths, instanceHandoff.accept)
+	if err != nil {
+		return err
+	}
+	if !primary {
+		return nil
+	}
+	leaseClosed := false
+	defer func() {
+		if lease != nil && !leaseClosed {
+			_ = lease.Close()
+			lease.Wait()
+		}
+	}()
+
 	inheritedEnvironment := os.Environ()
 	var recoveredMarketplaceSession *marketplaceDevelopmentSession
 	var recoveredMarketplaceSessionPath string
@@ -173,10 +237,6 @@ func executeAppMode(config *Config) error {
 		defer measurementService.Close(context.Background())
 	}
 
-	signalContext, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stopSignals()
-	appContext, cancelApp := context.WithCancel(signalContext)
-	defer cancelApp()
 	var flowService *flowinstall.Service
 	var flowInstallMu sync.Mutex
 	var flowStateMu sync.RWMutex
@@ -451,27 +511,7 @@ func executeAppMode(config *Config) error {
 	shell.SetQuitHook(cancelApp)
 	stopSignalHook := context.AfterFunc(signalContext, func() { _ = shell.RequestQuit() })
 	defer stopSignalHook()
-	lease, primary, err := appshell.AcquireSingleInstanceWithDocuments(appContext, appPackage.Manifest, config.FlowDocumentPaths, func(paths []string) bool {
-		source := "second-instance"
-		if installFlowDocuments(paths, true) {
-			source = "flow-document-hot"
-		}
-		return shell.Activate(source) == nil
-	})
-	if err != nil {
-		return err
-	}
-	if !primary {
-		return nil
-	}
 	installFlowDocuments(config.FlowDocumentPaths, true)
-	leaseClosed := false
-	defer func() {
-		if lease != nil && !leaseClosed {
-			_ = lease.Close()
-			lease.Wait()
-		}
-	}()
 	if measurementService != nil {
 		// Register only in the primary instance. A secondary launch must first
 		// activate the running product instead of racing it for this optional
@@ -563,6 +603,16 @@ func executeAppMode(config *Config) error {
 	if err := shell.Start(appContext); err != nil {
 		return fmt.Errorf("start App Shell: %w", err)
 	}
+	flowInstallMu.Lock()
+	installedBeforeShellStart := flowDocumentInstalled
+	flowInstallMu.Unlock()
+	instanceHandoff.bind(func(paths []string) bool {
+		source := "second-instance"
+		if installFlowDocuments(paths, true) {
+			source = "flow-document-hot"
+		}
+		return shell.Activate(source) == nil
+	})
 	if marketplaceDevelopmentEnabled {
 		// The development client being configured is not enough for an OS URL
 		// event: AppKit must first have installed the native delegate and this
@@ -570,9 +620,6 @@ func executeAppMode(config *Config) error {
 		// this marker before sending its no-side-effect protocol preflight.
 		log.Printf("[MARKETPLACE_INSTALL] receiver-ready")
 	}
-	flowInstallMu.Lock()
-	installedBeforeShellStart := flowDocumentInstalled
-	flowInstallMu.Unlock()
 	if installedBeforeShellStart {
 		// Refresh/discover the Runner after installation. This action only opens
 		// the Runner; it never starts the newly installed Flow.

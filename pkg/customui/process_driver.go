@@ -715,37 +715,41 @@ func resolveUIHostPath(configured string) (string, error) {
 	if err != nil {
 		return "", &Error{Code: CodeHostNotFound, Operation: "startHost", Capability: "ui", Message: "locate OpenDesk executable", Cause: err}
 	}
-	candidates := uiHostCandidates(executable)
+	return resolveUIHostPathForExecutable(executable, runtime.GOOS)
+}
+
+func resolveUIHostPathForExecutable(executable, platform string) (string, error) {
+	candidates := uiHostCandidates(executable, platform)
 	for _, candidate := range candidates {
-		if info, err := os.Stat(candidate); err == nil && usableUIHostFile(info, runtime.GOOS) {
+		if info, err := os.Stat(candidate); err == nil && usableUIHostFile(info, platform) {
 			return filepath.Clean(candidate), nil
 		}
 	}
-	return "", &Error{Code: CodeHostNotFound, Operation: "startHost", Capability: "ui", Message: "opendesk-ui-host or legacy clawdesk-ui-host was not found beside the runtime executable, in Contents/Helpers, or in the Windows ui-host directory"}
+	return "", &Error{
+		Code: CodeHostNotFound, Operation: "startHost", Capability: "ui",
+		Message: "opendesk-ui-host was not found; expected one of: " + strings.Join(candidates, ", "),
+	}
 }
 
 func usableUIHostFile(info os.FileInfo, platform string) bool {
 	return info.Mode().IsRegular() && (platform == "windows" || info.Mode()&0o111 != 0)
 }
 
-func uiHostCandidates(executable string) []string {
+func uiHostCandidates(executable, platform string) []string {
 	dir := filepath.Dir(executable)
-	if runtime.GOOS == "windows" {
+	if platform == "windows" {
 		return []string{
 			filepath.Join(dir, "ui-host", "opendesk-ui-host.exe"),
 			filepath.Join(dir, "opendesk-ui-host.exe"),
-			filepath.Join(dir, "clawdesk-ui-host.exe"),
 		}
 	}
 	return []string{
 		filepath.Join(dir, "opendesk-ui-host"),
 		filepath.Join(dir, "..", "Helpers", "opendesk-ui-host"),
-		filepath.Join(dir, "clawdesk-ui-host"),
-		filepath.Join(dir, "..", "Helpers", "clawdesk-ui-host"),
 	}
 }
 
-func windowKey(sessionID, windowID string) string { return sessionID + "/" + windowID }
+func windowKey(sessionID, windowID string) stringfunc windowKey(sessionID, windowID string) string { return sessionID + "/" + windowID }
 
 type processWindow struct {
 	driver    *ProcessDriver

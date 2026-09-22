@@ -15,13 +15,13 @@ static NSMutableDictionary<NSString *, id> *CDWindows;
 static NSMutableDictionary<NSString *, NSDictionary *> *CDClosedNotifications;
 
 static BOOL CDDragDebugEnabled(void) {
-	const char *value = getenv("CLAWDESK_UI_DEBUG_DRAG");
+	const char *value = getenv("OPENDESK_UI_DEBUG_DRAG");
 	return value != NULL && value[0] != '\0' && value[0] != '0';
 }
 
 static void CDDragDebug(NSString *message) {
 	if (!CDDragDebugEnabled() || !message.length) return;
-	fprintf(stderr, "clawdesk-ui-host drag: %s\n", message.UTF8String);
+	fprintf(stderr, "opendesk-ui-host drag: %s\n", message.UTF8String);
 	fflush(stderr);
 }
 

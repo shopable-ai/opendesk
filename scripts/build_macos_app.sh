@@ -18,7 +18,6 @@ HELPERS_DIR="${CONTENTS_DIR}/Helpers"
 EXECUTABLE_PATH="${MACOS_DIR}/opendesk"
 EXECUTABLE_STAGE="${DIST_DIR}/.opendesk-build.$$"
 UI_HOST_PATH="${HELPERS_DIR}/opendesk-ui-host"
-CLAWDESK_UI_HOST_PATH="${HELPERS_DIR}/clawdesk-ui-host"
 STATUS_HELPER_PATH="${HELPERS_DIR}/opendesk-status"
 INSPECTOR_WEB_SOURCE="${ROOT_DIR}/apps/inspector_web"
 INSPECTOR_WEB_PATH="${RESOURCES_DIR}/inspector_web"
@@ -107,7 +106,6 @@ mkdir -p "${MACOS_DIR}" "${HELPERS_DIR}" "${RESOURCES_DIR}"
 
 cp "${EXECUTABLE_STAGE}" "${EXECUTABLE_PATH}"
 cp "${DIST_DIR}/opendesk-ui-host" "${UI_HOST_PATH}"
-cp "${DIST_DIR}/opendesk-ui-host" "${CLAWDESK_UI_HOST_PATH}"
 cp "${DIST_DIR}/opendesk-status" "${STATUS_HELPER_PATH}"
 cp "${APP_ICON_SOURCE}" "${RESOURCES_DIR}/${APP_ICON_NAME}"
 "${GO_BIN}" run ./scripts/tools/inspector-web-payload \
@@ -301,6 +299,12 @@ cat > "${PLIST_PATH}" <<EOF
 </plist>
 EOF
 
+test -x "${UI_HOST_PATH}" || { printf 'Canonical OpenDesk UI host is missing or not executable: %s\n' "${UI_HOST_PATH}" >&2; exit 1; }
+if [[ -e "${HELPERS_DIR}/clawdesk-ui-host" ]]; then
+  printf 'Legacy ClawDesk UI host must not be staged in a current OpenDesk bundle: %s\n' "${HELPERS_DIR}/clawdesk-ui-host" >&2
+  exit 1
+fi
+
 if [[ "${SKIP_CODESIGN:-0}" == "1" ]]; then
   echo "Skipping codesign because SKIP_CODESIGN=1"
 else
@@ -317,7 +321,6 @@ ln -s "OpenDesk.app/Contents/MacOS/opendesk" "${DIST_DIR}/opendesk"
 
 printf 'Built binary: %s\n' "${DIST_DIR}/opendesk"
 printf 'Built custom UI host: %s\n' "${UI_HOST_PATH}"
-printf 'Built Clawdesk compatibility host: %s\n' "${CLAWDESK_UI_HOST_PATH}"
 printf 'Built macOS status helper: %s\n' "${STATUS_HELPER_PATH}"
 printf 'Bundled Inspector frontend: %s\n' "${INSPECTOR_WEB_PATH}"
 printf 'Built app: %s\n' "${APP_ROOT}"

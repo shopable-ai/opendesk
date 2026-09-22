@@ -8,7 +8,7 @@ When the Flow is explicitly run, it shows one OpenDesk-owned Toast and writes on
 
 This example uses canonical `ui.toast()` for execution-owned transient feedback. `ui.notify()` remains its compatibility alias, while global `notify()` is a distinct operating-system notification API and is intentionally not used here.
 
-The generated `flow.json` uses the repository's strict .odflow v1 schema. It does not define capability fields; instead, the signed package includes the strict adjacent `clawdesk.runtime.json` that enables this Flow's `ui` capability. A raw-JavaScript import carries only that one adjacent runtime configuration, verifies its digest before Run, and ignores all other siblings.
+The generated `flow.json` uses the repository's strict .odflow v1 schema. It does not define capability fields. This checked-in demo intentionally retains the ClawDesk-era `clawdesk.runtime.json` inside its signed fixture so the OpenDesk compatibility reader is exercised by a real package; new projects use canonical `opendesk.runtime.json`. A raw-JavaScript import accepts either name during migration, normalizes a newly installed local Flow to the OpenDesk filename, verifies its digest before Run, and ignores all other siblings.
 
 ## JavaScript smoke test
 

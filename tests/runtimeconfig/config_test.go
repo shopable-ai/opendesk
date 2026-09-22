@@ -10,6 +10,15 @@ import (
 	"opendesk/pkg/runtimeconfig"
 )
 
+func TestRuntimeConfigNamesUseOpenDeskCanonicalWithClawDeskFallback(t *testing.T) {
+	if runtimeconfig.FileName != "opendesk.runtime.json" {
+		t.Fatalf("canonical runtime config name = %q", runtimeconfig.FileName)
+	}
+	if runtimeconfig.LegacyFileName != "clawdesk.runtime.json" {
+		t.Fatalf("legacy runtime config name = %q", runtimeconfig.LegacyFileName)
+	}
+}
+
 func TestLoadStrictSchema(t *testing.T) {
 	tests := []struct {
 		name string

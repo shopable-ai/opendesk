@@ -233,6 +233,11 @@ try {
         }
     }
 
+    $legacyUIHosts = @(Get-ChildItem -LiteralPath $OutputDirectory -Filter 'clawdesk-ui-host.exe' -File -Recurse)
+    if ($legacyUIHosts.Count -ne 0) {
+        throw "Portable OpenDesk distribution contains a legacy ClawDesk UI host: $($legacyUIHosts[0].FullName)"
+    }
+
     $expectedMachine = 0x8664
     $runtimeMachine = Get-PEMachine -Path $runtimePath
     $desktopRuntimeMachine = Get-PEMachine -Path $desktopRuntimePath

@@ -48,7 +48,7 @@ make check-custom-ui-components
 检查日志写入 `.runtime/tests/custom-ui/ui-components/`；正式 Runtime gate 的 HTML 与
 Native 截图写入 `.runtime/tests/runtime-api/<run-id>/runtime-logs/custom-ui/`。
 
-Run an example directly from the repository root (`/Users/mac/Documents/workspace/clawdesk`); the adjacent strict `clawdesk.runtime.json` enables UI without extra flags. For the fixed installed App, first run `bash scripts/install_macos_cli.sh` as described in [`QUICKSTART.md`](../../QUICKSTART.md#可选安装全局-opendesk-命令), then use `opendesk` below. The horizontal example uses a small helper controller; the vertical and focused examples remain self-contained.
+Run an example directly from the repository root; the adjacent strict `opendesk.runtime.json` enables UI without extra flags. For the fixed installed App, first run `bash scripts/install_macos_cli.sh` as described in [`QUICKSTART.md`](../../QUICKSTART.md#可选安装全局-opendesk-命令), then use `opendesk` below. The horizontal example uses a small helper controller; the vertical and focused examples remain self-contained.
 
 On Windows, build the paired runtime and self-contained native sidecar from the repository root with `pwsh -File scripts/build_windows_app.ps1`. For every `./opendesk` command below, use `.\dist\opendesk.exe` and keep the same repository-relative script arguments. `FloatingWindow` uses native WinForms controls without WebView2; `ui.createWindow()` requires the Microsoft Edge WebView2 Runtime and fails explicitly with `UNSUPPORTED_CAPABILITY` when it is unavailable.
 

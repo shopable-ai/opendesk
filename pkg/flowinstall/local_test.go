@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"opendesk/pkg/flowpackage"
+	"opendesk/pkg/runtimeconfig"
 )
 
 func TestInstallScriptCreatesUntrustedLocalFlowWithoutExecuting(t *testing.T) {
@@ -52,50 +53,54 @@ func TestInstallScriptCreatesUntrustedLocalFlowWithoutExecuting(t *testing.T) {
 }
 
 func TestInstallScriptCopiesAndVerifiesAdjacentRuntimeConfiguration(t *testing.T) {
-	service := newTestService(t)
-	sourceDir := t.TempDir()
-	sourcePath := filepath.Join(sourceDir, "toast.js")
-	configPath := filepath.Join(sourceDir, "clawdesk.runtime.json")
-	if err := os.WriteFile(sourcePath, []byte("await ui.toast('local toast');\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	config := []byte("{\"schemaVersion\":1,\"runtime\":{\"capabilities\":[\"ui\"]}}\n")
-	if err := os.WriteFile(configPath, config, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	result, err := service.InstallScript(context.Background(), sourcePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	root := filepath.Join(service.Roots.FlowRoot, result.Record.InstallID)
-	installedConfig := filepath.Join(root, "payload", "clawdesk.runtime.json")
-	if got, err := os.ReadFile(installedConfig); err != nil || string(got) != string(config) {
-		t.Fatalf("installed runtime configuration = %q, error=%v", got, err)
-	}
-	lease, err := service.AcquireRun(context.Background(), result.Record.InstallID)
-	if err != nil {
-		t.Fatalf("verified local Flow could not acquire a run lease: %v", err)
-	}
-	if err := lease.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(root, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(filepath.Dir(installedConfig), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(installedConfig, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(installedConfig, []byte("{}\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := service.AcquireRun(context.Background(), result.Record.InstallID); CodeOf(err) != CodeTransactionFailed {
-		t.Fatalf("tampered runtime configuration acquire error code = %q, error=%v", CodeOf(err), err)
+	for _, sourceConfigName := range []string{runtimeconfig.FileName, runtimeconfig.LegacyFileName} {
+		t.Run(sourceConfigName, func(t *testing.T) {
+			service := newTestService(t)
+			sourceDir := t.TempDir()
+			sourcePath := filepath.Join(sourceDir, "toast.js")
+			configPath := filepath.Join(sourceDir, sourceConfigName)
+			if err := os.WriteFile(sourcePath, []byte("await ui.toast('local toast');\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			config := []byte("{\"schemaVersion\":1,\"runtime\":{\"capabilities\":[\"ui\"]}}\n")
+			if err := os.WriteFile(configPath, config, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			result, err := service.InstallScript(context.Background(), sourcePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			root := filepath.Join(service.Roots.FlowRoot, result.Record.InstallID)
+			installedConfig := filepath.Join(root, "payload", runtimeconfig.FileName)
+			if got, err := os.ReadFile(installedConfig); err != nil || string(got) != string(config) {
+				t.Fatalf("installed runtime configuration = %q, error=%v", got, err)
+			}
+			lease, err := service.AcquireRun(context.Background(), result.Record.InstallID)
+			if err != nil {
+				t.Fatalf("verified local Flow could not acquire a run lease: %v", err)
+			}
+			if err := lease.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chmod(root, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chmod(filepath.Dir(installedConfig), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chmod(installedConfig, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(installedConfig, []byte("{}\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.AcquireRun(context.Background(), result.Record.InstallID); CodeOf(err) != CodeTransactionFailed {
+				t.Fatalf("tampered runtime configuration acquire error code = %q, error=%v", CodeOf(err), err)
+			}
+		})
 	}
 }
 
-func flowpackageManifestForLocalTest() flowpackage.Manifest {
+func flowpackageManifestForLocalTest()func flowpackageManifestForLocalTest() flowpackage.Manifest {
 	return flowpackage.Manifest{FlowID: "not-local", PublisherID: "local", PublisherKeyID: "local", PublisherFingerprint: "0000000000000000000000000000000000000000000000000000000000000000"}
 }

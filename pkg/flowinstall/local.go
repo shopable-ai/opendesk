@@ -213,28 +213,31 @@ func readLocalSource(path string, expectedSize int64) ([]byte, error) {
 // adjacent to the imported entry and record it in the local integrity manifest;
 // arbitrary sibling resources are deliberately not imported.
 func readAdjacentLocalRuntimeConfig(sourceDir string) ([]byte, bool, error) {
-	path := filepath.Join(sourceDir, runtimeconfig.FileName)
-	info, err := os.Lstat(path)
-	if os.IsNotExist(err) {
-		return nil, false, nil
+	for _, name := range []string{runtimeconfig.FileName, runtimeconfig.LegacyFileName} {
+		path := filepath.Join(sourceDir, name)
+		info, err := os.Lstat(path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return nil, false, newError(CodeTransactionFailed, "cannot inspect local Flow runtime configuration", err)
+		}
+		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() < 1 || info.Size() > 64<<10 {
+			return nil, false, newError(CodeTransactionFailed, "local Flow runtime configuration must be a bounded regular file", nil)
+		}
+		if _, err := runtimeconfig.Load(path); err != nil {
+			return nil, false, newError(CodeTransactionFailed, "local Flow runtime configuration is invalid", err)
+		}
+		content, err := readLocalSource(path, info.Size())
+		if err != nil {
+			return nil, false, newError(CodeTransactionFailed, "cannot read local Flow runtime configuration", err)
+		}
+		return content, true, nil
 	}
-	if err != nil {
-		return nil, false, newError(CodeTransactionFailed, "cannot inspect local Flow runtime configuration", err)
-	}
-	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() < 1 || info.Size() > 64<<10 {
-		return nil, false, newError(CodeTransactionFailed, "local Flow runtime configuration must be a bounded regular file", nil)
-	}
-	if _, err := runtimeconfig.Load(path); err != nil {
-		return nil, false, newError(CodeTransactionFailed, "local Flow runtime configuration is invalid", err)
-	}
-	content, err := readLocalSource(path, info.Size())
-	if err != nil {
-		return nil, false, newError(CodeTransactionFailed, "cannot read local Flow runtime configuration", err)
-	}
-	return content, true, nil
+	return nil, false, nil
 }
 
-func verifyLocalDirectory(root string, record Record) error {
+func verifyLocalDirectory(root string, record Record) error {func verifyLocalDirectory(root string, record Record) error {
 	if !pathIsRealDirectory(root) {
 		return newError(CodeTransactionFailed, "local Flow root is unavailable", nil)
 	}
@@ -252,7 +255,7 @@ func verifyLocalDirectory(root string, record Record) error {
 	if len(manifest.Files) < 1 || len(manifest.Files) > 2 {
 		return newError(CodeTransactionFailed, "local Flow file inventory is invalid", nil)
 	}
-	expectedPaths := map[string]bool{record.Entry: true, filepath.ToSlash(filepath.Join("payload", runtimeconfig.FileName)): true}
+	expectedPaths := map[string]bool{record.Entry: true, filepath.ToSlash(filepath.Join("payload", runtimeconfig.FileName)): true, filepath.ToSlash(filepath.Join("payload", runtimeconfig.LegacyFileName)): true}
 	seen := make(map[string]bool, len(manifest.Files))
 	for _, file := range manifest.Files {
 		if !expectedPaths[file.Path] || seen[file.Path] || file.Size < 1 || len(file.SHA256) != 64 {

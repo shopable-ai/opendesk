@@ -33,7 +33,7 @@ pwsh -File scripts/build_windows_app.ps1
 
 `-ui` 只授予这一轮脚本创建原生窗口的能力，不会自行显示界面；示例脚本中的
 `ui.createWindow()` 与 `show()` 才会打开窗口。若项目选择配置方式，可去掉 `-ui`，让脚本同目录的
-`clawdesk.runtime.json` 决定能力。平台或 host 不可用时，即使传入 `-ui`，创建窗口仍会明确失败；
+`opendesk.runtime.json` 决定能力。平台或 host 不可用时，即使传入 `-ui`，创建窗口仍会明确失败；
 脚本可用 `ui.getCapabilities()` 区分“已授权”和“可用”。
 
 ## FloatingWindow 状态文字

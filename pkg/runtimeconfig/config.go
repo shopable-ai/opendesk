@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	FileName               = "clawdesk.runtime.json"
-	LegacyFileName         = "opendesk.runtime.json"
+	FileName               = "opendesk.runtime.json"
+	LegacyFileName         = "clawdesk.runtime.json"
 	CodeConfigInvalid      = "RUNTIME_CONFIG_INVALID"
 	CodeConfigNotFound     = "RUNTIME_CONFIG_NOT_FOUND"
 	CodeConfigUnsupported  = "RUNTIME_CONFIG_UNSUPPORTED"
@@ -195,10 +195,9 @@ func discoveredConfigPath(options UIResolveOptions) (string, bool, error) {
 	} else {
 		return "", false, nil
 	}
-	// clawdesk.runtime.json is the fixed product configuration requested by the
-	// Runtime contract. The renamed OpenDesk filename is accepted only as a
-	// discovery fallback for worktrees already in the middle of that migration;
-	// when both files exist, the Clawdesk configuration always wins.
+	// opendesk.runtime.json is the canonical current product configuration.
+	// The ClawDesk-era filename remains a read-only discovery fallback for
+	// existing projects and installed Flow payloads; when both exist, OpenDesk wins.
 	for _, name := range []string{FileName, LegacyFileName} {
 		path := filepath.Join(directory, name)
 		info, err := os.Stat(path)

@@ -12,13 +12,15 @@ async function customUIConfig() {
   const tmSourceDir = File.join(root, 'tm-source');
   const tmWorkDir = File.join(root, 'tm-work');
   const configDir = File.join(root, 'configs');
-  for (const path of [scriptDir, emptyDir, tmSourceDir, tmWorkDir, configDir]) File.ensureDir(path);
+  const legacyDir = File.join(root, 'legacy-clawdesk-fallback');
+  for (const path of [scriptDir, emptyDir, tmSourceDir, tmWorkDir, configDir, legacyDir]) File.ensureDir(path);
   const enabled = { schemaVersion: 1, runtime: { capabilities: ['ui'] } };
   const disabled = { schemaVersion: 1, runtime: { capabilities: [] } };
-  await writeJSON(File.join(scriptDir, 'clawdesk.runtime.json'), enabled);
-  await writeJSON(File.join(tmSourceDir, 'clawdesk.runtime.json'), disabled);
-  await writeJSON(File.join(tmWorkDir, 'clawdesk.runtime.json'), enabled);
+  await writeJSON(File.join(scriptDir, 'opendesk.runtime.json'), enabled);
+  await writeJSON(File.join(tmSourceDir, 'opendesk.runtime.json'), disabled);
+  await writeJSON(File.join(tmWorkDir, 'opendesk.runtime.json'), enabled);
   await writeJSON(File.join(configDir, 'disabled.json'), disabled);
+  await writeJSON(File.join(legacyDir, 'clawdesk.runtime.json'), enabled);
   await writeJSON(File.join(configDir, 'invalid-host-path.json'), { schemaVersion: 1, runtime: { capabilities: ['ui'], hostPath: '/tmp/untrusted' } });
   await writeJSON(File.join(configDir, 'unknown-capability.json'), { schemaVersion: 1, runtime: { capabilities: ['mouse'] } });
 
@@ -69,8 +71,9 @@ async function customUIConfig() {
   await success('custom-ui-config-default-disabled', ROOT_DIR, File.join(emptyDir, 'task.js'), false, 'disabled');
   await success('custom-ui-config-explicit-over-auto', ROOT_DIR, File.join(scriptDir, 'explicit.js'), false, 'disabled', ['-config', File.join(configDir, 'disabled.json')]);
   await success('custom-ui-config-cli-over-missing', ROOT_DIR, File.join(scriptDir, 'cli.js'), true, 'cli', ['-ui', '-config', File.join(configDir, 'does-not-exist.json')]);
-  await success('custom-ui-config-no-ui-wins', ROOT_DIR, File.join(scriptDir, 'no-ui.js'), false, 'disabled', ['-no-ui', '-ui', '-config', File.join(scriptDir, 'clawdesk.runtime.json')]);
+  await success('custom-ui-config-no-ui-wins', ROOT_DIR, File.join(scriptDir, 'no-ui.js'), false, 'disabled', ['-no-ui', '-ui', '-config', File.join(scriptDir, 'opendesk.runtime.json')]);
   await success('custom-ui-config-working-directory', tmWorkDir, File.join(tmSourceDir, 'tm.config.js'), true, 'projectConfig');
+  await success('custom-ui-config-legacy-clawdesk-fallback', ROOT_DIR, File.join(legacyDir, 'legacy.js'), true, 'projectConfig');
   await errorCase('custom-ui-config-invalid-host-path', File.join(configDir, 'invalid-host-path.json'), 'RUNTIME_CONFIG_INVALID');
   await errorCase('custom-ui-config-unknown-capability', File.join(configDir, 'unknown-capability.json'), 'RUNTIME_CONFIG_UNSUPPORTED');
   await errorCase('custom-ui-config-explicit-missing', File.join(configDir, 'does-not-exist.json'), 'RUNTIME_CONFIG_NOT_FOUND');

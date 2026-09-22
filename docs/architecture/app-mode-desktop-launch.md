@@ -47,12 +47,40 @@ The driver is lazy. Constructing App Mode or a standalone CLI execution does not
 never uses host-backed Custom UI should remain at zero UI Host processes. A separate trusted CLI/App that does use Custom UI may
 own its own host; that is a different product/execution boundary and must not be force-shared with the official desktop app.
 
-On macOS release builds, `Contents/Helpers/opendesk-ui-host` is the canonical helper. The bundle currently also stages
-`clawdesk-ui-host` as a compatibility alias, but runtime discovery must prefer the canonical OpenDesk name and use the legacy
-name only as a fallback. Two helper files on disk are not evidence that two helper processes are running. The AppKit UI Host
-starts with accessory activation policy; a normal document-style Custom UI window may temporarily promote that host to regular
-activation so it can receive normal keyboard/window focus, while floating/measurement surfaces remain accessory-style. Dock
-visibility is therefore a separate observation from process count.
+On macOS release builds, `Contents/Helpers/opendesk-ui-host` is the only shipped UI helper. ClawDesk-era helper
+names are not part of the current runtime contract and are no longer staged or auto-discovered. If the canonical helper is
+missing, Runtime fails with `UI_HOST_NOT_FOUND` / `CodeHostNotFound` and reports the canonical expected paths instead of
+silently starting an older helper found on disk. A `clawdesk-ui-host` file found on a machine is therefore evidence of an
+older installation/build, not a normal second helper of current OpenDesk. The AppKit UI Host starts with accessory activation
+policy; a normal document-style Custom UI window may temporarily promote that host to regular activation so it can receive
+normal keyboard/window focus, while floating/measurement surfaces remain accessory-style. Dock visibility is therefore a
+separate observation from process count.
+
+### Single-instance admission boundary
+
+The App Mode package and entry are validated first, then the single-instance lease is acquired **before** environment
+resolution, native shell construction, the shared UI driver, Desktop Measurement, Flow/Marketplace services, Scheduler,
+Recorder, or Recipe Runner are initialized. A secondary launch therefore performs only the existing bounded instance
+activation/document handoff and exits; it does not create primary-owned product services.
+
+The primary instance keeps a small in-memory startup queue for at most 16 activation requests while those services are being
+created. Each document request has already passed the App Shell path/count validation. Once the App Shell is started, the queue
+is drained into the same Flow installation + activation handler used for later hot activations. This is not a new IPC protocol
+or process manager; it only closes the bootstrap race on top of the existing Unix-socket / named-pipe single-instance channel.
+
+### ClawDesk → OpenDesk rename residue policy
+
+| Reference | Class | Current policy |
+| --- | --- | --- |
+| `clawdesk-ui-host` / `clawdesk-ui-host.exe` | internal runtime/build artifact | Removed from package staging and automatic discovery; tests reject its return. |
+| `CLAWDESK_UI_DEBUG_DRAG` | internal debug-only runtime name | Renamed to `OPENDESK_UI_DEBUG_DRAG`. |
+| `clawdesk.runtime.json` | previously published project/Flow configuration filename | `opendesk.runtime.json` is canonical; the old filename remains a read fallback so existing projects and signed Flow payloads continue to run. New local imports are normalized to the OpenDesk filename. |
+| `data-clawdesk-drag` | previously documented restricted-HTML attribute | New documentation uses `data-opendesk-drag`; the native host still accepts the old attribute as a compatibility alias for existing content. |
+| archived handoffs / historical research that describe ClawDesk | history | Preserved as historical fact; not rewritten for branding. |
+
+No persistent user-data, Keychain, TCC, bundle-identity, or permission identifier is renamed merely because it contains an old
+brand string. Such identities require an explicit migration consumer and evidence. This process-model cleanup does not add
+startup-time disk scans, process-name killing, or a migration daemon.
 
 Host creation and owner shutdown are serialized across the final closed check, OS process creation and ownership publication.
 This prevents a concurrent `Close()` from returning "no process" while a delayed start is still capable of materializing a
