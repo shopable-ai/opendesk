@@ -132,6 +132,89 @@ function checkHandoff(options) {
   };
 }
 
+
+/**
+ * Verify one normal-path formal handoff is actually consumed by a downstream
+ * request through an exact published artifact reference. This remains read-only:
+ * it does not create requests/handoffs, mutate progress, or grant execution.
+ * Failed/warn handoffs stay available to diagnostic consumers through
+ * checkHandoff(), but cannot use this normal-path consumption proof.
+ *
+ * @param {{request:string,handoff:string,consumerRequest:string,roots:Array<[string,string]>}} options
+ */
+function checkHandoffConsumption(options) {
+  const producer = checkHandoff(options);
+  const errors = [...producer.errors];
+  const consumedArtifacts = [];
+  let producerHandoff, consumerRequest;
+  const attempt = (location, action) => {
+    try { return action(); }
+    catch (error) {
+      errors.push({ location, code: error instanceof CheckError ? error.code : 'FILE_UNREADABLE',
+        message: error instanceof CheckError ? error.message : 'A required file or root is not readable.' });
+      return undefined;
+    }
+  };
+  if (producer.integrity === 'pass') {
+    const roots = attempt('roots', () => makeRoots(options.roots));
+    if (roots) {
+      const budget = { bytes: 0 };
+      producerHandoff = attempt('handoff', () =>
+        parseDocument(readBytes(entryFile(roots, options.handoff), JSON_LIMIT, budget)));
+      consumerRequest = attempt('consumerRequest', () =>
+        parseDocument(readBytes(entryFile(roots, options.consumerRequest), JSON_LIMIT, budget)));
+      if (producerHandoff && consumerRequest) {
+        for (const field of REQUEST_FIELDS) attempt('consumerRequest.' + field, () =>
+          requireCheck(own(consumerRequest, field), 'MISSING_FIELD',
+            'A field required by the shared downstream request envelope is missing.'));
+        attempt('consumerRequest.schemaVersion', () => requireCheck(consumerRequest.schemaVersion === SCHEMA,
+          'SCHEMA_VERSION', 'Only agent-to-recipe/v1 downstream requests are supported.'));
+        attempt('consumerRequest.taskId', () => requireCheck(text(consumerRequest.taskId)
+          && consumerRequest.taskId === producerHandoff.taskId, 'TASK_MISMATCH',
+        'A normal downstream request must belong to the same task as the published handoff.'));
+        attempt('handoff.gate', () => requireCheck(producerHandoff.gate?.verdict === 'pass',
+          'PRODUCER_GATE', 'Only a pass handoff can enter this normal downstream-consumption check.'));
+        const refKey = ref => object(ref) ? JSON.stringify(
+          [ref.kind, ref.rootId, ref.path, ref.sha256, ref.schemaVersion]) : null;
+        const published = new Set((Array.isArray(producerHandoff.artifacts) ? producerHandoff.artifacts : []).map(refKey));
+        if (!Array.isArray(consumerRequest.inputRefs)) {
+          attempt('consumerRequest.inputRefs', () => { throw new CheckError('REF_ARRAY', 'Expected an array of downstream input references.'); });
+        } else {
+          for (let index = 0; index < consumerRequest.inputRefs.length; index += 1) {
+            const ref = consumerRequest.inputRefs[index];
+            attempt('consumerRequest.inputRefs[' + index + ']', () => {
+              requireCheck(object(ref) && text(ref.kind) && text(ref.rootId) && text(ref.path)
+                && text(ref.schemaVersion) && typeof ref.sha256 === 'string'
+                && /^[0-9a-f]{64}$/.test(ref.sha256), 'INVALID_REF',
+              'Expected a complete content-bound downstream input reference.');
+              const filename = resolveFile(roots, ref.rootId, ref.path);
+              requireCheck(hash(readBytes(filename, FILE_LIMIT, budget)) === ref.sha256, 'HASH_MISMATCH',
+                'Downstream input bytes no longer match the recorded SHA-256.');
+              if (published.has(refKey(ref))) consumedArtifacts.push(ref);
+            });
+          }
+          attempt('consumerRequest.inputRefs', () => requireCheck(consumedArtifacts.length > 0,
+            'CONSUMER_INPUT_NOT_PUBLISHED',
+            'The downstream request does not consume any exact artifact published by this handoff.'));
+        }
+      }
+    }
+  }
+  return {
+    tool: 'agent-to-recipe-handoff-consumption/v1',
+    integrity: errors.length ? 'fail' : 'pass',
+    producerIntegrity: producer.integrity,
+    consumedArtifacts,
+    errors,
+    notEvaluated: ['business-correctness', 'downstream-skill-input-sufficiency', 'current-plan-impact-analysis',
+      'progress-mutation', 'live-desktop-state', 'platform-qualification'],
+    desktopActionsAuthorized: false,
+    next: errors.length
+      ? 'Keep the published handoff and downstream request immutable; repair the exact binding or route diagnostics without promoting a failed handoff.'
+      : 'The downstream request consumes exact published bytes; independently check its Skill inputs, current plan, authority and business Gate before execution.'
+  };
+}
+
 const HELP = 'Usage: node workflows/agent-to-recipe/scripts/check-handoff.js --request <request.json> --handoff <handoff.json> --root <id=directory> [--root <id=directory> ...]\nRead-only host check; roots come from the caller, never from evidenceRoots. Exit: 0 integrity pass, 1 check failed, 2 usage error.\n';
 function main(argv) {
   if (argv.length === 1 && argv[0] === '--help') { process.stdout.write(HELP); return 0; }
@@ -139,7 +222,7 @@ function main(argv) {
     const options = { roots: [] };
     for (let i = 0; i < argv.length; i += 2) {
       const flag = argv[i], value = argv[i + 1];
-      requireCheck(['--request', '--handoff', '--root'].includes(flag) && text(value)
+      requireCheck(['--request', '--handoff', '--consumer-request', '--root'].includes(flag) && text(value)
         && !value.startsWith('--'), 'USAGE', 'Unknown option or missing argument.');
       if (flag === '--root') {
         const separator = value.indexOf('=');
@@ -153,7 +236,7 @@ function main(argv) {
     }
     requireCheck(text(options.request) && text(options.handoff) && options.roots.length > 0,
       'USAGE', 'Request, handoff and explicit roots are required.');
-    const report = checkHandoff(options);
+    const report = options.consumerRequest ? checkHandoffConsumption(options) : checkHandoff(options);
     process.stdout.write(JSON.stringify(report, null, 2) + '\n');
     return report.integrity === 'pass' ? 0 : 1;
   } catch (error) {
@@ -162,4 +245,4 @@ function main(argv) {
   }
 }
 if (require.main === module) process.exitCode = main(process.argv.slice(2));
-module.exports = { checkHandoff, main };
+module.exports = { checkHandoff, checkHandoffConsumption, main };
