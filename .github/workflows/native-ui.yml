@@ -115,6 +115,9 @@ jobs:
       - name: Test App Shell single-instance seams
         if: runner.os != 'Linux'
         run: go test ./pkg/appshell -run 'SingleInstance' -count=1
+      - name: Test App Mode process-model seams
+        if: runner.os != 'Linux'
+        run: go test ./cmd/opendesk -run 'TestAppMode|TestAppRecorder|TestAppRecipeRunner|TestAppScheduler' -count=1
       - name: Test App Package contract
         if: runner.os != 'Linux'
         run: go test ./pkg/appshell -run '^Test(ParseManifest|Manifest|LoadPackage|PackageError|RuntimeCompatibility|RuntimeVersion|MacOSTemplateIcon|WindowsTrayIcon)' -count=1
@@ -137,17 +140,17 @@ jobs:
       - name: Test Recorder controller and history
         run: node --test tests/custom-ui/recording-history.test.js tests/custom-ui/recording-history-icon-adapter.test.js tests/custom-ui/recording-history-interaction.test.js tests/custom-ui/recording-history-pagination.test.js tests/custom-ui/recording-history-presentation.test.js
       - name: Build macOS native UI host
-        if: runner.os == 'macOS'
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
         run: go build -o dist/opendesk-ui-host ./cmd/opendesk-ui-host
       - name: Build Windows native UI host
-        if: runner.os == 'Windows'
+        if: ${{ !cancelled() && runner.os == 'Windows' }}
         shell: pwsh
         run: ./scripts/build_windows_ui.ps1
       - name: macOS native host protocol smoke
-        if: runner.os == 'macOS'
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
         run: node tests/custom-ui/tools/native-host-smoke.cjs dist/opendesk-ui-host
       - name: Windows hosted-deterministic native host protocol smoke
-        if: runner.os == 'Windows'
+        if: ${{ !cancelled() && runner.os == 'Windows' }}
         run: node tests/custom-ui/tools/native-host-smoke.cjs dist/ui-host/opendesk-ui-host.exe --profile=hosted-deterministic
       - name: Flow Runner real child stop lifecycle
         if: runner.os != 'Linux'
