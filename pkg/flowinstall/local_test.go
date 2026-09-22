@@ -101,6 +101,6 @@ func TestInstallScriptCopiesAndVerifiesAdjacentRuntimeConfiguration(t *testing.T
 	}
 }
 
-func flowpackageManifestForLocalTest()func flowpackageManifestForLocalTest() flowpackage.Manifest {
+func flowpackageManifestForLocalTest() flowpackage.Manifest {
 	return flowpackage.Manifest{FlowID: "not-local", PublisherID: "local", PublisherKeyID: "local", PublisherFingerprint: "0000000000000000000000000000000000000000000000000000000000000000"}
 }
