@@ -81,6 +81,7 @@ function fixture(t, mutate = () => {}, afterWrite = () => {}) {
 
   const candidate = source.candidate;
 
+  candidate.contractRef = ref('contract.json', 'TaskContract');
   candidate.procedureRef = ref('procedure.json', 'SemanticProcedure');
   candidate.scriptRef = ref('candidate.js', 'script', 'text/javascript');
   const apiRefMap = new Map();
@@ -95,6 +96,7 @@ function fixture(t, mutate = () => {}, afterWrite = () => {}) {
 
   const qualification = source.qualification;
   qualification.candidateRef = ref('candidate.json', 'CandidateManifest');
+  qualification.contractRef = ref('contract.json', 'TaskContract');
   qualification.evidenceRefs = [ref('evidence/qualification.txt', 'evidence', 'text/plain')];
   for (const scenario of qualification.scenarios) {
     scenario.evidenceRefs = scenario.evidence ? [ref('evidence/' + scenario.evidence, 'evidence', 'text/plain')] : [];

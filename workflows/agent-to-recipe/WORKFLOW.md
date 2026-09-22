@@ -35,6 +35,39 @@ Agent-to-Recipe 的核心目标不是“把桌面操作记录下来”，而是�
 3. **事实、语义、代码、资格不能互相替代。** Raw Trace 记录实际发生；DistilledSteps 决定哪些动作必要；SemanticProcedure 定义业务过程和数据关系；Recipe 是实现；Qualification 才说明某个固定候选在什么范围真正通过。
 4. **已有成果优先接续，不从零重跑。** 先核对已有 TaskContract、AppProfile、Dossier、Procedure、Candidate、Qualification 的版本和证据，只从第一个真实缺口继续。
 
+## 阶段完成、硬停止与局部重做
+
+下面的“完成”只表示**该阶段的正式成果已经足以被下一责任消费**，不表示整条 S1—S12 已完成。任何阶段遇到关键事实缺失、授权不足、未知副作用或输入版本漂移，都应停止当前正常路径并返回责任方；不能靠补写说明、降低验收标准或从 S1 全量重跑来掩盖缺口。
+
+| 阶段 | 可正常交给下游的最低完成条件 | 必须停止／返回 | 正常消费者 |
+| --- | --- | --- | --- |
+| **S1 automation-plan** | TaskContract 与 WorkPlan 固定；目标、成功／失败标准、授权、业务输入和高影响 Unknown 有来源；近期 Operation Plan 可执行且可审阅 | 业务目标／授权／成功标准仍相互矛盾，或高影响 Unknown 会使后续路线无依据 | S2、S3—S6 及所有需要合同／计划的下游 |
+| **S2 application-engineer/discover** | 最小 AppProfile 足以识别下一步要操作／读取的应用、窗口、区域和关键前提；未验证能力明确标记 | 应用身份、目标或读取方式无法可靠确定；路线不可行；所需动作未获授权 | task-demonstrate；必要认识也供后续 S7—S10 引用 |
+| **S3—S6 task-demonstrate** | 真实任务实际完成或按合同明确失败；Dossier／Raw Trace 保存 planned→actual、动作、Observation、runtime value、消费者、验证、planDelta 和副作用状态 | 关键动作／读值／结果事实缺失；副作用结果 unknown；无法证明真实业务结果 | S7；诊断时可定向补采，不事后补造历史 |
+| **S7 trace-distill** | 每个 Raw Action 有 retain／merge／omit／recovery／unresolved 处置；正常路径无阻断 unresolved；真实 producer→consumer 数据关系仍可追溯 | 必要动作来源不明、数据消费者丢失、事实不足或动作取舍无法证明 | S8—S9；事实不足返回 S3—S6 |
+| **S8—S9 procedure-synthesize** | SemanticProcedure 的 Business Steps、参数来源、runtime values、data dependencies、分支／循环／恢复、supported scope 与 capabilityDecisions 有来源且可消费 | 需要重新猜 Raw Trace；运行值被改成示范常量；业务语义／参数来源无法由正式输入支持 | S10 与 S11；动作取舍错误回 S7 |
+| **S10 application-engineer/harden|repair** | Procedure 真正需要的 Target／Locator／Read／Wait／Action／Verifier／Recovery 已落实或明确记录 Runtime primitive 缺口；规则有适用范围与失效条件 | 关键定位／读取／等待仍未验证，或只能靠改变业务语义绕过工程缺口 | S11；无缺口时直接复用旧规则 |
+| **S11 recipe-build** | 普通 OpenDesk JavaScript 与 CandidateManifest 冻结；每个 Business Step 和实际数据依赖可追到代码／函数；入口、依赖、API refs、支持范围明确 | 仍有未解决的业务语义、应用规则、API 或副作用问题；不能用代码猜测上游事实 | S12；只有独立代码质量收益明确时才进入可选 code-rebuild |
+| **S12 recipe-qualify** | 精确 Candidate 与 TaskContract 被固定；运行前 requested scope／scenarios 已确定；实际场景与 scope 逐项绑定并有独立 evidence；请求范围全部 pass 才可晋级 | 候选／标准被改动；requested 中任一 fail／not-run／blocked；Oracle 回灌生产路径；实际执行对象与冻结 Candidate 不一致 | 交付／显式发布 handoff，或按缺陷责任定向返回 |
+
+S12 还要区分三种容易混淆的结论：**一次 Fresh Run 成功只证明一次成功**；若要声称“可重复运行”，相关 requested scope 至少要有两次彼此独立的 Fresh Run；若要声称“参数化可复用”，还要有至少一组不同于示范值的合法变参。若 Candidate 含 LLM／Agent，只能是预先声明、结构化校验且有界的语义判断点；不能让 Agent 在资格运行中再次逐步规划每次点击，否则不能把该范围称为“后续由普通 Recipe 独立执行”。
+
+### 变化影响与 needs-revalidation
+
+下表是“从第一个真实受影响点继续”的可读投影；字段和版本规则仍以[共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)为准。
+
+| 变化 | 仍可保留 | 至少标为 needs-revalidation 的下游 | 默认恢复点 |
+| --- | --- | --- | --- |
+| TaskContract 的目标／授权／成功标准变化 | 原始 Dossier／Raw Trace 作为历史事实保留 | 依赖旧合同语义的 S2—S12 成果；是否要补示范由新合同缺失事实决定 | S1 修订后，从第一个无法满足新合同的阶段继续 |
+| WorkPlan 只改变尚未执行的后续计划 | 已发生事实、仍适用 AppProfile | 依赖被改计划步骤的未完成工作包 | S1 plan/revise，不重演已确认副作用 |
+| Dossier／Raw Trace 事实被补正 | 原旧版本及无关应用知识 | DistilledSteps → Procedure → Candidate → Qualification | S3—S6 定向补采后 S7 |
+| DistilledSteps 改变 | Raw Trace／Dossier | SemanticProcedure、相关 S10 工程规则、Candidate、Qualification | S7 → S8—S9 |
+| SemanticProcedure 改变 | Dossier、DistilledSteps | 相关 S10、Candidate、Qualification | S8—S9 → S10/S11 |
+| AppProfile／helper／Locator 规则改变 | 与该规则无关的业务事实和 Procedure | 使用该规则的 Candidate 与 Qualification；若变化否定示范中的对象身份，则连同 S7/S9 重新核对 | 通常 S10；身份事实被推翻时回 S3—S6 |
+| Candidate 源码或影响性依赖改变 | 上游合同、事实、Procedure、仍有效 AppProfile | 旧 Qualification 不能继续证明新候选 | S11 冻结新 Candidate → S12 |
+| 仅 Qualification 的 Oracle／场景／证据修正且 Candidate 未变 | Candidate 及上游全部成果 | 仅相应资格结论 | S12 重验受影响场景＋必要回归 |
+
+
 如果只想理解工作流，先读本节；如果要看“每个交接怎样拒绝错误结果”，再读 [交接审阅地图](design/acceptance-map.md)；如果要看完整子任务和恢复循环，再读 [task-decomposition.md](design/task-decomposition.md)；字段和版本规则按需读[共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)。
 
 

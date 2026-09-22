@@ -515,7 +515,7 @@ function checkArtifactChain(options = {}) {
       .forEach((ref, index) => inspectRef(ref, 'candidate', 'candidate.dependencies[' + index + ']'));
     if (own(candidate, 'appProfileRefs')) array(candidate.appProfileRefs, 'DEPENDENCY_INVENTORY',
       'appProfileRefs must be an array.').forEach((ref, index) => inspectRef(ref, 'candidate', 'candidate.appProfileRefs[' + index + ']'));
-    if (candidate.contractRef) bind(candidate.contractRef, 'contract', 'bindings', 'candidate.contractRef');
+    bind(candidate.contractRef, 'contract', 'bindings', 'candidate.contractRef');
     const script = inspectRef(candidate.scriptRef, 'candidate', 'candidate.scriptRef');
     if (script) {
       scriptSource = script.bytes.toString('utf8');
@@ -581,6 +581,7 @@ function checkArtifactChain(options = {}) {
   if (candidate && qualification) attempt('qualification', 'structure', () => {
     evaluated.add('qualification');
     bind(qualification.candidateRef, 'candidate', 'bindings', 'qualification.candidateRef');
+    bind(qualification.contractRef, 'contract', 'bindings', 'qualification.contractRef');
     attempt('qualification', 'qualification.identity', () => requireCheck(text(candidate.taskId)
       && text(candidate.revision) && candidate.taskId === qualification.taskId
       && candidate.revision === qualification.revision, 'MIXED_ATTEMPT',
@@ -591,32 +592,62 @@ function checkArtifactChain(options = {}) {
     const scope = qualification.qualificationScope;
     attempt('qualification', 'qualification.qualificationScope', () => {
       requireCheck(object(scope), 'QUALIFICATION_SCOPE', 'Qualification requires explicit requested/exercised/qualified scope.');
+      requireCheck(['reference-only', 'continuation-chain', 'new-generation-chain'].includes(scope.lineage),
+        'QUALIFICATION_SCOPE', 'qualificationScope.lineage must identify the actual qualification lineage.');
       const requested = array(scope.requested, 'QUALIFICATION_SCOPE', 'requested scope must be an array.');
-      const exercised = new Set(array(scope.exercised, 'QUALIFICATION_SCOPE', 'exercised scope must be an array.'));
-      const qualified = new Set(array(scope.qualified, 'QUALIFICATION_SCOPE', 'qualified scope must be an array.'));
-      requireCheck([...requested, ...exercised, ...qualified].every(text),
+      const exercisedList = array(scope.exercised, 'QUALIFICATION_SCOPE', 'exercised scope must be an array.');
+      const qualifiedList = array(scope.qualified, 'QUALIFICATION_SCOPE', 'qualified scope must be an array.');
+      const excludedList = array(scope.excluded || [], 'QUALIFICATION_SCOPE', 'excluded scope must be an array.');
+      requireCheck([...requested, ...exercisedList, ...qualifiedList, ...excludedList].every(text),
         'QUALIFICATION_SCOPE', 'Scope entries must be nonempty strings.');
+      for (const [name, values] of [['requested', requested], ['exercised', exercisedList],
+        ['qualified', qualifiedList], ['excluded', excludedList]]) {
+        requireCheck(new Set(values).size === values.length, 'QUALIFICATION_SCOPE',
+          name + ' scope entries must be unique.');
+      }
+      const exercised = new Set(exercisedList);
+      const qualified = new Set(qualifiedList);
+      const excluded = new Set(excludedList);
       requireCheck(requested.length > 0 && requested.every(item => exercised.has(item) && qualified.has(item)),
         'PARTIAL_QUALIFICATION', 'A pass cannot omit requested scope from exercised or qualified scope.');
-      requireCheck([...qualified].every(item => exercised.has(item)), 'PARTIAL_QUALIFICATION',
-        'Qualified scope cannot contain an unexercised scenario.');
-      const excluded = new Set(array(scope.excluded || [], 'QUALIFICATION_SCOPE', 'excluded scope must be an array.'));
-      requireCheck([...qualified].every(item => !excluded.has(item)), 'PARTIAL_QUALIFICATION',
-        'Qualified scope cannot also be excluded.');
+      requireCheck([...qualified].every(item => requested.includes(item) && exercised.has(item)),
+        'QUALIFICATION_SCOPE', 'Qualified scope must stay within requested and exercised scope.');
+      requireCheck(requested.every(item => !excluded.has(item)), 'QUALIFICATION_SCOPE',
+        'Requested scope cannot also be excluded.');
       const skipped = new Set((qualification.skipped || []).flatMap(item => typeof item === 'string' ? [item] : [item.scope, item.id]));
       requireCheck(requested.every(item => !skipped.has(item)), 'PARTIAL_QUALIFICATION',
         'Requested scope may not be moved to skipped while claiming pass.');
     });
+    const scenarioIds = new Set();
+    const passingScopeEvidence = new Set();
+    for (const [index, scenario] of (qualification.scenarios || []).entries()) {
+      attempt('qualification', 'qualification.scenarios[' + index + '].contract', () => {
+        requireCheck(object(scenario) && text(scenario.id) && !scenarioIds.has(scenario.id),
+          'QUALIFICATION_SCENARIO', 'Every qualification scenario needs a unique id.');
+        scenarioIds.add(scenario.id);
+        requireCheck(['pass', 'fail', 'not-run', 'blocked'].includes(scenario.verdict),
+          'QUALIFICATION_SCENARIO', 'Scenario verdict must be pass, fail, not-run or blocked.');
+        const scopeRefs = array(scenario.scopeRefs, 'QUALIFICATION_SCENARIO_SCOPE',
+          'Every qualification scenario needs scopeRefs.');
+        requireCheck(scopeRefs.length > 0 && scopeRefs.every(text) && new Set(scopeRefs).size === scopeRefs.length,
+          'QUALIFICATION_SCENARIO_SCOPE', 'Scenario scopeRefs must be unique nonempty scope ids.');
+        requireCheck(scopeRefs.every(scopeId => exercised.has(scopeId)),
+          'QUALIFICATION_SCENARIO_SCOPE', 'A scenario may only claim scope that was actually exercised.');
+        if (scenario.verdict === 'pass') scopeRefs.forEach(scopeId => passingScopeEvidence.add(scopeId));
+      });
+      inspectRefs(scenario.evidenceRefs, 'qualification', 'qualification.scenarios[' + index + '].evidenceRefs',
+        qualification.verdict === 'pass');
+    }
     if (qualification.verdict === 'pass') {
       attempt('qualification', 'qualification.verdict', () => requireCheck(
         Array.isArray(qualification.failedCriteria) && qualification.failedCriteria.length === 0
           && Array.isArray(qualification.scenarios) && qualification.scenarios.length > 0
           && qualification.scenarios.every(scenario => scenario.verdict === 'pass'),
         'PARTIAL_QUALIFICATION', 'An overall pass requires all recorded scenarios to pass and no failed criteria.'));
-    }
-    for (const [index, scenario] of (qualification.scenarios || []).entries()) {
-      inspectRefs(scenario.evidenceRefs, 'qualification', 'qualification.scenarios[' + index + '].evidenceRefs',
-        qualification.verdict === 'pass');
+      attempt('qualification', 'qualification.scopeEvidence', () => requireCheck(
+        [...qualified].every(scopeId => passingScopeEvidence.has(scopeId)),
+        'QUALIFICATION_SCOPE_UNPROVEN',
+        'Qualified scope needs at least one passing scenario that explicitly cites that scope.'));
     }
   });
 
@@ -651,6 +682,7 @@ function checkArtifactChain(options = {}) {
         'JavaScript reachability, aliasing, shadowing or general data-flow correctness',
         'undeclared or transitive dependencies, arbitrary trace formats or business semantics',
         'unsupported inputs, platforms or layouts',
+        'live execution truth, repeat-run independence, legal parameter variation or proof that Agent is not driving desktop steps',
         'complete Stage Contracts, G0-G7 decisions, trusted publisher identity or handoff publication'],
       desktopActionsAuthorized: false,
       next: errors.length ? 'Return each error to its named boundary; do not infer or replay missing desktop facts.'

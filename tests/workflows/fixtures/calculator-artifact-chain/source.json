@@ -972,13 +972,18 @@
       ],
       "excluded": [
         "desktop-runtime"
-      ]
+      ],
+      "lineage": "new-generation-chain"
     },
     "scenarios": [
       {
         "id": "fixture-chain",
         "verdict": "pass",
-        "evidence": "qualification.txt"
+        "evidence": "qualification.txt",
+        "scopeRefs": [
+          "fixed-chain",
+          "runtime-value-flow"
+        ]
       }
     ],
     "failedCriteria": [],

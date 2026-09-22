@@ -1,12 +1,12 @@
 ---
-title: "Agent-first Recorder｜工作流任务分解树"
+title: "Agent-to-Recipe｜工作流任务分解树"
 description: "按需求语义展开 Agent-to-Recipe 工作流任务、循环与责任边界。"
 order: 30
 ---
 
-# Agent-first Recorder｜工作流任务分解树
+# Agent-to-Recipe｜工作流任务分解树
 
-从真实任务／人工开发目标／已有自动化资产出发，形成有依据、可验证并能维护的普通 OpenDesk JavaScript 与必要组合能力；有必要判断时明确交付 JS／Agent 混合流程及真实接入条件。状态：框架分析 v0.6，2026-09-11，不是已运行通过报告。返回[设计总纲](README.md)；贯穿案例见[计算器](../cases/calculator.md)，组合业务示意见[聊天案例](application-operations.md#聊天业务的粒度与组合示例)。Structured UI Collection Reading 的详细 Runtime/VLM/Traversal 设计只维护在[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
+从真实任务／人工开发目标／已有自动化资产出发，形成有依据、可验证并能维护的普通 OpenDesk JavaScript 与必要组合能力；有必要判断时明确交付 JS／Agent 混合流程及真实接入条件。状态：框架分析 v0.7，2026-09-22；已对齐八个正式方法包与局部重验规则，不是已运行通过报告。返回[设计总纲](README.md)；贯穿案例见[计算器](../cases/calculator.md)，组合业务示意见[聊天案例](application-operations.md#聊天业务的粒度与组合示例)。Structured UI Collection Reading 的详细 Runtime/VLM/Traversal 设计只维护在[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
 
 ## 使用依据与编号
 
@@ -304,7 +304,7 @@ order: 30
 
 ## 专业责任、交接与长任务接续
 
-- 保留历史六项专业职责的设计依据，目标职责以[链路设计](chain-design.md)为准；旧 Skill 目录已删除，不作为当前可调用入口。本次仅已有 application-engineer 正式方法文件，其他目标职责的实现状态不被设计文本升级。
+- 历史六项职责只保留为设计来源；当前职责以[链路设计](chain-design.md)为准。automation-plan、application-engineer、task-demonstrate、trace-distill、procedure-synthesize、recipe-build、code-rebuild、recipe-qualify 八项均已有正式方法包和各自 io-spec；文件存在仍不等于宿主自动加载、独立上下文 Producer 行为或真实桌面／业务资格通过。
   - automation-plan 负责 S1；application-engineer 负责 S2／S10；task-demonstrate 负责 S3—S6。
   - **trace-distill 负责 S7**：消费冻结的合同／计划、Dossier／Raw Trace、必要 AppProfile 和证据，发布 DistilledSteps；[方法文件](../skills/trace-distill/SKILL.md)及相邻消费检查已实现，宿主加载与独立行为验证未证明。
   - **procedure-synthesize 负责 S8—S9**：消费 DistilledSteps，将必要路径转成 Business Step、参数、数据依赖和复用规则，不重新维护第二套原始 action disposition。
@@ -339,3 +339,5 @@ order: 30
 - 2026-09-08，v0.4：在原完整树内补 S1 范围、S2 界面认识子作业、执行中定向回访、S7 证据边界、S9／S10 分工及分层验证；不以用户提供的简化树覆盖原树，不新增 ui-understanding Skill。
 - 2026-09-10，v0.5：把 Structured UI Collection Reading 分散整合进既有 S1—S12：S1 冻结 viewport/whole 与 scroll 授权，S2/S10 作者与维修 CollectionProfile，S8/S9 分离 generic item/business mapping 与 traversal 决策，S3—S6 保留 scroll/continuity/mutation 事实，S11 守住 Working API 状态，S12 验证 virtualized/overlap/merge/provider failure。未新增 S13、collection/VLM Skill、IR 或 Stable API。
 - 2026-09-11，v0.6：补入自然语言入口、执行前可审阅业务操作计划、高影响未知优先核实、S3—S5 planned／actual／planDelta 对应；S7 发布 DistilledSteps 并将目标专业职责明确为 `trace-distill`，`procedure-synthesize` 收窄为 S8—S9。未新增 S13、Runtime 或已安装 Skill 声明。
+
+- 2026-09-22，v0.7：纠正“仅 application-engineer 有正式方法文件”的历史残留；对齐当前八个方法包，并引用 WORKFLOW／共享合同的阶段完成、硬停止和 needs-revalidation 规则，不增加 S13 或新职责。

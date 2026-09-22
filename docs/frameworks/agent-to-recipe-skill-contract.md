@@ -316,13 +316,19 @@ Capability Discovery、Method Selection、Contract Reading、Runtime Validation 
 
 ### QualificationRecord
 
-包含 `candidateRef / contractRef / scenarios / actualCommands / workingDirectories / executionRefs / buildProvenance / environmentScope / observedResults / evidenceRefs / failedCriteria / skipped / verdict / repairRequests`，并可带 v1 增量字段 `qualificationScope`；旧记录缺失该字段表示资格范围与链路来源未知，不能推断为完整范围或任一链路。`qualificationScope` 包含 `lineage / requested / exercised / qualified / excluded`。`lineage` 仅为 `reference-only`、`continuation-chain` 或 `new-generation-chain`，分别表示只验参考候选、从已有资产接续、由当前完整新生成链产生；这是来源分类，不是状态或 Gate。其余四项分别记录调用者要求验证的范围、实际执行范围、证据足以支持的子集，以及候选已声明但明确不在本次 requested 内的范围与原因。requested 中未资格化的部分不得移入 `excluded`，必须保留在场景／`skipped`／`failedCriteria` 中；只有 requested 全部进入 qualified 且没有对应 fail、not-run 或 blocked 时，`verdict` 才可为 pass。生产者不得为取得 pass 静默缩小 requested；handoff 的 `gate.scope` 不得宽于 requested，且 gate 为 pass 时不得宽于 qualified。场景结果至少区分 pass、fail、not-run、blocked，不得把没有执行写成通过。验收只针对具体候选与范围，不能修改候选和标准后仍沿用旧资格结论。
+包含 `candidateRef / contractRef / scenarios / actualCommands / workingDirectories / executionRefs / buildProvenance / environmentScope / observedResults / evidenceRefs / failedCriteria / skipped / verdict / repairRequests`，并可带 v1 增量字段 `qualificationScope`；旧记录缺失该字段表示资格范围与链路来源未知，不能推断为完整范围或任一链路。当前正常 S12 放行还要求 `candidateRef` 和 `contractRef` 都是 content-bound ref，分别绑定本次实际 Candidate 与其 TaskContract；只在记录里复制一段成功标准文字不能替代合同绑定。
+
+`qualificationScope` 包含 `lineage / requested / exercised / qualified / excluded`。`lineage` 仅为 `reference-only`、`continuation-chain` 或 `new-generation-chain`，分别表示只验参考候选、从已有资产接续、由当前完整新生成链产生；这是来源分类，不是状态或 Gate。其余四项分别记录调用者要求验证的范围、实际执行范围、证据足以支持的子集，以及候选已声明但明确不在本次 requested 内的范围与原因。各 scope 数组内部不得重复；`qualified` 不得扩大到 requested 之外，requested 也不得与 excluded 重叠。
+
+每个正式资格场景至少记录稳定 `id`、非空 `scopeRefs[]`、`verdict` 与 `evidenceRefs[]`；需要直接判 TaskContract criterion 时同时记录对应 `criterionRefs[]`。场景的 `scopeRefs` 必须来自本次 exercised scope。**scope 名称本身不是证据**：每个进入 qualified 的 scope 至少要被一个实际执行且 verdict=pass 的场景覆盖；requested 中未资格化的部分不得移入 `excluded`，必须保留在场景／`skipped`／`failedCriteria` 中。只有 requested 全部进入 qualified、每项均有 passing scenario 证据且没有对应 fail、not-run 或 blocked 时，`verdict` 才可为 pass。生产者不得为取得 pass 静默缩小 requested；handoff 的 `gate.scope` 不得宽于 requested，且 gate 为 pass 时不得宽于 qualified。场景结果至少区分 pass、fail、not-run、blocked，不得把没有执行写成通过。验收只针对具体候选与范围，不能修改候选和标准后仍沿用旧资格结论。
+
+资格声明按证据强度分开：一次 Fresh Run 只证明一次执行；若 requested 明确声称“可重复运行”，相关 scope 至少需要两次彼此独立启动的 Fresh Run，并分别保存 execution/evidence；若声称“参数化可复用”，还要有至少一组不同于示范值的合法变参。若 Candidate 含 LLM/Agent，普通 Recipe 资格只允许预先声明、有界、结构化校验的语义判断点；若运行时仍由 Agent 根据屏幕逐步规划每次桌面动作，则该范围不能表述为“后续无需 Agent 逐步驱动”。这些 live 结论不能由静态 checker、mock 或同一次 execution 的重复读日志代替。
 
 ## 7. 发布、消费与恢复
 
 已实现的只读检查分两层：`check-handoff.js` 核对 request／handoff 信封、身份和显式 hash；`check-artifact-chain.js` 检查 Calculator 形状 v1 工件的选定相邻边界及直接 await／spread 源码模式。后者不升级本合同为完整机器 schema，不递归验依赖闭包，不证明任意 JS 的可达性或一般语义；完整输入、计划适用性、历史事实、现场和授权仍由消费者核对。命令及范围见 [WORKFLOW 第 4 节](../../workflows/agent-to-recipe/WORKFLOW.md#4-交接完整性检查可执行但不替代资格)。
 
-当前限定切片还检查 S7 步骤的目的、输入输出、依赖、前提、预期、验证和分类，以及 S9 的运行时声明是否保留同一生产者、消费者和终点 UI 读值。它验证结构和对应关系，不证明自然语言前提／预期的真实性；合法但超出此切片的轨迹应按本合同审阅，不得改写事实适配检查器。S9 语义完整但工程验证尚未通过时，明确交给 S10；语义放行不等于所选方法已验证。S12 当前只检查记录内声明和候选绑定，外部预先确定的请求／场景与真实运行仍由独立消费者核验。
+当前限定切片还检查 S7 步骤的目的、输入输出、依赖、前提、预期、验证和分类，以及 S9 的运行时声明是否保留同一生产者、消费者和终点 UI 读值。它验证结构和对应关系，不证明自然语言前提／预期的真实性；合法但超出此切片的轨迹应按本合同审阅，不得改写事实适配检查器。S9 语义完整但工程验证尚未通过时，明确交给 S10；语义放行不等于所选方法已验证。S12 的限定 checker 现在检查 Candidate／TaskContract 精确绑定、scope 集合关系和 `scenarios[].scopeRefs` 对 qualified scope 的实际覆盖；外部预先确定的请求本身、真实 execution、重复 Fresh Run、合法变参、视觉结果和“普通 JS 未由 Agent 逐步点击”仍由独立消费者／recipe-qualify live 证据核验。
 
 `code-rebuild` 的 `baseline-retained`／`candidate-revised` 是评审处置标签，不新增 executionStatus、Gate 或 continuation.assetDisposition 枚举。评审必须绑定准确脚本／Candidate／Procedure／方法版本，列映射、分项判断、检查和未测范围；可写进现有工作包或质量报告。保持字节不变时不制造新候选；有影响性变化时仍遵循本节新版本与重验规则。
 
@@ -334,6 +340,24 @@ Capability Discovery、Method Selection、Contract Reading、Runtime Validation 
 6. 产物已完成而 progress 未更新：核对产物后补状态，不重做业务动作。只有 running／旧 done 标签而缺产物：不得跳过。
 7. 现场状态与历史事实分开处理。窗口、焦点、账号、页面和坐标每次重新检查；知识可复用不代表现场仍有效。
 8. DistilledSteps 修订只影响其依赖的 Procedure／Candidate／Qualification；Raw Trace／Dossier 仍保存原历史事实。Procedure 变更不反向改写 DistilledSteps，除非有证据表明 S7 取舍本身错误并发布新版本。
+
+### 7.1 输入变化与局部 `needs-revalidation`
+
+影响分析按实际依赖传播，不按阶段编号机械“全部重跑”：
+
+| 发生变化的权威对象 | 保留 | 需要重核 | 默认责任 |
+| --- | --- | --- | --- |
+| TaskContract 的目标／授权／成功标准 | 旧版本、Raw Trace／Dossier 作为历史事实 | 依赖旧语义／权限的下游；新合同缺什么事实才决定是否补示范 | automation-plan → 第一个受影响职责 |
+| WorkPlan 未执行部分 | 已确认历史事实与仍适用知识 | 受修改计划影响的未完成工作包 | automation-plan plan/revise |
+| Dossier／Raw Trace | 原旧版本、无关 AppProfile | DistilledSteps 及其全部下游 | task-demonstrate → trace-distill |
+| DistilledSteps | Dossier／Raw Trace | Procedure、受影响 S10、Candidate、Qualification | trace-distill |
+| SemanticProcedure | DistilledSteps 与原事实 | 受影响 S10、Candidate、Qualification | procedure-synthesize |
+| AppProfile／helper／定位规则 | 无关业务语义与事实 | 使用该规则的 Candidate／Qualification；若对象身份事实被否定则回事实层 | application-engineer |
+| Candidate 字节／影响性依赖 | 全部仍有效上游 | Qualification；旧 pass 不迁移到新 hash | recipe-build／code-rebuild → recipe-qualify |
+| 仅 Qualification Oracle／scenario／evidence | Candidate 与上游 | 受影响 S12 场景＋必要回归 | recipe-qualify |
+
+旧成果始终保留其原版本与原证明范围；`needs-revalidation` 表示“当前下游结论不能继续被当作已放行”，不是删除旧事实，也不是授权自动重放副作用。
+
 
 业务动作前中断：重新确认现场后决定执行。动作可能已生效但未记录：先核验实际效果，不能默认重试。结果不明时进入待核对并停止后续副作用。自造 UUID、文件 checkpoint 或阶段标记不证明 exactly-once，不恢复 JS 调用栈，也不能回滚外部应用。
 

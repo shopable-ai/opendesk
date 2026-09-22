@@ -1,12 +1,12 @@
 ---
-title: "Agent-first Recorder｜行为案例、测试空间与验收计划"
+title: "Agent-to-Recipe｜行为案例、测试空间与验收计划"
 description: "规定 Agent-to-Recipe 的行为案例、测试空间、门禁与验收证据。"
 order: 70
 ---
 
-# Agent-first Recorder｜行为案例、测试空间与验收计划
+# Agent-to-Recipe｜行为案例、测试空间与验收计划
 
-状态：验证设计 v0.6，2026-09-11。本文件定义应怎样验证，不是已执行的质量报告。实际工具、Skill 宿主加载、模型提取、桌面测试及评分均未因文档写入自动通过。返回[设计总纲](README.md)，需求见[requirements.md](requirements.md)，责任映射见[chain-design.md](chain-design.md)。Structured UI Collection Reading 的专项技术合同见[架构正文](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
+状态：验证设计 v0.7，2026-09-22；补强 S12 scope→scenario、重复运行、变参与普通 JS 独立执行证明。本文件定义应怎样验证，不是已执行的质量报告。实际工具、Skill 宿主加载、模型提取、桌面测试及评分均未因文档写入自动通过。返回[设计总纲](README.md)，需求见[requirements.md](requirements.md)，责任映射见[chain-design.md](chain-design.md)。Structured UI Collection Reading 的专项技术合同见[架构正文](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
 
 ## 一、先确定验证对象与范围
 
@@ -170,6 +170,24 @@ order: 70
   - 生成 Candidate 时，`apiRefs` 必须携带 selected canonical contract／必要约束，`sourceMapping.capabilityDecisionRefs` 能回到 Procedure。缺选择记录、双选、缺合同、not-run 冒充 pass、失败无证据或 Candidate 丢 ref 均判断链。
   - Frozen Fixture 可以验证结构拒绝行为，但不能冒充 Calculator 历史 Runtime 运行；真实方法有效性仍由对应 execution／Qualification 证明。
 
+
+### S12：从“跑过一次”到“可重复 Recipe”的最小资格证明
+
+S12 不能把“有一个 pass 的 QualificationRecord”解释成“已经证明可重复”。不同声明对应不同证据，运行前先把声明放进 requested scope：
+
+| 要证明的声明 | 最低证据 | 不能替代它的东西 |
+| --- | --- | --- |
+| **精确候选通过** | Candidate、TaskContract、入口、依赖和环境固定；场景执行的是同一 production bytes | 参考脚本、重新实现的测试脚本、生成者自报 |
+| **requested scope 已验证** | 每个 requested／qualified scope 都被至少一个实际 scenario 的 `scopeRefs` 覆盖；scenario 有独立 evidence 和真实 verdict | 只在 `qualificationScope.exercised/qualified` 数组里写一个名字 |
+| **一次 Fresh Run 成功** | 干净可归因起点、实际 command／working directory／execution、独立业务 Observation | 历史运行、缓存值、Expected、mock |
+| **可重复运行** | 同一冻结 Candidate 对相关 scope 至少两次彼此独立的 Fresh Run，分别保存 execution/evidence；重复次数在运行前确定 | 同一次 execution 重读日志、重放同一 fixture、一次成功 |
+| **参数化可复用** | 除基线外至少一组不同于示范值的合法输入；运行时 UI/业务值仍从现场读取并真实进入消费者 | 把示范值换个 Expected、测试代码直接注入 expected value |
+| **后续不需 Agent 逐步驱动桌面** | production path 由普通 JS 直接执行确定步骤；若存在 LLM/Agent，仅限预声明的有界语义判断、结构化输出与 validator，执行证据能区分模型判断与 JS 动作 | 资格时再让 Agent 根据屏幕逐个决定每次 click，然后称 Recipe 已独立运行 |
+| **范围内稳定** | app/build/layout/locale/input domain 与 requested scope 对应；声明的扰动场景实际运行 | 在一个环境通过后外推所有平台／布局 |
+
+`check-artifact-chain.js` 只负责可确定性检查的部分：绑定同一 Candidate／TaskContract，并核对 Qualification 的 requested/exercised/qualified 与实际 `scenarios[].scopeRefs` 不脱节。它**不执行 Candidate，也不证明重复运行、合法变参、视觉正确或“不依赖 Agent 逐步点击”**；这些仍必须由 recipe-qualify 的真实 S12 execution 产生证据。
+
+
 ## 四、按层推进与裁剪
 
 - 设计层先核对来源、需求编号、完整任务树、阶段对应、职责、输入输出和本文件测试覆盖；不强制为每个节点生成一个 Skill。
@@ -191,7 +209,7 @@ order: 70
 | S8—S9；BC-30 的静态消费部分 | 从 DistilledSteps 检查覆盖、顺序、生产／消费声明及对应原动作，拒绝丢依赖和第二份取舍 | 隔离上下文的过程生成、一般业务语义和泛化；BC-31 双来源未测 |
 | Capability chain；BC-32 | short entry/catalog 与候选分离；唯一 selected；canonical contract 内容绑定；Runtime validation 明确；失败候选有证据；Candidate apiRefs/sourceMapping 消费选择 | synthetic fixture 不证明真实 API 行为；当前 HEAD 的正式 Runtime contract/unit 与新 live Calculator 仍需本机执行 |
 | S11；BC-02—BC-03 的限定代码评审 | 固定源码 baseline-retained；拒绝读取后固定 110、注释／字符串假调用、旧 hash | 任意 JS 控制流／别名／遮蔽、全部坏代码反例、改码后 live |
-| S12 声明消费 | Candidate 版本、错 revision、部分 requested 假 PASS、失败资格拒绝 | 请求本身及真实 scope 含义、实际环境、独立业务观察、视觉与人类验收 |
+| S12 声明消费 | Candidate＋TaskContract 精确绑定、scope 唯一性、requested/exercised/qualified 关系、scenario.scopeRefs 对 qualified scope 的实际覆盖、错 revision、部分 requested 假 PASS、失败资格拒绝 | 真实 execution、重复 Fresh Run、合法变参、无 Agent 逐步驱动证明、实际环境、独立业务观察、视觉与人类验收 |
 
 `check-artifact-chain.js` 只证明表中受支持的静态切片：A/B ID、digit-string、Calculator 形状的动作回执、能力选择内容绑定及直接 await/spread 模式。未知格式不能冒充通用语义通过。没有递归依赖校验或一般 JS 分析器；精确依赖由 Calculator `qualify.cjs --check` 另核，当前现场仍须独立验收。正常例和合法省略非必要截图的例子必须通过，不能靠全拒绝满足负例。
 
@@ -424,3 +442,5 @@ node tests/workflows/tools/adjacent-producer-eval.js --request <resume-request.j
 顺序检查器只核对声明及源字节的一致性，支持任意本地标识、text／digit-string、identity／characters、单 Profile 内的跨应用同记录键关系、前向数据边及不破坏这些关系的相邻合并。它不证明来源真实性、任意自然语言的业务正确性、因果必要性、复杂省略／分支／循环／恢复、通用 schema、完整 Gate 或实际 API 已可用。`CHECKER_COVERAGE` 表示本工具不能放行，不表示该业务输入本身非法；交验证责任方，不改数据迎合检查器。
 
 探针使用单独 Node 进程、stdin 输入及文件读取许可清单，并实际检查越界读取被拒绝；每次调用保存命令、工作目录、Node／探针版本、输入输出摘要、退出码和限制。它不是完整 OS／网络沙箱，也不建立模型上下文独立性。原相邻模型评测、真实宿主加载和真实业务资格继续分别记 not-run；2026-09-22 本轮版本、实际回归、缺陷复现、十对象二十项评审与未完成范围统一见[八方法最后接线复核](../../../docs/quality/agent-to-recipe/skill-closure-20260922.md)。9 月 19—21 日质量记录仅证明其原版本和范围，不继承为本轮评分，不把测试数量解释为生产成功率。
+
+2026-09-22，v0.7：补强 S12 的 scope→scenario 证据绑定，并明确“一次 Fresh Run”“可重复运行”“参数化可复用”“普通 JS 不依赖 Agent 逐步点击”是不同声明；确定性 checker 只检查可由固定字节证明的关系，live 运行仍保持独立证据要求。

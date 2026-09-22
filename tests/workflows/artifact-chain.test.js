@@ -131,6 +131,52 @@ test('rejects an overall pass that covers only part of requested scope', t => {
   rejects(f.check(), 'PARTIAL_QUALIFICATION');
 });
 
+
+test('requires Candidate and Qualification to bind the exact TaskContract', t => {
+  const f = fixture(t, () => {}, state => {
+    const candidate = JSON.parse(fs.readFileSync(state.file('candidate.json'), 'utf8'));
+    delete candidate.contractRef;
+    state.write('candidate.json', candidate);
+    const qualification = JSON.parse(fs.readFileSync(state.file('qualification.json'), 'utf8'));
+    qualification.candidateRef = state.ref('candidate.json', 'CandidateManifest');
+    delete qualification.contractRef;
+    state.write('qualification.json', qualification);
+  });
+  rejects(f.check(), 'INVALID_REF');
+});
+
+test('rejects qualified scope that has no passing scenario evidence', t => {
+  const f = fixture(t, source => {
+    source.qualification.qualificationScope.requested.push('repeatability');
+    source.qualification.qualificationScope.exercised.push('repeatability');
+    source.qualification.qualificationScope.qualified.push('repeatability');
+  });
+  rejects(f.check(), 'QUALIFICATION_SCOPE_UNPROVEN');
+});
+
+test('rejects a scenario that claims scope which was not exercised', t => {
+  const f = fixture(t, source => {
+    source.qualification.scenarios[0].scopeRefs.push('desktop-runtime');
+  });
+  rejects(f.check(), 'QUALIFICATION_SCENARIO_SCOPE');
+});
+
+test('rejects qualified scope outside the requested range', t => {
+  const f = fixture(t, source => {
+    source.qualification.qualificationScope.exercised.push('extra-scope');
+    source.qualification.qualificationScope.qualified.push('extra-scope');
+    source.qualification.scenarios[0].scopeRefs.push('extra-scope');
+  });
+  rejects(f.check(), 'QUALIFICATION_SCOPE');
+});
+
+test('rejects a pass with missing qualification lineage', t => {
+  const f = fixture(t, source => {
+    delete source.qualification.qualificationScope.lineage;
+  });
+  rejects(f.check(), 'QUALIFICATION_SCOPE');
+});
+
 test('rejects distillation that deletes a necessary runtime read', t => {
   const f = fixture(t, source => {
     source.distilled.actionDecisions.find(item => item.actionRef === 'A005').decision = 'omit';

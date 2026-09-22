@@ -1,12 +1,12 @@
 ---
-title: "Agent-first Recorder｜链路、职责与成果交接设计"
+title: "Agent-to-Recipe｜链路、职责与成果交接设计"
 description: "定义 Agent-to-Recipe 的职责分配、输入输出、路由与成果交接。"
 order: 40
 ---
 
-# Agent-first Recorder｜链路、职责与成果交接设计
+# Agent-to-Recipe｜链路、职责与成果交接设计
 
-状态：链路设计 v0.8，2026-09-22 对齐八个正式方法包与来源感知路由，保留 2026-09-13 的 Capability 接线及后续验证切片。本文把[需求](requirements.md)与[完整任务树](task-decomposition.md)转成环节关系；当前八项专业职责均已有同名方法文件，但宿主加载、独立上下文行为、真实桌面与业务资格仍分别验证；本文不是完整运行调度器，也不新增可执行 IR。Structured UI Collection Reading 的详细合同只维护在[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。返回[设计总纲](README.md)。
+状态：链路设计 v0.9，2026-09-22 对齐八个正式方法包、来源感知路由与局部重验边界，保留 2026-09-13 的 Capability 接线及后续验证切片。本文把[需求](requirements.md)与[完整任务树](task-decomposition.md)转成环节关系；当前八项专业职责均已有同名方法文件，但宿主加载、独立上下文行为、真实桌面与业务资格仍分别验证；本文不是完整运行调度器，也不新增可执行 IR。Structured UI Collection Reading 的详细合同只维护在[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。返回[设计总纲](README.md)。
 
 跨 Runtime／Catalog／Authoring 的唯一架构与完整生命周期任务树见 [Automation Capability Lifecycle](../../../docs/architecture/desktop-automation/task-capability-lifecycle.md)。本页只维护作者链如何接入和返回；不复制 Catalog 字段、运行状态机或另建 `workflows/conversational-task-runner/`。新增方法与检查不表示通用 Catalog 或发布器已实现。
 
@@ -346,7 +346,7 @@ S12 的完成成果仍是固定 Candidate 的 QualificationRecord，不增加 S1
 
 - 每个 Skill 需要明确适用触发、前提、输入合同、专业步骤、输出及消费者、错误和停止条件、允许工具、验证场景及未支持范围。
 - 核心步骤进入 SKILL.md，长示例和专项分析按需引用已有唯一正文；不是每阶段一个 Skill，也不重新建设平行 chains 正文。
-- WORKFLOW 保持范围与路由入口，不重复专业方法。五个现有方法的输入／输出和只读检查见 WORKFLOW 第 4.1 节；Structured Collection 的 profile authoring 仍进入 application-engineer，不拆第二个 collection/VLM Skill。
+- WORKFLOW 保持范围与路由入口，不重复专业方法。八个现有方法的输入／输出、完成／停止边界和只读检查见 WORKFLOW；Structured Collection 的 profile authoring 仍进入 application-engineer，不拆第二个 collection/VLM Skill。
 - `trace-distill` 实施时必须能够只凭固定 TaskContract／WorkPlan、Dossier／Raw Trace、必要 AppProfile 和证据发布 DistilledSteps 或准确指出缺口；不能依赖复制完整聊天。`procedure-synthesize` 的独立接续测试则从 DistilledSteps 开始，不以重新分析 Raw Trace 掩盖交接缺陷。
 - `UI.readCollection()`／`UI.collectCollection()` 必须按专项 Phase 1–7 经 Runtime/type/API/docs/test 闭环后才能分别进入 Experimental；工作流文档先接线不构成实现。
 - 核实实际实现与宿主加载路径，建立与本设计一致的入口；旧目录已删除，不将历史索引或 stages 路径作为当前依赖，不恢复重复阶段卡。
@@ -368,3 +368,5 @@ S12 的完成成果仍是固定 Candidate 的 QualificationRecord，不增加 S1
 2026-09-13，v0.7：接入 Runtime Gap／Failure／已有资产的最小分流、五类可接续工作包与 Qualification→Publish→后续运行出口，明确 Human 原生来源、共享应用工程、差量重验及 P0/P1 实施顺序。只更新文档，保留 S1—S12、原需求／案例与历史证据，不创建 Catalog、发布器、Skill 或新的 Runtime API。
 
 2026-09-19，v0.8：增加 S12 `recipe-qualify` 方法文件，继续复用 QualificationRecord、G0—G7 与 validation-plan 评分，不增加 S13、评分 Gate、发布器或新 schema；方法文件存在不外推宿主安装或新的 live 资格。
+
+2026-09-22，v0.9：纠正遗留的“五个现有方法”表述；当前八项专业职责均有正式方法包，S2/S10 继续共享 application-engineer，code-rebuild 继续可选。阶段完成、硬停止和变化影响统一引用 WORKFLOW／共享合同，不新增状态机或阶段。
