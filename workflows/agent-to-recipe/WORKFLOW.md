@@ -173,6 +173,18 @@ node workflows/agent-to-recipe/scripts/check-handoff.js --request ".runtime/auto
 
 退出码 `0` 只表示本工具检查的完整性通过；`1` 表示检查失败；`2` 表示命令参数错误。报告中的 `declared.gateVerdict` 原样表达交接声明，不是重新验收；`desktopActionsAuthorized` 始终为 `false`。失败包也可以完整性通过并进入诊断，但不能因此进入正常生成／运行路径。
 
+当需要证明“上游已经发布的某个正式 artifact，确实以同一组 `rootId / path / sha256 / schemaVersion / kind` 进入下游正式 request”时，在同一只读工具上增加 `--consumer-request`。这不是生成 handoff、更新 progress 或调度下游；它只为**正常依赖路径**增加一个精确消费边界：生产者 handoff 必须自身完整、Gate 必须为 `pass`，下游 request 必须是同一 task，并且至少消费一个上游 `artifacts[]` 中实际发布且当前字节仍匹配的引用。`warn / fail` handoff 仍可用基础完整性检查进入诊断，但不能借这个正常消费检查被提升成可继续结果。
+
+```bash
+node workflows/agent-to-recipe/scripts/check-handoff.js \
+  --request ".runtime/automation-authoring/TASK_ID/attempts/UPSTREAM/request.json" \
+  --handoff ".runtime/automation-authoring/TASK_ID/attempts/UPSTREAM/handoff.json" \
+  --consumer-request ".runtime/automation-authoring/TASK_ID/attempts/DOWNSTREAM/request.json" \
+  --root "task=.runtime/automation-authoring/TASK_ID"
+```
+
+该检查仍不判断下游 Skill 输入是否语义充分、当前计划变化是否需要重验，也不修改唯一 `progress.json`。协调者在真正执行下游前仍按共享合同完成这些判断。
+
 检查通过后，由协调者继续核对当前计划、producer 版本、必需输出含义、Gate scope／成功条件覆盖、未决项、副作用、授权预算和真实现场。引用 hash 不证明发布者可信，也不证明 macOS／Windows 任何平台运行成功。Human plan 继续使用其原 validator／scorer，不改造成此工具的输入。
 
 本工具的离线测试命令可从仓库根目录直接执行，fixture 仅生成于 `.runtime/tests/workflows/`：
@@ -193,6 +205,8 @@ node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-c
 | S12 资格 | [recipe-qualify](skills/recipe-qualify/SKILL.md)：冻结 Candidate／标准／场景／环境 → QualificationRecord + Recipe Review | 不改候选或成功标准换 pass；requested 中 fail/not-run/blocked 不可被高分抵消 |
 
 该工具当前只支持 Calculator 形状的 v1 成功路径及直接调用源码模式，既不是通用 schema validator，也不是任意 JS 的控制流证明。它检查选定引用，不递归证明整个依赖闭包，不判断历史真实性、现场、视觉、人类接受或宿主安装。闭包另由候选专用检查核验；实际语义仍需审阅。工具通过不表示相关 Skill 在隔离上下文中的行为评测通过；`recipe-qualify` 文件存在也不等于当前候选已取得新的 live 资格。
+
+当前输入充分性回归还把同一次确定性 S7 实际输出装入正式 `agent-to-recipe/v1` handoff，再由正式 S9 request 精确消费；同一次 S9 实际 Procedure 继续进入 S10/harden request。失败／补证切片则证明修复后 handoff 发布的是新 Procedure，后续 request 若仍指向旧失败版本会被拒绝。**这证明的是正式信封与实际确定性产物的接线，不是模型宿主、progress 写入、S1—S12 整链或真实桌面资格。**
 
 可复制的真实只读命令、Frozen Fixture、代码评审及分层结论集中在[工作流质量总览](../../docs/quality/agent-to-recipe-workflow-review-20260919.md)。稳定 fixture 在 `tests/workflows/fixtures/calculator-artifact-chain/`，它明确标为合成测试资料，不是历史示范；临时实例仍写入 `.runtime/tests/workflows/`。S1—S12、G0—G7 不变，最终业务程序仍为普通 JS。
 
