@@ -147,7 +147,9 @@ function publishFormal({ formalRoot, taskId, workPackageId, attemptId, skill, in
   const requestName = attemptId + '-request.json', handoffName = attemptId + '-handoff.json';
   const request = formalRequest({ taskId, workPackageId, attemptId, skill, inputRefs,
     requiredOutputs: artifactRef ? [artifactRef.kind] : [] });
-  writeJson(path.join(formalRoot, requestName), request);
+  const requestFile = path.join(formalRoot, requestName);
+  if (fs.existsSync(requestFile)) assert.deepEqual(JSON.parse(fs.readFileSync(requestFile, 'utf8')), request);
+  else writeJson(requestFile, request);
   const requestRef = fileRef('formal', formalRoot, requestName, 'request');
   const handoff = { schemaVersion: SCHEMA, taskId, workPackageId, attemptId, skill, producerVersion,
     requestRef, inputRefs, executionStatus: gateVerdict === 'pass' ? 'completed' : 'failed',
@@ -161,7 +163,7 @@ function publishFormal({ formalRoot, taskId, workPackageId, attemptId, skill, in
 }
 
 
-test('actual S7 and S9 outputs enter formal request/handoff consumers by exact bytes', async () => {
+test('post-production envelope bindings preserve exact S7 and S9 bytes, not production order', async () => {
   const s = fixture(), out = s.out('formal-consumption');
   const result = await evaluateAdjacent(s.request, out, s.adapter);
   assert.deepEqual(result.stages, { 'trace-distill': 'pass', 'procedure-synthesize': 'pass' }, JSON.stringify(result));
@@ -183,7 +185,7 @@ test('actual S7 and S9 outputs enter formal request/handoff consumers by exact b
     artifactRef: procedureRef, producerVersion: result.methodVersions['procedure-synthesize'], evidenceRef });
 
   let report = checkHandoffConsumption({ request: s7.requestPath, handoff: s7.handoffPath,
-    consumerRequest: s9.requestPath, roots });
+    consumerRequest: s9.requestPath, roots, requiredArtifactKinds: ['DistilledSteps'] });
   assert.equal(report.integrity, 'pass', JSON.stringify(report));
   assert.equal(report.consumedArtifacts[0].sha256, distilledRef.sha256);
 
@@ -193,7 +195,7 @@ test('actual S7 and S9 outputs enter formal request/handoff consumers by exact b
     inputRefs: [procedureRef, s.ref('profile.json', 'AppProfile', 'agent-to-recipe/app-profile/v1.1')],
     requiredOutputs: ['AppProfile'] }));
   report = checkHandoffConsumption({ request: s9.requestPath, handoff: s9.handoffPath,
-    consumerRequest: path.join(formalRoot, s10Name), roots });
+    consumerRequest: path.join(formalRoot, s10Name), roots, requiredArtifactKinds: ['SemanticProcedure'] });
   assert.equal(report.integrity, 'pass', JSON.stringify(report));
   assert.equal(report.consumedArtifacts[0].sha256, procedureRef.sha256);
 });
@@ -275,7 +277,7 @@ test('missing actual selection fails; targeted new record reuses and rechecks S7
     workPackageId: 'S10', attemptId: 'good-s10', skill: 'application-engineer', mode: 'harden',
     inputRefs: [repairedProcedure], requiredOutputs: ['AppProfile'] }));
   let formalReport = checkHandoffConsumption({ request: published.requestPath, handoff: published.handoffPath,
-    consumerRequest: path.join(formalRoot, goodName), roots });
+    consumerRequest: path.join(formalRoot, goodName), roots, requiredArtifactKinds: ['SemanticProcedure'] });
   assert.equal(formalReport.integrity, 'pass', JSON.stringify(formalReport));
   assert.equal(formalReport.consumedArtifacts[0].sha256, repairedProcedure.sha256);
 
@@ -284,7 +286,7 @@ test('missing actual selection fails; targeted new record reuses and rechecks S7
     workPackageId: 'S10', attemptId: 'stale-s10', skill: 'application-engineer', mode: 'harden',
     inputRefs: [failedProcedure], requiredOutputs: ['AppProfile'] }));
   formalReport = checkHandoffConsumption({ request: published.requestPath, handoff: published.handoffPath,
-    consumerRequest: path.join(formalRoot, staleName), roots });
+    consumerRequest: path.join(formalRoot, staleName), roots, requiredArtifactKinds: ['SemanticProcedure'] });
   assert.equal(formalReport.integrity, 'fail');
   assert.ok(formalReport.errors.some(error => error.code === 'CONSUMER_INPUT_NOT_PUBLISHED'), JSON.stringify(formalReport));
 
@@ -641,3 +643,72 @@ test('a refused continuation cannot launder an outstanding failure into an uncha
   assert.equal(a.resumeEvidence.failure.origin.evaluationSha256, b.resumeEvidence.failure.origin.evaluationSha256);
   assert.equal(a.resumeEvidence.failure.raw.sha256, b.resumeEvidence.failure.raw.sha256);
 });
+
+
+// Test-harness adapter, not a Workflow Engine. The existing evaluator is unchanged.
+// Request/handoff checks happen before the S9 worker can produce any output.
+for (const omitPrimary of [false, true]) {
+  test('formal request controls S9 production inputs: ' + (omitPrimary ? 'missing primary stops before worker' : 'normal'), async () => {
+    const s = fixture({ value: '0040', type: 'digit-string' });
+    const out = s.out(omitPrimary ? 'pre-consumption-rejected' : 'pre-consumption-normal');
+    const formalRoot = path.join(s.root, 'pre-production'); fs.mkdirSync(formalRoot);
+    const outputRoot = path.join(out, 'outputs');
+    const roots = [['source', s.source], ['evaluation', out], ['evaluation-output', outputRoot], ['formal', formalRoot]];
+    const events = [];
+    let s7Packet, s7RequestHash, precheck;
+    const requestFor = (packet, inputRefs) => formalRequest({ taskId: 'synthetic-ticket-lookup',
+      workPackageId: packet.stage, attemptId: packet.stage, skill: packet.stage,
+      inputRefs, requiredOutputs: [packet.stage === 'trace-distill' ? 'DistilledSteps' : 'SemanticProcedure'] });
+    const adapter = { ...s.adapter, produce: async (packet, context) => {
+      const name = packet.stage + '-request.json';
+      if (packet.stage === 'trace-distill') {
+        s7Packet = packet;
+        writeJson(path.join(formalRoot, name), requestFor(packet, packet.files.map(item => item.ref)));
+        s7RequestHash = hash(fs.readFileSync(path.join(formalRoot, name)));
+        events.push('S7-request-frozen', 'S7-producer-called');
+        return s.adapter.produce(packet, context);
+      }
+      const distilledRef = fileRef('evaluation-output', outputRoot, 'distilled.json', 'DistilledSteps');
+      const s7 = publishFormal({ formalRoot, taskId: 'synthetic-ticket-lookup', workPackageId: 'trace-distill',
+        attemptId: 'trace-distill', skill: 'trace-distill', inputRefs: s7Packet.files.map(item => item.ref),
+        artifactRef: distilledRef, producerVersion: s7Packet.method.sha256,
+        evidenceRef: fileRef('evaluation', out, 'trace-distill/check.json', 'evidence') });
+      assert.equal(hash(fs.readFileSync(s7.requestPath)), s7RequestHash, 'the request predates production');
+      events.push('S7-handoff-published');
+      const inputs = packet.files.filter(item => !omitPrimary || item.ref.kind !== 'DistilledSteps').map(item => item.ref);
+      writeJson(path.join(formalRoot, name), requestFor(packet, inputs));
+      precheck = checkHandoffConsumption({ request: s7.requestPath, handoff: s7.handoffPath,
+        consumerRequest: path.join(formalRoot, name), roots, requiredArtifactKinds: ['DistilledSteps'] });
+      writeJson(path.join(formalRoot, 'pre-consumption-check.json'), precheck);
+      assert.equal(fs.existsSync(path.join(out, 'outputs/procedure.json')), false, 'not checked after production');
+      events.push(precheck.integrity === 'pass' ? 'S9-inputs-accepted' : 'S9-inputs-rejected');
+      if (precheck.integrity !== 'pass') throw new Error('formal-input-rejected: coordinator must deliver the published DistilledSteps');
+      // Re-read the frozen request: its exact refs select the actual worker input
+      // bytes. Do not let a parallel evaluator packet silently supply extras.
+      const request = JSON.parse(fs.readFileSync(path.join(formalRoot, name), 'utf8'));
+      const key = ref => JSON.stringify([ref.kind, ref.rootId, ref.path, ref.sha256, ref.schemaVersion]);
+      const available = new Map(packet.files.map(item => [key(item.ref), item]));
+      const files = request.inputRefs.map(ref => {
+        const item = available.get(key(ref)); assert.ok(item, 'declared input has no delivered body');
+        assert.equal(hash(Buffer.from(item.content)), ref.sha256);
+        return { ref, content: item.content };
+      });
+      assert.ok(files.some(item => item.ref.sha256 === distilledRef.sha256));
+      events.push('S9-producer-called');
+      return s.adapter.produce({ ...packet, files }, context);
+    } };
+    const result = await evaluateAdjacent(s.request, out, adapter);
+    writeJson(path.join(formalRoot, 'production-order.json'), { events, mode: 'deterministic-test-double',
+      modelBehaviorVerified: false, desktopRun: false });
+    assert.equal(result.stages['trace-distill'], 'pass');
+    assert.equal(result.stages['procedure-synthesize'], omitPrimary ? 'fail' : 'pass', JSON.stringify(result));
+    assert.equal(s.calls(), omitPrimary ? 1 : 2, 'rejected inputs must not reach the S9 worker');
+    assert.equal(precheck.productionOrderVerified, false, 'only this harness records order, not the checker');
+    assert.deepEqual(events, ['S7-request-frozen', 'S7-producer-called', 'S7-handoff-published',
+      ...(omitPrimary ? ['S9-inputs-rejected'] : ['S9-inputs-accepted', 'S9-producer-called'])]);
+    if (!omitPrimary) {
+      const procedure = s.read(out, 'outputs/procedure.json');
+      assert.equal(procedure.runtimeValues.find(value => value.name === 'ticketCode').observedValue, '0040');
+    }
+  });
+}

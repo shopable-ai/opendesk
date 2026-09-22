@@ -46,7 +46,7 @@ Agent-to-Recipe 的核心目标不是“把桌面操作记录下来”，而是�
 | **S3—S6 task-demonstrate** | 真实任务实际完成或按合同明确失败；Dossier／Raw Trace 保存 planned→actual、动作、Observation、runtime value、消费者、验证、planDelta 和副作用状态 | 关键动作／读值／结果事实缺失；副作用结果 unknown；无法证明真实业务结果 | S7；诊断时可定向补采，不事后补造历史 |
 | **S7 trace-distill** | 每个 Raw Action 有 retain／merge／omit／recovery／unresolved 处置；正常路径无阻断 unresolved；真实 producer→consumer 数据关系仍可追溯 | 必要动作来源不明、数据消费者丢失、事实不足或动作取舍无法证明 | S8—S9；事实不足返回 S3—S6 |
 | **S8—S9 procedure-synthesize** | SemanticProcedure 的 Business Steps、参数来源、runtime values、data dependencies、分支／循环／恢复、supported scope 与 capabilityDecisions 有来源且可消费 | 需要重新猜 Raw Trace；运行值被改成示范常量；业务语义／参数来源无法由正式输入支持 | S10 与 S11；动作取舍错误回 S7 |
-| **S10 application-engineer/harden|repair** | Procedure 真正需要的 Target／Locator／Read／Wait／Action／Verifier／Recovery 已落实或明确记录 Runtime primitive 缺口；规则有适用范围与失效条件 | 关键定位／读取／等待仍未验证，或只能靠改变业务语义绕过工程缺口 | S11；无缺口时直接复用旧规则 |
+| **S10 application-engineer/harden／repair** | Procedure 真正需要的 Target／Locator／Read／Wait／Action／Verifier／Recovery 已落实或明确记录 Runtime primitive 缺口；规则有适用范围与失效条件 | 关键定位／读取／等待仍未验证，或只能靠改变业务语义绕过工程缺口 | S11；无缺口时直接复用旧规则 |
 | **S11 recipe-build** | 普通 OpenDesk JavaScript 与 CandidateManifest 冻结；每个 Business Step 和实际数据依赖可追到代码／函数；入口、依赖、API refs、支持范围明确 | 仍有未解决的业务语义、应用规则、API 或副作用问题；不能用代码猜测上游事实 | S12；只有独立代码质量收益明确时才进入可选 code-rebuild |
 | **S12 recipe-qualify** | 精确 Candidate 与 TaskContract 被固定；运行前 requested scope／scenarios 已确定；实际场景与 scope 逐项绑定并有独立 evidence；请求范围全部 pass 才可晋级 | 候选／标准被改动；requested 中任一 fail／not-run／blocked；Oracle 回灌生产路径；实际执行对象与冻结 Candidate 不一致 | 交付／显式发布 handoff，或按缺陷责任定向返回 |
 
@@ -206,17 +206,20 @@ node workflows/agent-to-recipe/scripts/check-handoff.js --request ".runtime/auto
 
 退出码 `0` 只表示本工具检查的完整性通过；`1` 表示检查失败；`2` 表示命令参数错误。报告中的 `declared.gateVerdict` 原样表达交接声明，不是重新验收；`desktopActionsAuthorized` 始终为 `false`。失败包也可以完整性通过并进入诊断，但不能因此进入正常生成／运行路径。
 
-当需要证明“上游已经发布的某个正式 artifact，确实以同一组 `rootId / path / sha256 / schemaVersion / kind` 进入下游正式 request”时，在同一只读工具上增加 `--consumer-request`。这不是生成 handoff、更新 progress 或调度下游；它只为**正常依赖路径**增加一个精确消费边界：生产者 handoff 必须自身完整、Gate 必须为 `pass`，下游 request 必须是同一 task，并且至少消费一个上游 `artifacts[]` 中实际发布且当前字节仍匹配的引用。`warn / fail` handoff 仍可用基础完整性检查进入诊断，但不能借这个正常消费检查被提升成可继续结果。
+需要核对下游 request 是否收到本次所需主产物时，在同一只读工具上同时给出 `--consumer-request` 和一个或多个 `--require-artifact <kind>`。调用者按当前 Skill／io-spec 选择实际必需种类：S7→S9 需要 `DistilledSteps`，S9→S10／S11 需要 `SemanticProcedure`；多个必需种类必须全部满足，不能用双方共享的 evidence 或可读 View 代替主产物。程序调用同一函数时使用 `requiredArtifactKinds`。这是检查范围参数，不是 request 新字段，也不是自动阶段路由。旧的仅给 consumer-request 调用须补足此范围；不再默认任意一个 artifact 相交即可通过。
+
+正常绑定检查要求上游信封完整、`executionStatus=completed`、`gate.verdict=pass`，下游属于同一 task，且每种指定主产物的 `rootId / path / sha256 / schemaVersion / kind` 都精确匹配实际发布的引用与当前字节。失败／中断／取消或 warn/fail 包仍可通过基础完整性检查供诊断，不因此成为正常成果。
 
 ```bash
 node workflows/agent-to-recipe/scripts/check-handoff.js \
   --request ".runtime/automation-authoring/TASK_ID/attempts/UPSTREAM/request.json" \
   --handoff ".runtime/automation-authoring/TASK_ID/attempts/UPSTREAM/handoff.json" \
   --consumer-request ".runtime/automation-authoring/TASK_ID/attempts/DOWNSTREAM/request.json" \
+  --require-artifact DistilledSteps \
   --root "task=.runtime/automation-authoring/TASK_ID"
 ```
 
-该检查仍不判断下游 Skill 输入是否语义充分、当前计划变化是否需要重验，也不修改唯一 `progress.json`。协调者在真正执行下游前仍按共享合同完成这些判断。
+上例用于 S7→S9；其他边界按实际输入规格替换 kind，不复制示例值冒充需求。该工具只证明引用与字节绑定，始终报告 `productionOrderVerified=false`；它不能证明下游曾在生产前读取，更不能证明生产确由这些正文驱动。真正消费者须在生产前核对已发布 handoff、冻结 request、打开指定主产物及必要方法／输入，失败则不启动依赖生产；输出再绑定实际消费版本。事后补信封只能叫后置绑定检查。语义充分性、当前计划、权限／预算和 Gate 仍由原职责判断，工具不修改 `progress.json`。限定的生产前测试与普通 JS 执行证据分层见 [validation-plan](design/validation-plan.md#普通-js-原字节执行与复用判据)。
 
 检查通过后，由协调者继续核对当前计划、producer 版本、必需输出含义、Gate scope／成功条件覆盖、未决项、副作用、授权预算和真实现场。引用 hash 不证明发布者可信，也不证明 macOS／Windows 任何平台运行成功。Human plan 继续使用其原 validator／scorer，不改造成此工具的输入。
 

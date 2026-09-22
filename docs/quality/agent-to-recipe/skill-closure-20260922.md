@@ -1,5 +1,148 @@
 # 八方法最后接线与十对象逐因素复核｜2026-09-22
 
+## 2026-09-22 Workflow 业务链复核：当前结论优先
+
+**本次结论：保留现有主链与八项专业职责；修复真实的生产前交接缺陷，补上实际普通 JS 的宿主执行检验，但不宣布 Agent-to-Recipe 整链完成。**此前 220／227 项测试及其原始记录保留在下方历史章节；其中“正式消费已贯通”的结论需要收窄为当时已证明的后置引用绑定。本节纠正该外推，不把历史测试通过改写成未发生，也不继承历史分数为当前能力。
+
+### 从正式入口继续，而不是再跑一遍八个 Skill
+
+本次从 `WORKFLOW.md` 的已有成果入口出发，完整读取指定设计基线、共享合同和本记录，并按专业方法取得 SKILL／io-spec 正文。Calculator 的维护源码、固定 spec、真实资格工具和历史 r003 报告可以读取；原始 Dossier／DistilledSteps／Procedure／AppProfile／Candidate q002 与 Qualification 位于用户本地 `.runtime/automation-authoring/calculator-fresh-20260918/`，本环境没有这些文件，不能把报告中的路径和 hash 当作已重新核验的原包。
+
+因此首个真实接续缺口是**取得并重核原任务包及候选依赖**，不是重新示范。原示范不重做；维护源码按 `reuse-unchanged` 进行限定审阅／宿主测试，不从最终代码反造成功 Dossier、应用现场或历史选型。S7/S9 在本轮只进入既有受控探针评测，未冒充实际业务重新提炼。S10 无现场不补造规则；S11 没有新业务候选；S12 完成可执行的源码层检查并保留真实资格阻塞。
+
+| 业务问题 | 当前 Workflow 怎样解决／实际技术 | 当前证据 | 真实缺口与责任 |
+| --- | --- | --- | --- |
+| 用户到底要完成什么 | S1 保存原始来源，形成 TaskContract＋WorkPlan，分开输入、配置、运行值、Unknown、授权与停止条件 | 方法／规格、合同消费者及错误政策反例 | 自然语言到计划的独立模型生产未测；S1 规格中请求冻结时序本次修正 |
+| 首次任务真实发生了什么 | S3—S6 用现有 Runtime 完成任务，Dossier 保留 planned/actual、动作、观察、值、消费者、副作用与验证 | 原 r003 报告记载历史 UI 110→660；本次只取得报告和源码，未重核原包 | 补取原证据；不能由聊天、Expected 或新执行倒填旧事实 |
+| 哪些动作构成必要路径 | S7 从固定事实产生 DistilledSteps，retain/merge/omit/recovery 有来源，保留重复合法输入和读值边 | 顺序合成探针、取舍／数据关系反例、有效 S7 接续回归 | 真实未见探索轨迹的必要性判断仍未证明，不据此合并 S7/S9 |
+| 怎样变成可复用业务过程 | S8—S9 消费 DistilledSteps 与明确政策／应用关系／选型正文，形成 Business Steps 和数据依赖 | 本次生产前正式 request 实际决定 S9 worker 收到的正文；缺主产物不调用 | S9→S10 仍只有 request 绑定；实际工程作业和 S9→S11 生成行为未证明 |
+| 怎样落成应用操作 | S10 复用或补强定位、读取、等待、状态准备、动作、验证与失效规则 | 现有 Calculator 源码具备身份／布局／唯一性／稳定读取及未知停止；应用工具合成回归 | 当前 AppProfile 原包及 live 适用性待核；无依据不重做 discover 或扩大平台 |
+| 怎样得到普通 JS | S11 消费已确认过程、操作规则和真实 API，直接交付普通 JS＋固定候选 | 维护 `calculator.js` 真实存在；本次原字节宿主执行证明 read→firstResult→第二段输入→finalResult | 没有本次从正式 Procedure/AppProfile 独立生成新候选的证据；不能用既有最终代码充作生成答案 |
+| 后续能否直接复用 | S12 分层核验固定对象、真实入口、Fresh Run、合法输入变化和独立 UI 结果 | 原源码本次合成接口执行通过；无逐步 Agent 调用；真实资格预检查被 macOS 前提阻止 | 主入口仍是固定 25×4+10／6×首值；未提供可配置业务参数，合法变参资格未成立 |
+
+### 本次缺陷、正式 Owner 与实际修复
+
+| 具体问题／分类 | 根因 | 修复与验证 |
+| --- | --- | --- |
+| CLI 传了 `--consumer-request` 却返回 producer-only PASS／工具实现 | parser 保存 `consumer-request`，分支读取 `consumerRequest`；原测试只充分覆盖导出函数 | 修正参数映射；旧调用搭配跨 task request 的反例先复现错误 PASS，再验证 CLI 确实进入消费检查 |
+| 共享 evidence 能冒充主产物到达／validator 与交接 | 只要求任意 artifact 相交；failed/interrupted/canceled 配 pass 标签也可进入正常消费 | 明确检查本次消费者所需主产物种类；全部精确匹配且 producer completed/pass 才允许正常绑定；基础失败包诊断保留。命令及迁移只在 WORKFLOW 第 4 节维护 |
+| 生产结束后补信封被写成生产前消费／验证证据 | 原测试在 evaluateAdjacent 结束后创建正式信封 | 保留并重命名原后置绑定测试；新增真实顺序的确定性适配器：先 request，再生产；S9 从已核对 request 选取实际正文。缺 DistilledSteps 时不启动 S9 worker；不修改 evaluator 为调度器 |
+| S1 规格写成产物完成后再固定 request／方法问题 | io-spec 的时序句与共享合同相冲突 | 修正 automation-plan/io-spec：生产前固定并读取请求与方法输入，生产后 handoff 绑定输出。只修该 Owner，不新增 schema |
+| 只核源码形状无法证明读值确被消费／S12 验证方法 | 结构声明与最终数值可被正确外观掩盖；此前缺少原生产字节执行层 | 新增原源码合成接口执行测试；返回不同数据流标记、验证后续输入／终点读取／异步顺序／停止，三个故意坏副本均被 Oracle 拒绝。方法在 recipe-qualify 引用 validation-plan 唯一正文 |
+
+`evaluateAdjacent / resumeFrom`、冻结方法字节、失败留存和累计预算继续保留为有限评测基础，未改成 Workflow Engine。`progress.json` 继续只是单写入者维护的索引；本次没有将 evaluator 的 pass 写成 progress done，也没有新增业务状态真相。Human 来源、原始副作用事实及其路由不变。
+
+### 八个 Skill 核定
+
+| Skill | 决定 | 理由与本次实际进入方式 |
+| --- | --- | --- |
+| automation-plan | 保留，调整 io-spec 时序 | 目标／授权／计划有独立责任；只修请求冻结歧义，未强制重新运行 S1 |
+| application-engineer | 保留一个 Skill、三模式 | discover/harden/repair 共享应用专业方法，输入和完成范围不同；没有证据需要拆三个 Skill |
+| task-demonstrate | 保留 | 事实采集与必要性判断不同；本次无新桌面示范，历史事实不覆盖 |
+| trace-distill | 保留 | 原动作必要性唯一 Owner；本次在受控相邻测试按固定输入执行确定性探针，不冒充模型按方法理解 |
+| procedure-synthesize | 保留 | 必要路径到业务语义与数据关系有独立职责；本次验证正式 request 在 S9 生产前驱动输入，而非重读 Raw Trace |
+| recipe-build | 保留；生成能力仍需证据 | 过程／规则到普通 JS 不能省略；维护源码存在不等于本次已从规定输入生成 |
+| code-rebuild | 保留为可选／独立入口 | 本次限定审阅维护源码并保留原字节，无真实代码缺陷不强行优化，不虚构新 Candidate |
+| recipe-qualify | 保留，补强执行与变参判据 | 资格与生成相互独立；补原字节执行及真实公开入口检查，不以 mock 或 helper 参数扩大资格 |
+
+未合并、拆分或增加 Skill／阶段／Gate。以上是当前证据支持的保留决定，不是“八个已经最优”的结论。
+
+### 重新按同一量尺检查十个方法／模式
+
+评审者：本会话同一 Agent；不是多人专家或盲上下文。范围：实际读取的当前方法／规格、共享合同与限定确定性消费者证据；不包含模型、桌面或生产可靠性。A1—A5、B1—B4、C1—C4、D1—D4、E1—E3 的含义保持 validation-plan 第六节，不重设权重。
+
+下表完整给出二十项分档向量，括号内为五因素小计。5 只表示该方法设计或明确工具切片的证据充分；2 为部分覆盖；0 为无证据。每个对象重新对照其方法和本次实际回归；下方历史逐项依据仅在本次同字节／同范围已核对时复用，不让旧测试数量自动续分。
+
+| 对象 | A 五项（/25） | B 四项（/20） | C 四项（/20） | D 四项（/20） | E 三项（/15） | 方法小计 |
+| --- | --- | --- | --- | --- | --- | ---: |
+| automation-plan | 5,5,5,5,5（25） | 5,5,5,5（20） | 2,5,2,5（14） | 2,2,2,2（8） | 5,0,2（7） | 74 |
+| application-engineer/discover | 5,5,5,5,5（25） | 5,5,5,5（20） | 5,5,2,5（17） | 2,5,2,5（14） | 5,0,2（7） | 83 |
+| application-engineer/harden | 5,5,5,5,5（25） | 5,5,5,5（20） | 2,5,2,5（14） | 2,2,2,2（8） | 5,0,2（7） | 74 |
+| application-engineer/repair | 5,5,5,5,5（25） | 5,5,5,5（20） | 5,5,2,5（17） | 2,5,2,5（14） | 5,0,2（7） | 83 |
+| task-demonstrate | 5,5,5,5,5（25） | 5,5,5,5（20） | 2,5,2,5（14） | 2,2,2,2（8） | 5,0,2（7） | 74 |
+| trace-distill | 5,5,5,5,5（25） | 5,5,5,5（20） | 5,5,5,5（20） | 5,5,2,5（17） | 5,0,5（10） | 92 |
+| procedure-synthesize | 5,5,5,5,5（25） | 5,5,5,5（20） | 2,5,5,5（17） | 5,5,2,5（17） | 5,0,5（10） | 89 |
+| recipe-build | 5,5,5,5,5（25） | 5,5,5,5（20） | 2,5,2,5（14） | 2,2,2,2（8） | 5,0,2（7） | 74 |
+| code-rebuild | 5,5,5,5,5（25） | 5,5,5,5（20） | 5,5,2,5（17） | 2,5,2,2（11） | 5,0,2（7） | 80 |
+| recipe-qualify | 5,5,5,5,5（25） | 5,5,5,5（20） | 5,5,2,5（17） | 2,5,2,2（11） | 5,0,2（7） | 80 |
+
+主要扣分：S1／示范／S10／S11 未完成当前真实业务生产交接，C1/C3/D 保持局部；应用工具的合成 Profile 修订只支持其工具范围；S7/S9 的正常、变化、定向修复和预算由本次确定性测试支持，通用语义、Human 与真实模型路由仍不获满分。**S9 的 C1 从历史 5 调整为 2**：Procedure 被 checker 与 S10 request 绑定，不等于已经驱动 S10 或 S11 实际作业。新的 JS 执行测试提高可核对证据，但未让 code-rebuild/recipe-qualify 取得新候选或真实资格，故不强行加分。E2 全部为 0；没有实际复用收益或费用数据。
+
+相邻交接单列：S7→S9 的生产前正常／拒绝和定向恢复在确定性切片成立，模型层未测；S9→S10 仅引用绑定。整链、具体候选资格、模型、正式宿主、Runtime、桌面、人工接受和真实收益分别保持 not-run／blocked／not measured，不从上述小计推导总分。历史相邻 92 的后置证明范围由本节纠正，不继续称其为完整生产前交接分。本轮不生成 Agent-to-Recipe 单一综合分，也不以达到 95 为修复目标。
+
+### 实际执行与证据边界
+
+首读 master `a5e8f037c4ef41e8454a293253a0e08443ac625b`。本次执行副本来自该提交 Actions run `35730957559` 的 artifact `10695262712`；ZIP SHA-256 `51a0cad056fb825dfe2c724fb4a98efd48f9682577e9e8808162070f419e4e20`，source-head 与 tar commit 一致。它是范围内源码快照，不是用户工作区或完整 Git checkout；本地 `git rev-parse HEAD / git status` 均报告无 `.git`，不能声称用户本地干净。写入沿实际最新 master 增量提交、非强推，提交／远端回读与本地测试是不同事实。
+
+提交前发现 master 已推进到 `b8913337fcc396b3a4265da62b51a284a24ce331`（5 个并行提交）。重新取得 run `35734589988`／artifact `10697041915`，ZIP SHA-256 `0c11831fe06dd4ce044e042908421d97ff52bc3e7fa7bf82f04d5171b0c915d1`；三方合并保留全部 S12 scope/scenario、合同绑定、局部重验及其测试。validation-plan 末尾双方追加的段落显式保留，没有覆盖并行改动。下方并行 S12 记录保持原范围，不算本轮修复。
+
+执行目录 `/mnt/data/opendesk`，Linux、Node v22.16.0。实际命令：
+
+```bash
+node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-*.test.js
+python3 -m unittest discover -s tests/agent-to-recipe/application-engineer -p 'test_*.py' -v
+node tests/workflows/calculator/qualify.cjs --check
+```
+
+基线 227/227；新增缺陷集先得到 49 pass／10 fail。中途一次修复遗漏 completed 状态保护，111 项中 3 fail，保留该失败后修正；生产前交接相关 113/113；原 JS 执行 17/17；原执行副本全套 **256 pass／0 fail／0 skip**；合并并行 S12 更新后重新执行 **261 pass／0 fail／0 skip**，其中并行更新带来 5 个既有增量，不算本轮新增。新增 29 项为 10 个交接反例／迁移、2 个生产前顺序／拒绝、17 个原 JS 执行与反例敏感性检查。Python 27 项中 26 pass／1 skip，真实模型材料未提供，不冒充模型提取通过。
+
+Calculator `--check` 实际返回 fail：`This qualification is macOS only`，`inputStarted=false`；本环境也缺原作者任务包与构建物。该失败是当前环境／输入前提阻塞，不是此源码业务失败，更不是新资格。保留工具的原 fail 和依赖诊断，不改平台／hash 保护来得到绿色结果。本轮无 Runtime、桌面、Fresh Run 或人工接受。
+
+维护源码保持 SHA-256 `a62c72aa2b00f256755aac2524d14e4655a88194c012bf6765f0d314a62774cc`。合成读值 `0040`→后续字符输入和终点 `777` 用于检测常量替代，不满足原业务算术也不冒充真实观测。测试加载原生产文件，仅加顶层 await 包装；没有第二套 Calculator 业务实现，未修改 spec、真实资格工具或旧候选 hash。
+
+日志位于 `.runtime/tests/workflow-business-20260922/`；原始失败、正常和预检查全部保留，不提交源码仓库。以下摘要及固定测试入口支持复核，证据不可读后须降低相应可复核结论：
+
+| 日志 | SHA-256 |
+| --- | --- |
+| `baseline.tap` | `e56a7cade8b8ea271513051f90b6b72bea6630e47068426af35774ed443c072b` |
+| `reproduced.tap` | `d5b4cb2bd5a1281ca16ac402bf680e93518cf76c9687cbd0255f999100d28243` |
+| `fixed-handoff.tap` | `60fd92f48ba6462d6e4f6a2189b32695884418dd23994c7f5657bea505e7a075` |
+| `pre-production.tap` | `eac934170e27594c6773a95af66e8dd1592464e56c9bba03c82f32cb0d231589` |
+| `production-js.tap` | `ff52b4525d42b4092efc504da701af9005c5b53e6e82de68514166dcbc7974b4` |
+| `full-final.tap` | `964a8c5e6ca39b7fc093cb974874ef57618e1bb807837e3bc98976d9bd04b57e` |
+| `merged-final.tap` | `314a5b1fa369a36fe36ba5a404bb0a4ddd0cdcf9760d1416934ccf23255447df` |
+| `application-engineer.log` | `8ce23d277d37f28573af6acdd57598afb5abd5132ba9f6d85eb0881a1a6c74a4` |
+| `qualification-precheck.log` | `05edde69f9957a09732150549ed219b20a1c3b4f7689536da75b6bc8850fa1da` |
+
+本轮实际方法／规格字节：
+
+| 方法目录 | SKILL.md SHA-256 | io-spec.md SHA-256 |
+| --- | --- | --- |
+| `automation-plan` | `9e274fff7f496fef05035e3be1a6dc6fbf56561b5d42e32aca2acd05cab237d8` | `0094bb9b024d53150c94bc60eb89c8bdf1df74d8c9c974d1d386a080f67d89c1` |
+| `application-engineer` | `1c7627669b23caa60497fc1cebd5f73f52ccc38135952cd31e4ab9adcdf59e2e` | `07cac5fd02b548bcad2ea717226a9354d590b71d9a1cc204e071d0b02c4ba23f` |
+| `task-demonstrate` | `fa41f980426691e499cdaf0f2703322506c6e67aaef4156d3ef62e47125c0ad5` | `1b405f9debc25404465407d95d518c494bd9525e5c3b30a5347a6fd2d10d0b16` |
+| `trace-distill` | `d34458d7912a6aafeea822ce85b9a7a8ce49d659c696202b91af11bbda2948c9` | `7c496021a943a721440191dc1e06ae238c3cd49c7fd6d8c13acd17e47a3de8ff` |
+| `procedure-synthesize` | `ff36c0303c4f2440dbbb8dbbd5ff8a8d034e2017b4291666f462c9358fc7d36d` | `98edaf36ab476c232f4ebe7dcbb3d43dec02168b9490ff1eb68867135783842f` |
+| `recipe-build` | `6c7014c6c98456e1e94cf4951e1de96f2a1d2dc26527cf7ec3ada6753be85717` | `30f656137aaa5ca9672fb0e370f80ecda10e23a4b825657ea1d2a4e13a801709` |
+| `code-rebuild` | `5170bae42879474f8f53cca43ba8c084b9424d5180b1888f37d3f2b5881511fe` | `30a66fa2a85c229e714b3bc7c79d74da1ba7b34cb1a6b73db6406359c4c8c9ef` |
+| `recipe-qualify` | `5815b1adf602ae88480b8af1f3bf053369116025c874fe21764633f40284b746` | `4249a8d6bbaeb1ba190694e9d24a10e4fe1eed9b77b679d77f46dee337ce7c0f` |
+
+本轮支持文件版本（报告自身不写自身 hash，避免循环）：
+
+| 文件 | SHA-256 |
+| --- | --- |
+| `tests/workflows/handoff-integrity.test.js` | `1e36b9fd3210390bdde45f57a0404786c5ab7b1be5fb6417e0afe18d21a33f59` |
+| `tests/workflows/artifact-calculator-production.test.js` | `d8fe21a9081b2de4831527cac33c3dff796655eafef04c1aa9629cac74ebb78d` |
+| `tests/workflows/artifact-input-sufficiency.test.js` | `3198d4dd2358d957b5d664e400188938eca7970504f8c1ed4397d324e38f6e7f` |
+| `workflows/agent-to-recipe/WORKFLOW.md` | `0d5bc53b53abd61b632e3a256e741ee0453f13ce3faa2872fb3638515d01a693` |
+| `workflows/agent-to-recipe/design/validation-plan.md` | `362aecf6883d46a11ff0051a6ebe2020b4e6bd0628062f949e6d2b002f0219e0` |
+| `workflows/agent-to-recipe/scripts/check-handoff.js` | `4467811f651043bb748ce6e2298f37e817452434aab9f803a7b61b8c35a286ce` |
+| `workflows/agent-to-recipe/skills/recipe-qualify/SKILL.md` | `5815b1adf602ae88480b8af1f3bf053369116025c874fe21764633f40284b746` |
+| `workflows/agent-to-recipe/skills/automation-plan/references/io-spec.md` | `0094bb9b024d53150c94bc60eb89c8bdf1df74d8c9c974d1d386a080f67d89c1` |
+
+### 下一步只从真实缺口继续
+
+先在已有本地任务根核对 r003/q002 的 TaskContract、WorkPlan、Dossier、DistilledSteps、Procedure、AppProfile、Candidate、Qualification 及必要依赖。能证实仍有效的成果原样保留；缺文件先补取原包，不重做成功示范。只有依赖或现场确实失效，才按共享合同回正确责任。
+
+本轮请求包含合法输入变化，而当前 main 无业务参数入口。原包核定后从 **S8—S9 的业务参数／输入合同缺口**继续，区分用户可变输入和每次必须重新取得的 firstResult；复用有效应用规则，S11 生成并冻结新普通 JS，S12 对同一候选运行固定基线和合法变化。若原候选的当前资格本身缺证，则先完成相应 S12 核验。这个接续不要求再跑全部 S1—S12，也不把“八个 Skill 各跑一次”当作目标。
+
+仍有三项主要未完成：原包／当前环境可复核性；正式 Procedure＋AppProfile 到新普通 JS 的实际生产；同一候选公开入口的 Fresh Run／合法变参资格。真实模型稳定性与复用收益随这些实际作业分别取证，不另扩展工作流平台。
+
+## 以下为此前版本的历史记录
+
+以下 220／227 项、旧版本 hash、评分及完成声明仅保持其原证据范围。与本节对生产顺序、主产物消费及 S9 下游实用性的纠正不一致时，以本节当前结论为准。
+
+
 ## 结论与评审身份
 
 主链仍为 S1 automation-plan → S2 application-engineer/discover → S3—S6 task-demonstrate → S7 trace-distill → S8—S9 procedure-synthesize → S10 application-engineer/harden、repair → S11 recipe-build（可选 code-rebuild）→ S12 recipe-qualify。保留 G0—G7、共享合同、现有 Recorder／Replay 和普通 OpenDesk JavaScript。

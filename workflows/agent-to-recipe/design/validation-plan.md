@@ -425,9 +425,11 @@ node tests/workflows/tools/adjacent-producer-eval.js --request <resume-request.j
 
 该 CLI 没有模型适配器，因此只重检／发包。真正模型生产必须由获准宿主显式传入 adapter，记录独立上下文、实际模型／工具、外发授权与费用／调用预算；宿主身份自报不能证明隔离，改 `sourceSet` 也不能变成留出集证据。没有宿主时保持 modelBehaviorVerified=false。
 
-2026-09-22 正式信封消费补强仍复用现有 `agent-to-recipe/v1`，没有增加业务 schema 或调度器。`check-handoff.js --consumer-request` 在基础 request／handoff 完整性通过后，只验证正常依赖路径的下游 request 至少精确消费一个上游 `artifacts[]` 引用；生产者 Gate 非 pass、跨 task、未发布／旧版本 artifact 或当前字节 hash 不一致均拒绝。失败／warn handoff 仍可进入诊断，但不能借该检查升级为正常结果。
+2026-09-22 正式信封消费补强仍复用 `agent-to-recipe/v1`，不增加业务 schema 或调度器。修正后的 CLI／函数入口均执行主产物绑定检查；命令、显式必需种类及兼容迁移由 [WORKFLOW 第 4 节](../WORKFLOW.md#4-交接完整性检查可执行但不替代资格)唯一维护。测试同时覆盖命令行和导出函数；不能只测函数却假定 CLI 已接线。
 
-`artifact-input-sufficiency.test.js` 将同一次确定性 S7 实际输出发布为正式 handoff 并交给正式 S9 request，再将同一次 S9 实际 Procedure 发布给 S10/harden request；缺选型来源的失败切片补交新版本后，只发布修复后的 Procedure，后续若引用旧失败 Procedure 则拒绝。这里证明的是**确定性 Producer 产物 → 正式信封 → 下游 request 的精确字节接线**，不证明 progress 已由真实协调者写入、模型遵守 Skill、宿主隔离或真实桌面。
+`artifact-input-sufficiency.test.js` 原“生产完成后补正式信封”切片保留为后置绑定回归，不作为生产顺序证据。新增受控适配器先冻结 S7 request，再执行 S7；发布其真实确定性输出后，在调用 S9 worker 前冻结 S9 request、检查必需 DistilledSteps，并从该 request 的明确引用选取实际交付正文。记录检查发生时 S9 输出尚不存在、worker 调用顺序、输入／输出摘要；缺主产物时即使共享 evidence 完整也不得启动 S9 worker。此处的“真实输出”仅指确定性程序实际产生，不是模型或桌面事实。
+
+修复后只消费新 Procedure、拒绝旧失败版的既有回归继续保留；S9→S10 仍仅验证 request 精确绑定，不能写成 S10 已完成工程化。`checkHandoffConsumption` 本身不会取得上述调用顺序证据；测试适配器的事件记录也不能外推到真实宿主。progress、模型按 Skill 生产、独立上下文、真实桌面分别报告。
 
 同一顺序切片增加责任路由行为证据：合同内部自相矛盾返回 `automation-plan`，AppProfile 关系来源缺失返回 `application-engineer`，真实示范／读值事实问题返回 `task-demonstrate`，S7 输出自身缺陷返回 `trace-distill`，S9 映射缺陷返回 `procedure-synthesize`，已有必要材料未交付先返回 `coordinator` 并保留 `sourceOwner`。这些只证明已构造失败类；Human-to-Recipe、一般自然语言语义和所有 F0—F10 组合仍不得外推为已覆盖。
 
@@ -444,3 +446,19 @@ node tests/workflows/tools/adjacent-producer-eval.js --request <resume-request.j
 探针使用单独 Node 进程、stdin 输入及文件读取许可清单，并实际检查越界读取被拒绝；每次调用保存命令、工作目录、Node／探针版本、输入输出摘要、退出码和限制。它不是完整 OS／网络沙箱，也不建立模型上下文独立性。原相邻模型评测、真实宿主加载和真实业务资格继续分别记 not-run；2026-09-22 本轮版本、实际回归、缺陷复现、十对象二十项评审与未完成范围统一见[八方法最后接线复核](../../../docs/quality/agent-to-recipe/skill-closure-20260922.md)。9 月 19—21 日质量记录仅证明其原版本和范围，不继承为本轮评分，不把测试数量解释为生产成功率。
 
 2026-09-22，v0.7：补强 S12 的 scope→scenario 证据绑定，并明确“一次 Fresh Run”“可重复运行”“参数化可复用”“普通 JS 不依赖 Agent 逐步点击”是不同声明；确定性 checker 只检查可由固定字节证明的关系，live 运行仍保持独立证据要求。
+
+## 普通 JS 原字节执行与复用判据
+
+本节落实 BC-04／BC-05／BC-11，不新增阶段、评分量尺或业务执行引擎。S12 先区分：生成者自检、静态检查、宿主合成接口执行、正式 Runtime 单元、真实桌面、Fresh Run、合法业务输入变化、人工接受和复用收益。每层只报告其实际证据；前一层通过不自动晋级。
+
+当既有普通 JS 可读、真实桌面暂不可用时，可以执行**固定生产源码原字节**的宿主控制流／数据流测试，不复制另一套业务流程，不把它写成 Qualification pass。测试接口返回与预期答案不同、必要时故意不满足业务算术关系的合成标记；断言实际读值进入后续调用、终点读值原样返回、异步完成顺序、失败后不继续依赖动作。对“读取后仍用常量”“跳过首次读取”“最后输出 Expected”的受控坏副本，确认同一 Oracle 确实拒绝。坏副本只存在测试内存，不发布为 Candidate。
+
+Calculator 实现入口是 `tests/workflows/artifact-calculator-production.test.js`：Node VM 只为原源码提供顶层 await 包装和显式合成 API，执行 `examples/agent-to-recipe/calculator.js`，并核对 `spec.json` 固定源码 hash。它不是 OpenDesk Runtime 或 OS 安全沙箱；不控制 Calculator，不生成真实 Observation，不证明原生 API 行为。两个独立 JS 上下文取得不同合成值，只能证明该测试环境未缓存；`0040`／`777` 等是数据流标记，不是合法业务变参或桌面 Fresh Run 证据。
+
+```bash
+node --test tests/workflows/artifact-calculator-production.test.js
+```
+
+真实复用必须使用同一冻结 Candidate 的**实际公开入口及 inputContract**。helper 接受数组不等于主入口提供业务参数；改变测试桩读值不等于改变用户输入；改源码／复制脚本再运行也不等于同一 Candidate 的变参资格。固定 Calculator 主入口仍为 25×4+10，再 6×本次读值，其历史通过范围不自动扩大。欲覆盖 BC-04 的 12×3+4 变化，先核对原任务包与支持范围，由 S8—S9 明确业务参数与运行时值，S11 发布可由真实入口配置的新候选，再由 S12 对固定候选完成基线、合法变化及独立 UI 观察；有效示范无需重做。
+
+当前任务包缺失时先按 WORKFLOW 盘点规则补取原文件并核对，不能从源码、Expected 或测试 spec 倒填 Dossier／Procedure／资格。平台或依赖阻塞须保留实际失败、`inputStarted` 与缺口；不可删除平台、hash 或来源保护来取得绿色结果。

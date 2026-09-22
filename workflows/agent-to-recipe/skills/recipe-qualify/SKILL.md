@@ -32,6 +32,12 @@ If the Candidate or a material dependency changes, stop and create a new Candida
 8. **Produce the Recipe Review.** Review the exact Candidate from these evidence-backed dimensions: business correctness; actual UI/runtime data dependency; framework capability reuse; readability; parameterization; locator/stability; error handling; validation sufficiency; maintainability; reusability. Distinguish code risks from application/environment limits. Use the weighting in [validation-plan.md](../../design/validation-plan.md) only when the required evidence exists; score `not-evaluated` items as missing evidence rather than inventing points. A target such as 95/100 never overrides a failed criterion or missing live evidence.
 9. **Publish without rewriting history.** Write the QualificationRecord, failedCriteria/skipped/repairRequests and an optional human-readable Recipe Review / Run Summary projection. Keep the frozen Candidate unchanged. Route Agent-source failures to the responsible stage: facts to demonstration, necessary-path errors to trace-distill, business/data semantics to procedure-synthesize, locator/application rules to application-engineer, implementation errors to recipe-build/code-rebuild, and Oracle/test-evidence defects remain in recipe-qualify. Human-source failures retain the original Human collection, review, engineering, code or qualification responsibility as specified in io-spec; never relabel them as Agent demonstration.
 
+## 执行层级与真实复用检查
+
+按 [validation-plan 的普通 JS 原字节执行与复用判据](../../design/validation-plan.md#普通-js-原字节执行与复用判据)选择实际可执行层级。读取后用常量、未等待输入完成、读值失败后继续副作用等问题，应通过执行固定生产字节暴露，不能只查 sourceMapping 或最终数值。宿主合成接口测试可作为部分检查，但不替代 Runtime、真实 UI、Fresh Run、合法输入变化或人类接受。
+
+评估参数化时，核对实际公开入口、inputContract 和 Candidate hash；不要把 helper 参数、合成读值变化或改码后的另一份脚本当成同一候选的合法变参。原任务包不可读时仅审查获准源码及可用证据，明确缺失前提并返回补包，不从源码反造历史事实或发布完整资格。
+
 ## Output and acceptance
 
 The authoritative machine-readable result remains the shared-contract `QualificationRecord` with exact `candidateRef / contractRef / scenarios / actualCommands / workingDirectories / executionRefs / buildProvenance / environmentScope / observedResults / evidenceRefs / failedCriteria / skipped / verdict / repairRequests / qualificationScope`.

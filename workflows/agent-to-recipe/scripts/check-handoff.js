@@ -134,18 +134,21 @@ function checkHandoff(options) {
 
 
 /**
- * Verify one normal-path formal handoff is actually consumed by a downstream
- * request through an exact published artifact reference. This remains read-only:
+ * Verify a downstream request binds the caller-selected primary artifact kinds
+ * from one published handoff. The caller derives those kinds from the selected
+ * Skill/io-spec, not from a shared evidence overlap. This does not prove that
+ * production has run or used those inputs. This remains read-only:
  * it does not create requests/handoffs, mutate progress, or grant execution.
  * Failed/warn handoffs stay available to diagnostic consumers through
  * checkHandoff(), but cannot use this normal-path consumption proof.
  *
- * @param {{request:string,handoff:string,consumerRequest:string,roots:Array<[string,string]>}} options
+ * @param {{request:string,handoff:string,consumerRequest:string,requiredArtifactKinds:string[],roots:Array<[string,string]>}} options
  */
 function checkHandoffConsumption(options) {
   const producer = checkHandoff(options);
   const errors = [...producer.errors];
   const consumedArtifacts = [];
+  const requiredArtifactKinds = options.requiredArtifactKinds;
   let producerHandoff, consumerRequest;
   const attempt = (location, action) => {
     try { return action(); }
@@ -155,6 +158,14 @@ function checkHandoffConsumption(options) {
       return undefined;
     }
   };
+  // This is an explicit check scope, not a workflow router or a new request field.
+  // No implicit default: otherwise a caller could mistake any evidence overlap
+  // for receipt of DistilledSteps, SemanticProcedure, or another required output.
+  attempt('requiredArtifactKinds', () => requireCheck(Array.isArray(requiredArtifactKinds)
+    && requiredArtifactKinds.length > 0 && requiredArtifactKinds.length <= 32
+    && Array.from(requiredArtifactKinds).every(kind => text(kind) && kind === kind.trim() && kind.length <= 128)
+    && new Set(requiredArtifactKinds).size === requiredArtifactKinds.length,
+  'CONSUMER_REQUIREMENTS_REQUIRED', 'Specify 1..32 distinct primary artifact kinds required by the selected consumer contract.'));
   if (producer.integrity === 'pass') {
     const roots = attempt('roots', () => makeRoots(options.roots));
     if (roots) {
@@ -172,6 +183,8 @@ function checkHandoffConsumption(options) {
         attempt('consumerRequest.taskId', () => requireCheck(text(consumerRequest.taskId)
           && consumerRequest.taskId === producerHandoff.taskId, 'TASK_MISMATCH',
         'A normal downstream request must belong to the same task as the published handoff.'));
+        attempt('handoff.executionStatus', () => requireCheck(producerHandoff.executionStatus === 'completed',
+          'PRODUCER_STATUS', 'Normal consumption requires completed production; other statuses remain diagnostic inputs.'));
         attempt('handoff.gate', () => requireCheck(producerHandoff.gate?.verdict === 'pass',
           'PRODUCER_GATE', 'Only a pass handoff can enter this normal downstream-consumption check.'));
         const refKey = ref => object(ref) ? JSON.stringify(
@@ -196,6 +209,12 @@ function checkHandoffConsumption(options) {
           attempt('consumerRequest.inputRefs', () => requireCheck(consumedArtifacts.length > 0,
             'CONSUMER_INPUT_NOT_PUBLISHED',
             'The downstream request does not consume any exact artifact published by this handoff.'));
+          if (Array.isArray(requiredArtifactKinds) && requiredArtifactKinds.length <= 32) {
+            for (const kind of requiredArtifactKinds) {
+              attempt('consumerRequest.inputRefs', () => requireCheck(consumedArtifacts.some(ref => ref.kind === kind),
+                'CONSUMER_PRIMARY_MISSING', 'The downstream request is missing the exact published primary artifact: ' + kind));
+            }
+          }
         }
       }
     }
@@ -205,37 +224,44 @@ function checkHandoffConsumption(options) {
     integrity: errors.length ? 'fail' : 'pass',
     producerIntegrity: producer.integrity,
     consumedArtifacts,
+    requiredArtifactKinds: Array.isArray(requiredArtifactKinds) ? requiredArtifactKinds : [],
+    productionOrderVerified: false,
     errors,
     notEvaluated: ['business-correctness', 'downstream-skill-input-sufficiency', 'current-plan-impact-analysis',
+      'downstream-production-input-use', 'production-order',
       'progress-mutation', 'live-desktop-state', 'platform-qualification'],
     desktopActionsAuthorized: false,
     next: errors.length
       ? 'Keep the published handoff and downstream request immutable; repair the exact binding or route diagnostics without promoting a failed handoff.'
-      : 'The downstream request consumes exact published bytes; independently check its Skill inputs, current plan, authority and business Gate before execution.'
+      : 'The request binds the specified primary artifact bytes. Before production, read these inputs and check Skill sufficiency, current plan, authority and business Gate; this report does not prove actual production order or use.'
   };
 }
 
-const HELP = 'Usage: node workflows/agent-to-recipe/scripts/check-handoff.js --request <request.json> --handoff <handoff.json> [--consumer-request <downstream-request.json>] --root <id=directory> [--root <id=directory> ...]\nRead-only host check; optional consumer-request proves normal downstream consumption of an exact published artifact. Roots come from the caller, never from evidenceRoots. Exit: 0 integrity pass, 1 check failed, 2 usage error.\n';
+const HELP = 'Usage: node workflows/agent-to-recipe/scripts/check-handoff.js --request <request.json> --handoff <handoff.json> [--consumer-request <downstream-request.json> --require-artifact <kind> ...] --root <id=directory> [--root <id=directory> ...]\nRead-only host check; consumer-request requires explicit primary artifact kinds and checks their byte bindings, not production order or business use. Roots come from the caller, never from evidenceRoots. Exit: 0 integrity pass, 1 check failed, 2 usage error.\n';
 function main(argv) {
   if (argv.length === 1 && argv[0] === '--help') { process.stdout.write(HELP); return 0; }
   try {
-    const options = { roots: [] };
+    const options = { roots: [], requiredArtifactKinds: [] };
     for (let i = 0; i < argv.length; i += 2) {
       const flag = argv[i], value = argv[i + 1];
-      requireCheck(['--request', '--handoff', '--consumer-request', '--root'].includes(flag) && text(value)
+      requireCheck(['--request', '--handoff', '--consumer-request', '--require-artifact', '--root'].includes(flag) && text(value)
         && !value.startsWith('--'), 'USAGE', 'Unknown option or missing argument.');
       if (flag === '--root') {
         const separator = value.indexOf('=');
         requireCheck(separator > 0 && separator < value.length - 1, 'USAGE', 'Use --root id=directory.');
         options.roots.push([value.slice(0, separator), value.slice(separator + 1)]);
+      } else if (flag === '--require-artifact') {
+        options.requiredArtifactKinds.push(value);
       } else {
-        const key = flag.slice(2);
+        const key = flag === '--consumer-request' ? 'consumerRequest' : flag.slice(2);
         requireCheck(!own(options, key), 'USAGE', 'Input options may only be supplied once.');
         options[key] = value;
       }
     }
     requireCheck(text(options.request) && text(options.handoff) && options.roots.length > 0,
       'USAGE', 'Request, handoff and explicit roots are required.');
+    requireCheck(options.consumerRequest || options.requiredArtifactKinds.length === 0,
+      'USAGE', '--require-artifact requires --consumer-request.');
     const report = options.consumerRequest ? checkHandoffConsumption(options) : checkHandoff(options);
     process.stdout.write(JSON.stringify(report, null, 2) + '\n');
     return report.integrity === 'pass' ? 0 : 1;

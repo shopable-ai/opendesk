@@ -69,7 +69,7 @@ function downstream(f, overrides = {}) {
   const request = { ...f.request, workPackageId: 'W020', attemptId: 'a002', skill: 'recipe-build', mode: 'normal',
     inputRefs: [f.ref('candidate.js', 'candidate')], requiredOutputs: ['candidate-review'], ...overrides };
   f.write('consumer-request.json', request);
-  return { ...f.options, consumerRequest: f.file('consumer-request.json') };
+  return { ...f.options, consumerRequest: f.file('consumer-request.json'), requiredArtifactKinds: ['candidate'] };
 }
 
 test('formal downstream request consumes an exact artifact published by the handoff', t => {
@@ -234,3 +234,79 @@ test('rejects incomplete canonical evidence refs', t => {
 test('rejects evidence refs missing their root ID', t => {
   const f = fixture(t); delete f.handoff.gate.evidenceRefs[0].rootId; fails(f.check(), 'INVALID_REF');
 });
+
+
+// Workflow business-boundary regressions: exercise the public CLI as well as
+// the exported function; an evidence overlap is not a primary-artifact handoff.
+function consumeCli(f, options, extra = []) {
+  return spawnSync(process.execPath, [TOOL, '--request', f.options.request,
+    '--handoff', f.options.handoff, '--consumer-request', options.consumerRequest,
+    '--root', 'task=' + f.root, '--require-artifact', 'candidate', ...extra], { encoding: 'utf8' });
+}
+
+test('consumer CLI actually reads the downstream request and rejects a stale version', t => {
+  const f = fixture(t); f.check();
+  f.write('old.js', fs.readFileSync(f.file('candidate.js'), 'utf8'));
+  const result = consumeCli(f, downstream(f, { inputRefs: [f.ref('old.js', 'candidate')] }));
+  assert.equal(result.status, 1, result.stderr || result.stdout);
+  fails(JSON.parse(result.stdout), 'CONSUMER_INPUT_NOT_PUBLISHED');
+});
+
+test('legacy consumer CLI cannot silently fall back to producer-only integrity', t => {
+  const f = fixture(t); f.check();
+  const options = downstream(f, { taskId: 'another-task' });
+  const result = spawnSync(process.execPath, [TOOL, '--request', f.options.request,
+    '--handoff', f.options.handoff, '--consumer-request', options.consumerRequest,
+    '--root', 'task=' + f.root], { encoding: 'utf8' });
+  assert.equal(result.status, 1, result.stderr || result.stdout);
+  assert.equal(JSON.parse(result.stdout).tool, 'agent-to-recipe-handoff-consumption/v1');
+});
+
+test('consumer CLI reports the actual primary-artifact binding on a normal request', t => {
+  const f = fixture(t); f.check();
+  const result = consumeCli(f, downstream(f));
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.tool, 'agent-to-recipe-handoff-consumption/v1');
+  assert.deepEqual(report.requiredArtifactKinds, ['candidate']);
+  assert.equal(report.consumedArtifacts[0].sha256, f.handoff.artifacts[0].sha256);
+});
+
+for (const primary of ['DistilledSteps', 'SemanticProcedure']) {
+  test('published shared evidence cannot replace the primary ' + primary, t => {
+    const f = fixture(t);
+    f.handoff.artifacts = [f.ref('candidate.js', primary), f.ref('evidence.txt', 'evidence')];
+    f.check();
+    const report = checkHandoffConsumption({ ...downstream(f, { inputRefs: [f.ref('evidence.txt', 'evidence')] }),
+      requiredArtifactKinds: [primary] });
+    fails(report, 'CONSUMER_PRIMARY_MISSING');
+  });
+}
+
+test('normal consumption without explicit primary requirements is not a success proof', t => {
+  const f = fixture(t); f.check();
+  const options = downstream(f); delete options.requiredArtifactKinds;
+  fails(checkHandoffConsumption(options), 'CONSUMER_REQUIREMENTS_REQUIRED');
+});
+
+test('each explicitly required primary artifact must be consumed, optional views need not be', t => {
+  const f = fixture(t);
+  f.write('profile.json', { fixture: 'profile' });
+  f.handoff.artifacts.push(f.ref('profile.json', 'AppProfile'), f.ref('evidence.txt', 'view'));
+  f.check();
+  const options = { ...downstream(f), requiredArtifactKinds: ['candidate', 'AppProfile'] };
+  fails(checkHandoffConsumption(options), 'CONSUMER_PRIMARY_MISSING');
+  const report = checkHandoffConsumption({ ...downstream(f, {
+    inputRefs: [f.ref('candidate.js', 'candidate'), f.ref('profile.json', 'AppProfile')] }),
+    requiredArtifactKinds: ['candidate', 'AppProfile'] });
+  assert.equal(report.integrity, 'pass', JSON.stringify(report));
+  assert.equal(report.consumedArtifacts.length, 2);
+});
+
+for (const status of ['failed', 'interrupted', 'canceled']) {
+  test('a pass label cannot turn ' + status + ' into normal completed production', t => {
+    const f = fixture(t); f.handoff.executionStatus = status; f.check();
+    fails(checkHandoffConsumption({ ...downstream(f), requiredArtifactKinds: ['candidate'] }), 'PRODUCER_STATUS');
+    assert.equal(f.check().integrity, 'pass', 'diagnostic envelope remains readable');
+  });
+}
