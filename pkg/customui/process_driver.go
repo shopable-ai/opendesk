@@ -749,7 +749,7 @@ func uiHostCandidates(executable, platform string) []string {
 	}
 }
 
-func windowKey(sessionID, windowID string) stringfunc windowKey(sessionID, windowID string) string { return sessionID + "/" + windowID }
+func windowKey(sessionID, windowID string) string { return sessionID + "/" + windowID }
 
 type processWindow struct {
 	driver    *ProcessDriver
