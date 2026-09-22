@@ -205,9 +205,9 @@ order: 70
 
 - 无 producer：未带续接来源时，CLI `--request <已存在的评测请求.json> --out <新的.runtime目录>` 只准备 S7 输入，两个 Producer 均为 not-run；带有效续接来源时可重检 S7 并准备 S9，但不调用模型，不生成标准答案或假结果。
 - 有 producer：适配器显式声明 `mode / hostId / modelId`，并实现 `produce(packet, {signal})`。mode 区分 model 与 deterministic-test-double；身份未经认证，上下文和文件权限仍由外部宿主隔离。异常、超时、拒绝输出和失败尝试均保留；返回 null／字符串异常也不能丢失失败记录。超时 abort 是协作式请求，不保证停止外部进程。
-- S7 包：固定合同、计划、Dossier／Raw Trace、必要 AppProfile 和证据，以及实际方法／共享合同；不提供标准 DistilledSteps、Procedure、Candidate、Qualification 或上游聊天。
+- S7 包：固定合同、计划、Dossier／Raw Trace、必要 AppProfile 和证据，以及实际方法／io-spec／共享合同；不提供标准 DistilledSteps、Procedure、Candidate、Qualification 或上游聊天。
 - S9 包：重新检查 S7 前缀后，消费本次实际 S7 输出，加固定合同／计划和必要 AppProfile／证据。不默认提供 Raw Trace；经 AppProfile 等引用链隐式传入 Dossier／Raw Trace 也停止发包，提出定向补证责任，不静默删引用。不能靠改 kind、文件名或 Fixture 标签伪装来源放行；角色白名单本身不证明内容真实，也不是 OS 沙箱。
-- 输入／方法版本：inputSha256 固定保存后的 input.json **实际字节**；methodVersions、sharedContractVersion、checkerVersions 固定方法、共享合同、检查器及评测调用器源码。输出保留未经修正的原文和检查结果，后续阶段使用实际产物 hash，不消费可编辑 PASS 页面。
+- 输入／方法版本：inputSha256 固定保存后的 input.json **实际字节**；methodVersions、ioSpecVersions、sharedContractVersion、checkerVersions 固定方法、规格、共享合同、检查器及评测调用器源码。输出保留未经修正的原文和检查结果，后续阶段使用实际产物 hash，不消费可编辑 PASS 页面。
 - 超长输出：outputBytes／outputSha256 描述原始返回；storedOutput 单独保存已留存文件的 path／bytes／sha256，outputTruncated 明示截断。按字节而非字符限额保存 output.raw；截断内容不作为完整成果继续消费。没有返回原文的宿主异常只保存异常，不能补造模型输出。
 
 Expected、验收规则和样本归属由评测方持有，不进入 Producer 包。当前集成测试的适配器持有开发 Fixture 的预制输出，这是公开的测试替身；它只证明调用、来源隔离声明与相邻输入输出传递，**不是从输入生成成果的模型行为测试**。即使把 sourceSet 改为 independent-acceptance，同一上下文、预制答案或未经核验的模型身份也不能成为盲测证据。独立语义 Oracle／未见样本宿主仍待接入。
@@ -239,9 +239,9 @@ Expected、验收规则和样本归属由评测方持有，不进入 Producer �
 
 比较时先按可观察语义和几何进行对象匹配，再比较类型、名称、关系、状态；被测 ID 不要求等于隐藏真值 ID。几何比较记录边界误差、覆盖／重叠和安全动作区域，不能只靠一个 IoU 分数通过错误对象；未知真值、不可见部分和边界容差在评测前说明。
 
-### application-engineer 分批实施
+### application-engineer 分批实施（2026-09-08 历史计划）
 
-所有路径是拟实施位置，文件尚不存在时明确 not-implemented，不写成已经可运行的命令。
+下表保留当时的实施顺序与验收要求，不是当前文件存在状态。2026-09-22 已有 application-engineer/SKILL.md、references/io-spec.md、scripts/review.py 与 tests/agent-to-recipe/application-engineer/；工具和资料落库不等于模型、真实消费或全部批次通过，实际范围见本轮质量记录。
 
 | 批次 | 最小实现、位置与输入输出 | 验证与完成判据 | 暂缓及未完成出口 |
 | --- | --- | --- | --- |
@@ -249,7 +249,7 @@ Expected、验收规则和样本归属由评测方持有，不进入 Producer �
 | 第二批：规则与普通 JS 实际消费 | 冻结认识 → 普通数据规则／必要 helper → 留出场景定位 → 一个获准低风险真实应用操作。应用工作流测试仍归上述测试域；公共 API 断言复用 `tests/runtime-api/`，不复制 | BC-06／BC-25，加真实对象、实际操作、读值和后置；按指定工作目录原样执行实际普通 JS 入口，不假设 Node runner；已有计算器资产足够则复用 | 无真机／构建／授权时只可交规则复用层结果，实际操作 not-run／blocked；不扩展未经验证的平台 |
 | 第三批：维修与范围扩展 | 在已成功的限定链上加入漂移、错误候选、结果不明、版本变更与代表性新界面；扩大规则回归，并按条件做独立上下文接续 | BC-08／BC-09／BC-15／BC-23—BC-25；有效部分保留、受影响部分重验，正常完成与拒绝同时满足要求 | 无真实收益依据不独立拆 Skill、不新增通用分割引擎；旧样本仍保留，不把范围扩展自动标成功 |
 
-`trace-distill` 实施批次单独以 BC-29／BC-30 为最低门槛：先用冻结 Raw Trace/Dossier fixture 检查 action disposition 和数据依赖，再做独立上下文交接；没有正式 Skill／schema/validator 前只记录设计和 fixture 结果，不冒充已安装能力。Human/Agent 双来源复用用 BC-31 作为组合门槛。
+`trace-distill` 仍以 BC-29／BC-30 为最低门槛：先用冻结 Raw Trace/Dossier fixture 检查 action disposition 和数据依赖，再做独立上下文交接。当前已有正式 Skill、io-spec、共享合同及有限 Validator；独立模型行为、通用语义和宿主安装仍须分别验证。Human/Agent 双来源复用用 BC-31 作为组合门槛。
 
 ### 评测指标与成本
 
@@ -377,18 +377,21 @@ Pagination、Load More、custom click-next 不自动进入 Phase 1—6。需要�
 | --- | --- |
 | `checkerScope` | 默认 `calculator-v1` 保持原有限检查；显式 `sequential-dataflow-v1` 使用顺序读值／消费切片。两者都不授予 Stage complete 或资格 |
 | `s9InputRefs` | 仅在顺序切片提供获准 S9 定向材料的固定引用。它们在 S9 发包时加入，不偷偷改变 S7 输入，也不携带预制下游结果。选择记录、相关契约和证据均需实际字节 |
-| `resumeFrom` | `EvaluationRecord` 的 rootId／path／sha256／schemaVersion；先核对直接前次记录、各次调用的输入／留存原输出／已绑定检查结果，再重检原 S7。只接续 S7 有效、S9 失败或未运行的有限相邻作业 |
+| `resumeFrom` | `EvaluationRecord` 的 rootId／path／sha256／schemaVersion；先继承预算，核对直接前次记录、冻结资料、各次调用的输入／留存原输出／已绑定检查结果，再重检原 S7。只接续 S7 有效、S9 失败或未运行的有限相邻作业 |
+| `repairReason` | 同版错误成果的显式定向修复说明，仅随固定 resumeFrom 使用，非空且最多 4096 字符；不是新事实、授权或正确答案。S9 失败后，材料完全未变且没有修复处置时，以 EVAL_NO_REPAIR 在新调用前停止 |
+| `methodVersions / ioSpecVersions / sharedContractVersion` | 两阶段的 SKILL、io-spec 和共享合同 SHA-256；实际 packet 同时交付各自 path／sha256／content，attempt 再绑定方法与规格摘要。缺必需规格先报 EVAL_SPEC_MISSING，不调用 Producer |
+| `frozenFiles / resumeEvidence / resumeDecision` | 冻结文件清单；跨未调用／被拒接续保留的一个待修 S9 失败；重核 S7 与 S9 变化依赖、修复原因。均为评测证据，不是业务状态。明确修复时 packet.repair 给出原失败输出／检查等诊断内容，不注入 Expected 真值 |
 | `maxCalls / timeoutMs` | 每阶段每次作业最多调用一次；总调用预算默认 4、可显式设 1—32；单次超时 1—300000 ms，默认 30000。恢复继承原总预算、超时和已耗调用，不能重置。无生产调用的重检不计作一次模型调用 |
 | `reusableS7 / reusedS7` | 仅为评测证据：固定输入／原输出／原返回摘要，以及是否重新核对通过；不更新工作流 progress，不代表新跑过 S7 |
 | `resume-request.json` | 在可接续的停止点生成，引用本次已冻结资料而不是原作者工作区。先按 nextRequest 完成指定补证／修复，再在新输出目录显式调用；不是无条件自动重试 |
 
-评测保存方法、共享合同、检查器和调用器版本；每次输入包、输出原文、失败和检查结果都有内容摘要。一个完整输入包最多 4 MiB，单文件与总读取预算沿用工具现有界限；超过范围应定向缩小材料，不截断关键事实或复制全部聊天。
+评测保存方法、各自 io-spec、共享合同、检查器和调用器版本；每次输入包、输出原文、失败和检查结果都有内容摘要。一个完整输入包最多 4 MiB，单文件与总读取预算沿用工具现有界限；超过范围应定向缩小材料，不截断关键事实或复制全部聊天。
 
 S9 的运行时证据从 S7 已确认的值投影按需传递；原 `dossierRef / sourceActionRefs` 只是 lineage，不能递归带入整个 Dossier／Raw Trace。Profile 的非法传递引用仍拒绝；补证不能通过改角色或删除引用绕过。记录中有原资料却没有交付时，`nextRequest` 先交协调者并指出原来源责任；资料本身错误再定向回原环节。
 
 2026-09-21 补强：新评测的 `attempts[].check` 绑定实际 `check.json` 的路径、字节数和 SHA-256，沿用原保存记录结构；这是评测证据元数据，不是业务字段或第二套状态。读取直接前次记录后，先保留其累计调用数，再核对该记录中各次调用的输入、已留存原输出和绑定检查结果。篡改／丢失则拒绝新生产调用，已耗预算不能因此归零。旧记录没有检查结果绑定时明确记录 legacy 覆盖限制，不把旧检查摘要默认为已认证；原输入／原输出及当前 S7 仍须核验。该机制不认证任意祖先或并行分支历史，协调者继续负责完整任务账目。
 
-接续必须满足：原记录未被改、S7 当前输入包与方法／共享合同相同、S7 按当前检查器重新通过、总预算尚足。S7 输入或方法变化不复用旧结果；新候选的业务资格仍按原资格合同处理。本工具只统计所提供的接续链，不能看见未报告或并行分叉的调用；唯一协调者仍负责整个任务的预算和进度。
+接续必须满足：原记录未被改、S7 当前完整输入包与方法／规格／共享合同字节相同、S7 按当前检查器重新通过、总预算尚足。S7 输入、方法或规格变化返回 S7，不复用旧结果；本工具交付共享合同整文件，因此合同整文件变化保守视为 S7 消费依赖变化，不声称已实现段落级影响分析。仅 S9 方法／规格或 s9InputRefs 变化不改 S7 包，复核后只调用 S9。原失败的输入、输出、检查、身份与预算保留，连续拒绝也不能洗掉待修失败。没有新材料或显式修复处置不再调用；显式修复仍受原总预算与新产物检查约束。新候选的业务资格仍按原资格合同处理。本工具只统计所提供的接续链，不能看见未报告或并行分叉的调用；唯一协调者仍负责整个任务的预算和进度。
 
 从仓库根目录运行固定离线回归：
 
@@ -414,4 +417,4 @@ node tests/workflows/tools/adjacent-producer-eval.js --request <resume-request.j
 
 顺序检查器只核对声明及源字节的一致性，支持任意本地标识、text／digit-string、identity／characters、单 Profile 内的跨应用同记录键关系、前向数据边及不破坏这些关系的相邻合并。它不证明来源真实性、任意自然语言的业务正确性、因果必要性、复杂省略／分支／循环／恢复、通用 schema、完整 Gate 或实际 API 已可用。`CHECKER_COVERAGE` 表示本工具不能放行，不表示该业务输入本身非法；交验证责任方，不改数据迎合检查器。
 
-探针使用单独 Node 进程、stdin 输入及文件读取许可清单，并实际检查越界读取被拒绝；每次调用保存命令、工作目录、Node／探针版本、输入输出摘要、退出码和限制。它不是完整 OS／网络沙箱，也不建立模型上下文独立性。原相邻模型评测、真实宿主加载和真实业务资格继续分别记 not-run；当前结果见原质量记录的本轮章节，不把测试数量解释为生产成功率。
+探针使用单独 Node 进程、stdin 输入及文件读取许可清单，并实际检查越界读取被拒绝；每次调用保存命令、工作目录、Node／探针版本、输入输出摘要、退出码和限制。它不是完整 OS／网络沙箱，也不建立模型上下文独立性。原相邻模型评测、真实宿主加载和真实业务资格继续分别记 not-run；2026-09-22 本轮版本、实际回归、缺陷复现、十对象二十项评审与未完成范围统一见[八方法最后接线复核](../../../docs/quality/agent-to-recipe/skill-closure-20260922.md)。9 月 19—21 日质量记录仅证明其原版本和范围，不继承为本轮评分，不把测试数量解释为生产成功率。

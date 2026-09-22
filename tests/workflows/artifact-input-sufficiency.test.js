@@ -221,6 +221,7 @@ for (const defect of ['lost-meaning', 'wrong-consumer', 'lost-terminal', 'forged
     if (stage === 'procedure-synthesize') {
       s.adapter.produce = original;
       const restartRequest = s.read(out, 'resume-request.json');
+      restartRequest.repairReason = '按失败检查修复 S9 的 ' + defect + '；保留同版 S7 和原始来源。';
       // A new session can continue after the original task workspace disappears.
       if (defect === 'wrong-consumer') fs.renameSync(s.source, s.source + '-retired');
       const repaired = await evaluateAdjacent(restartRequest, s.out('repaired'), s.adapter);
@@ -330,7 +331,8 @@ for (const defect of ['conflicting-input-source', 'lost-business-consumer']) {
     const rawHash = hash(fs.readFileSync(path.join(first, 'procedure-synthesize/output.raw')));
     s.adapter.produce = original;
     const second = s.out('repaired-' + defect);
-    const repaired = await evaluateAdjacent(s.read(first, 'resume-request.json'), second, s.adapter);
+    const repaired = await evaluateAdjacent({ ...s.read(first, 'resume-request.json'),
+      repairReason: '修正 S9 的 ' + defect + '，不改变原事实、方法或 S7。' }, second, s.adapter);
     assert.deepEqual(repaired.stages, { 'trace-distill': 'pass', 'procedure-synthesize': 'pass' });
     assert.equal(repaired.reusedS7.rechecked, true);
     assert.equal(repaired.budget.usedCalls, 3); assert.equal(repaired.attempts.length, 1);
@@ -351,3 +353,164 @@ for (const item of ['procedure-synthesize/output.raw', 'procedure-synthesize/inp
     assert.notEqual(resumed.stages['procedure-synthesize'], 'pass');
   });
 }
+
+
+// 2026-09-22: real evaluator replicas keep method mutation tests out of the
+// shared repository. The worker still derives its outputs from the packet only.
+function evaluatorReplica(s) {
+  const repo = path.join(s.root, 'evaluator-source');
+  const paths = [
+    'tests/workflows/tools/adjacent-producer-eval.js',
+    'tests/workflows/tools/input-sufficiency/check.js',
+    'workflows/agent-to-recipe/scripts/artifact-validation.js',
+    'workflows/agent-to-recipe/scripts/check-artifact-chain.js',
+    'workflows/agent-to-recipe/scripts/stage-review.js',
+    'docs/frameworks/agent-to-recipe-skill-contract.md',
+    ...['trace-distill', 'procedure-synthesize'].flatMap(stage =>
+      ['SKILL.md', 'references/io-spec.md'].map(file => 'workflows/agent-to-recipe/skills/' + stage + '/' + file)),
+  ];
+  for (const relative of paths) {
+    const target = path.join(repo, relative);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.copyFileSync(path.join(REPO, relative), target);
+  }
+  return { run: require(path.join(repo, paths[0])).evaluateAdjacent,
+    out: name => path.join(repo, '.runtime', name), file: relative => path.join(repo, relative) };
+}
+const methodPath = stage => 'workflows/agent-to-recipe/skills/' + stage + '/SKILL.md';
+const specPath = stage => 'workflows/agent-to-recipe/skills/' + stage + '/references/io-spec.md';
+
+test('both actual Producer packets receive and bind their required io-spec bytes', async () => {
+  const s = fixture(), out = s.out('spec-packets'), original = s.adapter.produce;
+  s.adapter.produce = async (packet, options) => {
+    assert.equal(packet.ioSpec.path, specPath(packet.stage));
+    assert.equal(packet.ioSpec.content, fs.readFileSync(path.join(REPO, packet.ioSpec.path), 'utf8'));
+    assert.equal(packet.ioSpec.sha256, hash(Buffer.from(packet.ioSpec.content)));
+    return original(packet, options);
+  };
+  const result = await evaluateAdjacent(s.request, out, s.adapter);
+  assert.deepEqual(result.stages, { 'trace-distill': 'pass', 'procedure-synthesize': 'pass' }, JSON.stringify(result));
+  for (const attempt of result.attempts) {
+    const packet = s.read(out, attempt.stage + '/input.json');
+    assert.equal(attempt.ioSpecSha256, packet.ioSpec.sha256);
+    assert.equal(result.ioSpecVersions[attempt.stage], packet.ioSpec.sha256);
+    assert.equal(hash(fs.readFileSync(path.join(out, 'methods', packet.ioSpec.path))), packet.ioSpec.sha256);
+  }
+  assert.deepEqual(s.read(out, 'outputs/procedure.json').businessSteps[1].consumers, [],
+    'A step with no business output may have an empty consumer set.');
+});
+
+for (const stage of ['trace-distill', 'procedure-synthesize']) {
+  test('missing required io-spec rejects before any Producer: ' + stage, async () => {
+    const s = fixture(), e = evaluatorReplica(s);
+    fs.unlinkSync(e.file(specPath(stage)));
+    const result = await e.run(s.request, e.out('missing-spec'), s.adapter);
+    assert.equal(result.setupFailure?.code, 'EVAL_SPEC_MISSING', JSON.stringify(result));
+    assert.equal(result.nextRequest.owner, 'coordinator');
+    assert.equal(s.calls(), 0); assert.equal(result.budget.usedCalls, 0);
+  });
+}
+
+for (const dependency of [methodPath('trace-distill'), specPath('trace-distill'), 'docs/frameworks/agent-to-recipe-skill-contract.md']) {
+  test('resume invalidates S7 when its consumed dependency changes: ' + dependency, async () => {
+    const s = fixture(), e = evaluatorReplica(s), first = e.out('failed'); s.request.s9InputRefs = [];
+    await e.run(s.request, first, s.adapter);
+    fs.appendFileSync(e.file(dependency), '\nS7 dependency revision for this isolated test.\n');
+    const result = await e.run(s.resume(first, [s.ref('selection-r1.json')]), e.out('stale'), s.adapter);
+    assert.equal(result.reuseFailure?.code, 'EVAL_REUSE_MISMATCH', JSON.stringify(result));
+    assert.equal(result.nextRequest.owner, 'trace-distill'); assert.equal(s.calls(), 2);
+    assert.equal(result.budget.usedCalls, 2);
+  });
+}
+
+for (const dependency of [methodPath('procedure-synthesize'), specPath('procedure-synthesize')]) {
+  test('S9-only method revision rechecks and retains S7, then consumes new bytes: ' + dependency, async () => {
+    const s = fixture(), e = evaluatorReplica(s), first = e.out('failed'), original = s.adapter.produce;
+    s.adapter.produce = async (packet, options) => {
+      const output = JSON.parse(await original(packet, options));
+      if (packet.stage === 'procedure-synthesize') output.businessSteps[1].inputSources = [];
+      return output;
+    };
+    const before = await e.run(s.request, first, s.adapter);
+    s.adapter.produce = original;
+    fs.appendFileSync(e.file(dependency), '\nS9-only review clarification for this isolated test.\n');
+    const second = e.out('repaired');
+    const result = await e.run(s.resume(first), second, s.adapter);
+    assert.deepEqual(result.stages, { 'trace-distill': 'pass', 'procedure-synthesize': 'pass' }, JSON.stringify(result));
+    assert.equal(result.reusedS7.outputSha256, before.reusableS7.output.sha256);
+    assert.equal(result.reusedS7.rechecked, true); assert.equal(result.attempts.length, 1);
+    assert.equal(s.calls(), 3); assert.equal(result.budget.usedCalls, 3);
+    const packet = s.read(second, 'procedure-synthesize/input.json');
+    const delivered = dependency.endsWith('SKILL.md') ? packet.method : packet.ioSpec;
+    assert.equal(delivered.sha256, hash(fs.readFileSync(e.file(dependency))));
+    assert.match(delivered.content, /S9-only review clarification/);
+    assert.deepEqual(result.resumeDecision.s9ChangedDependencies, [dependency.endsWith('SKILL.md') ? 'method' : 'ioSpec']);
+  });
+}
+
+for (const dependency of [methodPath('trace-distill'), specPath('trace-distill')]) {
+  test('mutating frozen method/spec during a Producer call is rejected: ' + dependency, async () => {
+    const s = fixture(), e = evaluatorReplica(s), out = e.out('tampered'), original = s.adapter.produce;
+    s.adapter.produce = async (packet, options) => {
+      const result = await original(packet, options);
+      fs.appendFileSync(path.join(out, 'methods', dependency), 'tampered');
+      return result;
+    };
+    const result = await e.run(s.request, out, s.adapter);
+    assert.equal(result.attempts[0].error?.code, 'EVAL_INPUT_CHANGED', JSON.stringify(result));
+    assert.equal(s.calls(), 1); assert.equal(result.stages['procedure-synthesize'], 'not-run');
+  });
+}
+
+test('unchanged failed S9 cannot consume another call without a repair disposition', async () => {
+  const s = fixture(), first = s.out('no-selection'); s.request.s9InputRefs = [];
+  await evaluateAdjacent(s.request, first, s.adapter);
+  const result = await evaluateAdjacent(s.resume(first), s.out('no-repair'), s.adapter);
+  assert.equal(result.setupFailure?.code, 'EVAL_NO_REPAIR', JSON.stringify(result));
+  assert.equal(s.calls(), 2); assert.equal(result.budget.usedCalls, 2);
+  assert.equal(result.reusedS7.rechecked, true);
+});
+
+test('explicit S9 repair receives the pinned failed output/check without hidden history', async () => {
+  const s = fixture(), first = s.out('wrong-role'), original = s.adapter.produce;
+  s.adapter.produce = async (packet, options) => {
+    const output = JSON.parse(await original(packet, options));
+    if (packet.stage === 'procedure-synthesize') output.businessSteps[1].inputSources.push({ name: 'ticketCode', kind: 'expected', value: 'T-042' });
+    return output;
+  };
+  await evaluateAdjacent(s.request, first, s.adapter);
+  const request = s.resume(first); request.repairReason = '删除错误 Expected 声明，按同版 S7 的实际来源恢复运行时绑定。';
+  s.adapter.produce = async (packet, options) => {
+    assert.equal(packet.repair.reason, request.repairReason);
+    assert.equal(hash(Buffer.from(packet.repair.previousOutput.content)), packet.repair.previousOutput.sha256);
+    assert.equal(packet.repair.previousCheck.verdict, 'fail');
+    assert.ok(!packet.files.some(item => ['Dossier', 'RawTrace'].includes(item.ref.kind)));
+    return original(packet, options);
+  };
+  const result = await evaluateAdjacent(request, s.out('fixed-role'), s.adapter);
+  assert.deepEqual(result.stages, { 'trace-distill': 'pass', 'procedure-synthesize': 'pass' }, JSON.stringify(result));
+  assert.equal(result.budget.usedCalls, 3); assert.equal(result.attempts.length, 1);
+});
+
+test('resume verifies predecessor frozen spec files as well as packets and outputs', async () => {
+  const s = fixture(), first = s.out('failed-spec-history'); s.request.s9InputRefs = [];
+  await evaluateAdjacent(s.request, first, s.adapter);
+  fs.appendFileSync(path.join(first, 'methods', specPath('procedure-synthesize')), 'tampered');
+  const result = await evaluateAdjacent(s.resume(first, [s.ref('selection-r1.json')]), s.out('refuse-spec-history'), s.adapter);
+  assert.equal(result.setupFailure?.code, 'EVAL_RESUME_CHANGED', JSON.stringify(result));
+  assert.equal(s.calls(), 2); assert.equal(result.budget.usedCalls, 2);
+});
+
+
+test('a refused continuation cannot launder an outstanding failure into an unchanged retry', async () => {
+  const s = fixture(), first = s.out('unrepaired-origin'); s.request.s9InputRefs = [];
+  await evaluateAdjacent(s.request, first, s.adapter);
+  const second = s.out('first-refusal');
+  const a = await evaluateAdjacent(s.resume(first), second, s.adapter);
+  const b = await evaluateAdjacent(s.read(second, 'resume-request.json'), s.out('second-refusal'), s.adapter);
+  assert.equal(a.setupFailure.code, 'EVAL_NO_REPAIR');
+  assert.equal(b.setupFailure.code, 'EVAL_NO_REPAIR');
+  assert.equal(s.calls(), 2); assert.equal(b.budget.usedCalls, 2);
+  assert.equal(a.resumeEvidence.failure.origin.evaluationSha256, b.resumeEvidence.failure.origin.evaluationSha256);
+  assert.equal(a.resumeEvidence.failure.raw.sha256, b.resumeEvidence.failure.raw.sha256);
+});
