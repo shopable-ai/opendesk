@@ -13,8 +13,23 @@ const REPO = path.resolve(__dirname, '../../..');
 const SOURCE = 'examples/agent-to-recipe/calculator.js';
 const SPEC = 'tests/workflows/calculator/spec.json';
 const OUTPUT = path.join(REPO, '.runtime/tests/workflows/calculator');
-const mode = process.argv[2] || '--live';
-assert.ok(['--live', '--check', '--preflight'].includes(mode), 'Use --live, --check or --preflight');
+// This is the frozen r003 harness, not a generic Candidate/scenario runner.
+// Reject every unrecognised argument before creating an attempt or touching UI;
+// silently ignoring --input/--candidate could run the old business task instead.
+const args = process.argv.slice(2);
+const modes = ['--live', '--check', '--preflight', '--help'];
+if (args.length > 1 || (args.length === 1 && !modes.includes(args[0]))) {
+  console.error('CALCULATOR_QUALIFICATION_ARGUMENTS: r003 only; use --live, --check or --preflight without extra arguments. See --help.');
+  process.exit(2);
+}
+const mode = args[0] || '--live';
+if (mode === '--help') {
+  console.log('Usage: node tests/workflows/calculator/qualify.cjs [--live | --check | --preflight]');
+  console.log('Scope: r003 fixed Candidate, 25×4+10 then 6×actual firstResult; independent expectations 110 / 660.');
+  console.log('No --input, --spec or --candidate support. --check reads files only; --preflight observes only; default/--live operates Calculator.');
+  console.log('For a new Candidate/input scope, follow workflows/agent-to-recipe/WORKFLOW.md and freeze its S12 scenarios before execution; do not repoint old evidence.');
+  process.exit(0);
+}
 const runRoot = path.join(OUTPUT, new Date().toISOString().replace(/[:.]/g, '-') + '-' + process.pid);
 fs.mkdirSync(runRoot, {recursive: true});
 const json = file => JSON.parse(fs.readFileSync(file, 'utf8'));

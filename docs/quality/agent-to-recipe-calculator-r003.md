@@ -1,5 +1,49 @@
 # Calculator r003：审计、运行与完成判据
 
+## 2026-09-22：参数化接续前置修复
+
+本次从正式 WORKFLOW 的“从已有成果继续”进入，目标是把固定任务推进到同一候选的合法变参复用，不再预设先跑 S7→S9。**尚未完成参数化生产与 live 资格；本地接续仍包含实际代码生产，不是只剩 GUI 测试。**当前原任务包在用户本地 `.runtime/automation-authoring/calculator-fresh-20260918/`，本环境未取得；没有从最终代码补造旧 Procedure／AppProfile 或重做示范。
+
+### 具体修复及 Owner
+
+| 实际问题 | 修改 | 证明边界 |
+| --- | --- | --- |
+| qualify.cjs 只读第一个参数，额外 --input／--spec／--candidate 会被静默忽略 | 原文件严格接受零参数或单个既有模式，增加只读 --help；未知／重复／额外参数在创建 attempt、读候选和桌面前以退出码 2 拒绝 | Linux 实际 CLI 反例修复前走到了 macOS 前提失败，而不是拒绝无效调用；修复后准确拒绝。没有在 macOS 触发错误业务 |
+| 参数化的下游实现要求过于笼统，只有 helper 参数也可能被误当作整份 Recipe 的入口 | 只在 recipe-build/io-spec 补[可变业务输入的实现消费](../../workflows/agent-to-recipe/skills/recipe-build/references/io-spec.md#可变业务输入的实现消费)；recipe-build 与 procedure-synthesize 方法引用同一处 | 沿现有字段明确可变输入政策、真实入口、业务消费者和动作前校验；不新增 schema／Skill／调度器，不冒充模型生产能力 |
+| 本地提示词仍预设 S7→S9 为优先事项 | 本节冻结实际接续缺口；正式入口仍是 WORKFLOW，现有设计／共享合同正确处不复制修改 | 优先找真正欠缺的输入政策、代码入口或 S12 场景；只在事实／取舍真的有缺口时回到 S7 或示范 |
+
+生产 `calculator.js` 字节、旧 r003 spec 和历史资格原文保持不变；源码 SHA-256 仍为 `a62c72aa2b00f256755aac2524d14e4655a88194c012bf6765f0d314a62774cc`。但这不表示旧资格覆盖本次改过的验收工具：下一次必须重新冻结实际工具与依赖；旧 Candidate 若含受影响依赖，按正式影响分析处理，不仅替换 hash 继续使用旧 PASS。
+
+### 本轮实际验证
+
+执行基线为 master `bdec5aae3414ec567244acdb94989088b9a38e4e`。通过 GitHub Actions run `35740918632` 的源码 artifact `10699529318` 取得范围内执行快照，ZIP SHA-256 `39473b9b88f69970b496e302be805f48dd4afb1e9637276a333fdff798437d46`；source-head 与 tar commit 一致。Linux／Node v22.16.0；快照不含 .git，不是用户工作区，git rev-parse HEAD／git status 实际报告无 Git 仓库，不宣称用户本地干净。远端写入前另核最新 master，只更新本次文件。
+
+- 新增真实 CLI 测试修复前 1 pass／7 fail；修复后 8 pass／0 fail。覆盖未支持输入／候选／spec、重复模式、未知参数、只读帮助，以及既有 --check 不触发 Runtime。
+- `node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-*.test.js`：269 pass／0 fail／0 skip；其中 261 为既有用例，8 为本次 CLI 回归，不能把总数解释为真实业务通过。
+- `node --check tests/workflows/calculator/qualify.cjs` 通过；修改的方法链接可解析，原生产源码与 spec 字节核对未变。
+- 无新业务 Candidate；没有 Runtime／桌面／Fresh Run／合法业务变参／独立模型／人工接受／收益实测。当前 --check 的 macOS 前提失败及 inputStarted=false 如实保留。
+
+本次实测层为宿主维护工具及已有确定性回归。方法更新只补可实现性要求，不重算十对象能力分，也不继承上轮分数为新方法运行证明。当前同一 Agent 审阅，非盲上下文或独立专家。原始日志留在 `.runtime/tests/workflow-local-continuation/`，不提交运行产物。
+
+| 日志 | SHA-256 |
+| --- | --- |
+| `reproduced.tap` | `b2925a776b55431e06c4e4dc2f846b452c58a5872cc6996c0694b9191850580b` |
+| `fixed-cli.tap` | `6d7d048c576d0bd4d777e89ed50067980ffe6fdc582c1f38bbab9639ccaa6d7e` |
+| `final.tap` | `2cc237a7c1976e69dbd8db0d8f9fb89a7e34399d706c61fb32be9d1bdd1f0e1d` |
+
+上轮提交的远端状态另核：Agent-to-Recipe capability-chain 作业 `106790131947` 成功；同一 API docs workflow 的全局 Runtime unit 与 Layered Agent API reading 作业失败，后者日志指出 presentation 目录因 data-claw→data-open 的摘要及正文 hash 漂移。Calculator 所选 Runtime units 步骤成功，但不能外推桌面资格。未扩大本轮为无关 API／平台清理，不能宣布整仓 CI 全绿；本次新提交的 CI 需单独读取结果。
+
+### 下一本地工作包的业务完成条件
+
+先取得原任务包并核定可复用范围。已经有同候选参数化资格则复用；仅缺资格则进 S12；缺输入语义先定向修订 S1／S8—S9，应用规则足够就复用，再由 S11 消费明确 Procedure／AppProfile／入口契约落实可配置普通 JS。只有原事实或动作取舍有问题才回到 S3—S7，不强迫八个 Skill 全部重跑。
+
+参数化后的候选经一次冻结，至少两次独立基线 Fresh Run（25×4+10，再 6×本次首值），加一次合法变化（12×3+4，再 6×本次首值）。110／660 和 40／240 只在独立 Oracle，不能作为生产的 firstResult／finalResult／expected 输入。既有同范围证据可核验复用并标明非本轮新运行。改变的只能是已声明的业务输入，不能每场景改源码或把 Node 模拟读值变化当作变参。
+
+旧 qualifier/spec/watch 仅支持 r003 固定场景。新候选的 S12 必须先明确实际入口、输入、Oracle、观察与证据绑定，再适配必要的验收实现；不能向旧命令添加未支持参数或修改旧 spec／hash 假装已经兼容。不新增通用表达式引擎，只处理当前所需无符号整数、乘法和加法及明确长度／范围。
+
+缺失／非法／超范围输入在首次业务副作用前拒绝；读值失败或动作结果未知后停止依赖输入。受控故障优先在离线副本核查，不通过反复真实清空／输入制造失败。保存原失败、正确责任、新版本和局部重验，若本轮没有真实业务故障，不编造一次成功恢复。原任务资料无法恢复时保留不可复核并按受限已有资产接续，不能重建虚假完整历史。
+
+
 2026-09-19 工作流接续新增的 Skill、Frozen Fixture、相邻工件检查、固定代码评审及分项评分见[工作流质量总览](agent-to-recipe-workflow-review-20260919.md)。本报告保留 Calculator 实施与历史资格事实；生产 JS 未因该次接续改变。
 
 **审查入口：[README 的验收路线图](../../examples/agent-to-recipe/README.md#怎样核对正确性)**。它逐项给出“用户要求 → 关键环节 → 原始文件 → 检测方法 → 成功条件 → 事实／局限”，并提供普通运行与资格测试的两条命令、函数合同和复验前提；无需先理解内部工作包编号。

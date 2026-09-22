@@ -27,6 +27,12 @@ description: 将已确认 SemanticProcedure 和可消费应用规则实现为普
 6. **检查实现并作最小修订。** 从每项合同要求和 Procedure 步骤追到源码区域，再反查每段业务代码是否有来源、权限和必要性。检查返回值流向、分支可达性、异步顺序、类型与停止条件；静态扫描只证明其实际覆盖。可选调用 code-rebuild 对精确基线独立作有依据的保留／改进评审；没有收益则不改。
 7. **冻结候选而非授予资格。** 保存实际脚本与依赖字节，记录正常入口命令、工作目录、inputContract、支持范围、限制和 sourceMapping；映射继续引用 Procedure 的 capabilityDecisionRefs。计算实际 hash 后生成 CandidateManifest，再发布 handoff。候选不引用尚不存在的 Qualification，不把方法文档、语法检查或一次历史成功写成业务已通过。
 
+## 声明参数化时先落实真实入口
+
+按[输入规格的实现消费](references/io-spec.md#可变业务输入的实现消费)，沿“调用者输入 → inputContract 校验 → Business Step 输入 → 实际函数／API 调用”逐项检查，不以 helper 签名代替可用入口。输入来源、类型／边界或缺省政策不明确，返回 S8—S9；政策明确但入口仍写死，由本职责修复。
+
+从 API 短入口核对实际可用的输入能力与启动命令，再生成最小实现。合法输入变化不得改写候选源码；运行时读取值不得开放为外部覆盖参数。先以原生产字节和显式输入完成可执行的自检，再冻结交 S12；无桌面条件只记录对应源码／宿主测试，不能称 Fresh Run。原候选与资格保留，不用删除固定 hash 断言来扩展旧资格。
+
 ## 检查、输出与失败接续
 
 输出普通 JS＋CandidateManifest＋本次实际检查和未验证范围；可读说明引用同版主产物，不成为第二份过程。字段与资格失效仍由共享合同唯一维护。适用的分段检查是 `check-artifact-chain.js --through candidate`，完整命令与限制见 [code-rebuild](../code-rebuild/SKILL.md)；它只检查限定形状和源码模式，不执行候选，也不要求未来 Qualification。
