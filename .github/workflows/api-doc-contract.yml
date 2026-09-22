@@ -42,7 +42,7 @@ jobs:
           git status --short > .runtime/tests/agent-to-recipe/worktree-status.txt
           node --version > .runtime/tests/agent-to-recipe/node-version.txt
           uname -a > .runtime/tests/agent-to-recipe/environment.txt
-          git archive --format=tar HEAD AGENTS.md workflows tests/workflows examples/agent-to-recipe docs/frameworks docs/quality .github/workflows/api-doc-contract.yml > .runtime/tests/agent-to-recipe/source.tar
+          git archive --format=tar HEAD AGENTS.md workflows tests/workflows tests/agent-to-recipe examples/agent-to-recipe docs/frameworks docs/quality docs/api docs/architecture .github/workflows/api-doc-contract.yml > .runtime/tests/agent-to-recipe/source.tar
           printf '%s\n' 'Validator and input/output contract tests only; not Producer/model behavior, host loading, visual acceptance or real desktop qualification.' > .runtime/tests/agent-to-recipe/scope.txt
       - name: Validate workflow and golden Recipe syntax
         run: |
