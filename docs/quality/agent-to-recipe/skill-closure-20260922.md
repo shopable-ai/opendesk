@@ -533,3 +533,58 @@ A需求与语义、B职责与独立性、C成果与接续、D验证与修复、E
 本轮不是“只剩本地桌面验收”：仍缺非 GUI 的真实模型输入充分性、真实宿主加载、八方法实际模型生产和 S1→S12 正式业务整链。**确定性 S7→S9→S10 的 formal request／handoff 精确消费已完成，不再把它列作未接线。** 下一最小作业是在具备隔离、权限与预算记录的实际宿主中，用同一固定包完成一次真实模型 S7→S9 正常生产＋一次定向失败修复；继续沿现有正式 request／handoff 消费并由协调者更新 progress，保留全部失败及预算，然后按各对象缺口继续，而不是重新设计主链或重跑有效示范。
 
 本记录只在实际文件摘要和可复核证据范围内有效。执行副本测试、Git blob 创建、commit 创建、master 更新、远端回读、远端 CI 是不同事实；仅有 blob 或候选不算交付。后续提交与远端回读须核对本文版本表，结果由真实 GitHub commit／tree／CI 记录证明，不预填成功。
+
+## 2026-09-22 续作：重新以“Agent 成功一次 → 普通 JS Recipe”核定 S12
+
+本节是对前述历史评审的增量记录，不重写旧版本已经发生的测试、评分或未完成事实。当前主链仍为 S1—S12，八项专业职责均已有正式方法包；本轮没有新增 S13、Workflow Engine、IR、Compiler、Replay Runtime 或第九个 Skill。
+
+### 本轮发现并修复的真实问题
+
+1. `design/task-decomposition.md` 仍残留“仅 application-engineer 有正式方法文件”，`design/chain-design.md` 仍残留“五个现有方法”的旧描述；这与当前八个方法包事实矛盾，已纠正。
+2. 工作流此前虽有阶段路由，但没有把“阶段完成”“必须硬停止”“正常消费者”和“输入变化后的局部 needs-revalidation”集中表达。`WORKFLOW.md` 与共享合同现已明确：失败从第一个真实责任点继续，旧事实保留，不因一个下游变化从 S1 全量重跑。
+3. S12 checker 过去只核对 `qualificationScope.requested/exercised/qualified` 三组声明，无法证明 scope 真正被任何实际 `scenarios[]` 覆盖，因此存在“数组里写成 qualified、场景却没有验证该范围”的假放行空间。
+4. Candidate 与 Qualification 对 TaskContract 的 content-bound 绑定此前在限定 checker 中不够强；当前正常链已要求 Candidate、Qualification 都绑定同一固定合同。
+5. “一次 Fresh Run”“可重复运行”“参数化复用”“后续无需 Agent 逐步驱动桌面”此前容易被混成一个结论；现已在 `recipe-qualify` 方法、io-spec、共享合同和 validation-plan 中拆开。
+
+### 当前 S12 确定性合同
+
+当前限定消费链要求：
+
+- Candidate 和 Qualification 都绑定精确 TaskContract；
+- `qualificationScope.lineage` 明确本次是 reference、continuation 还是 new-generation；
+- requested／exercised／qualified／excluded 内部无重复，qualified 不可扩大到 requested 之外；
+- 每个资格场景具有唯一 id、非空 `scopeRefs`、合法 verdict 和 evidence；
+- 每个 qualified scope 至少被一个 `verdict=pass` 的实际场景显式覆盖；
+- requested 中的 fail／not-run／blocked 不能移动到 excluded 或仅靠字符串声明取得 pass；
+- checker 继续只读，不执行候选，不授予 live qualification。
+
+进一步的 live 声明保持更高门槛：
+
+- 一次 Fresh Run 只证明一次成功；
+- 声称“可重复运行”时，相关 scope 至少两次彼此独立的 Fresh Run；
+- 声称“参数化可复用”时，至少一组不同于示范值的合法变参；
+- Candidate 含 LLM／Agent 时，只允许预声明、有界、结构化校验的语义判断点；若 Agent 仍按屏幕逐步决定每次点击，不能把该范围称为普通 Recipe 已独立运行。
+
+### 回归证据
+
+远端 HEAD：`939f22e93513d689a33c710346540ccfac70c828`。
+
+GitHub Actions `API docs contract` run `35734362176` 中，`Agent-to-Recipe capability chain` job `106767668897` 为 **success**：
+
+- `Validate workflow and golden Recipe syntax`：PASS；
+- `Test handoff and artifact-chain relationships`：PASS，Node TAP **232 tests / 232 pass / 0 fail**；
+- `Test Calculator display resolver data path`：PASS。
+
+本次新增负例覆盖：缺 Candidate／Qualification 合同绑定、qualified scope 没有 passing scenario、scenario 声称未 exercised scope、qualified 越过 requested、缺 qualification lineage。既有 `PARTIAL_QUALIFICATION` 错误分类保持兼容，没有为新规则破坏原 failure taxonomy。
+
+同一 workflow 中的 `Layered Agent API reading` 仍有仓库既有失败；在本轮前的 HEAD `a5e8f037...` 已出现相同类别失败，因此不把该无关 job 记为本轮 Agent-to-Recipe 回归。整条 GitHub workflow 的颜色不能替代上述专项 job 结论。
+
+### 仍未被本轮证明
+
+- 没有运行新的真实模型按八个 Skill 生产工件；
+- 没有运行新的完整 S1→S12 真实桌面链；
+- 232/232 是 validator／fixture／合同消费证据，不是 Calculator live qualification；
+- 没有新增两次 Fresh Run 的重复性实证、不同业务参数的 live 变参实证，或一般任务的“无 Agent 逐步桌面驱动”运行证据；
+- 宿主自动发现／隔离加载八个方法、真实权限和预算执行仍需单独证明。
+
+因此当前不新增 Skill。下一批最高价值工作应优先把 `recipe-qualify` 的上述 live 声明落到一个受控真实 Candidate（优先复用已有 Calculator 资产，不从零重做），再把失败定向返回到现有责任链；在这一步完成前，继续增加评分表、Skill 数量或抽象工作流层不会提高核心业务闭环的可信度。
