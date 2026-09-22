@@ -407,6 +407,12 @@ node tests/workflows/tools/adjacent-producer-eval.js --request <resume-request.j
 
 该 CLI 没有模型适配器，因此只重检／发包。真正模型生产必须由获准宿主显式传入 adapter，记录独立上下文、实际模型／工具、外发授权与费用／调用预算；宿主身份自报不能证明隔离，改 `sourceSet` 也不能变成留出集证据。没有宿主时保持 modelBehaviorVerified=false。
 
+2026-09-22 正式信封消费补强仍复用现有 `agent-to-recipe/v1`，没有增加业务 schema 或调度器。`check-handoff.js --consumer-request` 在基础 request／handoff 完整性通过后，只验证正常依赖路径的下游 request 至少精确消费一个上游 `artifacts[]` 引用；生产者 Gate 非 pass、跨 task、未发布／旧版本 artifact 或当前字节 hash 不一致均拒绝。失败／warn handoff 仍可进入诊断，但不能借该检查升级为正常结果。
+
+`artifact-input-sufficiency.test.js` 将同一次确定性 S7 实际输出发布为正式 handoff 并交给正式 S9 request，再将同一次 S9 实际 Procedure 发布给 S10/harden request；缺选型来源的失败切片补交新版本后，只发布修复后的 Procedure，后续若引用旧失败 Procedure 则拒绝。这里证明的是**确定性 Producer 产物 → 正式信封 → 下游 request 的精确字节接线**，不证明 progress 已由真实协调者写入、模型遵守 Skill、宿主隔离或真实桌面。
+
+同一顺序切片增加责任路由行为证据：合同内部自相矛盾返回 `automation-plan`，AppProfile 关系来源缺失返回 `application-engineer`，真实示范／读值事实问题返回 `task-demonstrate`，S7 输出自身缺陷返回 `trace-distill`，S9 映射缺陷返回 `procedure-synthesize`，已有必要材料未交付先返回 `coordinator` 并保留 `sourceOwner`。这些只证明已构造失败类；Human-to-Recipe、一般自然语言语义和所有 F0—F10 组合仍不得外推为已覆盖。
+
 ### 已实现的判据及仍需专业判断的部分
 
 补充身份与完整性判据：原读取、observation、应用／目标必须一致；原消费者集合不得漏项，实际消费应用须匹配固定 Profile。正常多消费者合并按每个原 action 保留实际变换，包含前导零的 digit-string 不转成数字。S9 同一个输入出现相互冲突的多个来源，或者业务步骤丢掉消费者，即使值表仍正确也要拒绝。仍不支持生产者与消费者合并后同一步内部的时序证明；这种情况属于覆盖不足，不是业务非法。
