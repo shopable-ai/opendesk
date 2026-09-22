@@ -6,6 +6,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { evaluateAdjacent } = require('./tools/adjacent-producer-eval.js');
 const { hash } = require('../../workflows/agent-to-recipe/scripts/artifact-validation.js');
+const { checkHandoffConsumption } = require('../../workflows/agent-to-recipe/scripts/check-handoff.js');
 const REPO = path.resolve(__dirname, '../..');
 const BASE = path.join(REPO, '.runtime/tests/agent-to-recipe/input-sufficiency');
 const WORKER = path.join(__dirname, 'tools/input-sufficiency/probe.cjs');
@@ -126,6 +127,98 @@ function fixture({ value = 'T-042', type = 'text', merge = false, optional = tru
 }
 function stageError(s, out, stage) { return s.read(out, stage + '/check.json').errors[0]; }
 
+function writeJson(filename, value) {
+  fs.mkdirSync(path.dirname(filename), { recursive: true });
+  fs.writeFileSync(filename, JSON.stringify(value, null, 2) + '\n');
+}
+function fileRef(rootId, root, relative, kind, schemaVersion = SCHEMA) {
+  return { kind, rootId, path: relative, schemaVersion,
+    sha256: hash(fs.readFileSync(path.join(root, relative))) };
+}
+function formalRequest({ taskId, workPackageId, attemptId, skill, mode = 'normal', planRevision = 'plan-r1',
+  inputRefs, requiredOutputs }) {
+  return { schemaVersion: SCHEMA, taskId, workPackageId, attemptId, skill, mode, planRevision,
+    contractRef: inputRefs.find(ref => ref.kind === 'TaskContract') || null, inputRefs, requiredOutputs,
+    authority: { mode: 'read-only-formal-consumption-test' }, capabilities: [],
+    budgets: { maxAttempts: 1 }, environmentRef: null, evidenceRoots: [] };
+}
+function publishFormal({ formalRoot, taskId, workPackageId, attemptId, skill, inputRefs, artifactRef,
+  producerVersion, evidenceRef, gateVerdict = 'pass' }) {
+  const requestName = attemptId + '-request.json', handoffName = attemptId + '-handoff.json';
+  const request = formalRequest({ taskId, workPackageId, attemptId, skill, inputRefs,
+    requiredOutputs: artifactRef ? [artifactRef.kind] : [] });
+  writeJson(path.join(formalRoot, requestName), request);
+  const requestRef = fileRef('formal', formalRoot, requestName, 'request');
+  const handoff = { schemaVersion: SCHEMA, taskId, workPackageId, attemptId, skill, producerVersion,
+    requestRef, inputRefs, executionStatus: gateVerdict === 'pass' ? 'completed' : 'failed',
+    artifacts: artifactRef ? [artifactRef] : [],
+    gate: { verdict: gateVerdict, scope: 'synthetic deterministic adjacent production only',
+      criterionRefs: ['formal-adjacent-consumption'], evidenceRefs: [evidenceRef] },
+    facts: [], assumptions: [], unresolved: [], sideEffects: [], failures: [], planDelta: null, nextRequest: null };
+  writeJson(path.join(formalRoot, handoffName), handoff);
+  return { request, handoff, requestPath: path.join(formalRoot, requestName),
+    handoffPath: path.join(formalRoot, handoffName), artifactRef };
+}
+
+
+test('actual S7 and S9 outputs enter formal request/handoff consumers by exact bytes', async () => {
+  const s = fixture(), out = s.out('formal-consumption');
+  const result = await evaluateAdjacent(s.request, out, s.adapter);
+  assert.deepEqual(result.stages, { 'trace-distill': 'pass', 'procedure-synthesize': 'pass' }, JSON.stringify(result));
+
+  const formalRoot = path.join(s.root, 'formal'); fs.mkdirSync(formalRoot);
+  const outputRoot = path.join(out, 'outputs');
+  const roots = [['source', s.source], ['evaluation-output', outputRoot], ['formal', formalRoot]];
+  const evidenceRef = s.ref('validation.txt', 'evidence', 'text/plain');
+  const s7Packet = s.read(out, 'trace-distill/input.json');
+  const s9Packet = s.read(out, 'procedure-synthesize/input.json');
+  const distilledRef = fileRef('evaluation-output', outputRoot, 'distilled.json', 'DistilledSteps');
+  const procedureRef = fileRef('evaluation-output', outputRoot, 'procedure.json', 'SemanticProcedure');
+
+  const s7 = publishFormal({ formalRoot, taskId: 'synthetic-ticket-lookup', workPackageId: 'S7',
+    attemptId: 'formal-s7', skill: 'trace-distill', inputRefs: s7Packet.files.map(item => item.ref),
+    artifactRef: distilledRef, producerVersion: result.methodVersions['trace-distill'], evidenceRef });
+  const s9 = publishFormal({ formalRoot, taskId: 'synthetic-ticket-lookup', workPackageId: 'S9',
+    attemptId: 'formal-s9', skill: 'procedure-synthesize', inputRefs: s9Packet.files.map(item => item.ref),
+    artifactRef: procedureRef, producerVersion: result.methodVersions['procedure-synthesize'], evidenceRef });
+
+  let report = checkHandoffConsumption({ request: s7.requestPath, handoff: s7.handoffPath,
+    consumerRequest: s9.requestPath, roots });
+  assert.equal(report.integrity, 'pass', JSON.stringify(report));
+  assert.equal(report.consumedArtifacts[0].sha256, distilledRef.sha256);
+
+  const s10Name = 'formal-s10-request.json';
+  writeJson(path.join(formalRoot, s10Name), formalRequest({ taskId: 'synthetic-ticket-lookup',
+    workPackageId: 'S10', attemptId: 'formal-s10', skill: 'application-engineer', mode: 'harden',
+    inputRefs: [procedureRef, s.ref('profile.json', 'AppProfile', 'agent-to-recipe/app-profile/v1.1')],
+    requiredOutputs: ['AppProfile'] }));
+  report = checkHandoffConsumption({ request: s9.requestPath, handoff: s9.handoffPath,
+    consumerRequest: path.join(formalRoot, s10Name), roots });
+  assert.equal(report.integrity, 'pass', JSON.stringify(report));
+  assert.equal(report.consumedArtifacts[0].sha256, procedureRef.sha256);
+});
+
+for (const ownerCase of ['automation-plan', 'application-engineer']) {
+  test('source routing reaches the distinct responsible owner: ' + ownerCase, async () => {
+    const s = fixture(), out = s.out('owner-' + ownerCase);
+    if (ownerCase === 'automation-plan') {
+      const contract = JSON.parse(fs.readFileSync(s.file('contract.json'), 'utf8'));
+      contract.runtimeValuePolicies[1].name = contract.runtimeValuePolicies[0].name;
+      s.write('contract.json', contract);
+      s.dossier.contractRef = s.ref('contract.json', 'TaskContract');
+    } else {
+      const profile = JSON.parse(fs.readFileSync(s.file('profile.json'), 'utf8'));
+      profile.relations[0].evidenceRefs = [];
+      s.write('profile.json', profile);
+      s.dossier.appProfileRefs = [s.ref('profile.json', 'AppProfile', profile.schemaVersion)];
+    }
+    s.write('dossier.json', s.dossier);
+    const result = await evaluateAdjacent(s.request, out, s.adapter);
+    assert.equal(result.stages['trace-distill'], 'fail', JSON.stringify(result));
+    assert.equal(result.nextRequest.owner, ownerCase, JSON.stringify(result.nextRequest));
+  });
+}
+
 for (const variant of [{}, { value: 'Z-900', profileVersion: SCHEMA }, { value: '40', type: 'digit-string', optional: false }, { merge: true }, { pending: true }]) {
   test('packet-only sequential production accepts legal variation ' + JSON.stringify(variant), async () => {
     const s = fixture(variant), out = s.out('normal');
@@ -162,6 +255,39 @@ test('missing actual selection fails; targeted new record reuses and rechecks S7
   assert.equal(b.reusedS7.outputSha256, a.reusableS7.output.sha256);
   assert.equal(hash(fs.readFileSync(path.join(first, 'procedure-synthesize/output.raw'))), failed);
   assert.ok(b.inputVersions.some(ref => ref.path === 'selection-r2.json'));
+
+  const formalRoot = path.join(s.root, 'formal-repair'); fs.mkdirSync(formalRoot);
+  const repairedOutputRoot = path.join(second, 'outputs'), failedOutputRoot = path.join(first, 'outputs');
+  const evidenceRef = s.ref('validation.txt', 'evidence', 'text/plain');
+  const repairedProcedure = fileRef('repaired-output', repairedOutputRoot, 'procedure.json', 'SemanticProcedure');
+  const failedProcedure = fileRef('failed-output', failedOutputRoot, 'procedure.json', 'SemanticProcedure');
+  const repairedPacket = s.read(second, 'procedure-synthesize/input.json');
+  const published = publishFormal({ formalRoot, taskId: 'synthetic-ticket-lookup', workPackageId: 'S9',
+    attemptId: 'formal-repaired-s9', skill: 'procedure-synthesize', inputRefs: repairedPacket.files.map(item => {
+      if (item.ref.rootId === 'evaluation-output') return { ...item.ref, rootId: 'repaired-output' };
+      return item.ref;
+    }), artifactRef: repairedProcedure, producerVersion: b.methodVersions['procedure-synthesize'], evidenceRef });
+  const roots = [['source', s.source], ['repaired-output', repairedOutputRoot],
+    ['failed-output', failedOutputRoot], ['formal', formalRoot]];
+
+  const goodName = 's10-good.json';
+  writeJson(path.join(formalRoot, goodName), formalRequest({ taskId: 'synthetic-ticket-lookup',
+    workPackageId: 'S10', attemptId: 'good-s10', skill: 'application-engineer', mode: 'harden',
+    inputRefs: [repairedProcedure], requiredOutputs: ['AppProfile'] }));
+  let formalReport = checkHandoffConsumption({ request: published.requestPath, handoff: published.handoffPath,
+    consumerRequest: path.join(formalRoot, goodName), roots });
+  assert.equal(formalReport.integrity, 'pass', JSON.stringify(formalReport));
+  assert.equal(formalReport.consumedArtifacts[0].sha256, repairedProcedure.sha256);
+
+  const staleName = 's10-stale.json';
+  writeJson(path.join(formalRoot, staleName), formalRequest({ taskId: 'synthetic-ticket-lookup',
+    workPackageId: 'S10', attemptId: 'stale-s10', skill: 'application-engineer', mode: 'harden',
+    inputRefs: [failedProcedure], requiredOutputs: ['AppProfile'] }));
+  formalReport = checkHandoffConsumption({ request: published.requestPath, handoff: published.handoffPath,
+    consumerRequest: path.join(formalRoot, staleName), roots });
+  assert.equal(formalReport.integrity, 'fail');
+  assert.ok(formalReport.errors.some(error => error.code === 'CONSUMER_INPUT_NOT_PUBLISHED'), JSON.stringify(formalReport));
+
   await assert.rejects(evaluateAdjacent(s.resume(first), first, s.adapter), /exist/i);
 });
 
@@ -218,6 +344,7 @@ for (const defect of ['lost-meaning', 'wrong-consumer', 'lost-terminal', 'forged
     const stage = defect === 'lost-meaning' ? 'trace-distill' : 'procedure-synthesize';
     assert.equal(result.stages[stage], 'fail', JSON.stringify(result));
     assert.ok(fs.statSync(path.join(out, stage + '/output.raw')).size > 0);
+    assert.equal(result.nextRequest.owner, stage, JSON.stringify(result.nextRequest));
     if (stage === 'procedure-synthesize') {
       s.adapter.produce = original;
       const restartRequest = s.read(out, 'resume-request.json');
