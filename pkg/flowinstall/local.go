@@ -237,7 +237,7 @@ func readAdjacentLocalRuntimeConfig(sourceDir string) ([]byte, bool, error) {
 	return nil, false, nil
 }
 
-func verifyLocalDirectory(root string, record Record) error {func verifyLocalDirectory(root string, record Record) error {
+func verifyLocalDirectory(root string, record Record) error {
 	if !pathIsRealDirectory(root) {
 		return newError(CodeTransactionFailed, "local Flow root is unavailable", nil)
 	}

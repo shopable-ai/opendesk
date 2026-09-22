@@ -73,7 +73,7 @@ func TestResolveUIHostPathDoesNotFallBackToLegacyClawDeskHost(t *testing.T) {
 	}
 }
 
-func TestProcessDriverRoundTripAndEventsfunc TestProcessDriverRoundTripAndEvents(t *testing.T) {
+func TestProcessDriverRoundTripAndEvents(t *testing.T) {
 	driver := newHelperProcessDriver()
 	defer driver.Close()
 	events := make(chan Event, 4)
