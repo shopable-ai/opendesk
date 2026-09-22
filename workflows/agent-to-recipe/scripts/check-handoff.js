@@ -215,7 +215,7 @@ function checkHandoffConsumption(options) {
   };
 }
 
-const HELP = 'Usage: node workflows/agent-to-recipe/scripts/check-handoff.js --request <request.json> --handoff <handoff.json> --root <id=directory> [--root <id=directory> ...]\nRead-only host check; roots come from the caller, never from evidenceRoots. Exit: 0 integrity pass, 1 check failed, 2 usage error.\n';
+const HELP = 'Usage: node workflows/agent-to-recipe/scripts/check-handoff.js --request <request.json> --handoff <handoff.json> [--consumer-request <downstream-request.json>] --root <id=directory> [--root <id=directory> ...]\\nRead-only host check; optional consumer-request proves normal downstream consumption of an exact published artifact. Roots come from the caller, never from evidenceRoots. Exit: 0 integrity pass, 1 check failed, 2 usage error.\\n'; roots come from the caller, never from evidenceRoots. Exit: 0 integrity pass, 1 check failed, 2 usage error.\n';
 function main(argv) {
   if (argv.length === 1 && argv[0] === '--help') { process.stdout.write(HELP); return 0; }
   try {
