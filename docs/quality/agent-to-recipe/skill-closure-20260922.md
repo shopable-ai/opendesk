@@ -4,7 +4,7 @@
 
 主链仍为 S1 automation-plan → S2 application-engineer/discover → S3—S6 task-demonstrate → S7 trace-distill → S8—S9 procedure-synthesize → S10 application-engineer/harden、repair → S11 recipe-build（可选 code-rebuild）→ S12 recipe-qualify。保留 G0—G7、共享合同、现有 Recorder／Replay 和普通 OpenDesk JavaScript。
 
-八个方法及各自 io-spec 已存在并由正式导航引用；本轮完成有限 S7→S9 评测入口的规格字节接线、定向失败接续和方法命令回归。**原请求尚未全部完成，十对象均未满足“每个必需因素至少95”**。不能把这里的程序通过当作八方法模型能力、正式业务交接或真实桌面资格。
+八个方法及各自 io-spec 已存在并由正式导航引用；本轮完成有限 S7→S9 评测入口的规格字节接线、定向失败接续和方法命令回归。**原请求尚未全部完成，十对象均未满足“每个必需因素至少95”**。不能把这里的程序通过当作八方法真实模型能力、真实宿主加载、协调者 progress 更新、S1—S12 正式业务整链或真实桌面资格。
 
 评审者：本轮同一 Agent 自审／复核。没有独立专家、人工批准或独立模型评审。日期：2026-09-22。审阅范围：当前方法／规格／共享合同的设计一致性，加本轮实际执行的确定性工具与有限相邻消费证据。分数是方法与配套的就绪性自审，不是运行成功率。A/B 的设计证据不外推为模型遵守能力；C/D 的工具证据严格标明范围；成本收益没有证据不得补分。模型、宿主、业务、桌面与人工接受层不填运行分数。
 
@@ -22,7 +22,7 @@
 
 | 独立评审范围 | 本轮处理方式 |
 | --- | --- |
-| S7→S9 相邻交接 | 单独记录 evaluateAdjacent／resumeFrom 的正常、拒绝、修复和版本接续证据；当前只证明确定性 Producer 切片，不把 trace-distill／procedure-synthesize 的方法分相加或平均成“交接分” |
+| S7→S9 相邻交接 | 单独记录 evaluateAdjacent／resumeFrom 的正常、拒绝、修复、正式 request／handoff 精确消费和版本接续证据；当前证明确定性 Producer 产物可进入正式信封并被相邻 request 消费，但不把 trace-distill／procedure-synthesize 的方法分相加或平均成“交接分”，也不冒充真实模型／宿主／progress |
 | S1→S12 整链 | 本轮没有实际模型＋正式业务贯通证据，保持 not-run／未评分；不能由十个方法分推导 |
 | 候选业务／Recipe 资格 | 必须绑定具体 Candidate、范围和真实资格证据独立结论；本轮没有新的正式候选业务资格，不评分 |
 | 真实模型／宿主／权限 | 独立记录模型行为、Skill/io-spec 实际加载、工具权限与调用账目；确定性探针不能继承为模型分 |
@@ -30,6 +30,70 @@
 | 复用收益、耗时、费用、调用次数等经验指标 | 按真实样本和分母单独报告；没有数据时不伪造经验百分比。方法层“复杂度与成本”相关判据仍按现有 5／2／0 证据规则评分，两者不能互相替代 |
 
 因此，本报告出现的 74／83／92 等数字仅表示对应**方法对象、对应证据范围**下的五因素审查结果；它们不是工作流整体成熟度、模型成功率、交接成功率或生产可靠性评分。后续取得新的模型、交接、整链或候选业务证据时，只更新相应独立范围，不为了提高总分重算无关对象。
+
+## 2026-09-22 续接收口：真实字节消费、责任路由与独立分层结论
+
+本节是在原 220 项闭包证据之后继续执行的增量，不覆盖前文历史日志。当前仓库没有可由本会话授权并记录完整预算／隔离信息的真实模型 adapter，因此**真实模型生产保持 not-run / blocked**；没有用确定性探针冒充模型。能直接完成的非 GUI 缺口已继续修到正式信封消费边界。
+
+| 对象 | 当前真实状态 | 本轮新增有效证据 | 仍缺什么 |
+| --- | --- | --- | --- |
+| S7 方法消费 | deterministic Producer PASS | 固定 SKILL.md＋io-spec＋共享合同＋明确输入进入 packet，实际产生 DistilledSteps；方法/规格缺失或变化仍拒绝 | 真实模型按同包生产 not-run |
+| S7 → S9 正式相邻消费 | **PASS（限定确定性切片）** | 实际 DistilledSteps 发布到 `agent-to-recipe/v1` handoff，正式 S9 request 以同一 artifact ref/hash 消费 | 真实协调者 progress 写入、真实模型/宿主 |
+| S9 方法消费 | deterministic Producer PASS | S9 只取得获准输入＋实际 S7；实际产生并检查 SemanticProcedure | 真实模型一般语义能力 not-run |
+| S9 → S10 正式相邻消费 | **PASS（限定确定性切片）** | 实际 Procedure 发布后由 `application-engineer / harden` request 精确消费 | S10 实际工程作业及现场验证 not-run |
+| 定向失败接续 | PASS（限定确定性切片） | 缺选型来源 → coordinator/sourceOwner；补交新版本 → 重核 S7 → 只重做 S9；累计调用 3/4；正式下游接受修复版 Procedure、拒绝旧失败版 | 真实模型/业务失败接续 not-run |
+| 来源路由 | PASS（已构造类别） | `automation-plan`、`application-engineer`、`task-demonstrate`、`trace-distill`、`procedure-synthesize`、`coordinator` 均有行为证据；validation 覆盖不足保持独立 | Human-to-Recipe 与一般语义/全部失败类别未穷尽 |
+| S1 → S12 整链 | not-run / 未评分 | 无 | 真实整链证据 |
+| Candidate / Recipe 业务资格 | not-run / 未评分 | 本轮没有新 Candidate | 具体 Candidate bytes/hash＋资格场景＋真实结果 |
+| 真实模型 | not-run / blocked | 没有可信 adapter、隔离和费用账目，故未伪造通过 | 获准模型 host |
+| 真实宿主加载／权限 | not-run | Node permission subprocess 仍只是测试宿主 | OpenDesk 正式宿主实际加载 Skill/io-spec/权限 |
+| Runtime／真实桌面 | not-run | 无本轮桌面执行 | 当前构建、现场 API、真实窗口和业务结果 |
+| 人工接受／经验收益 | not measured | 只记录确定性调用数：正常 2 次；失败＋定向修复累计 3 次 | 真实耗时、费用、人工修订、复用样本及分母 |
+
+### S7 → S9 相邻交接独立二十项评审
+
+下表是**重新按同一 validation-plan 量尺评 S7→S9 交接本身**，不是把两个方法分数相加、平均或继承。得分恰与单方法历史分出现相同数字也不表示同一结论；依据是本轮正式信封和实际确定性产物的交付/消费证据。
+
+| 判据 | 分数 /5 | 本层依据／扣分 |
+| --- | ---: | --- |
+| A1 目标未偷换 | 5 | 只验证已提炼事实进入业务过程，不把检查器或 Expected 变成业务答案 |
+| A2 来源和未知分开 | 5 | S9 仅见获准材料＋实际 S7；缺选型先失败，不静默读 Dossier/Raw Trace |
+| A3 任务覆盖完整 | 5 | 正常、缺材料、定向补交、S9 自身修复、旧版本拒绝均覆盖限定切片 |
+| A4 真实数据关系成立 | 5 | 生产者/消费者、consumerBinding、变换、终点读值在两阶段保持 |
+| A5 成功/失败判据清楚 | 5 | pass 才进入正常 formal consumer；warn/fail 只可诊断 |
+| B1 边界明确 | 5 | evaluator 仍是评测工具；formal checker 只读，不生成 handoff/progress |
+| B2 必要前提齐备 | 5 | 方法、io-spec、合同、显式输入和精确 artifact ref 均固定 |
+| B3 路由正确 | 5 | 补包、源错误、应用工程、S7/S9 自身错误保持不同责任 |
+| B4 无职责重叠/循环 | 5 | 未增加 Workflow Engine、DSL、第二套状态或 S9 重做 S7 动作取舍 |
+| C1 产物可消费 | 5 | 本次实际 DistilledSteps 经正式 handoff 进入 S9 request |
+| C2 版本与来源一致 | 5 | 下游必须消费上游 `artifacts[]` 的 exact root/path/hash/schema/kind；旧版拒绝 |
+| C3 可接续 | 5 | 缺材料后保留 S7，补交新版本只重做 S9；修复后 Procedure 继续进入 S10 request |
+| C4 证据生命周期 | 5 | 原失败 raw/input/check 与累计预算保留；新版本不覆盖旧失败 |
+| D1 正常场景证据 | 5 | GitHub Actions 实际执行完整确定性 Producer＋formal envelope 路径 |
+| D2 变化/拒绝证据 | 5 | stale/unpublished、fail Gate、跨 task、缺规格、变方法/输入均有拒绝用例 |
+| D3 失败返回正确 | 2 | 已证明多类责任，但 Human 来源、一般语义和所有失败组合未实测，保持局部覆盖 |
+| D4 修复后重验 | 5 | 重核 S7 后仅调用 S9；正式 consumer 只接受修复后的新 Procedure |
+| E1 工程量符合风险 | 5 | 复用现有 checker/request/handoff；未建调度器或新 schema |
+| E2 实际复用/封装收益 | 0 | 没有真实业务费用/耗时/人工收益样本，不以测试调用差值代替 |
+| E3 预算和停止有效 | 5 | 无新材料/repair disposition 停止；累计预算不重置；未知副作用不重放 |
+
+独立结果：A=25/25（100%），B=20/20（100%），C=20/20（100%），D=17/20（85%），E=10/15（66.7%），合计 92/100。**D、E 未达到逐因素 95，因此本相邻交接不满足“逐因素95放行”。**这个 92 仅属于上述限定交接审查，不是 trace-distill 分、procedure-synthesize 分、整链分或生产可靠性。
+
+### 本轮增量的远端字节与实际 CI
+
+方法 SKILL.md／io-spec 本轮未改，前文十对象固定版本及方法分不因本次 checker 接线自动变化。下列支持文件使用 Git blob SHA 绑定远端当前字节；前文旧 SHA-256 表保留其历史执行范围，不再冒充这些已修改支持文件的当前摘要。
+
+| 文件 | 当前 Git blob SHA |
+| --- | --- |
+| `workflows/agent-to-recipe/scripts/check-handoff.js` | `3cfe01a9e64da96f8252d583cad18909de80cf81` |
+| `tests/workflows/handoff-integrity.test.js` | `42293dcf245037f61b652489f42a4da4af342068` |
+| `tests/workflows/artifact-input-sufficiency.test.js` | `5ce359df0802352a13c3cb3efc8929e6a0a7af32` |
+| `workflows/agent-to-recipe/WORKFLOW.md` | `9683ddc64c2fb9b1e79fc66972fccaf666dbe522` |
+| `workflows/agent-to-recipe/design/validation-plan.md` | `d4d25d4a21ab4cc648280ac4323cdab64f190aac` |
+
+GitHub Actions `API docs contract` 的 `Agent-to-Recipe capability chain` 已在包含代码/测试修复的 `56002e38e8407e2265c3c387cbd8bd510e101965` 成功，随后在文档同步后的 `2e63adaec7a1a6ee987223e6b4d4d2f613120476` 再次成功。后一次 job `106735863178` 实际报告：**227 tests / 227 pass / 0 fail / 0 skipped**。比前文历史 220 项增加 7 项：formal consumer 正常/拒绝覆盖、实际 S7→S9→S10 信封消费和两类新增来源责任路由；测试数仍不是生产成功率。
+
+同一 `API docs contract` workflow 的 `Layered Agent API reading` 与 `OpenDesk Runtime contract and unit (macOS)` 在父提交 `55040e8aad894aabfcaf82546379e0db166aef70` 就已经失败；父提交的 `Agent-to-Recipe capability chain` 同样成功。本轮 `56002e38...` 仍是相同两项失败、专项成功，因此这些失败不归因于本轮 Agent-to-Recipe 修改，也不在本轮扩大修复。
 
 ## 基线、修改及证据范围
 
@@ -460,12 +524,12 @@ A需求与语义、B职责与独立性、C成果与接续、D验证与修复、E
 | 应用工程确定性工具 | P26通过、1真实材料比较跳过 | 非当前模型提取、视觉人工接受或现场规则复用 |
 | 真实模型按固定 Skill／io-spec 生产 | 未运行；当前未建立具备材料隔离、获准模型 adapter、完整调用账目的执行条件 | 八方法／十对象各自的正常、拒绝、变化及修复能力仍未验证，不填运行分数 |
 | 真实宿主加载与工具权限 | 未运行 | 需真实宿主可发现并实际消费固定方法和规格，记录加载／权限／预算；现有 Node worker 不代替 |
-| 正式业务 request／handoff／progress 接续 | 只有信封／静态消费者测试，未做本轮真实业务贯通 | 必须证明真实产物经正式发布被下游使用；包装通过不能自动宣布完成 |
+| 正式 request／handoff 相邻消费 | **确定性实际产物已贯通**：S7→S9→S10 request 精确消费；修复后新 Procedure 可替换旧失败版本 | 真实协调者 progress 更新、真实模型／宿主以及 S1→S12 业务整链仍未运行；不能由本切片宣布完成 |
 | Runtime／真实桌面资格 | 本轮未运行这些 Skill 的实际桌面任务 | 当前构建、授权、现场、所选真实 API 与独立结果；其他 CI Runtime 单元通过也不等于该层 |
 | 人工接受／实际复用收益 | 未运行／证据不足 | 真实人员批准、留出环境复用、成本效果，无运行分数 |
 
 真实性、授权、安全停止、关键输入充分性与数据关系都是不能被平均抵消的条件。合成资料的内部一致性已在适用切片检查，但来源真实性、模式权限落实和生产环境停止并未因 hash／测试通过自动得到证明。关键工程缺口仍在时，recipe-build 仅可保存受限草案和定向请求，不得发布符合原要求的正常候选。
 
-本轮不是“只剩本地桌面验收”：还缺非 GUI 的真实模型输入充分性、八方法实际生产、正式业务交接以及一般来源路由的行为证据。下一最小作业是使用已固定同版包，在具备隔离与授权的实际宿主中完成一次 S7→S9 正常生产＋一次定向失败修复，并让成果进入现有正式 request／handoff 消费；保留全部失败及预算，然后按各对象缺口继续，而不是重新设计主链或重跑有效示范。
+本轮不是“只剩本地桌面验收”：仍缺非 GUI 的真实模型输入充分性、真实宿主加载、八方法实际模型生产和 S1→S12 正式业务整链。**确定性 S7→S9→S10 的 formal request／handoff 精确消费已完成，不再把它列作未接线。** 下一最小作业是在具备隔离、权限与预算记录的实际宿主中，用同一固定包完成一次真实模型 S7→S9 正常生产＋一次定向失败修复；继续沿现有正式 request／handoff 消费并由协调者更新 progress，保留全部失败及预算，然后按各对象缺口继续，而不是重新设计主链或重跑有效示范。
 
 本记录只在实际文件摘要和可复核证据范围内有效。执行副本测试、Git blob 创建、commit 创建、master 更新、远端回读、远端 CI 是不同事实；仅有 blob 或候选不算交付。后续提交与远端回读须核对本文版本表，结果由真实 GitHub commit／tree／CI 记录证明，不预填成功。
