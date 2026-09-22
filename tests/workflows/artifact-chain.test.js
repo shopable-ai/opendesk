@@ -167,7 +167,7 @@ test('rejects qualified scope outside the requested range', t => {
     source.qualification.qualificationScope.qualified.push('extra-scope');
     source.qualification.scenarios[0].scopeRefs.push('extra-scope');
   });
-  rejects(f.check(), 'QUALIFICATION_SCOPE');
+  rejects(f.check(), 'PARTIAL_QUALIFICATION');
 });
 
 test('rejects a pass with missing qualification lineage', t => {
