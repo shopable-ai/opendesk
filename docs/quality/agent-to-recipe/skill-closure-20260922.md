@@ -1,6 +1,34 @@
 # 八方法最后接线与十对象逐因素复核｜2026-09-22
 
-## 一页进度与下一个放行点｜2026-09-23
+## 2026-09-23 r007：原目标的当前接续与测试门禁（最新）
+
+前一轮 r004 的“完成”只覆盖 S7→S9→S10 的离线局部生产。用户指出原目标未完成后，已按 `WORKFLOW.md` 和 `automation-plan/plan-revise` 固定同一 Calculator TaskContract 的目标和后续条件。r005 的初次条件预算漏算了 S11 冻结前的 S10 输入方法验证；r006 定向修正为三项独立输入作业，但其请求引用可变 `progress.json`，更新进度后引用会漂移。**当前正常收件使用 r007**：从生产前固定的 `plan/r006/progress-at-request.json` 读取进度快照，发布 `plan/r007/work-plan.json` 和正式 handoff；进度只由原 `progress.json` 协调写入。r005／r006 的原版本和失败证据保留。当前正确终点是：**S10 操作方法实证 → S9 更新受影响的能力决定及验证来源 → S11 消费正确版本形成普通 OpenDesk JS 和新 Candidate → S12 对同一精确 Candidate 做两次独立真实运行与业务观察**。旧 r003 q002 资格只属于旧二进制、旧 Candidate 和原固定场景，不向新版本继承。下方“**一页进度**”是提交 `567f1e47` 时 r004 的历史投影，保留其事实；本节与唯一 `progress.json.currentContinuation` 是当前 r007 的接续索引。
+
+| 当前阶段／方法与版本 | 实际本轮输入／生产／消费 | 结论和下游门禁 |
+| --- | --- | --- |
+| `automation-plan/plan-revise`，版本见 `attempts/r005-plan/request.json` | 用户纠正、r003 合同、r004 WorkPlan／Procedure／S10 warn、旧进度 → r005 WorkPlan；S10 request 在生产前收到精确 WorkPlan SHA `79df45c0…` | 目标与预先测试矩阵已冻结；本轮新增业务运行预算仍为 0 |
+| `automation-plan/plan-revise`，版本见 `attempts/r006-plan/` 与 `attempts/r007-plan/` | 再读固定 r003 合同、旧计划、现场只读审阅和进度快照；r006 修正测试顺序和待授权上限；r007 的 request 在生产前固定稳定的快照并交接 WorkPlan SHA `9c797a13…` | r007 经公开 checker 核对收件完整性，即使唯一进度更新后仍通过；r006 在更新后明确因旧进度 ref `HASH_MISMATCH` 拒收，不能进正常下游。生效业务运行与原生动作预算仍为 0 |
+| `application-engineer/harden` 只读，`attempts/r005-harden-readonly/` | 生产前收到了 r005 WorkPlan 和 r004 Procedure；从仓库根目录实跑 **一次** `./dist/opendesk -script tests/workflows/calculator/preflight.js -console-mode script -log-dir .runtime/automation-authoring/calculator-fresh-20260918/revisions/r005/preflight-run -timeout 1`，Runtime summary `succeeded`，源码快照 SHA `3d446b68…` | 当前二进制 SHA `806f7bd3…` 与 q002 所用不同；唯一 Basic 232×321 窗口、完整 AX snapshot、全部必要按钮唯一可 invoke、两次当前 UI 读值稳定，现场显示 `2515`。这是环境读数，**非**干净起点、业务输入、历史 110 或新业务成功；未聚焦、清空、点击或调用模型。该次只读预算已用完 |
+| `application-engineer/harden` 定向规则增量，`attempts/r005-window-guards/` | 从当前已交付的预检发现窗口不在前台；读取 `window.activate`／`window.current` canonical 正文，产出 `window-guard-addendum.json`，保留 r002 Profile 原版 | 需要同一窗口的有界激活和身份刷新；当前均 `not-run`。r004 Procedure 仅有四项能力决定，S9 须消费此新增资料再修订；不能从旧最终代码倒推“已选型／已验证” |
+| S8—S9／S11／S12 | S7 字节仍有效；新能力证据尚未达到正常 Candidate 条件；旧 `qualify.cjs` 只能验 r003 Candidate，故不得静默改指新候选 | S9 受影响方法修订待执行；S11 正常入口 `blocked`；新 Candidate 的 S12 `not-run`。失败和历史成果均保留，不新建并行状态文件 |
+
+### r007 事前固定的关键测试条件
+
+唯一当前条件源是 `plan/r007/work-plan.json.qualificationScenarios`；下表解释其原合同来源和可验范围。S10 实测是新 Candidate 冻结前的独立作业，不能算作其 Fresh Run；`not-run` 不会因源代码可读或旧 q002 pass 升级。
+
+| 顺序 | 必须看到的证据；失败停止 | 当前状态 |
+| --- | --- | --- |
+| 当前无输入预检 | 当前二进制、原生 Calculator 窗口身份、完整且唯一的显示／全部必要 distinct targets，双次当前 UI 读值；权限／歧义／过期／不完整即停，不点击 | 一次只读实跑通过；未证明干净起点 |
+| S10 能力验证及 S9 修订 | **单独一次前置输入作业**：当前 `window.activate`、`window.current`、`UI.tapTargets` 在获准环境按精确窗口与原生回执验证；未知副作用先观察，不重复输入。S9 用验证来源更新六项决定，保留原 S7 和 B025→B040 边 | 三项待运行；这次不属于 S12 的 Candidate Fresh Run；不能仅改 `runtimeValidation` 字段写 pass |
+| S11 精确新候选 | S11 request 在生产前收取通过的新 Procedure、应用规则、六个已选 canonical 和必要 helper；普通 JS 每步可追到来源，先对无输入门禁和本次读值流做审阅；冻结源码／二进制／依赖 hash 与新 Candidate | 阻塞；旧 `calculator.js` 只可作有来源参考，不能倒填新生成与资格 |
+| S12 首次独立 Fresh Run | 固定 Candidate 和场景在输入前；独立干净观察 `0/0/0`；实际第一次 UI 读 `110`，第二段原生动作的每个数字来自**当次**返回的 firstResult，最终独立 UI 读 `660/660/660`，截图与视觉审阅分别判定；任何 unknown/partial 不重放 | 未运行；Expected 只供独立 Oracle，不传入生产脚本 |
+| S12 同版公开命令再运行 | 第二次独立干净起点，同一脚本／候选／依赖字节，在仓库根目录原样执行文档的普通 OpenDesk 命令；独立结果证据支持“固定场景重复运行”，不能用第一次的窗口值／快照复用 | 未运行；不能仅以 q002 旧命令或单次 Fresh Run 宣称重复性 |
+
+原合同明确排除任意表达式／一般参数变化；不为凑变参资格扩大支持范围。独立模型 Producer／盲上下文、宿主自动加载、人类接受和真实复用收益仍分别 `not-run`／未量化。当前 `r003` 最终资格 harness 会拒绝 `--candidate` 等额外参数；S12 必须在新 Candidate 确定后用准确绑定的新场景及入口，不能把旧 harness 默默指向新产物。
+
+**明确待授权边界**：r003 原配额及一次测试修复追加配额已耗尽；r004 计划又明确 0 次新输入。r005 只给一次只读 Execution，已实际消耗。旧 r005 的“最多两次／44 个原生动作”提案不足且已被 r007 取代；r007 **仅提议**最多三次产生输入的作业（S10 一次、S12 固定同一 Candidate 两次）、累计最多 66 次 Calculator 原生动作、0 次自动输入重试，**不是生效授权**。`businessRuns=0 / nativeActions=0` 仍为生效值。输入包括激活、清空和点击；用户未批准具体上限前，不执行新输入，也不产生正常 S11/S12 通过声明。获准后由 `automation-plan` 再修订生效预算，定向处理 S10、S9、S11、S12。技术资产与证据均留在 `.runtime/automation-authoring/calculator-fresh-20260918/`；仓库永久记录只保存质量结论与正式方法，不提交本地运行材料。
+
+## 一页进度与下一个放行点｜2026-09-23 r004 历史投影
 
 **结论：原 r003 Calculator 固定场景已有普通 JS 和 q002 历史资格；当前 r004 专项仅完成 S7→S9 的修复生产及 S10 的限定规则审阅，还没有新的 JS Candidate 或新资格。整条 Agent-to-Recipe 工作流的独立模型、正式宿主与可泛化生产能力尚未验收完成。**本页是 `WORKFLOW.md` 规定的 Run Summary 投影，实际状态仍以唯一的 `.runtime/automation-authoring/calculator-fresh-20260918/progress.json`、固定 handoff 和资格记录为准；不能把两条不同版本的进度合并成一次完整通过。
 

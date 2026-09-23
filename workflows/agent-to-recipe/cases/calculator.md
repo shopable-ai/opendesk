@@ -10,6 +10,8 @@ order: 10
 
 状态：2026-09-07 建立需求与设计记录；当时没有运行计算器、生成生产 JS 或取得真实读数。2026-09-18 的独立新任务已完成真实 S1—S12 整链，见[正式质量报告](../../../docs/quality/agent-to-recipe-calculator-live-chain-20260918.md)。下文原设计中的“本次未运行／没有实际读值”保留其历史时点；设计里的 `110`、`660` 仍只是验收期望，实际读值以该任务的执行证据为准。
 
+2026-09-23 最新 r007 接续：此前 r003 q002 对旧固定候选的历史资格不授予新 Procedure／Candidate。当前工作沿正式 Workflow 固定目标和事前场景；一次只读预检仅证明窗口／必要目标／读取通道，现行二进制不同，新输入、激活、新 Candidate 及资格尚未放行。r005 待授权上限漏算了 S11 前的 S10 输入验证，r006 请求引用可变进度，均保留为旧证据；r007 修正请求引用和三项输入作业条件，当前生效输入预算仍为 0。最新证据与门禁见[质量记录的 r007 段](../../../docs/quality/agent-to-recipe/skill-closure-20260922.md#2026-09-23-r007原目标的当前接续与测试门禁最新)，工作状态只由原任务包 `progress.json` 写入。下方“已完成整链”只用于查询 r003 原范围。
+
 入口：[设计总纲](../design/README.md)、[完整任务树](../design/task-decomposition.md)、[链路交接](../design/chain-design.md)、[应用操作建模](../design/application-operations.md)、[code-rebuild](../design/code-rebuild.md)、[验证计划](../design/validation-plan.md)。以下保留三种起点和五个结果层次，另完整保留十三节点展开，使用 R1—R13 防止与共享合同 S1—S12 重名。它们是同一案例的不同阅读视图，不是两套可执行流程。
 
 ## 已完成整链的接续入口
