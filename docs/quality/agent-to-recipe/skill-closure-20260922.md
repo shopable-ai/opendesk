@@ -1,5 +1,22 @@
 # 八方法最后接线与十对象逐因素复核｜2026-09-22
 
+## 一页进度与下一个放行点｜2026-09-23
+
+**结论：原 r003 Calculator 固定场景已有普通 JS 和 q002 历史资格；当前 r004 专项仅完成 S7→S9 的修复生产及 S10 的限定规则审阅，还没有新的 JS Candidate 或新资格。整条 Agent-to-Recipe 工作流的独立模型、正式宿主与可泛化生产能力尚未验收完成。**本页是 `WORKFLOW.md` 规定的 Run Summary 投影，实际状态仍以唯一的 `.runtime/automation-authoring/calculator-fresh-20260918/progress.json`、固定 handoff 和资格记录为准；不能把两条不同版本的进度合并成一次完整通过。
+
+| 正式阶段／专业方法 | 关键交付 | 原 r003 固定场景 | 当前 r004 接续 | 必须过的检查点／下一责任 |
+| --- | --- | --- | --- | --- |
+| S1 `automation-plan` | TaskContract、WorkPlan | 合同／计划历史有效 | W044 定向续作计划已消费；不扩原合同 | 目标、固定输入、授权和总预算与原合同一致；改目标才回 S1 |
+| S2 `application-engineer/discover` | 最小 AppProfile | r002 有来源的 Calculator Profile | 精确复用；没有新现场发现 | 当前窗口、模式、权限和目标新鲜度需在 S10 复核；旧截图不授予现在点击 |
+| S3—S6 `task-demonstrate` | Dossier、Raw Trace、实际读值证据 | 历史 UI 读 `110`、实际输入 `6×110`、最终读 `660` | 定向更正原 Dossier 的消费者与来源角色；未重演 | A008 真读取，A018 真消费；A017 计划动作不能冒充输入；新事实不能事后补造 |
+| S7 `trace-distill` | DistilledSteps | 旧成果保留作历史 | **通过**：`revisions/r004/distilled-steps.json` | 每个原动作有取舍且不丢读值和实际消费者；正确版本正式 handoff 后才交 S9 |
+| S8—S9 `procedure-synthesize` | SemanticProcedure、能力选择和数据依赖 | 旧 Procedure 随旧 q002 保留 | **通过**：新 `revisions/r004/procedure.json`，四项当前验证 `not-run` | B025 当次 UI 读值 → B040 逐字符消费；六步各有来源、停止条件与支持范围；交 S10 不等于工程放行 |
+| S10 `application-engineer/harden`；有具体规则故障才 `repair` | 有效 AppProfile／规则增量及验证记录 | 旧规则仅覆盖原场景 | **warn**：`revisions/r004/hardening-review.json`，旧规则复用、当前实测缺失 | 当前唯一窗口／权限／完整目标预检、四项 API 的真实行为与未知副作用停止经适用预算验证；通过前不正常交 S11 |
+| S11 `recipe-build`；有明确收益才 `code-rebuild` | 普通 OpenDesk JS、CandidateManifest | [既有 JS](../../examples/agent-to-recipe/calculator.js) 与 `revisions/r003/candidate-q002.json` 仅属旧版本 | **未运行**：未从 r004 Procedure 新生成／冻结候选 | 收到通过的 S10 规则、正确 Procedure 和 API contract，冻结 JS／依赖／每步映射；失败回实际 Owner，不靠代码猜 |
+| S12 `recipe-qualify` | QualificationRecord、Run Summary | `revisions/r003/qualification-q002.json` 对原固定场景历史 pass | **未运行**：新候选资格不存在 | 候选与范围先冻结；新干净执行中先真实读取首值、由它输入第二段、再独立读最终值并核对；旧资格不迁移 |
+
+下一组正式检查点按依赖顺序执行，不是新阶段或第二套计划：**CP1 S10 当前环境与规则验证**（新工作包先取得原合同下具体预算／现场前提，记录所有 `not-run` 的实际处置和失败副作用）；**CP2 S10→S11 正式收件与 JS 生成**（只有 CP1 放行后才生成、冻结新 Candidate，不能用旧 `calculator.js` 倒填生产）；**CP3 S11→S12 固定候选资格**（按既定 fixed-scene 范围验证真实命令、同次值传递、独立 UI Oracle 和必要回归；参数变化不在原授权范围，另获合同范围才测）；**CP4 工作流层独立证明**（模型隔离、真实宿主加载及复用收益分别留证，不能由本地手工协调和确定性测试代替）。每一关按 WORKFLOW 正式 request → Producer → Gate/handoff → 下游生产前核对，失败只返回该关 Owner；未知副作用先核对，预算与失败累计保留在唯一 progress 索引。
+
 ## 2026-09-23 本地任务包接续：以本节为当前范围结论
 
 工作区 `master` 基线 `1b53cca2fc908b46ff8f21054f1b6a5c6367e7e8`；本机实际存在 `.runtime/automation-authoring/calculator-fresh-20260918/`。下方 9 月 22 日在 Linux 快照中“原包不存在”的结论保留为**当时环境**的事实，本节已从当前本机重新核对，不能跨环境沿用该阻塞。按 `WORKFLOW.md`“从已有成果继续”进入，合同限定 `25×4+10 → 当次 UI 读值 → 6×读值 → 当次最终 UI 读值`。本轮没有新桌面、模型或业务重跑授权；r003 q002 的历史固定场景资格保留为旧版本、旧范围，不替新 Procedure 授资格。
