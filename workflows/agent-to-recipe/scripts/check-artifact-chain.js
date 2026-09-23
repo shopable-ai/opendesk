@@ -8,6 +8,7 @@ const {
   SCHEMA, JSON_LIMIT, FILE_LIMIT, own, object, text, hash, CheckError,
   requireCheck, makeRoots, resolveFile, entryFile, readBytes, parseJson,
 } = require('./artifact-validation.js');
+const { isDeepStrictEqual } = require('node:util');
 const { inputsFor, artifactViews, valueLineage, provenChecks, renderReview } = require('./stage-review.js');
 
 const BOUNDARIES = ['bindings', 'trace-distill', 'procedure-synthesize', 'candidate', 'qualification'];
@@ -160,6 +161,63 @@ function checkArtifactChain(options = {}) {
       'The reference must bind the exact supplied bytes and their declared schema version.');
     });
   };
+  // A new Candidate may use a later, explicitly linked contract for the same
+  // demonstrated business task. Bound the lineage and retain the original
+  // Dossier/DistilledSteps contract; never relabel historical evidence.
+  const bindCandidateContract = (ref, boundary, location) => {
+    if (!object(ref)) {
+      bind(ref, 'contract', boundary, location);
+      return;
+    }
+    if (refIdentity(ref) === refIdentity(dossier.contractRef)) {
+      bind(ref, 'contract', boundary, location);
+      return;
+    }
+    attempt(boundary, location + '.revisionLineage', () => {
+      requireCheck(entries.contract && ref && ref.kind === 'TaskContract', 'WRONG_VERSION',
+        'A revised Candidate contract must be a content-bound TaskContract.');
+      const seen = new Set();
+      let currentRef = ref;
+      let previousContract = entries.contract.parsed;
+      const versions = [];
+      for (let depth = 0; depth < 8; depth += 1) {
+        requireCheck(!seen.has(refIdentity(currentRef)), 'WRONG_VERSION', 'Contract lineage contains a cycle.');
+        seen.add(refIdentity(currentRef));
+        const file = inspectRef(currentRef, boundary, location + '.revision[' + depth + ']');
+        requireCheck(file && currentRef.kind === 'TaskContract'
+          && currentRef.schemaVersion === SCHEMA, 'WRONG_VERSION', 'Contract revision is missing or invalid.');
+        const document = parseJson(file.bytes);
+        requireCheck(object(document) && document.schemaVersion === SCHEMA
+          && document.taskId === previousContract.taskId && text(document.goal)
+          && object(document.inputs) && Array.isArray(document.successCriteria),
+        'WRONG_VERSION', 'Contract revision lacks same-task business identity or complete policy.');
+        versions.push({ ref: currentRef, document });
+        if (refIdentity(currentRef) === refIdentity(dossier.contractRef)) break;
+        requireCheck(object(document.previousContractRef), 'WRONG_VERSION',
+          'Contract revision must explicitly name its previous version.');
+        currentRef = document.previousContractRef;
+      }
+      requireCheck(refIdentity(currentRef) === refIdentity(dossier.contractRef), 'WRONG_VERSION',
+        'Contract lineage does not reach the historical demonstration contract within eight versions.');
+      for (let index = versions.length - 2; index >= 0; index -= 1) {
+        const parent = index + 1 < versions.length ? versions[index + 1].document : previousContract;
+        const child = versions[index].document;
+        requireCheck(text(parent.goal) && object(parent.inputs)
+          && isDeepStrictEqual(child.goal, parent.goal)
+          && isDeepStrictEqual(child.inputs, parent.inputs)
+          && isDeepStrictEqual(child.initialState, parent.initialState)
+          && isDeepStrictEqual(child.supportedScope, parent.supportedScope)
+          && isDeepStrictEqual(child.failureCriteria, parent.failureCriteria)
+          && isDeepStrictEqual(child.stopConditions, parent.stopConditions),
+        'CONTRACT_SCOPE_CHANGED', 'Revised contract changed demonstrated business goal, inputs or supported policy.');
+        const criteria = child.successCriteria;
+        requireCheck(new Set(criteria.map(c => c.criterionId)).size === criteria.length
+          && parent.successCriteria.every(c => object(c) && text(c.criterionId)
+            && criteria.some(item => item.criterionId === c.criterionId && isDeepStrictEqual(item,c))),
+        'CONTRACT_SCOPE_CHANGED', 'Revised contract removed or changed a historical success criterion.');
+      }
+    });
+  };
   const inspectRefs = (refs, boundary, location, required = false) => {
     if (required) attempt(boundary, location, () => requireCheck(Array.isArray(refs) && refs.length > 0,
       'MISSING_EVIDENCE', 'At least one content-bound evidence reference is required.'));
@@ -172,8 +230,8 @@ function checkArtifactChain(options = {}) {
       'SCHEMA_VERSION', 'Only agent-to-recipe/v1 artifacts are accepted.'));
   }
 
-  // This supported slice has one frozen plan revision. Multi-revision traces
-  // require a separate reviewed contract; never relabel history to fit it.
+  // Historical Dossier and DistilledSteps share one frozen plan revision.
+  // A Candidate may bind an explicitly linked, business-invariant later contract.
   for (const [field, name] of [['contractRef', 'contract'], ['workPlanRef', 'plan']]) {
     const expectedKind = name === 'contract' ? 'TaskContract' : 'WorkPlan';
     const upstream = inspectRef(dossier[field], 'bindings', 'dossier.' + field);
@@ -527,7 +585,7 @@ function checkArtifactChain(options = {}) {
       .forEach((ref, index) => inspectRef(ref, 'candidate', 'candidate.dependencies[' + index + ']'));
     if (own(candidate, 'appProfileRefs')) array(candidate.appProfileRefs, 'DEPENDENCY_INVENTORY',
       'appProfileRefs must be an array.').forEach((ref, index) => inspectRef(ref, 'candidate', 'candidate.appProfileRefs[' + index + ']'));
-    bind(candidate.contractRef, 'contract', 'bindings', 'candidate.contractRef');
+    bindCandidateContract(candidate.contractRef, 'bindings', 'candidate.contractRef');
     const script = inspectRef(candidate.scriptRef, 'candidate', 'candidate.scriptRef');
     if (script) {
       scriptSource = script.bytes.toString('utf8');
@@ -593,7 +651,10 @@ function checkArtifactChain(options = {}) {
   if (candidate && qualification) attempt('qualification', 'structure', () => {
     evaluated.add('qualification');
     bind(qualification.candidateRef, 'candidate', 'bindings', 'qualification.candidateRef');
-    bind(qualification.contractRef, 'contract', 'bindings', 'qualification.contractRef');
+    attempt('bindings', 'qualification.contractRef.sameCandidate', () => requireCheck(
+      refIdentity(qualification.contractRef) === refIdentity(candidate.contractRef),
+      'WRONG_VERSION', 'Qualification must use the exact Candidate TaskContract version.'));
+    bindCandidateContract(qualification.contractRef, 'bindings', 'qualification.contractRef');
     attempt('qualification', 'qualification.identity', () => requireCheck(text(candidate.taskId)
       && text(candidate.revision) && candidate.taskId === qualification.taskId
       && candidate.revision === qualification.revision, 'MIXED_ATTEMPT',
@@ -686,7 +747,7 @@ function checkArtifactChain(options = {}) {
       readBytes: budget.bytes, errors,
       proves: provenChecks(accepted, errors.length === 0, capabilityDecisionById.size > 0),
       scope: 'Calculator-shaped v1 successful artifact prefix through ' + through
-        + '; one frozen plan revision, selected refs, not a complete Stage Contract, schema or dependency closure',
+        + '; historical plan frozen and only bounded business-invariant contract revisions accepted for Candidate, not a complete Stage Contract, schema or dependency closure',
       notEvaluated: ['truth of historical observations beyond bound evidence', 'desktop actions or OS input events',
         'visual correctness', 'human acceptance', 'host skill discovery/loading', 'blind-context model performance',
         'semantic correctness of a catalog/contract beyond its bound bytes or of runtime evidence beyond its cited record',

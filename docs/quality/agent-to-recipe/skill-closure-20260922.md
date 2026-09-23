@@ -1,6 +1,44 @@
 # 八方法最后接线与十对象逐因素复核｜2026-09-22
 
-## 2026-09-23 r007：原目标的当前接续与测试门禁（最新）
+## 2026-09-23 r009：同版 Candidate 的两次真实运行及限定放行（当前）
+
+从 `WORKFLOW.md` 的“从已有成果继续”进入原 Calculator 任务包。r004 S7 原始 DistilledSteps `19c0aac2…` 及正式 handoff 经过核验直接复用；原合同目标保持 `25×4+10` → 本次显示读取 `firstResult` → `6×firstResult` → 本次显示读取并返回 `finalResult`。r008 TaskContract `f2b15482…` 与 r009 WorkPlan `53696796…` 固定授权、输入、三项产生输入作业和预定 S12 场景。r009 只为真正必要的十次新只读观察补全计划预算；r005 已用的一次仍累计。正式 request 在生产前固定 Skill、io-spec、合同、正确上游字节及必要正文，handoff 在每项完成后核对。原示范、旧 Candidate/q002 资格和失败版本留存，不重演、不借给新版资格。
+
+| 已有且核验复用 | 首个缺口／责任 | 本次生产、交接与检查 |
+| --- | --- | --- |
+| r004 S7 的实际动作取舍及 `firstResult` 的 A008→A018 来源、旧 Profile／Dossier、固定 TaskContract | 新环境中 S10 的定位／动作方法缺实测；`application-engineer/harden` | 单独原生输入方法作业：实际前置显示 195，精确窗口与 AX 唯一性、激活、C→AC→2 原生回执及独立读 2；S10 记录 `4c84…` 与通过的正式交接 `bbdf…`。这是方法验证，不算 Candidate Fresh Run |
+| S7 SHA `19c0…` 与已验证的 S10 规则增量 | S8—S9 `procedure-synthesize` 的能力决定缺本次验证来源 | 收件后产生 r009 Procedure SHA `167b…`，六步骤／六项能力决定；S9 handoff `7b064…`，S11 实际按此正确版本继续；不静默重新做 S7 原始取舍 |
+| 新 Procedure、应用规则和已读 canonical API 正文 | S11 `recipe-build` 的新 JS、精确依赖冻结与初次检查器缺陷 | 初稿 c001 被正式 checker 拒收，旧失败 handoff `571922…` 保留；S11 原责任定向修订 Candidate，普通 [源码](../../../examples/agent-to-recipe/calculator-current.js) SHA `226e229a…`，新 c002 Manifest SHA `09091f58…`、handoff `3f0f1d24…`；旧 c001 不走正常入口 |
+| c002 与通过的 S11 handoff，预定的 r009 S12 范围 | `recipe-qualify` 需独立新运行与正式消费 | 第一次 S12 request `b562…` 在运行前，结果单场景 pass 但资格 `not-run`，warn handoff `842b…` 被正常 pass 入口拒收；第二次 request `b8eaf…` 在第二轮前仅把它作为中间证据，正常输入仍是 c002；最终 QualificationRecord SHA `71c74440…`、正式 pass handoff `e7af7dc7…` |
+
+S11 技术缺陷分别属于 Candidate 构建和公开 checker：c001 用 `dist/opendesk` 符号链接当作物理依赖，checker 错把所有续订合同视为只能绑定 r001。先保存失败与原有有效上游，再把正式共享合同、Workflow、validation-plan、`check-artifact-chain.js` 及反例测试修成**最多八跳的内容绑定合同继承**：每代必须保持原业务目标、输入、初始状态、支持范围、失败／停止条件及原成功标准，Qualification 仍必须引用正确 Candidate。c002 固定真实二进制 `dist/OpenDesk.app/Contents/MacOS/opendesk` SHA `806f7bd3…`，公开入口符号链接单独记录来源；修后公开 chain checker 对 candidate 与 qualification 均 pass，不抹掉 c001。一次性 request／handoff 生成工具还修正了真实输入环节 `sideEffects` 字段；该本地协调工具及运行证据留在 `.runtime`。S12 首次 warn 不能假冒最终 pass，消费者实际拒收后才进行第二次请求与生产。
+
+两次 Candidate Fresh Run 均从现场预检、C→AC、独立的 `0/0/0` 起点进入；每次同一冻结 JS 在 UI 中读取实际 `110`，第二段按该次返回值实际点击 `[6, ×, 1, 1, 0, =]`，独立观察末值 `660/660/660`，见证者记录从 0 到 110 再到 660 的转换，首值与末值截图均已目视检查完整窗口、未裁切数字。第二次从仓库根目录原样执行公开命令 `./dist/opendesk -script examples/agent-to-recipe/calculator-current.js -console-mode script`；两次运行前后均核对精确 Candidate、脚本、二进制字节。r009 S12 [QualificationRecord](../../../.runtime/automation-authoring/calculator-fresh-20260918/revisions/r009/qualification.json) 的两条实际 Execution 及截图引用逐项绑定；公开 chain checker `through qualification` 五层 pass，正式最终 handoff 的 public `check-handoff` pass。**本轮固定 Calculator 场景和同版候选两次真实运行通过**；这是同一协调 Agent 的方法生产与独立 Runtime 观察，并非盲上下文模型评测。
+
+输入配额按合同累计：三项产生输入作业全部使用（S10 一项，S12 两项），46／66 原生动作，0 次输入自动重试，未知副作用 0；新批准的 10／10 次只读 Execution 全部使用，加上 r005 旧一次累计 11。剩余 20 次动作**不是**第四项作业或任意新表达式的授权。`progress.json.currentContinuation` 由唯一协调者记录当前版本；顶层 r003 q002 状态只表示历史。
+
+### 同一二十项判据的十对象增量复核
+
+继续沿用下方逐项 A1—E3 的五因素、20 项、5／2／0 量尺；本表只把实际 r009 新证据支持的原扣分项改档，其他分数继承此前逐项评价，不因旧版本分数和目标 95 补推测分。评审为同一 Agent，自审不能计作独立模型。括号内是相对 r004 当前表的逐项变动，分母 A25／B20／C20／D20／E15。
+
+| 方法／模式 | A | B | C | D | E | 合计 | 本次证据边界 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| automation-plan | 25 | 20 | 17 | 8 | 7 | 77 | r008/r009 合同与计划实用；不把同一 Agent 规划算独立评测 |
+| application-engineer／discover | 25 | 20 | 17 | 14 | 7 | 83 | 旧 Profile 核验复用，本次未重新生产此模式 |
+| application-engineer／harden | 25 | 20 | 20（C1、C3：2→5） | 14（D1、D4：2→5） | 7 | 86 | S10 真输入验证，规则被新 Procedure 和 Candidate 实际消费；泛化规则和独立模型未测 |
+| application-engineer／repair | 25 | 20 | 17 | 14 | 7 | 83 | 未执行本模式的规则维修；S11 checker 修复不能冒充它 |
+| task-demonstrate | 25 | 20 | 17 | 8 | 7 | 77 | 旧 Dossier 实字节核验复用，未重演示范 |
+| trace-distill | 25 | 20 | 20 | 17 | 10 | 92 | S7 原件正式交接复用，未在本轮重新生产 |
+| procedure-synthesize | 25 | 20 | 20 | 17 | 10 | 92 | r009 实际消费有效 S7 和 S10；此前扣分 D3/E2 仍有未测范围 |
+| recipe-build | 25 | 20 | 20（C1、C3：2→5） | 14（D1、D4：2→5） | 7 | 86 | 同一 Agent 按方法生产 c002 并被 S12 真运行；任意 JS／模型归因未测 |
+| code-rebuild | 25 | 20 | 17 | 11 | 7 | 80 | 可选优化未执行，无可量化收益 |
+| recipe-qualify | 25 | 20 | 20（C3：2→5） | 17（D1、D4：2→5） | 7 | 89 | 同版候选两次真实运行及正式 handoff；盲上下文模型不是本次独立性 |
+
+分层结论：S7→S9→S10→S11→S12 的**当前固定任务人工协调、正式交接、候选运行和有限失败接续**通过；具体 c002 在所请求的七项固定场景 scope pass。自动加载 Skill／宿主调度、独立模型评测、盲上下文验收、其他表达式或乘数、其他平台／布局、人类接受及跨任务复用收益分别 `not-run`／未量化；不能将这张表或资格结论外推为通用整链生产能力。运行包位于可清理的 `.runtime/`，仓库只提交可维护源码、正式方法、回归和这份质量记录。
+
+本次回归：`node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-*.test.js` **277/277**；只读 `node tests/workflows/calculator/check-current-candidate.cjs` 核对精确 c002 脚本、二进制及依赖；`git diff --check` 通过。另运行 `node scripts/audit_test_architecture.js`，**整仓审计失败**：已有 Go 测试登记 287、当前 302，15 个现存 `_test.go` 未登记；本次未新增 Go 测试或修改审计逻辑，此项不写成专项通过，留给原分类账 Owner 单独修复。仓库交付 SHA／远端回读／CI 状态以实际提交后记录为准。
+
+## 2026-09-23 r007：原目标的先前接续与测试门禁（历史投影）
 
 前一轮 r004 的“完成”只覆盖 S7→S9→S10 的离线局部生产。用户指出原目标未完成后，已按 `WORKFLOW.md` 和 `automation-plan/plan-revise` 固定同一 Calculator TaskContract 的目标和后续条件。r005 的初次条件预算漏算了 S11 冻结前的 S10 输入方法验证；r006 定向修正为三项独立输入作业，但其请求引用可变 `progress.json`，更新进度后引用会漂移。**当前正常收件使用 r007**：从生产前固定的 `plan/r006/progress-at-request.json` 读取进度快照，发布 `plan/r007/work-plan.json` 和正式 handoff；进度只由原 `progress.json` 协调写入。r005／r006 的原版本和失败证据保留。当前正确终点是：**S10 操作方法实证 → S9 更新受影响的能力决定及验证来源 → S11 消费正确版本形成普通 OpenDesk JS 和新 Candidate → S12 对同一精确 Candidate 做两次独立真实运行与业务观察**。旧 r003 q002 资格只属于旧二进制、旧 Candidate 和原固定场景，不向新版本继承。下方“**一页进度**”是提交 `567f1e47` 时 r004 的历史投影，保留其事实；本节与唯一 `progress.json.currentContinuation` 是当前 r007 的接续索引。
 

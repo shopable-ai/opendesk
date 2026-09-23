@@ -242,6 +242,8 @@ node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-c
 
 该工具当前只支持 Calculator 形状的 v1 成功路径及直接调用源码模式，既不是通用 schema validator，也不是任意 JS 的控制流证明。它检查选定引用，不递归证明整个依赖闭包，不判断历史真实性、现场、视觉、人类接受或宿主安装。闭包另由候选专用检查核验；实际语义仍需审阅。工具通过不表示相关 Skill 在隔离上下文中的行为评测通过；`recipe-qualify` 文件存在也不等于当前候选已取得新的 live 资格。
 
+历史 Dossier／DistilledSteps 固定同一原计划；新 Candidate 可绑定经 `previousContractRef` 有界回溯到该历史合同的后续 TaskContract，但原业务目标、输入、范围和判据必须保持，Qualification 绑定 Candidate 的准确合同。命令会检查这条局部谱系；新的预算和权限仍须从 S1 正式来源、当前 WorkPlan 和 request 人工核对，不能借谱系通过取得桌面授权。
+
 当前输入充分性回归还把同一次确定性 S7 实际输出装入正式 `agent-to-recipe/v1` handoff，再由正式 S9 request 精确消费；同一次 S9 实际 Procedure 继续进入 S10/harden request。失败／补证切片则证明修复后 handoff 发布的是新 Procedure，后续 request 若仍指向旧失败版本会被拒绝。**这证明的是正式信封与实际确定性产物的接线，不是模型宿主、progress 写入、S1—S12 整链或真实桌面资格。**
 
 可复制的真实只读命令、Frozen Fixture、代码评审及分层结论集中在[工作流质量总览](../../docs/quality/agent-to-recipe-workflow-review-20260919.md)。稳定 fixture 在 `tests/workflows/fixtures/calculator-artifact-chain/`，它明确标为合成测试资料，不是历史示范；临时实例仍写入 `.runtime/tests/workflows/`。S1—S12、G0—G7 不变，最终业务程序仍为普通 JS。

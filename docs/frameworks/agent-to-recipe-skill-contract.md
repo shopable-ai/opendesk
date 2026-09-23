@@ -330,6 +330,8 @@ Capability Discovery、Method Selection、Contract Reading、Runtime Validation 
 
 当前限定切片还检查 S7 步骤的目的、输入输出、依赖、前提、预期、验证和分类，以及 S9 的运行时声明是否保留同一生产者、消费者和终点 UI 读值。它验证结构和对应关系，不证明自然语言前提／预期的真实性；合法但超出此切片的轨迹应按本合同审阅，不得改写事实适配检查器。S9 语义完整但工程验证尚未通过时，明确交给 S10；语义放行不等于所选方法已验证。S12 的限定 checker 现在检查 Candidate／TaskContract 精确绑定、scope 集合关系和 `scenarios[].scopeRefs` 对 qualified scope 的实际覆盖；外部预先确定的请求本身、真实 execution、重复 Fresh Run、合法变参、视觉结果和“普通 JS 未由 Agent 逐步点击”仍由独立消费者／recipe-qualify live 证据核验。
 
+历史 Dossier／DistilledSteps 仍绑定原合同与原计划。后续 Candidate 如依据获准的新 TaskContract，检查器只在新合同的 `previousContractRef` 内容绑定链最多八版可回溯到历史合同、任务身份一致、原目标／输入／初始状态／支持范围／失败和停止政策不变、原成功判据逐项原样保留时接受；Qualification 必须绑定该 Candidate 的准确合同版本。新增授权与判据仍由 S1 的正式来源和实际 WorkPlan 核验，检查器的谱系通过不自行授予新权限或桌面资格。依赖清单中的二进制应指向真实文件并核对公开入口符号链接的目标，不能为迎合检查器省略入口对应关系。
+
 `code-rebuild` 的 `baseline-retained`／`candidate-revised` 是评审处置标签，不新增 executionStatus、Gate 或 continuation.assetDisposition 枚举。评审必须绑定准确脚本／Candidate／Procedure／方法版本，列映射、分项判断、检查和未测范围；可写进现有工作包或质量报告。保持字节不变时不制造新候选；有影响性变化时仍遵循本节新版本与重验规则。
 
 1. 生产者写入本次 attempt，保留错误和未完成资料；每次新尝试新目录。

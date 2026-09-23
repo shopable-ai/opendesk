@@ -187,6 +187,8 @@ S12 不能把“有一个 pass 的 QualificationRecord”解释成“已经证�
 
 `check-artifact-chain.js` 只负责可确定性检查的部分：绑定同一 Candidate／TaskContract，并核对 Qualification 的 requested/exercised/qualified 与实际 `scenarios[].scopeRefs` 不脱节。它**不执行 Candidate，也不证明重复运行、合法变参、视觉正确或“不依赖 Agent 逐步点击”**；这些仍必须由 recipe-qualify 的真实 S12 execution 产生证据。
 
+已有成果接续的合同修订反例：历史 Dossier／S7 仍引用原合同，新 Candidate 引用后续合同。公开 `check-artifact-chain.js` 应核对后续合同的逐版内容绑定、最多八版的明确上一版引用、原业务目标／输入／范围／判据不变，以及 Qualification 与 Candidate 同版合同；缺前版、循环、改目标／输入／原判据应拒绝。原检查结果和失败 Candidate 留存，只修下游候选与检查器；检查器通过不代表新授权、Candidate 真实执行或重复 Fresh Run。候选二进制依赖须绑定真实文件，另核对用户运行的符号链接公开入口确实指向它。
+
 
 ## 四、按层推进与裁剪
 

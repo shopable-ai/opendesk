@@ -21,6 +21,40 @@ test('accepts the frozen producer-to-consumer slice without treating Oracles as 
   assert.ok(!fs.readFileSync(f.file('candidate.js'), 'utf8').includes(EXPECTED.positive.finalResult));
 });
 
+for (const variant of ['valid', 'changed-goal', 'changed-criterion', 'missing-parent']) {
+  test('bounded Candidate contract revision: ' + variant, t => {
+    const f = fixture(t, source => {
+      source.contract.goal = 'fixed Calculator task';
+      source.contract.inputs = {firstExpression:'25 × 4 + 10',secondMultiplier:'6'};
+      source.contract.successCriteria = [{criterionId:'C1',expected:'current UI first result'}];
+    }, state => {
+      const base = JSON.parse(fs.readFileSync(state.file('contract.json'), 'utf8'));
+      const revised = {...base, previousContractRef: state.ref('contract.json','TaskContract'),
+        successCriteria:[...base.successCriteria,{criterionId:'C2',expected:'literal command'}]};
+      if (variant === 'changed-goal') revised.goal = 'another Calculator task';
+      if (variant === 'changed-criterion') revised.successCriteria[0] = {criterionId:'C1',expected:'a sample value'};
+      if (variant === 'missing-parent') delete revised.previousContractRef;
+      state.write('revised-contract.json',revised);
+      const candidate = JSON.parse(fs.readFileSync(state.file('candidate.json'),'utf8'));
+      candidate.contractRef=state.ref('revised-contract.json','TaskContract');
+      state.write('candidate.json',candidate);
+    });
+    const report = checkArtifactChain({...f.options,through:'candidate'});
+    if (variant === 'valid') assert.equal(report.verdict,'pass',JSON.stringify(report.errors));
+    else rejects(report,variant === 'missing-parent'?'WRONG_VERSION':'CONTRACT_SCOPE_CHANGED');
+    if (variant === 'valid') {
+      const cli = spawnSync(process.execPath,[
+        'workflows/agent-to-recipe/scripts/check-artifact-chain.js','--through','candidate',
+        '--dossier',f.file('dossier.json'),'--actions',f.file('actions.json'),
+        '--distilled',f.file('distilled.json'),'--procedure',f.file('procedure.json'),
+        '--candidate',f.file('candidate.json'),'--root','fixture='+f.root,
+      ],{cwd:REPO,encoding:'utf8'});
+      assert.equal(cli.status,0,cli.stderr || cli.stdout);
+      assert.equal(JSON.parse(cli.stdout).boundaries.candidate,'pass');
+    }
+  });
+}
+
 test('rejects a runtime value without critical evidence', t => {
   const f = fixture(t, source => { source.dossier.runtimeValues[0].evidence = null; });
   rejects(f.check(), 'MISSING_EVIDENCE');

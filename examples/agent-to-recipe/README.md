@@ -1,6 +1,18 @@
 # Calculator：使用实际结果继续计算
 
-维护入口是 [calculator.js](calculator.js)。固定业务：按钮完成 `25 × 4 + 10`，读取 `firstResult`，再按钮完成 `6 × firstResult`，读取并输出 `finalResult`。不在 JavaScript 中计算业务答案。
+当前 r009 固定场景维护入口是 [calculator-current.js](calculator-current.js)；原 r003 [calculator.js](calculator.js) 及下方历史资格说明原样保留。两者的固定业务都是按钮完成 `25 × 4 + 10`，读取 `firstResult`，再按钮完成 `6 × firstResult`，读取并输出 `finalResult`。不在 JavaScript 中计算业务答案。
+
+## 当前 r009 候选与运行范围（2026-09-23）
+
+工作目录：仓库根目录。打开本机 Calculator Basic（本次 macOS 12.7.6、232×321，窗口题名 `Calculator`、清除按钮 `清除／全部清除`），在获准的任务范围内运行同版普通 OpenDesk JavaScript：
+
+```bash
+./dist/opendesk -script examples/agent-to-recipe/calculator-current.js -console-mode script
+```
+
+这条命令在第二次独立 Fresh Run 中从仓库根目录原样通过。当前冻结 [CandidateManifest](../../.runtime/automation-authoring/calculator-fresh-20260918/revisions/r009/candidate.json) SHA `09091f58…` 绑定脚本 SHA `226e229a…`、真实二进制 SHA `806f7bd3…`、合同／Procedure／AppProfile／API 正文；[QualificationRecord](../../.runtime/automation-authoring/calculator-fresh-20260918/revisions/r009/qualification.json) SHA `71c74440…` 绑定两次同版运行及正式交接。每次独立观察干净起点 `0/0/0`，脚本实读首值 `110`，按该次 UI 返回值点击 `6×110`，最终独立观察 `660/660/660`；首值、终值窗口截图也经过实际查看。脚本自身不含两个期望结果常量。详细版本、失败续接和七项限定范围见[质量记录](../../docs/quality/agent-to-recipe/skill-closure-20260922.md#2026-09-23-r009同版-candidate-的两次真实运行及限定放行当前)。
+
+新桌面运行仍会产生输入；不要因看到历史资格就重复执行。变更脚本、二进制、布局或业务输入时按 [Workflow](../../workflows/agent-to-recipe/WORKFLOW.md) 重新核对相应依赖和资格，不把旧 q002 或 r009 资格自动转给另一版本。当前证据保存在可清理 `.runtime/`；盲上下文模型、宿主自动加载、任意表达式及其他平台未验证。下文 `qualify.cjs`、链接和 SHA 均专属于旧 r003 Candidate，不能用于 r009 的新资格。
 
 ## 怎样核对正确性
 
