@@ -26,6 +26,36 @@ test('rejects a runtime value without critical evidence', t => {
   rejects(f.check(), 'MISSING_EVIDENCE');
 });
 
+test('a planned input cannot stand in for the actual consumer of a UI read', t => {
+  const f = fixture(t, source => { source.actions[8].kind = 'planned-input'; });
+  rejects(f.check(), 'HISTORICAL_FACT_UNBOUND');
+});
+
+test('a future Business Step cannot be cited as a raw trace consumer', t => {
+  const f = fixture(t, source => { source.dossier.runtimeValues[0].consumers.push('B040'); });
+  rejects(f.check(), 'HISTORICAL_FACT_UNBOUND');
+});
+
+for (const wrong of [false, true]) test('legacy WorkPlan without taskId '+(wrong?'rejects a wrong contract':'binds its exact contract'), t => {
+  const f = fixture(t, () => {}, state => {
+    const plan = JSON.parse(fs.readFileSync(state.file('plan.json'), 'utf8'));
+    plan.contractRef = state.ref('contract.json', 'TaskContract');
+    if (wrong) plan.contractRef.sha256 = '0'.repeat(64);
+    delete plan.taskId;
+    state.write('plan.json', plan);
+    const dossier = JSON.parse(fs.readFileSync(state.file('dossier.json'), 'utf8'));
+    dossier.workPlanRef = state.ref('plan.json', 'WorkPlan');
+    state.write('dossier.json', dossier);
+    const distilled = JSON.parse(fs.readFileSync(state.file('distilled.json'), 'utf8'));
+    distilled.workPlanRef = state.ref('plan.json', 'WorkPlan');
+    distilled.dossierRef = state.ref('dossier.json', 'Dossier');
+    state.write('distilled.json', distilled);
+  });
+  const report = checkArtifactChain({...f.options, through:'trace-distill'});
+  if (wrong) rejects(report, 'MIXED_TASK');
+  else assert.equal(report.boundaries['trace-distill'], 'pass', JSON.stringify(report.errors));
+});
+
 test('rejects a Procedure that omits Recipe-driving capability decisions', t => {
   const f = fixture(t, source => { delete source.procedure.capabilityDecisions; });
   rejects(f.check(), 'CAPABILITY_DECISION_REQUIRED');

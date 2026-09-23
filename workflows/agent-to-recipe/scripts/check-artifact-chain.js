@@ -187,14 +187,19 @@ function checkArtifactChain(options = {}) {
         'INVALID_REF', 'Contract and plan references must declare their actual artifact kind.');
       requireCheck(upstream.bytes.length <= JSON_LIMIT, 'SIZE_LIMIT', 'Upstream JSON exceeds the read limit.');
       const parsed = parseJson(upstream.bytes);
-      requireCheck(object(parsed) && parsed.schemaVersion === SCHEMA && text(parsed.taskId),
-        'INVALID_DOCUMENT', 'Upstream contract and plan need a supported schema and task identity.');
+      requireCheck(object(parsed) && parsed.schemaVersion === SCHEMA
+        && (name === 'plan' ? text(parsed.taskId) || object(parsed.contractRef) : text(parsed.taskId)),
+        'INVALID_DOCUMENT', 'Upstream contract needs task identity; a plan needs task identity or a bound contractRef.');
       entries[name] = { ...upstream, parsed };
     });
   }
   if (entries.contract && entries.plan) attempt('bindings', 'upstream.identity', () => {
-    requireCheck(entries.contract.parsed.taskId === entries.plan.parsed.taskId, 'MIXED_TASK',
-      'The frozen TaskContract and WorkPlan must identify the same task.');
+    const planIdentity = entries.plan.parsed.taskId ||
+      (entries.plan.parsed.contractRef?.kind === 'TaskContract'
+        && refIdentity(entries.plan.parsed.contractRef) === refIdentity(dossier.contractRef)
+        ? entries.contract.parsed.taskId : null);
+    requireCheck(text(planIdentity) && entries.contract.parsed.taskId === planIdentity, 'MIXED_TASK',
+      'The frozen WorkPlan must identify the same task or bind the exact TaskContract.');
     requireCheck(text(entries.plan.parsed.revision)
       && dossier.planRevision === entries.plan.parsed.revision
       && distilled.planRevision === entries.plan.parsed.revision, 'WRONG_PLAN_REVISION',
@@ -314,11 +319,18 @@ function checkArtifactChain(options = {}) {
       'The producer DistilledStep must output the runtime value.'));
       for (const consumerId of runtimeValue.consumers || []) {
         if (!actionById.has(consumerId)) {
-          attempt('trace-distill', base + '.consumer.' + consumerId, () => requireCheck(
-            !/^A\d+$/.test(consumerId), 'UNKNOWN_CONSUMER', 'A raw-action consumer must exist in the frozen trace.'));
+          attempt('trace-distill', base + '.consumer.' + consumerId, () => {
+            requireCheck(!/^A\d+$/.test(consumerId), 'UNKNOWN_CONSUMER',
+              'A raw-action consumer must exist in the frozen trace.');
+            requireCheck(consumerId === 'final output', 'HISTORICAL_FACT_UNBOUND',
+              'A consumer must be an actual raw input action or the terminal final output.');
+          });
           continue;
         }
         const consumer = actionById.get(consumerId).action;
+        attempt('trace-distill', base + '.consumer.' + consumerId + '.actual', () => requireCheck(
+          consumer.kind === 'actual-input', 'HISTORICAL_FACT_UNBOUND',
+          'A planned input or observation is not an actual consumer of the UI read.'));
         const consumerDecision = decisionByAction.get(consumerId);
         const consumerStep = consumerDecision && stepById.get(consumerDecision.stepRef);
         attempt('trace-distill', base + '.consumer.' + consumerId, () => requireCheck(consumerStep && ['retain', 'merge'].includes(consumerDecision.decision)

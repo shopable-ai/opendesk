@@ -437,6 +437,8 @@ node tests/workflows/tools/adjacent-producer-eval.js --request <resume-request.j
 
 补充身份与完整性判据：原读取、observation、应用／目标必须一致；原消费者集合不得漏项，实际消费应用须匹配固定 Profile。正常多消费者合并按每个原 action 保留实际变换，包含前导零的 digit-string 不转成数字。S9 同一个输入出现相互冲突的多个来源，或者业务步骤丢掉消费者，即使值表仍正确也要拒绝。仍不支持生产者与消费者合并后同一步内部的时序证明；这种情况属于覆盖不足，不是业务非法。
 
+当前真实 Calculator 包追加的检查反例：原读值的原始消费者指向 `planned-input` 或未来 Business Step ID 时，S7 检查必须拒绝；只有后续 `actual-input` 或终点 `final output` 可作为消费者。旧版 WorkPlan 若无顶层 `taskId`，只在其 `contractRef` 精确绑定已核对的 TaskContract 且版本、计划身份一致时继续；错误合同必须拒绝。相关公开检查器与回归位于 `scripts/check-artifact-chain.js` 和 `tests/workflows/artifact-chain.test.js`，不把它们的通过当成业务运行。
+
 正常接受要求：必要值都有来源说明和实际证据；实际消费者绑定不被允许转换清单代替；应用关系和源选择记录确实收到；所有终点读取保留；合法变化不是一律拒绝。反例要求：缺证据、错版本、错误生产／消费关系、终点遗漏、运行值误参数化、伪选择、源文件篡改、未知副作用及预算不足都不获正常放行。
 
 原示范的失败不覆盖。至少保存一次“缺选择来源 → S9 失败 → 定向补交新版本 → S7 复核复用 → S9 重新消费”切片；另以故障注入验证 S9 映射修正后只重做本阶段。恢复请求在原工作目录不可用时仍应通过冻结资料接续。

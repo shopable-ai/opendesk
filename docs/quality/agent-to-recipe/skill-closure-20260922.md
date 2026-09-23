@@ -1,6 +1,53 @@
 # 八方法最后接线与十对象逐因素复核｜2026-09-22
 
-## 2026-09-22 Workflow 业务链复核：当前结论优先
+## 2026-09-23 本地任务包接续：以本节为当前范围结论
+
+工作区 `master` 基线 `1b53cca2fc908b46ff8f21054f1b6a5c6367e7e8`；本机实际存在 `.runtime/automation-authoring/calculator-fresh-20260918/`。下方 9 月 22 日在 Linux 快照中“原包不存在”的结论保留为**当时环境**的事实，本节已从当前本机重新核对，不能跨环境沿用该阻塞。按 `WORKFLOW.md`“从已有成果继续”进入，合同限定 `25×4+10 → 当次 UI 读值 → 6×读值 → 当次最终 UI 读值`。本轮没有新桌面、模型或业务重跑授权；r003 q002 的历史固定场景资格保留为旧版本、旧范围，不替新 Procedure 授资格。
+
+| 已有且核对的成果 | 当前真实缺口 | 阶段／责任 | 本次工作与验收 |
+| --- | --- | --- | --- |
+| r001 原 TaskContract／WorkPlan、原 RawTrace 与实际 A008=110、A018 输入 `6,×,1,1,0,=`、A019=660；r003 q002 历史固定场景资格 | 旧 Dossier 把计划 A017 和不输入的 D040 标为读值消费者，旧 S7 漏计划动作覆盖；检查器曾错误接受 | S3—S6/task-demonstrate 原事实标注，S7/trace-distill 投影，检查器 owner | 不重演；两次定向修正 Dossier，S7 新版完整投影和严格原消费者检查；失败版本留存 |
+| r002 AppProfile 的固定布局、目标与操作，历史执行规则 | S9 缺当次交付的选型来源和 canonical 正文；S10 当前工程验证待办 | 协调者补资料，S8—S9/procedure-synthesize，S10/application-engineer/harden | S9 先拒收；随后交付当前有出处的四方法选择和完整阅读包，复用同一 S7，正式生产／交接新 Procedure；S10 实际消费并限定审阅 |
+| r003 候选与 q002 资格（历史 fixed scene） | 新 Procedure 的四项方法当前实测 `not-run`，无新 Candidate／资格 | S10 → S11 → S12 | S10 `warn`，S11/S12 在本次续作 `not-run`；不从旧 q002 或合成测试继承通过 |
+
+### 正式方法、输入、产出及实际消费
+
+同一 Agent 手工协调。每个已执行职责的 `attempts/<id>/request.json` 在生产前固定方法／io-spec SHA、任务合同、权限和输入字节，`handoff.json` 在生产后发布实际产物／Gate；`.runtime` 保留完整正文及检查报告。`r004-plan` 的 W044 增量（总离线 Producer 尝试 6、桌面与模型调用 0、旧业务预算不重置）先通过。`r004-fact-review-2` 以 RawTrace 将计划 A017 纠正为实际 A018；首次 S7 因 Dossier 的 RawTrace 引用角色错误在生产前拒收，原职责 `task-demonstrate` 的 `r004-fact-review-3` 更正来源，`r004-distill-retry` 才用新 Dossier 生产 S7。最初 `r004-fact-review` 未在当时有效计划中登记，作为失败尝试保留，不升级成果。
+
+S7 采用 `trace-distill` 方法 `d34458d7…`／io-spec `7c496021…`，新产物 `revisions/r004/distilled-steps.json` SHA `19c0aac2…`。它保留全部 A001—A020 的必要路径／计划动作来源；`firstResult` 来自 A008，唯一实际消费 A018，D040 只保留内存值前置条件。`s7-check-v2.json` 通过固定历史事实及 S7 绑定；S7 handoff SHA `c21e74a9…`。这不是独立模型 S7 评测，也不是当前桌面新示范。
+
+S9 初次 request `r004-synthesis-missing-selection` 在生产前通过了 S7→S9 主产物引用检查，但实际缺来源选型，故发布 `fail` handoff 且无 Procedure。协调者从当前 `docs/api/agent/README.md`、`elements.md`／`targets.md` 取得 `window.get`、`Accessibility.snapshot`、`UI.tapTargets`、`UI.readText` 四份 canonical 阅读包，生成新的 `capability-selection.json`：当前文档选型与历史 Profile/示范分开，四项当前运行验证均为 `not-run`，未伪造过去的候选失败。`r004-synthesis-retry/request.json` 在输出前列出 S7 主产物、新选型、四份正文、原合同、Profile、实际读值证据；收件 `s7-s9-receipt.json` 核对精确 S7 SHA `19c0aac2…`。按 `procedure-synthesize` 方法 `9014feb8…`／io-spec `98edaf36…` 从这些正文映射 D010—D060 为 B010—B050，产生 `procedure.json` SHA `da45e8c3…`，不读取旧 Procedure 作答案，也不重判 RawTrace 动作。`s9-check.json` 语义切片通过、四项 `pendingEngineering`，S9 handoff SHA `5f24ad91…`。
+
+S10 的 `r004-harden/request.json` 在审阅前固定该新 Procedure 与 r002 Profile、选型及四份阅读包；`s9-s10-receipt.json` 验证精确 SHA `da45e8c3…`。按 `application-engineer/harden` 方法 `1c762766…`／io-spec `07cac5fd…`，实际逐项核对六个 Business Steps、11 个必要目标、清空／输入／读值规则、未知副作用停止与当前 API，生成 `hardening-review.json` SHA `9be5a59e…`。旧 Profile 不修改；它对固定历史布局的规则复用有依据，但 r002 三项 operation 自带 `needs-revalidation`，四个新方法当下均未运行。S10 handoff SHA `381fe6f6…`，Gate `warn`；不能进入新 Candidate 正常生产。`progress.json` 由当前唯一协调者追加 r004 续作状态，顶层 r003 各阶段和 q002 资格仍明确是历史结果。
+
+`r004-distill` 和 `r004-synthesis-missing-selection` 两次拒收均没有启动相应 Producer；旧失败、旧 Dossier 和 r003 原件均保留。实际离线 Producer 尝试共 6：一次未登记的初始 Dossier、Dossier r2、Dossier r3、新 S7、新 S9、S10 审阅；协调者补交选型不计为 Skill Producer。失败后只重做受影响环节，未重置历史业务运行预算，未盲目重放任何未知输入。`old-s9-rejected.json` 证明失败 S9 无 SemanticProcedure，不能进入正常 S10 入口；两个成功收件报告均由下游生产**之前**运行，工具的 `productionOrderVerified=false` 仅表示工具本身不证明先后，实际时序由 request／输出产生顺序和 Producer 的输入读取记录解释。
+
+### 工程修复与验证条件
+
+`check-artifact-chain.js` 原来只核消费者 ID 的存在／时序，允许计划动作或未来业务步骤假冒实际 raw consumer；现在要求真实 RawTrace `actual-input`，终点只接受 `final output`。原检查器也把没有顶层 taskId、但 `contractRef` 精确绑定当前 TaskContract 的旧 WorkPlan 误拒；现在只在该精确绑定及计划 revision 同时成立时识别任务身份，错误合同仍拒绝。修改归属为原 checker、`artifact-chain.test.js` 和本 validation-plan 的原消费者／旧计划判据；原合同目标、Skill 方法字节和历史事实不改。先复现两个错误 PASS 与一个旧计划错误拒绝，再用修订 checker 重核实际 S7、S9 和依赖消费。
+
+关键测试条件：固定业务输入和同次读值；A017 计划动作不得冒充 A018 输入；完整源步骤一次映射，B030 仅保留状态前置，B040 唯一消费 B025.firstResult，最终值仅来自 B050；旧失败不可正常交接；当前候选若触及 `not-run` 工程决策必须停止。公开 checker、正式 handoff 收件与手工 Producer 各给独立证据。`node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-*.test.js` 本机 **273/273**；`s7-check-v2.json`、`s9-check.json` 与两个正式收件为限定范围 PASS，S10 为 `warn`。未执行新 Candidate 原字节宿主运行、真实 Runtime API 测试、新桌面、合法变参、独立模型、盲上下文或人工验收；原 q002 只保留旧资格。
+
+### 十对象同一二十项量尺：仅更新新证据支持的项
+
+评审者仍为同一 Agent；沿用下方 9 月 22 日 A1—E3、5／2／0 分档和相同版本的方法，禁止把离线修复、历史桌面或自审当作独立模型。仅 C1“产物可消费”获得新生产消费证据的三个对象从 2 更新为 5；其他分档逐项保持原评价及扣分限制。下表每行依次为 A（5 项）／B（4 项）／C（4 项）／D（4 项）／E（3 项），不将方法小计外推为整链或候选资格。
+
+| 对象 | A /25 | B /20 | C /20 | D /20 | E /15 | 当前方法 /100 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| automation-plan | 25 | 20 | 17（5,5,2,5） | 8 | 7 | 77 |
+| application-engineer/discover | 25 | 20 | 17 | 14 | 7 | 83 |
+| application-engineer/harden | 25 | 20 | 14 | 8 | 7 | 74 |
+| application-engineer/repair | 25 | 20 | 17 | 14 | 7 | 83 |
+| task-demonstrate | 25 | 20 | 17（5,5,2,5） | 8 | 7 | 77 |
+| trace-distill | 25 | 20 | 20 | 17 | 10 | 92 |
+| procedure-synthesize | 25 | 20 | 20（5,5,5,5） | 17 | 10 | 92 |
+| recipe-build | 25 | 20 | 14 | 8 | 7 | 74 |
+| code-rebuild | 25 | 20 | 17 | 11 | 7 | 80 |
+| recipe-qualify | 25 | 20 | 17 | 11 | 7 | 80 |
+
+S7→S9→S10 **当前固定事实离线手工生产与正式交接**通过；S10 当前工程放行 `warn`，S11/S12 当前续作 `not-run`。独立模型评测、宿主自动加载、Runtime 公共 API、真实桌面、人工接受、跨输入复用收益均各自 `not-run` 或未量化；没有一个方法满足逐因素 95，不给整链或当前 Candidate 新资格。后续需为本合同取得新的获准桌面运行预算与可核对宿主环境，验证当前 S10 规则后，再按正式 S11/S12 接续并保留旧版本与费用累计。
+
+## 2026-09-22 Workflow 业务链复核：当时环境与范围
 
 **本次结论：保留现有主链与八项专业职责；修复真实的生产前交接缺陷，补上实际普通 JS 的宿主执行检验，但不宣布 Agent-to-Recipe 整链完成。**此前 220／227 项测试及其原始记录保留在下方历史章节；其中“正式消费已贯通”的结论需要收窄为当时已证明的后置引用绑定。本节纠正该外推，不把历史测试通过改写成未发生，也不继承历史分数为当前能力。
 
