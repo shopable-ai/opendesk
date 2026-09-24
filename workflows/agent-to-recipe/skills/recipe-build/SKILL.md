@@ -1,6 +1,8 @@
 ---
 name: recipe-build
 description: 将已确认 SemanticProcedure 和可消费应用规则实现为普通 OpenDesk JavaScript，冻结 CandidateManifest；用于 S11 初次构建、定向实现修复和明确范围的已有资产接续。
+title: "06｜代码构建与 Candidate（S11）"
+order: 60
 ---
 
 # recipe-build｜把已确认过程实现为普通 JavaScript

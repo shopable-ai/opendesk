@@ -1,6 +1,8 @@
 ---
 name: task-demonstrate
 description: 按固定合同与获准计划执行真实任务，同步保存动作、观察、实际读值、消费者和验证证据，形成 DemonstrationDossier；用于 S3—S6 示范及定向补采。
+title: "03｜真实示范与留证（S3—S6）"
+order: 30
 ---
 
 # task-demonstrate｜真实示范、同步留证与逐步验证

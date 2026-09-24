@@ -1,6 +1,8 @@
 ---
 name: procedure-synthesize
 description: Convert fixed DistilledSteps into an Agent-to-Recipe SemanticProcedure for S8-S9. Use for Business Steps, parameters, runtime data dependencies, reusable scope, and completion semantics. Do not silently reread Raw Trace or maintain a second action-disposition record.
+title: "05｜业务过程与数据关系（S8—S9）"
+order: 50
 ---
 
 # 业务过程提炼（procedure-synthesize｜S8—S9）

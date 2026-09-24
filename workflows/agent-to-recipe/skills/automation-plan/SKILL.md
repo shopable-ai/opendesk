@@ -1,6 +1,8 @@
 ---
 name: automation-plan
 description: 将原始业务要求与授权转成可执行、可检查、可修订的 TaskContract 和 WorkPlan；用于 S1 首次规划、定向修订与已有资产接续。
+title: "01｜明确任务与制定计划（S1）"
+order: 10
 ---
 
 # automation-plan｜明确任务与制定计划

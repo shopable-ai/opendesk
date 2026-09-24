@@ -1,6 +1,8 @@
 ---
 name: recipe-qualify
 description: Independently qualify a frozen Agent-to-Recipe Candidate at S12. Use for Fresh Run evidence, requested/exercised/qualified scope, final Recipe quality conclusions, and repair routing. Never modify the Candidate or success criteria to obtain a pass.
+title: "08｜独立资格验收（S12）"
+order: 80
 ---
 
 # Recipe Qualify

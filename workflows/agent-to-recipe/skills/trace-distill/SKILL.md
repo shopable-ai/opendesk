@@ -1,6 +1,8 @@
 ---
 name: trace-distill
 description: Distill a frozen Agent-to-Recipe Dossier and Raw Trace into source-bound DistilledSteps. Use for S7 action retain/merge/omit/recovery decisions, necessary-path reconstruction, runtime-value provenance, or repair after an action was wrongly removed. Do not use for business parameterization, code generation, or recreating missing historical facts.
+title: "04｜提炼必要步骤（S7）"
+order: 40
 ---
 
 # 必要步骤提炼（trace-distill｜S7）

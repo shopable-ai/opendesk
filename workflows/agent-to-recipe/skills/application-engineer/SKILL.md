@@ -1,6 +1,8 @@
 ---
 name: application-engineer
 description: 为 OpenDesk 桌面自动化认识应用界面、审阅纠错并补强定位与操作规则。用于 discover 初次发现、harden 定向工程化或 repair 依据失败证据维修；支持仅做界面认识与审阅。不代替业务规划、过程提炼、代码构建或独立资格验收。
+title: "02｜应用认识与规则补强（S2/S10）"
+order: 20
 ---
 
 # application-engineer

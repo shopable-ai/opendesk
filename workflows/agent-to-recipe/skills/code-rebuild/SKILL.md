@@ -1,6 +1,8 @@
 ---
 name: code-rebuild
 description: Review and minimally improve an existing OpenDesk JavaScript candidate against fixed requirements and evidence. Use for S11 code quality, data-flow, API, reliability, maintainability, or a justified no-change decision. Do not invent missing business meaning, application rules, observations, or qualification results.
+title: "07｜按需代码改进（S11 可选）"
+order: 70
 ---
 
 # 代码评审与按需改进（code-rebuild｜S11 内可选作业）
