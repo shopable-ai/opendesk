@@ -130,25 +130,17 @@ flowinstall.Service
 
 不要重新实现这些 owner。
 
-当前尚未真正收口的是产品接线和当前版本真实资格，重点包括：
+2026-09-20 的本地静态 Marketplace 主链已完成真实 macOS 收口：同站点 Chrome 页面通过短 Deep Link 进入 OpenDesk，用户完成原生确认后由既有 `flowmarketplace.Installer → flowinstall.Service` 安装到隔离 Catalog；业务 `.js` 仍仅在用户于 Flow Runner 显式 Run 后交给 OpenDesk Runtime。真实证据位于 `.runtime/tests/marketplace/manual-20260920T140955904Z/`，并在整体架构文档的“2026-09-20 本地 macOS 真实验收”矩阵中逐项索引。
+
+当前未纳入这个本地静态 run 的产品范围包括：
 
 ```text
-Web opendesk:// → OpenDesk
 In-App Marketplace → Installer
-Native install confirmation
-single-instance URL forwarding
-
-以及当前 master 上：
-Picker
-Drag & Drop
-Double-click cold
-Double-click hot
-Catalog persistence
-Runner 展示
-Explicit Run
+Production Marketplace Backend / HTTPS release root
+跨平台原生实机资格
 ```
 
-Production Marketplace 云端 Backend 如果当前仓库没有正式实现，不得用 fake server 冒充完成。
+它们必须保持独立状态：当前 product config 故意未配置 Production Marketplace client，官方 App 的 Marketplace UI 也保持隐藏；不得把本地 loopback development session 冒充 Production 或 In-App PASS。现有 Side-load 资格不因本轮静态 Web 验收而重新断言。
 
 ---
 

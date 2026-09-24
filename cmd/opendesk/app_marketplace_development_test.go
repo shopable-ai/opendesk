@@ -187,6 +187,10 @@ func TestMarketplaceDevelopmentSessionCanonicalizesSymlinkedParentPaths(t *testi
 	if err != nil { t.Fatal(err) }
 	realConfig := filepath.Join(realRun, "marketplace-development.json")
 	if err := os.WriteFile(realConfig, encoded, 0o600); err != nil { t.Fatal(err) }
+	canonicalRealConfig, err := filepath.EvalSymlinks(realConfig)
+	if err != nil { t.Fatal(err) }
+	canonicalRealAppData, err := filepath.EvalSymlinks(filepath.Join(realRun, "app-data"))
+	if err != nil { t.Fatal(err) }
 
 	aliasParent := t.TempDir()
 	aliasRun := filepath.Join(aliasParent, "current")
@@ -198,7 +202,7 @@ func TestMarketplaceDevelopmentSessionCanonicalizesSymlinkedParentPaths(t *testi
 	sessionRoot := filepath.Join(t.TempDir(), "persistent")
 	session, err := registerMarketplaceDevelopmentSessionAt(sessionRoot, aliasConfig, aliasAppData, time.Now)
 	if err != nil { t.Fatal(err) }
-	if session.ConfigPath != filepath.Clean(realConfig) || session.AppDataRoot != filepath.Clean(filepath.Join(realRun, "app-data")) {
+	if session.ConfigPath != filepath.Clean(canonicalRealConfig) || session.AppDataRoot != filepath.Clean(canonicalRealAppData) {
 		t.Fatalf("session did not bind canonical targets: %+v", session)
 	}
 
@@ -210,7 +214,7 @@ func TestMarketplaceDevelopmentSessionCanonicalizesSymlinkedParentPaths(t *testi
 
 	recovered, err := recoverMarketplaceDevelopmentSessionAt(sessionRoot, time.Now)
 	if err != nil { t.Fatal(err) }
-	if recovered == nil || recovered.ConfigPath != filepath.Clean(realConfig) || recovered.AppDataRoot != filepath.Clean(filepath.Join(realRun, "app-data")) {
+	if recovered == nil || recovered.ConfigPath != filepath.Clean(canonicalRealConfig) || recovered.AppDataRoot != filepath.Clean(canonicalRealAppData) {
 		t.Fatalf("recovery followed a replaced parent symlink: %+v", recovered)
 	}
 }
