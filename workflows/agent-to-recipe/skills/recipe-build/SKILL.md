@@ -1,46 +1,110 @@
 ---
 name: recipe-build
-description: 将已确认 SemanticProcedure 和可消费应用规则实现为普通 OpenDesk JavaScript，冻结 CandidateManifest；用于 S11 初次构建、定向实现修复和明确范围的已有资产接续。
-title: "06｜代码构建与 Candidate（S11）"
-order: 60
+description: 将已确认 SemanticProcedure 和可消费的应用操作规则实现为普通 OpenDesk JavaScript，并冻结 S11 CandidateManifest。用于首次构建、定向实现修复和原样复用审查；必须保持 Procedure→Business Step→JS 的来源映射、真实 runtime dataflow、失败停止和范围边界，不得重做业务设计、写死示范答案或提前授予资格。
 ---
 
-# recipe-build｜把已确认过程实现为普通 JavaScript
+# recipe-build｜把 SemanticProcedure 实现成普通 JavaScript（S11）
 
-## 适用任务与边界
+## 定位
 
-负责 S11：已确认业务过程＋应用操作规则 → 普通 OpenDesk JavaScript＋CandidateManifest。它不是工作流引擎、业务解释器或新的 Replay Runtime。可以初次构建、修复具体实现问题，或按共享合同复用已有资产；不为凑成果改合格代码。现有 Recorder／Replay 能力继续存在，Human 来源仍按自己的 plan 和权限进入生成。
+本 Skill 负责把已经确认的 Business Steps、runtime data dependencies 和应用操作规则实现成普通 OpenDesk JavaScript，并冻结 Candidate。它是实现层，不是业务过程设计层，也不是资格层。
 
-开始时读取本方法、[输入输出适用规格](references/io-spec.md)、[共享合同](../../../../docs/frameworks/agent-to-recipe-skill-contract.md)的 Candidate 与发布／接续条款。API 从 [Agent API 短入口](../../../../docs/api/agent/README.md)按业务需要发现，取得实际选中方法的 canonical 正文和必要公共约束。需要定位／动作代码时读取 [定位修复方法](../../../../docs/frameworks/ui-locator-repair.md)；进一步的代码组织依据见 [代码重建设计](../../design/code-rebuild.md)，不要求每次通读全部应用工程资料。
+正确主链是：
 
-## 进入条件与必要输入
+```text
+SemanticProcedure
+→ Business Step
+→ source-mapped JavaScript
+→ frozen CandidateManifest
+```
 
-固定本次 request、TaskContract、已确认 SemanticProcedure、适用 AppProfile／操作规则及真实存在的 helper、选中 API 契约、正常入口与依赖、本次输入／配置／Secret 引用及允许修改范围。取得实际正文并核对 hash、版本、来源、对象和支持范围。首次构建不要求已经有 Candidate 或 Qualification；初次候选检查同样不要求未来资格结论。
+如果代码为了“更容易写”改变 Business Step、输入来源、producer/consumer、允许 transform、支持范围或 success semantics，应返回上游，而不是在 S11 重新设计业务。
 
-定向修复另需旧候选、具体失败和影响范围；旧资格只证明旧候选及其旧范围。已有资产按原合同的 continuation 处置，不能倒造 Dossier 或完整生成历史。`reuse-unchanged` 的有限例外不得套用到新生成或代码修订，以规避过程输入。
+## 开始作业时读取
 
-## 具体作业方法
+必读 [input-spec](references/input-spec.md)、[output-spec](references/output-spec.md)、[validation](references/validation.md)、[failure-handling](references/failure-handling.md)。使用 [candidate 模板](templates/candidate.md) 组织新应用；[Calculator 示例](examples/calculator.md) 只解释映射与 dataflow。
 
-1. **反向检查能否实现。** 逐个业务步骤确认目的、输入来源、运行时生产者与消费者、前后置、观察、停止及副作用；逐个操作确认规则、目标、实际 API、异步语义、环境和验证状态。业务关键含义缺失回 S8—S9，操作规则缺失回应用工程；不在代码里猜、补占位方法或静默选择新 fallback。工程待验证不等于已通过。关键工程规则未落实时，只能按共享合同保留明确限制的草案及失败／补强请求，不能发布满足原要求的正常候选交接；不得把本轮范围改小或只填写 limitations 来放行。
-2. **画出最小代码结构与数据流。** 用业务函数或清楚代码区域承接 Business Step。区分业务动作、运行时安全门禁、资格断言和 Evidence；生产脚本保留保护本次控制流与对象的必要检查，不携带完整历史证据或测试 Oracle。按 Procedure 的来源映射组织，不重新维护原动作取舍。
-3. **使用现有 Runtime 能力实现。** 先复用已选择且可用的 API／普通函数；只有真实复用或语义收益才抽 helper。遵守 canonical 的参数、返回类型、await、异常和平台约束。普通业务 Recipe 不使用 Node 的 require、process、fs 或 Node 启动方式作为默认宿主；宿主侧语法／合同测试与 Runtime 执行分开。不存在的方法、路线图名称、伪 helper 不进入可执行代码。
-4. **落实真实数据依赖。** 后续消费者使用本次实际生产者返回值，不使用历史样例、Expected 或常量代替。按已确认政策保留类型、前导零、单位精度、实际需要的允许变换、有效期和重新获取规则。无输出步骤的 consumers 可以为空；终点读取与交付不得遗漏。变换或政策需要新增时先回对应责任，不临时改义。
-5. **落实有限失败和安全停止。** 必要目标／窗口身份、唯一性、状态、权限及边界在动作前检查；结果 unknown 时停止依赖副作用。只使用获准且有依据的有界恢复，不能无限重试、重放未知前缀或换后端重复提交。错误保留原始业务原因与已知副作用，不用日志“完成”替代实际结果。
-6. **检查实现并作最小修订。** 从每项合同要求和 Procedure 步骤追到源码区域，再反查每段业务代码是否有来源、权限和必要性。检查返回值流向、分支可达性、异步顺序、类型与停止条件；静态扫描只证明其实际覆盖。可选调用 code-rebuild 对精确基线独立作有依据的保留／改进评审；没有收益则不改。
-7. **冻结候选而非授予资格。** 保存实际脚本与依赖字节，记录正常入口命令、工作目录、inputContract、支持范围、限制和 sourceMapping；映射继续引用 Procedure 的 capabilityDecisionRefs。计算实际 hash 后生成 CandidateManifest，再发布 handoff。候选不引用尚不存在的 Qualification，不把方法文档、语法检查或一次历史成功写成业务已通过。
+正式字段和 Candidate 语义以 [共享合同](../../../../docs/frameworks/agent-to-recipe-skill-contract.md) 为唯一依据。原 [io-spec](references/io-spec.md) 仅兼容导航。
 
-## 声明参数化时先落实真实入口
+## 方法
 
-按[输入规格的实现消费](references/io-spec.md#可变业务输入的实现消费)，沿“调用者输入 → inputContract 校验 → Business Step 输入 → 实际函数／API 调用”逐项检查，不以 helper 签名代替可用入口。输入来源、类型／边界或缺省政策不明确，返回 S8—S9；政策明确但入口仍写死，由本职责修复。
+### 1. 先做“可实现性反查”
 
-从 API 短入口核对实际可用的输入能力与启动命令，再生成最小实现。合法输入变化不得改写候选源码；运行时读取值不得开放为外部覆盖参数。先以原生产字节和显式输入完成可执行的自检，再冻结交 S12；无桌面条件只记录对应源码／宿主测试，不能称 Fresh Run。原候选与资格保留，不用删除固定 hash 断言来扩展旧资格。
+逐 Business Step 核对 purpose、inputs/inputSources、runtime producer/consumer/transform、pre/postconditions、observation、stopConditions、sideEffects，以及所需 AppProfile operation rules 与 selected API contract。
 
-## 检查、输出与失败接续
+- 业务含义/参数/数据关系缺失：回 procedure-synthesize。
+- locator/read/wait/action rule 缺失：回 application-engineer。
+- 历史事实缺失：按来源回 demonstration/trace-distill。
+- 不能因为代码“可以猜出来”就继续。
 
-输出普通 JS＋CandidateManifest＋本次实际检查和未验证范围；可读说明引用同版主产物，不成为第二份过程。字段与资格失效仍由共享合同唯一维护。适用的分段检查是 `check-artifact-chain.js --through candidate`，完整命令与限制见 [code-rebuild](../code-rebuild/SKILL.md)；它只检查限定形状和源码模式，不执行候选，也不要求未来 Qualification。
+### 2. 每个 Business Step 建 source mapping
 
-实现错误由本职责修；动作取舍回 S7；业务含义、参数或数据关系回 S8—S9；应用定位、读取、等待或操作规则回 application-engineer；事实缺失按 Agent／Human 原来源返回；目标与授权变化回需求责任。测试／Oracle 缺陷留 S12，不降低成功标准。
+每段业务代码必须能回答“它实现哪个 Business Step，依赖哪条 capability/application rule”。可以抽 helper，但 helper 不能成为新的业务层。
 
-每次修订保留原候选、原失败及有效上游。任何脚本或关键依赖字节变化生成新候选，列出受影响标准、依赖与重验要求，再交 S12；不把旧资格转移到新字节。无变化复用仍须核对输入、规则和范围适用性，不自动获得新环境资格。副作用未知先核对，不因代码修好就重放业务。
+sourceMapping 至少让审阅者从 Procedure 追到源码区域，并能反向检查每段业务代码为什么存在。重复日志、诊断或安全 guard 可以不等同于业务步骤，但必须有明确工程理由。
 
-正常、拒绝、修复和不改版复用样例见 io-spec。方法文件存在、设计评审、合同测试、模型构建能力、宿主加载和真实业务资格分别记录，未运行不写运行分数。
+### 3. 使用当前已确认 API/规则实现
+
+遵守 selected canonical 的参数、返回类型、await、异常和平台约束。不存在的 API、路线图名称、伪 helper 不进入可执行代码。普通 Recipe 不默认依赖 Node 专用宿主能力。
+
+若工程规则只有 partial/not-run，不把它写成已验证。需要 S10 补强时保留明确限制，不能仅靠 Candidate limitations 把原任务缩小后宣称成功。
+
+### 4. 落实 runtime dataflow
+
+对每个 runtime value：
+
+```text
+producer API/helper return
+→ optional allowed transform
+→ actual consumer call/input
+```
+
+后续消费者必须使用本次 producer 返回值，不能使用示范值、Expected、历史输出、硬编码答案或在 JS 中重新计算本应由 UI 读取的结果。
+
+保留字符串前导零、类型、精度和 fresh-run reacquire 语义。运行时值不能开放成外部参数覆盖。
+
+### 5. 参数化必须落到真实入口
+
+caller parameter 必须沿：
+
+```text
+inputContract
+→ validation
+→ Business Step input
+→ real function/API call
+```
+
+实际可变。内部 helper 有参数但入口仍写死，不算参数化。静态业务输入若声明可变，合法变参不应要求修改源码。
+
+### 6. 失败停止
+
+必要的目标身份、唯一性、状态、输入边界和高影响前提在副作用前检查。unknown side effect 时停止依赖动作；不得无限 retry、重放未知前缀或切后端重复提交。
+
+代码中的即时安全 guard 与 S12 Qualification Gate 分开：前者属于运行控制流，后者属于验收结论。
+
+### 7. 双向代码审查
+
+正向：每个合同要求/Business Step 是否有代码实现。
+反向：每段业务代码是否有来源和必要性。
+
+重点检查：
+- return value 是否真正流向 consumer；
+- await/顺序是否保持；
+- branch/stop condition 是否可达；
+- 参数是否真消费；
+- final read/output 是否存在；
+- error path 是否停止，不继续副作用。
+
+### 8. 冻结 Candidate，不授予资格
+
+冻结 script bytes、关键依赖、entry command、working directory、inputContract、supported/excluded scope、limitations、sourceMapping、apiRefs/dependencies，计算 hash 并生成 CandidateManifest。
+
+任何脚本或关键依赖字节变化都是新 Candidate。旧 Qualification 不转移。S11 只能报告实际静态/宿主检查，不把未运行写成 Fresh Run pass。
+
+## 不负责什么
+
+不重新定义 Business Steps、不重新判断 S7 动作必要性、不改成功标准、不做 S12 verdict，不发布 Catalog。修复实现时保留有效上游；不要通过重做示范掩盖代码 bug。
+
+## 完成条件
+
+一个没有查看全量历史的 S12 审阅者，应能从 CandidateManifest + script +固定上游直接回答：每个 Business Step 映射到哪里、runtime dataflow 是否真实、参数入口在哪里、失败如何停止、范围是什么、哪些工程声明尚未实测。
