@@ -1,74 +1,84 @@
 ---
 name: procedure-synthesize
-description: Convert fixed DistilledSteps into an Agent-to-Recipe SemanticProcedure for S8-S9. Use for Business Steps, parameters, runtime data dependencies, reusable scope, and completion semantics. Do not silently reread Raw Trace or maintain a second action-disposition record.
-title: "05｜业务过程与数据关系（S8—S9）"
-order: 50
+description: 将固定 DistilledSteps 转成 Agent-to-Recipe S8-S9 的 SemanticProcedure。用于 Business Steps、参数分类、runtime value 的 producer/consumer/transform、支持范围和完成语义；不重新做 S7 动作取舍、不静默读取全量 Raw Trace、不生成 JS、不发布资格。
 ---
 
-# 业务过程提炼（procedure-synthesize｜S8—S9）
+# procedure-synthesize｜业务过程与数据关系（S8-S9）
 
-把已确认必要路径表达为业务步骤、参数和运行时数据关系。只拥有业务解释，不重新拥有原始动作取舍。
+## 定位与责任边界
 
+输入是 S7 已确认的必要路径，输出是可供 S10/S11 消费的业务语义过程。S7 回答“哪些历史动作属于必要路径”；S8-S9 回答“这些必要步骤在业务上意味着什么、哪些值来自哪里、哪些输入可变、哪些运行时值必须现场取得，以及下游如何消费”。
 
-本方法的必需输入、实际读取、下游消费、拒绝和修复／复用样例见 [输入输出适用规格](references/io-spec.md)。开始作业时与本方法一起读取并固定各自实际内容版本；它不另建 schema 或评分规则。
+本 Skill 不拥有第二套 actionDecisions。发现 retain/merge/omit/recovery 投影错误时返回 trace-distill，而不是在 Procedure 内重读 Raw Trace 重判。
 
-## 输入：必须拿到什么
+## 开始作业时读取
 
-- 固定 TaskContract／WorkPlan：目标、约束、计划和本次复用范围。
-- 固定 DistilledSteps：必要步骤、源动作、输入输出、依赖、取舍及未决项。
-- 解释这条路径所必需的 AppProfile 与定向补证，不默认阅读全部历史。
+必读本文件及 [input-spec](references/input-spec.md)、[output-spec](references/output-spec.md)、[validation](references/validation.md)、[failure-handling](references/failure-handling.md)。使用 [semantic-procedure 模板](templates/semantic-procedure.md) 组织新应用；[Calculator 案例](examples/calculator.md) 解释 producer/consumer/transform，不定义通用规则。
 
-发现原动作 retain／merge／omit 错误，返回 `trace-distill`；不能在 Procedure 内重读 Raw Trace 并维护第二套 actionDecisions。
-只读检查器可以机械核对上游引用和来源，这不等于让语义 Producer 重新判断 S7。 AppProfile 等材料的传递引用也不能成为静默取得全量 Dossier／Raw Trace 的旁路；当前相邻评测入口遇到此情况停止 S9 发包并要求定向补证，不删除引用或伪装材料类型。
+正式字段、引用和状态只以 [共享合同](../../../../docs/frameworks/agent-to-recipe-skill-contract.md) 为依据。原 [io-spec](references/io-spec.md) 仅作兼容导航。
 
-## 方法：生产什么判断
+## 方法
 
-1. 核对输入版本、当前目标与范围；保留来源事实、解释、建议和 Unknown 的区别。
-2. 将每个 DistilledStep 映射到有序 Business Step。保持准备、实际动作、读取、验证和停止条件；当前成功路径切片要求源步骤恰被映射一次，不丢失、不重排。新建或策略修订的步骤明确 `stepId / purpose / sourceStepRefs / inputs / inputSources / preconditions / execution / observation / outputs / postconditions / verification / stopConditions / consumers / sideEffects`；execution 表达业务操作或 helper 意图，具体 OpenDesk API 选择放在 capabilityDecisions。
-3. 区分用户输入、Config、Secret 引用、不变量、运行时值、Expected 和未知。观察到的样例不能成为运行时值的默认参数。 声明参数化时，按[下游实现消费要求](../recipe-build/references/io-spec.md#可变业务输入的实现消费)明确调用者可变输入的语义、边界与实际业务消费者；不把只列参数名的过程交给 S11 猜测，也不替 S11 发明 CLI。
-4. 每个运行时值写明生产步骤、消费步骤、允许变换、有效期与重新取得规则。生产者输出与消费者输入必须相接。
-5. 将已观察的能力选择归纳为最小 capabilityDecisions：业务需要、短阅读路径、候选及 selected／rejected／failed／not-run 处置、选中契约／公共约束、运行验证依据、Recipe 消费者和重验条件。不得编造过去的失败或为了记录整齐重跑候选。S2—S6 已发生事实不足就返回具体缺口；尚待 S10 的工程验证如实记 not-run／fail／partial 和工程责任，不阻塞已经完整的语义交接，也不从最终代码倒推已完成发现／选型／验证；不复制 API 正文或新增能力 Registry。
-6. 写清应用操作需要、前后条件、副作用、支持范围、排除范围和未决项。当前 API 的能力发现和契约读取按既有 Markdown 入口，不能因示例就规定全局 API 优先级。
-7. 发布 SemanticProcedure；应用规则缺口交 S10 补强，事实缺口返回示范，业务解释缺口留在本环节。草案或限定范围结果不得冒充正常生成可消费的完整过程。
+### 1. 固定 S7 输入，不重做历史取舍
 
-## 输出长什么样
+核对 TaskContract、WorkPlan、DistilledSteps、相关 AppProfile/关系、必要政策和能力选择来源的版本、hash、task/plan identity。sourceActionRefs 只做 lineage；它们不授权默认展开完整 Dossier/Raw Trace。
 
-以下是 [Frozen Fixture](../../../../tests/workflows/fixtures/calculator-artifact-chain/source.json) 的字段节选，不是完整生产工件：
+若 S7 已交付的 step 顺序、source coverage 或 runtime value 投影明显错误，停止并返回 S7。不要通过“语义上看起来合理”来修正历史事实。
 
-```text
-D030 → B025：outputs=[firstResult]；含义是从本次 UI 读取
-D050 → B040：inputs=[secondMultiplier,firstResult]
-dataDependencies：producer=B025；value=firstResult；consumer=B040
-允许变换：字符展开；不是重新计算，不是替换为 110
-```
+### 2. DistilledStep → Business Step
 
-主输出为 SemanticProcedure，包含 Business Steps、参数分类、数据关系、操作需要、支持范围和未决项；handoff 固定其版本。
-下游为 `application-engineer` 的 harden／repair，以及输入就绪后的 `recipe-build`。
+将必要步骤映射为有序 Business Steps。每个步骤至少写清 purpose、sourceStepRefs、inputs/inputSources、preconditions、execution intent、observation、outputs、postconditions、verification、stopConditions、consumers 和 sideEffects。
 
-## 检查与交接
+可以把多个必要步骤组织成一个业务步骤，但不能因此丢失 source coverage、先后关系、数据 producer/consumer 或安全边界。当前 S7 取舍保持只读。
 
-从仓库根目录运行，参数替换为已存在的冻结材料：
+### 3. 分类业务输入
 
-```bash
-node workflows/agent-to-recipe/scripts/check-artifact-chain.js --through procedure-synthesize --dossier <dossier.json> --actions <actions.json> --distilled <distilled-steps.json> --procedure <procedure.json> --root <id=directory>
-```
+严格区分：
 
-无需 Candidate 或 Qualification；加 `--format markdown` 查看实际字段、来源与检查结果。正常交接需源步骤覆盖、顺序与数据关系成立，不得出现第二套原动作取舍。
+- caller parameter：调用者在未来运行前提供的可变业务输入；
+- config：环境/部署配置；
+- secret ref：秘密引用，不内嵌秘密值；
+- invariant：业务不变量/固定规则；
+- runtime value：必须在本次运行现场实际取得的值；
+- expected：用于比较的预期，不是输入来源；
+- unknown：无法证明的语义或边界。
 
-检查器仍是已有成功示范支撑的 Calculator 形状切片，不是通用语义证明。当前切片要求所选方法有明确 runtimeValidation 状态；S9 允许待 S10 补强，并由报告 pendingEngineering 展示，但 candidate 消费前仍要求 pass。fail／partial 的历史声明必须有实际证据，not-run 不补造证据。业务语义未决仍不能交代码生成者猜测；当前检查不接受 unresolved 非空或删除语义字段降级。
-自动化检查不替代适用 Gate、证据来源审阅和 handoff 发布。模型方法、确定性检查和真实业务资格分别判断。
+一次示范观察到的值不能自动成为 parameter 默认值；runtime value 不能因为常见或可推算就改成常量。
 
-正反例包括：遗漏源步骤、重排步骤、真实值改为参数、错接生产者、丢失消费者、能力选择无依据；测试命令为 `node --test tests/workflows/artifact-chain.test.js`，它不调用模型 Producer。
-相邻作业评测使用 tests/workflows/tools/adjacent-producer-eval.js；S9 接收 S7 实际固定输出，不取得标准 Procedure。CLI 默认只准备输入、没有模型调用；测试替身通过不能称 Producer 行为通过。预算、身份、输入隔离与限制统一见 [validation-plan.md](../../design/validation-plan.md)。
+### 4. 明确 producer / consumer / transform
 
-字段唯一依据：[共享合同](../../../../docs/frameworks/agent-to-recipe-skill-contract.md)；全链解释见[交接审阅地图](../../design/acceptance-map.md)。
+每个 runtime value 都必须有三件事：
 
-## 实际收件检查与定向续接
+1. **producer**：哪个 Business Step 的哪个实际 read/output 产生它；
+2. **consumer**：哪些后续 Business Step 真正需要它；
+3. **transform**：从 producer 值到 consumer 输入之间发生什么变换。
 
-在输出过程前，逐项核对[共享合同的输入充分性增量](../../../../docs/frameworks/agent-to-recipe-skill-contract.md#s7--s9-的输入充分性增量2026-09-20)：本输入包是否实际提供必要值说明、读取证据、实际消费绑定、政策、应用关系以及上游选型记录。检查器能打开 Dossier／Raw Trace，或者包里已有 API 文档，都不能代替这些材料。
+其中 producer 来自 S7 的真实运行时值投影；consumer 来自实际消费绑定；transform 要区分“本次实际采用”与“未来允许采用”。允许变换来自政策/语义，不能由单次示范自动泛化。
 
-合并后的一个步骤可以包含多个原消费者；按每个实际消费绑定映射数据关系，不用同一步的第一项变换覆盖其余动作。每个业务输入只保留一个明确来源；同时出现正确 runtime 来源和另一个 Expected／常量来源也应拒绝。核对步骤 consumers 与运行时值的消费去向及终点输出一致。生产／消费同处一步而检查器不支持其内部时序时，明确提出覆盖缺口，不强改业务结构。
+例如字符串 `110` 被按字符 `1,1,0` 依次输入时，producer 是 UI read，consumer 是第二次计算，actual transform 是 character expansion。它不是重新计算，也不是硬编码 110。
 
-收到缺少内容的包，指出缺失字段／来源并保留失败输出。先由协调者交付已经存在的获准材料；资料本身缺失再交原责任方。不要自己读取全部历史、删除阻止读取的引用，或从测试答案补造。S7 投影错误回 S7；业务映射、运行时值误参数化或终点遗漏由 S9 修订；仅工程验证待完成继续明确交 S10。
+### 5. 参数化而不破坏数据流
 
-相邻评测可以保存固定 `resume-request.json`：协调者完成指定补证／修复后，新建输出目录，重检未变 S7，再只调用本阶段。相同失败无新处理不能盲重试；旧输入／方法变化或总预算不足时停止。该请求只负责离线评测，不是新调度器或真实业务重放入口。完整操作和分层限制见 [validation-plan](../../design/validation-plan.md#输入充分性与失败接续切片2026-09-20)。
+声明 caller parameter 时，必须说明业务含义、类型/边界、默认策略（若允许）、实际消费者、验证条件和与 runtime value 的互斥关系。S11 不应猜“这个参数到底给哪个步骤用”。
+
+同一业务输入不能同时来自 runtime value 和 Expected/常量。若 consumer 需要现场 firstResult，就不能再给它一个固定 110 作为平行来源。
+
+### 6. 能力与应用关系只保留最小消费信息
+
+把已确认的能力选择归纳为 capabilityDecisions：业务需要、候选来源、selected/rejected/failed/not-run、canonical/公共约束、runtimeValidation、Recipe consumer、重验条件。
+
+API 文档存在不等于已选型，selected 不等于运行已验证。S10 尚待工程补强时如实保留 not-run/partial 和影响范围；不要从最终 JS 倒推出过去已完成发现、选择或验证。
+
+### 7. 支持范围、完成语义与恢复候选
+
+写清支持范围、排除范围、前后条件、副作用、终点输出、stopConditions 与 unresolved。未证明的分支、循环、恢复策略只能标为候选或补证请求，不得扩大支持范围。
+
+最终发布 SemanticProcedure；业务语义缺口留在本 Skill 修，应用规则缺口去 application-engineer，历史事实缺口去 task-demonstrate，S7 投影缺口去 trace-distill。
+
+## 不负责什么
+
+本 Skill 不生成 JS、不定义 CLI、不选择最终 API 调用代码、不发布 Candidate、不做 S12 资格。它也不重新执行桌面任务来“验证语义”；需要新事实时必须返回示范责任。
+
+## 完成条件
+
+SemanticProcedure 必须让一个没有看完整历史的 S10/S11 消费者准确回答：有哪些 Business Steps、每个输入来源是什么、哪些值是 runtime、producer/consumer/transform 如何连接、哪些输入可参数化、应用/能力关系是什么、终点如何验证、支持范围和 unknown 在哪里。
