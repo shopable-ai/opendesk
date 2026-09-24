@@ -1,50 +1,95 @@
 ---
 name: task-demonstrate
-description: 按固定合同与获准计划执行真实任务，同步保存动作、观察、实际读值、消费者和验证证据，形成 DemonstrationDossier；用于 S3—S6 示范及定向补采。
-title: "03｜真实示范与留证（S3—S6）"
-order: 30
+description: 按固定 TaskContract、WorkPlan 与应用认识执行 Agent-to-Recipe S3-S6 的真实任务或定向补采，同步保存 planned/actual、观察、运行时值、消费者、副作用与逐项验证，交付 DemonstrationDossier 和 Raw Trace/Evidence。用于需要证明“实际发生了什么”的示范；不把 Expected、最终代码、计划或模型描述当执行证据，不负责 S7 动作取舍、S8-S9 业务参数化、S11 代码实现或 S12 资格放行。
 ---
 
-# task-demonstrate｜真实示范、同步留证与逐步验证
+# task-demonstrate｜真实示范与留证（S3-S6）
 
-## 适用范围
+## 定位与责任边界
 
-负责 S3—S6：获准计划与实际现场 → 真实示范、Raw Trace／Evidence 与 DemonstrationDossier。可执行完整示范或明确的定向补采；已有有效成果按范围复用，不为了产生新工件重做示范。本方法不做 S7 动作取舍、不替 S9 参数化，也不授予桌面、上传或外部动作权限。
+把“准备怎么做”变成“实际发生了什么”的可审计事实包。核心产物是 DemonstrationDossier 与其引用的 Raw Trace/Evidence；不是最终代码，也不是必要路径或业务过程。
 
-进入时读取本方法、[输入输出适用规格](references/io-spec.md)及 [共享合同](../../../../docs/frameworks/agent-to-recipe-skill-contract.md)的调用、Dossier、输入充分性与恢复部分；按需读 [链路设计](../../design/chain-design.md)。需要框架能力时从 [Agent API 短入口](../../../../docs/api/agent/README.md) 取得候选方法、选中 canonical 正文与必要公共约束，不盲读全部接口或旧 JSON。
+六类信息必须分开：
 
-## 进入条件与必要输入
+| 角色 | 含义 | 不能冒充 |
+| --- | --- | --- |
+| planned | 动作前计划做什么、期望检查什么 | actual |
+| actual | 实际调用/输入/动作及回执 | planned 或最终 JS |
+| expected | 事先判据或预期结果 | observation/runtime value |
+| observation | 动作后真实读取/看到的状态 | expected |
+| runtime value | 本次真实读取并可能被后续消费的值 | 常量/参数默认值 |
+| consumer | 实际使用某 runtime value 的动作、目标、输入和变换 | “理论上会使用”的步骤 |
 
-取得实际可读、版本固定的 TaskContract、当前生效 WorkPlan、近期操作需要的 AppProfile、获准业务输入、本次范围／环境／入口／工具／预算和副作用授权。补采另需原失败、明确缺口、有效旧证据及受影响范围。示范不要求先有未来完整 Procedure、DistilledSteps、Candidate 或 Qualification。
+最终 JS 只能说明某个实现写了什么；即使后来运行成功，也不能倒造本次示范当时的 actual、observation、选择过程或副作用。
 
-先核对 request、来源字节、hash、schema、任务和计划身份；检查实际现场与规则支持范围。只有文件路径、结果摘要、聊天中的“做过了”或 Expected，不足以证明事实。无必要权限或高影响输入缺失时，只做获准的审阅并给出缺口，不能冒充完成真实示范。
+## 开始作业时读取
 
-## 具体作业方法
+必读本文件及 [input-spec](references/input-spec.md)、[output-spec](references/output-spec.md)、[validation](references/validation.md)、[failure-handling](references/failure-handling.md)。四者分别定义进入条件、交付内容、错误发现和失败返回。
 
-1. **固定任务与实际起点。** 对照原始要求、合同和计划确认当前工作包、成功／失败标准、停止条件及允许副作用。复用有效 Profile 和已发生事实，重核必要账号、应用、窗口、目标、焦点与状态。先前动作效果未知时先核对，不以重新执行达到熟悉起点。
-2. **确定下一步需要的能力。** 按真实业务需要比较当前已有 API／规则，取得选中契约、异步语义与约束。保存本次真实选型理由、候选处置及实际验证状态；没有尝试不填失败，有文档不填运行通过。已经有效的选型不为凑记录重跑。
-3. **动作前准备与检查。** 仅在计划、权限、目标身份／唯一性、现场前提和预算满足时执行下一获准动作。必要无输入预检按当前规则完成；规划未知、不支持布局或歧义先暂停。桌面输入串行，不并行点击；不能通过切换后端扩大授权或掩盖未知副作用。
-4. **执行、观察、验证微循环。** 用现有 OpenDesk 入口调用实际 API；记录动作回执，再读取实际 UI／业务结果并按预定标准判断。计划与实际分开：偏差、探索、等待、失败和恢复关联即时保存；确需改计划时提出 planDelta，取得适用新版本后继续，不覆盖过去事实。
-5. **同步保存关键数据。** 每个实际读取值保留原始值、类型、读取动作、应用／目标、必要单位精度和证据；每个实际消费者保留目标、实际输入及实际变换。保留前导零和终点交付，不能仅写“第二步使用第一步结果”。Expected 只参与比较，不作为后续输入；禁止用 JavaScript 计算替代要求的 UI 读取。
-6. **核对本次任务是否真的完成。** 对每个 criterion 保存实际结果、证据和结论；同时核对中间必要关系，不能只看最终答案。动作返回、后置满足、业务结果和视觉／人工接受分别记录。部分完成仍保留未完成项，不把请求缩小后宣称全部成功。
-7. **冻结事实并发布。** 形成共享合同规定的 Dossier，引用实际 Raw Trace、Execution 和必要证据；同步关联生效计划与 planned／actual。核对动作、observation、runtimeValues 的值、应用／目标、生产者与完整消费者集合一致；不按预期答案补齐。实际产物写完并计算 hash 后发布 handoff，交 S7 做取舍。
+用 [示范成果模板](templates/demonstration-dossier.md) 组织新任务；[Calculator 案例](examples/calculator.md) 只解释方法，不定义通用规则。[独立审阅](references/independent-review.md) 用于只审本 Skill。原 [io-spec](references/io-spec.md) 仅保留兼容导航。
 
-## 输出与消费边界
+正式字段、引用和状态以 [共享合同](../../../../docs/frameworks/agent-to-recipe-skill-contract.md) 为唯一依据；模板不是新 schema。执行前固定本 Skill、四项规格、合同、TaskContract、WorkPlan、AppProfile/规则及实际业务输入的版本。
 
-输出 DemonstrationDossier、Raw Trace／Evidence 的固定引用及必要计划偏差、运行时值和验证索引；原始执行产物使用既有 `.runtime/`／Execution.artifactDir 规范，不提交截图或原始运行日志。字段和发布语义不在本方法重复定义。
+## 方法
 
-事实应能供 S7 重建必要路径；业务含义与允许变换来自合同或明确政策，实际读取与实际采用变换来自本次观察／动作。供 S9 消费的定向证据应有明确版本与可读取正文，不能把“检查器能读 Dossier”当作已交付给语义生产者。
+### 1. 固定起点与证据角色
 
-现有 Recorder／Replay 可以按其来源合同提供资产；本方法不要求新增 Recorder 会话、编译体系或 Replay Runtime，也不宣称现有能力不存在。Human 录制和已有资产保持原来源，不能改标为本次 Agent 示范。
+确认当前 task、plan revision、工作包、成功/失败标准、允许副作用、预算和停止条件。只复用仍适用的 AppProfile/规则；当前账号、窗口、模式、焦点、目标和前置状态按本次需要重新核对。
 
-## 失败责任与接续
+为每个 planned step 先写 expected 和 observation 计划，但不要预填 actual。Expected 可以是“显示区应变为某种状态”或合同允许的具体值；它只参与比较，不能成为后续输入。
 
-缺实际事实、读值、消费者或必要证据：本职责定向补采；已有获准资料漏交：先返回协调者；业务政策／目标／授权缺失：S1；定位、读取或应用规则失效：application-engineer。S7 原动作取舍和 S9 业务解释错误由对应职责修订，不重做示范掩盖下游错误。
+若上一次动作效果 unknown/partial，先定向观察实际状态，不通过重放前缀恢复到熟悉状态。
 
-保留每次失败、实际预算、已确认成果与副作用状态。unknown／partial 先核对真实效果，未确认前不重放前缀、不重复提交、不静默换路。补采形成新 attempt／新证据并说明其时间与作用；新观察不能证明无法恢复的过去事实。修复后固定新输入，重新检查受影响范围，再继续获准工作。
+### 2. 动作前确认
 
-## 适用检查与完成含义
+只有计划、授权、目标身份/唯一性、前提和预算都满足才执行。按需读取当前 API canonical 与公共约束；“文档存在”“候选被选中”“运行已验证”是三件不同的事实。
 
-正常、拒绝、未知副作用及局部补采样例见 io-spec。检查来源、权限、计划关联、动作与观察一致性、实际数据绑定、终点输出、标准覆盖、范围和预算。既有确定性工具只覆盖其声明形状；没有实际 Runtime／桌面证据时，记录未运行或条件阻塞，不用 fixture、截图说明或模型自述代替。
+需要探索或计划偏离时记录原因。计划变化走 planDelta/新版本，过去已经发生的 actual 与 observation 不随计划改版重写。
 
-只有本次声明示范范围具有充分实际证据，才发布相应 gate.pass；正式失败交接可供诊断但不能成为成功示范进入生成。方法文件存在、文档评审通过、宿主加载、模型生产能力和真实业务资格分别判断。
+### 3. 执行-观察-验证微循环
+
+每个业务节点按以下顺序留证：
+
+```text
+planned
+→ precondition / target check
+→ actual action + receipt
+→ observation
+→ compare against expected / criterion
+→ save side effect / runtime value / consumer relation
+→ next step or stop
+```
+
+动作回执只证明框架报告了什么，不自动证明 UI 后置或业务成功。观察必须来自实际 UI/业务/输出渠道，并保留应用、目标、时间/顺序和来源。
+
+失败、等待、重试、恢复也是 actual，不能从 Raw Trace 中美化删除；是否属于最终必要路径由 S7 判断。
+
+### 4. 保存 runtime value 和实际 consumer
+
+每个关键运行时值保存：原始值、类型、读取 action、application/target、evidence、必要单位/精度、有效期和 fresh run 是否重读。保留前导零和原始字符串，不为后续方便提前数值化。
+
+对每个实际消费者保存：consumer action、application/target、actual input、actual transform 及对应 runtime value。允许变换来自政策；“本次实际用了哪种变换”必须来自 actual consumer。
+
+同一个值有多个消费者时逐个记录；终点读取以 final output 作为消费者。不能只写“第二步使用 firstResult”。
+
+### 5. 完成本次业务验证
+
+逐 success criterion 对照 expected 与 actual observation；明确 pass/fail/not-run/blocked。中间数据来源、必要状态和终点交付都要核对，不能只凭最终数字正确放行示范。
+
+动作成功、后置成功、业务成功、视觉/人工接受分别记录。部分完成保留剩余项，不缩小原请求后写“全部完成”。
+
+### 6. 冻结并交 S7
+
+冻结 Dossier、Raw Trace、Execution/Evidence refs、planned/actual 对应、runtimeValues、consumer bindings、sideEffects、unresolved 与验证索引。交付前交叉检查 action、observation、runtime value 的值/应用/目标及消费者集合一致。
+
+S7 消费事实并做 retain/merge/omit/recovery；本 Skill 不提前替 S7 去噪。S9 需要的定向事实必须明确交付正文/固定引用，不能因为检查器能读整个 Dossier 就视为语义 Producer 已收到。
+
+## 不负责什么
+
+S1 负责目标、授权、政策和成功标准；application-engineer 负责应用身份、关系和操作规则；S7 负责原动作取舍；S8-S9 负责 Business Step、参数、业务含义与可复用变换；S11 负责 JS；S12 负责冻结 Candidate 的资格。
+
+本 Skill 可以发现这些问题并定向返回，但不能静默修订下游产物。Human/Recorder/已有代码保留原来源，不能追认为本次 Agent 示范。
+
+## 完成条件
+
+只有声明范围内的 actual、observation、runtime value、consumer、criterion 和副作用都有可读来源，且六类角色未互换，才形成可供 S7 正常消费的示范事实包。文件存在、最终代码正确、fixture 通过、模型自述或历史 Qualification 都不能代替本次实际执行证据。
