@@ -1,68 +1,88 @@
 ---
 name: recipe-qualify
-description: Independently qualify a frozen Agent-to-Recipe Candidate at S12. Use for Fresh Run evidence, requested/exercised/qualified scope, final Recipe quality conclusions, and repair routing. Never modify the Candidate or success criteria to obtain a pass.
-title: "08｜独立资格验收（S12）"
-order: 80
+description: 独立验收一个冻结的 Agent-to-Recipe Candidate（S12），绑定精确脚本/依赖/合同/环境和预先定义范围，执行 Fresh Run 并形成 QualificationRecord。用于单次运行证据、重复运行证据、参数化证据、范围判定和修复路由；绝不修改 Candidate、成功标准或 requested scope 来获得 PASS，也不能让一次成功扩大成未验证范围。
 ---
 
-# Recipe Qualify
+# recipe-qualify｜冻结候选资格验收（S12）
 
-Qualify one exact Candidate and declared scope. This is the S12 professional method, not a new stage, CLI command, publisher, or runtime.
+## 定位
 
+本 Skill 只回答：**这个精确 Candidate，在这个明确范围和环境里，实际证明了什么？**
 
-本方法的必需输入、实际读取、下游消费、拒绝和修复／复用样例见 [输入输出适用规格](references/io-spec.md)。开始作业时与本方法一起读取并固定各自实际内容版本；它不另建 schema 或评分规则。
+它不改 Candidate、不修代码、不重写成功标准、不把 requested scope 缩小成容易通过的子集。资格结论永远绑定 exact candidate bytes + dependencies + contract + environment + actual evidence。
 
-## Required input
+## 开始作业时读取
 
-- Fixed TaskContract bytes/ref plus successCriteria / failureCriteria / stopConditions. Qualification must bind the exact contract, not only repeat its prose.
-- Exact CandidateManifest, script bytes/hash, entry command, working directory, Procedure/AppProfile/API/dependency refs.
-- Requested qualification scope and scenarios chosen before execution.
-- Current environment/build identity, required permissions, allowed side effects, execution budget and test authorization.
-- Existing evidence may be reused only when its exact Candidate, dependency versions, environment scope and validity conditions still match.
+必读 [input-spec](references/input-spec.md)、[output-spec](references/output-spec.md)、[validation](references/validation.md)、[failure-handling](references/failure-handling.md)。使用 [qualification 模板](templates/qualification-record.md) 组织新任务；[Calculator 示例](examples/calculator.md) 解释 one run / repeatability / parameterization 三种不同证据强度。
 
-If the Candidate or a material dependency changes, stop and create a new Candidate/revalidation path. Do not patch code inside qualification.
+正式 QualificationRecord 字段和状态以 [共享合同](../../../../docs/frameworks/agent-to-recipe-skill-contract.md) 为唯一依据。原 [io-spec](references/io-spec.md) 仅兼容导航。
 
-## Method
+## 方法
 
-1. **Freeze the object under test.** Verify the Candidate, script, dependencies, Procedure/AppProfile/API refs, requested scope, entry command and build provenance. Historical PASS does not silently transfer to changed bytes or a new environment.
-2. **Plan the qualification before running.** For each requested criterion/scope, name the scenario, its `scopeRefs`, expected outcome, independent observation/evidence source, allowed side effects and stop condition. A scenario may support more than one scope, but a scope cannot become qualified merely because its name appears in `qualificationScope`. Expected values are Oracles, never production data inputs.
-3. **Prepare a clean, attributable start state.** Separate preparation actions from the Candidate run. If prior side effects are unknown, do not replay the prefix merely to reach a desired state.
-4. **Run the exact production entry when authorized.** Record the actual command, working directory, environment/build identity, Execution refs, action receipts and raw outputs. A Runtime/Framework success receipt proves only its own layer.
-5. **Observe the business result independently where the criterion requires it.** Use a result source that does not supply values back into the Candidate. Preserve actual UI/business values, screenshots or other evidence according to the TaskContract; visual review and human acceptance remain separate states.
-6. **Judge each criterion and scope explicitly.** Scenario states are `pass / fail / not-run / blocked`. Every scenario records nonempty `scopeRefs`; every qualified scope must be covered by at least one passing scenario with evidence. `qualificationScope.requested` may be reported as overall pass only when every requested item was exercised and has sufficient evidence to enter `qualified`; requested work may not be moved into `excluded` or silently omitted to obtain pass.
-7. **Prove only the reuse claims actually requested.** One Fresh Run proves one execution. A repeatability claim needs at least two independently started Fresh Runs of the same frozen Candidate for the relevant scope. A parameterization claim also needs at least one legal input variation different from the demonstration values. If the Candidate contains LLM/Agent calls, verify they are predeclared bounded semantic decisions with schema validation; if an Agent again chooses each desktop click step-by-step, do not qualify that scope as an ordinary reusable Recipe.
-8. **Produce the Recipe Review.** Review the exact Candidate from these evidence-backed dimensions: business correctness; actual UI/runtime data dependency; framework capability reuse; readability; parameterization; locator/stability; error handling; validation sufficiency; maintainability; reusability. Distinguish code risks from application/environment limits. Use the weighting in [validation-plan.md](../../design/validation-plan.md) only when the required evidence exists; score `not-evaluated` items as missing evidence rather than inventing points. A target such as 95/100 never overrides a failed criterion or missing live evidence.
-9. **Publish without rewriting history.** Write the QualificationRecord, failedCriteria/skipped/repairRequests and an optional human-readable Recipe Review / Run Summary projection. Keep the frozen Candidate unchanged. Route Agent-source failures to the responsible stage: facts to demonstration, necessary-path errors to trace-distill, business/data semantics to procedure-synthesize, locator/application rules to application-engineer, implementation errors to recipe-build/code-rebuild, and Oracle/test-evidence defects remain in recipe-qualify. Human-source failures retain the original Human collection, review, engineering, code or qualification responsibility as specified in io-spec; never relabel them as Agent demonstration.
+### 1. 冻结对象和请求范围
 
-## 执行层级与真实复用检查
+实际读取 TaskContract、success/failure criteria、CandidateManifest、script bytes/hash、关键依赖、entry command、working directory、Procedure/AppProfile/API refs、requested qualification scope、环境/build、授权和预算。
 
-按 [validation-plan 的普通 JS 原字节执行与复用判据](../../design/validation-plan.md#普通-js-原字节执行与复用判据)选择实际可执行层级。读取后用常量、未等待输入完成、读值失败后继续副作用等问题，应通过执行固定生产字节暴露，不能只查 sourceMapping 或最终数值。宿主合成接口测试可作为部分检查，但不替代 Runtime、真实 UI、Fresh Run、合法输入变化或人类接受。
+candidate 或关键 dependency 一旦变化，旧 attempt 立即停止；新字节必须走新 Candidate/revalidation。S12 不能现场 patch 后继续把结果记到旧 Candidate。
 
-评估参数化时，核对实际公开入口、inputContract 和 Candidate hash；不要把 helper 参数、合成读值变化或改码后的另一份脚本当成同一候选的合法变参。原任务包不可读时仅审查获准源码及可用证据，明确缺失前提并返回补包，不从源码反造历史事实或发布完整资格。
+### 2. 运行前定义 scenarios 和 Oracle
 
-## Output and acceptance
+每个 requested scope 在执行前定义：
+- scenario；
+- scopeRefs；
+- input；
+- expected/oracle；
+- independent observation source；
+- allowed side effects；
+- stop conditions。
 
-The authoritative machine-readable result remains the shared-contract `QualificationRecord` with exact `candidateRef / contractRef / scenarios / actualCommands / workingDirectories / executionRefs / buildProvenance / environmentScope / observedResults / evidenceRefs / failedCriteria / skipped / verdict / repairRequests / qualificationScope`.
+Expected 是 Oracle，不是 production input。scenario 的 scopeRefs 不能等结果出来后再“顺便”扩大。
 
-A human-readable review should answer:
+### 3. 清洁且可归因的起点
 
-- Which Candidate and scope were evaluated?
-- What actually ran, on which build/environment?
-- Which business values came from real observations rather than expected values?
-- Which requested scope is covered by which actual scenario/evidence?
-- If repeatability or parameterization is claimed, which independent runs / changed inputs prove it?
-- Did ordinary JS perform the deterministic desktop steps, and where (if anywhere) was bounded LLM/Agent judgment used?
-- Which criteria passed, failed, were not run or were blocked?
-- What score, if any, is justified by evidence, and what is outside that score?
-- Which risks belong to code, the target application/environment, or missing verification?
-- Is this exact Candidate ready for the requested use, or which responsibility receives the repair request?
+准备动作与 Candidate run 分离记录。未知副作用先核对真实状态，不为获得理想起点盲重放旧前缀。
 
-Overall `pass` requires the shared QualificationRecord rules: exact Candidate and contract binding, unique scope declarations, and actual scenario coverage for every qualified/requested scope. A high code-review score cannot compensate for a failed or unrun requested business criterion. “Repeatable”, “parameterized” and “ordinary Recipe without Agent step-by-step control” are additional evidence-backed claims, not synonyms for one successful run.
+### 4. 运行 exact production entry
 
-## Existing tools and boundaries
+在获准条件下运行被冻结的正常入口，记录 actual command、working directory、environment/build、execution refs、action receipts、stdout/stderr/raw outputs。测试替身/另写脚本/临时实现不能替代生产 Candidate。
 
-- `check-artifact-chain.js` is a deterministic artifact-consumer check. It can reject broken Candidate/Qualification relationships but cannot grant live qualification.
-- `tests/workflows/calculator/qualify.cjs` is a Calculator-specific real qualification harness and example of S12 evidence separation. It is not the generic recipe-qualify implementation or a new Runtime API.
-- The method file can be read by the current Agent; its presence does not prove host auto-discovery, permission isolation, blind-context performance or model review accuracy.
-- Qualification does not publish to Catalog, accept on the user's behalf, broaden platform/layout/input support, or turn historical evidence into current evidence.
-- If the environment cannot execute the required formal Runtime/business test, record `not-run` or `blocked`; do not substitute Node mocks or static inspection and call it passed.
+### 5. 独立观察业务结果
+
+按 criterion 要求从独立 UI/业务/输出渠道观察，不把正确答案喂回 Candidate。Framework success receipt、UI observation、业务 result、visual/human acceptance 分层记录。
+
+### 6. 判每个 scenario 和 scope
+
+scenario 状态为 pass/fail/not-run/blocked。每个 qualified scope 必须至少被一个 passing scenario 以 scopeRefs + actual evidence 覆盖，并且没有适用的失败/未运行缺口被隐藏。
+
+requested 中未测的项不能移入 excluded 以换整体 PASS。
+
+### 7. 区分三种证据强度
+
+**单次 Fresh Run**
+只证明：这个冻结 Candidate 在该次明确环境/输入/范围下成功一次。
+
+**重复运行（repeatability）**
+若要声明可重复，至少需要同一冻结 Candidate 的两个独立 Fresh Run，相关范围一致且各自有独立执行证据。
+
+**参数化（parameterization）**
+除了满足相应运行要求，还必须至少使用一个不同于示范值的合法输入，通过同一 Candidate、同一公开 inputContract、无需修改源码完成，并证明实际业务 consumer 使用了变参。
+
+一次 run 不能自动证明 repeatable；固定输入成功不能自动证明 parameterized。
+
+### 8. 判断“普通 Recipe”而不是逐步 Agent 控制
+
+若 Candidate 运行时仍让 Agent/LLM 逐屏决定每个桌面点击，则不能把该范围描述为普通确定性 Recipe。允许的 bounded semantic judgment 必须预先声明、范围受限、有 schema/guard 并在资格范围中明确。
+
+### 9. 形成 QualificationRecord
+
+每项 criterion 写 actual vs expected、evidence、status。QualificationRecord 明确 requested/exercised/qualified/excluded、failedCriteria/skipped、actualCommands、workingDirectories、executionRefs、buildProvenance、environmentScope、observedResults、evidenceRefs、repairRequests、verdict。
+
+PASS 不能扩大 scope。一次运行通过的固定 Calculator 不等于任意表达式、任意布局、任意平台或任意参数组合。
+
+### 10. 路由修复，不在 S12 修改生产对象
+
+事实缺失回 demonstration；S7 必要路径错误回 trace-distill；业务/data semantics 回 procedure-synthesize；应用规则回 application-engineer；实现 bug 回 recipe-build；Oracle、场景、证据和资格记录错误留本 Skill。
+
+## 完成条件
+
+只有 exact Candidate、exact requested scope、预先定义场景、actual production run、独立 observation 和逐 criterion/scope coverage 都闭合，才能发布对应资格结论。高代码审阅分、历史 PASS、checker PASS、一次最终数字正确都不能替代缺失的 live evidence。
