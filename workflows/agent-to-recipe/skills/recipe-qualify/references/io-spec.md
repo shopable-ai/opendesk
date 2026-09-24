@@ -1,48 +1,13 @@
-# recipe-qualify：输入输出适用规格
+# recipe-qualify：输入输出适用规格（兼容导航）
 
-S12 核定精确候选及明确请求范围。QualificationRecord、scope、引用与状态唯一依据：[共享合同](../../../../../docs/frameworks/agent-to-recipe-skill-contract.md)；评分使用 [validation-plan](../../../design/validation-plan.md)，不新增资格状态或另一套分母。
+本文件保留旧链接兼容，不再维护第二套正文。
 
-## 必需与条件输入
+- 资格输入/运行前充分性：[input-spec.md](input-spec.md)
+- QualificationRecord/Scope 输出：[output-spec.md](output-spec.md)
+- 正确性/反例：[validation.md](validation.md)
+- 失败路由/重验：[failure-handling.md](failure-handling.md)
+- 方法入口：[../SKILL.md](../SKILL.md)
+- Calculator 示例：[../examples/calculator.md](../examples/calculator.md)
+- 通用资格模板：[../templates/qualification-record.md](../templates/qualification-record.md)
 
-必须实际取得本次资格请求、固定 TaskContract 的实际字节／content-bound ref 与预定标准、候选脚本／清单／依赖的实际字节、相关过程／应用规则／API 引用、正常入口命令及工作目录、运行前确定的 requested 范围／场景、当前构建／环境、动作与测试授权、预算和独立结果来源。每个场景在运行前明确 `scopeRefs`，不能等结果出来后再把成功 execution 归到更宽范围。
-
-核对根目录、内容、hash、schema、来源、目标和环境。候选引用有值不等于实际字节已读；“已授权”“以前通过”不替代本次依据。既有证据为条件输入，只有候选、依赖、环境与有效性匹配才可复用。首次资格不要求先有最终 Qualification；候选检查不依赖未来 verdict。无关历史、未请求平台和不使用的诊断资料可省略，不得把请求内未测项移出范围。
-
-## 从最终使用者反推验收信息
-
-| 必须判断／产出 | 必要信息来源 | 产物与证明边界 |
-| --- | --- | --- |
-| 验的是不是交付的同一脚本 | Candidate／实际脚本及依赖、正常入口与构建 provenance | candidateRef、actualCommands、workingDirectories、buildProvenance；临时第二份实现不能替代 |
-| 预定业务标准是否成立 | 原合同、运行前固定场景／Expected、独立观察方式 | 每项 actual／expected／evidence／状态；Oracle 不向候选回灌业务值 |
-| 中间数据是否真实传递 | 实际生产者读值、消费者输入及执行证据 | 数据关系结论；动作返回成功或最终答案相同都不充分 |
-| 支持范围到哪里 | requested、实际场景／环境、足够证据 | exercised／qualified 子集；请求内 fail／not-run／blocked 不能改到 excluded |
-| 失败由谁修 | 原失败、源码映射、过程／规则／事实及测试设置 | repairRequests 与影响范围；资格阶段不直接改代码或标准 |
-| 能否人工接受或发布 | 实际人工确认／发布批准，若本次要求 | 单独状态与来源；自动 pass 不代表人审、发布许可或客户接受 |
-
-## 不变量与具体检查
-
-先冻结对象和标准 → 核对准备动作与实际起点 → 有授权时按正常入口运行同一候选 → 记录原始失败、预算、回执与独立业务观察 → 按 criterion 判 pass／fail／not-run／blocked → 固定 QualificationRecord 与可读投影。方法、本规格和实际验收资料均绑定版本；输入在运行中变更仍属于旧尝试，不能改标新版本通过。
-
-Expected 是测试 Oracle，不是生产输入。事实、解释、预期和未知分开；独立结果来源不能把正确答案送回脚本。生产门禁、框架返回、真实业务、视觉、人审各自判断。当前确定性检查只验证绑定与记录关系，不运行候选、不证明业务或任意 JS 正确性。
-
-整体 pass 必须 requested 全部真正 exercised 且证据足以 qualified，并且每个 qualified scope 至少有一个 passing scenario 的 `scopeRefs` 和实际 evidence 支持，无对应失败／未运行／阻塞。一次 Fresh Run 只证明一次成功；声明可重复时，同一冻结 Candidate 的相关 scope 至少两次独立 Fresh Run；声明参数化时还要有不同于示范值的合法变参。若生产执行仍由 Agent 逐屏决定每个点击，则不能把该范围表述为普通 Recipe 已独立执行。高代码分不能抵消真实数据、授权、安全停止或关键输入缺陷；未运行不填运行分。实际评审者相同如实写明，同一上下文换角色不是盲测。
-
-## 拒绝、定向修复与恢复
-
-缺交付材料先交协调者；候选／依赖变更停止旧对象验收并冻结新版本；Agent 实际事实回 S3—S6，原动作取舍回 S7，业务／数据语义回 S8—S9，应用规则回 application-engineer，实现回 recipe-build／code-rebuild，Oracle／测试证据缺陷留本职责。Human 来源按其事实、意图、工程、代码或 H7 验收责任返回，不追认 Agent 示范。
-
-保留原候选、原失败和有效上游。未知副作用先核对，禁止为到达干净起点盲目重放。修复后核对新候选及依赖，按影响重验并保留必要回归；旧记录仍仅证明旧版本。没有环境记 blocked，有条件但本轮未执行记 not-run，已经执行且失败记 fail，不混写。
-
-## 正常、拒绝与修复／复用样例
-
-以下为方法练习；表中要求的真实运行须由实际证据提供，不能把文字样例算成已验收。
-
-| 类别 | 提供的材料／情况 | 应形成的结论 |
-| --- | --- | --- |
-| 正常 | 同一固定候选正常入口的实际执行，预定两个标准均有独立实际观察且无未决；scenario.scopeRefs 明确覆盖 requested | 仅相应 requested 范围 pass；列精确版本、命令、环境、实际值和证据，人工接受另记 |
-| 拒绝换对象 | 清单 hash 与实际运行脚本不同，或运行的是另写的测试实现 | 拒绝资格；冻结正确对象后新尝试，不把旧结果移给新字节 |
-| 拒绝缩范围 | 请求两种输入，只运行一种，试图把另一种放进 excluded | 未运行场景保留 not-run／skipped，整体不能 pass，不用平均分掩盖 |
-| 修复 | 数据绑定标准失败，S11 修正脚本，其他上游有效 | 保留原失败；冻结新候选，重验数据链及必要回归，不重新示范、不沿用旧资格 |
-| 证据复用 | 候选和依赖未变，旧证据的环境、时效与范围仍匹配 | 可引用旧证据的原范围；本次新增环境／场景保持未验，不把复用写成新执行 |
-
-当请求包含“以后稳定重复运行”时，再增加至少两次独立 Fresh Run；当请求包含“参数化复用”时，再增加合法变参。它们是资格场景，不创建新的 Gate 或状态。
+正式字段、状态和 scope 规则以共享合同为唯一依据。
