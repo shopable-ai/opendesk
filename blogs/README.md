@@ -41,6 +41,11 @@ blogs/
   - 当前三条主线为 `Agent → Verified Reusable Desktop RPA`、`Commercial Delivery Runtime`、`Human + Agent → Same Maintainable Workflow`；
   - 只有后续 Competitive Benchmark 达到公开 Gate 后，才能把候选表述升级成有限范围内的排名结论。
 
+- [`drafts/muse-vs-openclaw-personal-agent.md`](drafts/muse-vs-openclaw-personal-agent.md)
+  - 比较 Meta Muse 与 OpenClaw 的产品理念、执行环境、设备控制和运维边界；
+  - 将“更方便懒人用的 OpenClaw”限定为产品心智类比，而不是技术实现或代码来源判断；
+  - 提炼 OpenDesk 可借鉴的组合：Muse 级易用性 + OpenClaw 级本机控制 + OpenDesk 的 Agent-to-Recipe / Verified Replay。
+
 ## 推荐结构
 
 ```text
