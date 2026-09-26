@@ -40,6 +40,11 @@ blogs/
   - 明确区分“准备竞争的位置”和“已经取得的排名”；
   - 当前三条主线为 `Agent → Verified Reusable Desktop RPA`、`Commercial Delivery Runtime`、`Human + Agent → Same Maintainable Workflow`；
   - 只有后续 Competitive Benchmark 达到公开 Gate 后，才能把候选表述升级成有限范围内的排名结论。
+- [`drafts/why-opendesk-still-matters-after-muse.md`](drafts/why-opendesk-still-matters-after-muse.md)
+  - 解释 Meta Muse 已经进入 Personal Agent、Mac Computer Use 和 Connector 层之后，企业自动化为什么仍需要独立评估；
+  - 不靠“只有 OpenDesk 能操作本机”或“Agent 每次都从零探索”这类脆弱论点，而是转向长期运行、可编程执行、Verification、Evidence、Repair 和 Cost per Verified Business Outcome；
+  - 明确 Muse 既是竞争对象，也可能是 OpenDesk 的上游 Agent / 分发入口；文章不声称 OpenDesk 当前已经接入 Muse，也不声称整体强于 Muse。
+
 
 ## 推荐结构
 
