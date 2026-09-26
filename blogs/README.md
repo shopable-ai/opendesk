@@ -44,6 +44,12 @@ blogs/
   - 解释 Meta Muse 已经进入 Personal Agent、Mac Computer Use 和 Connector 层之后，企业自动化为什么仍需要独立评估；
   - 不靠“只有 OpenDesk 能操作本机”或“Agent 每次都从零探索”这类脆弱论点，而是转向长期运行、可编程执行、Verification、Evidence、Repair 和 Cost per Verified Business Outcome；
   - 明确 Muse 既是竞争对象，也可能是 OpenDesk 的上游 Agent / 分发入口；文章不声称 OpenDesk 当前已经接入 Muse，也不声称整体强于 Muse。
+- [`drafts/why-opendesk-still-matters-after-manus.md`](drafts/why-opendesk-still-matters-after-manus.md)
+  - 回答 Manus 已有 My Computer、Cloud Computer、Skills、Projects 与 Scheduled Tasks 以后，OpenDesk 还可能在哪些范围形成独立价值；
+  - 承认 Manus 已进入本机、复用和长期任务能力区，不再使用“Manus 只能在云端”“不会复用”等失效论点；
+  - 把差异问题收口到 GUI-heavy 本地执行、Verification、Evidence、长期 Workflow、Repair、Compatibility 与 Commercial Delivery，并要求用 Manus My Computer vs OpenDesk + Agent vs OpenDesk Recipe 的同任务 Benchmark 验证；
+  - 明确不宣传“Better Manus”，而是将 OpenDesk 定位为可被 Manus / Codex / Claude 调用的 programmable local computer runtime。
+
 
 
 ## 推荐结构
