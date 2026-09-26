@@ -302,3 +302,19 @@ Plugin / Skill / CLI 可以是获客和集成入口，但不应该为了流量�
 5. 选择一个真实行业任务取得第一批付费、维护和跨客户复用数据。
 
 后续内容增长计划见 [`Agent-driven RPA 内容策略`](agent-driven-rpa-content-strategy.md)。
+
+## 11. Meta Muse 后的定位约束（2026-09-26）
+
+Meta Muse 的上线把“OpenDesk 不竞争什么”进一步具体化。官方资料已经表明 Muse 正在覆盖个人 Agent、长期目标、后台任务、浏览器操作、Connector 生态和 Mac 桌面应用操作。因此 OpenDesk 不应继续向“通用个人 AI Agent / 超级助手”扩张。
+
+推荐分层：上层 Muse / Codex / Claude / 企业 Agent 负责意图理解、计划、第一次探索和异常推理；OpenDesk 负责 Desktop / Cross-App Execution、Evidence / Verification、Agent/Human → Recipe、Replay / Repair、Package / Delivery。
+
+OpenDesk 的关键产品属性应明确为：**Agent-neutral：不要求用户把 OpenDesk 作为唯一 AI 入口，也不绑定某一家模型或 Agent。**
+
+新增“不竞争”范围：通用个人 AI Assistant；通用长期目标 / Personal Memory 产品；通用 SaaS Connector 超级目录；通用 Mac Computer Use Agent；通用 Planner / 基础模型。
+
+新增“优先合作”范围：让强 Agent 负责陌生任务的第一次探索；让 OpenDesk 把成功运行沉淀成可验证 Recipe；通过 MCP / HTTP / future connector bridge 让第三方 Agent 调用 OpenDesk；在第三方平台允许且协议清晰时，把 OpenDesk Automation 作为能力供应给其生态，而不是复制其入口。
+
+详细证据与边界见：`docs/research/commercialization/meta-muse-competitive-impact-2026.md`。
+
+这项调整不改变当前 Agent-to-Recipe 主线，反而强化它：**有限资源应优先投入“第一次成功之后”的资产化、复跑、验证、维修和交付，而不是再造通用 Agent。**
