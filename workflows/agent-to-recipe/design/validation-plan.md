@@ -196,7 +196,7 @@ Candidate 或影响性依赖改变后，旧 Qualification 不继续证明新字�
 
 低层可以先暴露便宜错误，但不能替代高层。
 
-### 2026-09-19 验证切片
+<a id="2026-09-19-验证切片"></a>\n### 历史验证结果入口
 
 这是历史验证记录的兼容入口，不再作为 canonical 方法正文。对应版本、测试数量、结果和限制见 [质量记录](../../../docs/quality/agent-to-recipe-workflow-review-20260919.md)。
 
@@ -223,7 +223,7 @@ application-engineer 至少分开：
 
 任一层通过不能自动证明下一层。
 
-### application-engineer 分批实施（2026-09-08 历史计划）
+<a id="application-engineer-分批实施2026-09-08-历史计划"></a>\n### application-engineer 的实施历史入口
 
 旧分批实施时间线属于设计历史。当前只保留上面的验证层级；历史顺序查 Git history。
 
@@ -313,7 +313,7 @@ application-engineer 至少分开：
 
 需要当前状态时读取最新质量记录，而不是从本文推断。
 
-## 九、Structured UI Collection Reading 专项验证矩阵（v0.5）
+<a id="九structured-ui-collection-reading-专项验证矩阵v05"></a>\n## 九、Structured UI Collection Reading 的集成验收边界
 
 Agent-to-Recipe 只保留**集成层验收要求**：
 
@@ -348,11 +348,11 @@ SC-A—SC-P 的算法级测试、Phase 1—7 实施阶梯和 Runtime API 晋级�
 - no-UI-tree 场景可以走受控视觉路线，但不能伪造 native 事实；
 - 未真机平台不外推通过。
 
-### 2026-09-10 v0.5 修订
+<a id="2026-09-10-v05-修订"></a>\n### Structured Collection 历史设计入口
 
 该日期对应历史专项设计演进。当前 canonical 要求以上述边界为准；逐条历史矩阵查 Git history 和专项架构。
 
-## 输入充分性与失败接续切片（2026-09-20）
+<a id="输入充分性与失败接续切片2026-09-20"></a>\n## 输入充分性与失败接续的验证要求
 
 该标题保留作为兼容入口。Canonical 要求已经归入 BC-15、BC-24、BC-30 和 handoff 规则：
 
