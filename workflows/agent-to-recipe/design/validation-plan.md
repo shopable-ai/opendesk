@@ -1,6 +1,6 @@
 ---
 title: "Agent-to-Recipe｜行为案例、测试空间与验收计划"
-description: "定义 Agent-to-Recipe 各证明层的行为案例、测试空间、Gate、证据和评分方法。"
+description: "定义 Agent-to-Recipe 各证明层的行为案例、测试空间、Gate、证据、硬失败与评分方法。"
 order: 70
 ---
 
@@ -10,64 +10,80 @@ order: 70
 
 > **凭什么证明 Agent-to-Recipe 的每一层做对了？**
 
-本文定义验证方法，不记录某一 commit 跑了多少测试、某个 checker 当前实现到哪一步，也不把历史 PASS 写成当前能力。实际执行结果统一进入 `docs/quality/` 或具体 QualificationRecord。
+本文定义 **canonical 验证方法**。它不记录某一 commit 跑了多少测试、某个 checker 当前实现到哪一步，也不保存历史 PASS、某轮模型表现或专项实现日志。实际执行结果进入 `docs/quality/`、QualificationRecord 或对应 execution artifacts。
+
+完整“需要做什么”见 [task-decomposition.md](task-decomposition.md)；相邻交接怎样快速人工检查见 [acceptance-map.md](acceptance-map.md)；字段与版本约束见[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)。
 
 ## 30 秒总览
 
-必须分开验证：
+必须分开证明：
 
 ```text
 需求理解正确
 ≠
 计划合理
 ≠
-实际任务完成
+真实任务事实可靠
 ≠
 DistilledSteps 正确
 ≠
 SemanticProcedure 正确
 ≠
-应用规则可靠
+应用操作规则可靠
 ≠
 Candidate 代码正确
 ≠
-宿主能执行
+宿主 / Runtime 能执行
 ≠
 真实业务 Qualification 通过
 ≠
 可重复 / 可参数化 / 可共享
 ```
 
-任何上层 PASS 都不能替代下层证据，反之亦然。
+验证遵循六步：
 
-## 一、先确定验证对象与范围
+```text
+固定验证对象与版本
+→ 固定 requested scope 和场景
+→ 设计正常 + 变化 + 边界 + 失败 + 拒绝 + 恢复样本
+→ 选择适用证明层 / Gate
+→ 收集真实 evidence
+→ 给出 pass / fail / not-run / blocked，并绑定版本
+```
 
-| 验证对象 | 要回答的问题 | 主要证据 |
-| --- | --- | --- |
-| **需求** | 是否解决正确问题、没有偷换目标或授权 | Source、TaskContract、人工确认／纠正 |
-| **计划** | 是否能在长任务前暴露关键 Unknown 和错误路线 | WorkPlan、checkpoint、planDelta |
-| **应用认识** | 是否知道正确应用／页面／目标／读取依据及限制 | AppProfile、同版 observation / review |
-| **真实示范** | 实际发生了什么 | Dossier、Raw Trace、Evidence、actual values |
-| **DistilledSteps** | 必要动作是否被正确保留／合并／省略 | sourceActionRefs、数据依赖、处置依据 |
-| **SemanticProcedure** | 业务语义、参数、producer→consumer、支持范围是否正确 | Business Steps、dataDependencies、limits |
-| **应用工程** | 定位、读取、等待、动作、verifier 是否能可靠落实 | Profile/helper、局部运行、失败场景 |
-| **Candidate** | 固定普通 JS 是否忠实实现上游规格 | exact bytes、manifest、source mapping、API refs |
-| **Qualification** | 同一候选是否在 requested scope 真正成立 | real execution、independent observation、scenario verdict |
-| **复用声明** | 是否可重复、变参、跨环境或他人使用 | 多次 Fresh Run、合法变参、新使用者／环境证据 |
+任何低层 PASS 都不能自动升级成高层结论；任何高层结果也不能反向证明缺失的低层来源事实。
 
-验证开始前固定：
+## 一、先固定验证对象、范围与 Oracle
+
+验证开始前必须固定：
 
 - 被验证对象；
-- 版本／hash；
+- version / hash；
 - requested scope；
-- 场景；
-- 必需证据；
+- 场景与输入；
+- 必需 evidence；
+- Oracle / verifier；
 - 允许误差；
 - hard-fail 条件；
-- not-run / blocked 判据；
-- 预算和停止条件。
+- `not-run` / `blocked` 判据；
+- 预算、重试和停止条件。
 
-## 二、行为规格写法
+| 验证对象 | 核心问题 | 主要证据 |
+| --- | --- | --- |
+| **需求** | 是否解决了正确问题，没有偷换目标、范围或授权 | Source、TaskContract、人工纠正 |
+| **计划** | 是否暴露关键 Unknown、依赖、checkpoint 与副作用 | WorkPlan、planDelta |
+| **应用认识** | 是否知道正确应用、页面、对象、读取依据及限制 | AppProfile、observation、review |
+| **真实示范** | 实际发生了什么 | Dossier、Raw Trace、Evidence、actual values |
+| **DistilledSteps** | 必要动作是否被正确保留、合并、删除或标未决 | sourceActionRefs、data dependency、disposition |
+| **SemanticProcedure** | 业务语义、参数、数据关系与支持范围是否有来源 | Business Steps、dataDependencies、limits |
+| **应用工程** | locator / read / wait / action / verifier 是否可靠 | Profile/helper、局部运行、失败场景 |
+| **Candidate** | 固定普通 JS 是否忠实实现上游规格 | exact bytes、manifest、source mapping、API refs |
+| **Qualification** | 同一候选是否在 requested scope 真正成立 | real execution、independent observation、scenario verdict |
+| **复用声明** | 重复、变参、跨环境或他人使用是否真实成立 | repeated Fresh Runs、合法变参、新环境／新使用者证据 |
+
+Oracle 必须来自测试定义、业务规则或独立 observation，不能由被测对象自己的输出反向生成。
+
+## 二、行为案例怎样写
 
 每个行为案例至少包含：
 
@@ -84,15 +100,16 @@ Candidate 代码正确
 
 统一规则：
 
-1. Expected 与 Actual Observation 分开。
-2. 反例被正确拒绝，表示“测试行为正确”，不表示业务任务成功。
-3. 正常、变化、边界、失败、拒绝、恢复都应进入测试空间。
-4. fixture / mock 只证明其覆盖层，不能外推真实桌面。
-5. requested 场景不能在失败后移到 excluded 以取得 PASS。
-6. 全部拒绝也不等于“能力可靠”；正常合法样本必须能够完成。
-7. 同一次 execution 重读日志不等于两次 Fresh Run。
+1. **Expected 与 Actual Observation 分开。**
+2. 正常合法样本必须能成功；“全部拒绝”不叫可靠。
+3. 反例被正确拒绝，只证明拒绝逻辑，不证明正常业务已经成功。
+4. 测试空间至少考虑：正常、变化、边界、失败、拒绝、恢复。
+5. fixture / mock 只证明其覆盖层，不能外推真实桌面。
+6. requested 场景失败后不能移到 excluded 来取得 PASS。
+7. 同一次 execution 重读日志，不算两次 Fresh Run。
+8. 修改 Candidate、Profile、Oracle 或 requested scope 后，必须重新判断哪些旧结论失效。
 
-## 三、必须覆盖的行为案例
+## 三、核心行为案例矩阵
 
 BC 编号是需求追溯标识，不是新的 Runtime Gate。
 
@@ -100,152 +117,109 @@ BC 编号是需求追溯标识，不是新的 Runtime Gate。
 
 | BC | 必须证明 | 关键拒绝反例 |
 | --- | --- | --- |
-| **BC-01 完整 Agent 新示范与生成** | 从自然语言目标到计划、最小发现、真实执行、DistilledSteps、Procedure、Candidate、Qualification 各层真实发生且可消费 | 执行后直接生成 JS，跳过事实／必要路径／语义证明 |
-| **BC-02 已有低质量代码独立改进** | 可只进入 code-rebuild + 必要资格，修改有依据且限定范围 | 强迫重录整条示范；用代码猜上游业务事实 |
-| **BC-03 简单脚本已经足够合格** | 允许原样保留，必要验证仍存在 | 为“工程化”强制增加类、文件或无收益抽象 |
-| **BC-04 实际数据交接与硬编码反例** | 第一次真实读值必须成为后续实际消费者输入 | 读了 firstResult 却仍写死示范常量 |
-| **BC-05 读数失败、格式或状态不确定** | 读数不可用时停止依赖动作并保留真实失败 | 默认答案、宽松解析、等待 Expected 后直接返回 Expected |
-| **BC-11 代码质量与 API 复用** | API 真实存在、异步顺序、错误处理、复用和复杂度合理 | 虚构 API、吞错、无界等待、并行点击、重复弱封装 |
-| **BC-32 能力发现 → 方法选择 → 契约 → 现场验证闭环** | discovery、selection、canonical contract、runtime validation、Candidate refs 是不同事实且不断链 | 文档存在即写 runtime pass；双选、缺 contract、失败无 evidence、Candidate 丢 source ref |
+| **BC-01 完整 Agent 新示范与生成** | 自然语言目标 → 计划 → 最小发现 → 真实执行 → DistilledSteps → Procedure → Candidate → Qualification 各层真实发生且可消费 | 执行后直接生成 JS，跳过事实／必要路径／语义证明 |
+| **BC-02 已有低质量代码独立改进** | 可直接进入 code-rebuild + 必要资格；修改有依据且限定范围 | 强迫重录完整示范；从代码猜上游业务事实 |
+| **BC-03 简单脚本已经足够合格** | 允许原样保留；仍完成必要验证 | 为“工程化”强制增加类、文件或无收益抽象 |
+| **BC-04 实际数据交接** | runtime read value 真正进入后续 consumer | 读到值后仍使用示范常量 |
+| **BC-05 读数失败或状态不确定** | 不可用时停止依赖动作并保留真实失败 | 默认答案、宽松解析、用 Expected 伪造结果 |
+| **BC-11 代码质量与 API 复用** | API 真实存在；异步、错误、等待和复杂度合理 | 虚构 API、吞错、无界等待、并行桌面动作 |
+| **BC-32 能力发现闭环** | discovery、contract、现场验证、Candidate source ref 分层可追溯 | 文档存在就写 runtime pass；缺 contract 或 evidence |
 
-BC-04 的 Calculator 参考值仅作为 Oracle：
-
-- 基线：25 × 4 + 10 → 真实读取 firstResult → 6 × firstResult；
-- 合法变参：12 × 3 + 4 → 真实读取 firstResult → 6 × firstResult。
-
-110 / 660 / 40 / 240 都是测试期望，不是业务取数来源。
+Calculator 等案例中的固定数字只能作为 Oracle；实际业务取数必须来自真实 producer。
 
 ### B. 语义、版本、恢复与安全
 
 | BC | 必须证明 | 关键拒绝反例 |
 | --- | --- | --- |
-| **BC-07 语义或因果证据不足** | 必要步骤、恢复候选、unresolved 能正确区分 | 缺事实时编造稳定流程 |
-| **BC-08 版本、半写与候选不一致** | consumer 精确消费发布版本，Profile/helper/Candidate 变化能传播影响 | A 的资格证明 B；文件可解析就算来源正确 |
-| **BC-09 中断与副作用状态** | 动作前／动作可能发生／成果已写但进度落后三种状态可区分 | 超时就盲重放；把文件 checkpoint 当事务回滚 |
-| **BC-10 错误期望、未知验证器与范围规避** | 错 Oracle、缺 verifier、requested 未运行应 fail/blocked/not-run | 修改 Expected、跳 verifier、移动失败场景取得 PASS |
-| **BC-12 需求变化与重要架构选择** | 需求变化能追到计划、Procedure、Profile、Candidate、Qualification | 在验收末端悄悄降低标准 |
-| **BC-13 权限、预算与敏感内容** | 授权、日志脱敏、上传范围、预算和高风险门禁真实执行 | 模型／界面文字扩大授权；脚本短就绕过高风险检查 |
-| **BC-16 资料留存与证据失效** | 失败与历史版本保留，证据失效会降低结论有效性 | 删除证据后仍保留原 PASS |
+| **BC-07 语义或因果证据不足** | 必要步骤、恢复候选与 unresolved 能正确区分 | 缺事实时编造稳定流程 |
+| **BC-08 版本与候选一致性** | consumer 精确消费发布版本；变化能传播影响 | A 的资格证明 B；“文件可解析”当来源正确 |
+| **BC-09 中断与副作用状态** | 未执行、可能已执行、已写成果三种状态可区分 | 超时后盲重放；把 checkpoint 当事务回滚 |
+| **BC-10 Oracle / verifier / scope 错误** | 错 Oracle、缺 verifier、requested 未运行被正确暴露 | 改 Expected、跳 verifier、缩小范围取得 PASS |
+| **BC-12 需求变化** | 变化可追到 Plan、Procedure、Profile、Candidate、Qualification | 在 S12 末端悄悄降低标准 |
+| **BC-13 权限、预算与敏感内容** | 授权、脱敏、上传范围、预算与高风险门禁真实执行 | 屏幕文字或模型输出扩大授权 |
+| **BC-16 证据生命周期** | 失败和历史版本保留；证据丢失会降低结论 | 删除证据后继续保留原 PASS |
 
 ### C. 宿主、独立性与正常路径
 
 | BC | 必须证明 | 关键拒绝反例 |
 | --- | --- | --- |
-| **BC-14 混合 JS／Agent 环节** | 数据输入、模型判断、schema/validator、人工边界和 JS 动作分开验证 | provider 不存在却称端到端通过；eval 模型代码 |
-| **BC-15 独立上下文与真实宿主加载** | 新 Agent 只凭规定输入和方法完成职责或准确拒绝 | 靠复制完整聊天补输入；同一对话换角色冒充隔离 |
-| **BC-24 同一 Agent 的正常路径与定向返回** | 资料充分时直接复用、正常推进；错误只回责任 owner | 每一步强制重建交接或重做全屏分析；所有失败都回 S1 |
-| **BC-26 自然语言入口与内部结构化合同** | 用户无需写 JSON；TaskContract/WorkPlan 保留原话并可被可读视图纠正 | 要求用户编辑 JSON；Markdown 与 JSON 成两套真相 |
-| **BC-27 执行前操作计划与关键未知早期否证** | 长任务先形成业务顺序、输入来源、checkpoint，并优先验证高影响 Unknown | 计划只是 Skill 调用表；明知关键读取未知仍先跑大量依赖动作 |
-| **BC-28 计划与实际偏差及 planDelta** | 计划外必要动作保存原因并修订后续计划；未执行计划不进入事实链 | “不在初始计划”就删成噪音；把未执行步骤写进 Dossier |
+| **BC-14 JS / Agent 混合环节** | 输入、模型判断、validator、人工边界和动作分开验证 | provider 不存在却称端到端通过 |
+| **BC-15 独立上下文与真实宿主** | 新 Agent 只凭规定输入和方法完成职责或准确拒绝 | 复制完整聊天补输入；换角色冒充隔离 |
+| **BC-24 同一 Agent 正常路径** | 资料充分时可连续推进；错误定向回 owner | 每一步强制制造新 Agent / handoff；所有失败回 S1 |
+| **BC-26 自然语言入口** | 用户无需写 JSON；结构化合同保留原话并可纠正 | 要求用户维护 JSON；可读视图变成第二真相 |
+| **BC-27 执行前计划与高影响 Unknown** | 长任务先暴露关键未知并优先否证 | 明知关键读取未知仍先跑大量依赖动作 |
+| **BC-28 planned → actual → planDelta** | 计划外必要动作保留原因；未执行计划不进入事实链 | 把计划步骤直接写成已发生事实 |
 
 ### D. DistilledSteps 与跨职责交接
 
 | BC | 必须证明 | 关键拒绝反例 |
 | --- | --- | --- |
-| **BC-29 DistilledSteps 必要路径与机械去噪反例** | 每个原动作有 retain/merge/omit/recovery/unresolved，来源和数据依赖不断 | 删除必要读值；把合法重复数字机械去重 |
-| **BC-30 trace-distill → procedure-synthesize 独立交接** | S9 能只凭 DistilledSteps + 正式必要输入继续或准确指出缺口 | S9 静默重读全量 Raw Trace 并维护第二套 action disposition |
-| **BC-31 Agent 与 Human 两种来源消费共享专业方法** | 两种来源保持 lineage，同时共享后续专业方法 | Human 记录追认为 Agent Dossier；H5 建第二套冲突方法 |
+| **BC-29 必要路径与机械去噪** | 原动作有 retain / merge / omit / recovery / unresolved；数据依赖不断 | 删除必要读值；机械去重合法重复输入 |
+| **BC-30 S7 → S8—S9 独立交接** | S8—S9 只凭 DistilledSteps + 正式必要输入继续或准确指出缺口 | 静默重读全量 Raw Trace 并维护第二套 disposition |
+| **BC-31 Agent / Human 来源共享专业方法** | lineage 分开，后续方法可共享 | Human recording 追认为 Agent Dossier |
 
 ### E. 应用工程、视觉与复用
 
 | BC | 必须证明 | 关键拒绝反例 |
 | --- | --- | --- |
-| **BC-06 未知布局与按钮矩阵** | 窗口／布局变化时重新解析，矩阵只在证据支持时使用 | 均分窗口、取首候选、未测平台自动纳入支持 |
-| **BC-21 材料充分性、必要范围与限定出口** | 认识／定位／操作材料分别判断，限定认识不冒充可点击 | 截图无映射却执行坐标；困难目标被降级出范围 |
-| **BC-22 真实模型提取及答案隔离** | 被测模型看不到隐藏真值，输入／输出／模型版本可复核 | 先给答案再测；模型自评当准确率 |
-| **BC-23 同源审阅、修订与影响传播** | 原图、overlay、属性和 Profile 同版；修订传播到依赖 | 自动格式校验冒充语义／人工通过 |
-| **BC-25 规则复用、实际消费与定向维修** | 未见样本、声明支持变化和真实应用中能复用或安全拒绝 | 只在建模截图上成功；用示范行号／订单号代替当前输入 |
+| **BC-06 未知布局与矩阵规则** | 布局变化会重新解析；网格／矩阵只有证据支持时使用 | 均分窗口、取首候选、未测平台自动纳入支持 |
+| **BC-21 材料充分性** | 认识／定位／操作分别判断充分性 | 截图无坐标映射却直接点击 |
+| **BC-22 模型提取与答案隔离** | 被测模型看不到隐藏真值；输入／输出／模型版本可复核 | 先给答案再测；模型自评当准确率 |
+| **BC-23 同源审阅与修订** | 原图、overlay、属性、Profile 同版；修订传播到依赖 | 格式校验冒充语义通过 |
+| **BC-25 规则复用与定向维修** | 未见样本和真实应用中可复用或安全拒绝 | 只在建模截图成功；硬编码示范行号／对象 |
 
 ### F. 业务组合、跨应用与他人复用
 
 | BC | 必须证明 | 关键拒绝反例 |
 | --- | --- | --- |
-| **BC-17 确定内容发送与组合能力复用** | 已知联系人／内容时用确定 JS 组合并验证真实发送结果 | 无业务需要却读历史／加模型；重名未消歧仍发送 |
-| **BC-18 根据实际历史判断并回复** | 实际历史进入受约束判断，仅合法结果调用同版发送能力 | 写死示范回复；新消息使判断过期仍发送 |
-| **BC-19 跨应用实际数据与对象一致性** | 源值、转换、目标对象和目标结果可追溯 | 剪贴板／旧焦点当数据合同；中途失败盲重放写操作 |
-| **BC-20 他人配置、运行与资产复用** | 未参与开发者只凭交付资产在声明环境配置和运行 | 依赖作者聊天、私有目录、凭据或历史 pass |
+| **BC-17 确定内容发送** | 已知对象／内容时用确定流程并验证真实结果 | 无需要却读历史／加模型；对象未消歧仍发送 |
+| **BC-18 根据实际历史判断并回复** | actual history 进入有界判断；新鲜度受控 | 写死示范回复；新消息出现仍发送旧决定 |
+| **BC-19 跨应用数据一致性** | source value、转换、target object、result 可追溯 | 剪贴板／旧焦点当数据合同 |
+| **BC-20 他人配置和运行** | 未参与开发者只凭交付资产在声明环境配置和运行 | 依赖作者聊天、私有目录、凭据或历史 PASS |
 
-## S12：从“跑过一次”到“可重复 Recipe”的最小资格证明
+## 四、证明层：低成本检查先做，但不能越级
 
-不同声明对应不同证据：
+| 层 | 证明什么 | 典型方法 | 不能外推 |
+| --- | --- | --- | --- |
+| **L0 Contract / Static** | 字段、引用、hash、静态映射 | schema、linter、handoff checks | 事实真实、业务成功 |
+| **L1 Deterministic Unit** | 纯转换、解析、映射、拒绝逻辑 | fixtures、unit tests | 模型行为、宿主、桌面 |
+| **L2 Independent Method Behavior** | Skill 在限定输入下能独立生产或准确拒绝 | 隔离 Producer eval | 宿主自动加载、真实业务 |
+| **L3 Host / Runtime Integration** | 实际宿主加载、权限、API、调用链可用 | host integration | 目标业务已成功 |
+| **L4 Real Application / Fresh Run** | 固定 Candidate 在真实应用完成业务并独立读回 | real execution | 变参、重复、共享 |
+| **L5 Reuse / Variation / Sharing** | 重复、变参、环境变化或他人复用声明成立 | repeated runs、varied inputs、independent user | 未覆盖范围 |
+
+对于 application-engineer，至少分别验证：
+
+```text
+确定性结构 / 工具
+→ 模型或视觉提取（如使用）
+→ 未见样本上的规则复用
+→ 获准真实应用 / 工作流消费
+```
+
+前一层通过不能替代后一层。
+
+## 五、S12：声明什么，就提供对应证据
 
 | 声明 | 最低证据 | 不能替代 |
 | --- | --- | --- |
-| **精确候选通过** | Candidate、TaskContract、入口、依赖和环境固定；执行同一 production bytes | 参考脚本、重新实现的测试脚本 |
-| **requested scope 已验证** | 每个 requested scope 至少被一个实际 scenario + evidence 覆盖 | 只在数组里写 qualified |
-| **一次 Fresh Run 成功** | 干净可归因起点、真实入口、独立业务 Observation | 历史日志、Expected、mock |
-| **可重复运行** | 同一 Candidate 至少两次彼此独立 Fresh Run | 同一 execution 重读日志 |
-| **参数化可复用** | 基线之外至少一组合法变化输入，现场值仍真实进入消费者 | 改 Expected；向测试桩注入答案 |
-| **后续不需 Agent 逐步点击** | production path 的确定步骤由普通 JS 执行；Agent 只在预声明有界判断点出现 | Qualification 时再让 Agent 逐点击决定 |
-| **范围内稳定** | 声明的 app/build/layout/locale/input 扰动实际覆盖 | 单环境成功外推全部平台 |
+| **精确 Candidate 通过** | Candidate、入口、依赖、环境固定，并执行同一 production bytes | 参考脚本、重写测试脚本 |
+| **requested scope 已验证** | requested 项逐项有 actual scenario + evidence | 只在 manifest 写 qualified |
+| **一次 Fresh Run 成功** | 可归因起点、真实入口、独立业务 Observation | 历史日志、Expected、mock |
+| **可重复运行** | 同一 Candidate 至少两次独立 Fresh Run | 同一 execution 重读日志 |
+| **参数化可复用** | 基线之外至少一组合法变化输入，现场值仍进入实际 consumer | 改 Expected 或向测试桩注入答案 |
+| **无需 Agent 逐步点击** | production path 确定步骤由普通 JS 执行；Agent 仅在预声明有界判断点出现 | Qualification 时再让 Agent 临场逐步决定 |
+| **范围内稳定** | 声明的 app/build/layout/locale/input 扰动实际覆盖 | 单环境成功外推所有环境 |
+| **他人可复用** | 新使用者仅凭交付说明配置并运行 | 作者私有聊天、路径、凭据 |
 
 Candidate 或影响性依赖改变后，旧 Qualification 不继续证明新字节。
 
-## 四、按层推进与裁剪
+## 六、Gate 与硬失败
 
-验证应按证明层逐级进行：
+沿用 [G0—G7](../../../docs/quality/gates-and-evidence.md)：
 
-| 层 | 证明什么 | 典型方法 |
-| --- | --- | --- |
-| **L0 Contract / Static** | 字段、引用、hash、基本映射和静态规则 | schema / linter / handoff checks |
-| **L1 Deterministic Unit** | 纯转换、解析、映射、拒绝逻辑 | fixtures / unit tests |
-| **L2 Independent Method Behavior** | Skill 在限定输入下能独立生产或准确拒绝 | 独立上下文／隔离 Producer eval |
-| **L3 Host / Runtime Integration** | 实际宿主加载、权限、API、停止和调用链真实可用 | host integration |
-| **L4 Real Application / Fresh Run** | Candidate 在真实应用完成业务并独立读回结果 | real execution |
-| **L5 Reuse / Variation / Sharing** | 重复、变参、环境变化、他人配置等声明成立 | repeated runs / varied inputs / independent user |
-
-低层可以先暴露便宜错误，但不能替代高层。
-
-<a id="2026-09-19-验证切片"></a>\n### 历史验证结果入口
-
-这是历史验证记录的兼容入口，不再作为 canonical 方法正文。对应版本、测试数量、结果和限制见 [质量记录](../../../docs/quality/agent-to-recipe-workflow-review-20260919.md)。
-
-### S7 → S8—S9 相邻评测入口与输入隔离
-
-Canonical 要求：
-
-- S7 Producer 只从获准的正式输入生产 DistilledSteps；
-- S9 Producer 从固定 DistilledSteps 开始；
-- 上游失败不调用依赖下游；
-- 补材料或修正后只重做受影响责任；
-- 独立评测不能偷偷读取标准答案、完整聊天或未声明文件。
-
-具体评测工具实现和某轮结果属于 tests / `docs/quality/`，不在这里维护。
-
-### application-engineer 四层测试
-
-application-engineer 至少分开：
-
-1. 结构／确定性工具；
-2. 模型或视觉提取；
-3. 未见样本上的规则复用；
-4. 获准真实应用与工作流消费。
-
-任一层通过不能自动证明下一层。
-
-<a id="application-engineer-分批实施2026-09-08-历史计划"></a>\n### application-engineer 的实施历史入口
-
-旧分批实施时间线属于设计历史。当前只保留上面的验证层级；历史顺序查 Git history。
-
-### 评测指标与成本
-
-除正确性外，按声明用途记录：
-
-- 模型调用次数和费用；
-- observation / screenshot / OCR 数量；
-- 人工修订量；
-- 重建／重跑次数；
-- 失败后的额外调用；
-- 任务总耗费与复用收益。
-
-成本指标不能抵消正确性硬失败。
-
-## 五、沿用门禁，不用分数代替放行
-
-依照 [G0—G7](../../../docs/quality/gates-and-evidence.md)：
-
-- **G0**：输入、权限、应用、依赖和证据根等前提成立。
-- **G1**：当前观察与原始证据可追溯，没有未处理漂移。
+- **G0**：输入、权限、应用、依赖、证据根等前提成立。
+- **G1**：当前 observation 与原始证据可追溯，没有未处理漂移。
 - **G2**：需要视觉／结构检测时，其结构与异常可解释。
 - **G3**：语义与目标有证据，歧义显式暴露。
 - **G4**：目标、前置、期望后置、失败策略与动作依据齐备。
@@ -253,20 +227,60 @@ application-engineer 至少分开：
 - **G6**：高风险身份、授权、状态、结果与人工边界独立核对。
 - **G7**：结论绑定当前代码／运行／证据，关键证据缺失不能 pass。
 
-以下属于硬失败，不能被平均分抵消：
+不是每个边界机械要求全部 G0—G7；选择适用 Gate，并说明没使用哪些 Gate。
 
-- 伪造实际读值；
-- Expected 注入业务链；
+以下属于 **Hard Fail**，不能被平均分抵消：
+
+- 伪造 Actual Observation 或实际读值；
+- Expected / 示例常量进入 production data path；
 - 越权；
 - 错业务对象；
 - 未运行写成通过；
-- 修改候选后沿用旧资格；
-- 虚构 Runtime / API；
-- 关键 producer→consumer 关系断裂；
 - requested 中 fail / not-run / blocked 被隐藏；
-- 副作用 unknown 时盲重放。
+- Candidate 改变后沿用旧 Qualification；
+- 虚构 Runtime / API；
+- 关键 producer → consumer 数据关系断裂；
+- 副作用 unknown 时盲重放；
+- 为获得 PASS 修改成功标准、Oracle 或 requested scope。
 
-## 六、95 分目标的评估办法
+## 七、专项能力只保留集成验收边界
+
+### Structured Collection
+
+Agent-to-Recipe 只要求分别给出：
+
+```text
+viewport 结构识别
+→ business mapping
+→ traversal（如果需要）
+→ 最终业务结果
+```
+
+四层分别给 verdict，不能互相替代。
+
+额外必须守住：
+
+- current viewport recognition 不等于 whole collection；
+- generic item 不等于业务字段；
+- provenance 与 observation source 不丢；
+- traversal 是有副作用行为，continuity 不明时停止或 partial；
+- 无 usable UI tree 时可使用受控视觉路线，但不能伪造 native 事实。
+
+segmentation、continuity、VLM proposal、merge、mutation、end detection、专项测试矩阵与 Runtime API 设计统一见 [Structured UI Collection Reading](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
+
+### 普通 JS 原字节测试
+
+真实桌面暂不可用时，可以对**冻结 production bytes** 做控制流／数据流测试，至少检查：
+
+- runtime value 是否进入后续 consumer；
+- async 顺序；
+- 失败后是否停止依赖副作用；
+- 是否注入 Expected / 示例常量；
+- harness 是否重新实现了另一套业务流程。
+
+这类测试不能证明真实 Runtime API、桌面对象身份、Fresh Run、重复运行、合法变参或他人复用。
+
+## 八、评分：95 分是审查目标，不是预设结论
 
 这是项目内部文档／能力审查尺度，不是行业认证。
 
@@ -275,137 +289,68 @@ application-engineer 至少分开：
 | 需求与语义正确性 | 25 | 目标、来源、任务覆盖、真实数据关系、成功／失败判据 |
 | 职责与独立性 | 20 | owner、独立入口、输入充分性、无职责重叠／循环依赖 |
 | 成果与接续 | 20 | 产物可消费、版本一致、计划／事实／步骤／过程可接续 |
-| 验证与修复 | 20 | 正反场景、失败返回、受影响重验、实际候选证据 |
+| 验证与修复 | 20 | 正反场景、失败返回、受影响重验、实际 Candidate 证据 |
 | 复杂度与成本 | 15 | 工程量与用途匹配、API 复用、预算与停止条件 |
-| **合计** | **100** | 硬门禁另算，不可用分数抵消 |
+| **合计** | **100** | Hard Fail 另算，不可用分数抵消 |
 
 评分规则：
 
-- 证据充分：该检查项 5 分；
-- 只有明确局部覆盖：2 分；
-- 错误或无证据：0 分；
-- >=95 仍要求适用硬门禁通过、requested 必测项完成、无阻断 Unknown；
-- not-run / blocked 不记通过；
+- 证据充分：对应检查项满分；
+- 只有明确局部覆盖：按局部覆盖计分；
+- 错误或无证据：0；
+- **>=95 仍要求适用 Hard Fail 全部通过、requested 必测项完成、无阻断 Unknown；**
+- `not-run` / `blocked` 不记通过；
 - 简单脚本不因抽象少扣分；
-- 本文件不填写当前能力实际分数。
+- 本文件不填写当前实现的实际得分。
 
-## 七、反向检查遗漏与无用新增
+## 九、需求追溯与遗漏检查
 
 验证设计完成后反向检查：
 
-1. DREQ-01—DREQ-33 是否都有责任与行为判据。
+1. DREQ 是否都有对应责任与行为判据。
 2. S1—S12 是否仍有相应证明对象。
-3. Source / Plan / Actual / DistilledSteps / Procedure / Candidate / Qualification 是否没有被合并成一层。
-4. trace-distill 与 procedure-synthesize 是否仍能独立交接。
+3. Source / Plan / Actual / DistilledSteps / Procedure / Candidate / Qualification 是否仍分层。
+4. trace-distill 与 procedure-synthesize 是否能独立交接。
 5. Human 与 Agent 来源是否保持 lineage。
-6. 同一 Agent 正常路径是否不会被“为了独立性”强制拆成多个 Agent。
-7. 新增文件／工具／阶段是否真的服务需求。
-8. 每个测试结果是否明确“证明了什么／没有证明什么”。
+6. 同一 Agent 正常路径是否没有被“独立性”强制拆碎。
+7. 新增文件、工具、阶段是否真的服务需求。
+8. 每个测试结果是否明确“证明了什么 / 没有证明什么”。
 
-## 八、结果保存与当前状态
+高层追溯可按以下关系维护：
 
-本文件只规定结果保存原则：
+| 需求主题 | 主要 BC |
+| --- | --- |
+| 来源、任务定义、自然语言入口 | BC-01、BC-26、BC-27、BC-28 |
+| 专业职责与独立交接 | BC-15、BC-24、BC-29、BC-30、BC-31 |
+| 实际数据流与代码 | BC-04、BC-05、BC-11、BC-32 |
+| 安全、版本与恢复 | BC-08、BC-09、BC-10、BC-12、BC-13、BC-16 |
+| 应用认识与规则复用 | BC-06、BC-21、BC-22、BC-23、BC-25 |
+| 业务组合与共享 | BC-17、BC-18、BC-19、BC-20 |
+| 混合 Agent / Runtime | BC-14 |
 
-- 测试运行结果写 `docs/quality/`、QualificationRecord 或对应 execution artifacts；
-- 记录 commit / hash、环境、输入、实际命令、证据、verdict 和 limitation；
-- 历史失败不被后续成功覆盖；
-- 当前 canonical 文档不维护“本周跑了多少测试”或“当前 HEAD 已通过什么”的动态状态。
+完整需求编号仍由 [requirements.md](requirements.md) 拥有；本表只用于发现明显漏测。
 
-需要当前状态时读取最新质量记录，而不是从本文推断。
+## 十、结果保存与历史证据
 
-<a id="九structured-ui-collection-reading-专项验证矩阵v05"></a>\n## 九、Structured UI Collection Reading 的集成验收边界
+验证结果至少记录：
 
-Agent-to-Recipe 只保留**集成层验收要求**：
+- commit / hash；
+- environment；
+- fixed inputs；
+- 实际命令或入口；
+- Producer / consumer；
+- evidence；
+- verdict；
+- limitation；
+- `not-run` / `blocked`；
+- 预算和停止原因。
 
-- current viewport structure 与 whole-collection traversal 分开；
-- generic item 与 business mapping 分开；
-- native / OCR / layout / semantic vision 的 provenance 和冲突保留；
-- VLM proposal 不能未经 deterministic validation 成为 truth；
-- 重复文本、variable-height、virtualization、overlap、mutation、partial stop 必须有反例；
-- traversal 有真实 UI side effect，continuity 不明时 fail closed / partial；
-- business parser 错误不能归因成底层 segmentation 成功或失败。
+保存位置：
 
-SC-A—SC-P 的算法级测试、Phase 1—7 实施阶梯和 Runtime API 晋级只在 [Structured UI Collection Reading](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md) 及其实现测试中维护。
+- 工作流／Skill 某一版本的质量记录 → `docs/quality/`；
+- 固定 Candidate 的业务资格 → QualificationRecord；
+- 运行级原始证据 → 对应 execution artifacts。
 
-### Collection 测试层级
+历史失败不能被后续成功覆盖；证据缺失时降低结论，而不是保留无法复核的 PASS。
 
-工作流只需要区分：
-
-```text
-结构识别
-→ business mapping
-→ traversal（如需要）
-→ 最终业务结果
-```
-
-四层分别给 verdict，不能互相抵消。
-
-### Collection 专项硬性验收规则
-
-- current viewport reader 不应偷偷 scroll；
-- traversal 必须声明副作用、budget、partial / stop；
-- provenance 不丢；
-- no-UI-tree 场景可以走受控视觉路线，但不能伪造 native 事实；
-- 未真机平台不外推通过。
-
-<a id="2026-09-10-v05-修订"></a>\n### Structured Collection 历史设计入口
-
-该日期对应历史专项设计演进。当前 canonical 要求以上述边界为准；逐条历史矩阵查 Git history 和专项架构。
-
-<a id="输入充分性与失败接续切片2026-09-20"></a>\n## 输入充分性与失败接续的验证要求
-
-该标题保留作为兼容入口。Canonical 要求已经归入 BC-15、BC-24、BC-30 和 handoff 规则：
-
-```text
-固定输入
-→ Producer 真实消费
-→ 固定输出
-→ 下游检查
-→ 失败时保留原失败
-→ 只修责任方
-→ 新版本重新消费
-```
-
-某次 deterministic probe、resume-request 格式、调用预算、具体 checker 覆盖和测试结果见对应 [质量记录](../../../docs/quality/agent-to-recipe-adjacent-review-20260920.md)，不在验证方法正文复制。
-
-### 固定输入和继续执行
-
-恢复评测时必须保留：
-
-- 原输入版本；
-- 原输出；
-- 原失败；
-- 已耗预算；
-- 新材料／新修复依据；
-- 重新消费的责任阶段。
-
-不能通过新 attempt 洗掉旧失败或重置预算。
-
-### 已实现的判据及仍需专业判断的部分
-
-确定性工具只能证明它真正检查的字节关系。自然语言语义、因果必要性、真实来源、宿主隔离、现场副作用和真实业务资格仍需相应层级证据。
-
-## 普通 JS 原字节执行与复用判据
-
-当真实桌面暂不可用时，可以用**冻结 production bytes** 做控制流／数据流级测试，但结论必须限定为该层。
-
-至少检查：
-
-- 实际返回值是否进入后续消费者；
-- 异步顺序；
-- 失败后是否停止依赖动作；
-- 是否存在 Expected／示范常量注入；
-- 是否修改了 production bytes；
-- 测试 harness 是否重新实现了另一套业务流程。
-
-原字节宿主测试不能证明：
-
-- OpenDesk Runtime API 真实行为；
-- 桌面目标身份；
-- 视觉正确性；
-- Fresh Run；
-- 合法业务变参；
-- 重复运行；
-- 他人复用。
-
-这些声明仍由 S12 对固定 Candidate 的真实执行证明。
+历史某日期的验证切片、测试数量、checker 覆盖、Calculator 某轮结果、Collection 专项演进和 implementation milestone 不属于本 canonical 方法。需要设计考古时使用 Git history；需要某一版本实际状态时读取 `docs/quality/`。
