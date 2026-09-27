@@ -1,384 +1,546 @@
 ---
 title: "应用操作建模与封装｜从界面认识到可靠操作"
-description: "从界面认识到可靠应用操作的设计方法、数据交接与验证边界。"
+description: "定义 application-engineer 怎样从最小界面认识形成可靠的定位、读取、等待、动作与验证规则。"
 order: 50
 ---
 
 # 应用操作建模与封装｜从界面认识到可靠操作
 
-把已经明确的业务子目标，落实为能够重复定位、执行、读取和验证的普通应用操作。状态：专业作业设计 v0.5，2026-09-10；[application-engineer 正式方法入口](../skills/application-engineer/SKILL.md)已编写，不代表辅助程序、宿主加载、模型提取、Structured Collection Runtime 和桌面验收已通过。返回[设计总纲](README.md)，关联[任务分解树](task-decomposition.md)、[链路与交接](chain-design.md)和[计算器案例](../cases/calculator.md)。本文件负责应用工程专业方法，不接管 S7—S9 的业务过程解释与批准。Structured UI Collection Reading 的 Runtime/VLM/scroll 算法唯一正文见[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)，本文件只说明 application-engineer 怎样生产和维护该结构知识。
+本文只回答一个问题：
 
-依据：[应用开发框架](../../../docs/frameworks/app-development-framework.md)、[任务求解方法](../../../docs/frameworks/automation-problem-solving-framework.md)、[Target 模型](../../../docs/architecture/desktop-automation/action-target-model.md)、[Adapter 合同](../../../docs/architecture/desktop-automation/app-adapter-contract.md)。矩阵与封装规则是设计选择，示意名称不是已实现的全局对象。旧 Adapter 示例中的颜色分区、固定 scale、provider 或对象形态不是本作业的运行前提；实际可调用性以当前 API、实现和本次证据为准。
+> **怎样把已经明确的业务子目标，落实为可重复定位、执行、读取和验证的应用操作？**
+
+本文件是 application-engineer 的专业方法正文，不负责 S7—S9 的业务过程解释，不维护 Structured Collection / VLM / traversal 的专项算法，也不记录某次实现或桌面测试状态。
+
+## 30 秒总览
+
+```text
+业务子目标
+  ↓
+discover：只认识下一步真正需要的应用、页面、目标和读取依据
+  ↓
+形成最小 AppProfile
+  ↓
+harden：把已确认 Procedure 所需的定位 / 等待 / 读取 / 动作 / verifier 工程化
+  ↓
+形成可靠 operation rules / helper
+  ↓
+repair：发生具体失败时，只修失效规则和受影响范围
+  ↓
+交 recipe-build / qualification
+```
+
+核心原则：
+
+1. **Target 身份与一次坐标分开。**
+2. **认识、定位、操作、业务成功是不同证明层。**
+3. **只补当前任务需要的规则，不从零研究整个软件。**
+4. **Expected 与 Actual 分开，工具成功不等于业务成功。**
+5. **结果可能已发生时先对账，不盲重放。**
 
 ## 进入方式
 
-- discover：从本次所需操作和实际观察建立最小认识，不要求先有完整 SemanticProcedure。
-- harden：消费已确认过程，定向补齐定位、状态准备、等待、读数和验证；已有操作满足要求则复用。
-- repair：依据失败证据修复指定失效规则，记录受影响操作、版本与需要重验的范围；不重新规划业务或修改成功标准。
-- 三种方式共用应用工程职责，不要求每个 Layout、组件、按钮、Collection 或 VLM 调用都成为独立 Skill。每次只消费和发布本工作包需要的范围。
-- 默认由同一个 Agent 按工作流连续推进。认识与审阅、规则与操作补强、定向维修是可独立进入和评测的子作业，不意味着多个 Agent。`ui-understanding` 是认识子作业标签，不是已安装的第二个 Skill。
-- 仅认识与审阅、指定定位规则、指定操作是交付范围，不新增第四种模式。独立入口不强制独立文件；只有出现独立消费者、稳定合同及重复使用证据，才重新评估拆分 Skill。
+| 模式 | 输入 | 目标 | 正常输出 |
+| --- | --- | --- | --- |
+| **discover** | TaskContract / WorkPlan、已有 Profile、获准观察 | 建立下一步足够安全的最小认识 | AppProfile / evidence / limits |
+| **harden** | 已确认 SemanticProcedure、旧规则、工程缺口 | 落实定位、读取、等待、动作、verifier、recovery | operation rules / helper / local validation |
+| **repair** | 具体失败、旧版本、受影响范围 | 保留有效部分，只修失效规则 | 新 Profile/helper + reason + revalidation scope |
+
+界面认识、CollectionProfile authoring、定位规则分析是这些模式中的子作业，不新增第四种模式或第二个 Skill。
 
 ## 界面认识与审阅作业
 
 ### 接到任务后应留下什么
 
-开发者应能知道当前应用、页面和业务对象，必要区域、控件及状态，认识依据与未知项，下次重新定位的候选，以及错误会影响哪些规则和操作。主交付仍是唯一 AppProfile 和必要普通 JS；原图、审阅视图与验证记录是它的证据及派生材料，不是第二份应用模型或执行规格。页面包含重复 UI 记录时，`CollectionProfile` 作为 AppProfile 中的版本化结构知识进入同一交付，不另建第二份 collection 模型仓库。
+一个新 Agent 至少应能回答：
 
-本节落实用户 2026-09-08 的模型主导、同一 Agent 连续作业要求，以及其提供的 S2 子作业和 S3—S12 回访链；新增字段归属在共享合同维护，分批完成标准在验证计划维护。
+- 当前是什么应用／窗口／页面／业务对象？
+- 本次真正需要操作、读取或验证什么？
+- 哪些父区域、锚点、结果区、弹窗／遮挡会影响这些目标？
+- 当前依据来自截图、native tree、OCR、历史 Profile 还是人工说明？
+- 哪些是 observed fact，哪些是解释、假设或未验证规则？
+- 下次重新定位时应依赖什么，而不是依赖上次坐标？
+- 当前认识只足够“理解”，还是已经足够“定位／操作”？
+
+主交付是 AppProfile 和必要 evidence；overlay、简化视图、review 页面是派生审阅材料，不成为第二份应用模型。
 
 ### 范围与分工
 
-默认任务驱动：先全局粗识别，再精查核心部分。应用能力建设则须声明页面、状态、环境与预算，不把它作为每次任务的前提。
+默认任务驱动：
 
-| 范围 | 必须处理的内容 |
-| --- | --- |
-| 核心目标 | 本次需要点击、输入、读取或确认的目标 |
-| 必要依赖与安全前提 | 父区域、锚点、进入路径、结果区域、弹窗／遮挡、相邻或重名对象及消歧条件 |
-| 重复结构 | 本次涉及的 list/timeline/table/grid/cards/tree、collection region、visible item boundary、必要 traversal 决策 |
-| 次要候选 | 不影响当前工作者可粗识别或延后；记录原因、影响及再次处理条件 |
+```text
+先全局粗识别
+→ 再精查当前业务步骤真正依赖的区域和目标
+```
 
-20 个按钮只用 5 个，不意味着只认识 5 个矩形；必须补齐这 5 个目标的必要依赖。难以识别不能成为降级核心目标的理由。核心缺口应阻塞依赖工作或提出有授权的范围变更；控件真实总数未知时，不称全量覆盖。virtualized collection 当前只观察 8 个 item，也不能把 8 写成逻辑集合总数。
+必须覆盖：
 
-模型主要承担布局理解、控件分类、语义解释、关系发现、候选特征和未知项发现。程序承担证据组织、坐标转换、结构校验、确定性绘图、版本／结果比较及已验证规则执行。人工检查和纠正关键认识，确认适用范围与需要的人类授权。“80% 以上主要分析工作”是技术分工偏好，不是固定调用比例、识别准确率或已证明的效率收益。
+- 当前核心 Target；
+- Target 的必要父区域／锚点；
+- 正确页面／对象身份；
+- 结果读取区域；
+- 遮挡、弹窗、加载、禁用等状态；
+- 同名／相似候选的消歧依据；
+- 失败会影响的 operation / verifier。
+
+可以延后：
+
+- 与当前任务无关的次要控件；
+- 没有消费者的完整应用模型；
+- 不影响当前支持范围的视觉细节。
+
+难识别不能成为把核心目标降级出范围的理由。
 
 ### 实际作业链
 
 ```text
-明确本次要回答的界面问题与必要范围
-→ 检查已有图片、应用资料和规则是否足够且仍适用
-  → 足够：复用，返回当前任务
-  → 有缺口：取得获准观察
-→ 检查材料能证明什么
-  → 可认识但无屏幕映射：继续限定认识，禁止据此点击
-  → 关键对象不可判断：明确补采问题和阻塞范围
-→ 模型全局粗识别、关键部分精查，逐项关联来源与未知
-→ 若存在重复记录：识别 collection region/kind，选择 AX/UIA/OCR/Layout/Image/Semantic Vision 必要 evidence
-→ 程序校验 ID、关系、几何、坐标空间和版本
-→ 需要时形成 CollectionProfile proposal；VLM 只提供 proposal/evidence
-→ 生成同版四视图及 collection item-boundary overlay，按约定核验或人工审阅
-→ 修订数据、保留旧版和理由，重新生成视图及重验清单
-→ 发布限定认识；仅认识包可结束
-→ 需要规则／操作时，再进入下文操作补强方法
+明确本次要回答的界面问题
+→ 检查旧 AppProfile / evidence 是否仍适用
+  → 足够：核当前现场后复用
+  → 不足：定向补观察
+→ 判断材料能支持认识、定位还是操作
+→ 建立 Target / region / state / relation
+→ 分开 observed / inferred / unknown
+→ 程序检查几何、ID、关系、坐标空间和版本
+→ 生成同版审阅视图
+→ 必要时人工纠正
+→ 发布最小 AppProfile
+→ 若 Procedure 已明确且需要更可靠规则，进入 harden
 ```
 
-同一工作包内不为每个子步骤重建 request／handoff。正常路径用最少必要记录继续；阶段发布、暂停接续或输入版本变化时，才执行共享合同规定的冻结与交接。已有页面仍被有效规则覆盖时，只核对当前对象和可变条件，不重新全屏研究。
+同一工作包内不为每个按钮创建 handoff。
 
 ### 观察材料的充分性
 
-观察可来自 Agent 工具截图、人工提供的图片、已有获准证据；按需加入局部图、OCR 或原生属性。注明来源、应用与页面的可确认程度、时间、窗口／图片范围、图像尺寸、裁剪与缩放映射。不从文件名推断 app 身份，不把人工说明和截图实际可见内容混成同一事实。
+不同用途需要不同充分性：
 
-材料检查按用途分别判断：图像清晰度、目标完整性、遮挡、页面是否正确、关键关系是否可见、辅助观察与截图是否同期。未知采集时间不伪填当前时间；一张历史截图可以支持历史界面认识，不能证明当前现场。
+| 用途 | 最低要求 |
+| --- | --- |
+| **认识** | 能说明页面结构、主要对象、关系与未知 |
+| **定位** | 能把业务 Target 与当前屏幕／native 对象可靠绑定 |
+| **操作** | 除定位外，还需当前状态、授权、动作方式、后置验证 |
+| **长期复用** | 还需支持范围、失效条件、变化样本和重新解析规则 |
 
-缺屏幕位置或缩放映射，不必阻塞纯认识和审阅；它阻塞依赖这些映射的实际桌面操作。关键目标看不清或已经裁掉时，提出具体补采：需要哪个区域、保留什么相邻对象、要证明哪个问题。补采取得新证据，不事后重建原现场；前后状态不同须分别保留。
+例如：一张清晰截图可以足够做人类／模型认识，但如果没有屏幕坐标映射，就不能据此执行真实点击。
 
-原生 snapshot 不完整、OCR 漏字、模型与原生属性冲突，都要显式保留；不默认原生、OCR 或模型一定正确。应用整体结构可以粗略，关键对象及依赖不能靠猜测补齐。`Accessibility.snapshot().complete` 只说明该有界 native snapshot 是否完成，不证明整个 virtualized list 已读取完。
+材料必须记录：
+
+- 来源；
+- 应用／页面身份；
+- 时间或“未知时间”；
+- 图像尺寸与裁剪；
+- 坐标空间；
+- 是否与 native/OCR 同期；
+- 缩放／DPI 映射是否已知；
+- 当前限制。
+
+不从文件名推断 app 身份，不把人工说明伪装成截图观察。
 
 ### 模型提取及证据界限
 
-模型输出区域、控件类型与名称、父子关系、标签—输入、Tab—面板、行内按钮—记录对应，以及可观察状态和候选复用特征。分清逐项实际观察、模型解释、假设、人工修订和有运行证据的规则；模型输出保存简短依据与证据引用，不保存私有思维过程。
+模型可以帮助：
 
-必须保留下列区别：
+- 布局理解；
+- 控件分类；
+- 语义命名；
+- 父子／同组关系；
+- label ↔ field；
+- row ↔ action；
+- 候选锚点；
+- unknown / conflict 发现。
 
-- 一次矩形不是永久身份；文字框、完整控件范围和安全操作区域分别表达，未知者不补默认矩形。
-- 分类为按钮不证明可点击或原生动作可用；需要实际能力、当前状态和操作约定支持。
-- 状态未读取／未观察到不等于 false；不存在、不可读取和未采集也不同。
-- Tab 高亮不证明关联面板已经加载；应另有内容身份和完成条件。
-- 人审一张截图不证明后续场景；模型自报置信度不等于校准成功概率。
-- 应用长期特征不等于本次任务优先级；优先级在工作包中按目标 ID 表达。
-- Semantic Vision/VLM 判断 item grouping、图标语义或区域类型时仍是 proposal；必须引用实际 observation/bounds/region，unknown/conflict 原样保留，不能凭空补不可见 item。
-- VLM 若读出 OCR/native 没有的文字，其来源标 `semantic-vision`，不能悄悄冒充 OCR 或 native value。
+但必须区分：
 
-模型接入来自实际 Agent 宿主或已获准 provider，不凭 Vision 的名字推断已有多模态理解入口。没有可用模型时可整理已有资料，但模型提取必须标未运行或受阻。`Vision.runOCR()` 保持 OCR 职责；通用 GUI VLM 未来经独立 `SemanticVisionProvider` 接入，不把 OCR provider 接口扩成“万能视觉模型”。
+```text
+Observation
+Model Interpretation
+Assumption
+Human Correction
+Validated Rule
+```
+
+模型自报置信度不是运行资格。
+
+以下内容尤其不能混：
+
+- 文本 bbox ≠ 控件 bbox；
+- 控件 bbox ≠ 安全点击区域；
+- “看起来像按钮” ≠ 可点击；
+- 未观察状态 ≠ false；
+- 一次矩形 ≠ 永久身份；
+- VLM 看出的文字 ≠ OCR/native value；
+- 当前 viewport item 数量 ≠ whole collection size。
 
 ### 同版审阅与纠错
 
-四种视图从同一 AppProfile 版本和明确观察生成，并按目标 ID 联动：原始证据视图；原图叠加区域／控件边框、ID 与关键关系；去装饰后的简化布局；属性、来源、未知、差异和各层验证状态。存在 CollectionProfile 时，同一版 overlay 增加 collection region、visible item boundaries、separator/anchor、observation source/conflict 与 profile validation 状态。
+审阅视图应来自同一 AppProfile / observation 版本：
 
-简化图由程序依据数据确定性绘制，不由模型自由画图。筛选任务重点时仍保留必要父区域、定位锚点、阻塞条件、结果区域及影响判断的相邻／重名项；不能为画面简洁隐藏错误依据。视图标注源数据版本和 hash，但自身 hash 在发布清单记录，避免自引用。
+- 原始证据；
+- overlay；
+- 简化结构；
+- 属性／来源／unknown／diff；
+- 必要时 collection item boundary overlay。
 
-人工可以改类型、名称、矩形、父区域、关联关系、CollectionProfile 结构约束和未知说明；任务分类的修改记录在工作包，改变必需范围必须按授权变更处理。每次修订保存基线版本、字段路径、旧新值、理由、修改者、适用观察／环境，不改原始图片和历史事实。
+人工纠正时记录：
 
-修订后生成新版本，重新生成全部视图；沿普通数据中的依赖关系标出受影响规则、操作、verifier 和候选资格。仅展示名变化与定位匹配文本变化应区别处理；依赖不明时保守扩大检查，不能默认无影响。新规则和新代码不能沿用旧资格。
+- 字段；
+- 旧值；
+- 新值；
+- 理由；
+- 适用 observation / environment；
+- 修改者／来源；
+- 受影响 operation / verifier / Candidate。
 
-核验策略开始前约定：结构校验、自动语义核验、人工审阅各记录其实际依据和范围。模型再次自述“正确”不是独立证据，JSON 合法不是关系正确；明确要求的人审和授权不被自动流程替代。新认识／有影响修订时审阅，不要求每个正常点击都重复等待人审；未发生人工批准不填写批准者。
+修订后生成新版本并重建派生视图；原证据不修改。
 
 ### 正常记录与按需诊断
 
-正常始终保留任务对象、所用规则版本、必要动作前后证据、实际读值、必要验证、限制和关键未知。新认识或修改时生成审阅资料；视图按认识版本生成，不按点击次数生成。
+正常路径始终保存：
 
-完整候选对比、全量原生树、全屏视频、多模型意见和跨环境分析只在明确诊断／能力建设范围需要时产生。异常现场立即保存，详细分析之后按需展开；不能等失败后补造动作前证据。
+- 当前业务对象；
+- 使用的 Profile / rule 版本；
+- 关键动作前后事实；
+- runtime value；
+- verifier 结果；
+- limitations / unknown。
 
-多个候选、页面未被覆盖、状态不明、规则漂移、CollectionProfile drift、多源 evidence conflict 才定向返回。已知加载先按有界等待处理；代码错误回 recipe-build；业务解释/business mapping 回 procedure-synthesize/Recipe；权限／目标变化回需求负责人；结果可能已生效先核对，不能一概重做界面理解。详细路由以 chain-design.md 为准。
+只有出现歧义、drift、冲突或业务要求时才展开：
+
+- 全量 native tree；
+- 多模型对比；
+- 大范围截图；
+- 完整候选比较；
+- 跨环境分析。
+
+减少诊断冗余不能删除业务关键证据。
 
 ### 贯穿示例：同名按钮属于哪条订单
 
-以下是设计示意，不是现场读取或模型实测。任务是查看输入订单的详情并读状态，不修改订单。
+任务：找到输入订单并打开详情。
 
-- 观察 O1 中有 O-101、O-102 两行和同名“查看”；核心目标是输入订单对应按钮及详情结果，必要依赖是结果表、订单编号、所属行与阻塞条件。
-- AppProfile 的目标 Tview 记录本次图片矩形及所属行；文字框、安全操作区域和 enabled 没有依据就保持未知。OCR 原始文字归观察，不直接成为控件边界。
-- 假设 Tview 位于 O-102 行，却被关联为 O-101 行的动作：程序可暴露关联冲突，叠加关系线供人工核对。修改这条关系后，原证据和 r001 保留，生成 r002。
-- 受影响路径为记录关联 → 行内定位规则 → 打开详情操作 → 详情身份验证；不相关的搜索能力不必重写。规则依赖不清时先复核，而非自动继承通过。
-- 候选规则是“在当前表格按实际 orderId 确认唯一记录，再找该行唯一查看目标”，不是永久保存 O-102、第二行或旧坐标。
-- 未观察详情页时，认识包可限定列表页交付，但详情身份、状态读取和完整操作保持缺口。下游据实际 API 补齐普通操作函数，再在未参与建模的画面及获准真实场景验证。
+正确规则应表达：
 
-字段职责、版本与修改影响沿共享合同；示意数据不得伪装成已实现 API 或经过验证的实例。
+```text
+当前表格
+→ 按实际 orderId 找唯一业务记录
+→ 在该记录作用域内找唯一“查看”
+→ 点击
+→ 在详情页重新验证 orderId / identity
+```
+
+错误规则包括：
+
+- 永久保存“第二行”；
+- 永久保存旧坐标；
+- 在全窗口找第一个“查看”；
+- 未观察详情页却宣称详情身份验证已完成。
+
+这个示例说明的是 **Target / parent scope / identity / postcondition**，不是某个订单应用的已实现 API。
 
 ## Structured Collection Reading 的应用工程入口
 
-本节只规定 application-engineer 怎样认识和发布 CollectionProfile；item segmentation、scroll continuity、merge/end 算法及 Working API 以[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)为唯一正文。
+application-engineer 在 Collection 场景只负责工作流层结构知识：
+
+```text
+确认 collection region / page / state
+→ 识别 visible item boundary / repetition / anchor
+→ 关联必要 native / OCR / image evidence
+→ 必要时形成 CollectionProfile proposal
+→ deterministic / review validation
+→ 发布 Profile + limits + evidence
+```
 
 ### 认识 Collection
 
-当任务要处理会话、消息、订单、商品、文件、联系人、table/grid/cards/tree 等重复结构时：
+CollectionProfile 只回答：
 
-```text
-确认 collection 所在 page/state/region
-→ 判定结构 kind 与主轴
-→ 选择必要 evidence：AX/UIA / OCR / Layout/Image / Semantic Vision
-→ 归一并关联 observation/provenance
-→ 确认 visible item boundary / repetition / separator / anchor
-→ 形成或修订 CollectionProfile
-→ deterministic validation
-→ overlay review / correction
-→ 发布 profile + limits + evidence
-```
+> **在一个明确 viewport 中，一条 generic item 怎样被识别？**
 
-`CollectionProfile` 只描述“一条 item 怎样在一个 viewport 中被识别”：collection kind、axis、native container/item role hints、item geometry、repeating layout、separator、anchor、spacing、必要视觉模式和 validation constraints。`sender`、`price`、`customerName`、`conversationTitle` 等是业务字段，属于 App Adapter／Recipe parser，不进入 profile。
+它可以描述：
+
+- region；
+- axis；
+- container/item role hints；
+- repeating geometry；
+- separators / anchors；
+- validation constraints；
+- evidence references。
+
+它不拥有 sender、price、customerName、conversationTitle 等业务字段。
 
 ### 多源 evidence 不是四套 reader
 
-AX/UIA、OCR、Layout/Image、Semantic Vision 都进入统一 Observation/evidence 层。按问题选主要来源：原生 role/action/value 优先结构化 Accessibility；精确可见文字优先 native value/OCR 交叉；复杂 grouping 使用 Layout + 必要的 VLM proposal；图标视觉语义可由 Semantic Vision 提案。任何来源都可能不完整或冲突，不能把“provider 优先级”当真值覆盖规则。
+AX/UIA、OCR、Layout/Image、Semantic Vision 只是不同 observation 来源。冲突要保留，不设置“某 provider 永远是真值”的规则。
 
-完全没有 usable UI tree 时，仍可以最小 ROI screenshot + OCR/Layout + Semantic Vision proposal 建立视觉 CollectionProfile；但必须把 native absence、visual-only 支持范围和验证限制写清。反过来，AX/UIA snapshot 完整也只证明当前有界 snapshot，不证明 logical collection whole coverage。
+完全没有 usable UI tree 时，可以在获准范围使用 screenshot + OCR/layout + semantic proposal，但要明确 visual-only 支持范围。
 
 ### Authoring-time VLM 默认优先
 
-application-engineer 默认使用“第一次理解、后续确定运行”的模式：
+如果需要 VLM，默认用于 authoring proposal：
 
 ```text
-minimal ROI screenshot
-+ normalized native observations
-+ OCR lines/bbox
-+ layout regions/separators
-+ existing profile constraints
-→ narrow Semantic Vision proposal
-→ deterministic validator
-→ overlay review
-→ versioned CollectionProfile
+minimal ROI
++ existing observations
++ current profile constraints
+→ narrow proposal
+→ deterministic validation
+→ review
+→ versioned profile
 ```
 
-模型任务应收窄到 item boundary/grouping/profile proposal，输出关联 observation ids、source regions、bbox、unknown/conflict；不是“理解整个软件并返回所有业务数据”。模型调用受 screenshot 上传授权、Secret/privacy、timeout、size/call/cost budget 约束；拒绝、空、截断、schema invalid 和 timeout 都是正常失败状态，不无限重试，不 eval 模型返回代码。
-
-`opendesk ai` 适合 Coding Agent 作者期取得 window、ROI、OCR/image 并构建 profile；生产 collection reader 内部不得通过启动 `opendesk ai` 再驱动另一个 Agent 获取 VLM 结果。Runtime assist 未来由独立 SemanticVisionProvider 承担。
+运行期 VLM 是否存在、怎样接入、预算、provider contract 由专项架构和实际 Runtime 决定，本文件不复制算法。
 
 ### Collection 与 Traversal 的责任边界
 
-application-engineer 可以发现“业务需要跨 viewport”，并记录适用 scroll container、方向、预期 overlap/anchor、mutation 风险和页面条件，但不能把 traversal 参数混进“item 是什么”的 CollectionProfile。
+application-engineer 可以记录“业务需要跨 viewport”和当前 scroll container / risk，但：
 
-- `CollectionProfile`：Observation → visible Item[]。
-- `TraversalStrategy`：viewport A → advance → viewport B → continuity → merge。
-- current viewport 已满足业务时，不引入 scroll。
-- 需要 scroll 时显式声明 UI side effect、预算与不可可靠 restore 的当前限制。
-- overlap 约 20%–40% 是测试空间，30% 只是示例，不作为应用硬编码标准。
-- continuity 不能按 item.text 或 index 判断；要综合真实 stable id（若有）、文本、role、内部相对结构、geometry、icon/image signature 和 suffix/prefix sequence context。
-- 无法证明 overlap、collection mutation 或 profile drift 时停止并留 evidence，不为“拿到完整数组”猜着拼。
-- pagination/load-more/current page advance 先由 App Adapter／Recipe 负责，直到多个应用证明稳定的公共 traversal 合同。
+- item recognition ≠ traversal；
+- current viewport ≠ whole collection；
+- scroll 是真实副作用；
+- continuity / merge / mutation / end detection 的算法由专项架构拥有；
+- 无法证明 continuity 时应该停止或 partial，不为拿完整数组猜着拼。
+
+详见 [Structured UI Collection Reading](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
 
 ### Generic item 与业务字段
 
-应用工程发布的是 structure knowledge，不替代业务 parser：
-
 ```text
-CollectionProfile + current observations
+CollectionProfile + observations
 → generic CollectionItem[]
 → App Adapter / Recipe parser
-→ Message[] / Conversation[] / Order[] / ...
+→ Message / Order / Conversation / ...
 ```
 
-例如一条 item 可以包含 text/icon/native state/bounds/evidence，但 `sender` 是哪个 text、`price` 怎样规范化、conversation title 如何组合仍是应用业务规则。parser 错误返回业务/过程/Recipe 责任，不能通过修改 Runtime segmentation 使它“恰好”输出期望字段。
+业务 mapping 错误不能通过篡改底层结构识别“修好”。
 
 ## 聊天业务的粒度与组合示例
 
-本节承接[项目背景与业务场景](requirements.md)，将用户提出的“搜索、找到、查看历史、思考回复、发送”按不同目标展开。它是未运行的需求设计案例，不指定某个聊天应用已支持的接口、身份字段或回执能力；不增加开发阶段、脚本引擎或新的 Agent Skill。计算器的定位与数据链规则继续保留在后文。
+这个例子说明业务粒度，不声明某个聊天应用已接通。
 
-| 粒度 | 聊天任务示意 | 职责边界 |
+| 粒度 | 示例 | Owner |
 | --- | --- | --- |
-| 框架基础能力 | 窗口发现、定位、点击、输入、读取 | 核验后复用 OpenDesk 公开 API，不写入特定应用的业务策略 |
-| 应用语义操作 | 搜索联系人、打开会话、读取消息、填写输入框 | 应用 helper 承担该软件的定位、状态与交互约定；重复消息区域可消费 generic collection reader/当前真实等价实现 |
-| 组合业务能力 | 向指定且已确认的联系人发送确定内容 | 组合操作，具有独立输入输出、前后条件与结果验证；先用普通函数承载 |
-| 完整业务流程 | 根据历史决定是否回复、生成回复、发送并验证 | Recipe／实际宿主组合 JS 能力、必要 Agent 判断和授权规则 |
-
-“基础”和“组合”是相对粒度，不按动作或文件数量划分。多个确定步骤可以全部由 JS 完成；一次内容判断也可能需要 Agent。`application-engineer`、`recipe-build` 等开发 Agent Skill 负责生产这些成果，不等于业务运行中的“发送消息”能力。是否回复、回复规则和授权策略属于业务流程；应用 helper 不能自行改变它们。
+| 框架原语 | 窗口、定位、点击、输入、读取 | OpenDesk Runtime/API |
+| 应用语义操作 | 搜索联系人、打开会话、读消息、填写输入 | application rules / helper |
+| 组合业务能力 | 向指定联系人发送确定内容 | Recipe / ordinary JS |
+| 完整业务流程 | 基于历史决定是否回复并执行 | Recipe + bounded Agent judgement |
 
 ### A. 发送已经确定的内容
 
-输入为用户指定的联系人线索、确定内容、应用／账号范围和发送授权。组合过程为：搜索并消歧 → 打开并确认正确会话 → 填入内容 → 发送前核对对象、内容与授权 → 发送 → 验证实际结果。已有会话绑定仍有效时可复用，但必须重新确认可变条件，不要求重复搜索。
+输入已经给出联系人、确定内容、应用／账号范围和发送授权。
 
-本目标不强制读取历史或生成回复，也不为“流程完整”增加任务级模型推理。若任务另有“避免重复通知”等规则，只增加该规则必需且获准的核对。
+```text
+搜索／消歧
+→ 打开正确会话
+→ 再确认对象
+→ 填入确定内容
+→ 发送前核授权和内容
+→ 发送
+→ 验证实际结果
+```
+
+不因为“流程完整”而读取无关历史或调用模型生成文案。
 
 ### B. 根据历史回复联系人
 
 ```text
-确认联系人与当前会话
-→ 读取获准范围内的实际历史，保留来源与新鲜度
-→ Agent 按业务规则判断：需要回复／不回复／需要人工处理
-→ 对候选回复与判断输出做校验，按授权策略执行人工确认
-→ 发送前重新核对会话及影响判断的上下文
-→ 复用 A 的发送能力，不复制另一套搜索、输入和发送实现
-→ 验证实际结果；不回复与转人工按约定输出，不伪装成已发送
+确认会话
+→ 读取获准实际历史
+→ bounded Agent 判断：reply / no-reply / human
+→ 校验输出
+→ 必要人工确认
+→ 发送前重新核会话和新鲜度
+→ 复用 A 的发送能力
+→ 验证实际结果
 ```
 
-只有需要回复且满足放行条件才进入发送。新的消息、账号或会话变化使先前判断失效时，返回必要读取与判断或停止；不能在新上下文中照发旧回复。Agent 输出是待校验业务数据，不是新授权，也不是可直接执行的 JS。
+新消息使判断过期时，重新读取／判断或停止，不能发送旧决定。
 
 ### 最小操作与数据交接
 
-下表使用文档语义，不新增强制 JSON schema；普通函数参数和返回对象可以承载。详细通用模板继续以[业务步骤说明](../../../docs/frameworks/automation-problem-solving-framework.md)为准。
-
-| 环节 | 必要输入 | 交付及下游条件 |
+| 环节 | 必要输入 | 正常输出 |
 | --- | --- | --- |
-| 确认会话 | 联系人线索、应用／账号范围、允许查询的对象 | 当前会话与对象绑定、实际身份依据及未决歧义；重名未消除不能发送，不凭空制造稳定 ID |
-| 读取历史（B） | 已确认会话、获准读取范围 | generic collection observations/items → 应用 parser 形成实际消息内容、来源及影响判断的新鲜度依据；不能把“未读到”当“没有消息” |
-| 判断与校验（B） | 实际历史、业务回复规则、预算及授权边界 | 允许的判断结果、候选内容及校验结果；非法输出、事实不足或 provider 不可用不进入发送 |
-| 发送确定内容（A／B 共用） | 确定内容、目标绑定、发送授权及必要上下文 | 指定对象与内容对应的实际发送结果、证据和不确定性；提交前再次核对可变前提 |
-| 结果核对 | 本次发送请求、当前对象及可用结果来源 | 区分已填入、已提交、已确认发送和结果不明；只声明证据支持的层次，不把“已发送”外推为送达或已读 |
+| 会话确认 | 联系人线索、应用／账号范围 | 唯一目标绑定或 unresolved ambiguity |
+| 历史读取 | 已确认会话、允许范围 | actual messages + provenance + freshness |
+| 判断 | actual history、业务规则、预算 | validated decision / candidate content |
+| 发送 | target binding、确定内容、授权 | actual send result / unknown |
+| 结果核对 | request、当前对象、结果来源 | submitted / confirmed / unknown 等真实层次 |
 
-发送可能生效但未得到回执时，先核对结果，不直接再次调用整个组合能力。调用方不能因只读阶段失败而重放已经发生的发送；应用没有足够核对能力时输出结果不明并停止。验证由[BC-17／BC-18](validation-plan.md)覆盖，实际接线和共享交付条件由[链路设计](chain-design.md)维护。感知的在线依赖仍须明示，纯 JS 控制流不等于离线运行。
+输入框清空不等于已发送；已发送也不等于送达／已读，除非有对应证据。
 
 ## 作业任务树
 
-下面保留原操作补强专业方法。认识与审阅按前节执行；本树按缺口选择，不要求每个短任务完整重做。
+### 1. 明确要实现的业务操作
 
-- **先明确要实现的业务操作，而不是先创建组件系统**
-  - 从主任务树取出当前子目标、对象、必要输入、输出和成功条件。
-  - 判断当前需要的是准备状态、操作控件、输入内容、读取结果，还是组合业务能力。
-  - 核对已有脚本、应用知识和公开 API；满足需求的实现保留，只补实际缺口。
-  - 明确操作方式约束；要求通过按钮完成的计算，不能用 JS 算术、键盘或后台调用替代。
-- **认识足够完成任务的应用结构**
-  - 确认应用与窗口身份。
-    - 核对进程、窗口、账号／文档／业务对象、权限、前台与可见状态。
-    - 保存匹配规则和有效范围，不把一次 windowId、活动窗口或截图当永久依据。
-  - 区分布局、状态和组件。
-    - Layout 描述区域排列与几何关系；UI 组件描述可交互或可读取的对象；业务语义说明这些对象在当前任务中意味着什么。
-    - 区分窗口平移、窗口缩放、布局重排、模式切换和数据状态变化，不能统一当成坐标平移。
-    - 先找任务相关区域，再在区域内定位目标；通用区域检测不能直接声称订单可发货或消息已发送。
-    - 对计算器区分结果显示、当前表达式、历史记录、数字键、运算符和清除操作，不从旧历史读本次结果。
-    - 对重复记录区分 collection region、visible item boundary 与业务 item mapping；前两者是结构认识，业务字段归下游 parser。
-  - 建立当前可操作状态。
-    - 识别遮挡、弹窗、加载、禁用、焦点和待提交状态。
-    - 只做获准准备；准备后重新检查，不擅自清空业务数据或强制重置整个应用。
-    - 为未知模式或超出支持范围的布局明确停止／重新发现的条件。
-- **将目标身份与一次位置分离**
-  - 给需要操作或读取的组件定义语义名称。
-    - 数字 2 按钮、乘法按钮、当前结果区域是目标，不是屏幕坐标。
-    - 可以使用 `targets.multiply`、`targets.digit2` 等普通数据属性保存描述或规则；目标数据与操作函数分开，不创建 `calc` 实例来承载按钮操作。
-    - 一次得到的矩形或点属于本次解析结果，不因存进变量就自动可靠。
-  - 为目标保留上下文和来源。
-    - 关联应用、状态、父区域、标签／图像／结构信号、锚点、候选和证据。
-    - 区分 observed、解释、假设和经过验证的规则；区域置信度不等于业务身份已确认。
-    - 多个候选不默认取第一个、最近者或最高分者；按明确约束消歧，仍不唯一就停止。
-  - 保持四个对象的区别。
-    - Target：业务上要操作谁或什么。
-    - Locator：在当前状态下凭什么找到它。
-    - Geometry：怎样从当前窗口、区域和相对关系解析位置。
-    - Coordinate：这一次真正执行的临时点。
-- **选择当前场景可验证的定位方案**
-  - 先核对可用性，再选择信号。
-    - 可用且可靠的结构化目标、文字、图像、局部图色、锚点、布局都可成为依据；不是每个应用必经同一条识别阶梯。
-    - 必要时用局部 Vision 辅助识别；它产生的目标假设仍要与当前状态和证据核对。
-    - 不要求为每个目标拼出所有 fallback；没有可靠替代路径时停止就是完整策略。
-  - 优先使用框架已经承担的工作。
-    - 文字／图片定位与点击先核对[Desktop UI API](../../../docs/api/desktop-ui.md)，相对位置先核对[Geometry API](../../../docs/api/geometry.md)。
-    - 原分析使用 UI.tapText()、UI.tapTexts()、UI.tapImage() 等作为已有能力参考；逐项文字定位点击不等于表达式求值或多位数字拆分。实际使用先复核当前接口、类型和平台。
-    - `UI.readCollection()`／`UI.collectCollection()` 在当前文档版本仅为 Target Working Contract；未进入 API Reference 前不能在生产候选中按名字调用。
-    - UI.tap() 是曾讨论的可能扩展方向，未核验为正式能力前不能按名字猜测调用，也不在业务脚本里偷偷挂接后称为正式 API。
-    - UI 操作外部桌面；小写 ui 创建 OpenDesk 自身界面，两者不能互换。文档中的 Accessibility 设计不证明当前所选 provider 已接通。
-  - 明确当前窗口和坐标空间。
-    - 限定目标窗口和区域，避免按钮文字与显示区、其他窗口重名。
-    - 区分 screenshot image pixels 与 screen logical coordinates；不得把 OCR bbox 直接当鼠标点，或用一个缩放系数处理未知混合 DPI。
-    - Geometry 是快照计算，不截图、不验证布局、不自动跟随窗口；应用需重新取得当前父区域再计算。
-    - 窗口、区域、截图的身份和时刻须相容；发生移动、遮挡或布局变化时重查，不能拼接互不对应的画面。
-- **仅在有依据时采用按钮矩阵或区域拆分**
-  - 先界定矩阵适用范围。
-    - 3×4 可以是某个已观察区域的候选，不是所有计算器或整个窗口的默认形状。
-    - 先确认数字区边界、行列、按钮顺序、间距、内边距和可点击范围。
-    - 运算符列、跨行／跨列键、零键、特殊功能键和缺失单元格单独表达，不能均分后强行套入。
-  - 建立并核验语义映射。
-    - 保存数字 5 属于哪个区域的哪个单元格或相对矩形规则，不保存上次 5 在哪里。
-    - 用实际文字、结构、按钮边界或可靠锚点确认身份；同屏存在网格形状不证明每个格子的含义。
-    - 对所有被支持的按钮核对位置；未用、未测的按钮不因规则相似自动获得资格。
-  - 运行时重新解析安全位置。
-    - 确认当前布局签名和区域，再计算对应按钮矩形及其内部安全点，避开边框与间隙。
-    - 允许明确的非等宽／非等高区域；尺寸不足、重排、不可见或被遮挡时拒绝点击。
-    - 布局不匹配时重新识别或停止，不能无依据选择邻近格子补救。
-  - 保留方案比较而不提前定论。
-    - 文字定位可能更直接，但逐键识别有成本且数字易与显示区混淆，需限定区域。
-    - 矩阵可能减少重复识别，但依赖已验证布局及新鲜区域，不能消除状态与结果验证。
-    - 结构目标若实际可用可以优先考虑；原始坐标重放不作为长期默认方案。
-- **把可靠动作组合成普通操作函数**
-  - 优先直接使用公开 API。
-    - 一个现有调用已经清楚且满足需求时，不为分层再包装同名函数；这不限制框架既有 API 的调用形式。
-    - 局部函数必须增加明确语义、参数转换、验证或实际复用价值；不为按钮操作新增类或应用对象。
-    - 必要的布局规则和状态约定可以是普通数据，不能把所有应用语义塞进通用 UI 核心。
-  - 区分不同粒度的输入与操作。
-    - 单按钮操作处理一个实际控件；按钮序列处理已展开的控件顺序。
-    - 表达式输入负责词元检查、数字拆分和运算符映射；运算符以字符串表达，如 `[25, "*", 4, "+", 10, "="]`。
-    - 一次完整计算还包括准备起点、输入、唯一一次求值动作、等待结果和实际读数。
-    - 这些是职责划分，不要求全部生成独立函数；必要封装由脚本定义并直接调用普通函数，例如 `tapButton(...)`。此前 `calc.tapButton(...)` 是错误的应用对象封装示例，不是待选命名或框架 API；普通函数名也不代表框架已有同名接口。
-  - 先验证输入，再产生界面副作用。
-    - 25 应展开为数字按钮 2、5，不是寻找 25 按钮；* 映射当前已确认的乘法键。
-    - 明确等号由调用者还是组合操作追加，避免重复点击引起额外计算。
-    - 支持范围先覆盖实际需要；未支持的负数、小数、指数、NaN、无限值或非法符号应在输入前拒绝。
-    - 不用 eval、Function 或 JS 算术替代任务要求的 UI 运算；期望值的独立计算仅属于验证，不参与业务取数。
-  - 使动作完成与业务完成分开。
-    - 前置检查、当前定位、顺序执行、后置观察和验证形成完整操作；工具没有报错不表示计算完成。
-    - 控制操作顺序与有界等待，不并行点击同一桌面；缺少必要 await 等顺序问题交代码环节检查。
-    - 固定短停顿只能作为经过确认的节奏控制，不作为结果已出现的证明。
-    - 不强制每次数字点击都调用模型，但关键边界、结果读取和异常必须取得足够证据。
-- **明确清空、读取、结果规范化与失败规则**
-  - 根据当前应用确认清除语义。
-    - 区分清除当前操作数、清除完整表达式、退格和模式重置；C、AC 等标签可能随状态变化，不能盲选首个匹配。
-    - 清空后确认允许开始新计算的状态；显示 0 本身不一定证明不存在待完成运算。
-    - 已保存到任务数据中的 firstResult 与屏幕仍显示该值是两回事。
-  - 从当前结果组件读取实际值。
-    - 优先独立可用的结构化读数；必要时只观察结果区域，使用允许的文字识别，保留原始文本与来源。
-    - 等待结果完成或稳定的条件必须基于状态／观察，不是等待预写期望 110 后直接返回 110。
-    - 规范化区域分隔符、空白等必须有明确格式依据，不以宽松 parseFloat 吞掉尾部错误或把空读数变成 0。
-    - 展示精度、舍入、科学计数法与大整数越界未验证时限定范围；保留实际值的表示，不偷偷损失精度。
-  - 失败先判断能否安全重试。
-    - 观察失败可以按预算补观察；点击可能已发生时不能把没拿到回执当作没点过。
-    - 数字键、等号等并非普遍幂等；中途失败先核对状态，必要时在允许清空后重做当前表达式，而不是盲目重放整串。
-    - 输出失败步骤、目标、实际反馈和必要证据；不返回默认答案或吞错后声称成功。
-- **控制观察成本并保存可复用认识**
-  - 首次未知布局建立方向感，之后优先当前有效区域与预期变化位置。
-  - 复用应用身份规则、布局规则、组件语义、CollectionProfile 和参数映射，不直接复用旧坐标、旧 viewport items 或示范读值。
-  - 明确缓存键与失效因素：应用版本、窗口身份、模式／状态、布局、主题、语言、DPI／显示器及目标歧义；collection 额外考虑 item structure/profile version 与 dynamic mutation。
-  - 仅显示区数据变化且按钮区有效时不重建全屏；布局冲突或验证与缓存预测不一致时重新观察。
-  - 记录感知调用、成本和脱敏情况；确定控制流不等于离线运行，外部 OCR／Vision/Semantic Vision 依赖必须明示。
-- **将已经确认的操作交给代码构建**
-  - 在既有 AppProfile 中保存状态、区域、targets、geometryRules、operations、verifiers、必要 CollectionProfile、证据、局限和成熟度，不新建平行 schema。
-  - 每个必要操作能说明目标、参数、结果、前后条件、当前 API、失败方式及范围；未知字段和未实现 helper/Working API 不冒充完成。
-  - 将业务步骤、应用操作和证据对齐，交给 recipe-build，或有需求时交给独立 code-rebuild；业务意义/business mapping 不足返回 S7—S9，定位/collection 结构事实不足返回 S2—S6。
-  - 已有操作合格则复用；普通组合不足时按[扩展框架](../../../docs/frameworks/runtime-api-extension-framework.md)提出独立能力缺口，不顺手新增 Core、服务或 UI 方法。
-  - 发布固定版本、支持范围和未决项；同一 helper/Profile 由一个获准工作包修改，变更规则需同步 AppProfile 和候选引用，避免下游混用。
+从 TaskContract / Procedure 取得：
+
+- 业务对象；
+- 输入；
+- 输出；
+- 前置；
+- 成功；
+- 禁止替代方式；
+- 风险／授权。
+
+先核已有 API、Profile 和 helper，能复用就不重新造。
+
+### 2. 认识足够完成任务的应用结构
+
+区分：
+
+- application / window identity；
+- page / mode；
+- parent region；
+- target；
+- result region；
+- loading / modal / disabled / focus state；
+- repeated structure；
+- current business object。
+
+### 3. 将 Target 身份与一次位置分离
+
+保持四层：
+
+```text
+Target      业务上要操作谁
+Locator     当前凭什么找到它
+Geometry    怎样解析当前空间关系
+Coordinate  本次真正执行的临时位置
+```
+
+一次 Coordinate 不能升级成 Target identity。
+
+### 4. 选择当前场景可验证的定位方案
+
+可能依据：
+
+- native role / name / value；
+- text；
+- image；
+- anchor + relation；
+- region / layout；
+- 有证据的矩阵；
+- 组合条件。
+
+没有可靠唯一目标时停止，不默认“第一个”“最近”“最高分”。
+
+当前可调用事实以 [Desktop UI API](../../../docs/api/desktop-ui.md) 等正式 API 文档为准；设计名称不能直接写进 Candidate。
+
+### 5. 仅在有依据时采用矩阵或区域拆分
+
+例如 3×4 只是一种候选：
+
+- 必须先确认区域边界；
+- 行列和特殊键；
+- 支持范围；
+- safe point；
+- 重排／遮挡／缩放失效条件。
+
+不能把“像网格”当成按钮语义证明。
+
+### 6. 把可靠动作组合成普通操作函数
+
+普通函数只有在它增加：
+
+- 参数转换；
+- 业务语义；
+- 复用；
+- 前后条件；
+- verifier；
+- 错误处理；
+
+时才值得存在。
+
+不为了“面向对象”给每个应用创建对象方法层。
+
+多位输入先展开业务 token，再映射到实际控件。例如数字 25 是 2 → 5，不是寻找“25 按钮”。
+
+### 7. 明确读取、等待、清空和失败规则
+
+- 读取实际结果区域，不读历史旧值。
+- 等待基于状态／observation，不等待 Expected 文本后返回 Expected。
+- C / AC / backspace 等语义按当前应用验证。
+- 解析必须保留原始值和格式依据。
+- 读取失败不返回默认答案。
+- 动作可能已发生时先核对，不直接重放。
+- 只有状态可确认且有授权时才从安全起点恢复。
+
+### 8. 控制观察成本并保存可复用认识
+
+复用的是：
+
+- application identity rule；
+- layout / target rule；
+- operation contract；
+- CollectionProfile；
+- verifier；
+- limitations。
+
+不复用的是：
+
+- 旧 windowId；
+- 旧坐标；
+- 旧 viewport items；
+- 示范 read value。
+
+缓存失效至少考虑 app/version、window、mode、layout、locale、DPI/display、theme、target ambiguity 和 profile drift。
+
+### 9. 将确认的操作交给代码构建
+
+交 recipe-build 前，必要操作至少能说明：
+
+```text
+purpose
+input
+target
+precondition
+action
+actual output
+postcondition
+verifier
+failure
+supported scope
+source / evidence
+```
+
+若缺的是业务语义，回 S8—S9；若缺的是应用规则，留 S10；若缺的是 Runtime primitive，建立独立能力缺口。
 
 ## 逐级验证与完成边界
 
-- 验证区域和组件身份，再验证唯一目标及当前位置；几何正确不能替代目标语义。
-- 验证 single-viewport collection segmentation/profile 后，才能验证 scroll continuity/merge；collector 合格也不自动证明 business parser 字段正确。
-- 验证单个操作，再验证顺序输入、一次业务能力、数据交接和完整任务。
-- 按用途、风险和支持范围选择合法变参、旧状态、窗口移动、尺寸／布局变化、遮挡、缺目标和非法格式拒绝；不要求每个短脚本验证所有布局。
-- 对每一级保留实际范围和证据，借鉴[能力成熟度路径](../../../docs/frameworks/capability-development.md)，不把计算器一次成功或一个 list fixture 外推为跨应用能力。
-- 本轮是设计与 Skill 方法入口写入，不继承聊天中原型通过声明为运行证据。没有实际执行时，提取、审阅、定位、操作、Structured Collection Runtime、独立上下文、业务验收分别为 not-run／blocked，不填写通过率。
-- 分批实施、隔离真值、正常路径和异常测试统一见 validation-plan.md；第一批包含实际模型提取及审阅纠错闭环，Structured Collection 则另按专项架构 Phase 1–7 从 schema/fixture 到真实应用逐级实施，不能只交 HTML 或手写正确数据后称完成。
+验证顺序：
+
+```text
+页面 / 对象身份
+→ Target 唯一性
+→ Locator / Geometry
+→ 单操作
+→ 顺序组合
+→ runtime data handoff
+→ 完整业务子目标
+→ Candidate qualification
+```
+
+Collection 场景另外分开：
+
+```text
+current viewport structure
+→ business mapping
+→ traversal（如需要）
+→ final business result
+```
+
+discover 完成不等于 harden 完成；harden 局部验证不等于 Candidate 资格；真实应用一次成功也不等于所有布局和平台支持。
+
+验证案例统一见 [validation-plan.md](validation-plan.md)。
 
 ## 迁移与设计记录
 
-- 2026-09-07：原 workflows/agent-to-recipe/application-operations.md 正文迁入 design，原路径保留导航。
-- 来源基线：2707893a9581ccf356dc8130ad608158145b4fc6；原 blob 1a0def376e86700af6d7db98fbdb4c1a776609aa。保留全部专业主题、矩阵与封装取舍、读取和失败规则。
-- 新增说明：discover／harden／repair 的不同前提、生成与独立可选改进的消费者、按范围验证和 helper 版本责任。原 API 例子是分析来源，实施仍需核对当前接口。
-- 后续可提炼为 application-engineer 的核心步骤与按需参考；不把此分析当作已安装能力。
-- 2026-09-07，v0.3：依据用户补充的项目背景与聊天例子，增加基础操作、组合能力与混合流程的边界和最小交接；不改原计算器作业树，不创建或恢复 Skill，不执行真实消息发送。与 DREQ-15、DREQ-18 及 BC-17／BC-18 对应。
-- 2026-09-08，v0.3.1：依据用户纠正，同步需求基线的脚本组织约束，明确目标数据与普通操作函数分开；`calc.tapButton(...)` 是错误的应用对象封装示例，不是可选命名。不改变既有框架 API 的调用形式、矩阵定位的候选性质或原有验证边界。
-- 2026-09-08，v0.4：依据用户批准写入，合并界面认识与审阅子作业、同一 Agent 正常／异常路径、材料充分性分级和审阅影响；正式方法入口单独提炼。保留原操作专业方法与案例，不创建独立 ui-understanding Skill，不改图像分割实现；分批实现及运行证据另行验收。
-- 2026-09-10，v0.5：在 application-engineer 既有认识职责内加入 collection discovery、multi-source evidence、CollectionProfile authoring、authoring-time VLM、item-boundary overlay 与 deterministic validation；将 CollectionProfile 与 Traversal、generic item 与 business mapping 分离。详细算法只链接专项架构，不复制第二套 Runtime 设计，不新增 collection/VLM Skill 或 Stable API。
+本 canonical 文件不再维护逐日期迁移日志、旧 blob、某轮 Skill 是否已实现或某次 Calculator 是否通过。
+
+需要：
+
+- 当前实现／测试状态 → `docs/quality/`
+- Structured Collection / VLM / traversal 算法 → [专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)
+- API 当前事实 → `docs/api/`
+- 历史设计演变 → Git history
+
+本文件只维护 application-engineer 当前应该怎样做。
