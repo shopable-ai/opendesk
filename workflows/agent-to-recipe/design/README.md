@@ -1,308 +1,268 @@
 ---
-title: "Agent-first Recorder｜设计总纲与文件地图"
-description: "Agent-to-Recipe 工作流的有效决定、阅读顺序与实施前核对事项。"
+title: "Agent-to-Recipe｜设计总纲与 Canonical Map"
+description: "说明 Agent-to-Recipe 各设计文档分别回答什么问题，以及推荐阅读顺序。"
 order: 10
 ---
 
-# Agent-first Recorder｜设计总纲与文件地图
+# Agent-to-Recipe｜设计总纲与 Canonical Map
 
-状态：设计基线 v0.10，2026-09-22 对齐八个正式方法包与来源感知路由，并修正主链入口表达。保留 v0.6 Structured UI Collection Reading 的现行边界，以及自然语言入口、操作计划、planned／actual 和 DistilledSteps 专业边界。当前八项专业职责均已有同名方法文件：automation-plan、application-engineer、task-demonstrate、trace-distill、procedure-synthesize、recipe-build、code-rebuild、recipe-qualify；方法文件存在、确定性检查、宿主加载、独立上下文行为和真实业务资格仍分别判断。实际状态见[质量总览](../../../docs/quality/agent-to-recipe-workflow-review-20260919.md)。本文不新增 Runtime、S13 或第三套工作流。返回[工作流总入口](../../README.md)。
+本文只回答一个问题：
 
-## 先看关键输入输出与实际检查
+> **Agent-to-Recipe 的设计信息应该去哪里找，哪个文件拥有哪类事实？**
 
-从[交接审阅地图](acceptance-map.md)查看：中文环节与 Skill／模式、输入输出实例、放行反例、失败责任和仍未实现部分。原[任务分解树](task-decomposition.md)继续拥有完整任务与三个循环，不用新摘要替代。
-原检查器已支持 `--through` 分段检查和 `--format markdown` 同源审阅 View；它不是完整 Stage Validator、自动评分器或新的运行资格证明。测试与限制见[本轮修复记录](../../../docs/quality/agent-to-recipe-stage-boundary-review-20260919.md)。
+如果你第一次进入本目录，先用本页建立地图，再按当前问题进入对应 canonical 文件。不要从历史版本、质量报告或专项架构反推当前工作流。
 
-## 一、当前要建设什么
+## 30 秒总览
 
-- 继承[项目背景与本工作流的职责](requirements.md#项目背景与本工作流的职责)：OpenDesk 面向工作与生活中的重复及复杂任务，Agent-to-Recipe 是生产自动化成果的开发链，不是整个产品的范围。
-- 从真实任务／人工开发目标／已有自动化资产出发，形成有依据、可验证并可维护的普通 OpenDesk JavaScript 与必要组合能力；存在必要判断时交付明确接入的 JS／Agent 混合流程。
-- 用户以自然语言、截图、样例或已有资产提出任务；结构化 TaskContract／WorkPlan 由 Agent／宿主产生并保留来源。较长桌面任务在执行前形成可审阅的业务操作计划和关键检查点，使错误路线尽早暴露，而不是要求用户提供 JSON。
-- 已明确、能够验证的步骤交给 JS；必要的理解与动态判断交给 Agent；授权决策保留人工。
-- 默认同一个 Agent 按工作流连续作业；专业作业、Skill、工作包、文件和 Agent 不一一对应。已有成果先复用，异常时定向补证。
-- 普通脚本不以前置建设 Recorder Session、Compiler、可执行 IR、独立 Replay Runtime、LangGraph 或资产平台为条件；明确选择完整 Recorder 专项时仍遵守其独立模型和验证门槛。
-- 对 list/table/timeline/grid/cards/tree/virtualized list 等重复 UI，工作流负责发现业务需要、建立／修订应用侧 CollectionProfile、生成／消费普通代码并做资格验证；跨应用技术边界只维护在[结构化界面集合读取](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
+```text
+为什么做、必须满足什么？
+  → requirements.md
 
-## 二、只区分三条不同层次的链
+完整需要做什么？
+  → task-decomposition.md
 
-- 需求推导链：用户原始来源 → 事实／未知 → 业务需求与场景 → 可验证需求基线，回答真正需要什么。
-- 自动化开发工作流：操作计划 → 取得可信执行事实 → DistilledSteps 必要路径 → 业务语义与复用规则 → 形成程序 → 验证与维护，回答怎样生产自动化。
-- 业务执行工作流：生成后的程序每次实际完成的业务步骤，计算器例子是首次计算 → 真实读数 → 再次计算 → 读取并打印。
-- Capability 是需要具备的业务能力；业务 Function 不等于 JS 函数；Agent Skill 是专业作业；已有 API 和普通函数是实现方式。这些对象不能一一硬配。
-- 业务运行继续按“框架原语 → 应用语义操作 → 组合业务能力 → 完整业务流程”理解粒度，不新增 Runtime 层。
+谁负责、生产什么、交给谁、失败回哪里？
+  → chain-design.md
 
-### 三类来源先分流
+Agent 实际怎样进入、恢复、停止与协调？
+  → ../WORKFLOW.md
 
-不要把 Agent 新示范、已有资产接续和 Human Recorder 强行伪装成同一种历史。三类来源共享后续专业方法，但进入位置和证明边界不同：
+人和 Agent 怎样快速检查交接？
+  → acceptance-map.md
+
+凭什么证明每一层做对？
+  → validation-plan.md
+
+怎样做应用工程？
+  → application-operations.md
+
+已有 JS 怎样独立改进？
+  → code-rebuild.md
+```
+
+阶段、Skill、文件、Agent 是四个不同概念。**S1—S12 是业务开发阶段；八个 Skill 是专业职责入口；设计文件是方法与合同说明；实际执行者可以是同一个 Agent。**
+
+## Canonical Map
+
+| 文件 | Canonical Question | 主要类型 | 主要拥有内容 | 明确不拥有 |
+| --- | --- | --- | --- | --- |
+| [requirements.md](requirements.md) | 为什么需要这套工作流，以及必须满足什么？ | Canonical Method / Requirements | 来源、事实、需求、范围、约束、场景、验收需求、Unknown | 当前实现状态、专项 Runtime 算法、质量结果 |
+| [task-decomposition.md](task-decomposition.md) | 从输入到合格成果，完整需要做什么？ | Canonical Method | S1—S12、输入、输出、完成条件、失败回流、主工件关系 | Skill 实现历史、质量报告、专项架构 |
+| [chain-design.md](chain-design.md) | 各职责怎样连接，输入输出怎样交接？ | Contract / Architecture | producer、consumer、handoff、route、resume、failure ownership | 完整任务树、测试结果、历史迁移 |
+| [../WORKFLOW.md](../WORKFLOW.md) | Agent 实际怎样进入并协调执行？ | Operational Method | 入口、当前阶段、Skill 路由、handoff、resume、stop | 专业方法正文、阶段完整分解 |
+| [acceptance-map.md](acceptance-map.md) | 人和 Agent 怎样快速检查阶段交接是否正确？ | Validation / Review | 边界检查、典型反例、责任返回、快速审阅视图 | 质量报告、测试运行历史 |
+| [validation-plan.md](validation-plan.md) | 凭什么证明每一层做对？ | Validation | 验证对象、测试空间、正反例、Gate、证据、评分、硬失败 | 历史测试结果、专项实现日志 |
+| [application-operations.md](application-operations.md) | 怎样把业务步骤落实为可靠应用操作？ | Canonical Method | discover/harden/repair、定位、读取、等待、动作、验证边界 | Collection Runtime 算法、S7—S9 业务语义 |
+| [code-rebuild.md](code-rebuild.md) | 已有普通 JS 怎样按需改进而不重造业务语义？ | Canonical Method | 代码基线、缺陷分类、最小修改、回归范围、候选冻结 | 迁移历史、Recorder 专项、资格报告 |
+| [共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md) | 工件字段、版本、正式交接怎样定义？ | Contract / Schema | TaskContract、WorkPlan、Dossier、DistilledSteps、Procedure、Candidate、Qualification | 工作流方法说明 |
+| [Structured UI Collection Reading](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md) | Collection/VLM/Traversal 技术机制怎样设计？ | Architecture | Observation、CollectionProfile、segmentation、continuity、VLM、traversal | Agent-to-Recipe 主流程 |
+| `docs/quality/` | 某一版本实际验证了什么？ | Validation / Evidence | 测试记录、评分、commit、局限、失败 | 当前 canonical 方法 |
+
+## 推荐阅读顺序
+
+### 只想理解整体
+
+```text
+README
+→ requirements
+→ task-decomposition
+→ chain-design
+→ WORKFLOW
+→ acceptance-map
+```
+
+### 准备实际执行
+
+```text
+WORKFLOW
+→ 当前 TaskContract / WorkPlan
+→ 当前职责 Skill
+→ 需要时读取对应专业设计
+→ acceptance-map / validation-plan
+```
+
+### 审查某个交接错误
+
+```text
+acceptance-map
+→ chain-design
+→ shared contract
+→ 对应 Skill 输入输出规格
+→ 必要时回 task-decomposition 查失败责任
+```
+
+### 审查某项专项技术
+
+不要从本目录重复寻找第二套算法。直接进入对应权威架构或 API 文档。
+
+## 当前设计的稳定边界
+
+以下是当前设计必须保持的稳定边界：
+
+1. **S1—S12 不重新编号。**
+2. **阶段 ≠ Skill ≠ 文件 ≠ Agent。**
+3. **automation-plan、application-engineer、task-demonstrate、trace-distill、procedure-synthesize、recipe-build、code-rebuild、recipe-qualify 的核心职责保持。**
+4. **S2 与 S10 共享 application-engineer。**
+5. **code-rebuild 是可选独立质量作业，不替代 recipe-build。**
+6. **Human Recorder 与 Agent 新示范保留不同来源事实。**
+7. **事实 → 必要步骤 → 业务语义 → 代码 → Qualification 是不同证明层。**
+8. **普通业务运行不重复执行 S1—S12。**
+9. **专项 Runtime、VLM、Collection、Recorder、Compiler、IR 只在各自权威文档维护。**
+10. **质量报告只证明其对应版本与范围，不反向定义当前方法。**
+
+## 三类来源先分流
 
 ```text
 Agent 新任务
-  → S1 形成 TaskContract / WorkPlan
-  → 进入下方 Agent 新生成主链
+  → S1 开始
+  → 按 S1—S12 主链推进
 
-Existing Asset / Failure Package
-  → 冻结 source / hash / scope / evidence role
-  → 复用仍有效的上游成果
-  → 从第一个真实缺口接续到对应职责
-  → 固定 Candidate 后进入 S12
+已有资产 / Failure Package
+  → 冻结 source / hash / scope / evidence
+  → 找第一个真实缺口
+  → 从对应职责继续
 
 Human Recorder
-  → human-to-recipe 保留 H1—H4/H5 的人工来源事实与审阅
-  → 简单受控路径可按 Human 路线直接生成
-  → 需要增强时复用 application-engineer / trace-distill / procedure-synthesize / recipe-build / recipe-qualify
+  → 保留 Human 来源链
+  → 满足共享职责输入条件后再接入
 ```
 
-因此，Existing Asset 不要求重新制造 DemonstrationDossier；Human Recorder 的 recording/actions 也不能改标为 Agent 示范。具体跳过、接续、发布和失败责任以 [chain-design.md](chain-design.md) 与共享合同为准。
+Existing Asset 不需要重新制造 Dossier；Human Recording 也不能改标成 Agent 示范。
 
-### Agent 新生成的正式主链
+## Agent 新生成主链
 
-下面这张图是 **Agent 新任务／完整新生成** 的权威高层主链。它用于快速判断从用户目标到可资格化 Recipe 的整体关系；它不新增 S13、不替代 S1—S12 的完整任务树，也不创建新的 Runtime／IR。
+这张图只用于快速定位，不替代 [task-decomposition.md](task-decomposition.md)：
 
 ```text
-┌────────────────────────────────────────────────────────┐
-│ Agent New Task / User Goal                             │
-└──────────────────────────┬─────────────────────────────┘
-                           ▼
-          S1 automation-plan · Goal / Task Contract
-                           │
-                     Operation Plan
-                           ▼
-     S2 application-engineer/discover · Minimal Discover
-                           │
-                           ▼
-     S3—S6 task-demonstrate · Execute / Observe / Verify
-                           │
-          ┌────────────────┼────────────────────┐
-          ▼                ▼                    ▼
-     Raw Action          AX/UIA        Screenshot / OCR /
-                                      Vision / Layout
-          └────────────────┼────────────────────┘
-                           ▼
-                 Demonstration Dossier
-                           │
-                           ▼
-              S7 trace-distill · DistilledSteps
-          retain / merge / omit / recovery / unknown
-                           │
-                           ▼
-        S8—S9 procedure-synthesize · SemanticProcedure
-       BusinessStep / Params / Data Flow / Branch / State
-                           │
-                           ▼
- S10 application-engineer/harden|repair · Application Hardening
-       Target Grounding / Locator / Wait / Read / Verify
-                           │
-                           ▼
-             S11 recipe-build · OpenDesk JS Recipe
-                           │
-                  [optional] code-rebuild
-                           │
-                           ▼
-          S12 recipe-qualify · Fresh Qualification
-                    ┌──────┴──────┐
-                    ▼             ▼
-                  PASS           FAIL
-                    │             │
-                    ▼             ▼
-          Delivery / Publish Handoff    Targeted Repair
-                                  │
-                                  └──→ 返回对应责任环节后重验
+User Goal
+  ↓
+S1 automation-plan
+  ↓
+S2 application-engineer / discover
+  ↓
+S3—S6 task-demonstrate
+  ↓
+Demonstration Dossier / Raw Trace
+  ↓
+S7 trace-distill
+  ↓
+DistilledSteps
+  ↓
+S8—S9 procedure-synthesize
+  ↓
+SemanticProcedure
+  ↓
+S10 application-engineer / harden|repair
+  ↓
+S11 recipe-build
+  ↓
+[optional] code-rebuild
+  ↓
+S12 recipe-qualify
+  ↓
+Delivery / explicit publish handoff
 ```
 
-读图时保持以下边界：
+失败不默认回 S1。目标／授权回 S1；事实不足回 S3—S6；必要路径错误回 S7；语义和参数化错误回 S8—S9；应用规则错误回 S10；代码错误回 S11；资格设置或证据问题留 S12。
 
-- `Raw Action / AX/UIA / Screenshot / OCR / Vision / Layout` 是同一任务中的**证据来源与观察手段**，不是生命周期上的多个串行阶段。S2 的最小发现和 S10 的工程化补强也可按需要使用这些来源；图中把它们画在执行旁路，是为了突出真实操作时的同步留证。
-- `Minimal Discover & Feasibility` 只建立足以安全推进的最小认识并优先核查会推翻路线的高影响 Unknown；`Application Hardening` 才把已确认业务需要落实成可重复运行的 Target／Locator／Wait／Read／Verifier／Recovery 规则。
-- `Demonstration Dossier` 证明“实际发生了什么”；`DistilledSteps` 证明“哪些实际动作构成必要路径”；`SemanticProcedure` 说明“这些步骤的业务含义、数据关系与复用规则”。三者不得合并成一份模糊说明。
-- 上图只表达 Agent 新生成主链；Existing Asset 与 Human Recorder 按前一节的来源路由接入共享职责，不伪造 Agent Demonstration lineage。可跳过环节、接续条件和证明边界见 [chain-design.md](chain-design.md)。
-- `Fresh Qualification` 的 PASS 只对冻结候选和声明范围成立；PASS 后仍需按实际产品能力进入交付／显式发布门，不能把资格通过写成 Catalog 已发布。FAIL 后的 `Targeted Repair` 按责任回流并重验；两者都不新增 S13。
-- FAIL 不默认回到 S1。目标／授权问题返回规划，应用／Target／Locator 问题返回 application-engineer，事实不足返回示范补采，必要路径错误返回 trace-distill，业务语义／参数化错误返回 procedure-synthesize，代码错误返回 recipe-build／code-rebuild，验收设置或证据问题返回 recipe-qualify。
+## 文件修改原则
 
-这里特别区分六类不同证明对象：
+修改本目录时先判断一段内容属于哪一类：
 
 ```text
-用户原始表达       说明用户真正说了什么
-TaskContract/Plan  说明 Agent 当前怎样理解并准备怎样做
-Dossier/Raw Trace  说明实际发生了什么
-DistilledSteps     说明哪些实际动作构成必要路径
-SemanticProcedure  说明这些步骤的业务含义与复用规则
-Candidate/Qualification 说明代码怎样实现、实际候选是否合格
+A. Canonical Method
+B. Contract / Schema
+C. Architecture
+D. Engineering / Implementation
+E. Validation / Evidence
+F. History / Migration
 ```
 
-后层可以引用前层，不能反向覆盖历史事实。
+一个 canonical 文件通常只能有**一种主要类型**。其他类型只保留完成当前职责所必需的边界说明和链接。
 
-Structured Collection 只增加一条职责边界，不增加开发链：
+### 应删除或降级为引用的典型内容
+
+- 某次 commit / evaluator / PASS 数量；
+- “当前宿主是否加载”的版本状态；
+- R1—R13 历史讨论正文；
+- v0.x 逐版本迁移日志；
+- Collection/VLM/AX/UIA/Runtime 的算法细节；
+- Compiler / IR / Recorder 专项设计；
+- 已被共享合同拥有的字段定义；
+- 已被其他 canonical 文件完整拥有的方法正文。
+
+唯一重要事实如果尚无权威位置，应先移动到适当文件，再删除复制。
+
+## 设计与证据怎样连接
+
+Canonical 文档说明“**应该怎样做**”；质量记录说明“**某一版本实际上证明了什么**”。
+
+因此：
 
 ```text
-AX/UIA + OCR + Screenshot/Layout
-→ ObservationBundle
-→ 划分记录 + 字段归属 + 结构验证
-→ generic CollectionItem[]
-→ App Adapter
-→ Conversation[] / Message[] / Order[] 等业务对象
-→ Recipe
-→ 滚动 / 分页 / 跨批去重 / 结束判断 / 后续动作
+canonical method
+  ≠
+implementation exists
+  ≠
+tests pass
+  ≠
+host loads it
+  ≠
+real business qualified
 ```
 
-其中 VLM 只提出 grouping/profile proposal，必须重新经过确定性结构检查；`CollectionItem[]` 与业务对象不是同一层。
+需要当前质量状态时进入 `docs/quality/`，不要在 canonical 方法正文里维护不断变化的测试数量、commit 或成熟度声明。
 
-## 三、建设顺序与唯一正文
+## Structured Collection 的位置
 
-- [requirements.md](requirements.md)：项目背景与业务目标、自然语言入口、来源、事实／未知、执行前操作计划、开发入口、功能和质量需求及范围变更；Collection 需求只保存工作流层要求，不复制 Runtime 算法。
-- [task-decomposition.md](task-decomposition.md)：完整保留工作流任务分解树、五个结果层次、S1—S12、R1—R13 对照和三个循环；S1 维护业务操作计划，S7 发布 DistilledSteps，Structured Collection 只作为现有节点增量，不新增 S13。
-- [chain-design.md](chain-design.md)：明确八项目标专业职责、输入输出、组合、复用、跳过、失败和中断返回；`trace-distill=S7`，`procedure-synthesize=S8—S9`；Collection 链保持“Profile → generic item → App Adapter → business object → Recipe”。
-- [application-operations.md](application-operations.md)：负责应用认识与审阅、模型／程序／人工分工、CollectionProfile authoring、定位规则和实际应用操作；不复制集合算法，也不承担原始 action 去噪。
-- [code-rebuild.md](code-rebuild.md)：独立、可选的代码质量改进，不替代 recipe-build。
-- [recipe-qualify/SKILL.md](../skills/recipe-qualify/SKILL.md)：S12 冻结候选的分层资格、Recipe Review、评分证据边界与修复路由；不修改候选换取通过。
-- [validation-plan.md](validation-plan.md)：定义行为案例、计划—事实—DistilledSteps 交接测试、分层应用工程测试及唯一评分依据；集合结构正确、业务映射正确和完整业务流程正确必须分别验证。
-- [共享 Skill 合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)：TaskContract／WorkPlan、AppProfile、Dossier、DistilledSteps、SemanticProcedure、CandidateManifest、QualificationRecord 的字段职责、版本和正式交接唯一正文。
-- [结构化界面集合读取](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)：跨工作流唯一技术正文，定义 ObservationBundle、CollectionProfile、记录分段、字段归属、Validator、VLM proposal、generic Item、App Adapter 和 Recipe 边界。
-- [计算器案例](../cases/calculator.md)：保留需求代入、数据关系、失败反例和设计演变，不因新集合能力改写已有业务事实。
-- [WORKFLOW.md](../WORKFLOW.md)：保留导航和八个现有方法入口；方法可显式读取，不等于宿主自动加载、整体调度或真实业务资格已实现。
-- [application-engineer/SKILL.md](../skills/application-engineer/SKILL.md)：在既有应用工程职责中认识 UI／Collection、组织 evidence、建立 Profile、必要时使用 VLM proposal、生成 overlay 并校验；不新增 collection/VLM Skill。
-
-建设关系仍是：需求及行为案例 → 完整任务树 → 链路／交接／测试设计 → Skill 方法与辅助程序 → 独立和组合验证。不是不可回退的瀑布链。
-
-## 四、当前有效决定
-
-- 先按需求语义拆任务，再分配给人、Agent 专业职责、普通 JS 或已有 API；不按 Agent 人数、文件数、函数数拆需求。
-- 用户不需要提供 TaskContract JSON。`user-task.md` 或等价来源保存用户原始自然语言；TaskContract／WorkPlan 是 Agent 的结构化解释。需要快速纠错时生成同版 `task-brief.md`／`operation-plan.md` 可读视图，但可读视图不是第二份权威需求或计划。
-- S1 对较长真实任务形成业务操作计划，说明对象、主要动作、输入来源、预期结果和检查方式；优先验证会推翻后续路线的高影响 Unknown。未知现场不编造点击细节。
-- S3—S5 维护 `planned step → actual action → actual observation → verification → planDelta`。计划外但事实证明必要的准备／读取／导航不能自动当噪音；未执行的计划也不能补成事实。
-- S6 的“真实业务任务完成”和 S12 的“可复用自动化候选已资格化”是两个不同里程碑；当交付目标包含自动化沉淀时，S6 不结束开发链。
-- S7 负责从 Dossier／Raw Trace 重建、分段、retain／merge／omit／recovery／unresolved 取舍并发布 versioned DistilledSteps；原始事实不可修改。
-- `trace-distill` 是目标专业职责，负责 S7；当前已有正式方法文件及限定切片检查；宿主加载、模型独立上下文表现仍须单独证明。`procedure-synthesize` 收窄为 S8—S9，从 DistilledSteps 形成 Business Step、参数、数据依赖和复用规则，不重新维护第二套原始 action disposition。
-- 保留 recipe-build 负责生成或登记合格基础代码；code-rebuild 只做独立、按需改进；recipe-qualify 负责独立验收。生成者仍须自检，不能故意生产差代码制造优化需求。
-- 应用工程保留 discover／harden／repair。首次发现不依赖完整 SemanticProcedure；已有认识和规则足够时直接复用。
-- 界面认识与审阅继续属于 application-engineer 内部可独立进入和评测的子作业；Structured Collection 不新增第二个 Skill。
-- Human Recorder 的 H1—H8 与 Agent-first S1—S12 保留不同来源事实：前者从人工输入事件／现场开始，后者从 Agent 实际任务执行开始；在 Reviewed Steps／Dossier 已足以消费后，共享 application-engineer、目标 trace-distill、procedure-synthesize、recipe-build、可选 code-rebuild 和 recipe-qualify 的专业方法，不复制第二套专业实现。
-- 模型主导初次应用认识，程序负责证据组织、坐标转换、结构校验、确定性绘图和已验证规则；人工纠错关键认识及必要批准。
-- VLM 默认优先用于 authoring-time Profile 建立；运行期辅助只有确定性路线不足且任务显式允许时才评审。模型输出只作为 proposal/evidence，不直接成为 Truth。
-- `Vision.runOCR()` 保持 OCR 职责，不扩成通用 GUI VLM；生产 Runtime 不嵌套 `opendesk ai` 调 Coding Agent。
-- CollectionProfile 只描述“当前明确观察区域里一条 generic item 怎样识别”，不保存 `sender`、`price`、`customerName`、`conversationTitle` 等业务字段，也不保存滚动／分页策略。
-- generic `CollectionItem[]` 由 App Adapter 映射成具体业务对象；业务字段解释错误不能通过篡改底层 Collection 结果掩盖。
-- **滚动、分页、跨批去重、结束判断由 Recipe 负责。** 当前不把 `UI.collectCollection()` 作为目标公共 API；以后只有多个真实应用证明存在稳定、跨应用、可验证的 traversal 合同，才单独重新评审公共 helper。
-- 当前也不直接发布 `UI.readCollection()`。先完成合同、fixture 和普通 JavaScript 确定性原型，再依据重复使用、生命周期和性能证据决定是否值得成为公共 facade。
-- Collection 与 Target/Locator 共用 Observation 基础，但保持两个问题：Collection 回答“当前有哪些数据项”，Target/Locator 回答“选定业务对象后现在应操作哪个真实目标”。一次 CollectionItem bbox 不能直接持久化成点击目标。
-- 不创建 `UI.extractList()` 万能 API、不新建 collection/VLM Skill、不创建第二份 Collection 技术正文。
-- 默认全局粗识别、关键部分精查；任务必需范围含父区域、锚点、进入路径、结果、阻塞与歧义，核心不能因困难而降级。
-- 材料可支持认识却缺屏幕映射时允许限定交付，但禁止据此点击；观察事实、模型解释、人审、定位和操作验证分别记录。
-- 简单受控使用可以跳过不适用的深度优化，不能跳过正确对象、实际数据、必要验证、授权和安全停止。
-- 普通脚本优先已有框架 API 与必要普通函数，不新增应用对象方法层；未实现 helper 不写成可执行事实。
-- 执行与采集同步，关键验证在动作后发生；正常保留必要事实，详细诊断按需展开，不事后补造现场。
-- 原始证据、叠加、简化结构和属性差异来自同版数据；修改保存旧版、理由和影响，下游不混用版本。
-- `Vision.analyzeLayout()` 和既有颜色分割是可评测辅助，不因源码存在就宣布可靠，也不成为应用认识的强制前提。
-- 来源／需求 → 行为案例 → 任务节点 → 责任 Skill／JS／API → 测试与证据保持双向对应。
-
-## 五、Structured Collection 在工作流里的位置
-
-### application-engineer
-
-负责：
+Agent-to-Recipe 只需要知道职责边界：
 
 ```text
-明确要读取的重复区域
-→ 复用已有 AppProfile / CollectionProfile
-→ 取得最小必要 AX/UIA / OCR / Screenshot/Layout evidence
-→ 必要时让 VLM 提出 grouping/profile 建议
-→ 程序结构校验 + overlay review
-→ 人工按需要纠正
-→ 发布 versioned CollectionProfile + limits + evidence
+application-engineer
+  → 建立 / 修订结构知识
+
+Recipe / Adapter
+  → 将 generic item 映射到业务对象并控制 traversal
+
+recipe-qualify
+  → 分层验证结构、业务 mapping、traversal 和最终业务结果
 ```
 
-### recipe-build
+Collection 的 Observation、VLM proposal、segmentation、continuity、merge、mutation、end detection 等算法统一见[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
 
-只使用当前真实 API 生成普通 JavaScript。如果公共 Collection API 尚未实现，就用当前公开 Accessibility / Vision / Geometry 等能力组成最小实现，或者明确记录能力缺口；不得保留貌似可运行的占位调用。
+## 与 Human Recorder 的共享边界
 
-### App Adapter
-
-负责：
+Human 与 Agent 保留不同来源，但可以复用同一专业方法：
 
 ```text
-generic CollectionItem[]
-→ 应用字段规则
-→ Conversation[] / Message[] / Order[] / ...
+Human recording facts ─┐
+                       ├→ application-engineer
+Agent Dossier facts ───┤   trace-distill
+                       ├→ procedure-synthesize
+                       ├→ recipe-build
+                       └→ recipe-qualify
 ```
 
-### Recipe
+共享方法不等于共享来源资格。
 
-负责：
+## 什么时候查看历史
 
-```text
-消费业务对象
-→ 判断是否继续
-→ 必要时滚动 / 翻页
-→ 验证界面确实发生预期变化
-→ 再读取当前区域
-→ 按业务 identity / 规则合并和去重
-→ 判断结束
-→ 后续业务动作
-```
+当前执行、审查和修改不需要先理解所有设计历史。
 
-### recipe-qualify
+只有以下情况才查 Git history 或旧质量记录：
 
-分层验证：
+- 某项当前决定缺少来源；
+- 需要确认一段删除内容是否仍是唯一事实；
+- 排查版本行为差异；
+- 需要设计考古，而不是完成当前工作。
 
-```text
-1. 当前观察范围的 Collection 结构是否正确
-2. App Adapter 的业务字段映射是否正确
-3. Recipe 的滚动 / 翻页 / 去重 / 结束判断是否正确
-4. 最终业务结果是否正确
-```
+历史不应重新进入 canonical 方法正文。
 
-任何一层失败都不能由另一层高分抵消。
+## 下一层入口
 
-## 六、与 Human Recorder 的共享边界
-
-Human Recorder 保留 H1—H8，Agent-first 保留 S1—S12，两者不统一伪造来源：
-
-```text
-Human：人工输入事件／窗口／控件／现场 → H3/H4 Reviewed Recording Steps
-Agent：S1 操作计划 → S3-S6 Agent 实际动作／观察 → Dossier
-                                    ↓
-                          shared professional work
-application-engineer ↔ trace-distill → procedure-synthesize → recipe-build
-                                              → [code-rebuild] → recipe-qualify
-```
-
-- Human H1—H4 负责人工来源特有的录制、事件正规化、人工审阅和补录；这些记录不能追认为 Agent 示范。
-- Human H5 是来源工作流中的组合阶段：UI／定位／操作复用 application-engineer；必要路径取舍复用目标 trace-distill；Business Step、参数和复用规则复用 procedure-synthesize。H5 不维护第二套平行专业正文。
-- 简单受控坐标路径可以从 Reviewed Recording Steps 直接进入 Human H6，不强制深度语义提炼；使用增强路线时才按缺口消费共享专业方法。
-- 两种来源进入共享专业作业时仍保留 lineage、输入版本和证明边界；相同方法不表示相同来源资格。
-
-## 七、与已有框架和合同的关系
-
-- [框架导航](../../../docs/frameworks/README.md)、[总体框架](../../../docs/frameworks/automation-framework.md)、[任务求解](../../../docs/frameworks/automation-problem-solving-framework.md)、[示范到自动化方法](../../../docs/frameworks/demonstration-to-automation-pipeline.md)提供长期方法来源。
-- [应用开发](../../../docs/frameworks/app-development-framework.md)、[能力成熟度](../../../docs/frameworks/capability-development.md)、[扩展框架](../../../docs/frameworks/runtime-api-extension-framework.md)约束应用认识、验证层次和 API 晋级。
-- [结构化界面集合读取](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)是 Collection 技术边界唯一正文；本目录只维护工作流如何消费它。
-- [共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)继续是字段和交接的唯一正文；DistilledSteps 在此合同维护，不在每个工作流复制 schema；Collection 不创建新的可执行 IR 或第二套 Workflow Runtime。
-- [当前 API](../../../docs/api/README.md)定义可调用事实。`ObservationBundle`、`CollectionProfile`、`SemanticVisionProvider`、`UI.readCollection()` 等设计名称不能仅因文档出现就当成当前 API。
-
-## 八、实施前仍需核对
-
-- 更新 validation-plan 对 DREQ-30—DREQ-33 的行为案例和反例，确认自然语言入口、操作计划、高影响未知、planned／actual、DistilledSteps 和跨专业交接能实际被验证。
-- 八个专业职责的方法文件均已落地，并配套各自输入输出适用规格；其中 Calculator 形状的消费 validator、相邻交接探针与限定切片同源 Markdown 审阅 View 只证明各自声明范围，不替代宿主加载、模型行为或真实业务资格。通用 schema、完整任务门户、宿主加载及模型独立接续测试仍需分别验证，不能从这个切片外推。
-- `procedure-synthesize` 实施／恢复时，从固定 DistilledSteps 开始独立接续，不能靠重新读取完整 Raw Trace 来掩盖上游交接缺陷。
-- 继续按 v0.6 Structured Collection 决策：第一批只做 `ObservationBundle / CollectionProfile / CollectionItem` 合同、离线 fixture 和 current-region deterministic JavaScript prototype；不做公共滚动 collector。
-- 至少用计算器实际数据链、一个含探索／错误／重复点击的轨迹、聊天会话列表、variable-height 消息 timeline、订单／表格验证相邻职责能独立失败。
-- macOS 与 Windows 的 AX/UIA、DPI 和真实应用资格分别报告；未真机的平台不外推。
-- 建模耗时、人工修订、模型费用和复用收益需要实际测量；设计评分不替代运行证据。
-
-## 九、保留与变更规则
-
-- 此处记录的是可审阅的需求结论、设计依据、假设和取舍，不记录模型私有思维。
-- 任务级实际合同、操作计划、Dossier、DistilledSteps、Procedure、候选、笔记和交接放 `.runtime/automation-authoring/<task-id>/`；实际截图日志使用当次 execution 证据目录。
-- 保留失败、局部补证和旧候选；清理 `.runtime/` 前核对引用。证据丢失应标不可复核，不能保留虚假的通过结论。
-- 需求变更先修订相应基线和行为案例，再进行影响分析、更新受影响设计／Skill／代码并重验。
-
-## 历史修订
-
-- **v0.2**：初始归位设计材料，未改 Runtime／API、未运行计算器、未发布生产自动化。
-- **v0.3**：补充项目目标、组合能力、混合运行和资产复用；不恢复已删除旧 Skill 目录。
-- **v0.4**：深化 application-engineer、界面认识与审阅、同一 Agent 正常／异常路线；设计预评审不代表真实运行通过。
-- **v0.5**：接入 Structured Collection 初版，并曾保留 `UI.collectCollection()` / scroll collector 作为未来目标合同。
-- **v0.6**：依据最新批准方案取消“公共 `UI.collectCollection()` / Runtime traversal”方向；Collection 只负责当前明确观察范围，App Adapter 负责业务解释，Recipe 负责滚动、分页、跨批去重、结束判断和业务控制。
-- **v0.7**：补自然语言入口后的可审阅操作计划、planned／actual／planDelta、Dossier → DistilledSteps → SemanticProcedure 工件链；目标 `trace-distill` 负责 S7，`procedure-synthesize` 收窄为 S8—S9，并明确 Human Recorder 与 Agent-first 的共享专业边界。
-- **v0.8**：保留完整任务树，新增交接审阅投影、原检查器的前缀检查与派生 View，完善三个方法的输入输出／反例／结论；纠正文件存在与行为资格混用，不改变 S1—S12、G0—G7 或 Runtime。
-- **v0.9**：新增自动化开发工作流的正式主链总图，明确 Raw Action／AX/UIA／OCR／Vision/Layout 是并行证据来源而非串行阶段；区分最小发现与工程化 Target Grounding，并把 Fresh Qualification → Promote／Targeted Repair 的闭环显式化。不新增阶段、Skill、Runtime 或可执行 IR。
-- **v0.10（当前）**：对齐后续落库的八个方法包与 source-aware routing；把 Agent 新生成、Existing Asset、Human Recorder 先分流，再保留 Agent 新生成的简洁主链；Qualification PASS 改为交付／显式发布 handoff，避免误写为 Catalog 已发布。同步方法文件状态，不改变 S1—S12、G0—G7、Runtime 或 Human 来源事实。
+- 准备理解“为什么” → [requirements.md](requirements.md)
+- 准备理解“完整做什么” → [task-decomposition.md](task-decomposition.md)
+- 准备理解“谁交给谁” → [chain-design.md](chain-design.md)
+- 准备实际执行 → [WORKFLOW.md](../WORKFLOW.md)
+- 准备做交接验收 → [acceptance-map.md](acceptance-map.md)
+- 准备设计测试 → [validation-plan.md](validation-plan.md)

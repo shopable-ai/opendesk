@@ -1,231 +1,284 @@
 ---
-title: "Agent-first Recorder｜需求发现与需求基线"
-description: "定义 Agent-to-Recipe 的项目背景、需求推导链、范围与可追溯基线。"
+title: "Agent-to-Recipe｜需求发现与需求基线"
+description: "定义 Agent-to-Recipe 为什么存在、必须满足什么、哪些范围明确不属于本工作流。"
 order: 20
 ---
 
-# Agent-first Recorder｜需求发现与需求基线
+# Agent-to-Recipe｜需求发现与需求基线
 
-状态：需求设计基线 v0.6，2026-09-11。本文先继承 OpenDesk 项目背景，再约束“自动化开发工作流与多个 Skill 应具备什么”，不是某次计算器运行的 TaskContract；用户批准本轮方案写入，不表示技术假设、宿主能力或桌面结果已确认。返回[设计总纲](README.md)，后续进入[任务树](task-decomposition.md)、[链路设计](chain-design.md)和[验证计划](validation-plan.md)。Structured UI Collection Reading 的 Runtime/VLM/Traversal 详细技术合同只维护在[专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)，本文只保存工作流需求基线。
+本文只回答一个问题：
+
+> **为什么需要 Agent-to-Recipe，以及这条工作流必须满足哪些业务、质量、安全和复用要求？**
+
+本文是**需求基线**，不是某次业务任务的 TaskContract，也不是实现状态或质量报告。完整 S1—S12 见 [task-decomposition.md](task-decomposition.md)；职责与交接见 [chain-design.md](chain-design.md)；实际执行入口见 [WORKFLOW.md](../WORKFLOW.md)。
+
+## 30 秒总览
+
+Agent-to-Recipe 要解决的是：
+
+```text
+真实任务 / 人工开发目标 / 已有自动化资产
+  ↓
+得到可信事实
+  ↓
+提炼必要业务过程和真实数据依赖
+  ↓
+形成可复用规格
+  ↓
+生成普通 OpenDesk JavaScript
+  ↓
+独立验证
+  ↓
+成为可维护、可继续交付的自动化成果
+```
+
+它必须同时满足六类要求：
+
+1. **忠实于来源**：用户原话、事实、未知、提案、期望和现场观察不能混写。
+2. **开发链完整**：从任务定义、真实执行事实、必要步骤、业务语义到 Candidate 和 Qualification 不跳层证明。
+3. **实际数据真实**：运行时读取值必须真正流向消费者，不能被示范常量或 Expected 替代。
+4. **执行受控**：授权、对象身份、副作用、预算、失败和恢复都有明确边界。
+5. **工程可复用**：已有能力优先复用，简单任务不过度设计，跨应用和他人复用仍可追溯。
+6. **验证可区分**：文档存在、实现存在、测试通过、宿主加载、真实桌面成功和业务资格是不同事实。
 
 ## 项目背景与本工作流的职责
 
-OpenDesk 是面向工作和生活场景的桌面自动化框架，目标是减少用户在不同应用中的重复操作，并支持需要内容理解、动态判断、多步骤协作和跨应用数据交接的复杂任务。
+OpenDesk 面向工作与生活中的重复和复杂桌面任务。除了窗口、输入、界面识别、文件处理等基础能力，还需要一条开发路径，把一次真实完成的任务或已有自动化资产转成后续可重复使用的程序。
 
-项目不仅提供窗口、鼠标键盘、界面识别、文件处理等基础能力，还希望建立“Agent 完成任务 → 提炼可复用步骤 → 保存为自动化程序 → 长期重复使用”的完整路径。可靠动作可以组织成应用语义操作、组合业务能力和完整业务流程；按业务目标、输入输出、前后条件与验证方式划分，不按点击次数、函数或文件数量划分。
+Agent-to-Recipe 负责的是**自动化成果的生产、修复和资格验证**，不是整个 OpenDesk 产品，也不是普通用户每次运行 Recipe 的 Runtime 链。
 
-Agent-to-Recipe 是生产和完善这些成果的一条开发路径，可以从真实任务、人工开发目标或已有自动化资产出发，通过执行或核验、过程提炼、参数化、实现与验证，形成普通 OpenDesk JavaScript、必要的可复用操作及使用维护说明。开发工作流完成不等于实际业务成功，本工作流也不代表 OpenDesk 的全部产品范围。
+本工作流允许三类起点：
 
-对已经明确、能够验证的步骤，优先使用普通 JS 执行，减少后续同类任务中不必要的模型推理。对仍需理解内容、动态判断或处理变化的部分，保留受约束的 Agent 参与；授权决策按业务规则由有权人控制。纯 JS 自动化与 JS／Agent 混合流程都是可接受的交付形态，后者必须说明真实接入、数据交接、失败处理和验证边界。组合步骤多不必然需要 Agent，步骤少也不意味着判断可以写死。
+- **Agent 新任务**：从用户目标开始，取得真实执行事实，再沉淀自动化。
+- **人工正向开发**：从明确开发目标和受控试验形成实现，不伪造 Agent 示范历史。
+- **已有资产接续**：从现有代码、工件、Failure Package 或旧资格开始，只补第一个真实缺口。
 
-经验证的成果应能够持续复用、维护，并逐步沉淀为自动化资产。近期先满足个人使用和项目交付，未来可根据实际需求考虑多人共享、分发与平台化管理。LangGraph 等外部编排工具可以在需要时组织已有 JS 能力和 Agent，但不作为 OpenDesk 基础能力、普通脚本运行或首次资产复用的前置条件；“本阶段不建设平台”不等于取消长期方向。
+本工作流可以交付：
 
-来源与证明边界：以上项目背景、混合运行及未来资产方向来自用户 2026-09-07 提供的“OpenDesk 项目背景与目标”；组合层次继承[总体框架](../../../docs/frameworks/automation-framework.md)与[应用开发框架](../../../docs/frameworks/app-development-framework.md)。下文聊天、跨应用和他人复用案例是据此形成的需求设计，不是现有 API、已实现产品能力或真实运行报告；平台仍是未来候选方向，不是本轮建设承诺。
+- 普通 OpenDesk JavaScript；
+- 必要的普通 helper / application rules；
+- 在业务确实需要动态判断时，明确接入并受约束的 JS / Agent 混合流程。
+
+已明确且可验证的步骤优先使用普通 JS。必要内容理解和动态判断可交 Agent；授权决策仍由有权主体控制。
+
+### 本工作流明确不承担
+
+- 不因为文档设计需要而新增 S13。
+- 不把 Agent-to-Recipe 变成新的 Workflow DSL、Compiler、IR 或 Replay Runtime。
+- 不把 Catalog、商城、Registry、LangGraph 或平台化作为普通 Recipe 生成的前置条件。
+- 不在本文件复制 Structured Collection、VLM、AX/UIA、Recorder、Compiler 等专项技术算法。
+- 不把某次 Calculator、聊天或 Collection 案例的限制升级成所有任务的全局限制。
+- 不把某个 Skill 文件存在写成宿主已加载或业务已通过。
 
 ## 一、来源、事实与未知项
 
-- 保留来源及其证明边界。
-  - Source：用户原始要求、业务背景、已有脚本、应用观察、历史运行、参考材料与公开接口合同。
-  - Fact：在明确版本和范围下有来源支持的事实；有源码不等于已经在目标环境运行。
-  - Unknown：当前无法确认的问题，标明影响哪个需求或动作、是否阻断、需要什么证据。
-  - Assumption／Proposal：待验证假设或候选方案；不能因为进入 Markdown 或 JSON 就变成事实。
-  - Expected Outcome：验收期望，与实际观察值分别保存；不能用期望填补缺失读数。
-- 本轮工作流建设要求（不替代上面的项目背景）。
-  - 保留完整 Agent-first Recorder 工作流任务分解树，作为阶段性框架分析，不冒充最终 WORKFLOW.md。
-  - 在生成 Skill 前明确链路、输入输出和独立边界；业务任务按需求语义拆分，不按技术对象数量拆分。
-  - 用户继续以自然语言、截图、样例或已有资产提出任务；TaskContract／WorkPlan 是 Agent／宿主根据这些来源形成的内部结构化成果，不要求使用者先编写 JSON，也不能因为内容进入 JSON 就自动视为已确认事实。
-  - Agent 在较长桌面执行前应形成可审阅的业务操作计划：说明当前准备处理的对象、主要动作、输入来源、预期结果和关键检查点；该计划不是 Skill 调用表，也不要求在未知现场下预编造全部点击或坐标。
-  - 优先核实最可能推翻整条路线的高影响未知，例如后续大量步骤依赖某个运行时读值时，应在依赖动作扩展前先验证该读值是否能够可靠取得。非阻断未知可保留并继续不依赖它的工作。
-  - 执行期间维持“planned step → actual action → actual observation → verification → plan delta”的对应；现场事实可以修订后续计划，但不能反向把未执行的计划写成事实，也不能因为动作不在初始计划中就自动当作噪音。
-  - 示范事实与可复用过程之间保留独立的关键步骤成果：S7 从 Dossier／Raw Trace 形成有来源的 DistilledSteps；S8—S9 再将其转为业务语义、参数和复用规格。动作保留／合并／排除的主责不在后续重复维护第二套真相。
-  - 真实任务、人工开发目标、已有资产都可作为起点；已有低质量代码可单独改进，简单脚本可不做深度优化。
-  - 普通 OpenDesk JS 按脚本方式组织，优先直接复用框架 API；必要的应用操作封装使用普通函数，例如由脚本定义并调用 `tapButton(...)`，不新增 `calc.tapButton(...)` 这样的应用对象方法层。这里不限制框架既有 API 的调用形式。
-  - 应用矩阵定位只是候选思路，须依据实际布局和定位证据决定，与脚本的函数组织方式分开判断。
-  - 长期保留计算器案例和设计演变；后续以证据支持 95 分以上的专家评价目标。
-- 对参考材料的解释边界。
-  - 此前示例中的 `calc.tapButton(...)` 是用户明确纠正的错误设计，不是用户要求、现有框架 API 或可选的对象封装方案；`tapButton(...)` 仅示意脚本自定义函数，不代表框架已有该接口。
-  - “可尝试 3×4 矩阵”是定位方案建议，不证明任何计算器实际采用该结构。
-  - “110、660”是本案例数学期望，不是本轮现场读数。
-  - 用户提供的 Source 至 Spec 链是需求推导参考，不是现有 Runtime、已安装工作流或强制十八个文件。
-  - 现有仓库文档是方法与接口来源；Current／Validated 仍保留原核验范围，不能因为迁移获得新的通过状态。
+所有关键需求和后续结论必须区分：
 
-### 2026-09-08 应用工程需求来源与决策
+| 类型 | 含义 | 约束 |
+| --- | --- | --- |
+| **Source** | 用户原始要求、业务背景、已有代码、文档、现场观察、外部合同 | 保留来源身份和适用范围 |
+| **Fact** | 在明确版本和范围下由来源支持的事实 | 不能从“文件存在”外推“运行成功” |
+| **Unknown** | 当前无法确认、会影响后续工作的事项 | 标明影响、阻塞范围和所需证据 |
+| **Assumption / Proposal** | Agent 或设计者提出的候选解释／方案 | 验证前不能升级为事实 |
+| **Expected Outcome** | 计划或验收期望 | 与 Actual Observation 分开 |
+| **Actual Observation** | 本次真实观察到的结果 | 不能由 Expected 倒填 |
 
-用户明确要求：本轮只深化 application-engineer；模型主导初次布局、控件、语义和关系认识；程序负责确定性处理；人工可审阅纠错；已有布局算法仅作待评测辅助；默认同一 Agent 按工作流推进；不得用未运行结果支持 95 分能力结论。用户随后提供 S2“界面观察、理解与审阅作业”和贯穿 S3—S12 的补采／回访链作为参考，并授权执行写入。
-
-本次采纳：应用工程内设置可独立进入、交付和测试的界面认识子作业，不新增 ui-understanding 独立 Skill；正常路径先复用、只补缺口，诊断按异常展开但关键事实同步保存；保留用户提供树的 S1—S12 结构含义，作为现有完整树的增量而非替代。拆独立 Skill 必须再有消费者、稳定交接和重复使用证据，不能从名称推定已批准拆分。
-
-这是经本轮授权写入的设计选择，不是模型准确率、工具可靠性、真实人审或业务成功的证明。之前对话的 HTML／ZIP 或通过声明只有实际取得并核查后才可作对应范围的参考，不能直接继承为本轮结果。
-
-### 2026-09-10 Structured UI Collection Reading 需求来源与决策
-
-用户明确要求补齐跨应用重复 UI record extraction：会话列表、消息 timeline、订单/商品/文件/联系人、table/grid/cards/tree/virtualized list；并要求避免把区域发现、AX/UIA、OCR、VLM、item grouping、scroll、pagination、dedupe 与业务 Schema 塞进一个 `UI.extractList()`。
-
-本次采纳：公共结构链冻结为 `Observation[] → CollectionProfile → CollectionItem[]`，之后才由 App Adapter／Recipe／普通 JavaScript parser 转为 `Conversation[]`、`Message[]`、`Order[]` 等业务对象。current viewport 读取与有 UI 副作用的 traversal 分开；VLM 作为受约束 proposal/evidence，默认作者期使用，runtime assist 默认关闭。工作流消费该专项架构，不创建第二个 collection/VLM Skill，也不因工作名存在就修改 Stable API reference。
-
-### 2026-09-11 计划—事实—关键步骤交接需求来源与决策
-
-用户进一步要求避免长时间执行后才发现路线错误，并要求从保存关键文件和专业 Skill 边界重新审视整链。用户输入仍是自然语言；结构化合同由 Agent 产生并保留来源。执行前需要可审阅操作计划和关键检查点，执行中保存 planned／actual 差异，执行后先从事实提炼必要操作路径，再做业务语义和泛化。
-
-本次采纳：不新增 S13，不把每个检查点拆成独立 Skill；将 `trace-distill` 作为目标专业职责承担 S7，输出 DistilledSteps；将 `procedure-synthesize` 收窄为 S8—S9。`trace-distill` 尚未因此成为已安装 Skill，正式宿主接入和独立测试仍需后续实施。Human Recorder 保留 H1—H8 来源工作流，满足输入条件后复用共享专业方法，不复制第二套专业实现。
+任何后层产物都不能反向改写历史 Source / Fact。
 
 ## 二、人类需求发现入口
 
-2026-09-19 接续建设的来源是用户要求“继续完善工作流，直接使用当前 checkout 和未提交修改，不重做 Calculator”。本轮以固定 `examples/agent-to-recipe/calculator.js` 为实例，落实三个专业方法、冻结测试资料、相邻工件检查和内容绑定代码评审；交付形态仍是普通 JS。保留 S1—S12／G0—G7，不建 Engine／DSL／Compiler，不提交或推送。本轮需求的设计、实现、验证决定表与局限只在[质量总览](../../../docs/quality/agent-to-recipe-workflow-review-20260919.md)汇总，历史现场与事前记录不能事后补造。
+用户不需要先编写 TaskContract JSON。自然语言、截图、样例、已有文件或明确资产引用都可以作为 Source。
 
-- 从原始要求与背景事实理解业务问题。
-  - 确认使用者、待解决的重复工作、业务对象、预期成果和当前痛点。
-  - 阅读已有样例与资产，区分需求、实现偶然、失败经验和没有来源的说法。
-- 先用参考样例和期望结果暴露歧义。
-  - 说明完成什么才对、什么不允许发生、需要哪种证明。
-  - 样例仅支持其已知范围，不能直接证明完整变量、分支或循环规律。
-- 由 Agent 辅助发现需求和未决项。
-  - 提出业务叙事、场景、子目标、数据关系和备选实现，不编造用户偏好或权限。
-  - 能从仓库和获准现场核实的技术事实先核实；重大业务选择和授权由有权人确认。
-- 形成业务确认记录。
-  - 记录确认者／授权来源、版本、范围、修改点和保留问题；不要求为已有明确要求重复提问。
-  - 对需要人类快速检查的任务理解和操作计划，可生成同版可读视图；可读视图不成为第二份权威合同，用户用自然语言纠正含义后由 Agent 更新结构化成果。
-  - 技术事实不足可以阻塞对应工作；写文件、生成代码和业务批准是不同事实。
+Agent 必须：
+
+1. 保留用户原始表达。
+2. 形成内部结构化 TaskContract / WorkPlan。
+3. 给较长任务提供可读的任务理解和操作计划，使人可以纠正业务含义。
+4. 把人类纠正回写到结构化成果，而不是维护两套互相漂移的真相。
+5. 只在真正缺少业务决定或授权时请求确认；能从仓库或获准现场核实的技术事实应先核实。
+6. 不因为 Unknown 存在就停止全部工作；只阻塞依赖它的部分。
+7. 优先验证会推翻大量后续工作的高影响 Unknown。
+
+可读视图是结构化成果的投影，不成为第二份需求合同。
 
 ## 三、受控业务需求推导链
 
-保留参考术语：Source → Fact / Unknown → Business Requirement → Scenario / Trigger → Business Chain → Capability → Function → Functional Requirement → Decision Gate → Requirement Baseline → Behavior Specification / Behavior Case → Engineering Design / Test Space → Spec。
+需求形成遵循下面的逻辑关系：
 
-- 从 Source 与 Fact／Unknown 形成 Business Requirement。
-  - 先说明要改善哪个业务结果，再列必要功能；事实不足保留 Unknown，不靠技术偏好补齐。
-- 用 Scenario／Trigger 和 Business Chain 明确使用方式。
-  - 区分人主动调用、已有任务接续、代码质量问题、定位失效、验收失败等触发。
-  - 写清业务对象、前后条件、数据流和完成边界；业务链不等于开发链。
-- 从业务链分解 Capability、Function 与 Functional Requirement。
-  - Capability 表达业务能力，Function 表达可用功能，功能需求表达可核验条件；它们不等于 JS 函数或 Agent Skill 数量。
-  - 同时补齐质量、数据、接口、权限、成本和维护要求，不只描述正常功能。
-- 通过 Decision Gate 形成有版本的 Requirement Baseline。
-  - 检查目标、范围、成功标准、授权、验证可行性和阻断性未知；门禁还存在于后续交接与危险操作前，不只此处一次。
-  - 行为案例应提前用于澄清需求，再随基线固定；基线可受控修订，不是永久禁止变化。
-- 从行为规格和测试空间形成工程实施依据。
-  - 先描述允许行为、错误拒绝和结果证明，再选择 Workflow 路由、Skill 边界、JS／API 实现与必要架构决定。
-  - Spec 是足以实施与测试的明确依据，不必是独立文件，更不是默认可执行 IR。
-  - Spec 之后还有实现、加载、独立测试、交接、实际业务验证、晋级与维护，不能把规格写完作为终点。
-- 保留条件回路。
-  - 任一节点出现阻断性 Unknown → 有问题和预算的 Research／定向补采 → 返回该节点；只阻塞依赖项。
-  - 需要重要架构选择 → 记录备选、理由、后果和复审条件的 ADR → 更新工程设计与受影响测试。
-  - 验证发现需求或设计矛盾 → 变更对应基线与来源映射，不能降低标准伪装成功。
+```text
+Source
+→ Fact / Unknown
+→ Business Requirement
+→ Scenario / Trigger
+→ Business Chain
+→ Capability
+→ Functional Requirement
+→ Decision / Acceptance Conditions
+→ Requirement Baseline
+→ Behavior Case / Test Space
+→ Engineering Design
+```
+
+这不是要求每一步单独建文件，而是要求语义不能跳跃。
+
+### 推导要求
+
+- 先定义要改善的业务结果，再决定技术实现。
+- Capability 表达业务能力，不等于 Agent Skill 或 JS 函数。
+- Business Chain 表达业务对象、输入输出、前后条件和完成边界，不等于 S1—S12 开发链。
+- 需求必须同时包含正常功能、失败、安全、数据、权限、成本、版本、维护和验证要求。
+- 重大 Unknown 有明确研究问题、证据目标、预算和停止条件。
+- 架构决定不能把 Proposal 写成已实现 Runtime。
+- 验证发现需求矛盾时修订需求基线，不在 S12 末端降低标准取得通过。
 
 ## 四、业务需求叙事与范围
 
-- 工作流要帮助使用者把任务经验和既有代码变成可靠的可复用程序，减少同类任务重复模型推理和重复开发。
-- 开发者可以从现有资产接续，只补当前缺口；对清楚、可验证的简单操作交付小脚本，不以类、文件、抽象层数定义质量。
-- 对必要动态判断保留明确 Agent 接口；没有真实宿主或服务连接时只交付片段及说明，不能声称端到端已集成。
-- 本阶段先完善本工作流及其专业环节，不建设新脚本引擎、Compiler、Registry、商城或平台，不扩展本轮未授权的 Runtime／API；资产的可调用、可配置、可验证和可维护条件不因此推迟。
-- 计算器是贯穿设计与测试目标，不是创建计算器产品，也不要求所有自动化都采用按钮输入。
-- 按任务交付普通 JS／必要操作函数，或有真实接入的 JS／Agent 混合流程；附最少必要的输入、依赖、授权、支持范围、结果验证与停止维护说明。不强迫每个能力拆成独立脚本或开发 Agent Skill。
-- 声明可供他人复用时，使用者应能依据交付说明配置自己的输入和凭据，在支持范围内验证并运行；不得要求继承作者的聊天上下文、个人数据、旧窗口或历史通过结论。成本与重复劳动改善以约定场景和实际测量评价，不预填收益数字。
-- 本轮正式写入应用工程方法及实施规格，不把完整通用 UI 系统作为第一批前提。初批真正完成仍须实际模型提取、同源审阅及纠错闭环；方法文件和手写 fixture 不能代替它。
-- 对重复 UI 记录读取，公共结构能力只产出有来源的 generic `CollectionItem[]`；业务字段由下游 parser/Adapter 映射。没有 usable UI tree 时允许 OCR/Layout/Semantic Vision 参与，但来源与不确定性必须保留，不能因模型可用就把业务 schema 推进 Runtime。
-- 对 virtualized list/timeline，单个 viewport 的可见项数量不能作为整个集合总数；需要跨 viewport 数据时必须明确 traversal 副作用、预算、continuity、mutation 和 partial completion。
+Agent-to-Recipe 应支持：
+
+- 把一次真实成功任务转成后续可重复运行的自动化。
+- 把已有代码与既有工件接续到正确责任环节，而不是强制从头重做。
+- 把简单、清楚、可验证的任务交付为小型普通 JS，而不是以类、文件数或抽象层数衡量质量。
+- 将必要动态判断显式保留为受约束的 Agent 接口；无真实 provider / host 接线时明确未集成。
+- 保存必要的用途、输入、依赖、权限、支持范围、失败语义和验证方法，使成果可维护。
+- 在声明他人可复用时，不依赖作者聊天、私有路径、历史窗口、个人凭据或旧通过结论。
+- 对跨应用任务保存来源对象、实际值、转换、目标对象和结果之间的关系。
+- 对重复 UI / collection 只在工作流层规定“需要获得什么结构事实、谁消费、怎样验证”，专项识别和 traversal 算法由专项架构拥有。
 
 ## 五、场景与触发
 
 ### 自动化开发入口
 
-- 完整新示范与生成：用户要求 Agent 实际完成任务、建立成功示范、提炼并生成新代码。
-- 人工正向开发：用户给出开发目标，使用受控试验和真实运行支持代码，不追认成 Agent 示范。
-- 已有资产接续：获得源代码和需求，核对来源、范围后复用、补证或有据修复。
-- 独立代码改进：已有代码存在明确质量问题，直接消费代码基线和需求，不强迫重走全链。
-- 单次简单使用：范围明确、风险受控、代码足够合格，完成必要验证后可使用，不强迫深度重构。
-- 局部应用修复／仅验收：只处理失效定位或检查冻结候选，其他有效成果保留；接续不等于继承未证实资格。
-- 仅界面认识与审阅：可从人工图片、实际截图或已有获准资料进入；缺屏幕映射时仍可完成限定认识，但不得据此执行桌面坐标操作。
+| 场景 | 需求 |
+| --- | --- |
+| 完整新示范与生成 | 必须取得真实执行事实、DistilledSteps、SemanticProcedure、Candidate 和独立 Qualification |
+| 人工正向开发 | 保留人工来源，不追认为 Agent 示范；用受控试验支持实现 |
+| 已有资产接续 | 固定来源、字节、范围和证据；只补真实缺口 |
+| 独立代码改进 | 可直接消费代码基线和需求，不强迫重跑完整示范 |
+| 简单受控使用 | 可以跳过无收益的深度优化，但不能跳过正确对象、实际数据、安全和必要验证 |
+| 局部应用维修 | 只修受影响应用规则及候选依赖，并重验受影响范围 |
+| 仅候选验收 | 固定 Candidate 后进入 S12，不先重生成 |
+| 仅界面认识／审阅 | 可以形成限定认识；缺屏幕映射时不得据此执行桌面坐标动作 |
 
-### 产出的业务能力与使用场景
+### 典型业务场景
 
-这些场景与上面的开发入口是两个维度，不新增开发阶段，也不要求每个短脚本覆盖全部场景。聊天详细示意唯一维护在[应用操作分析](application-operations.md#聊天业务的粒度与组合示例)。
+- **确定内容发送**：目标、内容和授权已给定时，不应额外读取无关历史或增加任务级模型判断。
+- **基于历史判断回复**：读取获准历史后由受约束判断决定回复／不回复／人工处理，再复用发送能力。
+- **跨应用任务**：源应用实际数据必须绑定到目标业务对象并独立验证目标结果。
+- **他人复用**：新的使用者依据交付说明配置自己的输入、权限和环境，不继承作者私有上下文。
+- **结构化集合读取**：generic collection 结构与业务字段 mapping 分开；跨 viewport traversal 作为有副作用行为单独验证。
 
-- 已知内容发送：给出联系人与确定内容，搜索并确认对象、打开会话、输入、按授权发送并验证；没有业务需要时不读取历史或生成回复，见 BC-17。
-- 基于历史回复：读取获准历史，判断是否回复并生成候选内容，校验及必要人工确认后复用发送能力；不回复或转人工可以是约定的合法结果，见 BC-18／BC-14。
-- 跨应用任务：从一个获准应用取得实际数据，在另一个应用中使用并验证，保持业务对象、来源、数据版本与目标绑定；具体应用和数据规则在任务合同中确认，见 BC-19。
-- 后续及他人复用：在声明范围内重复调用能力或组合流程；共享版本不携带个人凭据和私有证据，新的使用者重新确认环境与授权，见 BC-20。
-- 结构化集合读取：从 list/timeline/table/grid/cards/tree 中读取当前可见 generic item，再按业务规则映射；如果需要历史/全部数据，单独判定是否允许 scroll traversal。没有 UI tree、OCR 分组困难或 profile drift 时可以使用有界 VLM assist，但不改变业务授权与字段 owner。
+具体业务示例不是本需求文件的正文，见相应案例与专业方法。
 
 ## 六、可追溯的设计需求
 
-以下 DREQ 标识只用于本设计的覆盖检查，不是新的 Runtime 枚举、接口字段或门禁编号。具体落点及行为案例见链路设计和验证计划。
+DREQ 是需求追溯标识，不是 Runtime 枚举或新的 Gate。
 
-- **DREQ-01｜来源可信与未知显式化**：事实、假设、提案、期望、历史证据及本次观察分开；每个关键主张能回到来源与范围。
-- **DREQ-02｜需求语义与多入口**：保留三种起点，按业务对象、子目标与数据依赖拆任务；不同来源的资格不互相升级。
-- **DREQ-03｜完整方法与循环**：执行／采集并行，保留重建、分段、Ground、Attribute、Abstract、Synthesize、Harden、规格、生成、验证、晋级及三个循环。
-- **DREQ-04｜独立作业与交接**：每个环节有足够的前提、成果、消费者、范围与失败返回；独立上下文可继续或准确报告缺口。
-- **DREQ-05｜生成与可选改进分离**：recipe-build 先产出合格基础代码；code-rebuild 可独立进入、可不修改、有预算与结束条件；不降低生成底线。
-- **DREQ-06｜实际数据流完整**：真实读取值传到下游消费者，期望不进入业务取数；解析保留来源和必要精度，读数不明不能补默认答案。
-- **DREQ-07｜应用认识与框架复用**：只认识所需布局和组件，保存目标规则而非永久坐标；API 核验后由脚本直接复用，必要封装使用普通函数，不新增应用对象方法层；矩阵需证据，不引入新引擎。
-- **DREQ-08｜有界安全执行**：身份、授权、前提和副作用受控；等待、重试、探索有限；结果不明先核对；取消不虚构强制终止或恢复能力。
-- **DREQ-09｜用途与风险适配**：单次受控、反复复用、长期交付采取适量工程与测试；高风险不能借简单脚本名义降低验证。
-- **DREQ-10｜独立验证与限定晋级**：检查实际候选、数据流与结果；独立 Skill、交接、整链、业务分别证明，未运行不能通过。
-- **DREQ-11｜版本追溯与变更影响**：需求、行为、任务、责任、代码、测试、证据双向关联；改动形成新版本，相关资格需重新核对。
-- **DREQ-12｜设计、执行与案例分离**：完整任务树是设计依据；正式 WORKFLOW 组织 Skill；专业步骤有唯一维护位置；案例及旧决定可回查。
-- **DREQ-13｜Research 与 ADR 有界**：未知研究有问题、证据要求和预算；授权问题不靠搜索决定；重大架构选择记录理由与后果，普通函数不强制 ADR。
-- **DREQ-14｜隐私与资料生命周期**：权限最小化，Secret 仅引用，日志脱敏；保留失败，长存设计与可清理证据分开，证据失效如实标记。
-- **DREQ-15｜真实宿主与混合运行**：Skill 目录不等于加载成功；实际工具、权限、上下文和停止能力需核验；JS 不执行模型返回的任意代码。业务输入、Agent 判断、校验与动作结果分别交接和评价，不以固定示范回复替代必要判断。
-- **DREQ-16｜可复核的质量目标**：按已声明范围和实际证据评价，95 分是目标而非预设结果；硬门禁不被加权分数抵消，不靠扩大工程量取分。
-- **DREQ-17｜项目目标与交付形态**：开发链服务减少重复操作及必要推理、支持复杂业务的项目目标；按需求交付纯 JS 或真实接入的混合流程，附必要使用说明，不把文档或脚本生成数当业务收益。
-- **DREQ-18｜组合能力与粒度**：框架原语、应用语义操作、组合业务能力、完整业务流程可追溯；按输入输出与可验证子目标组合和复用，不强制一操作一文件或一 Agent Skill。
-- **DREQ-19｜可维护与他人复用**：声明共享时提供用途、调用与配置、版本依赖、支持范围、权限、验证、停止和维护边界；个人数据与凭据分离，新使用者重新核验环境与授权。平台不是首次复用前提。
-- **DREQ-20｜跨应用业务一致性**：跨应用交接保留实际数据来源、业务对象映射、有效条件与目标写入结果；切换应用不扩大授权，也不因中途失败盲目重放已发生的写操作。
-- **DREQ-21｜模型主导与材料充分性**：任务驱动地全局粗识别、重点精查，程序处理确定性工作；模型解释与观察分开。材料按认识／定位／操作用途分别判断，缺映射不一律阻塞认识；不强制依赖未实测布局算法。
-- **DREQ-22｜同源审阅与纠错**：原始证据、叠加、简化结构和属性差异来自同版数据；人工可纠错，自动核验不冒充人审。保留旧版与原因，变更影响传到规则、操作和验证；不建立第二份 AppProfile。
-- **DREQ-23｜同一 Agent 与轻量正常路径**：默认一个 Agent 连续工作；内部子作业按需进入，不逐步骤制造交接。有效资料复用，必要事实同步保存，扩展诊断按异常展开；不能降低核心目标换取完成。
-- **DREQ-24｜分层应用工程评测**：确定性工具、真实模型提取、留出样本规则复用、真实应用／工作流分别证明；已知数据渲染后隔离真值，不混淆截图与辅助信息条件，不用全拒绝或平均分掩盖关键失败。
-- **DREQ-25｜Generic Collection 与业务 Mapping 分离**：公共读取只形成有 provenance 的 `CollectionItem[]`/viewport coverage；应用 `sender`、`price`、`conversationTitle` 等字段由 App Adapter／Recipe parser 映射。parser 错误不得通过扩大 Runtime schema 或模型 prompt 隐藏。
-- **DREQ-26｜多源 Observation 与无 UI tree 路径**：AX/UIA、OCR、Layout/Image、Semantic Vision 的结果归一为可追溯 Observation；snapshot 不完整、OCR 漏字、VLM proposal 与原生冲突均保留。完全无 usable UI tree 时仍可按获准视觉证据推进或明确 uncertain，不建立四套 reader。
-- **DREQ-27｜Collection 与 Traversal 分离**：current viewport item recognition 与跨 viewport scroll traversal 分开；virtualized visible count 不等于 whole collection count。scroll 必须有 overlap、continuity、merge、end、budget 与 side-effect 语义，禁止 text-only/index-only dedupe。
-- **DREQ-28｜VLM 作者期优先与运行期受限**：application-engineer 默认用最小 ROI + native/OCR/layout observations 生成/修订 CollectionProfile；runtime assist 默认 off，只在 uncertain 时有界调用 Semantic Vision provider，输出作为 proposal 经 deterministic validator 复核，不通过 `opendesk ai` 嵌套 Agent。
-- **DREQ-29｜集合动态变化与部分完成**：读取期间新增/删除/重排、continuity 无法证明、maxSteps/maxItems/timeout/cancel 必须显式停止并保留 partial/evidence；不得把两个时间状态静默拼成“完整数组”。pagination/load-more 在跨应用合同未证明前由 Recipe/App Adapter 负责。
-- **DREQ-30｜自然语言入口与内部结构化合同**：用户不需要提供 TaskContract JSON；Agent 必须保留原始自然语言来源，将结构化任务理解标成内部解释，并提供可读视图供业务含义纠正。可读视图和 JSON 不得形成两份相互漂移的需求真相。
-- **DREQ-31｜执行前操作计划与早期否证**：较长真实任务执行前形成业务操作计划和关键检查点；优先验证高影响未知，使错误路线尽早暴露。未知现场不编造动作细节，计划允许基于新事实受控修订。
-- **DREQ-32｜计划与事实分离及偏差接续**：S3—S5 维护计划步骤与实际动作／观察／验证的对应；计划外必要动作保存原因并进入计划修订，未执行计划不能补成事实，执行事实也不能因为与计划不一致被删掉。
-- **DREQ-33｜DistilledSteps 与专业职责边界**：S7 从 Dossier／Raw Trace 发布可追溯 DistilledSteps，负责动作重建、分段及 retain／merge／omit／recovery／unresolved 取舍；S8—S9 消费该成果形成业务步骤与复用规格，不重复维护第二套原始 action disposition。
+### A. 来源、入口与任务定义
+
+- **DREQ-01｜来源可信与未知显式化**：事实、假设、提案、期望、历史证据和本次观察分开；关键主张可追到来源与范围。
+- **DREQ-02｜需求语义与多入口**：Agent 新任务、人工开发、已有资产可作为不同入口；不同来源的资格不能互相升级。
+- **DREQ-30｜自然语言入口与内部结构化合同**：用户无需提供 JSON；结构化任务理解必须保留原始自然语言来源，并可生成可读投影供纠正。
+- **DREQ-31｜执行前操作计划与早期否证**：较长任务先形成业务操作计划和检查点，优先验证高影响 Unknown；未知现场不编造点击细节。
+- **DREQ-32｜计划与事实分离及偏差接续**：维护 planned → actual action → observation → verification → planDelta；计划外必要动作不能被自动删成噪音。
+
+### B. 开发链完整性与专业交接
+
+- **DREQ-03｜完整方法与循环**：从任务定义、事实采集、必要路径、业务语义、工程化、实现到资格完整覆盖，并保留执行／学习／可靠性闭环。
+- **DREQ-04｜独立作业与交接**：每个专业职责有清楚前提、输入、输出、消费者、范围和失败返回；新 Agent 不依赖旧聊天也能继续或准确报告缺口。
+- **DREQ-33｜DistilledSteps 与专业职责边界**：S7 独立负责 retain / merge / omit / recovery / unresolved 取舍；S8—S9 消费其结果，不维护第二套 Raw Action disposition。
+- **DREQ-12｜设计、执行与案例分离**：任务树、WORKFLOW、专业方法、案例、合同和质量证据各有唯一职责，不以复制获得“完整”。
+
+### C. 代码、数据与应用工程
+
+- **DREQ-05｜生成与可选改进分离**：recipe-build 先生成或登记合格基础实现；code-rebuild 只在有真实收益时独立改进，允许不改。
+- **DREQ-06｜实际数据流完整**：现场读取值必须进入真实消费者；Expected、默认答案或示范常量不能替代业务取数。
+- **DREQ-07｜应用认识与框架复用**：只认识任务必需的布局、对象和规则；优先复用已验证 API / helper；一次坐标不能冒充长期身份。
+- **DREQ-18｜组合能力与粒度**：框架原语、应用语义操作、组合业务能力、完整流程按输入输出和可验证目标组织，不按动作数、文件数或 Agent 数组织。
+- **DREQ-20｜跨应用业务一致性**：跨应用交接保存来源对象、实际值、转换、有效条件和目标结果，不把剪贴板／旧焦点当合同。
+
+### D. 安全、版本与验证
+
+- **DREQ-08｜有界安全执行**：对象、授权、前提、副作用、等待、重试、探索和停止受控；动作效果 unknown 时先核对而非盲重放。
+- **DREQ-09｜用途与风险适配**：单次使用、反复复用、长期交付和高风险操作采用适量但足够的工程与验证。
+- **DREQ-10｜独立验证与限定晋级**：Candidate、依赖、范围和实际执行对象固定；未运行项不能通过，生成者自报不能替代资格。
+- **DREQ-11｜版本追溯与变更影响**：需求、计划、事实、Profile、Procedure、Candidate 和 Qualification 保持版本关系；影响性变化只重验受影响下游。
+- **DREQ-13｜Research 与 ADR 有界**：Unknown 研究有问题、证据、预算和停止条件；授权与业务偏好不能由研究者擅自决定。
+- **DREQ-14｜隐私与资料生命周期**：最小权限，Secret 只引用，日志脱敏；失败与历史版本可追溯，证据丢失时降低结论而非保持假通过。
+- **DREQ-15｜真实宿主与混合运行**：Skill 文件不等于实际加载；工具、权限、上下文和停止能力需单独核实；模型输出必须校验后再进入动作。
+- **DREQ-16｜可复核的质量目标**：95 分是文档／能力目标，不是预设结果；硬失败不能被平均分抵消。
+
+### E. 交付、共享与维护
+
+- **DREQ-17｜项目目标与交付形态**：工作流服务于减少重复操作与不必要推理；按需求交付普通 JS 或真实接入的混合流程。
+- **DREQ-19｜可维护与他人复用**：共享成果说明用途、输入输出、配置、依赖、支持范围、权限、验证、停止和维护边界；不携带个人凭据与私有历史。
+- **DREQ-23｜同一 Agent 与轻量正常路径**：默认同一 Agent 可连续推进；内部子作业按需进入，不为每一步强制制造 handoff；已有有效成果直接复用。
+
+### F. 应用认识、Collection 与视觉证据
+
+- **DREQ-21｜模型主导与材料充分性**：模型可承担布局和关系理解，程序承担确定性组织与校验；认识、定位、操作三类材料充分性分别判断。
+- **DREQ-22｜同源审阅与纠错**：原始证据、overlay、简化视图和属性差异来自同版数据；修订保留旧版和影响范围。
+- **DREQ-24｜分层应用工程评测**：确定性工具、模型提取、规则复用、真实应用／工作流分别验证，不能互相替代。
+- **DREQ-25｜Generic Collection 与业务 Mapping 分离**：结构读取形成有 provenance 的 generic item；sender / price / title 等业务字段由 Adapter / Recipe 解释。
+- **DREQ-26｜多源 Observation 与无 UI tree 路径**：AX/UIA、OCR、Layout/Image、Semantic Vision 的来源和冲突保留；无 usable UI tree 时允许受控视觉路径，而不是虚构 native 事实。
+- **DREQ-27｜Collection 与 Traversal 分离**：current viewport recognition 与 scroll / pagination 分开；visible count 不等于全量。
+- **DREQ-28｜VLM 作者期优先与运行期受限**：VLM 默认用于 authoring proposal；运行期只有明确需要且受预算／隐私约束时才进入，并经确定性校验。
+- **DREQ-29｜动态变化与部分完成**：mutation、continuity 不明、预算／timeout／cancel 时必须保存 partial 和 stop reason，不静默拼成完整集合。
 
 ## 七、用途、风险与验收强度
 
-- 单次受控使用：限定输入与当前环境，允许一个简单 JS 和最少必要成果；仍验证对象、实际结果、错误与安全边界，不宣称通用复用。
-- 反复复用：声明参数与支持范围，覆盖重新取数、变参、旧状态和代表性环境变化；有实际维护问题才进入深度优化。
-- 长期交付：在复用要求上补依赖、版本、维护、诊断、回归和更新策略；性能／成本有实际预算或测量标准，不自动要求平台化。
-- 对外共享：在声明支持范围内增加独立使用者配置与运行检查；只发布获准共享的代码、说明及脱敏样例，不发布作者凭据、个人屏幕、私有聊天或临时证据。作者通过不等于使用者环境通过。
-- 风险独立评估：发送、提交、删除、付款等高风险操作采用对应 G6 约束，即使只执行一次；受控故障使用获准测试对象或离线材料。
-- 开始前约定 requiredOutputs、requested 和适用场景；后期发现范围不合适可以经授权修订并保留历史，不能在失败后静默缩小范围获得通过。
+| 用途 | 最低要求 |
+| --- | --- |
+| 单次受控使用 | 正确对象、实际结果、错误和安全边界；不宣称通用复用 |
+| 反复复用 | 参数、重新取数、代表性状态变化和支持范围 |
+| 长期交付 | 依赖、版本、诊断、维护、回归和更新策略 |
+| 对外共享 | 独立配置、运行条件、许可、脱敏和新环境重新核验 |
+| 高风险操作 | 无论脚本长短都按风险执行授权、确认和副作用控制 |
+
+requested outputs、requested scope 和适用场景应在验证前固定；失败后不能静默缩小范围取得 PASS。
 
 ## 八、需求基线与变更
 
-- 本文为需求设计基线 v0.6；保留 v0.5 Structured Collection Reading 决策，并加入自然语言入口、执行前可审阅操作计划、planned／actual 对应和 DistilledSteps 交接要求。`trace-distill` 是目标专业职责，不因本次设计写入自动成为已安装 Skill。
-- 确认时记录版本、责任人或确认来源、范围、成功标准、阻断未知及决议；不伪填真实业务审批。
-- 业务运行另立本次 TaskContract；不能将本案例的按钮输入、正整数和期望答案变成所有任务的强制限制。
-- 修改后沿“需求 → 行为案例 → 任务节点 → 责任 Skill／JS／API → 测试与证据”确定影响；仅重做受影响工作，但未测范围仍为未知。
+需求变化时，按下面的影响链分析：
+
+```text
+Source / Requirement
+→ Behavior Case
+→ S1—S12 受影响节点
+→ 专业职责
+→ AppProfile / DistilledSteps / Procedure
+→ Candidate
+→ Qualification
+```
+
+不受影响的历史事实可以继续保留；依赖旧语义的下游必须重新核对。
+
+本文件不维护逐版本迁移日志。需要设计考古时使用 Git history；实际测试和某一 commit 的质量状态见 `docs/quality/`。
 
 ## 九、当前未知与处理方向
 
-- 宿主 Skill 加载路径、权限隔离、上下文隔离与停止能力：实施前核对实际宿主；影响安装和独立性声明，不阻止本轮写设计。新方法文件不证明当前可自动调用。
-- `trace-distill`、`procedure-synthesize`、`code-rebuild` 方法文件及 Calculator 形状的静态消费检查已实现；宿主自动加载、盲上下文行为评测、人工开发来源适配仍待验证。方法存在、格式合法与行为可靠性分别记录。
-- 计算器 OS、版本、布局、C／AC 语义、结果组件、旧脚本与证据：在授权下定向核查，记录到[案例](../cases/calculator.md)和本次任务包，不在这里猜测。
-- 聊天应用、联系人身份依据、历史读取范围、回复标准、发送授权、模型接入及结果证明：由实际任务合同与获准观察确认；本轮只设计案例，不授权联系真实用户。
-- 跨应用组合、共享许可与支持环境、复用者的配置及维护责任：交付前按声明范围确认；不预设统一平台、分发协议或商业规则。
-- 模型建模耗时、人审修改量、调用费用、复用收益及各层实际质量：按验证计划测量；“主要分析由模型承担”不等于效率已经提高。
-- 既有 Vision 文档／类型返回形态、布局与标注行为、provider 和当前环境之间的差异：仅在需要接入时定向核实，不强制先修整个分割系统。
-- Structured Collection 的 Observation/Profile schema、deterministic segmenter/validator、SemanticVisionProvider、scroll continuity/merge 与真实跨平台资格均尚未实现；按专项架构 Phase 1–7 分批推进，不把 working contract 写进 Stable API。
-- 实际能力质量分与成功率：执行[验证计划](validation-plan.md)后分别报告；设计文本预评审单独记录，不填写运行通过率。
+需求基线允许 Unknown 长期存在，但必须明确 owner 和影响。例如：
+
+- 某目标宿主的 Skill 自动加载、隔离与停止能力；
+- 某业务应用的真实布局、版本、权限和结果读取方式；
+- 某混合 Agent/provider 的真实接线；
+- 某跨应用、共享或维护场景的实际业务合同；
+- Structured Collection 专项的实现与跨平台资格；
+- 实际成本、人工修订量、复用收益和成功率。
+
+这些 Unknown 不写成“当前实现状态列表”；只有进入具体任务时才按其影响决定研究、阻塞或继续。
 
 ## 方法依据
 
-来源为用户提供的项目背景、本轮执行授权与参考推导链，以及仓库[总体框架](../../../docs/frameworks/automation-framework.md)、[任务求解](../../../docs/frameworks/automation-problem-solving-framework.md)、[应用开发](../../../docs/frameworks/app-development-framework.md)、[示范方法](../../../docs/frameworks/demonstration-to-automation-pipeline.md)、[能力成熟度](../../../docs/frameworks/capability-development.md)、[接口扩展](../../../docs/frameworks/runtime-api-extension-framework.md)、[Structured UI Collection Reading](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)和[质量门禁](../../../docs/quality/gates-and-evidence.md)。本文件的 DREQ 编号和组织方式是设计，不宣称这些编号为既有实现。
+长期方法来源包括：
 
-## 本次修订
+- [总体自动化框架](../../../docs/frameworks/automation-framework.md)
+- [任务求解方法](../../../docs/frameworks/automation-problem-solving-framework.md)
+- [应用开发框架](../../../docs/frameworks/app-development-framework.md)
+- [示范到自动化方法](../../../docs/frameworks/demonstration-to-automation-pipeline.md)
+- [能力成熟度](../../../docs/frameworks/capability-development.md)
+- [Runtime API 扩展框架](../../../docs/frameworks/runtime-api-extension-framework.md)
+- [共享 Agent-to-Recipe 合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)
+- [Structured UI Collection Reading](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)
+- [质量门禁与证据](../../../docs/quality/gates-and-evidence.md)
 
-2026-09-07，v0.3：基于用户补充的项目背景及“执行”授权，区分项目目标与工作流建设要求，补入业务使用场景、DREQ-17—DREQ-20，并展开混合运行和共享复用的验收边界。读取基线为远端 master `17ccb9258dd34ce8b7c21296339a17f0c46e6586`；不是用户本地工作树或技术验收记录，未将未来平台方向升级为本轮实施任务。
-
-2026-09-08，v0.3.1：依据用户对错误示例 `calc.tapButton` 的明确纠正，删除“不强制 calc”的含糊表述，明确当前产物采用普通脚本与必要的普通函数，不新增应用对象方法层；同步 DREQ-07，并将矩阵定位保留为独立候选。既有框架 API 的调用形式不受此约束影响。本次仅修正文档，不声明脚本或桌面测试通过。
-
-2026-09-08，v0.4：记录用户的应用工程深化、同一 Agent 连续推进及参考作业树来源，新增 DREQ-21—DREQ-24；实际方法、链路和测试分别写回原唯一正文。授权限于本轮方案写入，不据此制造人审、模型提取或业务成功记录。
-
-2026-09-10，v0.5：加入 Structured UI Collection Reading 需求基线，新增 DREQ-25—DREQ-29；冻结 generic collection/business mapping、multi-source Observation、Collection/Traversal、VLM provider 和 mutation/partial completion 边界。详细 Runtime 算法只链接专项架构，不新增 S13、独立 collection Skill 或 Stable API 声明。
-
-2026-09-11，v0.6：补入自然语言任务入口与内部结构化合同边界、执行前用户可审阅操作计划、关键未知优先验证、planned／actual 偏差接续，以及 S7 DistilledSteps／`trace-distill` 与 S8—S9 `procedure-synthesize` 的职责边界。未新增阶段、Runtime 或已安装 Skill 声明。
-
-2026-09-19：沿用 DREQ-01—DREQ-33，增加上述接续实施来源与状态；三个方法文件及验证切片不改变业务需求，也不把合成 fixture 追认为现场。
+本文只拥有 Agent-to-Recipe 的需求基线；实现状态、测试结果和迁移历史不在这里维护。
