@@ -99,6 +99,8 @@ order: 10
 | code-rebuild | S11 可选 / 独立入口 | 精确代码基线、业务依据、修改范围 | 原样保留结论或新 Candidate |
 | recipe-qualify | S12 | 冻结 Candidate、scope、场景、环境、授权 | QualificationRecord |
 
+> **责任分组不等于阶段合并。** 表中的 S3—S6 表示同一个 task-demonstrate 方法包连续承担四个正式阶段：S3 Execute、S4 Observe/Verify、S5 Classify/Decide、S6 Close；S8—S9 同理，S8 是 Business Semantics，S9 才是 Reusable Procedure。需要判断某一阶段是否正确时，以 [task-decomposition.md](design/task-decomposition.md) 和 [Calculator 案例](cases/calculator.md) 的逐阶段定义为准。
+
 具体怎么完成某项专业职责，进入对应 `skills/*/SKILL.md`；本文件不复制其方法正文。
 
 ## 4. 每次只执行一个可验证工作包

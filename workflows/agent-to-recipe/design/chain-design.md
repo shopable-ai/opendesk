@@ -56,6 +56,8 @@ delivery / explicit publish boundary
 | **code-rebuild** | S11 可选／独立入口 | 精确代码基线、业务依据、修改范围 | 原样保留结论或新 Candidate、回归范围 | recipe-qualify | 代码问题本职责修；不能补造上游事实 |
 | **recipe-qualify** | S12 | 冻结 Candidate、requested scope、场景、环境、授权 | QualificationRecord、repair request | 交付／发布边界或缺陷 owner | 按真实缺陷 owner 定向返回 |
 
+> **粒度说明：** 上表按专业职责和外部 handoff 分组，所以 task-demonstrate 一行覆盖 S3—S6、procedure-synthesize 一行覆盖 S8—S9；这不是阶段合并。内部仍分别是 S3 执行、S4 观察验证、S5 分类决策、S6 任务收口，以及 S8 业务语义、S9 复用规格。需要定位“哪一个正式阶段先错”时，使用 [task-decomposition](task-decomposition.md)、[acceptance-map](acceptance-map.md) 的内部阶段诊断和 [Calculator 案例](../cases/calculator.md)。
+
 方法文件存在、宿主实际加载、独立上下文行为和真实业务是否通过，都属于验证证据，不由本表宣称。
 
 ### application-engineer 的三个模式

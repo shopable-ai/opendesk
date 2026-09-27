@@ -1,121 +1,152 @@
-# Calculator 案例文档｜独立分项设计复核（2026-09-27）
+# Calculator 案例文档｜逐阶段独立设计复核（2026-09-28）
 
-## 1. 本轮为什么再次修改
+## 1. 本轮为什么再次修订
 
-上一轮把 Calculator 主案例拆成：
+Calculator 主案例已经包含较完整的数据参考，但此前仍把 **S3—S6** 与 **S8—S9** 各作为一个检查块。
 
-- cases/calculator.md
-- cases/calculator-handoffs.md
-- cases/calculator-engineering.md
+这种写法适合“同一个 Skill / 外部 handoff”的责任分组，却不适合回答：
 
-虽然把历史/工程噪声从主线移开了，但用户实际阅读后指出两个问题：
+> **如果 task-demonstrate 或 procedure-synthesize 出错，到底是哪个正式阶段首先出错？**
 
-1. 主案例为了简洁，把“每个阶段真正收到什么、输出什么、怎样肉眼判断错误”的参考数据压得过薄；
-2. 要理解完整案例需要在多个 Calculator 专用文件之间跳转，削弱了 cases/calculator.md 作为“人工检查基准案例”的职责。
+正式 [task-decomposition](../../../workflows/agent-to-recipe/design/task-decomposition.md) 已经给出正确阶段粒度：
 
-本轮据此重新收敛：
+- S3：Execute；
+- S4：Observe / Verify；
+- S5：Classify / Decide；
+- S6：Close / Dossier；
+- S8：Business Semantics；
+- S9：Reusable Procedure。
 
-> **Calculator 主案例负责完整展示可检查的 S1—S12 参考链；深层方法、历史资格和运行证据回到已有正式 owner，不再维护两份 Calculator 专用辅助文档。**
+本轮没有合并阶段，也没有新增 S13。修改目标是让案例和诊断视图与现有 S1—S12 设计一致。
 
-基线是修改前的最新 master：3e190b9e8cb0a8db86db2920b0429426284a32c3。该提交已经更新 design/task-decomposition.md；本轮不覆盖或回退那次修改。
+## 2. 哪些地方应该分，哪些地方可以合并显示
 
-本轮不修改 S1—S12、Skill 方法、生产 JS、Runtime 或历史 Qualification，也没有执行新的 Calculator 真机任务。
-
-## 2. 文件职责决定
-
-| 文件 | 决定 | 理由 |
+| 文档/视图 | 正确粒度 | 原因 |
 | --- | --- | --- |
-| workflows/agent-to-recipe/cases/calculator.md | 保留并扩充为唯一 Calculator 主案例 | 它本来就负责让人看懂并检查工作流；关键阶段参考数据应该直接存在这里 |
-| cases/calculator-handoffs.md | 删除 | 其核心内容就是 Calculator 主案例的逐阶段检查，不具有独立长期 owner 职责 |
-| cases/calculator-engineering.md | 删除 | 大部分内容属于现有 docs/quality/、examples/、Workflow、Skill 或 Git 历史；主案例只保留必要边界和直接索引 |
-| 本质量记录 | 保留 | 评分、变更边界、未验证项属于 docs/quality/，与案例正文职责不同 |
+| task-decomposition.md | **逐正式阶段** | 它定义 S1—S12 各自做什么 |
+| cases/calculator.md | **逐正式阶段** | 它要帮助人工判断“哪一环先错” |
+| acceptance-map.md | 外部责任边界可分组；另加**内部阶段诊断** | 外部 handoff 数量少于正式阶段数量 |
+| WORKFLOW.md | 可按 Skill / route 分组，但必须说明**责任分组 ≠ 阶段合并** | 它是执行入口，不复制完整任务树 |
+| chain-design.md | 可按 Producer / Consumer / Skill 分组，但必须说明阶段仍独立 | 它回答谁生产、交给谁 |
+| Skill examples | 可按 Skill 连续展示多个阶段 | 同一个方法包可以承担多个正式阶段 |
 
-这次的原则不是“所有内容必须单文件”，而是：
+所以，“同一个 Skill 承担 S3—S6”是正确设计；“S3—S6 只能一起判断正确/错误”不是正确设计。
 
-> **为了完成 Calculator 案例本身的检查任务所必需的内容留在一个文件；已有独立 owner 的工程/历史资料用链接引用。**
-
-## 3. 独立评分，不用总分遮盖问题
-
-沿用 [validation-plan](../../../workflows/agent-to-recipe/design/validation-plan.md#六95-分目标的评估办法) 的五个维度：需求与语义 25、职责与独立性 20、成果与接续 20、验证与修复 20、复杂度与成本 15。
-
-这些仍然只是**本轮同一 Agent 的文档设计静态复核**，不是盲上下文模型测试、人类试读、Skill 能力测试或真实业务资格。
-
-| 独立对象 | 需求与语义 | 职责与独立性 | 成果与接续 | 验证与修复 | 复杂度与成本 | 分项结论 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 任务定义与黄金数据链 | 25 | 20 | 20 | 20 | 15 | **100** |
-| S1 参考案例 | 25 | 20 | 20 | 20 | 12 | **97** |
-| S2 参考案例 | 25 | 20 | 20 | 17 | 15 | **97** |
-| S3—S6 事实参考案例 | 25 | 20 | 20 | 20 | 15 | **100** |
-| S7 Raw Trace → DistilledSteps | 25 | 20 | 20 | 20 | 15 | **100** |
-| S8—S9 DistilledSteps → Procedure | 25 | 20 | 20 | 20 | 15 | **100** |
-| S10 Operation Rules 参考 | 25 | 20 | 20 | 17 | 15 | **97** |
-| S11 Procedure → JS | 25 | 20 | 20 | 20 | 15 | **100** |
-| S12 Candidate → Qualification | 25 | 20 | 20 | 17 | 15 | **97** |
-| 错误定位方法 | 25 | 20 | 20 | 20 | 15 | **100** |
-| 单文件阅读与 owner 收敛 | 25 | 20 | 20 | 17 | 15 | **97** |
-
-### 为什么仍有 97 而不是强行 100
-
-- S1：没有在主案例展开完整 revision / changeLog 样本。
-- S2：没有在主案例展开多布局、多模式的完整成对样本。
-- S10：没有展开完整定位/读取规则 JSON 或所有扰动案例，只保留足够判断 Calculator 主链的切片。
-- S12：没有展开一份完整可发布 QualificationRecord，只展示决定性字段和证据关系。
-- 单文件阅读：结构已经减少跳转，但“真实新读者能否在限定时间正确定位问题”仍需要独立试读才能证明。
-
-这些缺口不能通过增加更多篇幅或声称“已经通过”来消除。
-
-## 4. 关键静态反例检查
-
-| 反例 | 主案例现在是否能直接定位 | 正确责任 |
-| --- | --- | --- |
-| Expected 110 被当作 firstResult | 是 | S1 或最早发生替换的阶段 |
-| 没有 A005 actual read | 是 | S3—S6 |
-| A005 存在但 S7 删除 D030 | 是 | S7 |
-| A009 的 1,1,0 被去重 | 是 | S7 |
-| A007/A008 因“前面清过一次”被删 | 是 | S7 |
-| D030/D050 正确，但 Procedure 将 firstResult 设为 default 110 | 是 | S8—S9 |
-| READ 失败 fallback 110 | 是 | S10 |
-| Procedure 正确，但 JS 写死 1,1,0 | 是 | S11 |
-| finalResult 直接返回 660 常量 | 是 | S11 |
-| frozen Candidate 与 actual executed hash 不同 | 是 | S12 |
-| requested 有 variation，但只跑 baseline 就宣称全部 PASS | 是 | S12 |
-| action effect unknown 后换 backend 重放 | 是 | S3—S6 / S10，按最早证据定位 |
-
-最重要的新增能力不是“更多错误表”，而是主案例现在能够沿着：
+## 3. S3—S6 的正确关系
 
 ~~~text
-Raw facts
-→ DistilledSteps
-→ SemanticProcedure
-→ JavaScript
-→ Qualification
+S3 Execute
+  实际执行当前获准动作，并留下 actual action fact
+  ↓
+S4 Observe / Verify
+  重新观察实际效果，与 Expected 比较
+  ↓
+S5 Classify / Decide
+  分类并决定 continue / revise / recover / stop
+  └─ continue → 下一 planned step，再回 S3
+  ↓ task end
+S6 Close
+  汇总多轮 S3—S5，冻结 Dossier / Trace / Evidence
 ~~~
 
-逐层比较同一个 firstResult producer → consumer 关系。
+最关键的区别：
 
-## 5. 本轮没有证明什么
+- S3 的 receipt 不能替代 S4 的业务 observation；
+- S4 的 uncertain 不能被 S5 强行 continue；
+- S6 不能补写 S3/S4 从未发生的事实。
 
-| 对象 | 本轮状态 |
-| --- | --- |
-| 新 Agent 只凭各 Skill 输入能否独立正确完成职责 | **not-run** |
-| 当前 r009 原始执行/Qualification 包是否完整可复核 | **not-run / 本轮未取得原始包** |
-| 当前 Candidate 新的 Calculator 真机运行 | **not-run** |
-| 当前 Candidate 的视觉验收 | **not-run** |
-| repeatability / parameterization 新资格 | **not-run** |
-| 新读者的实际理解时间与错误定位成功率 | **not-run** |
+## 4. S8 与 S9 的正确关系
 
-因此上面的 97—100 是**各文档设计单元的静态分项评分**。不能把它们转写成 Skill 成功率或 Recipe 运行资格。
+~~~text
+S7 DistilledSteps
+  ↓
+S8 Business Semantics
+  D030 → B025
+  D050 → B040
+  firstResult 仍是业务上的 runtime input
+  ↓
+S9 Reusable Procedure
+  firstResult 被正式分类为 runtime value
+  固定 producer → transform → consumer
+  定义参数、分支、scope、capability decision
+~~~
 
-## 6. 本轮验收重点
+如果 B040 已经写成 input=110，最早错误在 **S8**。
 
-本轮文档层应满足：
+如果 B040 仍消费 firstResult，但 SemanticProcedure 才出现 firstResult.default=110，最早错误在 **S9**。
 
-1. 只打开 cases/calculator.md 就能看见任务、黄金数据链和 S1—S12 的决定性参考数据；
-2. S3—S6、S7、S8—S9、S11 不再只有抽象产物名，而有可以相互对照的具体 Calculator 数据；
-3. 能通过 producer / consumer / transform 找到最早错误交接；
-4. Expected、synthetic observation、current source、historical runtime evidence 明确分层；
-5. 不需要跳进 Calculator 专用 handoff / engineering 文件才能理解主链；
-6. 详细 Skill 方法、历史资格、源码与质量记录仍可通过正式 owner 深入核对；
-7. 不新增阶段、schema、第二套评分标准或伪运行证据。
+## 5. 修改前按独立阶段重评
 
-如果后续独立试读仍然出现“知道概念但看不出实际哪里错”，应优先修主案例中的对应阶段参考数据，而不是再创建新的 Calculator 辅助文档。
+此前把 S3—S6 和 S8—S9 当组合对象打高分，不符合“每个正式阶段独立判断”的要求。按阶段重新看修改前版本：
+
+| 阶段 | 修改前问题 | 修改前文档设计分 |
+| --- | --- | ---: |
+| S1 | 参考合同充分；少完整 revision 样本 | **97** |
+| S2 | AppProfile 切片充分；少多布局配对样本 | **97** |
+| **S3** | 有 A001—A010，但 Execute 边界不清 | **88** |
+| **S4** | receipt/observation 区别存在，但没有独立输入/输出/错误卡 | **82** |
+| **S5** | continue/stop/setup/unknown 散落，最难独立归责 | **78** |
+| **S6** | Dossier 概念存在，但与 S3—S5 没明确分开 | **84** |
+| S7 | source refs、取舍和反例充分 | **100** |
+| **S8** | Business Steps 与 S9 泛化混写 | **88** |
+| **S9** | default 110 反例充分，但无法判断是否其实 S8 已错 | **86** |
+| S10 | operation rule 切片充分 | **97** |
+| S11 | Procedure→JS 正反实现充分 | **100** |
+| S12 | Candidate/scope/evidence 边界充分 | **97** |
+
+不计算综合平均。低于 95 的阶段不能被其他阶段的高分补掉。
+
+## 6. 修改后逐阶段静态设计评分
+
+继续沿用 [validation-plan](../../../workflows/agent-to-recipe/design/validation-plan.md#六95-分目标的评估办法) 的五维量尺。
+
+| 阶段 | 需求与语义 25 | 职责与独立性 20 | 成果与接续 20 | 验证与修复 20 | 复杂度与成本 15 | 本轮分项 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| S1 | 25 | 20 | 20 | 20 | 12 | **97** |
+| S2 | 25 | 20 | 20 | 17 | 15 | **97** |
+| **S3 Execute** | 25 | 20 | 20 | 17 | 15 | **97** |
+| **S4 Observe / Verify** | 25 | 20 | 20 | 17 | 15 | **97** |
+| **S5 Classify / Decide** | 25 | 20 | 20 | 17 | 15 | **97** |
+| **S6 Close / Dossier** | 25 | 20 | 20 | 17 | 15 | **97** |
+| S7 | 25 | 20 | 20 | 20 | 15 | **100** |
+| **S8 Business Semantics** | 25 | 20 | 20 | 17 | 15 | **97** |
+| **S9 Reusable Procedure** | 25 | 20 | 20 | 17 | 15 | **97** |
+| S10 | 25 | 20 | 20 | 17 | 15 | **97** |
+| S11 | 25 | 20 | 20 | 20 | 15 | **100** |
+| S12 | 25 | 20 | 20 | 17 | 15 | **97** |
+
+这些仍是**文档设计静态评分**，不是 Skill 成功率、模型可靠性或业务 Qualification。
+
+97 的保留项主要是：
+
+- Calculator 正文没有复制完整正式 JSON / 全字段 Dossier；
+- 没有展开所有参数化、布局变化、恢复和 capability decision 组合；
+- 新读者能否在限定时间内独立正确区分 S3/S4/S5/S6，仍应做独立试读；
+- 文档清楚不代表宿主加载、独立上下文行为和泛化已经重新验证。
+
+## 7. 修改后应该能直接定位的错误
+
+| 现象 | 首先比较 | 最早责任 |
+| --- | --- | --- |
+| P30 计划读值，但没有真实 read action | Plan vs Raw Trace action | **S3** |
+| 有 read action，但 Expected / receipt 被当 actualObservation | S3 vs S4 | **S4** |
+| S4=uncertain 仍继续；第二次 clear 被当 off-task | S4 vs S5 | **S5** |
+| Trace 完整，但 Dossier 只写 final=660 或漏 A005→A009 | S3—S5 vs Dossier | **S6** |
+| Dossier 正确，S7 删除 A005 / 去重 1,1,0 | Dossier vs DistilledSteps | **S7** |
+| DistilledSteps 正确，B040 已变成 input=110 | S7 vs Business Steps | **S8** |
+| Business Steps 正确，Procedure 才出现 default=110 | S8 vs SemanticProcedure | **S9** |
+| Procedure 正确，read rule fallback 到 110 | Procedure vs operation rule | **S10** |
+| Procedure 正确，JS 写死 1,1,0 | Procedure vs exact JS | **S11** |
+| Candidate 正确，但实际验了其他字节/漏 requested 场景 | Candidate/request vs execution | **S12** |
+
+诊断仍采用同一个原则：
+
+> **找第一处“输入仍然正确、输出第一次变错”的阶段边界。**
+
+## 8. 与当前真实 Calculator 运行记录的关系
+
+当前 Calculator 案例顶部已经记录 2026-09-27 的真实局部示范、S7→S12 绑定、两次同版 execution 及其限制，同时明确独立 S7 包 Gate FAIL、部分原件只在本地 .runtime、完整原版 Skill 泛化未验证。
+
+本记录不重新授予或撤销这些运行结论。这里的分数只评价：
+
+> **案例和诊断文档是否已经把每一个正式阶段写到足以单独检查的粒度。**

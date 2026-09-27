@@ -95,7 +95,7 @@ View、Review、Summary 都是这些权威工件的投影。
 | **S11 · recipe-build / code-rebuild** | 固定 Procedure、Profile/helper、实际 API、代码基线 | exact JS、CandidateManifest、source mapping、依赖 | 实现忠实消费实际数据；Candidate 字节冻结 | S11；语义／规则问题回 owner |
 | **S12 · recipe-qualify** | exact Candidate、合同、requested scope、场景、环境、授权 | QualificationRecord、execution、actual evidence、not-run/blocked、repair request | 同一候选在 requested scope 有真实证据 | 按 defect owner 定向返工 |
 
-### Stage Contract Matrix：样例、拒绝条件与检查责任
+### 外部责任边界 Contract Matrix：样例、拒绝条件与检查责任
 
 | 边界 | 有效示例 | 必须拒绝 | 主要审阅点 |
 | --- | --- | --- | --- |
@@ -109,6 +109,22 @@ View、Review、Summary 都是这些权威工件的投影。
 | **S12** | exact Candidate + predeclared scenarios → actual evidence | 改代码后沿用旧 Qualification | Candidate identity、scope、scenario、evidence |
 
 Gate 选择见 [validation-plan.md](validation-plan.md)，不是每个边界都机械要求所有 G0—G7。
+
+### 同一 Skill 内部的阶段诊断
+
+上面的八行按**外部 handoff / 专业职责**分组；为了定位“哪一个正式阶段先错”，还要在两个多阶段 Skill 内继续细分：
+
+| 正式阶段 | Calculator 有效参考 | 必须拒绝 | 本阶段审阅点 |
+| --- | --- | --- | --- |
+| **S3 Execute** | P30 真正执行 A005 read，并保存 actual target/request/return | 只有 planned P30 就补写 A005；Expected 110 当 rawReturn | action 是否真实发生、目标、receipt、sideEffect |
+| **S4 Observe / Verify** | A005 在正确结果区稳定观察为 actualObservation，再与 Expected 比较 | receipt ok 就写业务 pass；未观察到就写 false | object identity、actual vs Expected、pass/fail/uncertain |
+| **S5 Classify / Decide** | S4 pass 后 continue；A007/A008 分类为 setup；unknown 时 stop | unknown effect 继续/重放；必要 setup 被当 off-task | classification、decision、planDelta、recovery |
+| **S6 Close** | Dossier 固定 A005→firstResult→A009、A010→final output 与范围 | 只写 final=660 就宣称 complete；补造缺失历史 | taskStatus、scope、data flow、evidence、unresolved |
+| **S8 Business Semantics** | D030→B025、D050→B040，Business Step 仍消费 firstResult | B040 已直接写 input=110；producer 无 consumer | step purpose、input/output、consumer、source refs |
+| **S9 Reusable Procedure** | B025→runtime firstResult→characters→B040 | firstResult.default=110；无证据扩大 scope | value classification、dataDependencies、supported scope、capability decision |
+
+因此，S3—S6 或 S8—S9 在“八个外部边界”里写成一行是正常的；在**阶段正确性诊断**里再把它们当作一个结论则是不够的。
+
 
 ## 四、用一个值贯穿检查，而不只看文件名称
 

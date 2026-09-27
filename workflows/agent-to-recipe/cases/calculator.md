@@ -26,6 +26,8 @@ order: 10
 
 ### 关键输入输出
 
+> 下表按本轮实际工件/交接做摘要分组，**不是正式阶段合并**。S3/S4/S5/S6 与 S8/S9 的独立判断责任见后文逐阶段案例卡。
+
 | 现有阶段 | 本轮输入和来源 | 实际输出与下游消费 |
 | --- | --- | --- |
 | S1–S2 | 用户要求、动作前 `00-contract.md` 与本机 Calculator 的窗口/AX 观察 | TaskContract/WorkPlan、AppProfile；任务前显示 `115` 被清空，不作本轮值 |
@@ -141,15 +143,20 @@ S1：明确“必须读取真实首值并继续使用”
   ↓
 S2：认识正确 Calculator、按钮和结果区
   ↓
-S3—S6：真实动作产生 observation
+S3：执行当前获准动作并记录 actual action
   ↓
-A005 actual read → firstResult
+S4：重新观察并验证 actual effect
   ↓
-A009 actual consumer 使用 firstResult 全部字符
+S5：分类并决定 continue / revise / recover / stop
+  ↺ continue 时进入下一次 S3
+  ↓ task end
+S6：冻结任务级 Dossier / Raw Trace / Evidence
   ↓
 S7：D030 produces firstResult → D050 consumes firstResult
   ↓
-S8—S9：B025 produces firstResult → characters → B040 consumes
+S8：D030 / D050 → B025 / B040，形成 Business Steps
+  ↓
+S9：firstResult 被定义为 runtime value，固定 producer → transform → consumer
   ↓
 S10：提供可靠 read / clear / target / wait 规则
   ↓
@@ -326,128 +333,339 @@ calculator-current.js 里写了 232×321
 
 ---
 
-## 5. S3—S6｜真实执行到底产生了哪些事实
+## 5. S3｜执行当前获准动作：记录 actual action
 
-这是整个案例最重要的检查点之一。
-
-S1 说“应该读取 firstResult”，并不证明真的读过。S3—S6 必须形成真实动作、观察、运行时值和消费者。
-
-### planned 只表示准备做什么
-
-例如：
+S3、S4、S5 是同一真实任务中的**微循环**，但不是同一个判断点：
 
 ~~~text
-P10 准备第一段状态
-P20 输入第一式
-P30 读取 firstResult
-P40 准备第二段状态
-P50 用 firstResult 输入第二式
-P60 读取并交付 finalResult
+planned step
+  ↓
+S3 Execute：实际做了什么？
+  ↓
+S4 Observe / Verify：实际效果是什么？
+  ↓
+S5 Classify / Decide：继续、修订、恢复还是停止？
+  ├─ continue → 下一 planned step，再进入 S3
+  └─ task end → S6
 ~~~
 
-这六行只是计划，不是 actual。
+同一个 task-demonstrate Skill 可以连续完成 S3—S6；这只表示职责由同一个方法包承担，不表示四个正式阶段可以合并判断。
 
-### Calculator synthetic fixture 的参考事实
-
-下面 A001—A010 来自现有冻结 synthetic fixture，用于说明**正式真实记录需要表达什么关系**：
-
-| action | actual / observation 的参考内容 | 为什么重要 |
-| --- | --- | --- |
-| A001 | 记录当前 Calculator 窗口范围 | 确认这条路径对应哪个任务对象 |
-| A002 | 第一段执行 AC 清空并保存动作回执 | 建立第一段输入状态 |
-| A003 | 实际读取 clean，原值 0 | 检查第一段起点，而不是只信 clear 回执 |
-| A004 | 顺序输入 2,5,×,4,+,1,0,= | 第一式真实输入 |
-| **A005** | 从结果区实际 read；fixture 合成读值 110 | **firstResult 的 producer** |
-| A006 | first-result 辅助截图标记，fixture=true | 辅助证据；不能替代 A005 actual read |
-| A007 | 第二段执行 AC 清空并保存动作回执 | 建立第二段新起点；不是 A002 的重复副本 |
-| A008 | 实际读取 second-clean，原值 0 | 检查第二段准备后的 UI 状态 |
-| **A009** | 顺序输入 6,×,1,1,0,= | **消费 A005 的完整 firstResult** |
-| **A010** | 从结果区实际 read；fixture 合成读值 660 | **finalResult 的 producer** |
-
-最关键的数据记录应该能表达：
+### 本阶段收到什么
 
 ~~~text
-value = firstResult
-producer = A005 / Calculator result display
-observedValue = "110"            # 这里只是 fixture 合成值
-consumer = A009 / second expression
-actualTransform = characters
-actualInput = ["1","1","0"]
-freshRun = must reacquire
+current planned step
++ AppProfile / target 依据
++ 当前授权和副作用边界
++ 当前现场
++ expected transition（只作期望）
 ~~~
 
-以及：
+第一次结果读取的 planned 输入可以是：
 
 ~~~text
-value = finalResult
-producer = A010 / Calculator result display
-consumer = final output
-freshRun = must reacquire
+plannedStep = P30 / 读取 firstResult
+target = 当前 Calculator result display
+expectedCriterion = "110"
 ~~~
 
-### 第二次清空时，到底保留什么
+### Calculator 参考：S3 应留下什么
+
+沿用现有 synthetic fixture，A005 是一个可读的 actual action 参考：
 
 ~~~text
-A007/A008 改变的是 Calculator UI state
-firstResult 保存在任务运行数据中
+actionRef = A005
+plannedStep = P30
+operation = read result display
+actualTarget = Calculator result display
+rawReturn = "110"        # fixture synthetic value
+evidenceRef = 本次实际调用/返回记录
 ~~~
 
-所以：
+输入第一式时：
 
 ~~~text
-Calculator display → 0
+actionRef = A004
+plannedStep = P20
+actualInput = [2,5,×,4,+,1,0,=]
+receipt = 本次动作回执
 ~~~
 
-不等于：
+S3 的核心输出是：
 
 ~~~text
-firstResult → deleted
+plannedStepRef
+actual actionRef
+actual target
+actual request / input
+actual tool return / receipt
+evidence refs
+sideEffect = known / unknown
 ~~~
 
-### 怎样判断 S3—S6 对不对
+动作产生读值时要保存真实 origin；**该读值能不能被认定为正确业务事实，由 S4 继续判断。**
 
-**错误 1：Expected 冒充 observation**
+### 怎样判断 S3 对不对
+
+**错误 1：计划冒充 actual**
 
 ~~~text
-Expected first result = 110
-→ firstResult = 110
+P30 计划读取
+→ 直接写成 A005 已读到 110
 ~~~
 
-没有 A005 真实读取时，必须保持缺证/unknown。
+没有真实调用就没有 actual action。
 
-**错误 2：receipt 冒充 observation**
+**错误 2：Expected 冒充 raw return**
 
-~~~text
-按钮调用全部 ok
-→ firstResult 已确认
-~~~
+Expected 和 actualReturn 即使同为 110，也必须来自不同来源。
 
-动作回执只能证明其覆盖范围内的动作结果，不能代替结果区 read。
+**错误 3：目标身份不清仍执行**
 
-**错误 3：只写“使用 firstResult”**
+不知道读的是主结果显示区还是历史区域时，不能为了形成 Trace 先执行再解释。
 
-如果没有实际 consumer 和 transform：
+**错误 4：副作用 unknown 后重放**
 
-~~~text
-consumer = ?
-actualInput = ?
-~~~
+点击超时但可能已发生时，不能再次点击来“补一个干净记录”。
 
-下游无法知道本次到底是逐字符、粘贴、identity 还是写死常量。
+### 错了回哪里
 
-**错误 4：从最终 JS 倒填历史**
-
-当前源码有 clear/read/click，不等于当次示范事实已经包含这些 action 和 observation。
-
-### 如果这里错了
-
-真实动作/观察本来就缺失：返回 **S3—S6** 定向补采。
-
-已有真实材料只是没有交给本次 worker：先由**协调者补交固定材料**，不要把“材料没交到”误判为“历史事实不存在”。
+- action 没发生、记录被补造：**S3**。
+- target / read 依据本身不可靠：**S2 / S10**。
+- 授权或目标变化：**S1**。
+- 动作已发生但效果未知：进入 **S4**，不是由 S3 宣布成功。
 
 ---
 
-## 6. S7｜把 Raw Trace 提炼成必要步骤，但不能破坏事实
+## 6. S4｜观察并验证实际效果：把 receipt 与业务结果分开
+
+S4 回答：
+
+> **S3 之后真实对象变成什么状态？它是否满足这个 planned step 的 Expected Outcome？**
+
+### 本阶段收到什么
+
+~~~text
+S3 actual action
++ expected transition / criterion
++ 当前对象身份
++ observation / verifier
+~~~
+
+### Calculator 参考：A005 怎样成为可信 observation
+
+现有 synthetic fixture 对 A005 保存了两次相同读取，可读参考是：
+
+~~~text
+sourceAction = A005
+target = Calculator result display
+read1 = "110"
+read2 = "110"
+sameTarget = true
+stable = true
+
+actualObservation = "110"
+expectedCriterion = "110"
+comparison = pass
+verificationStatus = pass
+~~~
+
+这里必须保留两个来源：
+
+~~~text
+actualObservation = "110"   # 本次实际观察
+expectedCriterion = "110"   # 任务期望
+~~~
+
+A004 的按钮 receipt 全部 acknowledged，也只能证明 receipt 覆盖的动作；没有结果区 observation，不能仅凭 receipt 宣称第一式业务结果成立。
+
+### S4 的正确输出 / 状态
+
+~~~text
+sourceAction / plannedStep
+observed object identity
+actualObservation
+Expected
+comparison
+status = pass / fail / uncertain
+evidence refs / limitations
+~~~
+
+### 怎样判断 S4 对不对
+
+**错误 1：receipt ok = 业务成功。**
+
+**错误 2：没有观察到就写 false。** 缺观察只能保持 uncertain。
+
+**错误 3：观察的是另一个窗口/数字区域。** 值恰好相同也不能通过。
+
+**错误 4：Expected 反向生成 observation。**
+
+### 错了回哪里
+
+- observation / verification 判断错误：**S4**。
+- 缺必要 observation：定向补 **S3→S4**，不重做整条示范。
+- 对象或读取规则失效：**S2 / S10**。
+
+---
+
+## 7. S5｜分类并决定下一步：continue / revise / recover / stop
+
+S5 不产生新的 UI 真相。它使用 S3/S4 已经成立的事实回答：
+
+> **这一段属于什么性质？接下来是否安全继续？**
+
+### 本阶段收到什么
+
+~~~text
+planned step
++ S3 actual action
++ S4 verification status
++ 当前副作用状态
++ WorkPlan / budget / authorization
+~~~
+
+### Calculator 参考 1：首值确认后继续
+
+~~~text
+source = A005 + S4 pass
+classification = verification + runtime-value-producer
+
+runtimeValue:
+  name = firstResult
+  origin = A005
+  value = "110"          # fixture synthetic value
+  freshRun = reacquire
+
+decision = continue
+nextPlannedStep = P40
+~~~
+
+### Calculator 参考 2：第二次 clear 不是重复噪音
+
+~~~text
+source = A007 / A008
+classification = setup / state-preparation
+effect = prepare second Calculator state
+preserveTaskData = firstResult
+decision = continue
+nextPlannedStep = P50
+~~~
+
+A007/A008 所处状态已经不同于 A002/A003，不能仅因动作名称重复就判为 off-task。
+
+### Calculator 参考 3：效果 unknown 时停止
+
+~~~text
+verificationStatus = uncertain
+sideEffect = unknown
+classification = unresolved
+decision = stop
+retry = false
+~~~
+
+### S5 的正确输出 / 状态
+
+~~~text
+classification
+decision = continue / revise / recover / stop
+nextPlannedStep
+planDelta（如有）
+recovery relation（如有）
+sideEffect handling
+reason / evidence refs
+~~~
+
+### 怎样判断 S5 对不对
+
+**错误 1：把 setup 当噪音。**
+
+**错误 2：S4 已 uncertain，仍继续依赖 firstResult。**
+
+**错误 3：没有新事实就用 planDelta 覆盖过去 actual。**
+
+### 错了回哪里
+
+- 事实正确但 classification / decision 错：**S5**。
+- S4 本身把 observation 判错：回 **S4**。
+- actual action 本身就不成立：回 **S3**。
+
+---
+
+## 8. S6｜任务级证据收口：冻结 Dossier，而不是再做一次执行
+
+S6 在任务结束时汇总多轮 S3—S5，回答：
+
+> **这次真实任务最终是 complete、fail、partial 还是 inconclusive？哪些事实可以固定交给 S7？**
+
+### 本阶段收到什么
+
+~~~text
+TaskContract / WorkPlan
++ 全部 S3 actual actions
++ 全部 S4 observations / verification
++ 全部 S5 classifications / planDelta / recovery
++ evidence / sideEffect state
+~~~
+
+### Calculator 参考 Dossier 摘要
+
+~~~text
+taskStatus = complete-success / fail / partial / inconclusive
+
+firstResult:
+  producer = A005
+  observedValue = "110"        # fixture synthetic value
+  consumer = A009
+  transform = characters
+  freshRun = reacquire
+
+secondPreparation:
+  actions = A007, A008
+  changes = Calculator UI state
+  preserves = firstResult
+
+finalResult:
+  producer = A010
+  observedValue = "660"        # fixture synthetic value
+  consumer = final output
+
+unresolved = [...]
+sideEffects = [...]
+evidenceIndex = [...]
+~~~
+
+S6 真正需要冻结的是：
+
+~~~text
+A005 → firstResult → A009
+A010 → final output
+~~~
+
+以及它们的证据、范围和未决项。
+
+### 怎样判断 S6 对不对
+
+**错误 1：只有 final=660，就写 complete success。**
+
+**错误 2：把 partial / uncertain 升级为 complete。**
+
+**错误 3：Dossier 补写 S3/S4 从未发生的历史。**
+
+**错误 4：把人工开发 / 参考执行改写成 Agent demonstration。**
+
+### 错了回哪里
+
+- 原始事实齐全，但 Dossier 汇总、范围、taskStatus 错：**S6**。
+- actual action 缺失：**S3**。
+- observation / verification 缺失：**S4**。
+- continue / stop / recovery 决策错：**S5**。
+
+S6 不提前做 S7 的 retain / omit。
+
+---
+
+## 9. S7｜把 Raw Trace 提炼成必要步骤，但不能破坏事实
 
 S7 不负责重新决定业务目标，也不负责设计最终代码。
 
@@ -528,52 +746,55 @@ D050 consumes firstResult
 
 ---
 
-## 7. S8—S9｜把必要步骤变成业务过程和运行时数据关系
+## 10. S8｜DistilledSteps → Business Steps：解释业务语义
 
-这一阶段非常容易发生“看起来合理、其实已经把任务改掉”的错误。
+S8 只回答：
+
+> **这些必要步骤在业务上分别意味着什么？输入、输出、前后条件和消费者是谁？**
+
+S8 还不负责把一次案例泛化成参数化规格。
 
 ### 本阶段收到什么
 
-关键 S7 输入已经是：
-
 ~~~text
-D030:
-  read actual first result
-  produces firstResult
-
-D040:
-  prepare second calculation
-  preserves firstResult
-
-D050:
-  consume firstResult
+fixed DistilledSteps
++ TaskContract / WorkPlan
++ 必要 AppProfile
++ source refs / evidence refs
 ~~~
 
-### 参考输出：Business Steps
+关键输入：
+
+~~~text
+D030 produces firstResult
+D040 prepares second state and preserves firstResult
+D050 consumes firstResult
+~~~
+
+### Calculator 参考 Business Steps
 
 ~~~text
 B010 PrepareFirstCalculation
+  source = D010
 
 B020 EnterFirstExpression
+  source = D020
   input = [2,5,×,4,+,1,0,=]
 
 B025 ReadFirstResult
   source = D030
   output = firstResult
-  valueKind = runtime value
-  origin = current Calculator result display
+  origin = Calculator result display
+  consumer = B040
 
 B030 PrepareSecondCalculation
   source = D040
-  effect = prepare Calculator UI state
   preserve = firstResult
 
 B040 EnterSecondCalculation
   source = D050
   input = firstResult
-  transform = characters
-  demonstrated example:
-    "110" -> ["1","1","0"]
+  demonstratedTransform = characters
 
 B050 ReadFinalResult
   source = D060
@@ -581,69 +802,112 @@ B050 ReadFinalResult
   consumers = print, return
 ~~~
 
-### SemanticProcedure 中最关键的数据关系
+### 怎样判断 S8 对不对
+
+正确关系：
 
 ~~~text
-runtimeValues.firstResult.producer = B025
-runtimeValues.firstResult.consumers = [B040]
+D030 → B025 → firstResult
+D050 → B040 consumes firstResult
+~~~
+
+**错误 1：S8 已经写成 B040 input=110。**  
+这时错误发生在业务解释层，不需要等 S9。
+
+**错误 2：只有 B025 producer，没有 B040 consumer。**
+
+**错误 3：按按钮次数/函数长度拆 Business Step，而不是按业务目的。**
+
+### 错了回哪里
+
+- Business Step 目的、边界、输入输出、消费者解释错：**S8**。
+- DistilledSteps 自身取舍已经错：回 **S7**。
+
+---
+
+## 11. S9｜Business Steps → SemanticProcedure：定义复用规格
+
+S9 回答：
+
+> **哪些值是 caller input，哪些是 runtime value？数据怎样流动？允许哪些变化？支持范围到哪里？**
+
+### 本阶段收到什么
+
+~~~text
+Business Steps from S8
++ TaskContract
++ 补充证据
++ 必要 AppProfile
++ capability / API 选择事实
+~~~
+
+S8 已固定：
+
+~~~text
+B025 produces firstResult
+B040 consumes firstResult
+~~~
+
+### Calculator 参考 SemanticProcedure
+
+~~~text
+runtimeValues.firstResult:
+  producer = B025
+  origin = Calculator result display
+  consumers = [B040]
+  transform = characters
+  freshRun = reacquire
+
+runtimeValues.finalResult:
+  producer = B050
+  consumers = [print, return]
 
 dataDependencies:
   B025
     → firstResult
     → characters
     → B040
+
+fixed / caller inputs:
+  25, 4, 10, 6 是否允许参数化
+  由 TaskContract 与 supported scope 决定
+
+supportedScope:
+  只写已有证据支持的变化
+
+pendingEngineering:
+  交 S10 的 locator / read / wait / clear 等缺口
 ~~~
 
-固定任务里的 25,4,10,6 是否以后参数化，要由合同和支持范围决定。
+### 怎样判断 S9 对不对
 
-但无论是否参数化，firstResult 都不能变成 caller parameter，因为它是本次运行中由 B025 产生的值。
-
-### 怎样判断 S8—S9 对不对
-
-**错误：**
+**错误 1：**
 
 ~~~text
 parameters.firstResult.default = "110"
 ~~~
 
-S7 明明交付的是：
+如果 S8 仍然写的是 B025→firstResult→B040，那么：
 
 ~~~text
-D030 produces runtime firstResult
-D050 consumes runtime firstResult
-~~~
-
-到了 Procedure 却变成常量/default。
-
-这时已经可以确定：
-
-~~~text
-最后正确产物 = DistilledSteps
+最后正确产物 = Business Steps
 最早错误产物 = SemanticProcedure
-责任 = S8—S9
+责任 = S9
 ~~~
 
-不需要等 S11 写完代码才发现。
+**错误 2：一次示范自动泛化为任意表达式 / 任意布局。**
 
-另一个错误：
+**错误 3：API 文档存在就写 runtimeValidation=pass。**
 
-~~~text
-B025 produces firstResult
-~~~
+### 错了回哪里
 
-但没有记录 B040 consumer。
-
-这样 S11 仍然不知道真实数据流。
-
-### 如果这里错了
-
-业务语义、运行时值、consumer、transform 或支持范围解释错误：修 **S8—S9**。
-
-如果发现原动作取舍就已经错了，再回 **S7**；不要在 S9 维护第二套 action truth。
+- 参数分类、runtime value、dataDependencies、分支、scope、capability decision 错：**S9**。
+- Business Step 本身已把 firstResult 解释错：回 **S8**。
+- action 取舍错：回 **S7**。
 
 ---
 
-## 8. S10｜把 Procedure 需要的应用操作补成可靠规则
+## 12. S10｜把 Procedure 需要的应用操作补成可靠规则
 
 S10 不重新决定“第二式是否应该使用 firstResult”。
 
@@ -736,7 +1000,7 @@ READ-01 失败时返回 "110"
 
 ---
 
-## 9. S11｜Procedure 到 JavaScript 必须保持同一条数据链
+## 13. S11｜Procedure 到 JavaScript 必须保持同一条数据链
 
 ### 本阶段收到什么
 
@@ -853,7 +1117,7 @@ candidate-revised
 
 ---
 
-## 10. S12｜到底怎样证明“这份 Recipe 正确”
+## 14. S12｜到底怎样证明“这份 Recipe 正确”
 
 S12 不能只看“最后是不是 660”。
 
@@ -957,9 +1221,9 @@ Candidate 已变化，不是同一个对象的 repeatability evidence。
 
 ---
 
-## 11. 一次完整错误定位示例
+## 15. 一次完整错误定位示例
 
-假设最后看到这样的代码：
+假设最后看到这样的错误代码：
 
 ~~~js
 const firstResult = await readCalculatorResult(win);
@@ -969,90 +1233,141 @@ await clickCalculatorButtons(
 );
 ~~~
 
-不要直接说“S11 负责一切”，而是向上比较。
+不能直接说“S11 写错了，所以根因就是 S11”。要沿相邻阶段向上比较。
 
-### 第一步：看 S8—S9
+### 第一步：先看 S8 的 Business Steps
 
-如果 Procedure 已经写成：
+如果 S8 已经写成：
 
 ~~~text
-B040
+B025:
+  output = firstResult
+
+B040:
   input = 110
 ~~~
 
-那么 S11 只是实现了一个已经错误的 Procedure。
+说明 runtime firstResult 在**业务语义层**就被替换成常量。
 
-继续向上。
-
-### 第二步：看 S7
-
-如果 DistilledSteps 是：
+继续比较 S7：
 
 ~~~text
 D030 produces firstResult
 D050 consumes firstResult
 ~~~
 
-则 S7 仍然正确。
-
-因此可以定位：
+如果 S7 仍然正确，则可以定位：
 
 ~~~text
-最后一个已确认正确的产物
-  DistilledSteps
+最后正确产物 = DistilledSteps
+最早错误产物 = Business Steps
+最早错误阶段 = S8
+~~~
 
-最早已确认错误的产物
-  SemanticProcedure
+### 第二步：如果 S8 正确，再看 S9
 
-最早错误交接
-  S7 → S8—S9
+如果 Business Steps 仍然是：
 
-责任
-  S8—S9
+~~~text
+B025 produces firstResult
+B040 consumes firstResult
+~~~
 
-需要重做/重验
-  S8—S9
+但 S9 的 SemanticProcedure 变成：
+
+~~~text
+parameters.firstResult.default = "110"
+~~~
+
+则可以定位：
+
+~~~text
+最后正确产物 = Business Steps
+最早错误产物 = SemanticProcedure
+最早错误阶段 = S9
+~~~
+
+### 第三步：如果 S8、S9 都正确，再看 S11
+
+如果 SemanticProcedure 明确要求：
+
+~~~text
+B025 → runtime firstResult → characters → B040
+~~~
+
+而 exact JS 却仍输入：
+
+~~~js
+['6','×','1','1','0','=']
+~~~
+
+则最早错误才是：
+
+~~~text
+最后正确产物 = SemanticProcedure / operation rules
+最早错误产物 = Candidate JS
+最早错误阶段 = S11
+~~~
+
+### 第四步：只有上游也可疑时才继续回查
+
+如果 S8 错了，要继续比较 S7；如果 S7 也已经把 D050 写成常量 110，则继续比较 Dossier / Raw Trace。
+
+同理，S3—S6 内部也按正式阶段比较：
+
+~~~text
+没有 actual read action         → S3
+有 action，但 observation 判错  → S4
+observation 对，但继续/停止错    → S5
+前三者对，但 Dossier 收口错      → S6
+~~~
+
+因此一次 S8 错误的最小修复范围可以是：
+
+~~~text
+需要修复 / 重验
+  S8
+  S9
   S10（只核受影响规则）
   S11
   S12
 
-不需要因为这个错误自动重做
+不因这个错误自动重做
   S1
   S2
-  S3—S6
+  S3
+  S4
+  S5
+  S6
   S7
 ~~~
 
-反过来，如果 S7 自己已经写成：
-
-~~~text
-D050 input = 110
-~~~
-
-而 Raw Trace 明明记录了 A005 → A009 的 runtime consumer，则最早错误已经提前到 **S7**。
-
 这就是本案例最重要的诊断方法：
 
-> **不要从最后结果猜根因；比较阶段边界，找到第一份破坏正确关系的输出。**
+> **不要从最后结果猜根因；比较相邻阶段，找到第一份“输入仍正确、输出第一次变错”的产物。**
 
 ---
 
-## 12. 常见错误 → 最早应检查哪里
+## 16. 常见错误 → 最早应检查哪里
 
 | 看到的问题 | 先比较什么 | 最可能的责任（需证据确认） |
 | --- | --- | --- |
 | 合同没有“实际首值继续参与第二式” | 用户原始要求 vs TaskContract | S1 |
 | 按钮/结果区凭空猜出来 | S1 需求 vs AppProfile 观察来源 | S2 |
-| 根本没有 firstResult actual read | Plan vs Raw Trace / Dossier | S3—S6 |
+| planned step 有读取，但没有 actual read action | Plan vs Raw Trace action | **S3** |
+| 有 read action，但 receipt / Expected 被当作可信 observation | S3 action vs S4 verification | **S4** |
+| S4 已 uncertain，却仍继续；或 setup 被误分成 off-task | S4 result vs S5 decision | **S5** |
+| S3—S5 完整，但 Dossier 漏 producer/consumer 或错误升级 complete | Trace/Evidence vs Dossier | **S6** |
 | 实际读过，但 DistilledSteps 删除读取 | Raw Trace vs DistilledSteps | S7 |
 | 1,1,0 被去重 | A009 actual input vs D050 | S7 |
 | 第二段准备被机械删掉 | A007/A008 vs D040 | S7 |
-| runtime firstResult 变成 default 110 | D030/D050 vs Procedure | S8—S9 |
+| D030/D050 正确，但 Business Step 已把 firstResult 改成 110 | DistilledSteps vs Business Steps | **S8** |
+| Business Steps 正确，SemanticProcedure 才把 firstResult 变 default 110 | Business Steps vs SemanticProcedure | **S9** |
 | read 失败 fallback 到 110 | Procedure vs operation rule | S10 |
 | Procedure 正确，代码仍写死 110 | Procedure vs JS | S11 |
 | 代码正确但运行的是另一 hash | CandidateManifest vs execution | S12 |
 | 只跑一个场景却声明全部 requested 通过 | requested scope vs scenarios/evidence | S12 |
-| 点击效果 unknown 后继续重放 | 本次 action/observation vs recovery decision | S3—S6 / S10，按根因判断 |
+| 点击效果 unknown 后继续重放 | S3 action + S4 uncertain vs S5 decision；若规则本身错误再查 S10 | **S5 / S10，按最早证据判断** |
 
 如果证据还不足以区分两个阶段，就写：
 
@@ -1065,7 +1380,7 @@ next comparison = ...
 
 ---
 
-## 13. 实际执行时建议保存的最小检查摘要
+## 17. 实际执行时建议保存的最小检查摘要
 
 正式 schema 仍由共享合同和各 Skill 维护；为了人工排错，可以从正式产物生成下面这张可读摘要：
 
@@ -1099,7 +1414,7 @@ next comparison = ...
 
 ---
 
-## 14. 想继续核对时，去哪里看
+## 18. 想继续核对时，去哪里看
 
 只读本文应该已经能够理解和检查 Calculator 的主链。需要更深证据时，再进入正式 owner：
 
@@ -1108,7 +1423,7 @@ next comparison = ...
 | 正式 S1—S12 与阶段责任 | [WORKFLOW.md](../WORKFLOW.md) |
 | 工作流任务树 | [task-decomposition.md](../design/task-decomposition.md) |
 | S2 / S10 Calculator 应用工程示例 | [application-engineer example](../skills/application-engineer/examples/calculator.md) |
-| S3—S6 planned / actual / observation 示例 | [task-demonstrate example](../skills/task-demonstrate/examples/calculator.md) |
+| S3 execute / S4 verify / S5 decide / S6 close 的方法示例 | [task-demonstrate example](../skills/task-demonstrate/examples/calculator.md) |
 | A001—A010 → D010—D060 的完整 fixture 解释 | [trace-distill example](../skills/trace-distill/examples/calculator.md) |
 | D → Business Step / runtime value | [procedure-synthesize example](../skills/procedure-synthesize/examples/calculator.md) |
 | Procedure → JS 正反实现 | [recipe-build example](../skills/recipe-build/examples/calculator.md) |
@@ -1123,7 +1438,7 @@ next comparison = ...
 
 ---
 
-## 15. 这个案例通过什么标准才算“有用”
+## 19. 这个案例通过什么标准才算“有用”
 
 不是“文档看起来完整”，而是一个新读者可以拿实际任务产物做下面的事：
 
@@ -1131,10 +1446,11 @@ next comparison = ...
 2. 找到 firstResult 的实际 producer。
 3. 找到 firstResult 的实际 consumer。
 4. 看出第二次 clear 改 UI state、但不应删除任务变量。
-5. 比较 Raw Trace → DistilledSteps 有没有误删/误合并。
-6. 比较 DistilledSteps → Procedure 有没有把 runtime value 改成常量。
-7. 比较 Procedure → JS 有没有真正消费运行时返回值。
-8. 比较 Candidate → S12 execution 是否验了同一份字节和完整 requested scope。
-9. 出错时能指出“最后正确产物”和“最早错误交接”，而不是从 S1 全部重做。
+5. 在 task-demonstrate 内区分：S3 是否真的执行、S4 是否真的验证、S5 是否做出正确继续/停止决定、S6 是否正确收口。
+6. 比较 Raw Trace → DistilledSteps 有没有误删/误合并。
+7. 区分 S8 Business Steps 与 S9 SemanticProcedure，判断错误发生在业务解释还是复用规格。
+8. 比较 SemanticProcedure → JS 有没有真正消费运行时返回值。
+9. 比较 Candidate → S12 execution 是否验了同一份字节和完整 requested scope。
+10. 出错时能指出“最后正确产物”和“最早错误交接”，而不是从 S1 全部重做。
 
 如果这些事情做不到，Calculator 案例就还没有完成它最重要的职责。
