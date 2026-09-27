@@ -12,6 +12,54 @@ order: 10
 
 本文必须能够**独立读懂**。读者不需要先读历史版本、Qualification、SHA 或完整 Skill 规范，才能理解 Calculator 在每个关键阶段应该是什么样。
 
+## 本轮真实重建｜2026-09-27
+
+### 业务目标
+
+在当前 macOS Calculator 窗口按按钮完成 `25 × 4 + 10 =`，从显示区取得 `firstResult`；清空当前计算状态后，按 `6 × firstResult =` 的实际数字逐键输入；再从显示区取得、打印并由函数返回 `finalResult`。不能由 JS 算术、键盘整式、历史读值或预写答案替代。本轮授权只覆盖目标应用的观察、激活、必要按钮与当前计算状态清空。
+
+### 当前证据状态
+
+本轮开始前先封存了工作区/阅读边界；真实局部示范在当前 Calculator 中得到原始 AX 首值 `"110"`、终值 `"660"`，并保留每步请求、原生回执、读值和实窗截图。普通 [新 JavaScript](../../../examples/agent-to-recipe/calculator-fresh-20260927.js) SHA-256 为 `6d1383249a9f12084cc877cea2883d8fa1c70c557216a8242ac7f542759f2d2a`。当前 S7 r003 → S9 r002 → S10 r003 → S11 r003 → S12 r003 的内容绑定交接均通过只读完整性检查；S12 r003 的两个新 execution `direct-20260927-025457-988000`、`direct-20260927-025553-861000` 各有 16 个原生按钮回执，首次实际读 `110`、最终实际读 `660`，各由另一个 execution 的 AX 读取与窗口 PNG 交叉核对。第一次读值失败的停止检查是**离线注入**，没有声称真机故障测试。
+
+独立新上下文的 S7 核查从固定上游材料独立列出 16 个按钮、两次结果读取和一次实际打印；它的信封完整性 PASS，但完整 S7→S9 **交接 Gate FAIL**，因为给它的受限包没有固定的 S2–S6 动作关联选型记录与所选 API 合同/证据字节。主链 S9 另有明确固定这些材料的输入；不能因此把独立包失败改写成通过。通用方法由独立准备者从混杂文档裁剪，原版 Skill 的完整加载与未见新任务泛化未验证。主协调与早期示范上下文曾见旧案例的文档片段，不能称整轮完全答案盲；旧完整脚本和案例正文直到本轮结果封存后才阅读。以上本轮运行资料只在本地 `.runtime/agent-to-recipe/calculator-20260927-G6T44k/`，它不是版本控制资产；[封存清单](../../../.runtime/agent-to-recipe/calculator-20260927-G6T44k/prehistory-seal.json)、[阶段案例表](../../../.runtime/agent-to-recipe/calculator-20260927-G6T44k/case-review-final.md)记录原件及哈希。
+
+### 关键输入输出
+
+| 现有阶段 | 本轮输入和来源 | 实际输出与下游消费 |
+| --- | --- | --- |
+| S1–S2 | 用户要求、动作前 `00-contract.md` 与本机 Calculator 的窗口/AX 观察 | TaskContract/WorkPlan、AppProfile；任务前显示 `115` 被清空，不作本轮值 |
+| S3–S6 | 当前窗口真实按钮请求、回执和显示读取 | `firstResult` 原文 `"110"`；分段示范经机器提取传到第二段按钮 `6,×,1,1,0,=`；最终原文/打印 `"660"` |
+| S7 | 固定 Dossier、Raw Trace 与原日志 | r003 DistilledSteps 保留 19 个实际片段，最终读值→打印顺序明确；三个数字消费者分别有来源 |
+| S8–S10 | r003 步骤、TaskContract、AppProfile、固定的能力选型与 API 合同 | r002 Procedure 的 B3 值进入 B5，B6 读并输出；S10 r003 复用已证的六项窗口/AX 操作规则 |
+| S11–S12 | 已确认过程/应用规则与安全 API 包，冻结源码/候选和预先登记的验收标准 | r003 普通 JS 每次自行新读并逐字符消费；两次全新运行与独立观察均为 `110 → 660`，函数返回由同次调用捕获打印 |
+
+候选不包含 `110/660` 结果常量；这两个值只属于本次观察和独立验收 Oracle。`-script` 当前公开合同没有普通 JS 函数返回值的宿主序列化字段，所以已证的是 `main()` 从本次最终读值 `return finalResult`，顶层同次 `await main()` 捕获并打印相同字符串；**宿主独立返回字段未验证**。
+
+### 本轮运行与验收入口
+
+工作目录必须是仓库根。下面是一条会在本轮任务目录下创建唯一日志子目录的可复制命令；操作会清空当前 Calculator 计算状态并按本案例按钮执行：
+
+```bash
+./dist/opendesk -script examples/agent-to-recipe/calculator-fresh-20260927.js -console-mode script -log-dir "$(mktemp -d .runtime/agent-to-recipe/calculator-20260927-G6T44k/manual-XXXXXX)"
+```
+
+本轮正式资格的确切两条运行命令及各自观察命令见本地 [S12 r003 QualificationRecord](../../../.runtime/agent-to-recipe/calculator-20260927-G6T44k/attempts/s12-r003/qualification.json)，原始结果、截图及限制见 [独立审计](../../../.runtime/agent-to-recipe/calculator-20260927-G6T44k/attempts/s12-r003/independent-audit.json) 与 [视觉复核](../../../.runtime/agent-to-recipe/calculator-20260927-G6T44k/attempts/s12-r003/visual-review.md)。上面的一行命令已从仓库根目录原样执行，exit 0、16 个按钮回执、本次首值 `110`／终值 `660`；[附加验证记录](../../../.runtime/agent-to-recipe/calculator-20260927-G6T44k/posthistory-public-command.md)与 r003 两次同版资格分别保存，不倒填入历史对照前的试验。
+
+### 失败定位
+
+| 本轮实际发现 | 责任和定向处理 | 证据／未解决边界 |
+| --- | --- | --- |
+| 预写整段示范后才回填材料 | S3–S6 排除该尝试，分段重新真实示范；保留错误日志 | `demo-stdout.log` 与 `s3-s6-seal.md` |
+| 清空后的截图附近失前台、续跑前窗口位移 | S2/S10 先只读确认显示/同一窗口，再按当前几何恢复前台；不重放已执行清空 | `stage2-stdout.log`、`stage2-failure-state-stdout.log`、`stage2-resume-check-stdout.log`；截图因果未单独证明 |
+| S7 首版引用不全且旧 Dossier 字节丢失，r002 漏实际最终打印的逐片段决定 | S7 r003 只补第 19 个打印取舍；原 Dossier/Raw Trace 不改；S9–S12 按依赖重新绑定并重验 | `attempts/s7-r001/handoff.json`、`attempts/s7-r003/r002-r003-delta.json`；旧输入原字节不可复核 |
+| S10 将完整 C5 写过宽；S11 handoff 未声明一个输入；S12 r001 把软链接当内容 ref 且方法引用缺字段 | 各自保留旧失败，S10 r002 缩窄为读值/打印，S11 r002 修输入绑定，S12 r002 绑定物理二进制；r003 再绑定新步骤来源 | 各版本 request/handoff 与 `attempts/s12-r001/integrity-failure.md`；checker PASS 只说明字节完整 |
+| 独立 S7 包缺选型/所选合同字节 | 协调者须交付原 S2–S6 固定材料后再做完整独立交接，不由 S7 编造或口头补答案 | `attempts/independent-s7-r002/handoff.json` 仍为 Gate FAIL；本案例不宣称原版 Skill 泛化 |
+
+### 历史说明（保留下面原有教学记录）
+
+本节以上的新记录是在 [历史阅读前封存](../../../.runtime/agent-to-recipe/calculator-20260927-G6T44k/prehistory-seal.md)之后才与旧代码对照；[差异表](../../../.runtime/agent-to-recipe/calculator-20260927-G6T44k/posthistory-comparison.md)单列对照后的判断。旧脚本使用 `UI.tapTargets`、重复 `UI.readText`、最多两次 C→AC 清空及固定 Basic 尺寸；本轮用现场唯一 AX 按钮 `invoke` 和原生 Display 值，一次清空在当前测试起点经后续真实结果证明足够。这些差异按业务合同和现场证据判断，不要求结构相同。对照后没有改写普通 JS、原始示范或 S1–S12；下面的教学材料保留其原始性质与限制。
+
 正式工作流仍以 [WORKFLOW.md](../WORKFLOW.md) 的 S1—S12 为准；本文只给 Calculator 的可读参考切片，不另建阶段、schema 或第二套规范。
 
 > **样本边界**

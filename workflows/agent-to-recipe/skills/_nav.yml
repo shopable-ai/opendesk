@@ -1,0 +1,17 @@
+items:
+  - path: automation-plan
+    order: 10
+  - path: application-engineer
+    order: 20
+  - path: task-demonstrate
+    order: 30
+  - path: trace-distill
+    order: 40
+  - path: procedure-synthesize
+    order: 50
+  - path: recipe-build
+    order: 60
+  - path: code-rebuild
+    order: 70
+  - path: recipe-qualify
+    order: 80
