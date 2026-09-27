@@ -532,7 +532,7 @@ discover 完成不等于 harden 完成；harden 局部验证不等于 Candidate 
 
 验证案例统一见 [validation-plan.md](validation-plan.md)。
 
-## 迁移与设计记录
+<a id="迁移与设计记录"></a>\n## 相关权威文档与历史入口
 
 本 canonical 文件不再维护逐日期迁移日志、旧 blob、某轮 Skill 是否已实现或某次 Calculator 是否通过。
 
