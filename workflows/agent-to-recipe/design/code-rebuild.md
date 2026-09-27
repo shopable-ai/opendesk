@@ -403,7 +403,7 @@ code-rebuild 不能靠“顺便补全”跨越这些 owner。
 
 正例和反例都要测。一个评审器只会挑错、不能正确保留好代码，也不算可靠。
 
-## 后续细化与迁移
+<a id="后续细化与迁移"></a>\n## 相关实现与证据去向
 
 本 canonical 方法不维护某一轮“下一步 P0/P1”、Calculator 当前评审状态或 Skill 宿主状态。
 
@@ -415,7 +415,7 @@ code-rebuild 不能靠“顺便补全”跨越这些 owner。
 - Qualification 方法 → [validation-plan.md](validation-plan.md) / recipe-qualify
 - 历史设计演变 → Git history
 
-## 迁移与决定演变
+<a id="迁移与决定演变"></a>\n## 历史设计入口
 
 该标题保留为历史兼容入口。当前方法不再维护逐日期迁移日志；旧“是否改名 recipe-build”“某个 blob 从哪里迁来”等信息由 Git history 提供，不属于今天执行 code-rebuild 必须知道的内容。
 
