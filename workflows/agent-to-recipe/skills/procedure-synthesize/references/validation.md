@@ -15,6 +15,16 @@
 | capability | selected/not-run/validated 区分 | 有 API 文档就写 runtime pass |
 | scope | 未证明分支不扩张 | 一次成功就声明任意布局/输入支持 |
 
+## 按正式阶段定位第一个错误
+
+| 边界 | 反例 | 责任 |
+| --- | --- | --- |
+| S7 → S8 | DistilledSteps 已丢 producer/consumer 或必要顺序 | 回 S7，不让 S8 重读 Raw Trace 自修 |
+| **S8** | Business Step B040 自己已经写成固定 `input=110`、丢 firstResult consumer、或错误改变业务目的 | S8 |
+| **S9** | S8 仍正确表达 B040 消费 firstResult，但 SemanticProcedure 才加入 `default=110`、把 runtime 变 parameter、丢 dataDependency 或无证据扩大 scope | S9 |
+
+审阅必须能指出 `last confirmed correct artifact → first invalid boundary`。不能只给“procedure-synthesize 失败”的综合结论。
+
 ## Calculator 必过反例
 
 - firstResult producer 必须是第一次结果的实际 read 所映射 Business Step，不是 JS 算术表达式。
