@@ -10,35 +10,39 @@ order: 10
 
 > **Agent 实际怎样进入、协调、暂停、恢复并完成 Agent-to-Recipe 工作流？**
 
-完整“需要做什么”见 [task-decomposition.md](design/task-decomposition.md)；职责与交接关系见 [chain-design.md](design/chain-design.md)；字段、版本与正式 handoff 约束见[共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)。本文不复制专业方法正文，不维护质量报告，也不记录某一版本的实现成熟度。
+完整“需要做什么”见 [task-decomposition.md](design/task-decomposition.md)；职责与交接关系见 [chain-design.md](design/chain-design.md)；字段、版本与正式交接约束见[共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)。本文不复制专业方法正文，不维护质量报告，也不记录某一版本的实现成熟度。
 
 ## 30 秒总览
 
+先用这一条主线理解整个工作流：
+
 ```text
-进入 Agent-to-Recipe
+收到任务
   ↓
-判断本轮入口
+确认现在做到哪一步
   ↓
-核对当前有效输入与版本
+确认这一步要解决什么
   ↓
-找到第一个真实缺口
+检查开始需要的材料是否齐全
   ↓
-选择对应职责 / Skill
+读取这一步对应的专业方法
   ↓
-执行一个可验证工作包
+真正执行并得到明确结果
   ↓
-正常 handoff / 定向 repair / blocked / stop
+检查结果是否正确
   ↓
-留下可独立恢复的接续信息
+正确 → 固定结果并进入下一步
+错误 → 回到真正出错的位置修复
+阻塞 → 记录原因并安全停止
 ```
 
-执行时只记住五条规则：
+执行时先记住五条规则：
 
-1. **阶段 ≠ Skill ≠ 文件 ≠ Agent。**
+1. **阶段、专业方法包、文件、实际执行者不是一回事。**
 2. **已有合格成果优先复用，只从第一个真实缺口继续。**
-3. **事实、语义、实现、资格不能互相替代。**
+3. **真实事实、业务解释、程序实现、最终资格不能互相替代。**
 4. **失败按责任定向返回，不默认回 S1。**
-5. **普通业务运行消费已交付 Recipe，不重复执行 S1—S12。**
+5. **普通业务运行直接使用已经交付的 Recipe，不重复执行 S1—S12。**
 
 ## 1. 先判断为什么进入这条工作流
 
@@ -105,90 +109,143 @@ order: 10
 
 正式方法包入口：[automation-plan](skills/automation-plan/SKILL.md)、[application-engineer](skills/application-engineer/SKILL.md)、[task-demonstrate](skills/task-demonstrate/SKILL.md)、[trace-distill](skills/trace-distill/SKILL.md)、[procedure-synthesize](skills/procedure-synthesize/SKILL.md)、[recipe-build](skills/recipe-build/SKILL.md)、[code-rebuild](skills/code-rebuild/SKILL.md)、[recipe-qualify](skills/recipe-qualify/SKILL.md)。
 
-## 4. 每次只执行一个可验证工作包
+## 4. 一个阶段实际怎样执行
+
+这一节只回答最实际的问题：
+
+> **Agent 到了某一个阶段以后，下一步到底怎样做？**
+
+所有阶段先共用下面七个动作；至于“专业上具体怎样做”，再进入对应方法包。
+
+```text
+1. 确认现在做到哪一步
+   ↓
+2. 明确这一阶段要解决什么
+   ↓
+3. 检查开始需要的材料是否齐全
+   ↓
+4. 读取并执行这一阶段自己的专业方法
+   ↓
+5. 产出这一阶段应有的明确结果
+   ↓
+6. 检查这个结果是否正确
+   ↓
+7. 决定下一步
+
+正确
+→ 固定结果
+→ 交给下一阶段
+
+错误
+→ 找到第一处真正错误
+→ 回到负责该错误的阶段修复
+→ 修复后从受影响位置继续
+
+无法安全继续
+→ 记录缺什么、为什么不能继续
+→ 停止受影响路径
+```
+
+这七步不是新的 S 编号，也不是新的 Skill。它只是 S1—S12 在实际执行时共用的推进方法。
+
+### 4.1 七步分别要回答什么
+
+| 步骤 | Agent 必须回答的问题 | 执行后应该得到什么 |
+| --- | --- | --- |
+| 1. 确认位置 | 我现在真正应该从哪一步开始？ | 当前阶段或恢复点 |
+| 2. 明确问题 | 这一阶段负责解决什么，不负责什么？ | 本阶段清晰目标和完成条件 |
+| 3. 检查材料 | 上一步的结果、版本、证据、授权够不够？ | 可以开始，或明确缺少什么 |
+| 4. 执行方法 | 这个阶段专业上应该怎样做？ | 实际执行过程 |
+| 5. 形成结果 | 这一阶段真正做出了什么？ | 本阶段主产物 |
+| 6. 检查结果 | 结果是否满足本阶段完成条件？有没有丢失关键事实或数据关系？ | 通过、失败或无法确认 |
+| 7. 决定去向 | 正确后交给谁？错误最早从哪里开始？ | 下一阶段、定向修复或安全停止 |
+
+例如到了 S7：
+
+```text
+现在做到哪里？
+→ S7
+
+这一阶段解决什么？
+→ 从真实执行记录中提炼真正必要的步骤
+
+材料够不够？
+→ 必须有已经冻结的真实执行事实、动作记录和必要证据
+
+怎样做？
+→ 使用 trace-distill 方法判断哪些动作保留、合并、省略、作为恢复动作，哪些仍无法确认
+
+得到什么？
+→ DistilledSteps（必要步骤）
+
+怎样检查？
+→ 必要步骤有真实来源；firstResult 之类的运行时数据来源和消费者没有被删掉
+
+下一步？
+→ 正确：进入 S8
+→ S7 自己取舍错误：留在 S7 修
+→ 前面根本没有真实事实：返回 S3—S6 补事实
+```
+
+完整 Calculator 求解过程见 [Calculator 执行过程演练](cases/calculator-execution-walkthrough.md)。
+
+### 4.2 一个工作包开始前要固定什么
 
 一次工作包开始时至少固定：
 
-- task / attempt 身份；
-- 当前 TaskContract / WorkPlan；
-- 本次允许消费的上游产物及版本；
+- 当前任务和本次尝试；
+- 当前有效的任务要求和计划；
+- 本次允许使用的上游结果及版本；
 - 当前允许修改的对象；
 - 权限、副作用和预算；
-- 预期交付物；
-- 完成条件；
-- 阻塞条件与 failure owner。
+- 这一步预期产生什么；
+- 什么情况算完成；
+- 什么情况必须停止，以及错误应由谁负责。
 
-若输入不足，只补当前缺口；不要先重做无关阶段，也不要通过读取完整聊天或未声明目录绕过正式输入合同。
+若材料不足，只补当前缺口；不要为了“流程完整”重做已经有效的上游，也不要通过读取完整聊天或未声明目录绕过正式输入。
 
-消费者生产新成果前，应按以下顺序检查：
+### 4.3 工程记录怎样对应上面的七步
+
+工程字段只用于让执行结果可以被机器核对、暂停后恢复、跨会话交接。它们不应该取代前面的七步人类可读流程。
+
+| 人类可读问题 | 工程上主要记录 |
+| --- | --- |
+| 我现在做到哪一步？ | 当前 request、进度和实际恢复点 |
+| 开始材料够不够？ | 输入引用、版本、文件字节或 hash、上游 Gate |
+| 这一步做出了什么？ | 主产物和版本 |
+| 为什么相信结果？ | evidence / 实际证据 |
+| 现在能不能继续？ | Gate 与 unresolved |
+| 错误应该回哪里？ | failure owner / failures |
+| 修复会影响哪些下游？ | preserved / changed scope、nextRequest |
+| 怎样让下一次独立继续？ | handoff / continuation |
+
+保留这些英文标识，是因为它们是现有文件字段或代码标识；理解流程时优先看左侧中文。
+
+### 4.4 正式交接前怎样检查
+
+消费者生产新成果前，按下面顺序核对：
 
 ```text
-published handoff
-→ frozen request
-→ required artifact refs
-→ actual bytes / hash
-→ method input sufficiency
-→ current Gate / unresolved items
-→ produce downstream artifact
+上一步已经正式交付
+→ 当前请求已经固定
+→ 本阶段要求的输入引用齐全
+→ 实际文件和版本一致
+→ 专业方法要求的输入足够
+→ 当前检查结论允许继续
+→ 才产生新的下游结果
 ```
 
-材料“存在”但没有正式交付时，先返回协调者；材料本身错误时，返回原 Producer / failure owner。
+材料“存在”但没有正式交付时，先回到协调职责补齐交接；材料本身错误时，回原生产阶段修复。
 
-### 4.1 交接完整性检查
+仓库中的辅助检查只证明它们实际检查到的引用、版本、字节绑定或有限结构关系：
 
-仓库中的辅助检查只证明其实际检查的引用、版本、字节绑定或有限结构关系：
+- [check-handoff.js](scripts/check-handoff.js)：检查 request / handoff 身份、引用和 hash；
+- [check-artifact-chain.js](scripts/check-artifact-chain.js)：检查当前支持范围内的相邻工件关系；
+- [acceptance-map.md](design/acceptance-map.md)：供人工快速检查相邻边界。
 
-- [check-handoff.js](scripts/check-handoff.js)：request / handoff 身份、引用和 hash；
-- [check-artifact-chain.js](scripts/check-artifact-chain.js)：当前支持范围内的相邻工件关系；
-- [acceptance-map.md](design/acceptance-map.md)：人工快速审阅相邻边界。
+检查器通过，**不等于**真实业务事实已经成立，也不等于桌面任务成功或 Candidate 已获得最终资格。验证层级和证据要求见 [validation-plan.md](design/validation-plan.md)。
 
-检查器 PASS **不等于**事实真实、Skill 独立行为正确、宿主已加载、桌面任务成功或 Candidate 已获得业务 Qualification。验证层级和证据要求见 [validation-plan.md](design/validation-plan.md)。
-
-### 4.2 正式阶段推进协议
-
-一个工作包可以覆盖一个或多个正式阶段，但**每个正式阶段都必须独立完成一次责任判断**。实际推进统一按下面顺序：
-
-    固定当前输入和版本
-    ↓
-    明确本阶段 Responsibility / Non-responsibility
-    ↓
-    执行对应专业方法
-    ↓
-    形成本阶段 Actual Output
-    ↓
-    做本地阶段检查
-    ↓
-    记录 pass / fail / blocked / not-run
-    ↓
-    定位 Failure Owner
-    ↓
-    确定 Invalidated Downstream
-    ↓
-    保留 Preserved Upstream
-    ↓
-    满足 Minimum Next Gate 后 handoff
-
-这里的 `pass / fail / blocked / not-run` 是对现有 Gate、scenario 或工作状态的可读归纳，不新增 `executionStatus` 枚举；`Minimum Next Gate` 也只表示下一阶段最低消费条件，不新增 G 编号。
-
-失败或阻塞时，必须能恢复出下面六项诊断视图：
-
-    last confirmed correct artifact
-    first invalid boundary
-    failure owner
-    invalidated downstream
-    preserved upstream
-    next minimum action
-
-这六项同样不是新 schema。优先映射到现有合同：
-
-- `requestRef / inputRefs / artifacts`：固定输入、产物和最后确认正确的版本；
-- `gate / failures[]`：当前阶段 verdict、失败分类和责任；
-- `unresolved`：不能证明或尚未运行的缺口；
-- `planDelta / nextRequest`：下一步最小修复／补采动作；
-- `continuation.assetDisposition.preservedScope / changedScope`（适用时）：保留范围与受影响范围；
-- 其他不能机器表达的诊断可作为 handoff 的可读 facts / unresolved / 主产物视图保存，不因此修改共享 schema。
-
-同一 Skill 内部也按正式阶段分界：task-demonstrate 必须能指出错误首先属于 S3、S4、S5 还是 S6；procedure-synthesize 必须能指出首先属于 S8 还是 S9。只有前一阶段最低条件成立，后一阶段的输出才可以被当作正常下游输入。
+同一专业方法包内部也仍然保留正式阶段边界：例如 task-demonstrate 要能指出错误首先属于 S3、S4、S5 还是 S6；procedure-synthesize 要能指出首先属于 S8 还是 S9。只有前一阶段最低条件成立，后一阶段结果才可以作为正常下游输入。
 
 ## 5. 结束与恢复必须交付什么
 
