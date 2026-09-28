@@ -16,6 +16,8 @@ order: 9
 
 本文展示的是**外部可检查的程序性求解过程（procedural problem solving）**，不是隐藏 Chain-of-Thought，也不是 S3—S6 的 Raw Trace。统一使用下面五个外显问题：
 
+> **编号说明：**本文的 `## 1`—`## 9` 是为了讲清楚实际求解顺序的**叙事步骤编号**，不是另一套 Workflow 阶段。标题中的 `[S1]`、`[S2]`、`[S3 → S4 → S5]` 等才表示它映射到哪个正式阶段；`0`、`10`、`11` 是导览或说明，不新增阶段。
+
 ~~~text
 当前问题
   ↓
@@ -37,46 +39,33 @@ order: 9
 ~~~text
 收到 Calculator 需求
   ↓
-先固定不能被实现偷换的业务约束
+[S1] 固定不能被实现偷换的业务约束与任务数据关系
   ↓
-不知道 OpenDesk 怎样操作 Calculator
+[S2] 发现、选择并验证当前任务需要的 OpenDesk 执行能力
+     docs/api/agent/README.md
+       → targets.md / elements.md
+       → 候选能力：window.* / UI.* / Accessibility.*
+       → 比较任务约束
+       → 读取 selected method 的 canonical contract
+       → 在当前 Calculator 环境做 runtime validation
+       → 建立最小 AppProfile 与操作依据
   ↓
-docs/api/agent/README.md
+[S3 → S4 → S5] 执行第一式 → 读取并验证 firstResult → 决定是否继续
   ↓
-按当前需要进入 targets.md / elements.md
+[S3 → S4 → S5] 清空 Calculator UI，但保留任务数据 firstResult
+                 → 输入 6 × firstResult =
+                 → 读取并验证 finalResult
+                 → 决定是否完成本次示范
   ↓
-形成候选能力
-  window.get / activate / current
-  UI.tapTexts / UI.tapTargets / UI.readText
-  Accessibility.*
+[S6] 冻结本次 Demonstration 的任务级事实与证据
   ↓
-比较当前任务真正需要的约束
+[S7—S9] 提炼必要步骤、业务语义与 runtime dataflow
   ↓
-读取选中方法的 canonical contract
+[S10] 复核并工程化生产操作规则
   ↓
-在当前 Calculator 环境验证方法是否成立
+[S11] 生成 / 冻结 exact Candidate
   ↓
-建立最小 AppProfile 与操作依据
-  ↓
-真实执行第一式
-  ↓
-真实读取 firstResult
-  ↓
-清空 Calculator UI，但保留任务数据 firstResult
-  ↓
-真实输入 6 × firstResult =
-  ↓
-真实读取 finalResult
-  ↓
-冻结 Demonstration 事实
-  ↓
-S7—S9 提炼必要步骤、业务语义、runtime dataflow
-  ↓
-S10 复核并工程化生产操作规则
-  ↓
-S11 生成 / 冻结 exact Candidate
-  ↓
-S12 对同一 Candidate 独立资格验收
+[S12] 对同一 Candidate 独立资格验收
 ~~~
 
 ---
