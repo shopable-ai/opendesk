@@ -15,6 +15,17 @@
 | criteria | 每项 criterion 有实际证据 | 最终数字相同就忽略错误数据来源 |
 | provenance | 新补采与旧 execution 时间边界明确 | 用今天的截图补写昨天的历史 |
 
+## 按正式阶段定位第一个错误
+
+| 阶段 | 只在本阶段失败的典型反例 | 不应怎样修 |
+| --- | --- | --- |
+| **S3 Execute** | planned step 存在，但没有真实 action；actual target/request 来自后写脚本 | 不把计划补写成历史，不用 S4/S6 成功倒证 S3 |
+| **S4 Observe / Verify** | action 真实发生，但 receipt 被当成业务 observation；Expected 被填入 actual | 不重放已发生动作来制造“更好看”的 observation |
+| **S5 Classify / Decide** | S4=uncertain 仍 continue；side effect unknown 仍 retry；错误分类导致跳过必要恢复 | 不改写 S3/S4 事实，只修 decision / planDelta |
+| **S6 Close** | S3—S5 事实正确，但 Dossier 丢 consumer、side effect、criterion 或把 partial 写 complete | 不回写上游 trace；修收口与覆盖范围 |
+
+独立审阅必须能够指出 `last confirmed correct artifact → first invalid stage`。如果只能说“task-demonstrate 错了”而不能区分 S3/S4/S5/S6，阶段诊断仍不完整。
+
 ## Calculator 必过反例
 
 - 代码里写着 `const firstResult = await UI.readText(...)`：只能证明代码有这个调用，不证明本次示范真的执行和读到了值。
