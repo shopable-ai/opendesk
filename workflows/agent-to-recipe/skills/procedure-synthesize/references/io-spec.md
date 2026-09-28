@@ -11,3 +11,5 @@
 - 通用模板：[../templates/semantic-procedure.md](../templates/semantic-procedure.md)
 
 正式字段和发布语义以共享合同为唯一依据；本页不创建 schema、评分规则或平行 Workflow。
+
+正式字段、引用、版本与发布语义以 [共享合同](../../../../../docs/frameworks/agent-to-recipe-skill-contract.md) 为唯一依据；方法审阅与评分层级沿用 [validation-plan](../../../design/validation-plan.md)。本兼容入口必须同时支持正常消费、输入不足时的明确拒绝，以及受影响范围内的定向修复与复用；这些导航约束本身不证明 L2 独立 Agent 行为。

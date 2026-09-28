@@ -10,3 +10,5 @@
 与 [SKILL.md](../SKILL.md) 一起固定本次实际读取的四份正文版本；只固定本导航不代表已取得正文。正式字段沿用 [共享合同](../../../../../docs/frameworks/agent-to-recipe-skill-contract.md)，不升级 schema、Gate 或 S1—S12。历史输入包的旧 hash 保留，不用新内容倒填旧尝试。
 
 方法示例见 [Calculator](../examples/calculator.md)，新应用填写 [成果模板](../templates/distilled-steps.md)。两者均不能替代真实 Dossier/Trace、现场证据或已确认政策。
+
+正式字段、引用、版本与发布语义以 [共享合同](../../../../../docs/frameworks/agent-to-recipe-skill-contract.md) 为唯一依据；方法审阅与评分层级沿用 [validation-plan](../../../design/validation-plan.md)。本兼容入口必须同时支持正常消费、输入不足时的明确拒绝，以及受影响范围内的定向修复与复用；这些导航约束本身不证明 L2 独立 Agent 行为。
