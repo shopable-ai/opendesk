@@ -11,6 +11,15 @@ description: 将固定 DistilledSteps 转成 Agent-to-Recipe S8-S9 的 SemanticP
 
 本 Skill 不拥有第二套 actionDecisions。发现 retain/merge/omit/recovery 投影错误时返回 trace-distill，而不是在 Procedure 内重读 Raw Trace 重判。
 
+## 正式阶段边界：S8 与 S9 不能合并判断
+
+| 阶段 | 进入输入 | 本阶段只负责 | Actual Output / 最低验收 | 典型错误与返回 |
+| --- | --- | --- | --- | --- |
+| **S8 Business Semantics** | 固定 DistilledSteps、TaskContract、必要 AppProfile/证据 | 把必要步骤解释成稳定 Business Steps，明确 purpose、对象、input/output、consumer、pre/post、verification | 可检查的 Business Steps checkpoint；每个输入来源和 consumer 仍保持 S7 事实 | Business Step 已把 runtime firstResult 写成常量 110、丢 consumer、改 action 取舍 → S8；取舍源错回 S7 |
+| **S9 Reusable Procedure** | 已通过 S8 的 Business Steps + 政策/范围/能力事实 | 分类 parameter/config/secret/runtime/expected，建立 producer→consumer→transform、分支、scope、pending engineering | SemanticProcedure；S10/S11 无需重猜数据来源与复用边界 | S8 仍消费 firstResult，但 S9 才写 default=110、错误泛化 scope、丢 dataDependency → S9 |
+
+S8 的 checkpoint 可以保存在同一工作包/主产物的可检查中间视图中，不要求新增 schema 或新文件；但 S9 必须消费已经明确的 S8 逻辑结果，不能让最终 SemanticProcedure 反向掩盖 S8 是否先做错。
+
 ## 开始作业时读取
 
 必读本文件及 [input-spec](references/input-spec.md)、[output-spec](references/output-spec.md)、[validation](references/validation.md)、[failure-handling](references/failure-handling.md)。使用 [semantic-procedure 模板](templates/semantic-procedure.md) 组织新应用；[Calculator 案例](examples/calculator.md) 解释 producer/consumer/transform，不定义通用规则。
@@ -25,13 +34,15 @@ description: 将固定 DistilledSteps 转成 Agent-to-Recipe S8-S9 的 SemanticP
 
 若 S7 已交付的 step 顺序、source coverage 或 runtime value 投影明显错误，停止并返回 S7。不要通过“语义上看起来合理”来修正历史事实。
 
-### 2. DistilledStep → Business Step
+### 2. S8 Business Semantics｜DistilledStep → Business Step
 
 将必要步骤映射为有序 Business Steps。每个步骤至少写清 purpose、sourceStepRefs、inputs/inputSources、preconditions、execution intent、observation、outputs、postconditions、verification、stopConditions、consumers 和 sideEffects。
 
 可以把多个必要步骤组织成一个业务步骤，但不能因此丢失 source coverage、先后关系、数据 producer/consumer 或安全边界。当前 S7 取舍保持只读。
 
-### 3. 分类业务输入
+**S8 最低检查：** 每个 Business Step 的业务目的、inputs/inputSources、outputs、consumer 和 sourceStepRefs 已经成立，且 runtime value 仍以 runtime value 身份进入后续 Business Step。若此时 B040 之类的 Business Step 已经写成固定 `input=110`，错误首先属于 S8，不允许等 S9 再“参数化修正”。
+
+### 3. S9 Reusable Procedure｜分类业务输入
 
 严格区分：
 
@@ -63,6 +74,8 @@ description: 将固定 DistilledSteps 转成 Agent-to-Recipe S8-S9 的 SemanticP
 
 同一业务输入不能同时来自 runtime value 和 Expected/常量。若 consumer 需要现场 firstResult，就不能再给它一个固定 110 作为平行来源。
 
+**S9 诊断边界：** 如果 S8 的 Business Step 仍正确写着“B040 消费 firstResult”，但 SemanticProcedure 才把 `firstResult.default = "110"`、把它变成 caller parameter，或丢失 producer→consumer data dependency，错误首先属于 S9。修 S9 时保留 S8 checkpoint，不回 S7/S8 重做无关成果。
+
 ### 6. 能力与应用关系只保留最小消费信息
 
 把已确认的能力选择归纳为 capabilityDecisions：业务需要、候选来源、selected/rejected/failed/not-run、canonical/公共约束、runtimeValidation、Recipe consumer、重验条件。
@@ -81,4 +94,4 @@ API 文档存在不等于已选型，selected 不等于运行已验证。S10 尚
 
 ## 完成条件
 
-SemanticProcedure 必须让一个没有看完整历史的 S10/S11 消费者准确回答：有哪些 Business Steps、每个输入来源是什么、哪些值是 runtime、producer/consumer/transform 如何连接、哪些输入可参数化、应用/能力关系是什么、终点如何验证、支持范围和 unknown 在哪里。
+完成条件分两层判断：S8 先证明 Business Steps 的业务目的、输入/输出、consumer 与来源链正确；S9 再证明参数分类、runtime producer/consumer/transform、分支、支持范围和 pending engineering 正确。最终 SemanticProcedure 必须让一个没有看完整历史的 S10/S11 消费者准确回答这些问题，并且审阅者能够判断错误首先发生在 S8 还是 S9。
