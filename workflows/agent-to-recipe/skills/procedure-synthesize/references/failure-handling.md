@@ -12,7 +12,8 @@
 | 历史 actual/observation/consumer 事实缺失 | task-demonstrate |
 | retain/merge/omit/recovery 或 S7 runtime 投影错误 | trace-distill |
 | App identity/target relation/locator/read/wait/action rule 缺失 | application-engineer |
-| Business Step 分组、参数分类、producer/consumer/transform 映射错误 | 本 Skill |
+| Business Step 分组、purpose、input/output/consumer 或 source mapping 错误 | S8 / 本 Skill |
+| 参数分类、runtime producer/consumer/transform、分支、支持范围或 pending engineering 错误 | S9 / 本 Skill |
 | 最终 JS/调用/控制流错误 | recipe-build |
 | Qualification/oracle/evidence scope 错误 | recipe-qualify |
 | 已存在的获准材料只是漏交 | 协调者 |
