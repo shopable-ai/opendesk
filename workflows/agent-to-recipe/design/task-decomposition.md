@@ -139,15 +139,16 @@ order: 30
 
 1. 核对系统、应用、窗口/Surface、账号、业务对象、焦点、弹窗、权限和可见状态。
 2. 确认近期步骤需要操作/读取的区域、目标、状态和结果位置。
-3. 区分：
+3. 在自行设计低层 Locator、Accessibility traversal、Geometry、Coordinate 等实现之前，先按近期动作从 [Agent API 阅读入口](../../../docs/api/agent/README.md) 发现已有执行能力；按“能力目录 → 候选方法 → 选中方法 canonical contract → 当前环境验证”推进，具体方法见 [capability-discovery.md](capability-discovery.md)。如果问题已经转为“这个应用本身怎样建立 Window / State / Region / Target 认识”，再按需参考 [App Development Framework](../../../docs/frameworks/app-development-framework.md)。这里只发现足够推进下一动作的能力，不通读整个 API 或整个应用。
+4. 区分：
    - 对象身份；
    - 外观线索；
    - 当前 Geometry；
    - 可执行定位依据。
-4. 先核查会阻断大量后续工作的高影响可行性，例如关键结果能否可靠读取。
-5. 有效旧知识直接复用；只有新页面、布局冲突、对象歧义或规则失效时才定向补认识。
-6. 认识事实不足时明确补采问题，不猜测；认识界面本身不产生新的操作授权。
-7. 若任务涉及重复列表/表格/时间线等结构，只在此记录“业务需要读取什么、当前认识范围和未决工程项”；具体识别、滚动、连续性等算法按专项文档处理。
+5. 先核查会阻断大量后续工作的高影响可行性，例如关键结果能否可靠读取。
+6. 有效旧知识直接复用；只有新页面、布局冲突、对象歧义或规则失效时才定向补认识。
+7. 认识事实不足时明确补采问题，不猜测；认识界面本身不产生新的操作授权。
+8. 若任务涉及重复列表/表格/时间线等结构，只在此记录“业务需要读取什么、当前认识范围和未决工程项”；具体识别、滚动、连续性等算法按专项文档处理。
 
 **输出**
 
@@ -416,12 +417,13 @@ SemanticProcedure、已有 AppProfile / helper、实际失败证据或工程缺�
 **必须完成**
 
 1. 优先复用仍有效规则；无缺口不重新研究应用。
-2. 将 Procedure 需要的操作落实到 Target、Locator、当前 Geometry、Read、Wait、Action、Verifier、Recovery 等必要能力。
-3. 核对对象唯一性、父区域/锚点、状态准备、等待、后置观察和安全停止。
-4. 记录规则适用范围、失效条件和缓存/重新观察条件。
-5. 新规则或修复必须有对应证据和局部验证。
-6. 真正 Runtime primitive 缺口作为独立能力问题记录；不能靠改变业务目标或虚构 API 绕过。
-7. 重复 UI、Structured Collection、VLM、Traversal 等专项细节只引用其权威架构，不在本任务树复制算法。
+2. 生产操作工程化前，按当前版本重新核对 [Agent API 阅读入口](../../../docs/api/agent/README.md) 与 selected canonical contract。若现有高层公开 API 已完整保留 target identity、parent/window scope、唯一性、读取语义、失败/partial/unknown 行为和副作用边界，则优先复用；只有关键约束无法表达、需要额外结构化预检或已有证据证明不适用时，才保留有依据的低层组合。方法边界见 [capability-discovery.md](capability-discovery.md)，应用建模按需参考 [App Development Framework](../../../docs/frameworks/app-development-framework.md)。
+3. 将 Procedure 需要的操作落实到 Target、Locator、当前 Geometry、Read、Wait、Action、Verifier、Recovery 等必要能力。
+4. 核对对象唯一性、父区域/锚点、状态准备、等待、后置观察和安全停止。
+5. 记录规则适用范围、失效条件和缓存/重新观察条件。
+6. 新规则或修复必须有对应证据和局部验证。
+7. 真正 Runtime primitive 缺口作为独立能力问题记录；不能靠改变业务目标或虚构 API 绕过。
+8. 重复 UI、Structured Collection、VLM、Traversal 等专项细节只引用其权威架构，不在本任务树复制算法。
 
 **输出**
 
