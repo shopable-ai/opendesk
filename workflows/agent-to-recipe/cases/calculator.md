@@ -16,7 +16,7 @@ order: 10
 
 ---
 
-## 0. 先固定业务要求
+## 0. 原始需求与验收边界
 
 ### 原始需求
 
@@ -96,14 +96,6 @@ print + return
 
 禁止把 Expected 110、历史运行中的 110、JavaScript 自己算出的 110、测试代码注入的 110 或示例文档里的 110 当成运行时 firstResult。
 
-### 本案例里的三种参考材料
-
-| 材料 | 用途 | 不能证明什么 |
-| --- | --- | --- |
-| 原始需求与 Expected 110/660 | 定义业务目标与验收 Oracle | 不能产生运行时 actual value |
-| A001—A010、D010—D060 等教学 fixture | 解释数据怎样穿过阶段；编号只是追溯索引 | 不是本轮新的真实桌面执行证据 |
-| 2026-09-27 历史真实运行记录 | 说明曾有实际 Calculator execution、读值与候选资格记录 | 本轮没有重新运行；本地 .runtime 原始证据不在 Git 中，不能冒充 fresh checkout 可独立复核 |
-
 ---
 
 ## 1. 全链路阶段地图
@@ -139,31 +131,11 @@ S12 对同一候选程序做独立资格验收
 Delivery / Publish Handoff
 ~~~
 
-**正式工作流只有 S1—S12。** Delivery / Publish 是 S12 之后的外部交付边界，不新增 S13。
-
-### 为什么 S3、S4、S5、S6 不能合并判断
-
-~~~text
-S3：动作真的发生了吗？
-S4：动作之后真实效果是什么？
-S5：根据真实效果应该继续、修订、恢复还是停止？
-S6：整次任务结束后，事实包是否正确收口？
-~~~
-
-同一个 task-demonstrate 方法可以连续承担四个阶段，但四个阶段的错误责任不同。
-
-### 为什么 S8、S9 不能合并判断
-
-~~~text
-S8：这些必要步骤在业务上是什么意思？
-S9：这些业务步骤里哪些值是运行时值、参数、配置，怎样形成可复用规格？
-~~~
-
-如果 S8 已经把 firstResult 写成固定 110，错误发生在 S8；如果 S8 仍正确，而 S9 才把 firstResult 变成默认 110，错误发生在 S9。
+本案例按 **S1—S12** 逐阶段检查；同一个 Skill 可以连续承担多个阶段，但每个阶段仍分别验收并定位首错。详细边界说明见文末“附录 A｜阶段边界说明”。
 
 ---
 
-## 2. 全链路只追一条黄金数据链
+## 2. 核心业务数据链
 
 ~~~text
 原始需求
@@ -360,8 +332,6 @@ Unknown until evidenced
   当前 Geometry 是否可直接用于动作
 ~~~
 
-当前仓库的案例实现使用 macOS Accessibility 语义目标作为工程参考，但实现代码不能反推 S2 当时一定观察到了什么。
-
 ### 5. 正确输出应该长什么样
 
 ~~~text
@@ -407,7 +377,7 @@ AppProfile
 
 ### 1. 这一阶段解决什么问题
 
-回答：**当前获准动作到底有没有真的发生？** 计划不是事实，Expected 不是事实，后来的代码也不是历史事实。
+回答：**当前获准动作到底有没有真的发生？** 计划不是事实，Expected 不是事实，后来的代码也不能代替本次实际动作。
 
 ### 2. 这一阶段收到什么
 
@@ -439,7 +409,7 @@ P30
   actual action（A005）
   request = read current result display
   target = 当前 Calculator 结果显示区
-  raw return = "110"  # fixture 合成值，只用于说明字段关系
+  raw return = "110"  # 参考解中的实际读值位置；生产运行必须来自本次读取
   evidence = 本次调用/返回记录
 
 P40
@@ -697,7 +667,7 @@ taskStatus = complete-success / fail / partial / inconclusive
 
 firstResult
   producer = A005
-  observedValue = "110"  # fixture 合成值
+  observedValue = "110"  # 参考解中的观察值；生产运行必须来自本次观察
   consumer = A009
   transform = characters
   freshRun = reacquire
@@ -709,7 +679,7 @@ secondPreparation
 
 finalResult
   producer = A010
-  observedValue = "660"  # fixture 合成值
+  observedValue = "660"  # 参考解中的观察值；生产运行必须来自本次观察
   consumer = final output
 
 sideEffects = [...]
@@ -1268,17 +1238,11 @@ await clickCalculatorButtons(
 当前仓库可检查候选参考：
 
 ~~~text
-path
-  examples/agent-to-recipe/calculator-fresh-20260927.js
-
-Git blob on inspected master
-  52823653aaa2c40e7a7acc87687c90c49e4f8917
-
-历史运行记录中的 SHA-256
-  6d1383249a9f12084cc877cea2883d8fa1c70c557216a8242ac7f542759f2d2a
+path = examples/agent-to-recipe/calculator-fresh-20260927.js
+candidate binding = S12 必须执行与该 Candidate 相同的 exact bytes
 ~~~
 
-Git blob 与 SHA-256 是不同哈希表示；Qualification 必须明确绑定哪一种及对应字节。
+具体 Git blob、历史 SHA-256 与证据边界只作为阅读辅助，见附录 B。
 
 ### 5. 正确输出应该长什么样
 
@@ -1410,22 +1374,7 @@ verdict
   每项 criterion = pass / fail / blocked / not-run
 ~~~
 
-历史运行参考：
-
-~~~text
-2026-09-27 曾记录两个独立 execution
-  direct-20260927-025457-988000
-  direct-20260927-025553-861000
-
-每次记录
-  16 个原生按钮回执
-  first actual read = "110"
-  final actual read = "660"
-
-并以另一 execution 的 AX 读取 / 窗口截图交叉核对
-~~~
-
-这些原始 .runtime 证据没有作为版本控制资产保存在当前 Git 仓库。本轮只重构文档，没有重新执行 Calculator，因此它是**历史 Qualification 说明，不是本轮新的 L4 Fresh Run**。
+本节只保留 S12 的参考解结构。历史运行记录、未入库的 .runtime 证据和 fresh execution 边界统一见附录 B，不参与正文主线。
 
 ### 5. 正确输出应该长什么样
 
@@ -1474,7 +1423,7 @@ QualificationRecord
 
 ## 最终交付边界
 
-这不是 S13。
+这是 S12 之后的外部交付边界。
 
 S12 完成以后，只有下面这些东西一起成立，才具备向外部消费者交付的最低条件：
 
@@ -1633,8 +1582,6 @@ Delivery 资料缺失且 Candidate / Qualification 未变
 | 当前固定案例实现参考 | [calculator-fresh-20260927.js](../../../examples/agent-to-recipe/calculator-fresh-20260927.js) |
 | 本文档静态复核记录 | [Calculator 文档复核](../../../docs/quality/agent-to-recipe/calculator-document-review-20260927.md) |
 
-automation-plan 与 code-rebuild 当前没有单独 Calculator example 文件；不要因为目录存在就假装示例存在。S1 的正式方法看 automation-plan Skill，code-rebuild 只在 S11 内按需做代码质量改进，不新增阶段。
-
 ---
 
 ## 7. 本案例什么时候才算真正达标
@@ -1642,16 +1589,107 @@ automation-plan 与 code-rebuild 当前没有单独 Calculator example 文件；
 一个没有旧聊天上下文的新读者，应当能够只读本文回答：
 
 1. 原始业务要求是什么？
-2. Expected 110/660 为什么不能成为生产运行数据？
-3. S1—S12 每一阶段分别收到什么、做什么、产出什么？
-4. S3/S4/S5/S6 为什么必须分别判断？
-5. S8/S9 为什么必须分别判断？
-6. firstResult 在每一层的来源和消费者是什么？
-7. 第二次 clear 为什么不能被机械删除？
-8. Candidate 为什么不能只“出现 firstResult 字符串”，而必须真实消费它？
-9. Qualification 为什么必须绑定同一 Candidate 与 requested scope？
-10. 如果某一步错了，第一责任阶段在哪里，哪些上游不需要重做？
-11. Delivery 为什么不是 S13，为什么 Qualification 不等于自动发布？
-12. 哪些内容只是教学 fixture、静态文档或历史记录，哪些才是真实运行证据？
+2. Expected 110/660 与 runtime firstResult / finalResult 怎样分离？
+3. 25 × 4 + 10 → firstResult → clear → 6 × firstResult → finalResult 的业务数据链怎样贯穿 S1—S12？
+4. S1—S12 每一阶段分别收到什么、做什么、产出什么？
+5. planned read、actual read、actual observation、continue/stop、Dossier 分别在哪个阶段判断？
+6. S8 的业务步骤与 S9 的可复用规格怎样区分？
+7. 第二次 clear 怎样既清空 Calculator UI，又保留任务数据 firstResult？
+8. Candidate 怎样真实消费 runtime firstResult，而不是只出现 firstResult 变量名？
+9. Qualification 怎样绑定同一 Candidate、requested scope、actual execution 与 observation？
+10. 某一步首次出错时，怎样定位第一责任阶段并只重做受影响下游？
+11. S12 之后的 Delivery / Publish Handoff 需要额外交付哪些内容？
+12. 哪些内容只是静态参考或历史说明，不能冒充本次运行事实？
 
 如果这些问题无法从本文直接回答，这个 Calculator 案例就还没有完成“端到端可检查基准案例”的职责。
+
+---
+
+## 附录 A｜阅读辅助：阶段边界说明
+
+这一附录不属于 Calculator 主解决方案。它只在需要解释**为什么相邻阶段必须分别归责**时使用；首错判断本身仍应优先看各阶段参考卡和“首错定位矩阵”。
+
+### A.1 S3、S4、S5、S6 为什么分别判断
+
+| 阶段 | 业务上只回答什么 | Calculator 中的首错例子 |
+| --- | --- | --- |
+| S3｜执行 | **动作真正发生了吗？** | 只有“计划读取 firstResult”，没有实际 read action |
+| S4｜观察 / 验证 | **动作后真实对象是什么状态？** | read action 存在，但把 Expected 110 或工具 receipt 当成 actual observation |
+| S5｜分类 / 决策 | **基于真实状态应该继续、修订、恢复还是停止？** | S4 仍 uncertain，却继续输入第二次计算 |
+| S6｜任务收口 | **整次示范事实包是否完整保留关键数据链？** | S3—S5 都正确，但 Dossier 丢失 firstResult 的来源或消费者 |
+
+同一个 task-demonstrate Skill 可以连续承担 S3—S6，但 Skill 边界不替代阶段边界。判断首错时，仍以“第一份输入正确、输出首次错误的阶段”为责任点。
+
+### A.2 S8、S9 为什么分别判断
+
+| 阶段 | 业务上只回答什么 | Calculator 中的首错例子 |
+| --- | --- | --- |
+| S8｜业务语义 | **必要步骤在业务上是什么意思，输入输出是什么？** | DistilledSteps 仍要求消费 firstResult，但 Business Step 已写成 input = 110 |
+| S9｜复用规格 | **哪些是运行时值、参数、配置、分支和支持范围？** | S8 仍正确消费 firstResult，但 SemanticProcedure 才出现 firstResult.default = 110 |
+
+因此：
+
+~~~text
+S8 正确
+  B025 → firstResult → B040
+
+S9 正确
+  firstResult = runtime value
+  producer = B025
+  consumer = B040
+  default = none
+~~~
+
+### A.3 阶段、Skill 与交付边界
+
+- 阶段用于独立验收和首错定位。
+- Skill 是承担专业方法的责任包，一个 Skill 可以覆盖多个阶段。
+- Delivery / Publish Handoff 位于 S12 之后，是外部交付边界，不新增正式阶段。
+
+---
+
+## 附录 B｜阅读辅助：静态参考、历史记录与证据边界
+
+这一附录只用于防止把“可读参考”误写成“本次真实运行证据”。它不改变 Calculator 的业务主解。
+
+### B.1 三类参考材料
+
+| 材料 | 用途 | 不能证明什么 |
+| --- | --- | --- |
+| 原始需求与 Expected 110/660 | 定义业务目标与验收 Oracle | 不能产生 runtime actual value |
+| A001—A010、D010—D060 等教学 fixture | 解释数据怎样穿过阶段；编号只是追溯索引 | 不是新的真实桌面执行证据 |
+| 2026-09-27 历史真实运行记录 | 说明曾有 Calculator execution、读值与候选资格记录 | 不能冒充当前 fresh execution；未入库原始证据不能在 fresh checkout 中独立复核 |
+
+### B.2 实现不能反推历史观察
+
+当前仓库案例实现可使用 macOS Accessibility 等工程机制作为参考，但最终 JavaScript、按钮表或读取实现不能反推 S2 当时一定观察到了什么，也不能反推 S3—S6 当时一定真实执行过什么。
+
+### B.3 Candidate 身份与哈希说明
+
+当前可检查候选：
+
+~~~text
+path
+  examples/agent-to-recipe/calculator-fresh-20260927.js
+
+Git blob on inspected master
+  52823653aaa2c40e7a7acc87687c90c49e4f8917
+
+历史运行记录中的 SHA-256
+  6d1383249a9f12084cc877cea2883d8fa1c70c557216a8242ac7f542759f2d2a
+~~~
+
+Git blob 与 SHA-256 是不同的身份表示。S12 真正需要的是：Qualification 明确绑定被实际执行的 exact Candidate bytes，并且执行对象与冻结对象一致。哈希格式本身不是案例主线。
+
+### B.4 历史运行记录怎样使用
+
+2026-09-27 曾记录两个独立 execution：
+
+~~~text
+direct-20260927-025457-988000
+direct-20260927-025553-861000
+~~~
+
+历史记录中，每次包含 16 个原生按钮回执、first actual read = "110"、final actual read = "660"，并曾用另一 execution 的 AX 读取 / 窗口截图做交叉核对。
+
+这些原始 .runtime 证据没有作为版本控制资产保存在当前 Git 仓库。因此它们只能作为历史说明：不能替代当前需要的 fresh execution，也不能仅凭本文档把 S12 写成新的运行通过。更完整的验证层、Hard Fail 和评分方法继续由 [validation-plan.md](../design/validation-plan.md) 负责。
