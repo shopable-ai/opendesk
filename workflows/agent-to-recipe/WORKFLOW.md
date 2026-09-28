@@ -103,6 +103,8 @@ order: 10
 
 具体怎么完成某项专业职责，进入对应 `skills/*/SKILL.md`；本文件不复制其方法正文。
 
+正式方法包入口：[automation-plan](skills/automation-plan/SKILL.md)、[application-engineer](skills/application-engineer/SKILL.md)、[task-demonstrate](skills/task-demonstrate/SKILL.md)、[trace-distill](skills/trace-distill/SKILL.md)、[procedure-synthesize](skills/procedure-synthesize/SKILL.md)、[recipe-build](skills/recipe-build/SKILL.md)、[code-rebuild](skills/code-rebuild/SKILL.md)、[recipe-qualify](skills/recipe-qualify/SKILL.md)。
+
 ## 4. 每次只执行一个可验证工作包
 
 一次工作包开始时至少固定：

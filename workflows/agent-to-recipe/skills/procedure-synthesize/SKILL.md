@@ -95,3 +95,11 @@ API 文档存在不等于已选型，selected 不等于运行已验证。S10 尚
 ## 完成条件
 
 完成条件分两层判断：S8 先证明 Business Steps 的业务目的、输入/输出、consumer 与来源链正确；S9 再证明参数分类、runtime producer/consumer/transform、分支、支持范围和 pending engineering 正确。最终 SemanticProcedure 必须让一个没有看完整历史的 S10/S11 消费者准确回答这些问题，并且审阅者能够判断错误首先发生在 S8 还是 S9。
+
+当前固定工件可用现有只读 checker 复核到 S8—S9 边界：
+
+```bash
+node workflows/agent-to-recipe/scripts/check-artifact-chain.js --through procedure-synthesize --dossier <dossier.json> --actions <actions.json> --distilled <distilled-steps.json> --procedure <procedure.json> --root <id=directory>
+```
+
+该命令只验证固定工件的声明、引用与已实现确定性规则；它不执行 Skill Producer，不证明独立 Agent 行为，也不能把结果升级为 L2/L4。

@@ -67,6 +67,14 @@ description: 从固定 Dossier 和 Raw Trace 提炼有来源的必要步骤。�
 
 依次检查输入来源、每动作唯一取舍、来源双向覆盖、顺序/次数、状态前提、完整生产/消费、恢复隔离、未知副作用和下游材料可读性。按 validation 使用适用检查器并人工审阅其覆盖之外的语义；程序 PASS 不替代方法正确、授权或 Gate。
 
+当前固定工件可用现有只读 checker 复核到 S7 边界：
+
+```bash
+node workflows/agent-to-recipe/scripts/check-artifact-chain.js --through trace-distill --dossier <dossier.json> --actions <actions.json> --distilled <distilled-steps.json> --root <id=directory>
+```
+
+该命令只验证固定工件的声明、引用与已实现确定性规则；它不执行 Skill Producer，不证明独立 Agent 行为，也不能把结果升级为 L2/L4。
+
 冻结唯一 `distilled-steps.json`；同版 Markdown 视图注明主产物 ref/hash。按 output-spec 向 procedure-synthesize 明确交付必要事实、关系、政策及定向证据正文。历史 lineage 不是授权 S9 重读全量 Dossier/Trace；检查器读源核对也不能替代对 Producer 的材料交付。
 
 失败保留真实局部成果和 nextRequest，不伪造成功。输入/方法/合同均未变且重检有效时复用原字节，只重做受影响环节；影响性变化发布新版本并传播重验。整链成功或最终值正确均不能替本 Skill 独立放行。
