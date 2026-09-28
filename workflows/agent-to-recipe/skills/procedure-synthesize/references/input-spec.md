@@ -6,11 +6,13 @@
 
 Dossier/Raw Trace 不是正常主输入。sourceActionRefs/dossierRef 只证明 lineage，不授权静默打开全量历史。已有材料未交付先找协调者；源事实本身缺失再返回原责任。
 
-## S7 与 S9 的边界
+## S7、S8 与 S9 的边界
 
 S7 输入必须已经回答：哪些动作 retain/merge/omit/recovery/unresolved、哪些 runtime values 被投影、哪些 consumer bindings 属于必要路径。
 
-S9 只解释这些必要步骤的业务含义、参数和数据关系。以下情况必须退回 S7，而不是本地修：
+S8 只把这些固定必要步骤解释成 Business Steps：purpose、对象、inputs/inputSources、outputs、consumer、pre/post、verification 与业务副作用。S8 不做参数默认值、支持范围泛化或 API 工程化。
+
+S9 只消费已经成立的 Business Steps，再分类参数/config/secret/runtime/expected，建立 producer/consumer/transform、分支、支持范围和 pending engineering。以下情况必须退回 S7，而不是在 S8/S9 本地修：
 
 - sourceStepRefs 丢失/重复导致覆盖错误；
 - runtime value producer 被错误移除；
