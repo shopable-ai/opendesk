@@ -287,3 +287,14 @@ Action / Automation 本体
 → 再决定是否扩大 Creator / Marketplace / Team / Enterprise Platform
 → 若复用、适配、Creator 供给与经济激励成立，再验证 Global Executable Experience Network
 ```
+
+## 2026-09-26 Meta Muse 竞品冲击与定位修正
+
+新增 [`meta-muse-competitive-impact-2026.md`](meta-muse-competitive-impact-2026.md)：
+
+- 核验 Meta Muse 的个人 Agent、长期目标、后台执行、Secure VM / browser、Mac app 与 Connector Platform；
+- 将 OpenDesk 与 Muse 的关系分成“红区主动退出、黄区合作借力、绿区继续加深”；
+- 明确不再把通用个人 Assistant、Personal Memory、通用 Connector 超级目录或通用 Mac Computer Use 当作 OpenDesk 主战场；
+- 把 **Agent-neutral** 提升为正式产品约束：Muse / Codex / Claude / 企业 Agent 可负责上层意图与规划，OpenDesk 负责 Desktop / Cross-App Execution、Evidence、Verification、Recipe、Replay、Repair 与 Delivery；
+- 修正 Global Executable Experience Network 的隐含前提：长期网络可以是 headless / embeddable，不要求 OpenDesk 自己拥有唯一用户入口或唯一 Marketplace；
+- Meta Connector Platform 目前只作为潜在分发 / 集成渠道研究，协议和技术边界未明确前，不声称 OpenDesk 已能直接接入。

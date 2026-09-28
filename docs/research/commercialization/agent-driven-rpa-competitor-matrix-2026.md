@@ -264,3 +264,21 @@ OpenDesk 当前事实来源：
 - `docs/api/accessibility.md`
 - `docs/api/protected-packages.md`
 - `docs/plans/commercialization/agent-driven-rpa-positioning.md`
+
+## 9. Meta Muse 增补（2026-09-26）
+
+Meta Muse 应加入竞争地图，但它与 Cua / ADH / OpenAdapt 的关系不同：Muse 更像**上层个人 Agent + 分发入口 + Connector 平台**，而不是单纯 Desktop Driver 或 RPA compiler。
+
+官方已核验能力包括：personal AI agent；长期目标 → action plan；后台持续工作；persistent Secure VM + browser；connected apps / Connectors；Mac desktop app；经许可访问 Mac 上应用；Connector Platform / Directory。
+
+| 产品 | 与 OpenDesk 的主要重叠 | 对 OpenDesk 的主要威胁 | 更合理关系 |
+| --- | --- | --- | --- |
+| Meta Muse | Personal Agent、Browser/Computer Use、跨应用执行、Connector 生态 | 通用个人 Agent、Mac Computer Use、通用 Connector、用户入口 | **竞合**：OpenDesk 不重做上层 Agent，争取成为可调用 Execution / Recipe / Verification 层 |
+
+Muse 使以下差异化进一步失效：`我也有个人 AI 助手`、`我也能操作 Mac`、`我也能跨 App`、`我也有 Connector`。
+
+OpenDesk 仍应重点证明：一次 Agent 成功 → reviewable / parameterized Recipe → independent verification → deterministic / low-cost replay → repair / compatibility → client delivery。
+
+当前没有证据表明 Muse 已公开提供与上述完整链路等价的 Recipe qualification / protected workflow delivery 合同；同样也没有证据支持 OpenDesk 已可直接作为 Muse Connector。协议细节未公开前，这些项统一保持未知，不做正向或负向推断。
+
+专项研究：`docs/research/commercialization/meta-muse-competitive-impact-2026.md`。

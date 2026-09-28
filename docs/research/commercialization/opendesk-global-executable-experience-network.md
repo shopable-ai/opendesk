@@ -343,3 +343,19 @@ Low Intelligence at Repeated Execution Time（重复执行阶段尽量低智能�
 - **H8**：OpenDesk 的长期优势可以从 Runtime Engineering（运行时工程）迁移到 Executable Experience Moat（可执行经验护城河）。
 
 这些假设必须按阶段验证；任何单项未成立，都可能改变 Marketplace、Creator Economy 或 Global Network 的最终产品形态。
+
+## 13. Muse 后的长期终局修正（2026-09-26）
+
+Meta Muse 的出现要求本长期战略删除一个隐含前提：**Global Executable Experience Network 不要求 OpenDesk 自己成为用户唯一的 Personal Agent / AI 入口。**
+
+更合理的长期结构是：多个上层 Agent / User Interfaces（Muse / Codex / Claude / 企业 Agent / 行业 Agent）→ OpenDesk Executable Experience Layer（Automation / Procedure / Recipe / Verification / Compatibility / Repair / Package / Execution Evidence）→ Desktop / Cross-App / Local Runtime。
+
+1. **M7 Digital Labor Platform 不再等同于必须自建通用 Digital Worker 前台。** 可以由第三方 Agent 负责用户交互和 Planner；OpenDesk 提供可执行、可验证、可维护的岗位能力资产。
+
+2. **M8 Global Executable Experience Network 可以是 headless / embeddable / agent-neutral。** 用户可能从 Muse、Codex、Claude、企业 Agent 或 OpenDesk 自有界面发起同一个 Automation；网络效应应来自 Recipe / Compatibility / Verification / Repair，而不是来自强制统一聊天入口。
+
+3. **Marketplace 不再是唯一终局渠道。** Automation 可以通过 OpenDesk 自有 Registry（若以后验证成立）、第三方 Agent Connector / Plugin 市场、MCP / Tool 生态、企业私有 Registry、实施商或直接 Package 交付。
+
+4. **Agent-neutral 升级为长期平台原则。** 高智能 Agent 应可替换；已沉淀的 Procedure / Recipe / Evidence 不应因上层 Agent 更换而失效；OpenDesk 的长期资产护城河应建立在 Executable Experience，而不是某一家模型或聊天入口。
+
+对应竞品与战略研究：`docs/research/commercialization/meta-muse-competitive-impact-2026.md`。

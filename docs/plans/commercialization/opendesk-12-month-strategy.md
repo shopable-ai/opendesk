@@ -606,3 +606,18 @@ business-validation-roadmap
 ```
 
 长期平台愿景继续由 [`../../research/commercialization/opendesk-global-executable-experience-network.md`](../../research/commercialization/opendesk-global-executable-experience-network.md) 保存；该愿景不能反向覆盖本计划的 PMF / Reliability / Revenue 验证优先级。
+
+## Meta Muse 后的资源约束（2026-09-26）
+
+Meta Muse 已把个人 Agent、长期目标、后台执行、Connector 生态和 Mac 桌面操作推进到消费级产品层。未来 12 个月 OpenDesk 因此新增一条资源纪律：
+
+> **不投入资源重建通用 Personal Agent / Personal Memory / 通用 Connector Directory / 通用 Mac Computer Use 前台；优先让现有强 Agent 成为 OpenDesk 的上层入口。**
+
+新增两个执行验证：
+
+1. **Agent-neutral integration benchmark**：至少使用两个可取得的上层 Agent（例如 Codex / Claude）调用同一 OpenDesk Workflow contract，验证更换 Agent 后 Recipe、Evidence、Verification 和业务结果仍可复用。
+2. **Pure Agent vs Agent→Recipe benchmark**：同一重复任务比较“每次 Agent 从头执行”与“第一次 Agent 探索 + OpenDesk Recipe 后续 Replay”的正确率、false success、时间、模型成本和 repair time。
+
+Meta Muse Connector 只在官方技术协议、审核要求和本地能力接入边界明确后做窄 Demo；在此之前不作为 12 个月工程前置依赖。
+
+这项调整的目标不是减少 OpenDesk 的 ambition，而是把有限资源集中到大厂更难通过模型和分发优势直接商品化的层：**Verified Reusable Automation Asset、Replay、Verification、Repair、Compatibility 与 Commercial Delivery。**
