@@ -30,6 +30,19 @@ description: 按固定 TaskContract、WorkPlan 与应用认识执行 Agent-to-Re
 
 正式字段、引用和状态以 [共享合同](../../../../docs/frameworks/agent-to-recipe-skill-contract.md) 为唯一依据；模板不是新 schema。执行前固定本 Skill、四项规格、合同、TaskContract、WorkPlan、AppProfile/规则及实际业务输入的版本。
 
+## 正式阶段边界：S3 / S4 / S5 / S6 不能合并判断
+
+同一个 Skill 连续承担四个正式阶段，但每一阶段回答的问题、实际输出和 failure owner 不同：
+
+| 阶段 | 进入输入 | 本阶段只负责 | Actual Output / 最低验收 | 典型错误与返回 |
+| --- | --- | --- | --- | --- |
+| **S3 Execute** | planned step、目标依据、授权、前置状态 | 真正执行当前获准动作并记录 actual request / target / receipt / side-effect state | 能证明动作真实发生；计划或最终代码不能冒充 actual | 没有真实 action、目标错、Expected 填 raw return → S3；目标依据本身错回 S2/S10 |
+| **S4 Observe / Verify** | S3 actual action、正确对象、Expected / criterion | 重新观察正确对象，把 Actual 与 Expected 分开比较 | actual observation + pass/fail/uncertain + evidence | receipt 当 observation、Expected 当 actual、对象读错 → S4；读取规则失效回 S2/S10 |
+| **S5 Classify / Decide** | S3/S4 事实、side effect、WorkPlan、预算 | 分类并决定 continue / revise / recover / stop | classification、decision、next step、planDelta/recovery（如有） | uncertain 仍继续、unknown effect 重放、篡改过去 actual → S5 |
+| **S6 Close** | 已完成微循环的合同、actual、observation、数据流和证据 | 在任务级关闭本次示范，冻结事实包和覆盖范围 | Dossier / Raw Trace refs、runtime dataflow、criterion status、sideEffects、unresolved | 只看 final result、补造缺失历史、扩大覆盖范围 → S6 |
+
+阶段边界判断使用同一原则：**找到第一个“输入仍正确、输出第一次错误”的阶段。** S4 判断错不能通过重放 S3 来掩盖；S6 汇总错也不能改写 S3—S5 已真实发生的事实。
+
 ## 方法
 
 ### 1. 固定起点与证据角色
@@ -46,41 +59,67 @@ description: 按固定 TaskContract、WorkPlan 与应用认识执行 Agent-to-Re
 
 需要探索或计划偏离时记录原因。计划变化走 planDelta/新版本，过去已经发生的 actual 与 observation 不随计划改版重写。
 
-### 3. 执行-观察-验证微循环
+### 3. S3 Execute｜执行当前获准动作
 
-每个业务节点按以下顺序留证：
+绑定当前 planned step、业务子目标、目标依据、预期状态变化和风险，然后真正执行当前获准动作。
 
-```text
-planned
-→ precondition / target check
-→ actual action + receipt
-→ observation
-→ compare against expected / criterion
-→ save side effect / runtime value / consumer relation
-→ next step or stop
-```
+至少保存：
 
-动作回执只证明框架报告了什么，不自动证明 UI 后置或业务成功。观察必须来自实际 UI/业务/输出渠道，并保留应用、目标、时间/顺序和来源。
+    plannedStepRef
+    actualAction / actualRequest
+    actualTarget
+    receipt / raw return
+    execution identity / order
+    evidenceRefs
+    sideEffect = known / unknown / partial
 
-失败、等待、重试、恢复也是 actual，不能从 Raw Trace 中美化删除；是否属于最终必要路径由 S7 判断。
+S3 只证明“做了什么”。receipt 不能证明业务后置正确；Expected、计划、参考脚本或最终 JS 都不能补写 actual。副作用结果 unknown 时停止依赖动作，不为补记录盲目重放。
 
-### 4. 保存 runtime value 和实际 consumer
+### 4. S4 Observe / Verify｜重新观察并验证实际效果
 
-每个关键运行时值保存：原始值、类型、读取 action、application/target、evidence、必要单位/精度、有效期和 fresh run 是否重读。保留前导零和原始字符串，不为后续方便提前数值化。
+动作后重新观察**正确业务对象**，保存 actual observation，再与 Expected / criterion 比较：
 
-对每个实际消费者保存：consumer action、application/target、actual input、actual transform 及对应 runtime value。允许变换来自政策；“本次实际用了哪种变换”必须来自 actual consumer。
+    sourceActionRef
+    observedObjectIdentity
+    actualObservation
+    expected
+    comparison
+    status = pass / fail / uncertain
+    evidenceRefs / limitations
 
-同一个值有多个消费者时逐个记录；终点读取以 final output 作为消费者。不能只写“第二步使用 firstResult”。
+动作回执与业务 observation 分开。没有观察到不能写成 false；证据不足就保持 uncertain。
 
-### 5. 完成本次业务验证
+关键 runtime value 只能从本次真实 observation 产生。保存原始值、类型、origin action、application/target、evidence、单位/精度、有效期和 fresh run 是否重读；保留前导零与原始字符串。
 
-逐 success criterion 对照 expected 与 actual observation；明确 pass/fail/not-run/blocked。中间数据来源、必要状态和终点交付都要核对，不能只凭最终数字正确放行示范。
+### 5. S5 Classify / Decide｜分类并决定下一步
 
-动作成功、后置成功、业务成功、视觉/人工接受分别记录。部分完成保留剩余项，不缩小原请求后写“全部完成”。
+只基于已经成立的 S3/S4 事实分类 normal/setup/verification/exploration/retry/recovery/off-task/error，并决定：
 
-### 6. 冻结并交 S7
+    continue / revise / recover / stop
+    nextPlannedStep
+    planDelta / recoveryRelation（如有）
+    sideEffectHandling
+    reason / evidenceRefs
 
-冻结 Dossier、Raw Trace、Execution/Evidence refs、planned/actual 对应、runtimeValues、consumer bindings、sideEffects、unresolved 与验证索引。交付前交叉检查 action、observation、runtime value 的值/应用/目标及消费者集合一致。
+S5 不创造新的 UI 真相，不修改过去 actual，也不能把 uncertain 当 pass。unknown side effect、身份歧义、越权或预算耗尽时停止；合法有界重试必须有新依据。
+
+### 6. 跨微循环保存 runtime value 与实际 consumer
+
+runtime value 的 producer 来自 S4 的实际 observation；consumer 必须来自后续 S3 真正执行的 actual input。对每个实际消费者保存 consumer action、application/target、actual input、actual transform 及对应 runtime value。
+
+同一个值有多个消费者时逐个记录；终点读取以 final output 作为消费目的。不能只写“第二步使用 firstResult”，也不能用 Expected、历史值或 JS 推算值填充 consumer。
+
+### 7. S6 Close｜冻结任务级事实包并交 S7
+
+任务结束、失败或定向补采收口时，逐 success criterion 汇总 expected vs actual observation，明确 pass/fail/not-run/blocked，并冻结：
+
+- Dossier、Raw Trace、Execution/Evidence refs；
+- planned/actual 对应；
+- runtimeValues 与完整 consumer bindings；
+- sideEffects、planDelta、unresolved；
+- 本次 taskStatus、覆盖范围、最后可信状态与下一安全动作。
+
+S6 只汇总已经存在的事实，不从最终结果反推缺失历史。动作成功、后置成功、业务成功、视觉/人工接受分别记录；部分完成保留剩余项，不缩小原请求后写“全部完成”。
 
 S7 消费事实并做 retain/merge/omit/recovery；本 Skill 不提前替 S7 去噪。S9 需要的定向事实必须明确交付正文/固定引用，不能因为检查器能读整个 Dossier 就视为语义 Producer 已收到。
 
@@ -92,4 +131,4 @@ S1 负责目标、授权、政策和成功标准；application-engineer 负责�
 
 ## 完成条件
 
-只有声明范围内的 actual、observation、runtime value、consumer、criterion 和副作用都有可读来源，且六类角色未互换，才形成可供 S7 正常消费的示范事实包。文件存在、最终代码正确、fixture 通过、模型自述或历史 Qualification 都不能代替本次实际执行证据。
+完成不能只看“Dossier 最终存在”。S3、S4、S5、S6 必须分别满足各自最低条件，并且能够定位第一个错误阶段。只有声明范围内的 actual、observation、decision、runtime value、consumer、criterion 和副作用都有可读来源，且六类角色未互换，才形成可供 S7 正常消费的示范事实包。文件存在、最终代码正确、fixture 通过、模型自述或历史 Qualification 都不能代替本次实际执行证据。
