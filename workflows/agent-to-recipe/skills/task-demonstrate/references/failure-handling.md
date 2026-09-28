@@ -10,7 +10,10 @@
 | --- | --- | --- |
 | 目标、授权、业务政策、success criterion 缺失/变化 | S1/需求责任 | 冲突、受影响 planned steps、停止点 |
 | App identity、locator、read/wait/action rule 失效 | application-engineer | 原规则、实际失败、目标/环境差异 |
-| actual action/read/consumer/evidence 缺失 | 本 Skill 定向补采 | 缺哪项、为何可/不可恢复、补采范围 |
+| S3 actual action / request / target 事实缺失 | S3 / 本 Skill 定向补采 | 缺哪项、为何可/不可恢复、补采范围；不从计划或代码补造 |
+| S4 actual observation / verification 缺失或错误 | S4 / 本 Skill 定向观察 | sourceAction、正确对象、Expected、actual、evidence；不自动重放 S3 |
+| S5 classification / decision / planDelta 错误 | S5 / 本 Skill 定向修正 | 保留 S3/S4 事实，只修分类、决策和下一步 |
+| S6 Dossier 收口、覆盖范围或事实索引错误 | S6 / 本 Skill 定向修正 | 保留已确认微循环，只修任务级汇总和 handoff |
 | S7 错删/错合并动作 | trace-distill | 原 Dossier 不重做，指向完整事实 |
 | S9 业务含义/参数/数据关系错误 | procedure-synthesize | 原事实保持不变，不用重演掩盖 |
 | JS 实现错误 | recipe-build | actual 与规则证据，禁止改历史 |
