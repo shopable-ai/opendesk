@@ -17,8 +17,10 @@ request 必须区分只读资料、现场观察、导航/输入/清空、图像�
 | 业务依据 | 近期目标、必需操作/结果、约束 | 已确认过程的固定版本、目标和待补操作 | 原任务/过程、原成功标准、获准修改范围 |
 | 应用资料 | 实际观察或获准采集条件；旧资料有则读取，无则可进入 | 当前需要的 Profile/规则及工程缺口；缺失关系单列补证 | 失败所用旧 Profile/规则/helper 的精确版本 |
 | 事实材料 | 当前身份、页面/状态、目标/结果范围所需证据 | 规则来源、当前适用条件、相关观察/局部验证 | 原失败、实际回执/观察、时间顺序、已知副作用、受影响目标 |
-| 能力依据 | 仅在需要观察/操作时取得相应当前契约 | 所选实际 API 正文、公共约束、可用环境和验证授权 | 与失效规则相关的契约、环境差异、可安全补观察的条件 |
-| 不作进入前提 | 完整 SemanticProcedure、Candidate、最终 JS、S12 资格 | 先重跑 discover、已经有最终 JS/Qualification | 重跑全应用认识或全业务、已找到根因 |
+| 能力依据 | 需要观察/操作时，从 Agent API 短入口按当前步骤发现候选并取得 selected canonical contract；若上游已固定选择则核对并复用，不要求调用者预选 API | 所选实际 API 正文、公共约束、可用环境和验证授权 | 与失效规则相关的契约、环境差异、可安全补观察的条件 |
+| 不作进入前提 | 完整 SemanticProcedure、Candidate、最终 JS、S12 资格、调用者预先完成 Capability Discovery | 先重跑 discover、已经有最终 JS/Qualification | 重跑全应用认识或全业务、已找到根因 |
+
+discover 对能力依据的取得有明确责任：若当前步骤需要 OpenDesk 执行能力且 request 没有提供已经固定、仍适用的选择，本 Skill 从 [Agent API 阅读入口](../../../../../docs/api/agent/README.md) 按“相关能力目录 → candidate methods → Method Selection → selected canonical contract / shared constraints → current Runtime Validation”推进；若缺口是具体应用的 Window / State / Region / Target 认识，则按需进入 [App Development Framework](../../../../../docs/frameworks/app-development-framework.md)。已有 selection 只是材料漏交时先由协调者补交；selection 本身尚未完成时不得靠旧聊天、最终代码或熟悉的低层实现猜答案。
 
 “已确认过程”必须能回答目标、输入输出、顺序/依赖及成功条件；只有按钮序列且业务含义未确认，不能让 harden 代做 S9。repair 允许根因未知，但必须有可定位的失败和旧版，不接受“偶尔不好用”直接改通用规则。
 

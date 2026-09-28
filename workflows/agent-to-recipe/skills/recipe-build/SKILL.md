@@ -33,6 +33,9 @@ SemanticProcedure
 逐 Business Step 核对 purpose、inputs/inputSources、runtime producer/consumer/transform、pre/postconditions、observation、stopConditions、sideEffects，以及所需 AppProfile operation rules 与 selected API contract。
 
 - 业务含义/参数/数据关系缺失：回 procedure-synthesize。
+- 当前业务能力需要的 capabilityDecision / selectedMethod 本身尚未确定，或 SemanticProcedure 缺该选择：回 procedure-synthesize / S9；S11 不自行重新做 Capability Discovery 来补业务选型。
+- selectedMethod 已确定，但 AppProfile / operation rule 尚未把它落实成可执行的 locator/read/wait/action、runtime guard 或适用范围：回 application-engineer / S10。
+- 上游已经存在精确 canonical contract / shared constraint 绑定，只是本次 request 漏交正文或固定 ref：回协调者补交；不得把“漏交材料”误判成重新选型。
 - locator/read/wait/action rule 缺失：回 application-engineer。
 - 历史事实缺失：按来源回 demonstration/trace-distill。
 - 不能因为代码“可以猜出来”就继续。

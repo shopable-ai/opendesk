@@ -27,9 +27,17 @@ description: 为 OpenDesk 桌面自动化建立有证据的应用认识，或补
 
 ## 方法
 
-### discover：先提出认识问题，再观察
+### discover：先路由知识和能力，再提出认识问题
 
-从任务合同列出近期必需操作和结果，逐项写出必须确认的应用身份、页面/模式、目标、父区/锚点、结果区、进入条件与阻塞项。先复核获准旧资料，只补影响近期任务的缺口；不要先盘点整个软件，也不要把必需目标降级来换通过。
+从任务合同列出近期必需操作和结果后，先判断当前缺口属于“OpenDesk 已有什么执行能力”还是“当前应用怎样建立最小认识”。在自行设计 Locator、Accessibility traversal、Geometry、Coordinate 等低层方案之前，必须先完成与当前步骤相称的路由：
+
+- **执行能力问题**：从 [Agent API 阅读入口](../../../../docs/api/agent/README.md) 开始，只打开当前步骤相关的一个或少数能力目录，形成 candidate methods；再做 Method Selection，读取 selected method 的 canonical contract 与必要公共约束，并在当前应用／窗口／入口／权限下做 Runtime Validation。具体边界见 [Capability Discovery](../../design/capability-discovery.md)。
+- **应用建模问题**：当问题已经转为“这个应用的 Application / Window / Page-State / Region / Target 怎样认识和约束”时，按需参考 [App Development Framework](../../../../docs/frameworks/app-development-framework.md)，只建立近期动作所需的最小模型。
+- 两类问题同时存在时，先发现足以观察／操作当前步骤的公开能力，再用真实现场建立应用认识；不通读整个 API，也不先建模整个应用。
+
+Capability Discovery、Method Selection、Contract Reading、Runtime Validation 必须分开记录：目录命中只证明“可考虑”，选中只证明“决定尝试”，合同只证明“知道怎样调用”，只有当前环境的实际证据才能写成 pass。高层 API 已完整满足 target identity、scope、唯一性、读取语义、失败／partial／unknown 和副作用约束时优先复用；没有这些条件时不得仅因 API 层级高而采用。不得把 `UI.tapTexts` 或任何 backend 写成全局固定优先级；只有关键约束无法表达、需要额外结构化预检或已有证据证明高层方法不适用时，才有依据地下沉。
+
+随后逐项写出必须确认的应用身份、页面/模式、目标、父区/锚点、结果区、进入条件与阻塞项。先复核获准旧资料，只补影响近期任务的缺口；不要先盘点整个软件，也不要把必需目标降级来换通过。
 
 取得与问题对应的获准观察，记录来源、时间或未知、应用/窗口/页面、原图和坐标映射。逐项分开可见事实、模型解释、待验证假设和未知；把字段关联到具体证据。截图可支持认识，不自动支持点击；按钮外观不证明可操作，显示值不证明业务已成功。
 
