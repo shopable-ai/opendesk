@@ -14,6 +14,8 @@ order: 10
 
 正式阶段定义仍由 [task-decomposition.md](../design/task-decomposition.md) 负责；实际路由由 [WORKFLOW.md](../WORKFLOW.md) 负责；验证方法由 [validation-plan.md](../design/validation-plan.md) 负责。本文只把 Calculator 的关键参考数据集中到一个可读案例里。
 
+> **本文是 Inspection View / 阶段检查视图。** 如果你现在的问题是“一个 Agent 实际怎样从需求出发，先查什么、调用什么、执行什么、观察什么，再决定下一步”，先读 [Calculator 执行过程演练](calculator-execution-walkthrough.md)。Walkthrough 展示程序性求解主线；本文负责沿 S1—S12 检查每一步是否正确。
+
 ---
 
 ## 0. 原始需求与验收边界
@@ -1568,6 +1570,7 @@ Delivery 资料缺失且 Candidate / Qualification 未变
 
 | 想检查什么 | 位置 |
 | --- | --- |
+| Agent 实际怎样从需求一路推进、发现 API、执行并形成 Candidate | [Calculator 执行过程演练](calculator-execution-walkthrough.md) |
 | S1—S12 正式阶段定义 | [task-decomposition.md](../design/task-decomposition.md) |
 | 工作流进入、恢复、定向返工 | [WORKFLOW.md](../WORKFLOW.md) |
 | 相邻边界快速审阅 | [acceptance-map.md](../design/acceptance-map.md) |
