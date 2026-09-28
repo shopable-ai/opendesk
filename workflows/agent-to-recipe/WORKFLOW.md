@@ -142,6 +142,52 @@ published handoff
 
 检查器 PASS **不等于**事实真实、Skill 独立行为正确、宿主已加载、桌面任务成功或 Candidate 已获得业务 Qualification。验证层级和证据要求见 [validation-plan.md](design/validation-plan.md)。
 
+### 4.2 正式阶段推进协议
+
+一个工作包可以覆盖一个或多个正式阶段，但**每个正式阶段都必须独立完成一次责任判断**。实际推进统一按下面顺序：
+
+    固定当前输入和版本
+    ↓
+    明确本阶段 Responsibility / Non-responsibility
+    ↓
+    执行对应专业方法
+    ↓
+    形成本阶段 Actual Output
+    ↓
+    做本地阶段检查
+    ↓
+    记录 pass / fail / blocked / not-run
+    ↓
+    定位 Failure Owner
+    ↓
+    确定 Invalidated Downstream
+    ↓
+    保留 Preserved Upstream
+    ↓
+    满足 Minimum Next Gate 后 handoff
+
+这里的 `pass / fail / blocked / not-run` 是对现有 Gate、scenario 或工作状态的可读归纳，不新增 `executionStatus` 枚举；`Minimum Next Gate` 也只表示下一阶段最低消费条件，不新增 G 编号。
+
+失败或阻塞时，必须能恢复出下面六项诊断视图：
+
+    last confirmed correct artifact
+    first invalid boundary
+    failure owner
+    invalidated downstream
+    preserved upstream
+    next minimum action
+
+这六项同样不是新 schema。优先映射到现有合同：
+
+- `requestRef / inputRefs / artifacts`：固定输入、产物和最后确认正确的版本；
+- `gate / failures[]`：当前阶段 verdict、失败分类和责任；
+- `unresolved`：不能证明或尚未运行的缺口；
+- `planDelta / nextRequest`：下一步最小修复／补采动作；
+- `continuation.assetDisposition.preservedScope / changedScope`（适用时）：保留范围与受影响范围；
+- 其他不能机器表达的诊断可作为 handoff 的可读 facts / unresolved / 主产物视图保存，不因此修改共享 schema。
+
+同一 Skill 内部也按正式阶段分界：task-demonstrate 必须能指出错误首先属于 S3、S4、S5 还是 S6；procedure-synthesize 必须能指出首先属于 S8 还是 S9。只有前一阶段最低条件成立，后一阶段的输出才可以被当作正常下游输入。
+
 ## 5. 结束与恢复必须交付什么
 
 暂停、阻塞、完成当前工作包或交给新会话时，至少留下：
