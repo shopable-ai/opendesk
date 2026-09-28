@@ -25,6 +25,38 @@ order: 35
 
 然后再看版本、hash、Gate、证据和实际运行。
 
+## 正式阶段统一检查协议
+
+Calculator 基准案例把每个阶段都写成“收到什么、负责什么、实际产出什么、怎样验收、错了回哪里”。这不是 Calculator 专用写法，而是 S1—S12 都应满足的**阶段推进 / 阶段检查协议**。
+
+它不是新 schema、Runtime、Gate、状态机或 S13，也不要求每个阶段新建文件。它只是把现有 TaskContract、主产物、Gate、failure owner、handoff 与影响分析用同一组问题检查。Calculator 是这个协议的 reference implementation，不是协议 owner。
+
+审查任一正式阶段时，至少回答：
+
+| 检查项 | 必须回答 |
+| --- | --- |
+| **Stage Input** | 本阶段实际消费了哪些固定输入、版本、hash、权限和现场前提？ |
+| **Responsibility** | 本阶段唯一要解决的核心问题是什么？ |
+| **Non-responsibility** | 哪些判断明确属于上游、下游或其他专业职责，不能在这里静默代做？ |
+| **Actual Output** | 本阶段实际形成了什么可消费成果？Expected、计划、示例或未来产物不能冒充 actual output。 |
+| **Acceptance** | 哪些证据足以证明本阶段职责完成；哪些仍只能是 unknown / not-run / blocked？ |
+| **Typical Failure** | 最容易把什么角色、来源、值或边界混错？ |
+| **Failure Owner** | 第一个输入仍正确、输出已经错误的责任阶段／职责是谁？ |
+| **Invalidated Downstream** | 该错误会使哪些依赖当前错误输出的下游结论失效？ |
+| **Preserved Upstream** | 哪些已确认上游事实、产物和证据仍然有效，不应为了“完整”重做？ |
+| **Minimum Next Gate** | 进入下一正式阶段前最少还必须成立什么？这里复用现有适用 Gate / handoff，不新增 G 编号。 |
+
+阶段诊断统一采用：
+
+    last confirmed correct artifact
+    → first invalid boundary
+    → failure owner
+    → invalidated downstream
+    → preserved upstream
+    → next minimum action
+
+同一个 Skill 承担多个阶段时仍逐阶段回答这组问题。S3、S4、S5、S6 不能因为都由 task-demonstrate 承担而合并判定；S8、S9 同理。
+
 ## 一、旧任务树怎样继续使用
 
 各材料的职责保持分开：
@@ -81,6 +113,22 @@ Source
 ```
 
 View、Review、Summary 都是这些权威工件的投影。
+
+### Delivery / Publish Handoff（不是 S13）
+
+Delivery / Publish 是 S12 之后的外部交付边界，不进入 S1—S12 编号，但当它承担真实交付责任时仍可按独立责任对象审查：
+
+| 检查项 | 最低要求 |
+| --- | --- |
+| 输入 | exact QualificationRecord / Candidate、已证实 scope、交付目标与必要发布批准 |
+| 责任 | 把已资格化的固定对象和真实证明范围准确交给外部消费者 |
+| 非责任 | 不扩大 qualified scope、不重做 S12、不把登记／发布自动等同于执行用户任务 |
+| 实际输出 | 固定交付包／发布 handoff、版本与范围说明、未测项和必要证据引用 |
+| 验收 | 接收方能够确认拿到的是同一 Candidate、同一资格范围和可复核证据 |
+| 失败责任 | 交付包装／发布记录错误留在 Delivery；Candidate 或 Qualification 本身错误返回 S11 / S12 |
+| 影响 | 只使依赖错误交付的外部发布／消费失效；已验证的上游事实不因包装错误自动失效 |
+
+因此 Delivery 可以被单独审查，但绝不能命名为 S13。
 
 ## 三、八个边界怎样判断
 
