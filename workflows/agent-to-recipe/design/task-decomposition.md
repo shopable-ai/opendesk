@@ -177,7 +177,7 @@ order: 30
 
 - 绑定当前 planned step、业务子目标、目标依据、预期状态变化和风险。
 - 执行当前获准动作；探索、人工接管、已有脚本或替代路径都记录真实执行者与原因。
-- 同步保存动作请求、工具返回、前后观察、时间、窗口身份和证据引用。
+- 同步保存动作请求、工具回执／原始返回、时间、窗口身份和证据引用；动作后的业务 observation 及其 pass / fail / uncertain 判定由 S4 负责，S3 不提前代判。
 - 关键运行时值立即保存其**真实来源、消费者、有效条件**；不能把 expected 值写成现场读值。
 - 写操作、发送、提交或其他副作用结果不明确时，不直接重复执行。
 
@@ -419,7 +419,7 @@ SemanticProcedure、已有 AppProfile / helper、实际失败证据或工程缺�
 1. 优先复用仍有效规则；无缺口不重新研究应用。
 2. 生产操作工程化前，按当前版本重新核对 [Agent API 阅读入口](../../../docs/api/agent/README.md) 与 selected canonical contract。若现有高层公开 API 已完整保留 target identity、parent/window scope、唯一性、读取语义、失败/partial/unknown 行为和副作用边界，则优先复用；只有关键约束无法表达、需要额外结构化预检或已有证据证明不适用时，才保留有依据的低层组合。方法边界见 [capability-discovery.md](capability-discovery.md)，应用建模按需参考 [App Development Framework](../../../docs/frameworks/app-development-framework.md)。
 3. 将 Procedure 需要的操作落实到 Target、Locator、当前 Geometry、Read、Wait、Action、Verifier、Recovery 等必要能力。
-4. 核对对象唯一性、父区域/锚点、状态准备、等待、后置观察和安全停止。
+4. 核对对象唯一性、父区域/锚点、状态准备、等待、后置观察和安全停止；对 clear / reset / 模式切换等状态准备，必须用可观察判据或区分性反例证明后续依赖不再受旧状态影响，不能以单个显示值、动作回执或未观察的内部状态假设推断“完整 reset”。
 5. 记录规则适用范围、失效条件和缓存/重新观察条件。
 6. 新规则或修复必须有对应证据和局部验证。
 7. 真正 Runtime primitive 缺口作为独立能力问题记录；不能靠改变业务目标或虚构 API 绕过。

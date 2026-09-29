@@ -208,7 +208,7 @@ Calculator 等案例中的固定数字只能作为 Oracle；实际业务取数�
 | **精确 Candidate 通过** | Candidate、入口、依赖、环境固定，并执行同一 production bytes | 参考脚本、重写测试脚本 |
 | **requested scope 已验证** | requested 项逐项有 actual scenario + evidence | 只在 manifest 写 qualified |
 | **一次 Fresh Run 成功** | 可归因起点、真实入口、独立业务 Observation | 历史日志、Expected、mock |
-| **可重复运行** | 同一冻结 Candidate 及依赖至少三次独立 Fresh Run | 同一 execution 重读日志、Agent 首次示范 |
+| **可重复运行** | 同一冻结 Candidate 及依赖至少两次独立 Fresh Run；任务合同可要求更多（Calculator 当前要求三次） | 同一 execution 重读日志、Agent 首次示范 |
 | **参数化可复用** | 基线之外至少一组合法变化输入，现场值仍进入实际 consumer | 改 Expected 或向测试桩注入答案 |
 | **无需 Agent 逐步点击** | production path 确定步骤由普通 JS 执行；Agent 仅在预声明有界判断点出现 | Qualification 时再让 Agent 临场逐步决定 |
 | **范围内稳定** | 声明的 app/build/layout/locale/input 扰动实际覆盖 | 单环境成功外推所有环境 |
@@ -216,7 +216,7 @@ Calculator 等案例中的固定数字只能作为 Oracle；实际业务取数�
 
 Candidate 或影响性依赖改变后，旧 Qualification 不继续证明新字节。
 
-三次是本轮最终 JS 重复验证的下限，不是生产成功率或 95% 可靠性证明。每次记录独立 run ID、实际入口、环境、候选及依赖 hash、可归因起点和独立实际结果；Calculator 每次重新读取 firstResult 和 finalResult，第二段由普通 JS 消费本次读值。新生产验证只有实际执行了最终冻结 JS，才可贡献其中一次；新 Agent 生产能力与 JS Fresh Run 仍是两项验收。有已声明参数入口时补合法变参，不为单例强建参数系统；替身数据流测试不能计入真实运行次数。
+两次是通用 repeatability 声明的最低语义，不是生产成功率或 95% 可靠性证明；具体任务合同可以要求更严格的次数。Calculator 当前明确要求同一冻结 JS／依赖至少三次独立 Fresh Run。每次记录独立 run ID、实际入口、环境、候选及依赖 hash、可归因起点和独立实际结果；Calculator 每次重新读取 firstResult 和 finalResult，第二段由普通 JS 消费本次读值。新生产验证只有实际执行了最终冻结 JS，才可贡献其中一次；新 Agent 生产能力与 JS Fresh Run 仍是两项验收。有已声明参数入口时补合法变参，不为单例强建参数系统；替身数据流测试不能计入真实运行次数。
 
 ## 六、Gate 与硬失败
 
@@ -366,7 +366,7 @@ segmentation、continuity、VLM proposal、merge、mutation、end detection、�
 
 ### 冻结后的 Reference Alignment（基于需求合规，不另计分）
 
-先固定参考实现的实际版本／hash，不能在对照前改写参考，也不能把参考提升为用户需求。维护与接续上下文可读参考，但不能改称隔离 Producer。新生产验证须使用独立上下文及实际受控输入／工具／文件访问范围：允许原始需求、验收要求、必要合同、公开 API、当前 Skill、通用模板及本次合格上游；通用 Profile／helper 须说明来源和适用性，不得夹带任务答案。禁止访问该任务参考 JS、未来阶段答案、旧任务完整解答、隐藏期望及带答案评测记录，包括可从历史日志、Git 历史取得的内容。仅新开会话或口头禁止读取不足以证明隔离；记录控制方式、输入清单、访问记录与限制，不能实现时如实 blocked。协调者不把含答案反例整段复制到 Producer 输入。
+先固定参考实现的实际版本／hash，不能在对照前改写参考，也不能把参考提升为用户需求。维护与接续上下文可读参考，但不能改称隔离 Producer。新生产验证须使用独立上下文及实际受控输入／工具／文件访问范围：允许原始需求、验收要求、必要合同、公开 API、当前 Skill、通用模板及本次合格上游；通用 Profile／helper 须说明来源和适用性，不得夹带任务答案。禁止访问与当前任务同源的黄金案例或 Skill `examples/`、该任务参考 JS、未来阶段答案、旧任务完整解答、隐藏期望及带答案评测记录，包括可从历史日志、Git 历史取得的内容。仅新开会话或口头禁止读取不足以证明隔离；记录控制方式、输入清单、访问记录与限制，不能实现时如实 blocked。协调者不把含答案反例整段复制到 Producer 输入。
 
 对有明确参考目标的回归案例，冻结 S11 Candidate 的源码字节／hash、依赖和上游来源后，Evaluator 才将参考加入最终对照；完成同一 Candidate 的独立 S12 资格、Fresh Run 及最终 Requirement Coverage。Calculator 参考为 `examples/agent-to-recipe/calculator.js`。逐方面记录需求条目、候选实现位置、参考版本及行为、实际证据、差异与合规结论（pass／fail／not-run／blocked）：
 

@@ -243,7 +243,7 @@ Calculator 基准案例的核心需求是：
 
 完整逐阶段参考结果见 [calculator.md](cases/calculator.md)。
 
-真正执行时不要让 S1—S11 Producer 提前读取 Calculator 的未来阶段参考答案或参考 JavaScript 来“推导”自己的结果。参考案例用于工作流维护、教学和独立 Evaluator 校准；它不能替代本次真实生产事实。
+真正执行时，S1—S11 Producer 只能消费 request、当前 Skill / 合同明确允许的正式输入；不得提前读取与当前任务同源的黄金案例、Skill `examples/`、未来阶段参考答案、参考 JavaScript、带答案评测记录或旧完整解答来“推导”自己的结果。参考材料用于工作流维护、教学和产物冻结后的独立 Evaluator 校准；它不能替代本次真实生产事实，也不能作为修复实现回传 Producer。
 
 ---
 
