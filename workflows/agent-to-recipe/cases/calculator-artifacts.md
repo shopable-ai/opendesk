@@ -22,9 +22,55 @@ order: 11
 
 ---
 
-## 0. 先分清三个东西
+## 0. 先确定：人工看 Markdown，程序认权威数据
 
-### 阶段产物链（Stage Artifact Chain）
+这条产物链默认采用 **“机器权威 + 人工首读”双层结构**。
+
+### A. 机器权威层
+
+负责程序消费、hash、checker、正式引用和后续自动化：
+
+~~~text
+结构化 JSON
++ exact Recipe.js
++ Execution 原始 evidence
++ content-bound refs / hashes
+~~~
+
+这些才是正式事实来源。
+
+### B. 人工阅读层
+
+负责让人快速看懂、排错和定位首错：
+
+~~~text
+stage-review.md
++ 与复杂主产物同版的 Markdown 视图
+~~~
+
+人工视图必须：
+
+- 注明来源主产物或 Execution evidence 的 path/ref/hash；
+- 从权威数据生成或重生成；
+- 不单独维护另一套事实；
+- 发现错误时先修权威产物/事实，再刷新 Markdown。
+
+因此这里不是：
+
+~~~text
+JSON 一套真相
+Markdown 又写一套真相
+~~~
+
+而是：
+
+~~~text
+JSON / Execution / exact JS
+  ↓ 同版本投影
+Markdown
+~~~
+
+### C. 阶段产物链（Stage Artifact Chain）
 
 S1—S12 真正产生、更新或固定的成果链：
 
@@ -42,22 +88,24 @@ Source
 → QualificationRecord
 ~~~
 
-### 阶段检查点（Stage Checkpoint）
+### D. 阶段检查点（Stage Checkpoint）
 
-每个 S 阶段退出前，都必须能找到该阶段的：
+每个 S 阶段退出前，都必须在任务根 `stage-review.md` 中有稳定人工入口，并能看到：
 
 ~~~text
 actual inputs
-actual output / output refs
+machine artifact / evidence refs
+human-readable view
+actual output
 required evidence
 score / Hard Fail / Unknown
 verdict
 failure owner / next action
 ~~~
 
-当前验证设计已经要求 S1—S12 独立记录，并由 `acceptanceRef` 绑定 `stages[S1…S12]`。因此不需要为了可检查性再发明 S13，也不需要把 12 份评分写成 12 套新 schema。
+机器验证继续使用既有 `acceptanceRef → stages[S1…S12]`；`stage-review.md` 只是它和实际产物的人工投影，不新增 S13，也不创建第二套评分 schema。
 
-### Calculator 黄金产物包（Golden Artifact Pack）
+### E. Calculator 黄金产物包（Golden Artifact Pack）
 
 本文给出的内容属于**参考答案视图**：告诉维护者“正确形状大概是什么”。真实运行仍必须在自己的 task / attempt / Execution 目录中产生新文件和新证据，不能复制这里的 Actual。
 
@@ -65,50 +113,91 @@ failure owner / next action
 
 ## 1. 一次真实运行的文件应该从哪里找
 
-共享合同已经给出任务目录模型：
+推荐的人机双层目录视图如下。并不是每个 attempt 都会拥有下面所有文件；只生成该职责实际产生的主产物和对应视图。
 
 ~~~text
 .runtime/automation-authoring/<task-id>/
   user-task.md
 
   plan/r001/
-    task-contract.json
-    work-plan.json
-    task-brief.md          # 可选可读视图
-    operation-plan.md      # 可选可读视图
+    task-contract.json       # 机器权威
+    task-brief.md            # 人工视图
+    work-plan.json           # 机器权威
+    operation-plan.md        # 人工视图
 
-  progress.json
+  progress.json              # 机器当前状态
+  stage-review.md            # 人工首读：S1—S12 状态、产物、证据、评分、首错
 
   attempts/<attempt-id>/
     request.json
-    <本职责主产物>
+
+    app-profile.json         # S2 / S10 权威
+    app-profile.md           # S2 人工视图
+    operation-rules.md       # S10 人工视图
+
+    dossier.json             # S6 权威
+    dossier.md               # S6 人工视图
+
+    distilled-steps.json     # S7 权威
+    distilled-steps.md       # S7 人工视图
+
+    procedure.json           # S8 / S9 精确阶段版本
+    business-steps.md        # S8 人工视图
+    procedure.md             # S9 人工视图
+
+    Recipe.js                # S11 exact candidate source
+    candidate.json           # S11 CandidateManifest
+    candidate-summary.md     # S11 人工视图
+
+    qualification.json       # S12 权威
+    qualification-summary.md # S12 人工视图
+
     handoff.json
+
+  <Execution.artifactDir>/
+    ... actual action / observation / logs / screenshots / receipts ...
 ~~~
 
-真实桌面运行的截图、日志、业务输出和其他 evidence 优先位于对应 `Execution.artifactDir`，任务目录保存固定引用。
+真实桌面动作、观察、截图、日志和业务输出仍优先位于对应 `Execution.artifactDir`；任务目录和 `stage-review.md` 保存其固定引用。
 
-因此排查错误时，不应该只看聊天里的“95 分”“PASS”或最终 JavaScript；应先固定本次 `task-id / attempt-id / candidate hash`，再沿文件引用检查。
+因此人工排错的默认顺序应该是：
+
+~~~text
+先打开 stage-review.md
+  ↓
+找到第一个 fail / uncertain / missing artifact 的 S 阶段
+  ↓
+打开该阶段的 Markdown 人工视图
+  ↓
+必要时再下钻到 JSON / Recipe.js / Execution 原始 evidence
+~~~
+
+而不是一开始就在大型 JSON 中人工找字段。
 
 ---
 
-## 2. S1—S12：应该打开哪个文件
+## 2. S1—S12：机器文件和人工首读文件
 
-| 阶段 | 首先查看的正式成果 / 证据 | 常见文件名或位置 | 人工主要检查什么 |
+| 阶段 | 机器权威 / 原始事实 | 人工首先打开 | 人工主要检查什么 |
 | --- | --- | --- | --- |
-| **S1** | TaskContract + WorkPlan | `plan/rNNN/task-contract.json`、`work-plan.json` | 原需求有没有被偷换；Expected 是否和 runtime value 分开 |
-| **S2** | 最小 AppProfile + 发现证据 | attempt 内 `app-profile.json` + `handoff.json` | 当前 Calculator、window、结果区、按钮依据是否真实 |
-| **S3** | actual action / request / receipt / side-effect state | `Execution.artifactDir` + 当前阶段 acceptance record | 动作是否真的发生、打到谁、返回什么；不能只看计划 |
-| **S4** | actual observation + Expected/Actual comparison | `Execution.artifactDir` + 当前阶段 acceptance record | 是否重新观察正确业务对象；Actual 是否由 Expected 倒填 |
-| **S5** | continue / revise / recover / stop 决策 | acceptance record + `handoff.json` 的 planDelta / failures | uncertain 是否被错误地当成 continue；重试是否可能重复副作用 |
-| **S6** | Demonstration Dossier + Raw Trace/Evidence refs | `dossier.json` | 整次示范是否保留 firstResult 的 producer → consumer 数据链 |
-| **S7** | DistilledSteps | `distilled-steps.json`，可选 `distilled-steps.md` | 必要读取、清空、重复数字和数据依赖是否被错误删除/合并 |
-| **S8** | Business Steps | 当前 S8 attempt 的 `procedure.json` / 同版可读视图 | 每步业务目的、输入、输出、来源和消费者是否完整 |
-| **S9** | SemanticProcedure | 当前 S9 attempt 的 `procedure.json` | firstResult 是否仍是 runtime value；参数、scope、dataDependencies 是否有来源 |
-| **S10** | hardened AppProfile / helper / operation rules | 新版本 `app-profile.json` + helper / validation evidence | 定位、读取、clear、wait、verifier 是否可靠且不改业务语义 |
-| **S11** | frozen Recipe + CandidateManifest | 实际 `Recipe.js`（或候选脚本）+ `candidate.json` | 代码是否真实消费 firstResult；源码/入口/依赖/hash 是否冻结 |
-| **S12** | QualificationRecord + fresh execution evidence | `qualification.json` + S12 Execution artifacts | 是否对同一 Candidate 做真实 Fresh Run；未运行项是否被误写 PASS |
+| **S1** | `plan/rNNN/task-contract.json` + `work-plan.json` | `task-brief.md` + `operation-plan.md`，总览见 `stage-review.md#S1` | 原需求是否被偷换；Expected、固定输入、runtime value、Unknown 是否分开 |
+| **S2** | attempt 内 `app-profile.json` + 发现 evidence | `app-profile.md`，总览见 `stage-review.md#S2` | Calculator/window/按钮/结果区依据和限制是否真实 |
+| **S3** | `Execution.artifactDir` 的 actual request / action / raw receipt + `acceptanceRef.stages.S3` | `stage-review.md#S3` | 动作是否真的发生、目标是谁、原始返回和 side effect 状态是什么 |
+| **S4** | `Execution.artifactDir` 的 actual observation + `acceptanceRef.stages.S4` | `stage-review.md#S4` | 是否观察正确对象；Actual 是否与 Expected 分开 |
+| **S5** | 实际 decision / planDelta / failures + `acceptanceRef.stages.S5`，必要引用 `handoff.json` | `stage-review.md#S5` | continue / revise / recover / stop 是否有据；unknown side effect 是否错误继续 |
+| **S6** | `dossier.json` + Raw Trace / Evidence refs | `dossier.md`，总览见 `stage-review.md#S6` | 整次示范是否保留 firstResult producer → consumer 数据链 |
+| **S7** | `distilled-steps.json` | `distilled-steps.md`，总览见 `stage-review.md#S7` | 必要读取、清空、重复数字和数据依赖是否被误删/误合并 |
+| **S8** | 当前 S8 attempt 固定的 `procedure.json` 精确版本中的 Business Steps + `acceptanceRef.stages.S8` | `business-steps.md`，总览见 `stage-review.md#S8` | 每步业务目的、输入、输出、来源和消费者是否完整；不能提前把 runtime value 常量化 |
+| **S9** | 当前 S9 attempt 固定的 `procedure.json` 精确版本 | `procedure.md`，总览见 `stage-review.md#S9` | 参数、runtime value、dataDependencies、scope 是否有来源 |
+| **S10** | 新版本 `app-profile.json` + helper + validation evidence | `operation-rules.md`，必要时同时看 `app-profile.md`；总览见 `stage-review.md#S10` | locator/read/clear/wait/verifier 是否可靠且不改变业务语义 |
+| **S11** | exact `Recipe.js` + `candidate.json` | `candidate-summary.md`，总览见 `stage-review.md#S11` | 代码是否真实消费 firstResult；源码、入口、依赖、hash 是否冻结 |
+| **S12** | `qualification.json` + S12 Fresh Run Execution evidence | `qualification-summary.md`，总览见 `stage-review.md#S12` | 是否对同一 Candidate 真跑；requested 中 not-run/blocked 是否被错误写 PASS |
 
-> **关键点：**S3、S4、S5 没有必要为了“一个阶段一个 JSON”再造三种业务主产物。它们的真实动作、观察、决策进入 Execution / Dossier 事实链，同时必须有独立的阶段 acceptance record。这样既能定位首错，又不会制造平行真相。
+> **为什么 S3、S4、S5 不再各造一个 JSON？**  
+> 这三个阶段的权威事实本来就来自真实 Execution、阶段 acceptance 和 handoff/planDelta。再造 `s3.json / s4.json / s5.json` 容易产生第二套事实。人工可读性由 `stage-review.md#S3/#S4/#S5` 解决。
+
+> **为什么 S2/S10、S8/S9 可以出现相同主文件名？**  
+> 因为它们是不同 attempt / revision 的精确文件，正式引用依赖 path + hash，而不是文件名猜版本。S2 与 S10 的 `app-profile.json`、S8 与 S9 的 `procedure.json` 必须分别由各自阶段 acceptance 绑定准确版本，不能盲读 latest。
 
 ---
 
