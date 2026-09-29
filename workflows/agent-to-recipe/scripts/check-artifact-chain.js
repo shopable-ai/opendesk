@@ -2,23 +2,19 @@
 'use strict';
 
 // Read-only S7→S12 consumer check. It binds exact bytes and checks the
-// producer/consumer relationships represented by the artifacts. It never runs
-// a candidate, reconstructs missing history, or grants desktop authority.
+// producer/consumer declarations represented by the artifacts. A structural pass
+// leaves businessDataflow unknown: independent exact-byte semantic tests and
+// applicable live qualification remain required. It never runs a candidate,
+// reconstructs missing history, or grants desktop authority.
 const {
   SCHEMA, JSON_LIMIT, FILE_LIMIT, own, object, text, hash, CheckError,
   requireCheck, makeRoots, resolveFile, entryFile, readBytes, parseJson,
 } = require('./artifact-validation.js');
 const { isDeepStrictEqual } = require('node:util');
+const path = require('node:path');
 const { inputsFor, artifactViews, valueLineage, provenChecks, renderReview } = require('./stage-review.js');
 
 const BOUNDARIES = ['bindings', 'trace-distill', 'procedure-synthesize', 'candidate', 'qualification'];
-
-// A deliberately narrow source-pattern check, not a JavaScript data-flow proof.
-// Mask comments and quoted text without shifting offsets into the original file.
-function codeOnly(source) {
-  return source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|'(?:\\[\s\S]|[^'\\])*'|"(?:\\[\s\S]|[^"\\])*"|`(?:\\[\s\S]|[^`\\])*`/g,
-    token => token.replace(/[^\r\n]/g, ' '));
-}
 
 function array(value, code, message) {
   requireCheck(Array.isArray(value), code, message);
@@ -33,8 +29,34 @@ function valueStateUnknown(value) {
 }
 
 function observedReadValues(action) {
-  if (!object(action) || !object(action.data)) return [];
+  if (!object(action)) return [];
+  if (!object(action.data)) return text(action.actual) ? [action.actual] : [];
   return ['raw', 'first', 'second', 'value'].filter(key => text(action.data[key])).map(key => action.data[key]);
+}
+
+function actionId(action) { return action?.actionId ?? action?.id; }
+function actionKind(action) {
+  if (own(action, 'kind')) return action.kind;
+  if (action.operation === 'UI.readText' && text(action.actual)) return 'actual-read';
+  if (Array.isArray(action.targets) && object(action.receipt)) return 'actual-input';
+}
+function actionReceipt(action) { return action?.data?.receipt ?? action?.receipt; }
+function originAction(value) {
+  return object(value.origin) ? value.origin.actionRef : String(value.origin || '').match(/\bA\d+\b/)?.[0];
+}
+function inputContains(inputs, value) {
+  return Array.isArray(inputs) ? inputs.includes(value)
+    : object(inputs) && (own(inputs, value) || inputs.runtimeValue === value);
+}
+function validInputs(inputs) {
+  return object(inputs) || Array.isArray(inputs) && inputs.every(text) && new Set(inputs).size === inputs.length;
+}
+function mappingSteps(mapping) {
+  return own(mapping, 'businessStepRefs') ? Array.isArray(mapping.businessStepRefs) ? mapping.businessStepRefs : [] : referencedSteps(mapping.step);
+}
+function selectedContracts(decision) {
+  return decision.candidates?.find(item => item.disposition === 'selected')?.canonicalContractRefs
+    ?? decision.canonicalContractRefs;
 }
 
 function containsContiguous(sequence, expected) {
@@ -48,37 +70,6 @@ function referencedSteps(value) {
 
 function refIdentity(ref) {
   return object(ref) ? [ref.rootId, ref.path, ref.sha256, ref.schemaVersion].join('\u0000') : '';
-}
-
-function callSegments(source, functionName) {
-  const calls = [];
-  const marker = functionName + '(';
-  for (let start = source.indexOf(marker); start >= 0; start = source.indexOf(marker, start + marker.length)) {
-    let depth = 0;
-    let quote = null;
-    let escaped = false;
-    let lineComment = false;
-    let blockComment = false;
-    let end = -1;
-    for (let index = start + functionName.length; index < source.length; index += 1) {
-      const char = source[index], next = source[index + 1];
-      if (lineComment) { if (char === '\n') lineComment = false; continue; }
-      if (blockComment) { if (char === '*' && next === '/') { blockComment = false; index += 1; } continue; }
-      if (quote) {
-        if (escaped) escaped = false;
-        else if (char === '\\') escaped = true;
-        else if (char === quote) quote = null;
-        continue;
-      }
-      if (char === '/' && next === '/') { lineComment = true; index += 1; continue; }
-      if (char === '/' && next === '*') { blockComment = true; index += 1; continue; }
-      if (char === '\'' || char === '"' || char === '`') { quote = char; continue; }
-      if (char === '(') depth += 1;
-      else if (char === ')' && --depth === 0) { end = index + 1; break; }
-    }
-    if (end > 0) calls.push({ start, end, source: source.slice(start, end) });
-  }
-  return calls;
 }
 
 /**
@@ -126,7 +117,8 @@ function checkArtifactChain(options = {}) {
     return parsed;
   });
   const dossier = readEntry('dossier');
-  const actions = readEntry('actions', false);
+  const rawTrace = readEntry('actions', false);
+  const actions = Array.isArray(rawTrace) ? rawTrace : rawTrace?.actions;
   const distilled = readEntry('distilled');
   const procedure = readEntry('procedure');
   const candidate = readEntry('candidate');
@@ -157,7 +149,8 @@ function checkArtifactChain(options = {}) {
       requireCheck(kinds[entryName]?.includes(ref.kind), 'INVALID_REF', 'The reference has the wrong artifact role.');
       requireCheck(result.filename === entries[entryName].filename
         && ref.sha256 === hash(entries[entryName].bytes)
-        && ref.schemaVersion === (entries[entryName].parsed?.schemaVersion || SCHEMA), 'WRONG_VERSION',
+        && (ref.schemaVersion === (entries[entryName].parsed?.schemaVersion || SCHEMA)
+          || entryName === 'actions' && !entries[entryName].parsed?.schemaVersion && ref.schemaVersion === 'json/v1'), 'WRONG_VERSION',
       'The reference must bind the exact supplied bytes and their declared schema version.');
     });
   };
@@ -223,6 +216,12 @@ function checkArtifactChain(options = {}) {
       'MISSING_EVIDENCE', 'At least one content-bound evidence reference is required.'));
     if (Array.isArray(refs)) refs.forEach((ref, index) => inspectRef(ref, boundary, location + '[' + index + ']'));
   };
+  const verificationPresent = (value, boundary, location) => {
+    if (text(value)) return true;
+    if (!object(value) || !Array.isArray(value.evidenceRefs) || value.evidenceRefs.length === 0) return false;
+    inspectRefs(value.evidenceRefs, boundary, location + '.evidenceRefs', true);
+    return true;
+  };
 
   for (const [name, document] of [['dossier', dossier], ['distilled', distilled], ['procedure', procedure],
     ['candidate', candidate], ['qualification', qualification]]) {
@@ -258,7 +257,7 @@ function checkArtifactChain(options = {}) {
         ? entries.contract.parsed.taskId : null);
     requireCheck(text(planIdentity) && entries.contract.parsed.taskId === planIdentity, 'MIXED_TASK',
       'The frozen WorkPlan must identify the same task or bind the exact TaskContract.');
-    requireCheck(text(entries.plan.parsed.revision)
+    requireCheck((text(entries.plan.parsed.revision) || Number.isSafeInteger(entries.plan.parsed.revision))
       && dossier.planRevision === entries.plan.parsed.revision
       && distilled.planRevision === entries.plan.parsed.revision, 'WRONG_PLAN_REVISION',
       'Both observed and distilled plan revisions must match the frozen WorkPlan.');
@@ -266,20 +265,28 @@ function checkArtifactChain(options = {}) {
       'Candidate must belong to the same task as the frozen upstream contract.');
   });
 
-  if (dossier && actions && distilled) attempt('trace-distill', 'structure', () => {
+  if (dossier && rawTrace && distilled) attempt('trace-distill', 'structure', () => {
     evaluated.add('trace-distill');
     requireCheck(Array.isArray(actions) && actions.length > 0,
       'ACTIONS_REQUIRED', 'Raw actions must be a nonempty array.');
+    if (object(rawTrace)) requireCheck(text(rawTrace.taskId) && rawTrace.taskId === dossier.taskId,
+      'MIXED_TASK', 'Wrapped Raw Trace must identify the Dossier task.');
     bind(dossier.actionsRef, 'actions', 'bindings', 'dossier.actionsRef');
     bind(distilled.dossierRef, 'dossier', 'bindings', 'distilled.dossierRef');
     const actionSource = Array.isArray(distilled.sourceActionRefs) && distilled.sourceActionRefs[0];
-    bind(actionSource, 'actions', 'bindings', 'distilled.sourceActionRefs[0]');
+    if (object(actionSource)) bind(actionSource, 'actions', 'bindings', 'distilled.sourceActionRefs[0]');
+    else attempt('trace-distill', 'distilled.sourceActionRefs', () => requireCheck(Array.isArray(distilled.sourceActionRefs) && distilled.sourceActionRefs.length > 0
+      && distilled.sourceActionRefs.every(text)
+      && new Set(distilled.sourceActionRefs).size === distilled.sourceActionRefs.length
+      && distilled.sourceActionRefs.every(id => actions.some(action => actionId(action) === id)),
+    'SOURCE_ACTIONS', 'Action-ID sources must uniquely reference the bound raw trace.'));
 
     const actionById = new Map();
     actions.forEach((action, index) => attempt('trace-distill', 'actions[' + index + ']', () => {
-      requireCheck(object(action) && text(action.actionId) && !actionById.has(action.actionId),
-        'ACTION_ID', 'Every raw action needs a unique actionId.');
-      actionById.set(action.actionId, { action, index });
+      requireCheck(object(action) && text(actionId(action)) && !actionById.has(actionId(action))
+        && !(own(action, 'actionId') && own(action, 'id') && action.actionId !== action.id),
+        'ACTION_ID', 'Every raw action needs one unambiguous unique actionId or id.');
+      actionById.set(actionId(action), { action, index });
     }));
     requireCheck(Array.isArray(distilled.unresolved) && distilled.unresolved.length === 0,
       'UNRESOLVED_ARTIFACT', 'The successful normal-path slice cannot accept unresolved distillation.');
@@ -293,12 +300,15 @@ function checkArtifactChain(options = {}) {
       requireCheck(array(step.sourceActionRefs, 'SOURCE_ACTIONS', 'Each DistilledStep must cite source actions.').length > 0,
         'SOURCE_ACTIONS', 'A normal-path DistilledStep cannot invent an action without a source.');
       requireCheck(text(step.purpose) && text(step.classification)
-        && ['inputs', 'outputs', 'dependencies', 'preconditions'].every(field => Array.isArray(step[field])
+        && validInputs(step.inputs)
+        && ['outputs', 'dependencies', 'preconditions'].every(field => Array.isArray(step[field])
           && step[field].every(text) && new Set(step[field]).size === step[field].length)
-        && text(step.expectedOutcome) && text(step.verification), 'STEP_CONTRACT',
+        && text(step.expectedOutcome) && verificationPresent(step.verification, 'trace-distill', 'distilled.steps.' + step.stepId + '.verification'), 'STEP_CONTRACT',
       'DistilledSteps need purpose, typed inputs/outputs/dependencies/preconditions, expected outcome, verification and classification.');
       for (const actionId of step.sourceActionRefs) requireCheck(actionById.has(actionId),
         'UNKNOWN_ACTION', 'A DistilledStep cites an unknown raw action.');
+      if (text(actionSource)) requireCheck(step.sourceActionRefs.every(id => distilled.sourceActionRefs.includes(id)),
+        'SOURCE_ACTIONS', 'A step source must occur in the declared raw action-ID source set.');
       for (const dependency of array(step.dependencies || [], 'DEPENDENCIES', 'dependencies must be an array.')) {
         requireCheck(stepById.has(dependency) && stepById.get(dependency).index < index,
           'STEP_ORDER', 'Dependencies must name an earlier DistilledStep.');
@@ -335,12 +345,12 @@ function checkArtifactChain(options = {}) {
       'ACTION_DECISION_COVERAGE', 'Every raw action must have exactly one disposition.'));
     for (const [actionId, item] of actionById) {
       const decision = decisionByAction.get(actionId);
-      if (decision && ['actual-input', 'actual-read'].includes(item.action.kind)) {
+      if (decision && ['actual-input', 'actual-read'].includes(actionKind(item.action))) {
         attempt('trace-distill', 'distilled.actionDecisions.' + actionId, () => requireCheck(decision.decision !== 'omit',
           'NECESSARY_ACTION_OMITTED', 'Actual input and reads cannot be silently removed during distillation.'));
       }
-      if (item.action.kind === 'actual-input') attempt('trace-distill', 'actions.' + actionId + '.receipt', () => {
-        const receipt = item.action.data && item.action.data.receipt;
+      if (actionKind(item.action) === 'actual-input') attempt('trace-distill', 'actions.' + actionId + '.receipt', () => {
+        const receipt = actionReceipt(item.action);
         requireCheck(object(receipt) && receipt.ok === true && Array.isArray(receipt.completed)
           && receipt.completed.length > 0 && receipt.completed.every(done => done.ok === true
             && done.actionState === 'acknowledged'), 'SIDE_EFFECT_UNKNOWN',
@@ -354,19 +364,30 @@ function checkArtifactChain(options = {}) {
           'ACTION_DECISION', 'Normal-path sources must match their retained or merged disposition.');
       });
     }
-    attempt('trace-distill', 'dossier.sideEffects', () => requireCheck(object(dossier.sideEffects)
-      && dossier.sideEffects.inputState === 'confirmed' && !valueStateUnknown(dossier.sideEffects),
-      'SIDE_EFFECT_UNKNOWN', 'Unknown or partial side effects must be resolved before successful distillation.'));
+    attempt('trace-distill', 'dossier.sideEffects', () => {
+      const states = dossier.sideEffects;
+      const confirmed = Array.isArray(states)
+        ? states.every(item => actionById.has(item.actionRef) && item.state === 'confirmed' && item.receiptState === 'acknowledged')
+          && new Set(states.map(item => item.actionRef)).size === states.length
+          && actions.filter(action => actionKind(action) === 'actual-input').every(action => states.some(item => item.actionRef === actionId(action)))
+        : object(states) && states.inputState === 'confirmed';
+      requireCheck(confirmed && !valueStateUnknown(states), 'SIDE_EFFECT_UNKNOWN',
+        'Unknown, partial or uncovered side effects must be resolved before successful distillation.');
+    });
 
     for (const [index, runtimeValue] of array(dossier.runtimeValues, 'RUNTIME_VALUES', 'runtimeValues must be an array.').entries()) {
       const base = 'dossier.runtimeValues[' + index + ']';
-      const match = text(runtimeValue.origin) && runtimeValue.origin.match(/\bA\d+\b/);
+      const producerId = originAction(runtimeValue);
+      const match = producerId && [producerId];
       attempt('trace-distill', base + '.origin', () => requireCheck(match && actionById.has(match[0])
-        && actionById.get(match[0]).action.kind === 'actual-read', 'HISTORICAL_FACT_UNBOUND',
+        && actionKind(actionById.get(match[0]).action) === 'actual-read', 'HISTORICAL_FACT_UNBOUND',
       'A runtime value must bind an actual-read action, not a post-hoc explanation.'));
       inspectRefs(runtimeValue.evidenceRefs, 'trace-distill', base + '.evidenceRefs', true);
       if (!match || !actionById.has(match[0])) continue;
       const producerAction = actionById.get(match[0]).action;
+      if (object(runtimeValue.origin)) attempt('trace-distill', base + '.originIdentity', () => requireCheck(
+        ['applicationId', 'targetId'].every(field => text(runtimeValue.origin[field]) && runtimeValue.origin[field] === producerAction[field]),
+      'HISTORICAL_FACT_UNBOUND', 'Structured origin must match the actual read application and target.'));
       attempt('trace-distill', base + '.observedValue', () => requireCheck(text(runtimeValue.observedValue)
         && observedReadValues(producerAction).includes(runtimeValue.observedValue), 'HISTORICAL_FACT_UNBOUND',
       'The recorded runtime value must equal its cited actual read.'));
@@ -387,17 +408,17 @@ function checkArtifactChain(options = {}) {
         }
         const consumer = actionById.get(consumerId).action;
         attempt('trace-distill', base + '.consumer.' + consumerId + '.actual', () => requireCheck(
-          consumer.kind === 'actual-input', 'HISTORICAL_FACT_UNBOUND',
+          actionKind(consumer) === 'actual-input', 'HISTORICAL_FACT_UNBOUND',
           'A planned input or observation is not an actual consumer of the UI read.'));
         const consumerDecision = decisionByAction.get(consumerId);
         const consumerStep = consumerDecision && stepById.get(consumerDecision.stepRef);
         attempt('trace-distill', base + '.consumer.' + consumerId, () => requireCheck(consumerStep && ['retain', 'merge'].includes(consumerDecision.decision)
           && actionById.get(consumerId).index > actionById.get(match[0]).index
-          && (consumerStep.step.inputs || []).includes(runtimeValue.name), 'DATA_DEPENDENCY_BROKEN',
+          && inputContains(consumerStep.step.inputs, runtimeValue.name), 'DATA_DEPENDENCY_BROKEN',
         'The consumer DistilledStep must declare the runtime value as an input.'));
-        if (consumer.kind === 'actual-input' && runtimeValue.type === 'digit-string') {
+        if (actionKind(consumer) === 'actual-input' && runtimeValue.type === 'digit-string') {
           attempt('trace-distill', base + '.consumer.' + consumerId + '.digits', () => requireCheck(
-            containsContiguous(consumer.data && consumer.data.names, [...runtimeValue.observedValue]),
+            containsContiguous(consumer.data?.names ?? consumer.targets?.map(target => target.name), [...runtimeValue.observedValue]),
             'DATA_DEPENDENCY_BROKEN', 'Actual input must preserve every observed digit, including repetitions.'));
         }
       }
@@ -421,30 +442,44 @@ function checkArtifactChain(options = {}) {
     businessSteps.forEach((step, index) => attempt('procedure-synthesize', 'procedure.businessSteps[' + index + ']', () => {
       requireCheck(object(step) && text(step.stepId) && !businessById.has(step.stepId),
         'BUSINESS_STEP_ID', 'Every Business Step needs a unique stepId.');
-      {
-        requireCheck(text(step.purpose)
-          && Array.isArray(step.inputs)
-          && Array.isArray(step.inputSources)
-          && (step.inputs.length === 0 || step.inputSources.length > 0)
-          && Array.isArray(step.preconditions) && step.preconditions.length > 0
-          && text(step.execution)
-          && text(step.observation)
-          && Array.isArray(step.outputs)
-          && Array.isArray(step.postconditions) && step.postconditions.length > 0
-          && text(step.verification)
-          && Array.isArray(step.stopConditions) && step.stopConditions.length > 0
-          && Array.isArray(step.consumers) && step.consumers.length > 0
-          && Array.isArray(step.sideEffects),
-        'BUSINESS_STEP_CONTRACT',
-        'Business Steps need purpose, input provenance, preconditions, execution, observation, outputs, postconditions, verification, stop conditions, consumers and side effects.');
-      }
       businessById.set(step.stepId, step);
       for (const sourceId of array(step.sourceStepRefs, 'SOURCE_STEPS', 'Business Steps must cite DistilledSteps.')) {
         requireCheck(!sourceToBusiness.has(sourceId), 'SOURCE_STEP_COVERAGE',
           'A DistilledStep may not be silently reinterpreted by multiple Business Steps.');
         sourceToBusiness.set(sourceId, step);
       }
+      {
+        requireCheck(text(step.purpose)
+          && validInputs(step.inputs)
+          && Array.isArray(step.inputSources)
+          && (Object.keys(step.inputs).length === 0 || step.inputSources.length > 0)
+          && Array.isArray(step.preconditions) && step.preconditions.length > 0
+          && text(step.execution)
+          && (text(step.observation) || object(step.observation) && text(step.observation.target) || step.observation === null)
+          && Array.isArray(step.outputs)
+          && Array.isArray(step.postconditions) && step.postconditions.length > 0
+          && verificationPresent(step.verification, 'procedure-synthesize', 'procedure.businessSteps.' + step.stepId + '.verification')
+          && Array.isArray(step.stopConditions) && step.stopConditions.length > 0
+          && Array.isArray(step.consumers) && step.consumers.length > 0
+          && (Array.isArray(step.sideEffects) || text(step.sideEffects)),
+        'BUSINESS_STEP_CONTRACT',
+        'Business Steps need purpose, input provenance, preconditions, execution, observation, outputs, postconditions, verification, stop conditions, consumers and side effects.');
+      }
     }));
+    const sourceActions = step => (step.sourceStepRefs || []).flatMap(id =>
+      (distilled.steps || []).find(item => item.stepId === id)?.sourceActionRefs || [])
+      .map(id => Array.isArray(actions) && actions.find(action => actionId(action) === id)).filter(Boolean);
+    for (const step of businessSteps) if (step.observation === null) attempt('procedure-synthesize',
+      'procedure.businessSteps.' + step.stepId + '.deferredObservation', () => {
+        const ownActions = sourceActions(step);
+        const observer = (step.consumers || []).map(id => businessById.get(id)).find(next => next
+          && businessSteps.indexOf(next) > businessSteps.indexOf(step)
+          && (text(next.observation) || object(next.observation) && text(next.observation.target))
+          && sourceActions(next).some(action => actionKind(action) === 'actual-read'));
+        requireCheck(ownActions.length > 0 && ownActions.every(action => actionKind(action) === 'actual-input'
+          && actionReceipt(action)?.ok === true) && object(step.verification) && observer,
+        'BUSINESS_STEP_CONTRACT', 'A null observation needs bound input receipts and an explicit later observation consumer; it is not an inferred observation.');
+      });
     attempt('procedure-synthesize', 'procedure.sourceStepCoverage', () => requireCheck(
       (distilled.steps || []).every(step => sourceToBusiness.has(step.stepId))
         && sourceToBusiness.size === (distilled.steps || []).length,
@@ -460,12 +495,22 @@ function checkArtifactChain(options = {}) {
       attempt('procedure-synthesize', 'procedure.dataDependencies.' + dependency.value, () => {
         const producer = businessById.get(dependency.producer), consumer = businessById.get(dependency.consumer);
         const key = [dependency.producer, dependency.value, dependency.consumer].join('\u0000');
-        requireCheck(producer && consumer && (producer.outputs || []).includes(dependency.value)
-          && (consumer.inputs || []).includes(dependency.value)
-          && businessSteps.indexOf(producer) < businessSteps.indexOf(consumer)
+        const terminal = dependency.consumer === 'final output';
+        requireCheck(producer && (producer.outputs || []).includes(dependency.value)
+          && (terminal ? (producer.consumers || []).includes('final output')
+            : consumer && inputContains(consumer.inputs, dependency.value)
+              && businessSteps.indexOf(producer) < businessSteps.indexOf(consumer))
           && !edges.has(key) && text(dependency.transform), 'DATA_DEPENDENCY_BROKEN',
         'A unique forward edge must link a producer output to a consumer input and name its allowed transform.');
         edges.add(key);
+        if (!terminal && object(consumer.inputs)) {
+          const input = dependency.input || (consumer.inputs.runtimeValue === dependency.value ? 'runtimeValue' : dependency.value);
+          const sources = (consumer.inputSources || []).filter(source => source.input === input);
+          requireCheck(consumer.inputs[input] === dependency.value && sources.length === 1
+            && sources[0].kind === 'runtime' && sources[0].valueName === dependency.value
+            && sources[0].producer === dependency.producer, 'DATA_DEPENDENCY_BROKEN',
+          'Object runtime inputs require one matching actual value and producer, not a competing constant source.');
+        }
       });
     }
     const semanticValues = new Map();
@@ -473,8 +518,13 @@ function checkArtifactChain(options = {}) {
       'Procedure must explicitly declare runtimeValues.').entries()) {
       attempt('procedure-synthesize', 'procedure.runtimeValues[' + index + ']', () => {
         requireCheck(object(value) && text(value.name) && !semanticValues.has(value.name)
-          && text(value.source) && Array.isArray(value.consumers) && value.consumers.every(text)
-          && new Set(value.consumers).size === value.consumers.length, 'DATA_DEPENDENCY_BROKEN',
+          && (text(value.source) || text(value.producerStep))
+          && Array.isArray(value.consumers) && value.consumers.every(text)
+          && new Set(value.consumers).size === value.consumers.length
+          && (!own(value, 'consumerSteps') || Array.isArray(value.consumerSteps)
+            && value.consumerSteps.every(text) && new Set(value.consumerSteps).size === value.consumerSteps.length)
+          && !(text(value.source) && text(value.producerStep)
+            && !isDeepStrictEqual(referencedSteps(value.source), [value.producerStep])), 'DATA_DEPENDENCY_BROKEN',
         'Runtime value declarations need a unique name, producer source and explicit consumers.');
         semanticValues.set(value.name, value);
       });
@@ -484,29 +534,33 @@ function checkArtifactChain(options = {}) {
       attempt('procedure-synthesize', 'procedure.parameters.' + runtimeValue.name, () => requireCheck(
         !own(procedure.parameters || {}, runtimeValue.name), 'OBSERVATION_BECAME_PARAMETER',
         'A demonstrated runtime value cannot also be a reusable input parameter.'));
-      const rawConsumers = (runtimeValue.consumers || []).filter(id => /^A\d+$/.test(id));
+      const rawConsumers = (runtimeValue.consumers || []).filter(id => id !== 'final output');
       attempt('procedure-synthesize', 'procedure.runtimeValues.' + runtimeValue.name + '.lineage', () => {
-        const producerId = String(runtimeValue.origin || '').match(/\bA\d+\b/)?.[0];
+        const producerId = originAction(runtimeValue);
         const decision = id => distilled.actionDecisions.find(item => item.actionRef === id);
         const producer = sourceToBusiness.get(decision(producerId)?.stepRef);
         const declaration = semanticValues.get(runtimeValue.name);
         const consumers = new Set(rawConsumers.map(id => sourceToBusiness.get(decision(id)?.stepRef)?.stepId));
-        const declaredConsumers = declaration?.consumers.filter(id => /^B\d+$/.test(id)) || [];
+        const declaredConsumers = (declaration?.consumerSteps ?? declaration?.consumers ?? []).filter(id => !['final output', 'output'].includes(id));
         requireCheck(producer && producer.outputs.includes(runtimeValue.name) && declaration
-          && JSON.stringify(referencedSteps(declaration.source)) === JSON.stringify([producer.stepId])
+          && isDeepStrictEqual(declaration.producerStep ? [declaration.producerStep] : referencedSteps(declaration.source), [producer.stepId])
           && !consumers.has(undefined) && declaredConsumers.length === consumers.size
           && declaredConsumers.every(id => consumers.has(id)), 'DATA_DEPENDENCY_BROKEN',
         'Runtime declarations, including terminal reads, must retain the exact S7 producer output and demonstrated consumers.');
+        if (declaration.consumerSteps) requireCheck(isDeepStrictEqual(declaration.origin, runtimeValue.origin)
+          && isDeepStrictEqual(declaration.consumers, runtimeValue.consumers)
+          && (!runtimeValue.consumers.includes('final output') || declaration.consumerSteps.includes('final output')),
+        'DATA_DEPENDENCY_BROKEN', 'Explicit business lineage must preserve raw origin, consumers and terminal output.');
       });
       if (!rawConsumers.length) continue;
       const valueEdges = dependencies.filter(item => item.value === runtimeValue.name);
-      for (const step of businessSteps) if ((step.inputs || []).includes(runtimeValue.name)) {
+      for (const step of businessSteps) if (inputContains(step.inputs, runtimeValue.name)) {
         attempt('procedure-synthesize', 'procedure.businessSteps.' + step.stepId + '.runtimeInput', () => requireCheck(
           valueEdges.some(edge => edge.consumer === step.stepId), 'DATA_DEPENDENCY_BROKEN',
           'Every declared runtime input needs a producer edge; state-preservation prerequisites belong in preconditions.'));
       }
       attempt('procedure-synthesize', 'procedure.dataDependencies.' + runtimeValue.name, () => {
-        const producerId = String(runtimeValue.origin || '').match(/\bA\d+\b/)?.[0];
+        const producerId = originAction(runtimeValue);
         const decision = id => distilled.actionDecisions.find(item => item.actionRef === id);
         const producer = sourceToBusiness.get(decision(producerId)?.stepRef);
         const consumers = new Set(rawConsumers.map(id => sourceToBusiness.get(decision(id)?.stepRef)?.stepId));
@@ -550,13 +604,18 @@ function checkArtifactChain(options = {}) {
               base + '.candidates[' + candidateIndex + '].validationEvidenceRefs', true);
           }
         }
-        inspectRefs(selected[0].canonicalContractRefs, 'procedure-synthesize',
+        if (selected[0].canonicalContractRefs && decision.canonicalContractRefs) requireCheck(
+          isDeepStrictEqual(selected[0].canonicalContractRefs, decision.canonicalContractRefs),
+        'API_REF_MISMATCH', 'Selected-method contract representations disagree.');
+        inspectRefs(selectedContracts(decision), 'procedure-synthesize',
           base + '.selected.canonicalContractRefs', true);
         inspectRefs(decision.sharedConstraintRefs, 'procedure-synthesize', base + '.sharedConstraintRefs');
         requireCheck(object(decision.runtimeValidation)
           && ['pass', 'fail', 'partial', 'not-run'].includes(decision.runtimeValidation.status),
         'METHOD_VALIDATION', 'runtimeValidation needs an explicit status.');
-        requireCheck(text(decision.runtimeValidation.environmentScope),
+        requireCheck(text(decision.runtimeValidation.environmentScope ?? decision.runtimeValidation.scope)
+          && !(own(decision.runtimeValidation, 'environmentScope') && own(decision.runtimeValidation, 'scope')
+            && decision.runtimeValidation.environmentScope !== decision.runtimeValidation.scope),
           'METHOD_VALIDATION', 'Runtime validation needs an environment scope.');
         inspectRefs(decision.runtimeValidation.evidenceRefs, 'procedure-synthesize',
           base + '.runtimeValidation.evidenceRefs', decision.runtimeValidation.status !== 'not-run');
@@ -592,7 +651,22 @@ function checkArtifactChain(options = {}) {
       entries.script = script;
     }
     const sourceMapping = array(candidate.sourceMapping, 'SOURCE_MAPPING', 'Candidate sourceMapping must be an array.');
-    const mappedSteps = new Set(sourceMapping.flatMap(mapping => referencedSteps(mapping.step)));
+    const lineCount = scriptSource?.split(/\r?\n/).length || 0;
+    const mappingLocation = mapping => {
+      const hasFunction = own(mapping, 'function');
+      const hasRegion = own(mapping, 'line') || own(mapping, 'rule');
+      return (hasFunction || hasRegion) && (!hasFunction || text(mapping.function))
+        && (!hasRegion || Number.isSafeInteger(mapping.line) && mapping.line > 0 && mapping.line <= lineCount && text(mapping.rule));
+    };
+    for (const [index, mapping] of sourceMapping.entries()) attempt('candidate', 'candidate.sourceMapping[' + index + ']', () => {
+      const refs = mappingSteps(mapping);
+      requireCheck(refs.length > 0 && refs.every(text) && new Set(refs).size === refs.length
+        && refs.every(id => procedure.businessSteps.some(step => step.stepId === id)) && mappingLocation(mapping)
+        && !(own(mapping, 'businessStepRefs') && own(mapping, 'step')
+          && !isDeepStrictEqual(refs, referencedSteps(mapping.step))), 'SOURCE_MAPPING',
+      'Each mapping must identify actual Business Steps and a declared function or in-range line/rule code region.');
+    });
+    const mappedSteps = new Set(sourceMapping.flatMap(mappingSteps));
     attempt('candidate', 'candidate.sourceMapping', () => requireCheck(
       (procedure.businessSteps || []).every(step => mappedSteps.has(step.stepId)),
       'SOURCE_MAPPING', 'Candidate sourceMapping must cover every Business Step.'));
@@ -614,36 +688,18 @@ function checkArtifactChain(options = {}) {
       attempt('candidate', 'candidate.capabilityDecision.' + decisionId, () => {
         requireCheck(mappedDecisionIds.has(decisionId), 'CAPABILITY_SOURCE_MAPPING',
           'Every Procedure capability decision must be consumed by Candidate sourceMapping.');
-        const selected = decision.candidates.find(item => item.disposition === 'selected');
-        const requiredRefs = [...(selected && selected.canonicalContractRefs || []), ...(decision.sharedConstraintRefs || [])];
+        const requiredRefs = [...(selectedContracts(decision) || []), ...(decision.sharedConstraintRefs || [])];
         requireCheck(requiredRefs.length > 0 && requiredRefs.every(ref => apiRefKeys.has(refIdentity(ref))),
           'API_REF_MISMATCH', 'Candidate apiRefs must bind the selected canonical contract and required shared constraints.');
       });
     }
     for (const dependency of procedure.dataDependencies || []) {
-      const producerMapping = (candidate.sourceMapping || []).find(mapping => referencedSteps(mapping.step).includes(dependency.producer));
-      const consumerMapping = (candidate.sourceMapping || []).find(mapping => referencedSteps(mapping.step).includes(dependency.consumer));
-      attempt('candidate', 'candidate.dataDependency.' + dependency.value, () => {
-        requireCheck(scriptSource && producerMapping && text(producerMapping.function)
-          && consumerMapping && text(consumerMapping.function), 'SOURCE_MAPPING',
-        'Runtime data dependencies need producer and consumer function mappings.');
-        const assignmentPattern = new RegExp('(?:const|let)\\s+' + dependency.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-          + '\\s*=\\s*await\\s+' + producerMapping.function.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\(');
-        const masked = codeOnly(scriptSource);
-        const assignment = assignmentPattern.exec(masked);
-        requireCheck(assignment, 'DATA_DEPENDENCY_BROKEN', 'Candidate must assign the actual producer return value.');
-        const calls = callSegments(masked, consumerMapping.function).filter(call => call.start > assignment.index);
-        const spreadPattern = new RegExp('\\.\\.\\.\\s*' + dependency.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
-        const dynamicCall = calls.find(call => spreadPattern.test(call.source));
-        requireCheck(dynamicCall, 'DATA_DEPENDENCY_BROKEN',
-          'Candidate consumer must use the producer value; reading it while using a sample constant is rejected.');
-        const observed = (dossier && dossier.runtimeValues || []).find(value => value.name === dependency.value);
-        if (observed && /^\d+$/.test(observed.observedValue) && observed.observedValue.length > 1) {
-          const literalDigits = [...observed.observedValue]
-            .map(digit => "['\"]" + digit + "['\"]").join('\\s*,\\s*');
-          requireCheck(!(new RegExp(literalDigits)).test(scriptSource.slice(dynamicCall.start, dynamicCall.end)), 'OBSERVED_VALUE_IN_SOURCE',
-            'The consumer call may not also embed the demonstrated digit sequence as literals.');
-        }
+      const producerMapping = sourceMapping.find(mapping => mappingSteps(mapping).includes(dependency.producer));
+      const consumerMapping = sourceMapping.find(mapping => mappingSteps(mapping).includes(dependency.consumer));
+      attempt('candidate', 'candidate.dataDependencyMapping.' + dependency.value, () => {
+        requireCheck(scriptSource && producerMapping && mappingLocation(producerMapping)
+          && (dependency.consumer === 'final output' || consumerMapping && mappingLocation(consumerMapping)), 'SOURCE_MAPPING',
+        'Runtime data dependencies need producer/consumer function or code-region mappings; terminal output has no fabricated consumer step.');
       });
     }
   });
@@ -736,6 +792,20 @@ function checkArtifactChain(options = {}) {
       accepted[boundary] = status[boundary] === 'pass' && !upstreamOK ? 'blocked' : status[boundary];
       upstreamOK = upstreamOK && status[boundary] === 'pass';
     }
+    const subjectRefs = [];
+    if (entries.candidate && roots) {
+      const manifest = entries.candidate;
+      const root = [...roots].sort((left, right) => right[1].length - left[1].length)
+        .find(([, directory]) => manifest.filename.startsWith(directory + path.sep));
+      if (root) subjectRefs.push({ kind: 'CandidateManifest', rootId: root[0],
+        path: path.relative(root[1], manifest.filename).split(path.sep).join('/'),
+        sha256: hash(manifest.bytes), schemaVersion: manifest.parsed.schemaVersion || SCHEMA });
+      const sourceRef = manifest.parsed.scriptRef;
+      if (sourceRef && verified.has(refIdentity(sourceRef))) subjectRefs.push({ ...sourceRef, kind: 'CandidateSource' });
+      for (const ref of Array.isArray(manifest.parsed.dependencies) ? manifest.parsed.dependencies : []) {
+        if (verified.has(refIdentity(ref))) subjectRefs.push(ref);
+      }
+    }
     return {
       tool: 'agent-to-recipe-artifact-chain/v1', verdict: errors.length ? 'fail' : 'pass',
       through, localChecks: status, artifacts: artifactViews(entries),
@@ -743,9 +813,19 @@ function checkArtifactChain(options = {}) {
       ignoredInputs: ['dossier', 'actions', 'distilled', 'procedure', 'candidate', 'qualification']
         .filter(name => own(options, name) && !(required || []).includes(name)),
       stageComplete: false, liveQualificationGranted: false,
+      verdictScope: 'artifact-structure-and-byte-bindings-only',
+      subjectRefs,
+      businessDataflow: {
+        verdict: evaluated.has('candidate') ? 'unknown' : 'not-run',
+        releaseBlocked: true,
+        reason: 'Static declarations and lexical matches cannot prove actual full-character consumption.',
+        required: 'Independent data-flow/control-flow verification of the exact Candidate and dependency bytes; controlled substitutes are not live qualification.',
+      },
       boundaries: accepted, checkedFiles: new Set([...verified.values()].map(value => value.filename)).size,
       readBytes: budget.bytes, errors,
-      proves: provenChecks(accepted, errors.length === 0, capabilityDecisionById.size > 0),
+      proves: provenChecks(accepted, errors.length === 0, capabilityDecisionById.size > 0)
+        .map(claim => claim === 'Procedure-to-Candidate direct await/spread source pattern'
+          ? 'Procedure-to-Candidate producer/consumer mapping declarations (not executable data flow)' : claim),
       scope: 'Calculator-shaped v1 successful artifact prefix through ' + through
         + '; historical plan frozen and only bounded business-invariant contract revisions accepted for Candidate, not a complete Stage Contract, schema or dependency closure',
       notEvaluated: ['truth of historical observations beyond bound evidence', 'desktop actions or OS input events',
@@ -753,19 +833,21 @@ function checkArtifactChain(options = {}) {
         'semantic correctness of a catalog/contract beyond its bound bytes or of runtime evidence beyond its cited record',
         'historical legacy artifacts missing current consumption requirements (diagnosis only, no downgrade)',
         'semantic truth of prose inputSources, allowed transforms and validity/reacquisition rules',
+        'semantic sufficiency of deferred observations beyond bound receipts and explicit later read mappings',
         'JavaScript reachability, aliasing, shadowing or general data-flow correctness',
+        'business dataflow: unknown; business release blocked pending independent exact-byte data-flow/control-flow verification and applicable live qualification',
         'undeclared or transitive dependencies, arbitrary trace formats or business semantics',
         'unsupported inputs, platforms or layouts',
         'live execution truth, repeat-run independence, legal parameter variation or proof that Agent is not driving desktop steps',
         'complete Stage Contracts, G0-G7 decisions, trusted publisher identity or handoff publication'],
       desktopActionsAuthorized: false,
       next: errors.length ? 'Return each error to its named boundary; do not infer or replay missing desktop facts.'
-        : 'The requested artifact prefix is internally consistent. Unchecked downstream work remains not-run; complete the applicable Gates and handoff separately.',
+        : 'The requested artifact prefix is structurally consistent only. Business dataflow remains unknown and business release is blocked pending independent exact-byte verification and applicable live qualification. Unchecked downstream work remains not-run.',
     };
   }
 }
 
-const HELP = 'Usage: node workflows/agent-to-recipe/scripts/check-artifact-chain.js [--through trace-distill|procedure-synthesize|candidate|qualification] --dossier <dossier.json> --actions <actions.json> --distilled <distilled-steps.json> [--procedure <procedure.json>] [--candidate <candidate.json>] [--qualification <qualification.json>] --root <id=directory> [--root <id=directory> ...] [--format json|markdown]\nDefault: qualification (all six paths). Earlier boundaries require only their prefix; never fabricate downstream files. Read-only check, not live qualification. Exit: 0 prefix pass, 1 check failure, 2 usage error.\n';
+const HELP = 'Usage: node workflows/agent-to-recipe/scripts/check-artifact-chain.js [--through trace-distill|procedure-synthesize|candidate|qualification] --dossier <dossier.json> --actions <actions.json> --distilled <distilled-steps.json> [--procedure <procedure.json>] [--candidate <candidate.json>] [--qualification <qualification.json>] --root <id=directory> [--root <id=directory> ...] [--format json|markdown]\nDefault: qualification (all six paths). Earlier boundaries require only their prefix; never fabricate downstream files. Read-only check, not live qualification or business dataflow proof. Exit: 0 structural prefix pass only (business dataflow unknown/not-run), 1 check failure, 2 usage error.\n';
 function main(argv) {
   if (argv.length === 1 && argv[0] === '--help') { process.stdout.write(HELP); return 0; }
   try {
