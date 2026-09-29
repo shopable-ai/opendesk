@@ -1,12 +1,12 @@
 ---
-title: "Calculator 执行过程演练｜Agent 实际怎样从需求走到可验证 Candidate"
-description: "用“当前问题 → 查看/调用 → 执行 → 得到的事实 → 下一步”展示 Agent 如何发现 OpenDesk 能力、选择 API、真实执行 Calculator，并继续推进 S1—S12。"
+title: "Calculator 执行过程演练｜Agent 实际怎样从需求走到可验证程序"
+description: "用“当前问题 → 需要查看或调用什么 → 实际执行 → 得到什么事实 → 下一步”展示 Agent 怎样真实解决 Calculator，并继续推进 S1—S12。"
 order: 9
 ---
 
 # Calculator 执行过程演练｜Agent 实际怎样解决这个任务
 
-> **定位：Execution Walkthrough / 求解过程演练。**
+> **定位：求解过程演练。**
 
 本文回答的不是“每个 S 阶段怎样验收”，而是：
 
@@ -14,18 +14,18 @@ order: 9
 
 逐阶段检查、首错定位和最小返工范围仍看 [Calculator 基准案例](calculator.md)。正式阶段定义仍由 [task-decomposition.md](../design/task-decomposition.md) 负责。
 
-本文展示的是**外部可检查的程序性求解过程（procedural problem solving）**，不是隐藏 Chain-of-Thought，也不是 S3—S6 的 Raw Trace。统一使用下面五个外显问题：
+本文展示的是**外部可以检查的实际求解过程**，不是隐藏推理过程，也不是 S3—S6 保存的原始执行记录。统一使用下面五个外显问题：
 
 > **编号说明：**本文的 `## 1`—`## 9` 是为了讲清楚实际求解顺序的**叙事步骤编号**，不是另一套 Workflow 阶段。标题中的 `[S1]`、`[S2]`、`[S3 → S4 → S5]` 等才表示它映射到哪个正式阶段；`0`、`10`、`11` 是导览或说明，不新增阶段。
 
 ~~~text
-当前问题
+当前要解决什么问题
   ↓
-查看 / 调用什么
+需要查看或调用什么
   ↓
 实际执行什么
   ↓
-得到什么事实
+执行后得到了什么
   ↓
 下一步为什么这样走
 ~~~
@@ -39,34 +39,41 @@ order: 9
 ~~~text
 收到 Calculator 需求
   ↓
-[S1] 固定不能被实现偷换的业务约束与任务数据关系
+[S1] 先把用户真正要求什么说清楚
+     特别确认第一次结果必须真实读取，
+     第二次必须真正使用这次读取到的结果
   ↓
-[S2] 发现、选择并验证当前任务需要的 OpenDesk 执行能力
-     docs/api/agent/README.md
-       → targets.md / elements.md
-       → 候选能力：window.* / UI.* / Accessibility.*
-       → 比较任务约束
-       → 读取 selected method 的 canonical contract
-       → 在当前 Calculator 环境做 runtime validation
-       → 建立最小 AppProfile 与操作依据
+[S2] 搞清楚怎样可靠操作当前 Calculator
+     先看 OpenDesk 已有什么现成能力
+     再选择合适方法
+     再到当前 Calculator 现场验证这些方法是否真的可用
   ↓
-[S3 → S4 → S5] 执行第一式 → 读取并验证 firstResult → 决定是否继续
+[S3 → S4 → S5] 真正执行第一式
+                 → 读取第一次真实结果
+                 → 判断是否可以继续
   ↓
-[S3 → S4 → S5] 清空 Calculator UI，但保留任务数据 firstResult
-                 → 输入 6 × firstResult =
-                 → 读取并验证 finalResult
-                 → 决定是否完成本次示范
+[S3 → S4 → S5] 清空 Calculator 当前界面
+                 → 但保留第一次真实结果
+                 → 用这个真实结果执行第二式
+                 → 读取最终结果
+                 → 判断本次真实执行是否完成
   ↓
-[S6] 冻结本次 Demonstration 的任务级事实与证据
+[S6] 把“这次实际上发生了什么”完整固定下来
   ↓
-[S7—S9] 提炼必要步骤、业务语义与 runtime dataflow
+[S7] 从真实记录中提炼真正必要的步骤
   ↓
-[S10] 复核并工程化生产操作规则
+[S8] 说明每一步在业务上是什么意思
   ↓
-[S11] 生成 / 冻结 exact Candidate
+[S9] 把一次具体执行变成以后可以重复使用的规则
   ↓
-[S12] 对同一 Candidate 独立资格验收
+[S10] 把需要的应用操作方法工程化并确认可靠范围
+  ↓
+[S11] 生成并固定最终 JavaScript 候选程序
+  ↓
+[S12] 从干净状态重新运行同一份程序并独立验收
 ~~~
+
+这里最重要的是：**每一步执行以后都必须得到一个明确的新结果，下一步只能消费已经成立的结果。** 如果某一步没有做对，就回到真正出错的位置修，而不是为了“完整”从 S1 全部重跑。
 
 ---
 
@@ -490,57 +497,189 @@ final producer
 
 ---
 
-## 7. 从一次真实执行提炼成可复用业务过程 [S6 → S9]
+## 7. 从真实执行中得到可复用方法 [S6 → S9]
 
-### 当前问题
+前面已经真实完成过一次 Calculator。这里开始不再操作 Calculator，而是把那次真实经历逐层变成以后可以复用的方法。
 
-哪些内容是这次真实发生的事实，哪些是必要步骤，哪些才是可以复用的业务语义和 runtime data relation？
+### S6：先固定“这次实际上发生了什么”
 
-### 查看 / 调用什么
+**收到什么**
 
-依次使用 S6—S9 的正式方法；逐阶段参考检查见 [Calculator 基准案例](calculator.md)。
+- 前面真实点击过什么；
+- 实际读取到了什么；
+- 第一次结果怎样被第二次计算使用；
+- 最终结果和证据；
+- 哪些动作成功、失败或仍无法确认。
 
-### 实际执行什么
+**实际做什么**
+
+把这些事实固定成一份完整的示范事实包。这里不能把预期答案补成实际结果，也不能把没有发生的动作写成已经发生。
+
+**得到什么**
+
+一份可以独立回答“这次真实任务到底发生了什么”的事实材料。
+
+**下一步**
+
+事实完整，进入 S7；事实缺失，就回 S3—S5 定向补采。
+
+---
+
+### S7：从真实记录中提炼真正必要的步骤
+
+这一段完整展示 [WORKFLOW](../WORKFLOW.md) 中的七步执行方法怎样真正落到一个阶段。
+
+**1. 现在做到哪里？**
 
 ~~~text
-S6
-  冻结 Demonstration Dossier / Raw Trace refs
-  保留 actual action、actual observation、runtime value、consumer、side effect
-
-S7
-  从真实记录提炼必要步骤
-  不因最终代码更短就删除必要 clear / read / verification
-
-S8
-  解释成业务步骤
-  ReadFirstResult → firstResult → EnterSecondCalculation
-
-S9
-  固定可复用过程
-  firstResult = runtime value
-  producer = ReadFirstResult
-  consumer = EnterSecondCalculation
-  transform = character expansion
-  fresh run = reacquire
+当前阶段：S7
 ~~~
 
-把最终 Recipe 仍需要的能力选择收敛进 capabilityDecisions，但不把“文档里有 API”写成 runtime validation 已通过。
+**2. 这一阶段要解决什么？**
 
-### 得到什么事实
+不是重新操作 Calculator，也不是写 JavaScript，而是回答：
 
-S9 交出的不再是“一次操作故事”，而是一份不需要下游重新猜：
+> 刚才真实发生的那些动作里，哪些是完成任务真正必要的？
 
-- firstResult 从哪里来；
-- 谁消费它；
-- 怎样变换；
-- 什么必须重新读取；
-- 哪些应用操作仍需 S10 工程化；
+**3. 开始需要什么材料？**
 
-的 SemanticProcedure。
+至少需要：
 
-### 下一步为什么这样走
+- 已固定的真实执行事实；
+- 原始动作和观察记录；
+- 第一次结果的真实来源；
+- 第二次计算实际怎样使用第一次结果；
+- 必要证据。
 
-业务语义已经稳定以后，才适合在 S10 决定哪些应用操作规则进入生产 Candidate。
+如果这些材料本身不存在，S7 不能靠推理补出来，应返回 S3—S6。
+
+**4. 实际怎样做？**
+
+使用 `trace-distill` 方法逐项判断：
+
+~~~text
+这个动作必须保留？
+可以和相邻动作合并？
+只是探索，可以省略？
+属于失败后的恢复动作？
+还是证据不足，暂时不能判断？
+~~~
+
+对于 Calculator，尤其检查：
+
+~~~text
+第一次计算
+→ 读取 firstResult
+→ 清空 Calculator 界面
+→ 任务数据里的 firstResult 仍保留
+→ 第二次输入真正使用 firstResult 的全部字符
+→ 读取 finalResult
+~~~
+
+不能因为参考成功值恰好是 110，就把“读取 firstResult”删掉并直接留下固定的 110。
+
+**5. 执行以后得到什么？**
+
+得到“真正必要步骤”，例如：
+
+~~~text
+1. 输入第一次计算
+2. 从 Calculator 真实读取 firstResult
+3. 清空 Calculator 当前界面，但保留任务数据 firstResult
+4. 输入 6 × firstResult =
+5. 从 Calculator 真实读取 finalResult
+6. 返回最终结果
+~~~
+
+这里的关键是 `firstResult` 表示**本次运行重新读取到的值**，不是固定常量 110。
+
+**6. 怎样判断 S7 做对了？**
+
+检查：
+
+- 每个必要步骤能否追溯到真实执行；
+- 被删除或合并的动作有没有理由；
+- 第一次结果的数据来源有没有保留；
+- 第二次计算还能不能说明自己的输入从哪里来；
+- 清空 Calculator 界面有没有误删任务数据；
+- 是否把历史成功值、预期值误当成运行时真实值。
+
+例如，如果删掉“读取 firstResult”，第二次计算的数据就没有真实来源，因此 S7 不合格。
+
+**7. 下一步去哪？**
+
+~~~text
+S7 正确
+→ 固定必要步骤
+→ 进入 S8
+
+S7 自己删错或合并错
+→ 留在 S7 修
+
+前面的真实事实根本缺失
+→ 返回 S3—S6 补事实
+
+原始任务要求理解错
+→ 返回 S1
+~~~
+
+---
+
+### S8：把必要步骤解释成业务步骤
+
+**实际做什么**
+
+把“点击、读取、清空”解释成稳定业务含义，例如：
+
+~~~text
+完成第一次计算
+→ 读取第一次结果
+→ 清理 Calculator 当前计算状态
+→ 使用第一次结果进行第二次计算
+→ 读取最终结果
+~~~
+
+同时说明每一步的输入从哪里来、输出给谁使用。
+
+**得到什么**
+
+得到下游可以理解的业务步骤，而不只是鼠标或按钮动作。
+
+---
+
+### S9：把一次成功经历变成可重复规则
+
+**实际做什么**
+
+把本次具体值和具体经历泛化为以后运行时必须遵守的规则。
+
+Calculator 最关键的规则是：
+
+~~~text
+firstResult 不是固定 110
+
+而是：
+每次运行都必须重新从 Calculator 真实读取
+↓
+保存为本次 firstResult
+↓
+第二次计算真正消费这个值
+~~~
+
+**得到什么**
+
+得到一份可重复执行的业务过程说明，其中明确：
+
+- 哪些值来自用户；
+- 哪些值必须运行时重新读取；
+- 谁产生这些值；
+- 谁使用这些值；
+- 怎样转换；
+- 哪些情况支持，哪些情况还没有证据。
+
+**下一步**
+
+业务方法已经稳定，才进入 S10，把它落实成可靠的应用操作规则。
 
 ---
 
@@ -655,7 +794,7 @@ Qualification 通过以后才进入外部 Delivery / Publish Handoff；它不是
 
 ---
 
-## 10. 这份 Walkthrough 和 Inspection View 怎样配合
+## 10. “求解过程演练”和“逐阶段检查”怎样配合
 
 如果你正在问：
 
@@ -672,13 +811,13 @@ Qualification 通过以后才进入外部 Delivery / Publish Handoff；它不是
 两者的关系是：
 
 ~~~text
-Execution Walkthrough
-  = HOW the Agent actually proceeds
-  = 当前问题 → 查看/调用 → 执行 → 得到事实 → 下一步
+求解过程演练
+  = Agent 实际下一步怎样做
+  = 当前问题 → 查看或调用 → 执行 → 得到事实 → 下一步
 
-Calculator Inspection View
-  = WAS each formal stage correct?
-  = 输入 → 阶段职责 → 输出 → 验收 → failure owner
+Calculator 逐阶段检查
+  = S1—S12 每一步到底做对没有
+  = 输入 → 阶段职责 → 输出 → 验收 → 错误应该回哪里
 ~~~
 
 它们描述同一个 Calculator，但不维护两套 Workflow。
@@ -689,10 +828,10 @@ Calculator Inspection View
 
 本文只证明 Calculator 可以用这套外显程序性求解方式讲清楚。
 
-当前**不因此新增**全局 execution-playbook.md，也不要求所有 Skills 立刻改写。更稳妥的后续验证是：
+当前**不因此新增**新的全局执行手册文件，也不要求所有专业方法包立刻改写。更稳妥的后续验证是：
 
 1. 用本文反向检查 application-engineer、task-demonstrate、recipe-build 是否真的缺少相应行为；
-2. 再用至少一个非 Calculator 案例验证相同的“当前问题 → 知识路由 → 能力发现 → 执行 → 事实 → 决策”模式；
-3. 只有出现稳定跨案例共性时，才考虑把它上升为新的通用设计文档。
+2. 再用至少一个非 Calculator 案例验证相同的“当前问题 → 找需要的知识和能力 → 执行 → 得到事实 → 决定下一步”模式；
+3. 只有出现稳定的跨案例共性时，才考虑进一步抽象。
 
-这样可以避免把一个案例刚暴露出的模式过早复制成第二套 canonical framework。
+这样可以避免因为一个案例刚暴露出共性，就过早再造第二套主框架。
