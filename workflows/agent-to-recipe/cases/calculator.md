@@ -100,6 +100,29 @@ print + return
 
 禁止把 Expected 110、历史运行中的 110、JavaScript 自己算出的 110、测试代码注入的 110 或示例文档里的 110 当成运行时 firstResult。
 
+### 不依赖 S1—S12 的业务真相
+
+下面这些约束直接来自原始需求。它们先于阶段设计成立，用来反向检查 WORKFLOW、design 和 Skills，而不是由阶段定义反推出来。
+
+| 编号 | 不可丢失的业务事实 |
+| --- | --- |
+| R1 | 第一次计算必须通过 Calculator 按钮输入 `25 × 4 + 10 =`。 |
+| R2 | `firstResult` 必须来自本次 Calculator 结果显示区的真实读取。 |
+| R3 | `firstResult` 必须保存为本次任务的运行时数据，不能由 Expected、历史值或本地算术替代。 |
+| R4 | 第二次计算前必须清空 Calculator 的当前计算状态，但不能删除任务数据中的 `firstResult`。 |
+| R5 | 第二次计算必须通过 Calculator 按钮输入 `6 × firstResult =`，并真实消费本次 `firstResult` 的全部字符和顺序。 |
+| R6 | `finalResult` 必须来自本次第二次计算后的 Calculator 结果显示区真实读取。 |
+| R7 | 最终必须打印并返回本次 `finalResult`。 |
+| R8 | Expected `"110"` / `"660"` 只属于验收 Oracle，不得进入 production runtime data path。 |
+
+反向审计时先问：
+
+~~~text
+这个阶段的输出是否仍然保持 R1—R8？
+~~~
+
+如果某个阶段定义、Skill 或实现无法保留这些业务事实，应先修对应 owner，而不是修改这些事实来适配工作流。
+
 ---
 
 ## 1. 全链路阶段地图
@@ -341,7 +364,23 @@ S1 TaskContract / WorkPlan
 
 本阶段确认应用、窗口、模式、按钮区域和结果显示区，分开记录对象身份、外观、当前 Geometry 与可执行定位依据，写清 Known / Unknown 与证据来源。
 
-本阶段不因为“Calculator 通常这样布局”就猜坐标，不因为能截图就宣称能安全点击，不把当前屏幕任意数字当成结果区，也不重新决定业务上是否要使用 firstResult。
+如果还不知道怎样完成“找窗口、点按钮、读结果、清空状态”，先从 OpenDesk 的公开能力入口发现已有能力，再比较候选、读取选中方法的准确契约，并在当前 Calculator 现场验证。顺序应是：
+
+~~~text
+当前业务问题
+  ↓
+发现已有能力
+  ↓
+比较候选方法
+  ↓
+读取 selected method 的 canonical contract
+  ↓
+当前环境验证
+  ↓
+形成足够推进下一动作的最小 AppProfile
+~~~
+
+本阶段不因为“Calculator 通常这样布局”就猜坐标，不因为能截图就宣称能安全点击，不把当前屏幕任意数字当成结果区，也不重新决定业务上是否要使用 firstResult；同样不能因为文档中存在某个 API，就写成当前环境已经验证通过。
 
 #### 本例
 
@@ -362,6 +401,15 @@ Required targets
 Known
   目标必须属于同一个当前 Calculator window
   结果必须来自同一个窗口的结果显示区
+
+Capability candidates
+  window.get / window.activate / window.current
+  UI.tapTargets / UI.readText
+  必要时 Accessibility.snapshot 等结构化只读检查
+
+Selection state
+  selected / to validate
+  不能仅因 API 名存在就写 runtime passed
 
 Unknown until evidenced
   当前布局是否仍受支持
@@ -405,6 +453,8 @@ Unknown until evidenced
 ### 5. 怎样判断是否做对
 
 - 每个将要点击或读取的对象都有真实来源。
+- 不知道怎样执行时，先发现并比较现有公开能力，而不是默认自己造低层实现。
+- selected method 的文档契约与当前环境验证分开记录。
 - 结果区定义不是“窗口里任何数字”。
 - 当前 Geometry 与可执行定位依据没有混为一谈。
 - Unknown 没有被熟悉感补成事实。
@@ -452,6 +502,8 @@ current state = P20 已完成且当前对象身份仍有效
 本阶段不凭 receipt 宣布业务结果正确，不用 Expected 补 actual return，不把未执行计划写成已执行，不在副作用结果 unknown 时盲目重放。
 
 #### 本例
+
+> **阅读边界：** 下面的 A004、A005、A007 等编号是为了展示“正确的阶段产物应该怎样保留事实”的参考 fixture。它们不是本文声称刚刚发生的一次新桌面 execution。新的生产运行仍必须重新执行并取得自己的 Actual / Evidence。
 
 ~~~text
 P20
@@ -1263,7 +1315,7 @@ S9 SemanticProcedure
 
 #### 本例
 
-当前仓库的 Calculator fresh candidate 提供一个实现参考：
+当前仓库的 Calculator 参考实现提供一个与本阶段规则一致的实现参考：
 
 ~~~text
 定位规则（Locator）
@@ -1294,9 +1346,9 @@ Unknown effect
   不盲重放同一按钮
 ~~~
 
-这些规则受当前 macOS、Calculator 结构和本地化名称限制；未覆盖的 layout/locale 不能自动算支持。
+这些规则受当前 Calculator 结构、locale、layout 和 Runtime 能力限制；未覆盖环境不能自动算支持。
 
-本次定向反例（Calculator 10.16 (223)、macOS 12.7.6）：未完成 `7 + 1` 时按一次“清除”，显示变为 `0`，但随后按 `4 =` 得到 `11`；改用“全部清除”后，`4 =` 得到 `4`。原始执行为 `.runtime/tests/agent-to-recipe/revision-20260929/continuation-20260929/clear-semantics-runtime-3/`，它证明该环境和该序列的操作性差别，不证明任何不可见内部状态全复位，也不充当下一次输入前的新鲜预检。旧提案仅凭显示 `0` 放行已在执行前拒绝；S2 最小认识仍保留限定 PASS，S3 消费经审阅的补证后再判断具体动作。
+本案例已经确认一个关键反例：**“清除后显示 0”本身不足以证明上一段计算状态已经被彻底清除。** 因此 S10 的正确规则必须显式区分 Calculator 的“清除”和“全部清除”等状态语义，并通过真实后置观察确认新的计算起点。具体历史环境、运行路径和证据属于质量记录，不放在本阶段主参考答案里。
 
 ### 4. 做完后应该得到什么
 
@@ -1421,7 +1473,7 @@ await clickCalculatorButtons(
 当前仓库可检查候选参考：
 
 ~~~text
-path = examples/agent-to-recipe/calculator-fresh-20260927.js
+path = examples/agent-to-recipe/calculator.js
 candidate binding = S12 必须执行与该 Candidate 相同的 exact bytes
 ~~~
 
@@ -1529,7 +1581,7 @@ authorization
 
 ~~~text
 Candidate identity
-  path = examples/agent-to-recipe/calculator-fresh-20260927.js
+  path = examples/agent-to-recipe/calculator.js
   hash = 精确绑定的 candidate hash
 
 TaskContract
@@ -1717,7 +1769,30 @@ next comparison = ...
 
 ---
 
-## 4. 最小返工规则
+## 4. 反方测试：故意破坏以后，首错应该落在哪里
+
+这张表用于验证 Calculator 是否真的能反向审计工作流，而不只是“按 S1—S12 重写一次设计”。
+
+| 故意制造的错误 | 首个应失败阶段 | 违反的业务事实 |
+| --- | --- | --- |
+| 合同只写“最后得到 660”，删除真实读取 firstResult | S1 | R2、R3、R5、R8 |
+| 不查已有能力和现场对象，直接猜固定坐标 | S2 | R1、R2、R6 |
+| 只有 planned read，没有真实 read action | S3 | R2 |
+| API receipt 成功就写 firstResult 已正确 | S4 | R2、R3 |
+| firstResult observation 仍 uncertain，却继续第二次输入 | S5 | R3、R5 |
+| Dossier 只保存 final=660，丢失 firstResult producer/consumer | S6 | R2、R3、R5 |
+| 去噪时删除“读取并保存 firstResult” | S7 | R2、R3、R5 |
+| Business Step 把第二次输入改成固定 110 | S8 | R5、R8 |
+| Procedure 写 `firstResult.default = "110"` | S9 | R3、R8 |
+| 只按一次“清除”，见到显示 0 就认定完整 reset | S10 | R4 |
+| JavaScript 读取了 firstResult，但第二次仍硬编码 `1,1,0` | S11 | R5、R8 |
+| 冻结 Candidate A，却实际运行 Candidate B 后给 A PASS | S12 | R1—R8 的资格证明链 |
+
+如果这张表中的某个反例无法被当前阶段边界准确捕获，优先检查对应 canonical design / Skill，而不是把反例从案例中删掉。
+
+---
+
+## 5. 最小返工规则
 
 ~~~text
 S1 变化
@@ -1758,7 +1833,7 @@ Delivery 资料缺失且 Candidate / Qualification 未变
 
 ---
 
-## 5. 一页数据链检查表
+## 6. 一页数据链检查表
 
 | 阶段 | Calculator 里必须看见的核心数据 | 最典型错误 | 错了返回 |
 | --- | --- | --- | --- |
@@ -1778,7 +1853,7 @@ Delivery 资料缺失且 Candidate / Qualification 未变
 
 ---
 
-## 6. 需要更深检查时去哪里
+## 7. 需要更深检查时去哪里
 
 只读本文已经应该能够完成主链诊断。需要查看正式 owner 或更细方法时，再进入：
 
@@ -1796,12 +1871,12 @@ Delivery 资料缺失且 Candidate / Qualification 未变
 | S8 / S9 Calculator 方法示例 | [procedure-synthesize 示例](../skills/procedure-synthesize/examples/calculator.md) |
 | S11 Calculator 方法示例 | [recipe-build 示例](../skills/recipe-build/examples/calculator.md) |
 | S12 Calculator 方法示例 | [recipe-qualify 示例](../skills/recipe-qualify/examples/calculator.md) |
-| 当前固定案例实现参考 | [calculator-fresh-20260927.js](../../../examples/agent-to-recipe/calculator-fresh-20260927.js) |
+| 当前固定案例实现参考 | [calculator-fresh-20260927.js](../../../examples/agent-to-recipe/calculator.js) |
 | 本文档静态复核记录 | [Calculator 文档复核](../../../docs/quality/agent-to-recipe/calculator-document-review-20260927.md) |
 
 ---
 
-## 7. 本案例什么时候才算真正达标
+## 8. 本案例什么时候才算真正达标
 
 一个没有旧聊天上下文的新读者，应当能够只读本文回答：
 
@@ -1881,22 +1956,17 @@ S9 正确
 
 当前仓库案例实现可使用 macOS Accessibility 等工程机制作为参考，但最终 JavaScript、按钮表或读取实现不能反推 S2 当时一定观察到了什么，也不能反推 S3—S6 当时一定真实执行过什么。
 
-### B.3 Candidate 身份与哈希说明
+### B.3 Candidate 身份说明
 
-当前可检查候选：
+当前正文参考实现是：
 
 ~~~text
-path
-  examples/agent-to-recipe/calculator-fresh-20260927.js
-
-Git blob on inspected master
-  52823653aaa2c40e7a7acc87687c90c49e4f8917
-
-历史运行记录中的 SHA-256
-  6d1383249a9f12084cc877cea2883d8fa1c70c557216a8242ac7f542759f2d2a
+examples/agent-to-recipe/calculator.js
 ~~~
 
-Git blob 与 SHA-256 是不同的身份表示。S12 真正需要的是：Qualification 明确绑定被实际执行的 exact Candidate bytes，并且执行对象与冻结对象一致。哈希格式本身不是案例主线。
+它用于帮助阅读 S10—S11 的正确实现关系，但**当前文件路径本身不等于当前已经取得新的 Qualification**。Candidate 每次冻结后，S12 仍必须绑定 exact bytes / hash / entry / dependencies 和实际 execution。
+
+历史的 `calculator-fresh-20260927.js`、旧 Git blob、SHA-256 与历史 execution 只作为设计考古或质量记录使用，不再充当正文当前参考 Candidate。这样可以避免已经被新证据否定的旧清空策略继续污染黄金案例。
 
 ### B.4 历史运行记录怎样使用
 
