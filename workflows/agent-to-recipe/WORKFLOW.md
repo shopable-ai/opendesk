@@ -124,6 +124,21 @@ Delivery / Publish Handoff
 需要了解某个阶段的完整职责，读 [task-decomposition.md](design/task-decomposition.md)。  
 需要了解某个 Skill 专业上怎样产出结果，进入对应 `skills/*/SKILL.md`。
 
+### 阶段产物必须真正落盘
+
+上表中的“主要结果”不能只存在于聊天总结、评分文字或 Agent 自述中。每个阶段正常退出前，必须能从本次 task / attempt / Execution 找到：
+
+~~~text
+实际输入引用
++ 本阶段 Actual Output 或固定输出引用
++ 必需 evidence
++ 本阶段独立验收记录
+~~~
+
+共享任务目录、主产物文件名、request / handoff / hash 规则由 [Agent-to-Recipe Skill Contract](../../docs/frameworks/agent-to-recipe-skill-contract.md) 统一定义，不在 WORKFLOW 再造第二套格式。
+
+Calculator 的人类可读示例见 [Calculator 阶段产物链](cases/calculator-artifacts.md)。它说明“出错后应该打开哪个文件、里面至少应该看见什么”；真实 Producer 仍必须生成自己的本次运行产物，不能复制黄金案例当 Actual。
+
 ---
 
 ## 4. 一个阶段实际怎样推进
@@ -143,7 +158,9 @@ Delivery / Publish Handoff
    ↓
 6. 独立检查本阶段结果是否正确
    ↓
-7. 决定下一步
+7. 固定本阶段产物、证据与验收记录
+   ↓
+8. 决定下一步
 
 通过
 → 固定结果
@@ -172,6 +189,12 @@ Delivery / Publish Handoff
 | 接下来去哪？ | 下一阶段、定向返修或停止 |
 
 如果这 7 个问题答不清楚，就不应该仅因为“文件已经生成”而继续。
+
+同时还要能回答第 8 个问题：
+
+> **这次回答所依据的 Actual Output、证据和阶段 verdict，具体保存在哪个文件或固定引用里？**
+
+找不到本次产物或引用，就不能用聊天中的“已完成”“95 分以上”代替正式阶段结果。
 
 ---
 
