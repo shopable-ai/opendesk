@@ -102,14 +102,22 @@ AppProfile 的事实条目标注 `observed`、`demo-confirmed` 或 `qualified`�
   plan/r001/task-brief.md       # 可选同版可读视图，不是第二份权威需求
   plan/r001/operation-plan.md   # 可选同版可读视图，不是第二份权威计划
   steps/W010.md                 # 必要时才拆工作包说明；不要与 DistilledSteps 混淆
-  progress.json                 # 唯一当前状态；可由已发布交接重新核对
+  progress.json                 # 唯一当前机器状态；可由已发布交接重新核对
+  stage-review.md               # S1—S12 人工首读视图；投影 acceptanceRef/实际产物，不是第二份真相
   attempts/<attempt-id>/
     request.json
     <本专业作业的主产物>
+    <必要的同版可读视图>
     handoff.json                # 所有输出完成后才发布
 ```
 
-目标主产物分别为 `task-contract.json`／`work-plan.json`、`app-profile.json`、`dossier.json`、`distilled-steps.json`、`procedure.json`、`candidate.json`、`qualification.json`。可读视图（如 `task-brief.md`、`operation-plan.md`、`distilled-steps.md`、`procedure.md`）必须引用同版结构化主产物，不形成平行真相。请求固定引用实际版本，不盲读 `latest`。文件可通过明确引用共用，不复制多套权威数据。
+目标主产物分别为 `task-contract.json`／`work-plan.json`、`app-profile.json`、`dossier.json`、`distilled-steps.json`、`procedure.json`、`candidate.json`、`qualification.json`。这些结构化主产物、真实 Execution evidence 和冻结 JS 负责机器消费、hash、checker 与正式引用，是权威事实来源。
+
+为了人工审阅和排错，每个正式阶段还必须在任务根的 `stage-review.md` 中有一个稳定的 S1—S12 人工检查入口。它从当前 `acceptanceRef`、精确主产物 ref/hash 与 evidence 生成，至少显示：实际输入、Actual Output/输出引用、关键证据、五维评分、Hard Fail、Unknown、verdict、failure owner 与 next action。S3—S5 即使没有独立业务 JSON，也必须在这里链接本次 Execution 的 actual action / observation / decision。
+
+复杂主产物可以同时提供更易读的同版 Markdown 投影，例如 `task-brief.md`、`operation-plan.md`、`app-profile.md`、`dossier.md`、`distilled-steps.md`、`business-steps.md`、`procedure.md`、`operation-rules.md`、`candidate-summary.md`、`qualification-summary.md`。这些 Markdown 必须注明来源主产物路径/ref/hash（或 Execution/evidence refs），由权威数据生成或重生成；人工纠错先修改权威主产物/事实，再刷新视图，不能单独编辑 Markdown 形成第二份真相。
+
+请求固定引用实际版本，不盲读 `latest`。文件可通过明确引用共用，不复制多套权威数据。
 
 每个工作包写明：稳定 ID、子目标、责任职责、依赖、输入、现场前提、预期输出、成功标准、允许副作用、探索／执行／重试预算、恢复边界。工作状态使用 `pending / ready / running / blocked / passed / failed / needs-revalidation / canceled`，不以时间推算完成百分比。
 
