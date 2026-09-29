@@ -1872,7 +1872,7 @@ Delivery 资料缺失且 Candidate / Qualification 未变
 | S11 Calculator 方法示例 | [recipe-build 示例](../skills/recipe-build/examples/calculator.md) |
 | S12 Calculator 方法示例 | [recipe-qualify 示例](../skills/recipe-qualify/examples/calculator.md) |
 | 当前固定案例实现参考 | [calculator-fresh-20260927.js](../../../examples/agent-to-recipe/calculator.js) |
-| 本文档静态复核记录 | [Calculator 文档复核](../../../docs/quality/agent-to-recipe/calculator-document-review-20260927.md) |
+| 本文档静态复核记录 | [Calculator 反方审计记录](../../../docs/quality/agent-to-recipe/calculator-reverse-audit-20260930.md) |
 
 ---
 
