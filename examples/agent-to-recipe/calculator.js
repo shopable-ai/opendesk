@@ -95,13 +95,15 @@ async function main() {
   await readCalculatorResult(win);
 
   await clearCalculator(win);
-  const firstInput = await clickCalculatorButtons(win, ['2', '5', '×', '4', '+', '1', '0', '=']);
+  await clickCalculatorButtons(win, ['2', '5', '×', '4', '+', '1', '0', '=']);
   const firstResult = await readCalculatorResult(win);
 
   await clearCalculator(win);
-  const secondInput = await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);
+  await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);
   const finalResult = await readCalculatorResult(win);
-  return {firstResult, finalResult, firstInput, secondInput};
+
+  console.log(finalResult);
+  return finalResult;
 }
 
-console.log(JSON.stringify(await main()));
+await main();
