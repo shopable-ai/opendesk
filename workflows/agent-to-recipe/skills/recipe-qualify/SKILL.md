@@ -25,6 +25,10 @@ description: 独立验收一个冻结的 Agent-to-Recipe Candidate（S12），�
 
 candidate 或关键 dependency 一旦变化，旧 attempt 立即停止；新字节必须走新 Candidate/revalidation。S12 不能现场 patch 后继续把结果记到旧 Candidate。
 
+进入资格执行前，消费当前 S11 的正式阶段审查和合法上游来源链，核对依赖、判据版本及未解除阻断；不要用路径、hash 或手填 PASS 代替方法与业务审查。Calculator 使用 `tests/workflows/calculator/fresh-qualification.cjs --check <request>` 正常入口，请求的 `stageReviewRef` 绑定本次审查记录，入口内部执行 Stage Guard。进入 S12 只要求必要上游合格，不要求尚未执行的 S12 先取得评分或 Qualification，避免循环依赖。其他来源或已有普通 JS 先按 WORKFLOW 选择合法接续，不追造一次从未发生的新 Agent 生产。
+
+静态工件报告若把数据流标为 unknown／releaseBlocked，不能因为顶层结构检查 pass 就放行；必须由绑定当前源码与候选的独立语义或受控原字节验证补足该具体缺口。受控替身只证明已测消费路径，仍须真实应用资格证据，不能与 live 混记。另一候选的报告、旧源码测试或不可达代码里的关键词均不提供当前数据链证明。
+
 ### 2. 运行前定义 scenarios 和 Oracle
 
 每个 requested scope 在执行前定义：
@@ -64,6 +68,8 @@ requested 中未测的项不能移入 excluded 以换整体 PASS。
 **重复运行（repeatability）**
 若要声明可重复，至少需要同一冻结 Candidate 的两个独立 Fresh Run，相关范围一致且各自有独立执行证据。
 
+这是一般声明的下限，不覆盖更严格的任务合同。本轮 Calculator 请求明确至少三次同冻结 JS／依赖的独立 Fresh Run；每次重新读取 firstResult/finalResult。首次 Agent 示范和同次 execution 重读日志均不计作一次新的 JS 运行。
+
 **参数化（parameterization）**
 除了满足相应运行要求，还必须至少使用一个不同于示范值的合法输入，通过同一 Candidate、同一公开 inputContract、无需修改源码完成，并证明实际业务 consumer 使用了变参。
 
@@ -86,3 +92,5 @@ PASS 不能扩大 scope。一次运行通过的固定 Calculator 不等于任意
 ## 完成条件
 
 只有 exact Candidate、exact requested scope、预先定义场景、actual production run、独立 observation 和逐 criterion/scope coverage 都闭合，才能发布对应资格结论。高代码审阅分、历史 PASS、checker PASS、一次最终数字正确都不能替代缺失的 live evidence。
+
+S12 按 [Workflow 阶段退出循环与最终闭合](../../WORKFLOW.md)和 [唯一五维评分](../../design/validation-plan.md)独立验收；S12 PASS 仍要对同一冻结 Candidate 完成 Fresh Run、最终 Requirement Coverage 和 Reference Alignment，才能宣布整项任务完成。

@@ -78,3 +78,5 @@ node workflows/agent-to-recipe/scripts/check-artifact-chain.js --through trace-d
 冻结唯一 `distilled-steps.json`；同版 Markdown 视图注明主产物 ref/hash。按 output-spec 向 procedure-synthesize 明确交付必要事实、关系、政策及定向证据正文。历史 lineage 不是授权 S9 重读全量 Dossier/Trace；检查器读源核对也不能替代对 Producer 的材料交付。
 
 失败保留真实局部成果和 nextRequest，不伪造成功。输入/方法/合同均未变且重检有效时复用原字节，只重做受影响环节；影响性变化发布新版本并传播重验。整链成功或最终值正确均不能替本 Skill 独立放行。
+
+S7 交 S8 前还要按 [Workflow 阶段退出循环](../../WORKFLOW.md)和 [唯一五维评分](../../design/validation-plan.md)记录本阶段独立得分、适用 Hard Fail、必需证据与测试；上游事实缺失时返回其真实 owner。

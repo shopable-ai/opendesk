@@ -168,6 +168,8 @@ Calculator 等案例中的固定数字只能作为 Oracle；实际业务取数�
 | **BC-23 同源审阅与修订** | 原图、overlay、属性、Profile 同版；修订传播到依赖 | 格式校验冒充语义通过 |
 | **BC-25 规则复用与定向维修** | 未见样本和真实应用中可复用或安全拒绝 | 只在建模截图成功；硬编码示范行号／对象 |
 
+操作性前置另作 BC-21/BC-25 的正常、反例和接续样本：S2 最小认识可如实限定通过；S3 用当前可观察条件与后续区分性效果证明准备动作足以支持输入；“显示默认值”或回执成功但后续仍受旧运算影响时拒绝；审阅过的新证据交回原 S3，保留仍有效的 S1/S2。未知内部状态无须声称全复位，新鲜预检仍是每次真实输入的必要条件。限定版本的反例能否支持一个操作规则由独立审阅判断，静态 Guard 不替代该判断。
+
 ### F. 业务组合、跨应用与他人复用
 
 | BC | 必须证明 | 关键拒绝反例 |
@@ -206,13 +208,15 @@ Calculator 等案例中的固定数字只能作为 Oracle；实际业务取数�
 | **精确 Candidate 通过** | Candidate、入口、依赖、环境固定，并执行同一 production bytes | 参考脚本、重写测试脚本 |
 | **requested scope 已验证** | requested 项逐项有 actual scenario + evidence | 只在 manifest 写 qualified |
 | **一次 Fresh Run 成功** | 可归因起点、真实入口、独立业务 Observation | 历史日志、Expected、mock |
-| **可重复运行** | 同一 Candidate 至少两次独立 Fresh Run | 同一 execution 重读日志 |
+| **可重复运行** | 同一冻结 Candidate 及依赖至少三次独立 Fresh Run | 同一 execution 重读日志、Agent 首次示范 |
 | **参数化可复用** | 基线之外至少一组合法变化输入，现场值仍进入实际 consumer | 改 Expected 或向测试桩注入答案 |
 | **无需 Agent 逐步点击** | production path 确定步骤由普通 JS 执行；Agent 仅在预声明有界判断点出现 | Qualification 时再让 Agent 临场逐步决定 |
 | **范围内稳定** | 声明的 app/build/layout/locale/input 扰动实际覆盖 | 单环境成功外推所有环境 |
 | **他人可复用** | 新使用者仅凭交付说明配置并运行 | 作者私有聊天、路径、凭据 |
 
 Candidate 或影响性依赖改变后，旧 Qualification 不继续证明新字节。
+
+三次是本轮最终 JS 重复验证的下限，不是生产成功率或 95% 可靠性证明。每次记录独立 run ID、实际入口、环境、候选及依赖 hash、可归因起点和独立实际结果；Calculator 每次重新读取 firstResult 和 finalResult，第二段由普通 JS 消费本次读值。新生产验证只有实际执行了最终冻结 JS，才可贡献其中一次；新 Agent 生产能力与 JS Fresh Run 仍是两项验收。有已声明参数入口时补合法变参，不为单例强建参数系统；替身数据流测试不能计入真实运行次数。
 
 ## 六、Gate 与硬失败
 
@@ -316,12 +320,66 @@ segmentation、continuity、VLM proposal、merge、mutation、end detection、�
 评分规则：
 
 - 证据充分：对应检查项满分；
-- 只有明确局部覆盖：按局部覆盖计分；
-- 错误或无证据：0；
+- 只有明确局部覆盖：按下述执行前固定的检查项累计，不凭印象给比例分；
+- 已评检查项错误或缺证：0；未执行或不足以开展评价时记未评价，不编造实际总分；
 - **>=95 仍要求适用 Hard Fail 全部通过、requested 必测项完成、无阻断 Unknown；**
 - `not-run` / `blocked` 不记通过；
 - 简单脚本不因抽象少扣分；
 - 本文件不填写当前实现的实际得分。
+
+逐阶段退出将本规则应用到**当前阶段而非整条链的平均分**。每次 S1—S12 正常 PASS 必须同时满足：`score >= 95 AND applicable Hard Fail == 0 AND required evidence complete AND blocking Unknown == 0 AND required tests passed`。记录五维各自得分及证据、实际输入和输出版本、适用 Gate、Hard Fail、Unknown、必需测试、verdict 与未检查范围；同一个 Skill 的 S3/S4/S5/S6、S8/S9、S2/S10 不能合并分数。高分遇到任一 Hard Fail 仍为 FAIL；没有真实 S3 action、S4 observation 或 S12 run 不能因预期或 mock 评分而 PASS。具体推进和局部返修循环见 [WORKFLOW](../WORKFLOW.md)。
+
+### 阶段职责、固定分母与必需证据映射
+
+**既有制度**是上述五维 25/20/20/20/15、至少 95 分、Hard Fail 与必需项不可抵消，以及共享合同引用的二十项办法。**本轮补充**是下面的二十项展开、阶段适用映射及执行前冻结口径，不新增阶段、十二套量表或竞争总分。
+
+| 维度代号 | 固定检查项（各项 5 分） | 固定分母 |
+| --- | --- | ---: |
+| A 需求与语义 | A1 目标／对象；A2 来源真实性；A3 请求范围覆盖；A4 实际数据关系；A5 成功／失败判据 | 25（5 项） |
+| B 职责与独立性 | B1 owner／模式；B2 输入充分性；B3 独立完成边界；B4 无越责或循环依赖 | 20（4 项） |
+| C 成果与接续 | C1 实际成果正文；C2 下游可消费；C3 来源／依赖版本一致；C4 状态与接续信息 | 20（4 项） |
+| D 验证与修复 | D1 正常场景证据；D2 适用变化／失败／拒绝证据；D3 失败归因及返回；D4 影响传播与重验依据 | 20（4 项） |
+| E 复杂度与成本 | E1 工程量适配；E2 既有能力复用；E3 预算／停止条件 | 15（3 项） |
+
+每阶段执行前把下表职责映射到 A1—E3，固定输入／方法版本、逐项可判定条件、适用场景、证据层、必需 evidence、Gate／Hard Fail、进入与退出条件及评审者。每项满足固定条件且有证据得 5，否则已评项得 0；局部覆盖只累计完整满足的项。阶段分母固定为 20 项／100 分，分项和总分仅以 5 分为粒度，不产生 97、98 等插值，也不把未评价项补满。正常放行仍须满足全部非分数条件。
+
+机器检查复用阶段记录的 `acceptanceRef` 及其 `stages[S1…S12]`，不另建评分来源链；每阶段输入绑定同一冻结引用。固定判据须包含二十项唯一 ID、所属维度、每项 5 分上限、分母 100、粒度 5、判据及必需证据角色，实际评审逐项保存得分／未评价与证据。A—E 对应既有 `score` 键 `requirements`、`responsibility`、`continuation`、`validation`、`cost`。Guard 应拒绝漏项／重复项、缩分母、非法粒度、分项与维度总和不符、冻结引用漂移及缺必需证据；未评价不得放行。hash 和手填时间只证明声明，执行前冻结还须有可核对的预登记／输入时序证据；Guard 不能由此自动证明现场真实性或业务正确。
+
+五维用于当前职责，不要求提前取得未来阶段成果；例如 A4 在 S1 检查数据关系定义，在 S4 检查实际读值，在 S11 检查实现。具体 Gate／场景不适用须在执行前注明依据，不能因此删掉通用检查项、缩小分母、转移权重或自动得分。若无法建立可评价条件，保留未评价并补齐依据，不强行凑总分。判据确有错误时单独记录修订原因和新版本，重定受影响评价，不能回改原失败为通过。
+
+| 阶段／责任 Skill 或模式 | A 需求与语义适用点 | B 职责与独立性适用点 | C 成果与接续适用点 | D 验证与修复适用点 | E 复杂度与成本适用点 | 必需证据（绑定当前输入／方法／成果版本） |
+| --- | --- | --- | --- | --- | --- | --- |
+| S1／automation-plan：合同与计划 | 原话、对象、数据依赖、成功边界 | 用户决定与技术 Unknown 分开 | TaskContract／WorkPlan 可供 S2 和执行消费 | 范围遗漏、矛盾与高影响未知检查 | 最小计划、预算、早期否证 | Source、合同与计划正文、需求映射、Unknown／授权及审阅记录 |
+| S2／application-engineer discover：最小应用认识 | 当前对象、读取与定位依据 | 只证明下一步可行；不要求最终 JS | Profile／发现结果供当前动作消费 | 区分旧观察、本次观察、假设与待验证 | 最小发现、既有知识来源与适用性 | 应用／窗口身份、现场 observation、最小 Profile、材料充分性及缺口判断 |
+| S3／task-demonstrate：获准动作 | 实际目标、输入及运行时值来源 | 动作授权、前置和真实执行者 | 实际 action 与 planned step 关联 | 动作状态、副作用 unknown 停止 | 串行动作、有界执行 | 动作请求／返回、时间与对象、前置证据、实际值来源及 action state |
+| S4／task-demonstrate：观察验证 | 实际读值／效果不由 Expected 倒填 | API 返回与业务效果分别判断 | observation 与对应 action 关联 | 实际后置、失败／不确定状态 | 必要读回、有界等待 | 新鲜 observation、原始读值、业务对象、Expected／Actual 分列与验证结论 |
+| S5／task-demonstrate：分类决策 | 正常、探索、恢复等分类有据 | 继续／恢复／停止决定不越权 | planDelta 保留过去事实 | 重试前核对状态，错误返回相应 owner | 重试预算与停止依据 | Experience Unit、分类依据、planDelta／决策、状态核对及恢复或停止记录 |
+| S6／task-demonstrate：示范收口 | 请求任务结果逐项覆盖 | 本次示范成功不等于 Recipe 资格 | Dossier 保留完整事实与缺口 | 任务级验证、未完成与定向补采 | 不重跑已有效片段 | Dossier、Raw Trace／Evidence 引用、实际结果、任务覆盖与收口 verdict |
+| S7／trace-distill：必要路径 | 必要动作及数据依赖不丢失 | 独占 action disposition 决策 | DistilledSteps 可供 S8 独立消费 | 取舍反例、unresolved 与补证返回 | 去噪而不机械去重 | sourceActionRefs、分段、retain／merge／omit／recovery／unresolved 依据、数据边 |
+| S8／procedure-synthesize：业务语义 | 业务步骤、对象、运行时数据关系 | 消费 S7，不重做 disposition | Business Steps 与语义交接正文 | 来源不足或语义错误返回责任方 | 只提炼有来源语义 | DistilledSteps 版本、业务步骤映射、数据 producer／consumer 与未决项 |
+| S9／procedure-synthesize：复用规格 | 参数、分支、数据边和范围有据 | 不把应用工程缺口改成业务假设 | 批准的 SemanticProcedure 供 S10／S11 | 泛化边界、补证及批准条件 | 不无据扩大参数化／复用 | Procedure、参数来源、dataDependencies、适用范围、补证与审阅结论 |
+| S10／application-engineer harden／repair：操作工程 | locator／read／wait／action／verifier 忠实业务 | 应用规则与业务语义 owner 分开 | 可执行 Profile／helper 与依赖 | 定向现场验证、失效与安全拒绝 | 优先复用、有界维修 | 同版操作规则、API 依据、局部真实运行及失败证据、未覆盖环境 |
+| S11／recipe-build；按需 code-rebuild：冻结候选 | 普通 JS 忠实实现数据关系 | 消费确定上游；不以前置 S12 资格生成 | 源码、入口、依赖与映射冻结 | 原字节检查、实现错误及受影响重验 | 简单实现、API 复用、运行边界 | 确定上游版本、JS 字节／hash、依赖清单、业务到代码映射、静态／适用测试结果 |
+| S12／recipe-qualify：独立资格 | requested scope 与独立业务结果 | 验收不静默修改候选 | Qualification 与限制可交付 | 同冻结 JS Fresh Runs、修复请求及重验 | 按范围验收、有界修复 | 候选／依赖 hash、实际入口／环境／run ID、独立结果、场景结论、Requirement Coverage |
+
+本表是判据与证据映射，不是已完成记录。阶段结果须展示成果关键正文、下游消费、逐项证据与得分／未评价、verdict、问题及下一动作；不能只给文件路径或 Skill 总体 PASS。允许合法分组及 S3—S5 交织，但现场安全条件即时检查，阶段结论分别保留。阶段分项、Skill 方法、工具测试、模型生产及业务资格不借用或平均；原适用因素要求独立达到 95 时逐因素满足，不能压成一个综合分。未发生人工／专家评审不得声称专家已评分。
+
+### 冻结后的 Reference Alignment（基于需求合规，不另计分）
+
+先固定参考实现的实际版本／hash，不能在对照前改写参考，也不能把参考提升为用户需求。维护与接续上下文可读参考，但不能改称隔离 Producer。新生产验证须使用独立上下文及实际受控输入／工具／文件访问范围：允许原始需求、验收要求、必要合同、公开 API、当前 Skill、通用模板及本次合格上游；通用 Profile／helper 须说明来源和适用性，不得夹带任务答案。禁止访问该任务参考 JS、未来阶段答案、旧任务完整解答、隐藏期望及带答案评测记录，包括可从历史日志、Git 历史取得的内容。仅新开会话或口头禁止读取不足以证明隔离；记录控制方式、输入清单、访问记录与限制，不能实现时如实 blocked。协调者不把含答案反例整段复制到 Producer 输入。
+
+对有明确参考目标的回归案例，冻结 S11 Candidate 的源码字节／hash、依赖和上游来源后，Evaluator 才将参考加入最终对照；完成同一 Candidate 的独立 S12 资格、Fresh Run 及最终 Requirement Coverage。Calculator 参考为 `examples/agent-to-recipe/calculator.js`。逐方面记录需求条目、候选实现位置、参考版本及行为、实际证据、差异与合规结论（pass／fail／not-run／blocked）：
+
+| 对照方面 | 基于需求的判据与证据 |
+| --- | --- |
+| 业务行为 | 原始需求、同一候选 Fresh Run 与独立实际业务结果是否对应 |
+| 运行时数据流 | 本次实际读取、原文保存、UI clear 后保持、后续完整有序消费是否成立 |
+| API／操作语义 | canonical API、执行顺序、目标／读取／按钮操作及作用范围是否合规 |
+| 失败停止 | 读数异常、目标歧义、副作用 unknown 时是否停止，无伪造回退 |
+| 工程质量 | 原字节、依赖、边界、可维护性与简洁性是否满足用途 |
+| 适用范围 | 应用／环境／输入及限制是否覆盖请求，差异是否有真实验证支持 |
+
+不设置 Reference Alignment 竞争分数或结构相似门槛；数值评分只使用本节既有五维制度。源码文本、token 或 AST 相似仅辅助诊断；等价且合规的不同实现允许通过。参考缺陷单列，不要求候选模仿；参考缺失则对照 blocked，业务资格与整项交付分开报告。若发现不合规，追踪首个有证据的错误边界，记录 last confirmed correct artifact、first invalid boundary、failure owner、missed-check owner、invalidated downstream、preserved upstream、next minimum action；无证据时先待诊断，不凭阶段名称指定根因。修复后重验受影响下游、重新冻结和资格，不套用旧 PASS。没有新 evidence、修复依据或授权时停止同类重试。
 
 ## 九、需求追溯与遗漏检查
 

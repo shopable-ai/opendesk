@@ -20,3 +20,7 @@
 修复后若 Candidate bytes/dependencies 变化，创建新 Candidate 后再验；旧 Qualification 只保留旧版本证据。若只是本 Skill 的 Oracle/场景配置错误且 Candidate 未变，可新 attempt 复用同一 Candidate，但保留旧失败记录。
 
 unknown side effect 先核对环境，不盲重放以追求干净起点。
+
+每次失败保留七项：last confirmed correct artifact、first invalid boundary、failure owner、missed-check owner、preserved upstream、invalidated downstream、next minimum action。来源不足或未解除的报告阻断不能直接归咎于 Candidate；先定位最早有证据的责任和漏检边界。新的修复保留旧失败，不更新历史版本为新 PASS。
+
+采用任务已授权预算；缺省同类问题最多三轮定向修复，连续两轮无新证据停止该路径或换诊断。不得通过另起 attempt 重置预算、调高分数或缩小 requested scope 获得通过。

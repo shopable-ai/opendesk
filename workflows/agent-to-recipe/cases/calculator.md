@@ -8,6 +8,8 @@ order: 10
 
 > **定位：Agent-to-Recipe 的端到端可检查基准案例（End-to-End Inspectable Reference Case）。**
 
+> **隔离评测边界：** 本文含 S1—S12 的参考产物，只供方法维护、教学和独立 Evaluator 检查。验证“新 Producer 能否从原始需求推导 Candidate”时，S1—S11 不得加载本文、配套 Walkthrough、Skill 的 Calculator examples 或参考 JavaScript；从 [WORKFLOW](../WORKFLOW.md) 和当前阶段方法进入。Candidate 冻结后，独立 Evaluator 才能打开参考材料做最终校准，不能把参考答案回传 Producer 作为修复实现。
+
 本文不是历史日志，也不是第二套工作流规范。它只做一件事：
 
 > 让一个完全没有旧聊天上下文的人，只读本文就能沿着“原始需求 → S1 → … → S12 → 最终交付边界”检查每一步是否正确，并在出错时找到**第一个输入仍正确、输出已经错误的阶段**。
@@ -1117,8 +1119,9 @@ S9 SemanticProcedure
   禁止 Expected / history / JS arithmetic fallback
 
 清空规则（Clear）
-  当前实现使用本地化目标“清除”
-  动作后必须实际读取并确认 0
+  先区分本地化目标“清除”和“全部清除”及当前可用状态
+  本次需要独立计算时，已审阅的当前版本诊断支持显式“全部清除”
+  动作后实际读取并确认可见 0；还需核对这条操作规则的版本和适用范围
   只清 Calculator UI state，不删除 taskData.firstResult
 
 等待 / 验证规则（Wait / Verify）
@@ -1131,6 +1134,8 @@ Unknown effect
 ~~~
 
 这些规则受当前 macOS、Calculator 结构和本地化名称限制；未覆盖的 layout/locale 不能自动算支持。
+
+本次定向反例（Calculator 10.16 (223)、macOS 12.7.6）：未完成 `7 + 1` 时按一次“清除”，显示变为 `0`，但随后按 `4 =` 得到 `11`；改用“全部清除”后，`4 =` 得到 `4`。原始执行为 `.runtime/tests/agent-to-recipe/revision-20260929/continuation-20260929/clear-semantics-runtime-3/`，它证明该环境和该序列的操作性差别，不证明任何不可见内部状态全复位，也不充当下一次输入前的新鲜预检。旧提案仅凭显示 `0` 放行已在执行前拒绝；S2 最小认识仍保留限定 PASS，S3 消费经审阅的补证后再判断具体动作。
 
 ### 5. 正确输出应该长什么样
 

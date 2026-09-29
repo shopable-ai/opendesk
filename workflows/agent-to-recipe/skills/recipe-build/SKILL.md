@@ -111,3 +111,5 @@ inputContract
 ## 完成条件
 
 一个没有查看全量历史的 S12 审阅者，应能从 CandidateManifest + script +固定上游直接回答：每个 Business Step 映射到哪里、runtime dataflow 是否真实、参数入口在哪里、失败如何停止、范围是什么、哪些工程声明尚未实测。
+
+S11 冻结源码、manifest 和依赖后，仍须按 [Workflow 阶段退出循环](../../WORKFLOW.md)与 [唯一五维评分](../../design/validation-plan.md)独立退出；高分若写死运行时值等 Hard Fail 仍不能进入 S12，Candidate 字节变化后必须重新资格化。

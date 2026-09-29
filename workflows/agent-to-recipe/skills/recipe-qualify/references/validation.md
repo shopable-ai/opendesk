@@ -12,6 +12,10 @@
 | parameterization | 同候选合法变参、无需改码 | helper 参数存在/改源码后算变参 |
 | environment | 结论限定实际环境 | 单平台 pass 推到所有平台 |
 | repair routing | 不在 S12 改 Candidate | qualification 中 patch 后继续 |
+| formal entry | 经正常资格入口核验当前阶段记录、合同及候选绑定 | 只独立调用 Guard，却绕过实际入口 |
+| validator object | 报告绑定当前被检对象，显式阻断被消费或由适用证据解除 | 借其他候选报告、顶层 pass 掩盖 dataflow unknown |
+
+方法回归至少覆盖：来源／版本／当前审查齐全的正常请求接受；缺审查、失败上游、错候选或过期报告拒绝；合法分组／复用和等价真实字符串消费不因写法变化被拒；下游资格入口实际消费上述结论。宿主 fixture 只证明确定性拒绝和绑定，独立模型消费与 live 仍须分别验证。
 
 ## Calculator 反例
 

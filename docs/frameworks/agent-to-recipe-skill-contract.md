@@ -70,6 +70,8 @@ S1 先从用户原始来源形成任务合同和粗粒度业务任务树，再�
 
 应用工程每次调用明确 `discover`、`harden` 或 `repair` 模式；不是重复研究整个应用。discover 不要求完整 SemanticProcedure；harden 消费已确认过程和工程缺口；repair 消费旧规则、具体失败和受影响范围。仅界面认识与审阅是交付范围，不新增模式或 ui-understanding 独立 Skill。
 
+已限定通过的 S2 discover 不自动提供 S3 每个真实输入的操作性前置。若某准备动作的可见后置仍可能留下影响下一输入的副作用，S3 在输入前暂停并交 application-engineer 定向补证：固定原 Profile、失败提案、目标、可观察判据、区分候选解释的反例、实际动作/观察顺序、适用环境和未知作用。经独立审阅的增量以精确 ref 交回原 S3 工作包，下一次输入仍须新鲜只读预检。增量不能修改历史 S2 PASS、冒充 S3 actual 或要求不可观察的内部状态完全复位；推翻原 Profile 主张时按依赖重验其受影响边界。此路由复用现有 request/handoff、Profile/证据及 Guard，不增加阶段或状态枚举。
+
 AppProfile 的事实条目标注 `observed`、`demo-confirmed` 或 `qualified`，且附环境范围和证据；阶段名称本身不能自动提升成熟度。模型解释与候选并非事实，不能为满足枚举而伪标 observed／qualified；其认识依据与候选状态按下文分开保存。
 
 ## 3. 调用与宿主责任
@@ -326,7 +328,7 @@ Capability Discovery、Method Selection、Contract Reading、Runtime Validation 
 
 ## 7. 发布、消费与恢复
 
-已实现的只读检查分两层：`check-handoff.js` 核对 request／handoff 信封、身份和显式 hash；`check-artifact-chain.js` 检查 Calculator 形状 v1 工件的选定相邻边界及直接 await／spread 源码模式。后者不升级本合同为完整机器 schema，不递归验依赖闭包，不证明任意 JS 的可达性或一般语义；完整输入、计划适用性、历史事实、现场和授权仍由消费者核对。命令及范围见 [WORKFLOW 第 4 节](../../workflows/agent-to-recipe/WORKFLOW.md#4-交接完整性检查可执行但不替代资格)。
+已实现的只读检查分两层：`check-handoff.js` 核对 request／handoff 信封、身份和显式 hash；`check-artifact-chain.js` 检查 Calculator 形状 v1 工件的选定相邻结构边界及候选字节绑定，不以 await／spread 等词法命中证明数据消费。结构 PASS 的业务数据流仍是 `unknown`／`releaseBlocked`；正式资格入口必须消费当前候选、源码、依赖及维护验证器版本绑定的独立原字节受控验证，不能忽略阻断或移除必需报告。该 L1 检查只覆盖声明的替身场景，不证明任意 JS 的可达性、一般语义或真实桌面结果；通用门禁不进入最终业务 JS。后者不升级本合同为完整机器 schema，不递归验依赖闭包；完整输入、计划适用性、历史事实、现场和授权仍由消费者核对。命令及范围见 [WORKFLOW 第 4 节](../../workflows/agent-to-recipe/WORKFLOW.md#4-交接完整性检查可执行但不替代资格)。
 
 当前限定切片还检查 S7 步骤的目的、输入输出、依赖、前提、预期、验证和分类，以及 S9 的运行时声明是否保留同一生产者、消费者和终点 UI 读值。它验证结构和对应关系，不证明自然语言前提／预期的真实性；合法但超出此切片的轨迹应按本合同审阅，不得改写事实适配检查器。S9 语义完整但工程验证尚未通过时，明确交给 S10；语义放行不等于所选方法已验证。S12 的限定 checker 现在检查 Candidate／TaskContract 精确绑定、scope 集合关系和 `scenarios[].scopeRefs` 对 qualified scope 的实际覆盖；外部预先确定的请求本身、真实 execution、重复 Fresh Run、合法变参、视觉结果和“普通 JS 未由 Agent 逐步点击”仍由独立消费者／recipe-qualify live 证据核验。
 

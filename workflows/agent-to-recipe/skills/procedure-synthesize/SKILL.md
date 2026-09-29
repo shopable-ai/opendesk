@@ -103,3 +103,5 @@ node workflows/agent-to-recipe/scripts/check-artifact-chain.js --through procedu
 ```
 
 该命令只验证固定工件的声明、引用与已实现确定性规则；它不执行 Skill Producer，不证明独立 Agent 行为，也不能把结果升级为 L2/L4。
+
+S8 Business Steps checkpoint 与 S9 SemanticProcedure 分别按 [Workflow 阶段退出循环](../../WORKFLOW.md)和 [唯一五维评分](../../design/validation-plan.md)形成独立得分及退出结论；S9 不能以最终 Procedure 修好的结果覆盖首次出错的 S8 边界。

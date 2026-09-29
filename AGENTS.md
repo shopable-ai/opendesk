@@ -10,6 +10,14 @@
   静态精炼；如请求涉及业务意图判断、删除或重排动作、参数化、结果 Oracle、真实桌面执行或资格验证，
   改用 `workflows/human-to-recipe/skills/human-to-recipe/SKILL.md`。
 
+## Agent-to-Recipe 自然语言作者链
+
+- 用户要求从自然语言桌面任务生产、接续或资格验证普通 OpenDesk JavaScript，并明确采用 Agent-to-Recipe 时，
+  从 `workflows/agent-to-recipe/WORKFLOW.md` 进入；按当前正式 request、版本和证据找到首个真实缺口，
+  读取相应职责 Skill，完成逐阶段审阅和正式 Guard 交接。Recorder 来源仍先按上节路由，保留 Human lineage。
+- `skills/_nav.yml` 只控制文档排序，CI 的 `agent-to-recipe-chain` 只检查契约；二者不自动执行模型、桌面或 S1—S12。
+  自然语言入口依赖当前 Agent 实际加载本文件并执行 WORKFLOW；未核验宿主加载、权限或现场时不得报告自动运行成功。
+
 ## OpenDesk 受保护包发布
 
 - 用户明确要求把 OpenDesk JavaScript 发布为 `.odpkg`、执行 `package protect/inspect/verify`，或准备 P1

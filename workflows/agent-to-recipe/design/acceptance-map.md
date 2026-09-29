@@ -57,6 +57,8 @@ Calculator 基准案例把每个阶段都写成“收到什么、负责什么、
 
 同一个 Skill 承担多个阶段时仍逐阶段回答这组问题。S3、S4、S5、S6 不能因为都由 task-demonstrate 承担而合并判定；S8、S9 同理。
 
+逐阶段再按 [validation-plan](validation-plan.md) 的同一五维 25/20/20/20/15 给出得分和证据；正常退出同时需要 ≥95、适用 Hard Fail 为零、必需 evidence 齐全、无阻断 Unknown、必需测试通过。任一条件失败，禁止把本阶段结果正常交给下一正式阶段。S2/S10 虽用同一个应用工程 Skill，也必须各自审查。
+
 ## 一、旧任务树怎样继续使用
 
 各材料的职责保持分开：
@@ -197,6 +199,8 @@ Gate 选择见 [validation-plan.md](validation-plan.md)，不是每个边界都�
 
 - `scripts/check-handoff.js`：检查 request / handoff 引用、身份和 hash。
 - `scripts/check-artifact-chain.js`：检查当前支持范围内的相邻工件关系。
+- `scripts/stage-review.js`：生成基于固定工件的只读审阅视图，不负责计分或退出判定。
+- `scripts/check-workflow-stage.js`：读取本次独立阶段验收记录，只对记录中可确定的退出条件、精确引用及目标后继作确定性 Stage Guard；业务真实性和桌面资格仍需上述独立证据审阅。
 - `--through` 一类前缀检查只能表示“检查到某边界”，不是后续阶段自动通过。
 
 工具输出至少应明确：

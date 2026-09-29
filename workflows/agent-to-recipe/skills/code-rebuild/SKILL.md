@@ -59,7 +59,9 @@ node workflows/agent-to-recipe/scripts/check-artifact-chain.js --through candida
 ```
 
 不再为了审查候选而要求先有 Qualification；加 `--format markdown` 生成工件与检查总览。缺上游时按真实接续范围工作，不生成占位历史以满足此命令。
-检查仅覆盖固定字节、声明映射和直接 await／spread 模式；不证明可达性、别名、变量遮蔽或任意 JS 的等价性。程序不执行候选、不自动评分、不批准业务资格。
+检查仅覆盖固定字节和声明的结构映射，不以 await／spread 词法模式证明实际消费；业务数据流保持 `unknown`／`releaseBlocked`。正式消费者须核对当前候选、依赖和维护验证器版本绑定的独立原字节受控验证，不能把结构 PASS 当作解除阻断。该 L1 证据仍不证明一般可达性、任意 JS 等价性或 live 资格。静态程序不执行候选、不自动评分、不批准业务资格，通用门禁不注入最终业务 JS。
 
 修改后交 S12 针对精确新候选独立验收；未变候选的历史资格按实际环境与范围核验适用性，不因本次静态审阅就算新的 live。
 通用方法继续维护在 [code-rebuild.md](../../design/code-rebuild.md)，输入输出及未实现部分见[交接审阅地图](../../design/acceptance-map.md)。
+
+作为 S11 内可选作业，本 Skill 的改进或原样保留结论纳入 [Workflow 阶段退出循环](../../WORKFLOW.md)与 [唯一五维评分](../../design/validation-plan.md)；方法评审不另造 S 阶段或替代 S11 Candidate 与 S12 资格。
