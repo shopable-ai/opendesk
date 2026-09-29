@@ -205,7 +205,7 @@ failure owner / next action
 
 下面只展示人应当一眼看见的关键内容。完整字段仍看正式 schema 和对应 Skill 输出规格。
 
-### S1｜`task-contract.json` / `work-plan.json`
+### S1｜机器：`task-contract.json` / `work-plan.json`｜人工：`task-brief.md` / `operation-plan.md`
 
 ~~~text
 goal
@@ -234,7 +234,7 @@ plan
 
 首错信号：合同只写“最后得到 660”，没有真实 firstResult 数据链。
 
-### S2｜`app-profile.json`
+### S2｜机器：`app-profile.json`｜人工：`app-profile.md`
 
 ~~~text
 application
@@ -259,7 +259,7 @@ unknown / limits
 
 首错信号：按钮/结果区来自猜测、旧截图或历史坐标，却被写成当前现场事实。
 
-### S3｜actual action
+### S3｜机器：Execution actual action / receipt｜人工：`stage-review.md#S3`
 
 ~~~text
 planned step
@@ -281,7 +281,7 @@ also keep
 
 S3 只能证明“动作/调用实际发生及其原始返回”；是否观察到了正确业务对象由 S4 判断。
 
-### S4｜actual observation
+### S4｜机器：Execution actual observation｜人工：`stage-review.md#S4`
 
 ~~~text
 source action
@@ -305,7 +305,7 @@ comparison
 
 首错信号：因为 Expected 是 110，就直接把 Actual 写成 110。
 
-### S5｜decision
+### S5｜机器：decision / planDelta / acceptance｜人工：`stage-review.md#S5`
 
 ~~~text
 classification
@@ -326,7 +326,7 @@ if verification uncertain AND sideEffect unknown
 
 首错信号：uncertain / unknown effect 仍继续，或直接重放可能已经发生的副作用动作。
 
-### S6｜`dossier.json`
+### S6｜机器：`dossier.json`｜人工：`dossier.md`
 
 ~~~text
 first Calculator input
@@ -342,7 +342,7 @@ first Calculator input
 
 首错信号：只剩 finalResult=660，看不到 firstResult 从哪里来、被谁消费。
 
-### S7｜`distilled-steps.json`
+### S7｜机器：`distilled-steps.json`｜人工：`distilled-steps.md`
 
 ~~~text
 D010 准备第一次计算
@@ -355,7 +355,7 @@ D060 读取 finalResult → final output
 
 首错信号：把 firstResult 读取当“重复动作”删掉，或把 `1,1,0` 去重成 `1,0`。
 
-### S8｜Business Steps
+### S8｜机器：S8 固定版本 `procedure.json` 中的 Business Steps｜人工：`business-steps.md`
 
 ~~~text
 ReadFirstResult
@@ -378,7 +378,7 @@ ReadFinalResult
 
 首错信号：S7 仍正确，但 S8 第一次把业务输入写成常量 `110`。
 
-### S9｜`procedure.json`
+### S9｜机器：`procedure.json`｜人工：`procedure.md`
 
 ~~~text
 runtimeValues.firstResult
@@ -398,7 +398,7 @@ rule
 
 首错信号：`firstResult.default = "110"`、把 firstResult 变成 caller parameter，或扩大未证明 scope。
 
-### S10｜hardened `app-profile.json` / operation rules
+### S10｜机器：hardened `app-profile.json` / helper / evidence｜人工：`operation-rules.md`
 
 ~~~text
 button rule
@@ -421,7 +421,7 @@ stop
 
 首错信号：API 文档存在被当成 Runtime 已通过，或 clear 的效果没有可观察验证。
 
-### S11｜`Recipe.js` + `candidate.json`
+### S11｜机器：`Recipe.js` + `candidate.json`｜人工：`candidate-summary.md`
 
 ~~~js
 const firstResult = await readCalculatorResult(win);
@@ -442,7 +442,7 @@ const firstResult = "110";
 
 或者虽然读了 firstResult，第二式仍固定输入 `110`。
 
-### S12｜`qualification.json`
+### S12｜机器：`qualification.json` + Fresh Run evidence｜人工：`qualification-summary.md`
 
 ~~~text
 candidate
