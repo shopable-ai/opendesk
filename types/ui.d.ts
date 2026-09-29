@@ -265,16 +265,6 @@ declare global {
     cleanupErrors?: OpenDeskUITapTargetsCleanupError[];
   }
 
-  /**
-   * Lightweight business-semantic target for UI.tapTargets.
-   * P0 matching is exact; Runtime owns OCR/Accessibility resolver policy.
-   */
-  type OpenDeskUISemanticTapTarget =
-    | { text: string; role?: OpenDeskAccessibilityRole; name?: string; identifier?: string }
-    | { text?: string; role: OpenDeskAccessibilityRole; name?: string; identifier?: string }
-    | { text?: string; role?: OpenDeskAccessibilityRole; name: string; identifier?: string }
-    | { text?: string; role?: OpenDeskAccessibilityRole; name?: string; identifier: string };
-
   interface OpenDeskUISemanticTapTargetsOptions {
     /** Pins the sequence to this resolved window; when omitted, Runtime resolves the active window once. */
     within?: OpenDeskWindowInfo;
@@ -314,14 +304,10 @@ declare global {
     actionState: "acknowledged" | "not_needed";
   }
 
-  type OpenDeskUISemanticTapCompletion =
-    | OpenDeskUISemanticOCRTapCompletion
-    | OpenDeskUISemanticAccessibilityTapCompletion;
-
   interface OpenDeskUISemanticTapTargetsResult {
     ok: true;
     action: "tapTargets";
-    completed: OpenDeskUISemanticTapCompletion[];
+    completed: Array<OpenDeskUISemanticOCRTapCompletion | OpenDeskUISemanticAccessibilityTapCompletion>;
   }
 
   interface OpenDeskUISemanticTapTargetsError extends Error {
@@ -330,7 +316,7 @@ declare global {
     failedIndex: number;
     failedTarget: OpenDeskUISemanticTapTarget;
     failedPhase: "arguments" | "scope" | "capability" | "resolve" | "precondition" | "action" | "cleanup";
-    completed: OpenDeskUISemanticTapCompletion[];
+    completed: Array<OpenDeskUISemanticOCRTapCompletion | OpenDeskUISemanticAccessibilityTapCompletion>;
     attempts: OpenDeskUISemanticTapAttempt[];
     cause?: unknown;
     cleanupError?: unknown;

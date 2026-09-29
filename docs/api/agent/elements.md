@@ -83,7 +83,7 @@ Experimental/可信本地授权；AX/UIA、ref 生命周期与坐标映射限制
 
 - `docs/api/desktop-ui.md` SHA-256 `db569ea662dca041f89a03a8e1c05d150c2fb8aef56a91c9f732f82eaef72d91`
 
-- `types/UI.d.ts` SHA-256 `be602cd9f79d4cbb8d25614d01d2f3b7def264e5c6e16e30bbee5377c3cd1b5e`
+- `types/UI.d.ts` SHA-256 `17b2e02797ce341f9f7915bf07819e8feee5ce543ca826f7e7b55832875df6fd`
 
 - `docs/api/accessibility.md` SHA-256 `ddbabb31c1226afe8795a902408a49deb38faae4314453055c995aa9b4bce324`
 

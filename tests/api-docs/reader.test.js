@@ -54,6 +54,24 @@ test('public type closure is opt-in and returns only referenced declarations', (
   assert.ok(!p.output.includes('interface OpenDeskWindowTarget'));
   assert.ok(!read('file','File.readJSON').report.programReads.some(r=>r.path.startsWith('types/')));
 });
+test('selected UI.tapTargets --types CLI resolves current semantic declarations', () => {
+  const run = cp.spawnSync(process.execPath,
+    ['scripts/api-docs.js', 'read', 'desktop-ui', 'UI.tapTargets', '--types', '--report'],
+    {cwd: root, encoding: 'utf8'});
+  assert.equal(run.status, 0, run.stderr);
+  const report = JSON.parse(run.stderr);
+  assert.deepEqual(report.selection, {doc: 'desktop-ui', selector: 'UI.tapTargets', withTypes: true});
+  assert.equal(reader.verifyPacket(root, run.stdout, report).ok, true);
+  assert.equal(report.modelLoaded, false);
+  assert.equal(report.desktopExecuted, false);
+  assert.equal((run.stdout.match(/type OpenDeskUISemanticTapTarget\s*=/g) || []).length, 1);
+  assert.equal((run.stdout.match(/(?:interface|type) OpenDeskUISemanticTapCompletion\b/g) || []).length, 1);
+  assert.match(run.stdout, /type OpenDeskUISemanticTapTarget = string \| OpenDeskAccessibilitySelector \| \{ text: string;/);
+  assert.match(run.stdout, /type OpenDeskUISequenceCompletion = OpenDeskUITapResult<OpenDeskUITextTarget> \| OpenDeskUISemanticTapCompletion;/);
+  assert.match(run.stdout, /interface OpenDeskUISemanticTapCompletion \{\s+ok: true;\s+action: "invoke";/);
+  assert.match(run.stdout, /interface OpenDeskUISemanticTapResult \{\s+ok: true;\s+action: "tapTargets";\s+completed: OpenDeskUISequenceCompletion\[\];/);
+  assert.ok(report.returnedRanges.some(range => range.path === 'types/UI.d.ts'));
+});
 test('program reads, returned source ranges and model-load claims are separated', () => {
   const p = read('desktop-ui','UI.tapTexts');
   assert.equal(p.report.tokenUsage, null); assert.equal(p.report.modelLoaded, false); assert.equal(p.report.desktopExecuted,false);

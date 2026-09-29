@@ -70,7 +70,7 @@ docType: index
 | `window.on(type: EventType \| '*', listener: UIEventListener): () => void` | 监听本窗口事件。 公开事件类型与 listener。 取消订阅函数。 只接收本窗口事件。 | 等待/订阅；回调副作用由调用方决定，须清理；继承本节限制 | [WindowHandle.on](../ui.md#windowhandleontype-listener)；`read ui WindowHandle.on` |
 | `window.setAlwaysOnTop(enabled: boolean): Promise<WindowState>` | 更新 native 置顶状态。 `enabled` boolean。 host readback。 只影响当前窗口层级。 | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [WindowHandle.setAlwaysOnTop](../ui.md#windowhandlesetalwaysontopenabled)；`read ui WindowHandle.setAlwaysOnTop` |
 | `window.setBounds(bounds: {x:number; y:number; width:number; height:number}): Promise<WindowState>` | 同时设置窗口位置和尺寸。 宽高必须为正，坐标使用 OpenDesk logical desktop coordinate space。 应用后的状态。 失败不伪装成成功；…（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [WindowHandle.setBounds](../ui.md#windowhandlesetboundsbounds)；`read ui WindowHandle.setBounds` |
-| `window.setDraggable(enabled: boolean): Promise<WindowState>` | 运行时切换声明的 native dragging 行为。 `enabled` boolean。 host readback。 HTML 中只有允许的 `data-claw…（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [WindowHandle.setDraggable](../ui.md#windowhandlesetdraggableenabled)；`read ui WindowHandle.setDraggable` |
+| `window.setDraggable(enabled: boolean): Promise<WindowState>` | 运行时切换声明的 native dragging 行为。 `enabled` boolean。 host readback。 HTML 中只有允许的 `data-open…（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [WindowHandle.setDraggable](../ui.md#windowhandlesetdraggableenabled)；`read ui WindowHandle.setDraggable` |
 | `window.setPlacement({horizontal, vertical, margin?, display?}): Promise<WindowState>` | 按目标显示器 work area 重新停靠窗口。 `horizontal`: left/center/right；`vertical`: top/center/botto…（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [WindowHandle.setPlacement](../ui.md#windowhandlesetplacementplacement)；`read ui WindowHandle.setPlacement` |
 | `window.setPosition(x: number, y: number): Promise<WindowState>` | 移动窗口而不改变尺寸。 `x`、`y` 为有限 logical coordinates。 应用后的状态。 一次明确移动，不建立持续 anchor constraint。 | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [WindowHandle.setPosition](../ui.md#windowhandlesetpositionx-y)；`read ui WindowHandle.setPosition` |
 | `window.setRelativeTo(anchor: Bounds, options: {preferredSides: Array<'above'\|'below'\|'left'\|'right'>, align?: 'start'\|'center'\|'end', gap?: number}): Promise<WindowState>` | 把窗口放在当前控件或其他已核验 surface 的真实 logical bounds 附近。 `anchor` 为正 finite logical desktop bou…（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [WindowHandle.setRelativeTo](../ui.md#windowhandlesetrelativetoanchor-options)；`read ui WindowHandle.setRelativeTo` |
@@ -132,7 +132,7 @@ docType: index
 维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
 
 
-- `docs/api/ui.md` SHA-256 `59b12026e27e7cb8dbd137272e080e54c933df8da63bc1c413420bcc878136ef`
+- `docs/api/ui.md` SHA-256 `40789cc6bd1b7eed8a1953b1d84e84068e8ffabc73cedae2f5e646651d597029`
 
 - `types/CustomUI.d.ts` SHA-256 `5cb41cd5f40b5b2f1ef906e0bb4ff6aeca3c408aa0efbd04fa495953faab2e60`
 
