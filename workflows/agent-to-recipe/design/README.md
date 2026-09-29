@@ -24,8 +24,14 @@ order: 10
 谁负责、生产什么、交给谁、失败回哪里？
   → chain-design.md
 
-Agent 实际怎样进入、恢复、停止与协调？
+Agent 到某一步以后实际怎样做？
   → ../WORKFLOW.md
+
+想看一个真实任务从需求一路怎样执行？
+  → ../cases/calculator-execution-walkthrough.md
+
+想检查 S1—S12 哪一步第一次做错？
+  → ../cases/calculator.md
 
 怎样快速检查一次交接？
   → acceptance-map.md
@@ -56,7 +62,7 @@ Agent 实际怎样进入、恢复、停止与协调？
 | [requirements.md](requirements.md) | 为什么需要这套工作流，必须满足什么？ | 来源、需求、范围、约束、场景、DREQ、Unknown | 当前实现状态、专项算法、质量结果 |
 | [task-decomposition.md](task-decomposition.md) | 从输入到合格成果，完整需要做什么？ | S1—S12、输入、输出、完成条件、失败回流 | Skill 实现历史、质量报告、专项架构 |
 | [chain-design.md](chain-design.md) | 谁生产什么、谁消费什么、怎样交接？ | producer、consumer、handoff、resume、failure ownership | 完整任务树、验证结果、历史迁移 |
-| [../WORKFLOW.md](../WORKFLOW.md) | Agent 实际怎样进入并协调执行？ | 入口、恢复点、职责路由、工作包、handoff、stop | 专业方法正文、完整阶段分解 |
+| [../WORKFLOW.md](../WORKFLOW.md) | Agent 到某一步以后实际怎样执行？ | 入口、恢复点、七步执行方法、职责路由、交接、停止 | 专业方法正文、完整阶段分解 |
 | [acceptance-map.md](acceptance-map.md) | 怎样快速判断相邻交接能不能信？ | 输入／输出检查、典型反例、责任返回 | 测试运行历史、第二份 schema |
 | [validation-plan.md](validation-plan.md) | 凭什么证明每一层做对？ | 验证对象、测试空间、BC、L0—L5、Gate、Hard Fail、评分 | 历史测试结果、专项实现日志 |
 | [application-operations.md](application-operations.md) | 怎样把业务步骤落实为可靠应用操作？ | discover/harden/repair、定位、读取、等待、动作、verifier | S7—S9 业务语义、Collection Runtime 算法 |
@@ -80,12 +86,16 @@ README
 ### 准备实际执行
 
 ```text
-WORKFLOW
-→ 当前 TaskContract / WorkPlan
-→ 当前职责 SKILL.md
-→ 需要时读取专业设计
-→ acceptance-map / validation-plan
+先看 WORKFLOW 的七步执行方法
+→ 确认现在做到哪一步
+→ 检查这一阶段需要的材料
+→ 读取当前职责对应的 SKILL.md
+→ 真正执行并得到本阶段结果
+→ 检查结果
+→ 正确则继续，错误则回真正出错的位置
 ```
+
+如果第一次还不容易理解，可以先看 [Calculator 执行过程演练](../cases/calculator-execution-walkthrough.md)，再回 WORKFLOW。
 
 ### 某个交接看起来不对
 
@@ -184,7 +194,9 @@ business Qualification passes
 - “为什么” → [requirements.md](requirements.md)
 - “完整做什么” → [task-decomposition.md](task-decomposition.md)
 - “谁交给谁” → [chain-design.md](chain-design.md)
-- “现在怎么执行” → [WORKFLOW.md](../WORKFLOW.md)
+- “到某一步以后实际怎么执行” → [WORKFLOW.md](../WORKFLOW.md)
+- “看一个真实任务完整怎么走” → [Calculator 执行过程演练](../cases/calculator-execution-walkthrough.md)
+- “检查哪一步第一次做错” → [Calculator 逐阶段基准案例](../cases/calculator.md)
 - “这次交接对不对” → [acceptance-map.md](acceptance-map.md)
 - “凭什么算通过” → [validation-plan.md](validation-plan.md)
 - “应用操作怎么工程化” → [application-operations.md](application-operations.md)
