@@ -18,7 +18,7 @@ order: 9
 
 ## 0. 30 秒看懂 Calculator 的完整求解框架
 
-本文把下面这个顶层结构称为 **求解框架树（Solution Framework Tree）**。
+本文采用一种 **层级式求解分解（Hierarchical Solution Decomposition）**：先把完整任务分成少数几个求解部分，再逐层展开子任务、关键动作和数据关系。本文把这棵面向阅读的顶层结构称为 **求解框架树（Solution Framework Tree）**。
 
 它不是新的 Workflow、不是新的阶段编号，也不是对 S1—S12 的重新拆分；它只负责先回答：
 
