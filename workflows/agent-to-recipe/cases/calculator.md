@@ -237,25 +237,41 @@ finalResult
   Expected = "660" 仅用于验收
 ~~~
 
-### 5. 正确输出应该长什么样
+### 5. 本阶段完成后应该得到什么
+
+#### 人能直接看懂的结果
+
+到这里，原始需求已经被整理成可直接执行和检查的任务定义：固定输入、运行时读值、Expected、关键数据规则、状态规则和未知项都已分开。
+
+#### Calculator 本例的结果
 
 ~~~text
-TaskContract
-  goal
-  fixedBusinessInputs = [25, 4, 10, 6]
-  runtimeValues = [firstResult, finalResult]
-  expected = { firstResult: "110", finalResult: "660" }
-  requiredDataRule = "P50 必须消费本次 P30 读到的 firstResult"
-  requiredStateRule = "P40 清空 UI，不删除任务变量 firstResult"
-  authorization
-  successCriteria
-  failureCriteria
-  unknowns
-
-WorkPlan
+任务目标
+  两次 Calculator 计算；第二次必须使用第一次现场读取的 firstResult
+固定业务输入
+  25, 4, 10, 6
+运行时值
+  firstResult = 第一次结果区真实读取
+  finalResult = 第二次结果区真实读取
+验收期望
+  firstResult = "110"
+  finalResult = "660"
+关键数据规则
+  P50 必须消费本次 P30 实际读到的 firstResult
+关键状态规则
+  P40 只清空 Calculator UI，不删除任务数据 firstResult
+执行计划
   P10 → P20 → P30 → P40 → P50 → P60
+仍需后续确认
+  当前窗口身份、结果区读取、按钮定位、clear 现场语义
 ~~~
 
+#### 正式产物
+
+- TaskContract
+- WorkPlan / Operation Plan
+- 初始业务任务树
+- 高影响 Unknown 与阻塞项
 ### 6. 怎样判断这一阶段做对了
 
 - 原始需求没有被改写成“只要最后得到 660”。
@@ -336,22 +352,36 @@ Unknown until evidenced
   当前 Geometry 是否可直接用于动作
 ~~~
 
-### 5. 正确输出应该长什么样
+### 5. 本阶段完成后应该得到什么
+
+#### 人能直接看懂的结果
+
+到这里，Agent 已知道近期要操作哪个 Calculator、哪些按钮、从哪里读取结果，以及哪些认识仍未验证；后续不再靠猜。
+
+#### Calculator 本例的结果
 
 ~~~text
-AppProfile
-  applicationIdentity
-  currentWindowIdentity
-  regions
-  targets
-  resultRegion
-  relations
-  knownFacts + evidenceRefs
-  unknowns
-  limitations
-  nextActionPrerequisites
+应用
+  Calculator
+当前业务对象
+  本次任务的 Calculator 主窗口
+操作区域
+  按钮区
+读取区域
+  当前计算结果显示区
+近期目标
+  0,1,2,4,5,6,×,+,=,clear
+已确认
+  点击目标和结果区必须属于同一个当前 Calculator 窗口
+仍未验证
+  布局支持、目标唯一性、读取稳定性、clear 后状态、Geometry 是否足够
 ~~~
 
+#### 正式产物
+
+- 最小 AppProfile 或有效旧版本引用
+- 近期动作所需定位 / 读取依据
+- 未验证项、限制和必要 planDelta
 ### 6. 怎样判断这一阶段做对了
 
 - 每个将要点击或读取的对象都有真实来源。
@@ -423,20 +453,37 @@ P40
   taskData.firstResult = 保留，不属于 clear 的作用对象
 ~~~
 
-### 5. 正确输出应该长什么样
+### 5. 本阶段完成后应该得到什么
+
+#### 人能直接看懂的结果
+
+到这里，已经留下“这次实际执行了什么”的记录，而不只是计划。真实请求、目标、工具返回和副作用状态都可追溯。
+
+#### Calculator 本例的结果
 
 ~~~text
-plannedStepRef
-actualActionRef
-actualTarget
-actualRequest
-actualToolReturn / receipt
-timestamp / execution identity
-evidenceRefs
-sideEffect = known / unknown
-runtimeValueOriginCandidate（如果动作产生读值）
+示例：P30 读取第一次结果
+actual action
+  read current Calculator result display
+actual return
+  "110"
+注意
+  这是本次真实动作产生的读值候选
+  还需 S4 验证对象与实际效果
+同时保存
+  actual target / request / receipt
+  execution identity / timestamp
+  evidence refs
+  sideEffect = known / unknown
 ~~~
 
+#### 正式产物
+
+- Raw Trace / Experience Unit
+- Evidence
+- 实际 action / request / tool return
+- 运行时值来源候选
+- side-effect 状态
 ### 6. 怎样判断这一阶段做对了
 
 - 能找到真实 action/调用，不是只有计划。
@@ -514,19 +561,37 @@ verificationStatus = pass
 
 A004 的按钮 receipt 即使都 acknowledged，也仍需要结果区 observation 才能证明业务结果。
 
-### 5. 正确输出应该长什么样
+### 5. 本阶段完成后应该得到什么
+
+#### 人能直接看懂的结果
+
+到这里，已经知道动作后正确业务对象实际变成什么，并将 Actual 与 Expected 分开比较；证据不足时保持 uncertain。
+
+#### Calculator 本例的结果
 
 ~~~text
-sourceActionRef
-observedObjectIdentity
-actualObservation
+来源动作
+  P30 的实际 read action
+实际观察对象
+  当前 Calculator 结果显示区
+Actual
+  read1 = "110"
+  read2 = "110"
+  sameTarget = true
+  stable = true
 Expected
-comparison
-status = pass / fail / uncertain
-evidenceRefs
-limitations
+  "110"
+比较
+  pass
 ~~~
 
+#### 正式产物
+
+- actual observation
+- observed object identity
+- Actual / Expected comparison
+- pass / fail / uncertain
+- evidence refs 与 limitations
 ### 6. 怎样判断这一阶段做对了
 
 - Actual 与 Expected 有不同来源。
@@ -602,19 +667,37 @@ planned step
   retry = false
 ~~~
 
-### 5. 正确输出应该长什么样
+### 5. 本阶段完成后应该得到什么
+
+#### 人能直接看懂的结果
+
+到这里，Agent 已基于 S3/S4 的真实事实决定继续、修订、恢复还是停止；本阶段不创造新的 UI 事实。
+
+#### Calculator 本例的结果
 
 ~~~text
-classification
-decision = continue / revise / recover / stop
-nextPlannedStep
-planDelta（如有）
-recoveryRelation（如有）
-sideEffectHandling
-reason
-evidenceRefs
+firstResult 已可靠读取
+  classification = runtime-value-producer
+  decision = continue
+  next = P40
+第二次 clear
+  classification = setup / state-preparation
+  preserveTaskData = firstResult
+  decision = continue
+  next = P50
+若 verification uncertain 且 sideEffect unknown
+  classification = unresolved
+  decision = stop
 ~~~
 
+#### 正式产物
+
+- classification
+- continue / revise / recover / stop
+- nextPlannedStep
+- planDelta / recoveryRelation
+- sideEffectHandling
+- reason 与 evidence refs
 ### 6. 怎样判断这一阶段做对了
 
 - S4=uncertain 时不会正常继续依赖该结果。
@@ -698,25 +781,41 @@ A005 → firstResult → A009
 A010 → final output
 ~~~
 
-### 5. 正确输出应该长什么样
+### 5. 本阶段完成后应该得到什么
+
+#### 人能直接看懂的结果
+
+到这里，本次 Calculator 示范已收口成“这次真实任务到底发生了什么”的事实包，下游不需要依赖聊天记忆。
+
+#### Calculator 本例的结果
 
 ~~~text
-Demonstration Dossier
-  taskStatus
-  initialState
-  finalState
-  keyActualActions
-  keyObservations
-  runtimeDataFlow
-  sideEffects
-  unresolved
-  coverage
-  evidenceIndex
-
-Raw Trace / Evidence
-  frozen refs
+真实事实链
+  第一次按钮输入
+    ↓
+  实际读取 firstResult
+    ↓
+  保存 firstResult
+    ↓
+  清空 Calculator UI，但保留 firstResult
+    ↓
+  第二次输入真实消费 firstResult
+    ↓
+  实际读取 finalResult
+    ↓
+  print + return finalResult
+同时说明
+  taskStatus / initialState / finalState
+  sideEffects / evidenceIndex
+  coverage / unresolved
 ~~~
 
+#### 正式产物
+
+- Demonstration Dossier
+- 冻结的 Raw Trace / Evidence 引用
+- 实际数据流
+- 未决问题与覆盖范围
 ### 6. 怎样判断这一阶段做对了
 
 - taskStatus 与证据强度一致。
@@ -796,30 +895,38 @@ firstResult
 读取最终结果
 ~~~
 
-### 5. 正确输出应该长什么样
+### 5. 本阶段完成后应该得到什么
+
+#### 人能直接看懂的结果
+
+到这里，原始执行经历已被整理成真正完成任务所必需的步骤；保留、合并、删除和恢复都有来源和理由。
+
+#### Calculator 本例的结果
 
 ~~~text
-DistilledSteps
-  准备第一次计算
-  输入第一次算式
-  读取并保存 firstResult
-  准备第二次计算并保留 firstResult
-  使用 firstResult 输入第二次算式
-  读取 finalResult
-
-每一步包含
-  sourceActionRefs
+必要步骤
+  1. 准备第一次计算状态
+  2. 输入第一次算式
+  3. 读取并保存 firstResult
+  4. 准备第二次计算并保留 firstResult
+  5. 使用 firstResult 输入第二次算式
+  6. 读取 finalResult
+每一步保留
+  source action / evidence
   input / output
   precondition / postcondition
   verification
-  disposition reason
-
-同时保留
-  omission log
-  recovery candidates
-  unresolved
+另外明确
+  merge / omit / recovery / unresolved
 ~~~
 
+#### 正式产物
+
+- versioned DistilledSteps
+- Omission Log
+- Recovery Candidates
+- unresolved items
+- 同版可读审阅视图
 ### 6. 怎样判断这一阶段做对了
 
 - 每个必要步骤都有真实来源。
@@ -907,27 +1014,35 @@ B050 ReadFinalResult
   consumers = print, return
 ~~~
 
-### 5. 正确输出应该长什么样
+### 5. 本阶段完成后应该得到什么
+
+#### 人能直接看懂的结果
+
+到这里，下游看到的不再只是点击序列，而是每一步的业务目的、输入来源、输出和消费者；firstResult 的生产消费关系已明确。
+
+#### Calculator 本例的结果
 
 ~~~text
-Business Step
-  businessPurpose
-  sourceDistilledSteps
-  input + source
-  output
-  precondition
-  postcondition
-  verification
-  sideEffect
-  downstreamConsumer
-  engineeringGap
-
-关键关系
-  D030 → B025 → firstResult
-  D050 → B040 consumes firstResult
-  D060 → B050 → finalResult
+读取第一次结果
+  output = firstResult
+  source = 当前 Calculator 第一次结果区
+  consumer = 第二次算式输入
+准备第二次计算
+  清理 UI
+  必须保留 firstResult
+输入第二次算式
+  input = firstResult
+  必须消费其全部字符
+读取最终结果
+  output = finalResult
+  consumer = print + return
 ~~~
 
+#### 正式产物
+
+- 稳定 Business Steps
+- 业务对象与数据交接关系
+- 语义缺口 / 工程缺口
 ### 6. 怎样判断这一阶段做对了
 
 - Business Step 按业务目的组织，不按点击次数组织。
@@ -1030,26 +1145,37 @@ data dependency
   B025 → firstResult → characters → B040
 ~~~
 
-### 5. 正确输出应该长什么样
+### 5. 本阶段完成后应该得到什么
+
+#### 人能直接看懂的结果
+
+到这里，单次示范已提升为可复用业务规格：运行时值的 producer/consumer、支持范围和不能承诺的范围都已明确。
+
+#### Calculator 本例的结果
 
 ~~~text
-SemanticProcedure
-  businessSteps
-  callerInputs
-  fixedInputs
-  runtimeValues
-  configuration
-  secrets
-  states
-  dataDependencies
-  branches
-  retry / recovery / stop
-  supportedScope
-  unsupportedScope
-  pendingEngineering
-  capabilityDecisions
+firstResult
+  producer = 第一次结果读取
+  consumer = 第二次算式输入
+  不能变成 caller parameter
+  不能使用 Expected fallback
+finalResult
+  producer = 第二次结果读取
+  consumer = 最终输出
+关键状态
+  clear Calculator UI ≠ 删除 firstResult
+过程要求
+  第二次计算必须使用本次运行产生的 firstResult
+  读取失败或不确定时不能正常继续
 ~~~
 
+#### 正式产物
+
+- SemanticProcedure
+- 参数与数据依赖
+- supported / unsupported scope
+- capability decisions
+- 待 S10 工程化事项
 ### 6. 怎样判断这一阶段做对了
 
 - firstResult 被分类为 runtime value。
@@ -1137,23 +1263,36 @@ Unknown effect
 
 本次定向反例（Calculator 10.16 (223)、macOS 12.7.6）：未完成 `7 + 1` 时按一次“清除”，显示变为 `0`，但随后按 `4 =` 得到 `11`；改用“全部清除”后，`4 =` 得到 `4`。原始执行为 `.runtime/tests/agent-to-recipe/revision-20260929/continuation-20260929/clear-semantics-runtime-3/`，它证明该环境和该序列的操作性差别，不证明任何不可见内部状态全复位，也不充当下一次输入前的新鲜预检。旧提案仅凭显示 `0` 放行已在执行前拒绝；S2 最小认识仍保留限定 PASS，S3 消费经审阅的补证后再判断具体动作。
 
-### 5. 正确输出应该长什么样
+### 5. 本阶段完成后应该得到什么
+
+#### 人能直接看懂的结果
+
+到这里，业务规则已落实成程序如何可靠定位、读取、等待、清空、验证和停止；只有真实缺口才需要更低层实现。
+
+#### Calculator 本例的结果
 
 ~~~text
-AppProfile / operation rules
-  target rules
-  locator rules
-  read rules
-  clear / action rules
-  wait rules
-  verifier
-  recovery / stop
-  scope
-  invalidation conditions
-  local validation evidence
-  runtime capability gaps
+按钮规则
+  唯一定位当前 Calculator 中需要的按钮
+结果读取规则
+  只读当前结果区
+  禁止 Expected fallback
+clear 规则
+  清空 UI，不触碰 firstResult
+等待 / 验证
+  明确动作后等待与重新观察
+恢复 / 停止
+  身份歧义、读取失败、副作用 unknown 时安全处理
+同时记录
+  适用范围、失效条件、局部验证证据、Runtime gap
 ~~~
 
+#### 正式产物
+
+- 加固或修复后的 AppProfile
+- 必要 helper / locator / stability rules
+- 局部验证证据
+- 精确 Runtime 能力缺口
 ### 6. 怎样判断这一阶段做对了
 
 - Locator 能区分 0/1/多个候选。
@@ -1251,24 +1390,37 @@ candidate binding = S12 必须执行与该 Candidate 相同的 exact bytes
 
 具体 Git blob、历史 SHA-256 与证据边界只作为阅读辅助，见附录 B。
 
-### 5. 正确输出应该长什么样
+### 5. 本阶段完成后应该得到什么
+
+#### 人能直接看懂的结果
+
+到这里，业务过程已变成一份固定、可独立运行和验收的 JavaScript Candidate；S12 验的是同一份确定字节。
+
+#### Calculator 本例的结果
 
 ~~~text
-Recipe.js
-  exact bytes
-
-CandidateManifest
-  candidateIdentity / hash
-  entry
-  workingDirectory
-  dependencies
-  API refs
-  upstream versions
-  Business Step → source mapping
-  supported scope
-  revalidation scope
+Recipe.js 必须做到
+  按钮输入 25 × 4 + 10 =
+  真实读取并保存 firstResult
+  清空 Calculator UI，但保留 firstResult
+  按钮输入 6 × firstResult =
+  实际消费 firstResult 全部字符
+  真实读取 finalResult
+  print + return finalResult
+禁止
+  把 "110" 写死成生产 firstResult
+Candidate 冻结
+  source bytes / hash / entry / dependencies / API refs
+  upstream versions / source mapping / supported scope
 ~~~
 
+#### 正式产物
+
+- Recipe.js
+- CandidateManifest
+- source mapping
+- 依赖与运行说明
+- 必要重验范围
 ### 6. 怎样判断这一阶段做对了
 
 - 代码真实读取 firstResult。
@@ -1383,26 +1535,41 @@ verdict
 
 本节只保留 S12 的参考解结构。历史运行记录、未入库的 .runtime 证据和 fresh execution 边界统一见附录 B，不参与正文主线。
 
-### 5. 正确输出应该长什么样
+### 5. 本阶段完成后应该得到什么
+
+#### 人能直接看懂的结果
+
+到这里，已经对同一个冻结 Candidate 做了独立运行和观察，并明确哪些范围真实通过、失败、未运行或被阻塞。
+
+#### Calculator 本例的结果
 
 ~~~text
-QualificationRecord
-  candidateIdentity
-  exact hash / bytes
-  TaskContract
-  requestedScope
-  scenarios
-  environment
-  Oracle
-  actualExecutions
-  actualObservations
-  evidence
-  perCriterionVerdict
-  qualified / excluded / blocked / not-run
-  limitations
-  repairOwner
+验收对象
+  S11 冻结的同一个 Candidate
+检查
+  第一次计算真实执行
+  firstResult 来自本次现场读取
+  clear 未破坏 firstResult
+  第二次输入真实消费 firstResult 全部字符
+  finalResult 来自本次现场读取
+  实际 print + return finalResult
+Expected
+  firstResult = "110"
+  finalResult = "660"
+Actual
+  必须来自 S12 新 execution 和新观察
+每项记录
+  expected / actual / evidence
+  pass / fail / not-run / blocked
+  limitation / repair owner
 ~~~
 
+#### 正式产物
+
+- QualificationRecord
+- Recipe Review / Run Summary
+- qualified / excluded / not-run / blocked 范围
+- 修复请求或晋级结论
 ### 6. 怎样判断这一阶段做对了
 
 - 实际执行字节与冻结 Candidate 一致。
