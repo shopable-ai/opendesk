@@ -1,546 +1,350 @@
 ---
-title: "应用操作建模与封装｜从界面认识到可靠操作"
-description: "定义 application-engineer 怎样从最小界面认识形成可靠的定位、读取、等待、动作与验证规则。"
+title: "应用操作建模与封装｜从业务操作到可靠 operation rules"
+description: "定义怎样把已明确的业务操作需求转成可重复定位、读取、等待、动作和验证的应用操作规则。"
 order: 50
 ---
 
-# 应用操作建模与封装｜从界面认识到可靠操作
+# 应用操作建模与封装｜从业务操作到可靠 operation rules
 
 本文只回答一个问题：
 
-> **怎样把已经明确的业务子目标，落实为可重复定位、执行、读取和验证的应用操作？**
+> **怎样把业务上已经明确的操作需求，变成可靠的 Target、定位、读取、等待、动作和验证规则？**
 
-本文件是 application-engineer 的专业方法正文，不负责 S7—S9 的业务过程解释，不维护 Structured Collection / VLM / traversal 的专项算法，也不记录某次实现或桌面测试状态。
+本文拥有应用操作工程模型，不负责重新解释业务过程，不拥有 Structured Collection / VLM / traversal 的专项算法，也不记录某次桌面测试状态。
+
+- S2 / S10 的完整阶段职责见 [task-decomposition](task-decomposition.md)。
+- 能力发现和契约读取见 [capability-discovery](capability-discovery.md)。
+- application-engineer 怎样独立执行见 [SKILL.md](../skills/application-engineer/SKILL.md)。
 
 ## 30 秒总览
 
-```text
-业务子目标
+~~~text
+业务操作需求
   ↓
-discover：只认识下一步真正需要的应用、页面、目标和读取依据
+最小应用认识
   ↓
-形成最小 AppProfile
+Target identity
   ↓
-harden：把已确认 Procedure 所需的定位 / 等待 / 读取 / 动作 / verifier 工程化
+Locator / Read / Wait / Action / Verifier
   ↓
-形成可靠 operation rules / helper
+局部真实验证
   ↓
-repair：发生具体失败时，只修失效规则和受影响范围
+operation rules / helper
   ↓
-交 recipe-build / qualification
-```
+交给 recipe-build
+~~~
 
 核心原则：
 
-1. **Target 身份与一次坐标分开。**
-2. **认识、定位、操作、业务成功是不同证明层。**
-3. **只补当前任务需要的规则，不从零研究整个软件。**
-4. **Expected 与 Actual 分开，工具成功不等于业务成功。**
-5. **结果可能已发生时先对账，不盲重放。**
+1. **Target identity 与一次坐标分开。**
+2. **认识界面、找到对象、成功调用、业务成功是不同证明层。**
+3. **只解决当前业务步骤需要的应用问题，不从零研究整个软件。**
+4. **Actual 必须来自真实 observation，不能由 Expected 补写。**
+5. **副作用可能已经发生时先对账，不盲重放。**
 
-## 进入方式
+## 1. 三种进入方式
 
-| 模式 | 输入 | 目标 | 正常输出 |
+| 模式 | 当前问题 | 正常输出 | 不负责 |
 | --- | --- | --- | --- |
-| **discover** | TaskContract / WorkPlan、已有 Profile、获准观察 | 建立下一步足够安全的最小认识 | AppProfile / evidence / limits |
-| **harden** | 已确认 SemanticProcedure、旧规则、工程缺口 | 落实定位、读取、等待、动作、verifier、recovery | operation rules / helper / local validation |
-| **repair** | 具体失败、旧版本、受影响范围 | 保留有效部分，只修失效规则 | 新 Profile/helper + reason + revalidation scope |
+| **discover / S2** | 下一步需要知道哪个应用、页面、目标和读取依据 | 最小 AppProfile、evidence、limits | 不提前完成完整 Procedure 或最终工程化 |
+| **harden / S10** | Procedure 已明确，怎样把必要操作变可靠 | operation rules / helper / local validation | 不重写业务语义或数据关系 |
+| **repair** | 某条应用规则在具体场景失效 | 局部修订、reason、revalidation scope | 不把所有失败都归因于定位 |
 
-界面认识、CollectionProfile authoring、定位规则分析是这些模式中的子作业，不新增第四种模式或第二个 Skill。
+三种模式不要求机械串行。已有规则足够时可以精确复用，不为了“完整”重做。
 
-## 界面认识与审阅作业
+## 2. 先固定业务操作需求
 
-### 接到任务后应留下什么
-
-一个新 Agent 至少应能回答：
-
-- 当前是什么应用／窗口／页面／业务对象？
-- 本次真正需要操作、读取或验证什么？
-- 哪些父区域、锚点、结果区、弹窗／遮挡会影响这些目标？
-- 当前依据来自截图、native tree、OCR、历史 Profile 还是人工说明？
-- 哪些是 observed fact，哪些是解释、假设或未验证规则？
-- 下次重新定位时应依赖什么，而不是依赖上次坐标？
-- 当前认识只足够“理解”，还是已经足够“定位／操作”？
-
-主交付是 AppProfile 和必要 evidence；overlay、简化视图、review 页面是派生审阅材料，不成为第二份应用模型。
-
-### 范围与分工
-
-默认任务驱动：
-
-```text
-先全局粗识别
-→ 再精查当前业务步骤真正依赖的区域和目标
-```
-
-必须覆盖：
-
-- 当前核心 Target；
-- Target 的必要父区域／锚点；
-- 正确页面／对象身份；
-- 结果读取区域；
-- 遮挡、弹窗、加载、禁用等状态；
-- 同名／相似候选的消歧依据；
-- 失败会影响的 operation / verifier。
-
-可以延后：
-
-- 与当前任务无关的次要控件；
-- 没有消费者的完整应用模型；
-- 不影响当前支持范围的视觉细节。
-
-难识别不能成为把核心目标降级出范围的理由。
-
-### 实际作业链
-
-```text
-明确本次要回答的界面问题
-→ 检查旧 AppProfile / evidence 是否仍适用
-  → 足够：核当前现场后复用
-  → 不足：定向补观察
-→ 判断材料能支持认识、定位还是操作
-→ 建立 Target / region / state / relation
-→ 分开 observed / inferred / unknown
-→ 程序检查几何、ID、关系、坐标空间和版本
-→ 生成同版审阅视图
-→ 必要时人工纠正
-→ 发布最小 AppProfile
-→ 若 Procedure 已明确且需要更可靠规则，进入 harden
-```
-
-同一工作包内不为每个按钮创建 handoff。
-
-### 观察材料的充分性
-
-不同用途需要不同充分性：
-
-| 用途 | 最低要求 |
-| --- | --- |
-| **认识** | 能说明页面结构、主要对象、关系与未知 |
-| **定位** | 能把业务 Target 与当前屏幕／native 对象可靠绑定 |
-| **操作** | 除定位外，还需当前状态、授权、动作方式、后置验证 |
-| **长期复用** | 还需支持范围、失效条件、变化样本和重新解析规则 |
-
-例如：一张清晰截图可以足够做人类／模型认识，但如果没有屏幕坐标映射，就不能据此执行真实点击。
-
-材料必须记录：
-
-- 来源；
-- 应用／页面身份；
-- 时间或“未知时间”；
-- 图像尺寸与裁剪；
-- 坐标空间；
-- 是否与 native/OCR 同期；
-- 缩放／DPI 映射是否已知；
-- 当前限制。
-
-不从文件名推断 app 身份，不把人工说明伪装成截图观察。
-
-### 模型提取及证据界限
-
-模型可以帮助：
-
-- 布局理解；
-- 控件分类；
-- 语义命名；
-- 父子／同组关系；
-- label ↔ field；
-- row ↔ action；
-- 候选锚点；
-- unknown / conflict 发现。
-
-但必须区分：
-
-```text
-Observation
-Model Interpretation
-Assumption
-Human Correction
-Validated Rule
-```
-
-模型自报置信度不是运行资格。
-
-以下内容尤其不能混：
-
-- 文本 bbox ≠ 控件 bbox；
-- 控件 bbox ≠ 安全点击区域；
-- “看起来像按钮” ≠ 可点击；
-- 未观察状态 ≠ false；
-- 一次矩形 ≠ 永久身份；
-- VLM 看出的文字 ≠ OCR/native value；
-- 当前 viewport item 数量 ≠ whole collection size。
-
-### 同版审阅与纠错
-
-审阅视图应来自同一 AppProfile / observation 版本：
-
-- 原始证据；
-- overlay；
-- 简化结构；
-- 属性／来源／unknown／diff；
-- 必要时 collection item boundary overlay。
-
-人工纠正时记录：
-
-- 字段；
-- 旧值；
-- 新值；
-- 理由；
-- 适用 observation / environment；
-- 修改者／来源；
-- 受影响 operation / verifier / Candidate。
-
-修订后生成新版本并重建派生视图；原证据不修改。
-
-### 正常记录与按需诊断
-
-正常路径始终保存：
-
-- 当前业务对象；
-- 使用的 Profile / rule 版本；
-- 关键动作前后事实；
-- runtime value；
-- verifier 结果；
-- limitations / unknown。
-
-只有出现歧义、drift、冲突或业务要求时才展开：
-
-- 全量 native tree；
-- 多模型对比；
-- 大范围截图；
-- 完整候选比较；
-- 跨环境分析。
-
-减少诊断冗余不能删除业务关键证据。
-
-### 贯穿示例：同名按钮属于哪条订单
-
-任务：找到输入订单并打开详情。
-
-正确规则应表达：
-
-```text
-当前表格
-→ 按实际 orderId 找唯一业务记录
-→ 在该记录作用域内找唯一“查看”
-→ 点击
-→ 在详情页重新验证 orderId / identity
-```
-
-错误规则包括：
-
-- 永久保存“第二行”；
-- 永久保存旧坐标；
-- 在全窗口找第一个“查看”；
-- 未观察详情页却宣称详情身份验证已完成。
-
-这个示例说明的是 **Target / parent scope / identity / postcondition**，不是某个订单应用的已实现 API。
-
-## Structured Collection Reading 的应用工程入口
-
-application-engineer 在 Collection 场景只负责工作流层结构知识：
-
-```text
-确认 collection region / page / state
-→ 识别 visible item boundary / repetition / anchor
-→ 关联必要 native / OCR / image evidence
-→ 必要时形成 CollectionProfile proposal
-→ deterministic / review validation
-→ 发布 Profile + limits + evidence
-```
-
-### 认识 Collection
-
-CollectionProfile 只回答：
-
-> **在一个明确 viewport 中，一条 generic item 怎样被识别？**
-
-它可以描述：
-
-- region；
-- axis；
-- container/item role hints；
-- repeating geometry；
-- separators / anchors；
-- validation constraints；
-- evidence references。
-
-它不拥有 sender、price、customerName、conversationTitle 等业务字段。
-
-### 多源 evidence 不是四套 reader
-
-AX/UIA、OCR、Layout/Image、Semantic Vision 只是不同 observation 来源。冲突要保留，不设置“某 provider 永远是真值”的规则。
-
-完全没有 usable UI tree 时，可以在获准范围使用 screenshot + OCR/layout + semantic proposal，但要明确 visual-only 支持范围。
-
-### Authoring-time VLM 默认优先
-
-如果需要 VLM，默认用于 authoring proposal：
-
-```text
-minimal ROI
-+ existing observations
-+ current profile constraints
-→ narrow proposal
-→ deterministic validation
-→ review
-→ versioned profile
-```
-
-运行期 VLM 是否存在、怎样接入、预算、provider contract 由专项架构和实际 Runtime 决定，本文件不复制算法。
-
-### Collection 与 Traversal 的责任边界
-
-application-engineer 可以记录“业务需要跨 viewport”和当前 scroll container / risk，但：
-
-- item recognition ≠ traversal；
-- current viewport ≠ whole collection；
-- scroll 是真实副作用；
-- continuity / merge / mutation / end detection 的算法由专项架构拥有；
-- 无法证明 continuity 时应该停止或 partial，不为拿完整数组猜着拼。
-
-详见 [Structured UI Collection Reading](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
-
-### Generic item 与业务字段
-
-```text
-CollectionProfile + observations
-→ generic CollectionItem[]
-→ App Adapter / Recipe parser
-→ Message / Order / Conversation / ...
-```
-
-业务 mapping 错误不能通过篡改底层结构识别“修好”。
-
-## 聊天业务的粒度与组合示例
-
-这个例子说明业务粒度，不声明某个聊天应用已接通。
-
-| 粒度 | 示例 | Owner |
-| --- | --- | --- |
-| 框架原语 | 窗口、定位、点击、输入、读取 | OpenDesk Runtime/API |
-| 应用语义操作 | 搜索联系人、打开会话、读消息、填写输入 | application rules / helper |
-| 组合业务能力 | 向指定联系人发送确定内容 | Recipe / ordinary JS |
-| 完整业务流程 | 基于历史决定是否回复并执行 | Recipe + bounded Agent judgement |
-
-### A. 发送已经确定的内容
-
-输入已经给出联系人、确定内容、应用／账号范围和发送授权。
-
-```text
-搜索／消歧
-→ 打开正确会话
-→ 再确认对象
-→ 填入确定内容
-→ 发送前核授权和内容
-→ 发送
-→ 验证实际结果
-```
-
-不因为“流程完整”而读取无关历史或调用模型生成文案。
-
-### B. 根据历史回复联系人
-
-```text
-确认会话
-→ 读取获准实际历史
-→ bounded Agent 判断：reply / no-reply / human
-→ 校验输出
-→ 必要人工确认
-→ 发送前重新核会话和新鲜度
-→ 复用 A 的发送能力
-→ 验证实际结果
-```
-
-新消息使判断过期时，重新读取／判断或停止，不能发送旧决定。
-
-### 最小操作与数据交接
-
-| 环节 | 必要输入 | 正常输出 |
-| --- | --- | --- |
-| 会话确认 | 联系人线索、应用／账号范围 | 唯一目标绑定或 unresolved ambiguity |
-| 历史读取 | 已确认会话、允许范围 | actual messages + provenance + freshness |
-| 判断 | actual history、业务规则、预算 | validated decision / candidate content |
-| 发送 | target binding、确定内容、授权 | actual send result / unknown |
-| 结果核对 | request、当前对象、结果来源 | submitted / confirmed / unknown 等真实层次 |
-
-输入框清空不等于已发送；已发送也不等于送达／已读，除非有对应证据。
-
-## 作业任务树
-
-### 1. 明确要实现的业务操作
-
-从 TaskContract / Procedure 取得：
+进入应用工程前，先从 TaskContract / SemanticProcedure 得到：
 
 - 业务对象；
-- 输入；
-- 输出；
-- 前置；
-- 成功；
+- 操作目的；
+- 输入及来源；
+- 预期变化；
+- 实际输出应该从哪里观察；
+- 成功 / 失败条件；
 - 禁止替代方式；
-- 风险／授权。
+- 授权和副作用边界；
+- 支持范围。
 
-先核已有 API、Profile 和 helper，能复用就不重新造。
+如果这些问题本身还在变化，返回 S1 / S8—S9，而不是让应用工程猜业务需求。
 
-### 2. 认识足够完成任务的应用结构
+## 3. 最小应用认识
 
-区分：
+默认顺序：
 
-- application / window identity；
-- page / mode；
-- parent region；
-- target；
-- result region；
-- loading / modal / disabled / focus state；
-- repeated structure；
-- current business object。
+~~~text
+先确认当前应用 / window / page / business object
+→ 再确认当前步骤真正需要的 target / result region / state
+→ 只补会阻塞当前操作的未知
+~~~
 
-### 3. 将 Target 身份与一次位置分离
+至少要能回答：
 
-保持四层：
+- 当前是哪一个应用、窗口、页面或模式；
+- 本次要操作或读取哪个业务对象；
+- 哪些 parent region / anchor 会影响唯一性；
+- 当前有无 loading、modal、disabled、focus 等状态；
+- 依据来自 native tree、OCR、image、历史 Profile 还是人工说明；
+- 哪些是 observed，哪些只是 inferred / unknown；
+- 当前证据只够认识、定位，还是已经足够操作。
 
-```text
-Target      业务上要操作谁
-Locator     当前凭什么找到它
-Geometry    怎样解析当前空间关系
-Coordinate  本次真正执行的临时位置
-```
+一张截图可以足够理解页面，但如果没有可靠坐标映射或语义定位依据，就不能据此宣称可以安全点击。
 
-一次 Coordinate 不能升级成 Target identity。
+## 4. Target、Locator、Geometry、Coordinate 必须分层
 
-### 4. 选择当前场景可验证的定位方案
+~~~text
+Target
+  业务上真正要操作谁
 
-可能依据：
+Locator
+  当前凭什么在界面 / native tree 中找到它
 
-- native role / name / value；
-- text；
-- image；
-- anchor + relation；
-- region / layout；
-- 有证据的矩阵；
-- 组合条件。
+Geometry
+  当前空间关系怎样解释
 
-没有可靠唯一目标时停止，不默认“第一个”“最近”“最高分”。
+Coordinate
+  本次执行时的临时位置
+~~~
 
-当前可调用事实以 [Desktop UI API](../../../docs/api/desktop-ui.md) 等正式 API 文档为准；设计名称不能直接写进 Candidate。
+错误例子：
 
-### 5. 仅在有依据时采用矩阵或区域拆分
+- 把“第二行”永久写成订单身份；
+- 把旧坐标保存成长期 Target；
+- 在整个窗口里永远取第一个“查看”；
+- 只因为文字相同就忽略 parent scope。
 
-例如 3×4 只是一种候选：
+正确例子：
 
-- 必须先确认区域边界；
-- 行列和特殊键；
-- 支持范围；
-- safe point；
-- 重排／遮挡／缩放失效条件。
+~~~text
+当前订单表格
+→ 按实际 orderId 找唯一记录
+→ 在该记录作用域内找“查看”
+→ 点击
+→ 进入详情页后重新验证 orderId
+~~~
 
-不能把“像网格”当成按钮语义证明。
+## 5. 一条 operation rule 最少要说明什么
 
-### 6. 把可靠动作组合成普通操作函数
+每个必要操作至少能回答：
 
-普通函数只有在它增加：
+| 字段 | 问题 |
+| --- | --- |
+| purpose | 为什么需要这条操作 |
+| input | 输入从哪里来 |
+| target | 真正的业务对象是谁 |
+| precondition | 动作前必须成立什么 |
+| locator | 当前怎样唯一找到 Target |
+| read | 需要从哪里读取 Actual |
+| wait | 等什么状态、多久、何时停止 |
+| action | 实际执行什么 |
+| actualOutput | 动作后真实得到什么 |
+| postcondition | 正确后置是什么 |
+| verifier | 怎样独立判断是否做对 |
+| failure | 歧义、not-found、partial、unknown 怎样处理 |
+| scope | 哪些 app / mode / environment 已被证明 |
+| source | 规则依据和 evidence 在哪里 |
 
-- 参数转换；
-- 业务语义；
-- 复用；
-- 前后条件；
-- verifier；
-- 错误处理；
+不是所有操作都需要所有子字段，但缺失的关键边界必须显式说明。
 
-时才值得存在。
+## 6. 先发现已有能力，再决定怎样实现
 
-不为了“面向对象”给每个应用创建对象方法层。
+在自己设计低层 Accessibility traversal、鼠标坐标或自定义 resolver 之前，先按 [capability-discovery](capability-discovery.md) 检查当前业务步骤已有的 OpenDesk 能力。
 
-多位输入先展开业务 token，再映射到实际控件。例如数字 25 是 2 → 5，不是寻找“25 按钮”。
+正确顺序：
 
-### 7. 明确读取、等待、清空和失败规则
+~~~text
+业务操作需求
+→ 候选能力
+→ Method Selection
+→ Contract Reading
+→ 当前环境 Runtime Validation
+→ application rule
+~~~
 
-- 读取实际结果区域，不读历史旧值。
-- 等待基于状态／observation，不等待 Expected 文本后返回 Expected。
-- C / AC / backspace 等语义按当前应用验证。
-- 解析必须保留原始值和格式依据。
-- 读取失败不返回默认答案。
-- 动作可能已发生时先核对，不直接重放。
-- 只有状态可确认且有授权时才从安全起点恢复。
+文档中存在 API 不等于当前应用已经验证；高层 API 也不是默认正确答案。
 
-### 8. 控制观察成本并保存可复用认识
+如果现成能力无法表达 Target identity、parent scope、失败停止或必要 verifier，才有理由加入额外应用规则或下沉。
 
-复用的是：
+## 7. Read：运行时值只能来自真实 observation
 
-- application identity rule；
-- layout / target rule；
-- operation contract；
-- CollectionProfile；
-- verifier；
-- limitations。
+读取规则必须说明：
 
-不复用的是：
+- 从哪个正确对象读取；
+- 读取的是 raw value 还是派生解释；
+- 原始字符串、单位、精度和格式如何保留；
+- 什么时候读值过期；
+- 读取失败怎样停止；
+- 哪些 consumer 会使用这个值。
 
-- 旧 windowId；
-- 旧坐标；
-- 旧 viewport items；
-- 示范 read value。
+禁止：
 
-缓存失效至少考虑 app/version、window、mode、layout、locale、DPI/display、theme、target ambiguity 和 profile drift。
+- 读取失败后返回默认答案；
+- 把 Expected 当读取结果；
+- 从最终结果倒推中间值；
+- 用历史窗口里的旧值补当前运行。
 
-### 9. 将确认的操作交给代码构建
+Calculator 中 firstResult 的正确关系是：
 
-交 recipe-build 前，必要操作至少能说明：
+~~~text
+当前结果区
+→ actual read
+→ firstResult
+→ 保存到任务运行数据
+→ 清空 Calculator UI
+→ firstResult 仍在任务数据
+→ 第二次输入真实消费 firstResult 全部字符
+~~~
 
-```text
-purpose
-input
-target
-precondition
-action
-actual output
-postcondition
-verifier
-failure
-supported scope
-source / evidence
-```
+## 8. Wait：等待必须有条件、有上限、有失败语义
 
-若缺的是业务语义，回 S8—S9；若缺的是应用规则，留 S10；若缺的是 Runtime primitive，建立独立能力缺口。
+等待规则至少说明：
 
-## 逐级验证与完成边界
+- condition；
+- timeout / budget；
+- observation source；
+- 成功后下一动作；
+- timeout / cancel / partial 时怎样停止或恢复。
 
-验证顺序：
+fixed sleep 可以作为节流手段，但不能单独证明业务状态已经成立。
 
-```text
-页面 / 对象身份
+## 9. Action：副作用前后都要有边界
+
+副作用前确认：
+
+- 当前 Target identity；
+- 当前授权；
+- 必要前置；
+- 输入来源；
+- 重复执行风险。
+
+副作用后区分：
+
+~~~text
+调用返回成功
+≠
+目标真的被操作
+≠
+UI 已变化
+≠
+业务结果已经成立
+~~~
+
+动作结果 Unknown 时：
+
+~~~text
+停止依赖动作
+→ 重新观察当前状态
+→ 对账
+→ 只有确认安全且仍获准时再恢复
+~~~
+
+不能默认异常等于“没有发生”。
+
+## 10. Verifier：验证当前业务对象，而不是验证工具自己
+
+Verifier 要尽量从动作自身之外的业务 observation 得到答案。
+
+例如：
+
+- 点击某订单后，验证详情页的 orderId；
+- 设置输入值后，重新读取实际字段值；
+- 发送动作后，区分 submitted、confirmed、delivered，而不是把输入框清空当作已送达；
+- Calculator read 后，保留 actual value，并在后续消费处验证数据链。
+
+## 11. 局部验证与交接
+
+应用工程验证按强度逐层增加：
+
+~~~text
+应用 / 页面身份
 → Target 唯一性
-→ Locator / Geometry
-→ 单操作
+→ Locator / Read
+→ 单个 Wait / Action
 → 顺序组合
 → runtime data handoff
-→ 完整业务子目标
-→ Candidate qualification
-```
+→ 当前业务子目标
+~~~
 
-Collection 场景另外分开：
+局部验证只能证明对应 operation rules；最终 Candidate Qualification 仍属于 S12。
 
-```text
-current viewport structure
-→ business mapping
-→ traversal（如需要）
-→ final business result
-```
+交给 recipe-build 时，至少需要：
 
-discover 完成不等于 harden 完成；harden 局部验证不等于 Candidate 资格；真实应用一次成功也不等于所有布局和平台支持。
+- 可消费的 AppProfile / operation rules / helper；
+- actual API / contract refs；
+- supported scope；
+- failure / stop semantics；
+- local evidence；
+- 未验证范围；
+- 失效条件。
 
-验证案例统一见 [validation-plan.md](validation-plan.md)。
+## 12. 缓存与 repair
 
-<a id="迁移与设计记录"></a>\n## 相关权威文档与历史入口
+可以复用：
 
-本 canonical 文件不再维护逐日期迁移日志、旧 blob、某轮 Skill 是否已实现或某次 Calculator 是否通过。
+- application identity rule；
+- parent / target rule；
+- operation contract；
+- verifier；
+- 已验证 helper；
+- 明确支持范围。
 
-需要：
+不能直接复用：
 
-- 当前实现／测试状态 → `docs/quality/`
-- Structured Collection / VLM / traversal 算法 → [专项架构](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)
-- API 当前事实 → `docs/api/`
-- 历史设计演变 → Git history
+- 旧 windowId；
+- 旧 coordinate；
+- 旧 viewport items；
+- 示范 runtime value。
 
-本文件只维护 application-engineer 当前应该怎样做。
+出现 app/build、page/mode、layout、locale、DPI/display、target ambiguity 或规则真实失败时，定向 repair。只修失效规则和真实依赖它的下游，不把整个应用重新建模。
+
+## 13. 特殊场景只保留工作流入口
+
+### Structured Collection
+
+本文只负责：
+
+- collection region / page / state；
+- visible item identity / boundary；
+- 与当前业务操作相关的 anchor；
+- operation rule 需要的结构约束。
+
+current viewport 不等于 whole collection；item recognition 不等于 traversal。continuity、merge、mutation、scroll、pagination 和 end detection 的算法见 [Structured UI Collection Reading](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)。
+
+### VLM / OCR / native tree
+
+它们是 observation 来源，不是三套互相竞争的业务真相。
+
+- 来源和冲突必须保留；
+- VLM 可以提出 authoring proposal；
+- 模型自报置信度不等于 operation 已验证；
+- 运行期 VLM 只有在业务明确需要且 Runtime / 预算 / 隐私边界成立时进入。
+
+### 聊天、订单等具体业务
+
+聊天、订单、Calculator 等只应作为案例说明 Target、dataflow 或 verifier，不在本文复制完整业务流程。业务步骤归 S8—S9，本文只拥有应用操作规则。
+
+## 14. 不负责什么
+
+本文不负责：
+
+- S1 目标、授权和成功标准；
+- S3—S6 的真实任务事实；
+- S7 的 retain / merge / omit / recovery；
+- S8—S9 的 Business Steps、参数和 runtime data policy；
+- S11 的最终普通 JavaScript；
+- S12 的 Candidate Qualification；
+- Structured Collection、VLM、Recorder、Traversal 的专项算法。
+
+发现这些问题时返回对应 owner，不能靠 application-engineer 顺手改写上游真相。
+
+## 15. 读完本文应该能判断什么
+
+一个第一次接触的人应能直接回答：
+
+1. 业务操作需求怎样变成 operation rule；
+2. Target 与 Locator / Coordinate 为什么不是同一件事；
+3. 什么时候证据只够“认识”，什么时候已经够“操作”；
+4. Actual read 为什么不能由 Expected fallback；
+5. 副作用 Unknown 为什么不能直接重放；
+6. operation rule 最少包含哪些可检查边界；
+7. Structured Collection、VLM 和聊天案例为什么不应该抢占应用工程主线。

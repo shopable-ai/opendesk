@@ -1,176 +1,265 @@
 ---
-title: "Agent-to-Recipe｜能力发现与代码提炼"
-description: "按业务任务获取当前框架能力，用已有脚本入口探索，并基于真实证据提炼普通 JavaScript。"
+title: "Agent-to-Recipe｜能力发现与能力决策"
+description: "定义面对当前业务步骤时，怎样发现候选能力、选择方法、读取完整契约，并在当前 Runtime 中真实验证。"
 order: 45
 ---
 
-# 能力发现与代码提炼
+# Agent-to-Recipe｜能力发现与能力决策
 
-本页是现有 S1—S12 的作业补充，不是新阶段、Skill、Runtime 或自动调度器。返回[执行入口](../WORKFLOW.md)。字段与交接仍以[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)为准；方法签名、错误和平台限制只在由 [Agent API 短入口](../../../docs/api/agent/README.md) 定位的 canonical Reference 维护。本页写入不表示真实桌面、独立 Agent 或成本评测已通过。
+本文只回答一个问题：
 
-## 执行链与最低产物
+> **面对当前业务步骤，怎样找到可用能力，并确认“这个方法在当前环境里真的可以被后续 Recipe 使用”？**
 
-```text
-业务目标与授权 → S1 合同／计划，复用已有任务包／经验／脚本
-→ S2、S3—S6：Agent API 短入口 → 相关能力目录 → 候选方法 → 完整契约
-→ 选择专用 CLI 或普通 OpenDesk JS 入口 → 有界操作／观察 → 保存实际结果与业务验证
-→ S7：从真实事实提炼必要路径
-→ S8—S9：业务步骤、参数与数据依赖
-→ S10—S11：复核框架复用 → 普通 JS 候选
-→ S12：固定候选、干净状态独立运行与验证
-```
+本文不负责完整 S1—S12 流程、CLI 使用手册、Agent Prompt、测试 fixture、成本报告或代码重构方法。
 
-在现有工作包／操作记录中先留轻量决定；S8—S9 形成最终 Procedure 时，把仍被 Recipe 消费的决定收敛到共享合同已有 `SemanticProcedure.capabilityDecisions`：业务步骤、能力需求、实际发现路径、候选及处置、选中方法、canonical contract／必要公共约束、Runtime 验证、Recipe 消费者、未验证范围和重查条件。它是现有 Procedure 的字段，不是新 Stage、Registry 或 API 数据库；临时探索不要求永久保存，失败候选只有存在实际失败证据时才写 `failed`。不把一次 WindowInfo、OCR 点、Locator 或 ElementRef 当持久资产。一次观察、动作回执、业务结果与候选资格分别记录。
+- 工作流主线见 [WORKFLOW](../WORKFLOW.md)。
+- S2 / S10 的应用工程方法见 [application-operations](application-operations.md)。
+- API 短入口见 [Agent API 阅读入口](../../../docs/api/agent/README.md)。
+- 验证方法见 [validation-plan](validation-plan.md)。
 
-### 四个事实必须分开
+## 30 秒总览
 
-| 事实 | 回答的问题 | 最小留存 | 不能冒充 |
+~~~text
+当前 Business Step 需要什么能力
+  ↓
+从 canonical API 入口定位少量候选
+  ↓
+Capability Discovery
+  ↓
+Method Selection
+  ↓
+Contract Reading
+  ↓
+Runtime Validation
+  ↓
+Capability Decision
+  ↓
+交给 S9 / S10 / S11 消费
+~~~
+
+最重要的边界是：
+
+> **文档里存在一个 API，只能证明它值得考虑；只有在当前 Runtime、应用、入口、权限和目标范围里得到真实证据，才能写 Runtime Validation。**
+
+## 1. 四个事实必须分开
+
+| 层次 | 回答的问题 | 最小结果 | 不能冒充 |
 | --- | --- | --- | --- |
-| Capability Discovery | 当前业务步骤有哪些现成能力可考虑？ | 短入口 → 相关 catalog；能力需求与候选集合 | 最终方法选择 |
-| Method Selection | 当前现场准备尝试哪个方法，为什么？ | 候选 disposition、选中项、简短依据 | Runtime 已经成功 |
-| Contract Reading | 选中方法怎样正确、安全调用？ | canonical contract／必要 shared constraints 的内容绑定 | 当前应用一定支持 |
-| Runtime Validation | 该方法在当前应用／窗口／入口／权限下实际是否成立？ | pass/fail/partial/not-run、环境范围、evidenceRefs | 文档或类型声明 |
+| **Capability Discovery** | 当前业务步骤有哪些现成能力可考虑？ | 小型候选集合及发现来源 | 最终方法已经选定 |
+| **Method Selection** | 当前为什么准备采用这个方法？ | selected / rejected / alternative 及理由 | 当前 Runtime 已成功 |
+| **Contract Reading** | 这个方法怎样正确、安全调用？ | canonical contract 与必要公共约束 | 当前应用一定支持 |
+| **Runtime Validation** | 这个方法在当前实际环境是否成立？ | pass / fail / partial / not-run + evidence | Candidate 已获得最终 Qualification |
 
-候选可以在真实验证后从 `selected` 变为 `failed`，再选择另一候选；失败证据保留。已知某方法在当前范围不合适时可以直接 `rejected`，不需要为了“完整”故意产生一次副作用失败。只有最终被 Recipe 消费的选择进入 Procedure；探索顺序和模型内部推理不保存。
+这四层任何一层缺失，都不能由后层文字补造。
 
-## 按需读取与上下文责任
+## 2. 进入时必须已经知道什么
 
-默认读取链为：`AGENTS.md` → `workflows/agent-to-recipe/WORKFLOW.md` → 当前任务包 → `docs/api/agent/README.md` → 当前需要的一个或少数能力目录 → 选中方法的完整 canonical Reference 及必要公共约束 → 必要类型。仅冲突、缺口或失败时定向进入实现和测试；共享合同与专业方法按当前阶段需要读取，不构成另一套 API 发现顺序。
+能力发现从业务问题开始，不从 API 名称开始。
 
-| 层次 | 当前来源 | 读取时机与范围 |
-| --- | --- | --- |
-| 最小规则 | 根 AGENTS.md、执行入口、当前任务包 | 开始／接续时确认授权、阶段、成果与预算；不重做已有业务 |
-| 能力导航 | [docs/api/agent/README.md](../../../docs/api/agent/README.md)；按方法问题进入 docs/frameworks/README.md | 从业务意图定位相关模块；不把框架路线图当已实现 API |
-| 类／模块方法概览 | 短入口链接的按能力分组 Markdown 方法目录；已有精确方法时直接定位正文 | 形成候选，避免只知低层工具或重复造轮子；不读取无关整页 |
-| 精确契约 | 选中方法的 Reference 条目及公共约定 | 核对参数、返回、默认行为、无结果、歧义、取消、部分完成、平台、权限与副作用 |
-| 关联类型 | 对应 types/*.d.ts 的相关声明及必要依赖 | 编码时定向核对；类型正确不等于实际行为正确 |
-| 实现与测试 | 所用入口、Runtime 注入、方法 owner、相关测试 | 冲突、缺口、失败或关键安全边界未明确时定向核验，不通读全仓库 |
+至少要有：
 
-### 三类能力采用不同读取粒度
+- 当前 Business Step 或近期动作；
+- 业务对象；
+- 输入从哪里来；
+- 希望产生什么实际结果；
+- 怎样验证结果；
+- 当前授权和副作用边界；
+- 已知应用 / Runtime / 平台 / 入口范围；
+- 已有能力决定或 AppProfile，如有。
 
-能力发现不能把 JavaScript 语言、第三方 bundled library 和 OpenDesk 自有 API 混成一张巨大方法表：
+如果连“业务上要完成什么”都不清楚，返回 S1 / S8—S9，而不是靠 API 名称猜需求。
 
-- **JavaScript 标准能力**：从 Runtime 语言基线确认当前稳定支持范围；普通数组/对象/Promise 等不先寻找同名 OpenDesk API。
-- **Runtime bundled library**：从 `agent/data.md` 的库级能力卡进入 `libs.md`，确认库名、固定版本/身份、全局入口、用途和默认加载状态。目录不枚举 `_.flatten`、`_.groupBy` 等第三方完整 API；常见稳定能力按固定版本使用，冷门、版本相关或安全敏感行为再定向查上游文档/Runtime 证据。
-- **OpenDesk Runtime API**：继续走“能力目录 → 候选方法 → 选中方法完整 canonical contract → 必要公共约束/类型”，因为参数、权限、副作用、取消、部分完成和平台行为由 OpenDesk 定义。
+## 3. 第一步：先写能力需求，不先写方法名
 
-因此遇到“展开/去重数组”“解析 YAML/CSV”“解析 HTML”等纯数据问题时，先判断标准 JS 或已有 bundled library 是否已经足够；
-不能因为 Agent 方法目录没有一个 `OpenDesk.flatten` 就重复造轮子。反过来，UI 输入、文件提交、网络、进程等带宿主语义的行为，
-也不能只凭第三方库或模型常识跳过 OpenDesk contract。
+正确写法类似：
 
-当前外部 Coding Agent 负责使用宿主已有文件／搜索工具，把这些资料带入自己的上下文。提示词给阅读路径，不等于宿主已经加载 Skill。开发者提供任务、授权和资产位置，不必手工把全部 API 贴入对话；缺文件读取或 shell 能力时只完成可做部分，并明确阻塞。
+~~~text
+需要：
+  在已确认 Calculator window 内
+  唯一定位某个按钮
+  执行一次点击
+  能在歧义时拒绝
+  动作后可重新读取业务结果
+~~~
 
-普通 Agent 不读取机器维护总表作为备用定位源。`ai schema` 也只覆盖专用 CLI。未检索到方法时先核对相关 Markdown 方法目录和契约，必要时查类型／注册点，再区分“资料遗漏”“入口受限”“尚未实现”；不能凭单次空搜索定论。
+而不是：
 
-读取工具返回截断内容，或公共约束分布在其他章节／文件时，继续取得必要范围；仅一个 H2 片段不保证合同完整。当前步骤的参数、结果、权限、错误、等待／取消、副作用及必要依赖均已明确且无冲突，即停止展开；引用不等于递归必读。分层 Markdown 方法目录与 `node scripts/api-docs.js read <文档名> <方法名>` 阅读包由 [API 短入口](../../../docs/api/agent/README.md) 维护；读取包带来源/范围/完整性标记，本页只接线工作流，不建立竞争目录或另一套方法契约。
+~~~text
+需要 UI.tapTexts
+~~~
 
-资料按相关文件版本／hash 复用，不每步重复加载。恢复会话或相关文件变化时核对引用；源码 HEAD 与实际运行二进制版本分别记录。权限、窗口身份、焦点、应用状态、坐标和运行读值按各自契约重验，不能继承文档缓存的新鲜性。新业务意图、资料冲突、构建／平台变化或失败才触发定向补读；不把 getCapabilities 设成每个业务调用前的统一握手。
+能力需求应该描述业务语义、身份、范围、错误和验证要求。这样才能比较候选，而不是被熟悉的方法名牵着走。
 
-选择依据是业务语义、授权、现场证据、必要约束、失败行为、生命周期和维护成本。高层 API 是候选，不是默认正确答案；低层组合只有在需要保留额外约束时才保留。UI.tapTexts 不是全局优先方法，不固定 OCR／Accessibility 等 backend 的全局排序；所选方法自身的 Runtime 默认策略仍必须遵守，不在 Recipe 复制其 resolver 或发明配置项。
+## 4. 第二步：从 canonical 入口发现少量候选
 
-## 已有入口与证据获取
+默认从 [docs/api/agent/README.md](../../../docs/api/agent/README.md) 进入，只打开当前业务步骤相关的一个或少数能力目录。
 
-执行入口和参数以 [AI CLI](../../../docs/api/ai-cli.md)、[Runtime](../../../docs/api/runtime.md)及[Execution](../../../docs/api/execution.md)为准。外部 Coding Agent 可以编写短普通 OpenDesk JS，通过适用的 ai run 或 -script 调用无专用 CLI 的方法；不需要新增反射接口或为所有 API 建 CLI 映射。
+按问题先区分：
 
-| 选择 | 当前边界 |
+1. **JavaScript 标准能力**：普通数组、对象、Promise 等，不为同名问题强找 OpenDesk API。
+2. **Runtime bundled library**：只有当前 Runtime 已声明提供时才使用，并核对版本与入口。
+3. **OpenDesk Runtime API**：按能力目录找到候选，再读取选中方法的完整 canonical contract。
+
+候选集合保持小而有业务理由。不要通读全部类型、全部 Reference 或全仓库实现来制造“发现完整度”。
+
+## 5. 第三步：比较候选并做 Method Selection
+
+选择时至少比较：
+
+- 是否满足业务语义；
+- Target identity 和作用范围是否能表达；
+- 是否能保留必要的输入 / 输出和数据来源；
+- 歧义、无结果、partial、unknown 怎样处理；
+- 权限和副作用；
+- 生命周期和状态依赖；
+- 平台 / 入口限制；
+- 维护成本；
+- 是否已有经过验证的 Profile / helper 可复用。
+
+高层 API 是候选，不是默认正确答案；低层组合也不是更“可靠”的天然答案。
+
+只有现成能力无法保留关键约束时，才有依据下沉。
+
+## 6. 第四步：读取选中方法的完整 Contract
+
+Method Selection 之后，必须读取选中方法真正拥有的 canonical Reference 和必要公共约束。
+
+至少确认：
+
+- 参数与类型；
+- 返回值及无结果语义；
+- error / ambiguity / partial 行为；
+- await / 生命周期；
+- 权限；
+- 副作用；
+- timeout / cancel；
+- 平台和入口限制；
+- 必要 Target / Locator 约束；
+- 依赖和版本。
+
+只读摘要、方法目录或类型声明不等于已经读完整契约。
+
+如果资料冲突、被截断或公共约束在其他 owner 中，继续读取必要范围，直到当前调用所需的约束完整。
+
+## 7. 第五步：在当前 Runtime 中真实验证
+
+Runtime Validation 只回答：
+
+> **选中方法在当前应用、窗口、入口、权限和支持范围里，实际是否成立？**
+
+### 无副作用能力
+
+可以直接在获准范围做最小真实调用，记录：
+
+- 实际入口；
+- Runtime / build；
+- 应用和对象身份；
+- 输入；
+- actual return / observation；
+- pass / fail / partial；
+- evidence；
+- 未覆盖范围。
+
+### 有副作用能力
+
+先满足授权和前置条件，再做一次有界动作和独立结果核对。
+
+动作回执成功不等于业务成功。动作效果 Unknown 时先对账，不能通过换 backend 或重放前缀制造更多副作用。
+
+### Runtime Validation 不能证明什么
+
+即使方法在局部真实成功，也不能自动证明：
+
+- 所有应用都支持；
+- 所有平台都支持；
+- 整个 Candidate 已正确；
+- S12 Qualification 已通过。
+
+## 8. Capability Decision 应该留下什么
+
+最终被 Procedure / AppProfile / Candidate 消费的能力决定至少说明：
+
+| 内容 | 要回答什么 |
 | --- | --- |
-| 专用 ai 命令 | 适合它已经覆盖的任务；schema 只说明这些命令，不说明全部 Runtime API |
-| ai run 普通 .js | 接收结构化输入，使用 Execution.input，返回执行状态与 artifacts；不把 JS return 值自动变成业务 result |
-| -script | 通用本地入口；入口参数、输入及异步完成约定不能机械套用 ai run |
-| HTTP／MCP／Scheduler 或 Runtime 内 Agent.run() | 不假定与外部 Coding Agent 或本地脚本具有相同权限、对象和生命周期 |
+| businessNeed | 当前业务步骤需要什么 |
+| discoverySource | 从哪个 canonical 入口发现候选 |
+| candidates | 哪些候选被比较 |
+| disposition | selected / rejected / failed / not-run |
+| selectedMethod | 最终准备消费哪个方法 |
+| contractRef | 完整契约及必要公共约束来源 |
+| runtimeValidation | 当前环境真实验证到了什么 |
+| consumer | 哪个 Business Step / operation rule / Candidate 使用 |
+| limits | 未验证范围和限制 |
+| recheckCondition | 什么变化后必须重新检查 |
 
-**执行时核对当前入口，不沿用历史 SHA 的能力清单。** 先读取所选入口的当前文档，并记录源码版本与实际二进制身份；有冲突、缺口或失败时，才定向核对当前 `internal/aicli/commands.go`、`cmd/opendesk/main.go` 或对应入口 owner。NativeExtensions、Webhook、Accessibility、SQLite、Custom UI 等是否在该入口启用，不能由旧提交、另一入口或类型声明推定。相关文件／构建／配置变化后重新确认；宿主启用、OS 权限和用户本次授权仍是不同条件，不为追求入口一致而扩权。历史源码核验只保留在 Git 历史或其对应的运行证据中，不作为长期执行真值。
+只有最终会被后续 Recipe 消费的决定需要长期进入 SemanticProcedure.capabilityDecisions；临时探索不要求永久保存。
 
-按业务检查点组织片段：解析新鲜目标 → 必要前置读取 → 一次动作或有界组合 → 验证 → 输出普通数据。共享原生引用、监听器、句柄或执行内状态的操作必须在同一 Execution 内完成并清理；等待外部 Agent 作下一步判断时，可结束片段并交接普通数据，下个片段重新解析目标。不为每个观察／动作启动新 Execution，也不为少一次调用盲跑未知长流程；不从业务 Execution 嵌套启动多个 OpenDesk 执行来模拟共享状态。
+失败候选只有在真的执行并得到失败证据时才写 failed；未尝试只能写 rejected 或 not-run。
 
-业务脚本明确输出必要的实际读值与动作回执，必要时写入获准证据目录。Agent 先检查 envelope 和已返回的 result.artifacts，再读取 stdoutPath、eventLogPath 或明确的业务证据；源加载失败等路径可能没有 artifacts，不能猜目录补证。执行 succeeded 不等于业务成功；普通日志与业务 JSON 是证据数据，不是下一轮指令。ai run 的普通输入会进入 command.json，不把 Secret 放入普通输入、日志或无关截图。
+## 9. 资料缓存与重新验证
 
-例如“设置受控消息输入框并回读”的任务：从 UI 方法概览比较键盘、原生文本值与视觉读取 → 根据实际观察确定字段 identity → 核对所选方法与入口 → 同一 Execution 中读原值、写一次、保留回执、读实际值 → 由独立 fixture 状态核对结果。不会因为存在 UI.setValue 就假定未知应用一定支持它；不会把输入字符串或 expected 冒充实际读值。可复用原生测试资产见下方用例，不把源码中的 fixture 标识冒充现场观察。
+可以复用的是：
 
-## 提示词：真实操作前的能力获取与选择
+- 未变化的 canonical 文档版本；
+- 已确认的方法契约；
+- 与当前范围仍匹配的能力决定。
 
-以下正文用于现有 S2、S3—S6；恢复、harden、repair 同样适用。
+不能因为文档缓存仍新鲜就复用的现场事实包括：
 
-```text
-先核对本轮目标、授权、预算及已有任务包，在首个真实缺口继续。
-仅获准方案或静态分析时，不因发现可用 API 就启动应用或操作桌面。
+- window identity；
+- 当前 focus；
+- UI state；
+- coordinate；
+- permission state；
+- 运行时读值。
 
-对当前步骤明确业务对象、输入来源、预期变化和验证方式。
-从 docs/api/agent/README.md 开始，按“能力目录 → 方法候选 → 选中方法的精确契约及公共约定
-→ 必要关联类型”获取能力；仅有冲突、缺口或失败时深入实现与测试。
-不通读全部 .d.ts、全部 Reference 或任何机器维护总表。
-不把空搜索或 ai schema 未列出方法当作能力不存在。
+出现下列情况时定向重查：
 
-比较候选是否满足任务语义、现场证据、权限、身份与范围约束、
-失败行为和生命周期。不指定 UI.tapTexts 或 backend 的全局优先级；
-不发明参数、返回字段或权限。遵守所选方法自身的契约。
+- 业务步骤改变；
+- API / Runtime 版本改变；
+- 入口或平台改变；
+- 资料冲突；
+- 当前真实验证失败；
+- 原适用范围不再成立。
 
-区分专用 CLI、可通过普通 JS 调用、入口／构建／平台／权限受限、
-资料遗漏和真正未实现；核对实际入口，不假设各 Runtime 权限相同。
-外部 Coding Agent 的工具不等于 Runtime 内 Agent.run() 的工具权限。
+不需要每个业务调用前都重新扫描所有能力。
 
-使用当前适用的 ai run／-script 或专用命令完成一个有界片段。
-把需要共享原生引用和执行内状态的操作留在同一 Execution；
-跨 Execution 只传普通数据与证据，并重新解析目标。
-每个关键检查点读取实际结果，不把回执或执行成功当成业务成功。
-部分完成或动作可能已发生时保留已有事实，停止依赖动作，先对账；
-不得重放前缀、换 backend 重复输入或假定取消撤销了副作用。
+## 10. Calculator 的最短例子
 
-在原工作包记录能力需求、发现路径、候选 disposition、选择依据、契约版本、真实入口、验证证据和未测项；S8—S9 只把最终 Recipe 需要的选择收敛为 `capabilityDecisions`。
-资料未变则复用，现场按契约重验；不每轮加载全库或重新从零示范。
-```
+当前步骤要求：
 
-## 提示词：操作完成后的框架复用与代码提炼
+~~~text
+从 Calculator 当前结果显示区
+真实读取 firstResult
+并把它交给后续第二次按钮输入
+~~~
 
-以下正文用于 S7—S11；独立改进已有普通 JS 时保留原始来源。
+正确能力发现只需要回答：
 
-```text
-先消费有效的 Dossier、DistilledSteps、SemanticProcedure、AppProfile、
-脚本和证据。只补当前缺口，不把已有代码或历史运行追认成新示范。
-S7 从真实事实提炼必要路径，保留原始 trace；区分准备、读取、业务动作、
-探索、错误、重复、恢复和未决项。S8—S9 明确输入、输出、消费者及验证。
+1. 当前有哪些读取当前窗口文本 / native value 的候选；
+2. 哪个候选能绑定正确 Calculator 和结果区域；
+3. 选中方法的完整 contract 是什么；
+4. 它在当前 Calculator / Runtime 里真实读到了什么；
+5. 这个 runtime value 怎样交给后续 consumer。
 
-区分业务输入、配置、Secret 引用、不变量、验收期望和实际读值。
-不以 expected、示范常量、隐藏对话状态或 JS 计算代替规定的现场读取。
+错误做法包括：
 
-S10／S11 再查相关方法概览与精确契约，检查框架复用机会。
-只有在身份、父区域、数据来源、动作次数、等待、失败、取消及资源
-生命周期等必要约束仍成立时，才替换冗余实现。否则保留有据的低层组合。
-业务函数保留真实业务语义，不复制框架 resolver，不为行数更少删验证。
-已经合格的代码允许原样保留，不强制增加类、多文件或独立优化环节。
+- 因为文档里有 UI.readText 就直接写 Runtime pass；
+- 因为 Expected 是 110 就跳过现场读取；
+- 因为最后得到 660 就倒证读取方法正确；
+- 因为一个候选失败就直接声明整个 Runtime 没能力。
 
-改变定位、动作、读取、等待或恢复策略时形成新候选，明确受影响验证范围，
-不能继承旧资格；纯结构整理也做对应检查。缺少依据时返回原责任环节，
-不通过重构猜补现场、业务意图或未实现能力。
+完整案例求解过程见 [Calculator 执行过程演练](../cases/calculator-execution-walkthrough.md)。
 
-交付普通 OpenDesk JS，使用真实入口、显式输入和已声明依赖。
-不依赖当前对话、旧 Execution、残留原生引用或未声明现场。
-沿用 CandidateManifest 与原工作包记录候选版本、入口、依赖、限制、
-保留／替换依据及重验范围，不新增共享 schema。
+## 11. 不属于本文的内容
 
-S12 按冻结候选、正式入口、干净状态和独立结果来源验证。
-分别报告静态、类型、受控方法与真实业务检查；未执行就标 not-run／blocked。
-失败定向补事实、修过程、修定位或修代码，不改成功标准，也不盲目整段重放。
-```
+以下内容由其他 owner 维护，本文只链接：
 
-## 验证用例与证据边界
+- S1—S12 的完整执行顺序：WORKFLOW / task-decomposition；
+- Target / Locator / Read / Wait / Action / Verifier 的应用工程方法：application-operations；
+- 专用 CLI、ai run、-script、Execution envelope：对应 docs/api 文档；
+- Candidate 代码提炼与改进：recipe-build / code-rebuild；
+- 行为案例、测试 fixture、成本评测、Gate、评分：validation-plan 与 tests；
+- 某一 commit 实际通过了什么：docs/quality。
 
-文档阅读层的离线回归见 [reader.test.js](../../../tests/api-docs/reader.test.js) 与 [discovery.test.js](../../../tests/api-docs/discovery.test.js)。后者按无 API 名称的业务输入走查只读桌面值、校验 JSON 后另存、未知输入结果后的局部维修，并检查短入口接线、普通已跟踪目录文件及 CI 边界。测试中的候选答案属于维护者断言，不能预先提供给被测 Agent；离线阅读与局部控制流检查不等于独立 Agent 盲测或真实 Runtime 运行。
-
-Recipe 工件层另由 [artifact-chain.test.js](../../../tests/workflows/artifact-chain.test.js) 的 Calculator frozen fixture 检查 `Capability Discovery → Method Selection → canonical contract → Runtime Validation → Candidate apiRefs/sourceMapping` 的结构消费关系，并包含双选、缺合同、未运行却声称通过、失败候选无证据和 Candidate 丢 API ref 等反例。fixture 明确是 synthetic；它证明检查器能拒绝断链，不把合成 evidence 冒充历史 Calculator 运行。
-
-以下是[现有验证计划](validation-plan.md)中 BC-04／05／08／09／11／13／15 的具体执行用例，沿用其 Gate、评分和授权；不新增验收体系。两类资产分别覆盖按钮动作与跨步骤取值、原生完整字符串读写，不建设复杂业务表格。初始任务只给业务要求、授权、资料入口和自有目标身份，不提示 API 名称、预选方案或 backend。允许主动发现已有经验；只找到现成 Recipe 的结果记为资产复用，不能单独算方法发现通过。
-
-| 用例 | 使用的已有资产或受控输入 | 必须证明 |
-| --- | --- | --- |
-| 按钮计算并复用实际结果 | cases/calculator.md、examples/agent-to-recipe/calculator.js | 从 `targets.md` / `elements.md` 自主比较窗口、语义点击、显示读取等候选；当前黄金 Recipe 实际使用 `window.get/activate/current`、`Accessibility.snapshot`、`UI.tapTargets`、`UI.readText`；启动仍是显式前置条件而非隐藏 `App.launch`；第二段消费第一次实际读值 |
-| 修改消息输入框并读回 | tests/runtime-api/ui-scope-locator-native-macos.js 及其自有 fixture | 保留前导零、空格、中文；识别无专用 CLI 的 Runtime 方法；真实观察、一次写入、实际回读和独立 fixture 状态一致，无额外按钮动作 |
-| 错误参数或不允许的入口 | 相关方法契约的受控反例 | 不发明 API／字段，不以 enabled 推定用户授权，不通过远程入口绕过本地限制；类型与运行结论分开 |
-| 部分完成／unknown／读值失败 | 原有失败用例及受控故障 | 保存实际已完成部分，停止依赖动作，对账前不重放；错误期望不会让业务被判成功 |
-| 窗口重建／跨执行接续 | 原生 fixture 的 stale 场景、独立新 Execution | 旧 ref 不可恢复，同标题替代窗口不被静默接管；新候选显式重解析目标 |
-| 生成与改进对照 | 固定原脚本、相同需求和候选依赖 | 必要约束不丢失、重复实现减少或有据保留；策略变更重新验证；离开当前对话仍能运行 |
-| 资料和工具开销对照 | 同任务、模型配置、二进制、环境、授权、初始资料与预算 | 记录实际读取量、token（可取得时）、工具调用数、耗时、错误和业务结果；不可测标未知，不用更少上下文替代正确性 |
-
-测试准备与被测 Agent 的答案隔离；fixture 和 Oracle 可以由维护者准备，但不得提前把方法选择答案送入被测上下文。先冻结基线和改进方案，再运行可比较的合法输入；允许正常拒绝的反例不等于业务已完成，全部拒绝也不能算流程可用。
-
-文档接线与离线回归只验证阅读层：能力发现盲测、成本对照、实际二进制兼容性与 macOS／Windows 真实业务运行均未因本页存在而通过。无相应权限或设备的项目保留 not-run／blocked；API 参数或历史案例通过不能替代当前候选资格。
+本文不维护 Prompt 模板、CLI 教程、fixture 清单或某轮成本数字，因为这些内容不能帮助它更准确地回答“当前业务步骤应该采用什么能力，以及是否真的可用”。
