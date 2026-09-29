@@ -137,6 +137,20 @@ Delivery / Publish Handoff
 
 共享任务目录、主产物文件名、request / handoff / hash 规则由 [Agent-to-Recipe Skill Contract](../../docs/frameworks/agent-to-recipe-skill-contract.md) 统一定义，不在 WORKFLOW 再造第二套格式。
 
+这里同时区分两层：
+
+~~~text
+机器权威层
+  JSON / exact JS / Execution evidence
+  → 程序消费、hash、checker、正式引用
+
+人工阅读层
+  stage-review.md + 同版 Markdown 视图
+  → 快速看懂、排错、定位 first invalid boundary
+~~~
+
+Markdown 只能是权威产物的同版投影，必须写明来源 ref/hash；人工发现错误后先修权威数据/事实，再重生成视图，不能让 Markdown 和 JSON 各自维护一套真相。每个正式阶段都必须在任务根 `stage-review.md` 中有稳定的人工作业入口，即使 S3—S5 没有各自独立业务 JSON，也必须在那里链接本次真实 Execution action / observation / decision。
+
 Calculator 的人类可读示例见 [Calculator 阶段产物链](cases/calculator-artifacts.md)。它说明“出错后应该打开哪个文件、里面至少应该看见什么”；真实 Producer 仍必须生成自己的本次运行产物，不能复制黄金案例当 Actual。
 
 ---
