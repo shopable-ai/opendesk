@@ -18,6 +18,8 @@ order: 10
 
 > **本文是 Inspection View / 阶段检查视图。** 如果你现在的问题是“一个 Agent 实际怎样从需求出发，先查什么、调用什么、执行什么、观察什么，再决定下一步”，先读 [Calculator 执行过程演练](calculator-execution-walkthrough.md)。Walkthrough 展示程序性求解主线；本文负责沿 S1—S12 检查每一步是否正确。
 
+> 如果你现在的问题是“**这个阶段真正产出了哪个文件？文件名是什么？里面至少应该有什么？出错后先打开哪个？**”，直接读 [Calculator 阶段产物链](calculator-artifacts.md)。它把本文每阶段的“正式产物”连接到真实 task / attempt / Execution 的可检查文件。
+
 ---
 
 ## 0. 原始需求与验收边界
@@ -214,6 +216,8 @@ S12：验收同一 Candidate，确认真实 producer → consumer
 ~~~
 
 阅读时优先看“Calculator 中实际做什么”和“做完后应该得到什么”；需要检查边界时，再看输入、错误信号和返回位置。正式字段名只在确实需要交接或验收时保留，不要求先理解字段结构才能理解业务过程。
+
+每个阶段的“正式产物”都必须对应本次执行真实存在的文件或固定引用；本文中的参考内容不能替代本次 Actual。文件名、目录位置与最小示例统一放在 [Calculator 阶段产物链](calculator-artifacts.md)，避免在 12 个阶段正文里重复一整套文件组织说明。
 
 ---
 
