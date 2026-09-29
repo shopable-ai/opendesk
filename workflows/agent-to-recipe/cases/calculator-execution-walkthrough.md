@@ -14,9 +14,27 @@ order: 9
 
 > **如果一个没有历史聊天上下文的新 Agent 收到 Calculator 需求，它实际应该先看什么、调用什么、执行什么、取得什么事实，再根据结果怎样继续。**
 
-逐阶段检查、首错定位和最小返工范围仍看 [Calculator 基准案例](calculator.md)。正式阶段定义仍由 [task-decomposition.md](../design/task-decomposition.md) 负责。
+逐阶段检查、首错定位和最小返工范围仍看 [Calculator 基准案例](calculator.md)。如果你要直接查看“每一步应该留下什么文件、文件名和最小示例内容”，看 [Calculator 阶段产物链](calculator-artifacts.md)。正式阶段定义仍由 [task-decomposition.md](../design/task-decomposition.md) 负责。
 
-## 0. 30 秒看懂 Calculator 的完整求解框架
+## 0. 先看“执行”和“落盘”两条线
+
+解决 Calculator 时要同时维护两条线：
+
+~~~text
+执行线
+  当前问题 → 查什么 → 做什么 → 得到什么事实 → 下一步
+
+产物线
+  本阶段 Actual → 保存到哪里 → 证据在哪里 → 阶段 verdict 在哪里
+~~~
+
+执行线回答“Agent 怎么做”；产物线回答“以后怎么检查它做得对不对”。
+
+因此每个正式阶段退出前，不仅要有“得到什么事实”，还要能指出本次 task / attempt 中对应的实际文件或固定引用。S1—S12 的文件地图和示例内容统一见 [Calculator 阶段产物链](calculator-artifacts.md)。
+
+---
+
+## 0.1 30 秒看懂 Calculator 的完整求解框架
 
 本文采用一种 **层级式求解分解（Hierarchical Solution Decomposition）**：先把完整任务分成少数几个求解部分，再逐层展开子任务、关键动作和数据关系。本文把这棵面向阅读的顶层结构称为 **求解框架树（Solution Framework Tree）**。
 
