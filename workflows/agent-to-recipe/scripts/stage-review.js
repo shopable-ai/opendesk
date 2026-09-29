@@ -21,7 +21,7 @@ const CLAIMS = Object.freeze({
   bindings: ['exact-byte bindings'],
   'trace-distill': ['raw-action disposition coverage', 'runtime-value producer/consumer declarations'],
   'procedure-synthesize': ['ordered DistilledStep-to-BusinessStep mapping', 'capability discovery → method selection → canonical contract → declared validation status (not engineering readiness)'],
-  candidate: ['selected API contract refs carried into Candidate source mapping', 'Procedure-to-Candidate direct await/spread source pattern'],
+  candidate: ['selected API contract refs carried into Candidate source mapping', 'Procedure-to-Candidate declared source mapping; business dataflow requires independent exact-byte consumer verification'],
   qualification: ['Candidate-to-Qualification declared scope binding'],
 });
 
@@ -69,17 +69,22 @@ function valueLineage(entries, boundaries = {}) {
   const list = value => Array.isArray(value) ? value : [];
   return list(doc('dossier').runtimeValues).slice(0, 100).map(rawValue => {
     const value = object(rawValue) ? rawValue : { name: 'invalid runtime value record' };
-    const action = String(value.origin || '').match(/\bA\d+\b/)?.[0];
+    const action = object(value.origin) ? value.origin.actionRef : String(value.origin || '').match(/\bA\d+\b/)?.[0];
     const actionIds = [action, ...list(value.consumers)];
     const steps = list(doc('distilled').steps).filter(step => object(step)
       && list(step.sourceActionRefs).some(id => actionIds.includes(id)));
     const business = list(doc('procedure').businessSteps).filter(step => object(step)
       && list(step.sourceStepRefs).some(id => steps.some(source => source.stepId === id)));
     const mappings = list(doc('candidate').sourceMapping).filter(mapping => object(mapping)
-      && business.some(step => (String(mapping.step || '').match(/\bB\d+\b/g) || []).includes(step.stepId)));
+      && business.some(step => (own(mapping, 'businessStepRefs') ? list(mapping.businessStepRefs)
+        : String(mapping.step || '').match(/\bB\d+\b/g) || []).includes(step.stepId)));
     return { value: value.name, observedClaim: value.observedValue, action: action || 'missing',
       consumers: list(value.consumers), distilled: steps.map(step => step.stepId),
-      business: business.map(step => step.stepId), code: mappings.map(mapping => mapping.function),
+      business: business.map(step => step.stepId), code: mappings.flatMap(mapping => [
+        ...(typeof mapping.function === 'string' && mapping.function.trim() ? [mapping.function] : []),
+        ...(Number.isSafeInteger(mapping.line) && mapping.line > 0 && typeof mapping.rule === 'string' && mapping.rule.trim()
+          ? ['line ' + mapping.line + ': ' + mapping.rule] : []),
+      ]),
       evidence: list(value.evidenceRefs), qualification: entries.qualification
         ? (boundaries.qualification || 'not-run') + ' (record declarations only; not live verified)' : 'not-run' };
   });
@@ -110,7 +115,7 @@ function renderReview(report) {
   }
   lines.push('', '## 关键值追溯（声明，不是真实运行证明）', '',
     '最多展示 100 个值；更多值请查固定 Dossier。空白或 missing 表示没有此层映射，不能推断已完成。', '',
-    '| 值／观察声明 | 实际动作来源／消费者 | S7 来源步骤 | S9 业务步骤 | 候选函数 | 证据引用 | 资格检查（非实测） |',
+    '| 值／观察声明 | 实际动作来源／消费者 | S7 来源步骤 | S9 业务步骤 | 候选函数／代码区域（声明） | 证据引用 | 资格检查（非实测） |',
     '| --- | --- | --- | --- | --- | --- | --- |');
   for (const item of report.valueLineage || []) lines.push('| ' + [
     item.value + ': ' + item.observedClaim, item.action + ' → ' + item.consumers.join(', '),
