@@ -4,10 +4,61 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const vm = require('node:vm');
 const { spawnSync } = require('node:child_process');
 const { checkArtifactChain } = require('../../workflows/agent-to-recipe/scripts/check-artifact-chain.js');
 
 const { fixture, rejects, REPO, SOURCE, EXPECTED, clone } = require('./tools/artifact-fixture.js');
+const { verifyFrozenConsumer } = require('./tools/calculator-consumer-dataflow.cjs');
+const evaluatorSha256 = crypto.createHash('sha256')
+  .update(fs.readFileSync(path.join(__dirname, 'tools/calculator-consumer-dataflow.cjs'))).digest('hex');
+
+function consumerDescriptor(fixtureState) {
+  const candidate = JSON.parse(fs.readFileSync(fixtureState.file('candidate.json'), 'utf8'));
+  return { schemaVersion: 'calculator-consumer-l1/v1', harness: 'calculator-helper-fixture-v1',
+    candidateRef: fixtureState.ref('candidate.json', 'CandidateManifest'), scriptRef: candidate.scriptRef,
+    roots: [['fixture', fixtureState.root], ['repo', REPO]],
+    evaluatorSha256, script: { path: fixtureState.file('candidate.js'),
+      sha256: fixtureState.ref('candidate.js', 'script').sha256 }, dependencies: candidate.dependencies };
+}
+
+function assertUnknownDataflow(report) {
+  assert.equal(report.verdictScope, 'artifact-structure-and-byte-bindings-only');
+  assert.equal(report.businessDataflow.verdict, 'unknown');
+  assert.equal(report.businessDataflow.releaseBlocked, true);
+  assert.equal(report.stageComplete, false);
+  assert.equal(report.liveQualificationGranted, false);
+  assert.ok(!report.proves.some(claim => /await\/spread/.test(claim)));
+}
+
+async function exerciseFixtureBytes(fixtureState, first) {
+  const filename = fixtureState.file('candidate.js');
+  const bytes = fs.readFileSync(filename);
+  const manifest = JSON.parse(fs.readFileSync(fixtureState.file('candidate.json'), 'utf8'));
+  assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'), manifest.scriptRef.sha256);
+  const events = [];
+  let readCount = 0;
+  const output = await new vm.Script(bytes.toString('utf8') + '\nmain({});', { filename })
+    .runInNewContext({
+      clearCalculator: async () => { events.push('clear'); },
+      clickCalculatorButtons: async (win, buttons) => { events.push(Array.from(buttons)); },
+      readCalculatorResult: async () => {
+        const value = ++readCount === 1 ? first : 'synthetic-final';
+        events.push({ read: value });
+        return value;
+      },
+    }, { timeout: 1000 });
+  return { events, output };
+}
+
+function assertFixtureDataflow(run, first) {
+  assert.deepEqual(run.events, [
+    'clear', ['2', '5', '×', '4', '+', '1', '0', '='], { read: first },
+    'clear', ['6', '×', ...first, '='], { read: 'synthetic-final' },
+  ]);
+  assert.equal(run.output.firstResult, first);
+  assert.equal(run.output.finalResult, 'synthetic-final');
+}
 
 test('accepts the frozen producer-to-consumer slice without treating Oracles as inputs', t => {
   const f = fixture(t);
@@ -19,6 +70,8 @@ test('accepts the frozen producer-to-consumer slice without treating Oracles as 
   });
   assert.ok(report.notEvaluated.includes('desktop actions or OS input events'));
   assert.ok(!fs.readFileSync(f.file('candidate.js'), 'utf8').includes(EXPECTED.positive.finalResult));
+  assert.deepEqual(report.subjectRefs, [f.ref('candidate.json', 'CandidateManifest'),
+    { ...JSON.parse(fs.readFileSync(f.file('candidate.json'), 'utf8')).scriptRef, kind: 'CandidateSource' }]);
 });
 
 for (const variant of ['valid', 'changed-goal', 'changed-criterion', 'missing-parent']) {
@@ -265,11 +318,13 @@ test('rejects a Procedure that drops the runtime producer-consumer dependency', 
   rejects(f.check(), 'DATA_DEPENDENCY_BROKEN');
 });
 
-test('rejects code that reads firstResult but consumes fixed 110', t => {
+test('independent host oracle rejects fixed 110; static dataflow stays unknown', async t => {
   const f = fixture(t, source => {
     source.candidateSource = source.candidateSource.replace("['6', '×', ...firstResult, '=']", "['6', '×', '1', '1', '0', '=']");
   });
-  rejects(f.check(), 'DATA_DEPENDENCY_BROKEN');
+  assertUnknownDataflow(f.check());
+  const run = await exerciseFixtureBytes(f, '0040');
+  assert.throws(() => assertFixtureDataflow(run, '0040'), assert.AssertionError);
 });
 
 test('rejects a post-hoc explanation presented as historical firstResult provenance', t => {
@@ -297,11 +352,160 @@ for (const decoration of [
   "// await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);\n",
   "/* await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']); */\n",
   "const example = \"clickCalculatorButtons(win, [...firstResult])\";\n",
-]) test('does not treat comments or quoted examples as runtime consumers: ' + decoration.slice(0, 12), t => {
+]) test('does not treat comments or quoted examples as runtime consumers: ' + decoration.slice(0, 12), async t => {
   const f = fixture(t, source => {
     source.candidateSource = source.candidateSource.replace("['6', '×', ...firstResult, '=']", "['6', '×', '1', '1', '0', '=']") + decoration;
   });
-  rejects(f.check(), 'DATA_DEPENDENCY_BROKEN');
+  assertUnknownDataflow(f.check());
+  const run = await exerciseFixtureBytes(f, '0040');
+  assert.throws(() => assertFixtureDataflow(run, '0040'), assert.AssertionError);
+});
+
+for (const [name, valid, transform] of [
+  ['baseline', true, code => code],
+  ['Array.from', true, code => code.replace('...firstResult', '...Array.from(firstResult)')],
+  ['concat split', true, code => code.replace("['6', '×', ...firstResult, '=']", "['6', '×'].concat(firstResult.split(''), ['='])")],
+  ['alias', true, code => code.replace("  await clickCalculatorButtons(win, ['6'", "  const operand = firstResult;\n  await clickCalculatorButtons(win, ['6'").replace('...firstResult', '...operand')],
+  ['slice truncation', false, code => code.replace('...firstResult', '...firstResult.slice(0, 1)')],
+  ['Set deduplication', false, code => code.replace('...firstResult', '...new Set([...firstResult])')],
+  ['replace rewrite', false, code => code.replace('...firstResult', "...firstResult.replace(/0/g, '9')")],
+  ['overwrite after clear', false, code => code.replace('const firstResult', 'let firstResult')
+    .replace("  await clickCalculatorButtons(win, ['6'", "  firstResult = '110';\n  await clickCalculatorButtons(win, ['6'")],
+  ['unreachable dynamic consumer', false, code => code.replace(
+    "  await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);",
+    "  if (false) await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);\n  await clickCalculatorButtons(win, ['6', '×', '1', '1', '0', '=']);")],
+  ['constant producer', false, code => code.replace('await readCalculatorResult(win)', "'110'")],
+]) {
+  test('L1 exact fixture bytes, not live qualification: ' + name, { timeout: 3000 }, async t => {
+    const f = fixture(t, source => { source.candidateSource = transform(source.candidateSource); });
+    const report = f.check();
+    assert.equal(report.verdict, 'pass', JSON.stringify(report.errors));
+    assertUnknownDataflow(report);
+    const controlled = verifyFrozenConsumer(consumerDescriptor(f));
+    assert.equal(controlled.verdict, valid ? 'pass' : 'fail', JSON.stringify(controlled));
+    assert.equal(controlled.evidenceLayer, 'L1-controlled-substitutes');
+    assert.equal(controlled.liveQualificationGranted, false);
+    assert.equal(controlled.businessDataflow.releaseBlocked, !valid);
+    assert.equal(controlled.businessDataflow.verdict, valid ? 'pass' : 'fail');
+    assert.equal(controlled.verification.evidenceRefs.length, 1);
+    assert.equal(controlled.scenarios.length, 3);
+    if (!valid) assert.equal(controlled.scenarios[0].verdict, 'fail');
+    for (const first of valid ? ['0040', '9900', '7'] : ['0040']) {
+      const run = await exerciseFixtureBytes(f, first);
+      if (valid) assertFixtureDataflow(run, first);
+      else assert.throws(() => assertFixtureDataflow(run, first), assert.AssertionError);
+    }
+  });
+}
+
+test('CLI JSON and Markdown cannot promote a dead consumer to business dataflow pass', t => {
+  const f = fixture(t, source => {
+    source.candidateSource = source.candidateSource.replace(
+      "  await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);",
+      "  if (false) await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);\n  await clickCalculatorButtons(win, ['6', '×', '1', '1', '0', '=']);");
+  });
+  for (const format of ['json', 'markdown']) {
+    const cli = spawnSync(process.execPath, [
+      'workflows/agent-to-recipe/scripts/check-artifact-chain.js',
+      ...['dossier', 'actions', 'distilled', 'procedure', 'candidate', 'qualification']
+        .flatMap(name => ['--' + name, f.file(name + '.json')]),
+      '--root', 'fixture=' + f.root, '--format', format,
+    ], { cwd: REPO, encoding: 'utf8' });
+    assert.equal(cli.status, 0, cli.stderr);
+    if (format === 'json') assertUnknownDataflow(JSON.parse(cli.stdout));
+    else {
+      assert.match(cli.stdout, /Business dataflow remains unknown and business release is blocked/);
+      assert.doesNotMatch(cli.stdout, /direct await\/spread/);
+    }
+  }
+});
+
+for (const [name, mutate] of [
+  ['source drift', descriptor => { descriptor.script.sha256 = '0'.repeat(64); }],
+  ['evaluator drift', descriptor => { descriptor.evaluatorSha256 = '0'.repeat(64); }],
+  ['unsupported dependencies', descriptor => { descriptor.dependencies = [{ path: 'helper.js', sha256: '0'.repeat(64) }]; }],
+  ['unsupported harness', descriptor => { descriptor.harness = 'arbitrary-js'; }],
+  ['candidate drift', descriptor => { descriptor.candidateRef.sha256 = '0'.repeat(64); }],
+  ['script ref drift', descriptor => { descriptor.scriptRef.sha256 = '0'.repeat(64); }],
+  ['output outside .runtime', descriptor => { descriptor.outputDir = REPO; }],
+]) {
+  test('frozen L1 verifier blocks ' + name + ' without execution', t => {
+    const f = fixture(t);
+    const descriptor = consumerDescriptor(f);
+    mutate(descriptor);
+    const report = verifyFrozenConsumer(descriptor);
+    assert.equal(report.verdict, 'blocked');
+    assert.deepEqual(report.scenarios, []);
+  });
+}
+
+test('L1 cannot execute a different candidate source under the original manifest', t => {
+  const original = fixture(t);
+  const other = fixture(t, source => { source.candidateSource += '\n// different frozen bytes\n'; });
+  const descriptor = consumerDescriptor(original);
+  descriptor.script.path = other.file('candidate.js');
+  descriptor.script.sha256 = other.ref('candidate.js', 'script').sha256;
+  const report = verifyFrozenConsumer(descriptor);
+  assert.equal(report.verdict, 'blocked');
+  assert.equal(report.businessDataflow.releaseBlocked, true);
+  assert.deepEqual(report.scenarios, []);
+});
+
+for (const kind of ['RuntimeBinary', 'AppProfile', 'OperationRules']) {
+  test('L1 binds but never executes ' + kind + ' metadata, and detects actual dependency drift', t => {
+    const f = fixture(t);
+    const filename = kind === 'RuntimeBinary' ? 'runtime-binary' : 'metadata.json';
+    f.write(filename, kind === 'RuntimeBinary' ? 'synthetic binary metadata, not executed' : { schemaVersion: 'metadata/v1' });
+    const candidate = JSON.parse(fs.readFileSync(f.file('candidate.json'), 'utf8'));
+    candidate.dependencies = [f.ref(filename, kind, 'metadata/v1')];
+    f.write('candidate.json', candidate);
+    const descriptor = consumerDescriptor(f);
+    const accepted = verifyFrozenConsumer(descriptor);
+    assert.equal(accepted.verdict, 'pass', JSON.stringify(accepted));
+    assert.deepEqual(accepted.subjectRefs.at(-1), candidate.dependencies[0]);
+    assert.equal(accepted.dependencyVerification.executed, false);
+    f.write(filename, 'changed dependency bytes');
+    const drifted = verifyFrozenConsumer(descriptor);
+    assert.equal(drifted.verdict, 'blocked');
+    assert.match(drifted.message, /Bound ref drift/);
+    assert.deepEqual(drifted.scenarios, []);
+  });
+}
+
+test('a JavaScript dependency relabeled as RuntimeBinary is still rejected', t => {
+  const f = fixture(t);
+  f.write('external.js', 'throw new Error("MUST_NOT_EXECUTE");');
+  const candidate = JSON.parse(fs.readFileSync(f.file('candidate.json'), 'utf8'));
+  candidate.dependencies = [f.ref('external.js', 'RuntimeBinary', 'text/javascript')];
+  f.write('candidate.json', candidate);
+  const report = verifyFrozenConsumer(consumerDescriptor(f));
+  assert.equal(report.verdict, 'blocked');
+  assert.match(report.message, /External JavaScript dependency/);
+  assert.deepEqual(report.scenarios, []);
+});
+
+test('frozen L1 verifier bounds an async continuation that never terminates', { timeout: 8000 }, t => {
+  const f = fixture(t, source => {
+    source.candidateSource = 'async function main() { await Promise.resolve(); while (true) {} }';
+  });
+  const report = verifyFrozenConsumer(consumerDescriptor(f));
+  assert.equal(report.verdict, 'blocked');
+  assert.equal(report.code, 'EXECUTION_INCOMPLETE');
+  assert.deepEqual(report.scenarios, []);
+});
+
+test('static checker never executes source or trusts a supplied dataflow PASS', t => {
+  const f = fixture(t, source => {
+    source.candidateSource = 'throw new Error("CANDIDATE_MUST_NOT_EXECUTE");\n' + source.candidateSource;
+    source.candidate.businessDataflow = { verdict: 'pass', releaseBlocked: false };
+    source.qualification.businessDataflow = { verdict: 'pass', releaseBlocked: false };
+  });
+  const report = f.check();
+  assert.equal(report.verdict, 'pass', JSON.stringify(report.errors));
+  assertUnknownDataflow(report);
+  const prefix = checkArtifactChain({ ...f.options, through: 'trace-distill' });
+  assert.equal(prefix.businessDataflow.verdict, 'not-run');
+  assert.equal(prefix.businessDataflow.releaseBlocked, true);
 });
 
 test('rejects a retained action missing from its declared step', t => {
