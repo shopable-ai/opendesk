@@ -14,6 +14,8 @@ const EVENT_STYLE_NAME = /^(?:(?:a|e)\d+|(?:click|action|step)[-_]?\d+)$/i;
 const PLACEHOLDER = /请.*补充|must\s+ask|\btodo\b|\bunknown\b/i;
 const SCHEMA_PATH = path.resolve(__dirname, '..', 'references', 'semantic-build-plan.schema.json');
 const BUILD_PLAN_SCHEMA = JSON.parse(fs.readFileSync(SCHEMA_PATH, 'utf8'));
+const BUILD_PLAN_V2_SCHEMA = JSON.parse(fs.readFileSync(path.join(path.dirname(SCHEMA_PATH), 'semantic-build-plan-v2.schema.json'), 'utf8'));
+const {readBoundFile, inspectPartialRecording} = require('./inspect-partial-recording.js');
 
 function isObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -261,6 +263,110 @@ function checkActualSource(plan, result, options) {
   }
 }
 
+function validateCompletion(plan, episodes, result, options) {
+  const {errors, blockers} = result;
+  const materials = Array.isArray(plan.source?.materials) ? plan.source.materials : [];
+  const materialIds = uniqueIds(materials, 'source.materials', errors);
+  for (const id of materialIds) {
+    if (plan.source?.actionIds?.includes(id)) push(errors, 'AMBIGUOUS_SOURCE_ID', 'source.materials', 'Material and recording action IDs must not collide');
+  }
+  const completion = plan.completion || {};
+  const items = key => Array.isArray(completion[key]) ? completion[key] : [];
+  const checkRefs = (refs, location) => {
+    if (!isStringArray(refs, true)) return;
+    for (const ref of refs) {
+      if (!materialIds.has(ref) && !plan.source.actionIds?.includes(ref)) {
+        push(errors, 'UNKNOWN_MATERIAL_REFERENCE', location, 'Completion references an unbound material: ' + ref);
+      }
+    }
+  };
+  for (const [id, episode] of episodes) checkRefs(episode.sourceRefs, 'businessEpisodes.' + id + '.sourceRefs');
+  for (const key of ['requirements','gaps','dataBindings']) uniqueIds(completion[key], 'completion.' + key, errors);
+  for (const item of items('requirements')) {
+    if (!isObject(item)) continue;
+    checkRefs(item.sourceRefs, 'completion.requirements.' + item.id);
+    if (item.status !== 'confirmed' || !item.episodeIds?.length) {
+      push(blockers, 'INCOMPLETE_BUSINESS_COVERAGE', 'completion.requirements.' + item.id, 'Full task criterion is unresolved or has no consumer');
+    }
+    for (const id of Array.isArray(item.episodeIds) ? item.episodeIds : []) if (!episodes.has(id)) push(errors, 'UNKNOWN_EPISODE', 'completion.requirements.' + item.id, id);
+  }
+  for (const gap of items('gaps')) {
+    if (!isObject(gap)) continue;
+    checkRefs(gap.sourceRefs, 'completion.gaps.' + gap.id);
+    if (gap.status !== 'resolved') push(blockers, 'UNRESOLVED_COMPLETION_GAP', 'completion.gaps.' + gap.id,
+      gap.reason + ' → ' + gap.owner + ': ' + gap.minimalEvidence);
+    for (const id of Array.isArray(gap.consumerIds) ? gap.consumerIds : []) if (!episodes.has(id)) push(errors, 'UNKNOWN_EPISODE', 'completion.gaps.' + gap.id, id);
+  }
+  for (const edge of items('dataBindings')) {
+    if (!isObject(edge)) continue;
+    checkRefs(edge.sourceRefs, 'completion.dataBindings.' + edge.id);
+    const producer = [...episodes.keys()].indexOf(edge.producerEpisodeId);
+    const consumer = [...episodes.keys()].indexOf(edge.consumerEpisodeId);
+    if (producer < 0 || consumer <= producer || edge.lifetime !== 'fresh-run') {
+      push(errors, 'INVALID_RUNTIME_DATA_EDGE', 'completion.dataBindings.' + edge.id, 'A runtime value needs an earlier producer in this Fresh Run');
+    }
+  }
+  const operator = plan.source?.operator;
+  if (operator?.executor !== 'unknown' && operator?.basis === 'unknown') {
+    push(errors, 'UNSUPPORTED_EXECUTOR_CLAIM', 'source.operator', 'Recorder presence cannot establish an executor');
+  }
+  if (options.checkSource && isObject(plan.source) && isNonEmptyString(plan.source.recordingDir)) {
+    const intake = inspectPartialRecording({recordingDir:path.resolve(options.cwd || process.cwd(), plan.source.recordingDir)});
+    if (intake.packageIntegrity !== 'verified') {
+      push(blockers, 'INVALID_PARTIAL_RECORDING', 'source', 'Partial recording integrity failed: ' + intake.blockers.map(b => b.reason).join('; '));
+    }
+    if (operator?.basis === 'record' && operator.executor !== 'unknown'
+      && intake.facts.some(f => f.executor !== operator.executor)) {
+      push(errors, 'EXECUTOR_SOURCE_CONFLICT', 'source.operator', 'Recorded source does not support the declared executor');
+    }
+  }
+  const used = new Set([...episodes.values()].flatMap(e => e.sourceRefs || []).concat(
+    ...items('requirements').map(r => r?.sourceRefs || []),
+    ...items('gaps').map(r => r?.sourceRefs || []),
+    ...items('dataBindings').map(r => r?.sourceRefs || [])));
+  const identities = new Set();
+  for (const material of materials) {
+    if (!isObject(material)) continue;
+    const versions = {
+      'user-requirement':['recorder-task/v1'],
+      'agent-observation':['agent-to-recipe/v1'],
+      'application-rule':['text/plain','agent-to-recipe/app-profile/v1.1','agent-to-recipe/v1'],
+      'existing-asset':['text/javascript','text/plain'],
+    };
+    if (!versions[material.kind]?.includes(material.schemaVersion)) {
+      push(errors, 'UNSUPPORTED_MATERIAL_VERSION', 'source.materials.' + material.id, 'No supported consumer for this material version');
+    }
+    const identity = material.artifact?.path;
+    if (identities.has(identity)) push(errors, 'DUPLICATE_MATERIAL', 'source.materials', 'One material must not be counted twice');
+    identities.add(identity);
+    if (used.has(material.id) && material.unknowns?.length) {
+      push(blockers, 'UNRESOLVED_MATERIAL', 'source.materials.' + material.id, 'Consumed material retains blocking unknowns');
+    }
+    if (material.kind === 'agent-observation' && (material.executor !== 'agent' || !material.executionId)) {
+      push(errors, 'INVALID_SUPPLEMENT_LINEAGE', 'source.materials.' + material.id, 'Agent observations retain their own actor and execution');
+    }
+    if (options.checkSource) {
+      try {
+        const bound = readBoundFile(options.cwd || process.cwd(), material.artifact?.path);
+        if (bound.sha256 !== material.artifact.sha256) throw new Error('Supplement hash changed');
+        if (!['text/plain','text/javascript'].includes(material.schemaVersion)) {
+          const actual = JSON.parse(bound.bytes.toString('utf8'));
+          const version = actual.schemaVersion || actual.formatVersion;
+          if (version !== material.schemaVersion) throw new Error('Supplement schema version changed');
+          if (material.kind === 'user-requirement' && (!actual.description?.trim()
+            || !actual.successConditions?.trim() || !actual.allowedSideEffects?.trim())) {
+            throw new Error('Full task, success conditions or side-effect scope remains unknown in the actual declaration');
+          }
+          if (material.kind === 'agent-observation' && actual.executionId !== material.executionId) throw new Error('Supplement execution identity changed');
+        }
+      } catch (error) { push(blockers, 'SUPPLEMENT_SOURCE_INVALID', 'source.materials.' + material.id, error.message); }
+    }
+  }
+  if (!materials.some(m => m.kind === 'user-requirement')) {
+    push(blockers, 'MISSING_COMPLETE_TASK', 'source.materials', 'Partial authoring needs the complete user task');
+  }
+}
+
 function validateSemanticBuildPlan(plan, options = {}) {
   const result = {
     valid: false,
@@ -274,9 +380,11 @@ function validateSemanticBuildPlan(plan, options = {}) {
   const {errors, blockers, warnings} = result;
 
   if (!requireObject(plan, '$', errors)) return result;
-  validateSchemaNode(plan, BUILD_PLAN_SCHEMA, BUILD_PLAN_SCHEMA, '$', errors);
-  if (plan.schemaVersion !== 'semantic-build-plan/v1') {
-    push(errors, 'UNSUPPORTED_SCHEMA_VERSION', 'schemaVersion', 'expected semantic-build-plan/v1');
+  const partial = plan.schemaVersion === 'semantic-build-plan/v2';
+  const schema = partial ? BUILD_PLAN_V2_SCHEMA : BUILD_PLAN_SCHEMA;
+  validateSchemaNode(plan, schema, schema, '$', errors);
+  if (!['semantic-build-plan/v1', 'semantic-build-plan/v2'].includes(plan.schemaVersion)) {
+    push(errors, 'UNSUPPORTED_SCHEMA_VERSION', 'schemaVersion', 'unsupported Human plan version');
   }
   if (plan.kind !== 'human-to-recipe-semantic-build-plan') {
     push(errors, 'INVALID_KIND', 'kind', 'expected human-to-recipe-semantic-build-plan');
@@ -449,7 +557,7 @@ function validateSemanticBuildPlan(plan, options = {}) {
       if (EVENT_STYLE_NAME.test(String(episode.id || '')) || EVENT_STYLE_NAME.test(String(episode.name || ''))) {
         push(errors, 'EVENT_STYLE_EPISODE_NAME', itemPath, 'Business Episode names must express business meaning');
       }
-      if (!isStringArray(episode.actionIds, true)) {
+      if (!isStringArray(episode.actionIds, !partial)) {
         push(errors, 'INVALID_EPISODE_ACTIONS', `${itemPath}.actionIds`, 'expected unique business action IDs');
       }
       for (const actionId of Array.isArray(episode.actionIds) ? episode.actionIds : []) {
@@ -472,6 +580,7 @@ function validateSemanticBuildPlan(plan, options = {}) {
     });
   }
   result.summary.businessEpisodeCount = episodesById.size;
+  if (partial) validateCompletion(plan, episodesById, result, options);
   for (const [actionId, item] of dispositions) {
     if (item.disposition === 'business' && !businessEpisodeConsumption.has(actionId)) {
       push(blockers, 'UNMAPPED_BUSINESS_ACTION', 'businessEpisodes',

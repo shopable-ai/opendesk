@@ -32,8 +32,10 @@
       || !runtimeExecution || !runtimeExecution.scriptDir) {
       return null;
     }
+    const assetPath = runtimeFile.join(runtimeExecution.scriptDir, 'assets', 'opendesk-logo.png');
+    if (typeof runtimeFile.exists === 'function' && !runtimeFile.exists(assetPath)) return null;
     return Object.freeze({
-      path: runtimeFile.join(runtimeExecution.scriptDir, 'assets', 'opendesk-logo.png'),
+      path: assetPath,
       renderingMode: 'original',
     });
   }
@@ -184,8 +186,8 @@
       const titledInput = {...input, title: windowTitle};
       const toolbarOptions = input.toolbar ? {...input.toolbar} : null;
       if (toolbarOptions && toolbarOptions.maxRows === 1
-        && (!Number.isFinite(toolbarOptions.maxColumns) || toolbarOptions.maxColumns < 10)) {
-        toolbarOptions.maxColumns = 10;
+        && (!Number.isFinite(toolbarOptions.maxColumns) || toolbarOptions.maxColumns < 11)) {
+        toolbarOptions.maxColumns = 11;
       }
       const inner = new BaseFloatingWindow(toolbarOptions ? {...titledInput, toolbar: toolbarOptions} : titledInput);
       const wrapper = {};

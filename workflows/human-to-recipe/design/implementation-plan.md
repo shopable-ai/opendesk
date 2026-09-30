@@ -451,6 +451,20 @@ current8 另从仓库根目录原样运行公开 `recording-console-simple.js` �
 
 ## 9. 下一批最小范围
 
+### 关键录制到完整普通 JS 的接续交付
+
+本轮实现以现有 Recorder controller、Human Skill 与共享制作合同为入口，保留 H1—H8/S1—S12 和既有事实 owner。源码、方法与稳定测试已接入：任务声明/完整任务 scope、无候选业务交接、静态模式不升级、严格 Human v1/v2、部分录制诊断、application-engineer 双来源限定规则消费，以及冻结并执行精确普通 JS 的 H7 工具。测试与维护样本入口见 Human Skill 的[Calculator 部分录制样本](../skills/human-to-recipe/references/partial-recording-calculator.md)。
+
+验收分别记录：稳定单元/兼容/反例检查通过；真实 Recorder 已保存指定第一段的 8 个按钮动作，执行者为 Agent 经 Runtime，采集者为 Recorder，不能称为真人；真实原生复制按钮使用固定录制材料的受控输入适配，通过当前 canonical 回调写入系统剪贴板；真实工具栏尺寸 584×81、图标与对齐已观察。原录制/候选没有被派生计划和完整 JS 覆盖。
+
+完整 JS 复用了已声明的既有资产，当前精确源码真实执行一次得到本次读取的 110、清空后实际消费其三个字符、终点读取 660。独立只读 execution 观察了连续的零/第一结果/清空/终点链；随后出现候选结束后的其他输入，观察器未取得其预定稳定终态，因此 H7 资格失败，第二次 Fresh Run 未运行，不能声明可重复资格通过。现场并发与资格失败保留，不能靠重放、删证据、改判据或沿用旧候选资格放行。
+
+当前本地工作包的 `stage-review.md` 位于 `.runtime/tests/human-to-recipe/partial-authoring/`，只投影实际 plan、源码、当前 scorer、controlled report、原生按钮结果、Runtime summary 和失败的 live report。私人录制、截图与运行证据不进入版本控制。Human 静态评分、受控消费、真实 UI 与资格分别解释；不补填 Agent 阶段 PASS，不声明独立模型专家验收或真人体验通过。
+
+最小接续：取得 Calculator 的明确独占控制、确认无在途输入及当前状态，然后从同一 Human plan 经 H7 精确冻结入口继续；保留本轮材料、候选与失败。内置发行包的重新构建/签名/加载验收与外部 canonical 源码实窗验收分开，本轮没有把运行中的旧内嵌资源称为更新后的发行包。
+
+正式 Native 验收从仓库根目录执行 `./dist/opendesk -ui -allow-recorder-capture -script tests/runtime-api/recorder-partial-authoring-macos.js -console-mode script`；此入口执行限定 Calculator 第一段与 Recorder 控制，不是普通用户录制方式。仅验证已有固定材料的真实复制按钮时，使用该文件内已经实现的 `OPENDESK_RECORDER_PARTIAL_SAVED_RECORDING` 模式，不启动 capture 或重演 Calculator。普通用户仍是一条 Recorder 启动命令加真实窗口交互。
+
 下一批语义增强优先完成“点击目标多源证据闭环”，而不是继续只扩无文字图标描述：在不改 raw、不创建第二 Recorder 或第二 AppProfile 的前提下，落地显式 `target-crop`／必要 context crop、OCR provenance、文字与目标关系 binder、locator portfolio 和新观察 relocalization；用 4.14 的 `text-button`、`icon-only`、`text+icon`、`duplicate-same-text-or-icon`、`surrounding-label` 五类 fixture 分层验收。实现顺序应允许 OCR extractor、binder、locator qualification 各自独立测试，任一层失败都保留上游证据并 fail closed。
 
 下一应用仍建议选择 TextEdit，但应在上述基础结构足够后取得新的 human Recorder v2 包和用户明确业务目标／成功条件，再用同一 Skill/plan/gate 分层校准；不得从现有 TextEdit 示例预填保存、编辑或其他业务意图。通用 renderer、focused-element 和第二应用 human golden 可随后推进；不要回到 native listener、不改 raw、不创建专用 Replay Runtime，也不要把[多应用自动化高频框架能力](../../../docs/frameworks/multi-application-automation-primitives.md)中的路线图方法名提前写进代码。

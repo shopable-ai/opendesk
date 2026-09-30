@@ -89,6 +89,7 @@
   "runtimeApiPolicy": {
     "authoritativeSources": [
       "docs/api/accessibility.md",
+      "docs/api/desktop-ui.md",
       "docs/api/app.md",
       "docs/api/ui.md",
       "docs/api/geometry.md",
@@ -98,11 +99,15 @@
       "docs/api/system.md",
       "docs/api/window.md"
     ],
-    "recognizedRoots": ["Accessibility", "App", "Dialog", "File", "Geometry", "Recorder", "Screen", "System", "keyboard", "mouse", "page", "ui", "window"],
+    "recognizedRoots": ["Accessibility", "App", "Dialog", "File", "Geometry", "Recorder", "Screen", "System", "UI", "keyboard", "mouse", "page", "ui", "window"],
     "primitives": [
       {"name": "System.getPlatformInfo", "productionPolicy": "allowed"},
       {"name": "App.launch", "productionPolicy": "allowed"},
       {"name": "window.get", "productionPolicy": "allowed"},
+      {"name": "window.current", "productionPolicy": "allowed"},
+      {"name": "window.activate", "productionPolicy": "requires-plan-declaration"},
+      {"name": "UI.tapTargets", "productionPolicy": "requires-plan-declaration"},
+      {"name": "UI.readText", "productionPolicy": "requires-plan-declaration"},
       {"name": "window.wait", "productionPolicy": "allowed"},
       {"name": "window.list", "productionPolicy": "allowed"},
       {"name": "window.getActiveWindow", "productionPolicy": "allowed"},

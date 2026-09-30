@@ -333,14 +333,14 @@ await app.show();
 const toolbar = FakeFloatingWindow.instance;
 equal(toolbar.options.orientation, 'horizontal', 'toolbar orientation');
 equal(toolbar.options.toolbar.maxRows, 1, 'toolbar row count');
-equal(toolbar.options.toolbar.maxColumns, 9, 'toolbar column count');
-equal(toolbar.items.filter(item => item.kind === 'Button').length, 8, 'button count');
+equal(toolbar.options.toolbar.maxColumns, 10, 'toolbar column count');
+equal(toolbar.items.filter(item => item.kind === 'Button').length, 9, 'button count');
 equal(toolbar.items.filter(item => item.kind === 'Switch').length, 1, 'pointer motion switch count');
 equal(toolbar.items.filter(item => item.kind === 'Separator').length, 3, 'separator count');
 assert(!toolbar.items.some(item => item.kind === 'Label'), 'toolbar must not contain a visible Label');
 equal(
   toolbar.items.filter(item => item.kind !== 'Separator').map(item => item.id).join(','),
-  'home,capture,stop,measurement,replay,pointerMotion,agentPrompt,details,finder',
+  'home,capture,stop,measurement,replay,pointerMotion,agentPrompt,task,details,finder',
   'brand home must be the first content item',
 );
 const homeButton = toolbar.buttons.get('home');
@@ -351,10 +351,10 @@ equal(calls.homepage, 1, 'homepage click count');
 equal(homepageTargets[0], System.product.website, 'Recorder homepage must use Runtime product identity');
 equal(app.state().phase, 'ready', 'homepage click must not change Recorder phase');
 const pointerMotionControl = toolbar.controls.get('pointerMotion');
-assert(pointerMotionControl.state.checked, 'pointer motion must default to selected');
+assert(!pointerMotionControl.state.checked, 'semantic generation is the default');
 equal(pointerMotionControl.state.width, 48, 'pointer motion switch must use compact tooltip-only width');
-equal(pointerMotionControl.state.label, '鼠标移动（开：平滑，关：瞬移）', 'pointer motion tooltip');
-equal(app.state().pointerMotion, 'smooth', 'default pointer motion state');
+equal(pointerMotionControl.state.label, '兼容物理回放（开：录制坐标；关：语义生成）', 'pointer motion tooltip');
+equal(app.state().pointerMotion, 'instant', 'default pointer motion state');
 equal(toolbar.buttons.get('capture').state.icon, 'play.fill', 'initial capture icon');
 equal(toolbar.buttons.get('capture').state.label, '开始录制', 'initial capture tooltip');
 assert(!toolbar.buttons.has('pause'), 'play and pause must not occupy separate buttons');
@@ -900,7 +900,7 @@ File.removeDir(fixtureRoot);
 
 console.log('RECORDING_CONSOLE_SIMPLE_TEST=' + JSON.stringify({
   passed: true,
-  buttons: 8,
+  buttons: toolbar.items.filter(item => item.kind === 'Button').length,
   separators: 3,
   countdownIcons: 3,
   captureCalls: calls,

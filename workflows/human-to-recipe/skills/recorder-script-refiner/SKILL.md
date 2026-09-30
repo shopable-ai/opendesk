@@ -11,7 +11,7 @@ description: 从 OpenDesk Recorder actions.json 权威动作数据确定性编�
 
 ## 输入模式边界
 
-本 Skill 只接受 basic 物理回放候选。默认 Recorder semantic 输出不属于此精炼合同；inspector 返回 `SEMANTIC_CANDIDATE_REQUIRES_BUSINESS_ROUTE`，交给 `human-to-recipe` 继续业务参数化与资格验证。下面逐动作物理等价、坐标及展开约束不适用于 semantic 批量调用，不能据此要求把 tapTexts 再展开成复杂 locator。
+本 Skill 只接受 basic 物理回放候选。默认 Recorder semantic 输出不属于此精炼合同；inspector 返回 `SEMANTIC_CANDIDATE_REQUIRES_BUSINESS_ROUTE` 时说明当前物理精炼器不支持该输入，保留静态请求和材料，不能仅凭模式自动升级业务意图或桌面授权。只有用户明确要求制作完整任务或业务完善时，才交给 `human-to-recipe`；其生产与资格门槛另行核对。下面逐动作物理等价、坐标及展开约束不适用于 semantic 批量调用，不能据此要求把 tapTexts 再展开成复杂 locator。
 
 ## 质量目标与黄金样本边界
 

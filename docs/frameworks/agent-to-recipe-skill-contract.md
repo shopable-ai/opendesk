@@ -543,6 +543,8 @@ Gap／Failure Package 的整体路由由总纲维护。进入本合同的作者�
 
 首批只打通一个有业务价值的共同消费点：优先复核已共享的 `application-engineer` 输入／输出，或以实际缺口选择另一现有职责。必须各用一份 Human 来源和 Agent 来源的固定输入交给**同一职责及其实际消费者**，检查成功输出、来源保留和拒绝行为，并有一个输出被下游真正消费。两个示例分别自说通过、只验证转换 JSON 或只增加文档链接，不证明共享已接通；该切片通过也不表示所有 Skills 或完整任务均已通过。
 
+当前最小落地：Human [v2 schema](../../workflows/human-to-recipe/skills/human-to-recipe/references/semantic-build-plan-v2.schema.json) 保持 v1 严格兼容，补充固定材料/执行者依据、有来源的新增 Episode、完整覆盖/补证和 fresh-run 数据边；不重写原 actions。生产者及同一 validator/scorer 见 [Human 方法](../../workflows/human-to-recipe/skills/human-to-recipe/SKILL.md#部分录制材料与补证)。共享 application-engineer 的限定 `harden` 规则复用消费位于其 `scripts/consume-operation-rules.js`；双来源输出进入精确候选的受控消费检查，保留原来源、unknown 与未资格范围。它不替代原生完整 Profile/阶段检查，也不声明独立模型或现场通过。
+
 ### 11.5 分段交接、补证与恢复
 
 第一批以“人工停止 → 保存录制 → AI 阅读材料 → 定向补缺口”为主，不建设实时共驾。区分历史材料指导新执行与有效现场的控制交接：前者不继承旧焦点、数值或状态；后者在任何下一输入前核对人工已停止、在途输入结束、记录固定、当前对象／前提有效和本次授权。没有宿主强制排他或暂停能力时明确限制，不以手写标记承诺已自动接管。

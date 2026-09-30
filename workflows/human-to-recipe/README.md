@@ -38,8 +38,8 @@ order: 10
 | 受控坐标脚本 | 声明固定条件的普通 JS | 可以不参与，也可仅辅助整理 |
 | 增强普通 JS | 已确认定位、输入、等待和结果验证 | 开发阶段参与，正常运行不必参与 |
 | JS／Agent 混合流程 | 普通 JS 与明确的必要判断节点 | 只在声明的判断节点参与；需有实际宿主与权限支持 |
-| Recorder 关键录制 → Agent 业务接续 | 固定 recording/actions/current Candidate + “复制 Agent 优化脚本”提示词 | 复用 Human-to-Recipe、Agent-to-Recipe 与 application-engineer；只补阻塞完整 Recipe 的最小事实，最终交付普通 JS 并对 exact Candidate 独立资格 |
-| 显式 basic 行为保持精炼 | generated script 作为录制包入口 | 仍可调用 `recorder-script-refiner`；只做行为保持静态精炼，不自动取得业务语义或资格 |
+| Recorder → Agent 静态精炼 | 仓库相对 generated script 入口 | 保留 `recorder-script-refiner` 的受限静态合同，不因生成模式自动升级业务意图 |
+| 关键录制 → 完整任务制作 | 完整任务声明、固定 recording/actions、可选候选与状态 | Recorder“完整任务”输入及复制入口接入现有 `human-to-recipe`；先分析覆盖和最小补证，候选不是前提 |
 
 不为普通 JS 强制建设应用对象方法层、Registry、复杂可执行 IR、Compiler、专用 Replay Runtime 或 LangGraph。`calc.tapButton(...)` 不恢复为应用对象层。优先实际存在的框架 API 和有价值的普通函数。
 
@@ -78,6 +78,8 @@ H1—H8 是制作和维护自动化的方法，不是每次运行都重走的步
 任务树回答完整需要做什么；工程设计回答基础 Recorder 实际如何工作；实施计划只记录资格和证据。不按每个任务节点创建文件、Skill 或 Agent。当前两个 Skill 对应不同且可重复的专业流程：`recorder-script-refiner` 用 script 定位录制包，再由 actions 确定性编译 refined candidate；`human-to-recipe` 做 actions→plan→production/gate/evidence 的业务生产化。二者不是节点占位或迁移壳。
 
 ### 4.1 Skill、plan 和 renderer 的当前状态
+
+当前部分录制接续使用同一 Human Skill 的[材料与补证入口](skills/human-to-recipe/SKILL.md#部分录制材料与补证)。Human v2 保留 v1 兼容及原始动作映射，补充固定材料、来源依据、覆盖/缺口和当前运行的数据边。独立资格及实际现场范围仍以精确候选的报告为准；不能把受控测试或 Agent 控制的 capture 称为真人示范。
 
 | 能力 | 当前状态 | 边界 |
 | --- | --- | --- |
@@ -123,13 +125,13 @@ Agent 执行 → 工具调用、观察与验证 → 提炼 → Agent 来源的�
 
 ### 6.1 Recorder 关键录制后的正式 Agent 接续入口
 
-Recorder 的“复制 Agent 优化脚本”是正常用户入口，不要求用户理解 H1—H8、S1—S12、Dossier 等内部术语。停止并保存后，复制提示词携带本次 recording 目录、actions、当前 Candidate 和脚本的仓库相对路径；新对话从这些固定材料继续。
+Recorder 的“复制 Agent 优化脚本”是正常用户入口，不要求用户理解 H1—H8、S1—S12、Dossier 等内部术语。停止并保存后，复制提示词携带本次 recording 目录、actions、可选 Candidate/脚本、完整任务声明的仓库相对路径；新对话从这些固定材料继续。
 
 ~~~text
 用户说明任务
 → 只录关键业务部分
 → 停止并保存
-→ Recorder 生成 actions 和当前 Candidate
+→ Recorder 固定 actions；有 Candidate 则复用，无候选也可分析
 → 复制 Agent 优化脚本
 → 新对话读取固定材料
 → Known / Unknown / 真正阻塞项
@@ -140,7 +142,7 @@ Recorder 的“复制 Agent 优化脚本”是正常用户入口，不要求用�
 → exact Candidate Fresh Qualification
 ~~~
 
-硬边界：actions readiness 不是“整项业务已经录完”；Human 原始事实保持 Human 来源；AI 后补动作/observation 保持 Agent 来源；缺口优先复用材料和只读观察，不默认完整重做；Human + AI 只发生在 Recipe 制作阶段，正常运行仍是普通 JavaScript。
+硬边界：actions readiness 不是“整项业务已经录完”；原始事实保持其真实来源；Recorder 采集本身不证明真人操作；AI 后补动作/observation 保持 Agent 来源；缺口优先复用材料和只读观察，不默认完整重做；Human + AI 只发生在 Recipe 制作阶段，正常运行仍是普通 JavaScript。
 
 第一份正式贯穿样本见 [Calculator 人工关键录制 → Agent 接续黄金案例](../agent-to-recipe/cases/calculator-human-agent-continuation.md)。文档会分别标记设计、静态测试、真实 Recorder、真实 Calculator UI、Fresh Run 与 Qualification，未执行的不写 PASS。
 

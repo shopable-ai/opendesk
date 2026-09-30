@@ -78,6 +78,7 @@ function load(options = {}) {
     }},
     File: {
       join: (...parts) => parts.join('/'),
+      exists: () => options.brandAssetAvailable !== false,
       read(file) {
         if (file.endsWith('/controller-core.js')) return 'globalThis.OpenDeskSimpleRecordingConsole = __core;';
         if (file.endsWith('/recording-history.js')) return 'globalThis.OpenDeskRecordingHistory = __historyAPI;';
@@ -108,7 +109,7 @@ test('measurement is a single right-hand viewfinder tool, separated from capture
   assert.equal(fixture.controls[fixture.controls.indexOf('stop') + 1], 'capture-output-separator');
   assert.equal(fixture.buttons.get('measurement').icon, 'viewfinder');
   assert.equal(fixture.nativeSpec.toolbar.maxRows, 1);
-  assert.equal(fixture.nativeSpec.toolbar.maxColumns, 10);
+  assert.equal(fixture.nativeSpec.toolbar.maxColumns, 11);
   assert.equal(fixture.nativeSpec.position.mode, 'anchor');
   assert.equal(fixture.nativeSpec.position.horizontal, 'center');
   assert.equal(fixture.nativeSpec.position.vertical, 'bottom');
@@ -166,6 +167,10 @@ test('stop/history cancellation and the script-local home image remain intact', 
 
 test('embedded Recorder presentation is identical to the canonical source', () => {
   assert.equal(fs.readFileSync(path.join(root, 'internal/recorderbundle/assets/controller.js'), 'utf8'), source);
+});
+
+test('standalone Recorder uses its registered home icon when the bundled brand asset is absent',()=>{
+  const fixture=load({brandAssetAvailable:false});assert.equal(fixture.buttons.get('home').icon,'house.fill');
 });
 
 test('registration, menu, and bundled Recorder use one shortcut definition', () => {

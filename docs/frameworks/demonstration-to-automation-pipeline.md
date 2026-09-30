@@ -724,3 +724,5 @@ Windows 使用本机实际构建的 `.exe` 路径。[Runtime 合成入口](../..
 - [Sheepdog: Learning procedures for technical support](https://research.ibm.com/publications/sheepdog-learning-procedures-for-technical-support)
 - [Integrating Programming by Example and Natural Language Programming](https://ojs.aaai.org/index.php/AAAI/article/view/8695)
 - [DiLogics: Creating Web Automation Programs With Diverse Logics](https://arxiv.org/abs/2308.05828)
+
+合法录制包可以只覆盖完整任务的关键片段。候选不是缺口分析与定向补证的前提；录制包完整性、业务覆盖与证据支持范围分别判断。部分录制沿现有 [共享制作合同](agent-to-recipe-skill-contract.md#shared-authoring-contract) 返回原 Human owner，用当前 Human v2 表达补充材料及新增 Episode；未知可进入分析，但不越过生产闸门。不把 Human 与 Agent 两条 Workflow 串行重跑。
