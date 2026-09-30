@@ -5,7 +5,7 @@ description: 将已确认 SemanticProcedure 和可消费的应用操作规则实
 
 # recipe-build｜把 SemanticProcedure 实现成普通 JavaScript（S11）
 
-## 定位
+## 这个 Skill 负责什么
 
 本 Skill 负责把已经确认的 Business Steps、runtime data dependencies 和应用操作规则实现成普通 OpenDesk JavaScript，并冻结 Candidate。它是实现层，不是业务过程设计层，也不是资格层。
 

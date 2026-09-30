@@ -5,7 +5,7 @@ description: 为 OpenDesk 桌面自动化建立有证据的应用认识，或补
 
 # application-engineer｜应用认识与规则补强（S2/S10）
 
-## 定位与责任边界
+## 什么时候使用，交付什么
 
 把“本任务需要知道什么”转为有来源、有限定范围、能被下一职责消费的应用认识或规则。维持唯一 AppProfile，不建立第二个 UIProfile、应用类、Registry、执行引擎或平行 Workflow。S2 与 S10 不是同一工作重复两次，也不是由代码完成度决定的阶段。
 

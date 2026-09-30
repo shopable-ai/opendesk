@@ -5,7 +5,7 @@ description: 将固定 DistilledSteps 转成 Agent-to-Recipe S8-S9 的 SemanticP
 
 # procedure-synthesize｜业务过程与数据关系（S8-S9）
 
-## 定位与责任边界
+## 输入什么，产出什么
 
 输入是 S7 已确认的必要路径，输出是可供 S10/S11 消费的业务语义过程。S7 回答“哪些历史动作属于必要路径”；S8-S9 回答“这些必要步骤在业务上意味着什么、哪些值来自哪里、哪些输入可变、哪些运行时值必须现场取得，以及下游如何消费”。
 

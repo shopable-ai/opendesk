@@ -7,7 +7,7 @@ order: 10
 
 # automation-plan｜明确任务与制定计划
 
-## 适用任务与边界
+## 什么时候使用，交付什么
 
 本方法负责 S1：用户原始要求 → TaskContract＋WorkPlan。适用于首次规划、执行中的有来源修订，以及已有普通 JS／成果的限定范围接续。不执行真实示范，不替应用工程确认现场可行性，不生成未来读值或资格结论。保留 S1—S12、G0—G7 和普通 OpenDesk JavaScript；现有 Recorder／Replay 可以提供明确来源的资产，但不因此成为本次 Agent 示范。
 

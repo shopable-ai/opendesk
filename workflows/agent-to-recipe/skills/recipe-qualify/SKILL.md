@@ -5,7 +5,7 @@ description: 独立验收一个冻结的 Agent-to-Recipe Candidate（S12），�
 
 # recipe-qualify｜冻结候选资格验收（S12）
 
-## 定位
+## 这个 Skill 判断什么
 
 本 Skill 只回答：**这个精确 Candidate，在这个明确范围和环境里，实际证明了什么？**
 

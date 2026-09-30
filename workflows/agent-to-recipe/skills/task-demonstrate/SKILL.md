@@ -5,7 +5,7 @@ description: 按固定 TaskContract、WorkPlan 与应用认识执行 Agent-to-Re
 
 # task-demonstrate｜真实示范与留证（S3-S6）
 
-## 定位与责任边界
+## 从计划到真实事实
 
 把“准备怎么做”变成“实际发生了什么”的可审计事实包。核心产物是 DemonstrationDossier 与其引用的 Raw Trace/Evidence；不是最终代码，也不是必要路径或业务过程。
 
