@@ -10,13 +10,6 @@ order: 35
 
 > **现在看到一个错误，怎样找到第一处真正错误，并只返工必要范围？**
 
-本文不是第二份 WORKFLOW、task-decomposition、评分体系、Skill 方法正文或 checker 手册。
-
-- 完整 S1—S12 做什么：见 [task-decomposition](task-decomposition.md)。
-- 谁生产什么、交给谁：见 [chain-design](chain-design.md)。
-- 怎样评分、Gate、Hard Fail 和证据强度：见 [validation-plan](validation-plan.md)。
-- Calculator 完整参考结果：见 [calculator.md](../cases/calculator.md)。
-
 ## 30 秒使用方法
 
 不要先问“最终结果对不对”，而是沿实际数据链问：
@@ -267,3 +260,14 @@ next minimum evidence action
 8. 下一步最小动作是补 evidence、修当前 owner，还是重验下游？
 
 如果这 8 个问题能回答，acceptance-map 就完成了它的职责；不需要再复制完整 WORKFLOW 或 Skill 方法正文。
+
+---
+
+## 附录｜文档边界与相关入口
+
+本文不是第二份 WORKFLOW、task-decomposition、评分体系、Skill 方法正文或 checker 手册。
+
+- 完整 S1—S12 做什么：见 [task-decomposition](task-decomposition.md)。
+- 谁生产什么、交给谁：见 [chain-design](chain-design.md)。
+- 怎样评分、Gate、Hard Fail 和证据强度：见 [validation-plan](validation-plan.md)。
+- Calculator 完整参考结果：见 [calculator.md](../cases/calculator.md)。

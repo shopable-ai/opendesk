@@ -10,14 +10,6 @@ order: 45
 
 > **面对当前业务步骤，怎样找到可用能力，并确认“这个方法在当前环境里真的可以被后续 Recipe 使用”？**
 
-本文不负责完整 S1—S12 流程、CLI 使用手册、Agent Prompt、测试 fixture、成本报告或代码重构方法。
-
-- 工作流主线见 [WORKFLOW](../WORKFLOW.md)。
-- S2 / S10 的应用工程方法见 [application-operations](application-operations.md)。
-- API 短入口见 [Agent API 阅读入口](../../../docs/api/agent/README.md)。
-- 验证方法见 [validation-plan](validation-plan.md)。
-- “有哪些可选解法”先按需看[求解策略空间](../../../docs/frameworks/automation-problem-solving-framework.md#strategy-space)；本文只落实当前业务所需能力，不再维护第二份总地图。
-
 ## 30 秒总览
 
 ~~~text
@@ -285,3 +277,15 @@ Runtime Validation 只回答：
 - 某一 commit 实际通过了什么：docs/quality。
 
 本文不维护 Prompt 模板、CLI 教程、fixture 清单或某轮成本数字，因为这些内容不能帮助它更准确地回答“当前业务步骤应该采用什么能力，以及是否真的可用”。
+
+---
+
+## 附录｜文档边界与相关入口
+
+本文不负责完整 S1—S12 流程、CLI 使用手册、Agent Prompt、测试 fixture、成本报告或代码重构方法。
+
+- 工作流主线见 [WORKFLOW](../WORKFLOW.md)。
+- S2 / S10 的应用工程方法见 [application-operations](application-operations.md)。
+- API 短入口见 [Agent API 阅读入口](../../../docs/api/agent/README.md)。
+- 验证方法见 [validation-plan](validation-plan.md)。
+- “有哪些可选解法”按需看[求解策略空间](../../../docs/frameworks/automation-problem-solving-framework.md#strategy-space)；本文只落实当前业务所需能力，不维护第二份总地图。

@@ -6,8 +6,6 @@ order: 10
 
 # 自动化脚本工作流｜从需求到可交付 Recipe
 
-> 内部稳定目录和机器 ID 仍为 `agent-to-recipe`，用户日常不需要使用这个英文名称。
-
 本文只回答一个核心问题：
 
 > **怎样把一个自然语言自动化需求，逐步变成经过验证、可以重复运行的 Recipe？**
@@ -17,11 +15,6 @@ order: 10
 1. 每个阶段收到什么、做什么、得到什么；
 2. 怎样判断这一阶段做对了；
 3. 做错、阻塞或中断以后从哪里继续。
-
-如果要看一个完整、可检查的正确案例，读 [Calculator 基准案例](cases/calculator.md)。  
-如果要看 Agent 实际怎样从需求出发查能力、执行、观察并继续，读 [Calculator 执行过程演练](cases/calculator-execution-walkthrough.md)。
-
-详细字段、版本、hash、handoff、Gate、检查器和测试规则不是本文主线；它们分别由 [共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)、[链路设计](design/chain-design.md) 和 [验证计划](design/validation-plan.md) 负责。
 
 ### 日常调用
 
@@ -499,3 +492,13 @@ Candidate 字节或影响性依赖一变，旧 Qualification 不再证明新的 
 10. 什么时候必须停止，而不能把未知写成通过。
 
 如果这些问题仍然需要先理解大量 Gate、hash、schema 或检查器字段才能回答，说明 WORKFLOW 又开始偏离它的职责，应把工程细节重新下沉到对应权威文档。
+
+---
+
+## 附录｜名称、参考案例与详细规则入口
+
+内部稳定目录和机器 ID 仍为 `agent-to-recipe`，用户日常不需要使用这个英文名称。
+
+- 完整、可检查的正确案例：[Calculator 基准案例](cases/calculator.md)。
+- Agent 实际怎样从需求出发查能力、执行、观察并继续：[Calculator 执行过程演练](cases/calculator-execution-walkthrough.md)。
+- 详细字段、版本、hash、handoff、Gate、检查器和测试规则分别由 [共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)、[链路设计](design/chain-design.md) 和 [验证计划](design/validation-plan.md) 负责。

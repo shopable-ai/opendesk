@@ -10,14 +10,6 @@ order: 20
 
 > **为什么需要 Agent-to-Recipe，以及这条工作流必须满足什么？**
 
-本文拥有的是需求基线，不是 S1—S12 的执行说明、评分细则、字段合同、专项算法或当前实现状态。
-
-- 一个需求怎样经过 S1—S12 变成 Recipe：见 [WORKFLOW](../WORKFLOW.md)。
-- 每个阶段完整做什么：见 [task-decomposition](task-decomposition.md)。
-- 谁生产什么、交给谁、错了回谁：见 [chain-design](chain-design.md)。
-- 怎样证明做对、怎样评分、哪些属于 Hard Fail：见 [validation-plan](validation-plan.md)。
-- 正式字段、版本、hash 和 handoff：见 [共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)。
-
 ## 30 秒总览
 
 Agent-to-Recipe 要解决的不是“让 AI 尽快写出一段自动化代码”，而是：
@@ -191,3 +183,15 @@ Source / Requirement
 5. 为什么最终结果正确不能倒证早期执行正确；
 6. 为什么不需要为了修一个下游错误重跑全部 S1—S12；
 7. 为什么专项算法、评分公式、CLI 和 checker 细节应该去各自 owner 阅读。
+
+---
+
+## 附录｜文档边界与相关入口
+
+本文拥有的是需求基线，不是 S1—S12 的执行说明、评分细则、字段合同、专项算法或当前实现状态。
+
+- 一个需求怎样经过 S1—S12 变成 Recipe：见 [WORKFLOW](../WORKFLOW.md)。
+- 每个阶段完整做什么：见 [task-decomposition](task-decomposition.md)。
+- 谁生产什么、交给谁、错了回谁：见 [chain-design](chain-design.md)。
+- 怎样证明做对、怎样评分、哪些属于 Hard Fail：见 [validation-plan](validation-plan.md)。
+- 正式字段、版本、hash 和 handoff：见 [共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)。

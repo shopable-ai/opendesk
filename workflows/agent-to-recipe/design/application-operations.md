@@ -10,13 +10,6 @@ order: 50
 
 > **怎样把业务上已经明确的操作需求，变成可靠的 Target、定位、读取、等待、动作和验证规则？**
 
-本文拥有应用操作工程模型，不负责重新解释业务过程，不拥有 Structured Collection / VLM / traversal 的专项算法，也不记录某次桌面测试状态。
-
-- S2 / S10 的完整阶段职责见 [task-decomposition](task-decomposition.md)。
-- 可选择的方法总地图见 [自动化求解策略空间](../../../docs/frameworks/automation-problem-solving-framework.md#strategy-space)。
-- 能力发现和契约读取见 [capability-discovery](capability-discovery.md)。
-- application-engineer 怎样独立执行见 [SKILL.md](../skills/application-engineer/SKILL.md)。
-
 ## 30 秒总览
 
 ~~~text
@@ -447,3 +440,14 @@ current viewport 不等于 whole collection；item recognition 不等于 travers
 7. Structured Collection、VLM 和聊天案例为什么不应该抢占应用工程主线；
 8. 多个候选怎样选择、何时不能切换、变化影响哪条规则；
 9. 应用操作怎样进入 helper/Adapter，而不接管整个 Recipe。
+
+---
+
+## 附录｜文档边界与相关入口
+
+本文拥有应用操作工程模型，不负责重新解释业务过程，不拥有 Structured Collection / VLM / traversal 的专项算法，也不记录某次桌面测试状态。
+
+- S2 / S10 的完整阶段职责见 [task-decomposition](task-decomposition.md)。
+- 可选择的方法总地图见 [自动化求解策略空间](../../../docs/frameworks/automation-problem-solving-framework.md#strategy-space)。
+- 能力发现和契约读取见 [capability-discovery](capability-discovery.md)。
+- application-engineer 怎样独立执行见 [SKILL.md](../skills/application-engineer/SKILL.md)。

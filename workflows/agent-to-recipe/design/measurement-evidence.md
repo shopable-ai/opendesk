@@ -1,6 +1,6 @@
 # Measurement Evidence 在 Recipe Authoring 中的位置
 
-> 本页同时约束 Agent-to-Recipe 与 Human-to-Recipe。Measurement 是可保存、可重读、可维修的证据增强层，不是新的 Recipe Runtime，也不是坐标优先代码生成器。
+Measurement 是按需加入 Recipe Authoring 的可保存、可重读、可维修证据增强层。
 
 ## 1. 正式链路
 
@@ -193,3 +193,9 @@ Repair API 本身不写黄金 Recipe。qualified candidate 只是允许后续 au
 7. 成功必须有独立 business verification。
 
 不新增 Replay Runtime，不新增 Measurement Runtime，不新增 AgentGeometry/RepairGeometry。
+
+---
+
+## 附录｜适用边界
+
+本页同时约束 Agent-to-Recipe 与 Human-to-Recipe。Measurement 不是新的 Recipe Runtime，也不是坐标优先代码生成器；只有已有语义证据不足、需要布局约束或视觉验证时才按需加入。

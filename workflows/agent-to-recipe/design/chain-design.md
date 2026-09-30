@@ -10,10 +10,6 @@ order: 40
 
 > **Agent-to-Recipe 中谁生产什么、谁消费什么、怎样交接，失败后应该回到谁？**
 
-完整 S1—S12 任务内容见 [task-decomposition.md](task-decomposition.md)；实际启动、协调、断点恢复与生命周期入口统一见 [自动化脚本工作流](../WORKFLOW.md)；字段与版本合同见[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)。
-
-本文不维护完整任务树、测试结果、当前实现状态、专项 Runtime 算法或 Skill 安装历史。
-
 ## 30 秒总览
 
 ```text
@@ -264,3 +260,11 @@ Runtime / Catalog / publish 的产品生命周期见 [Automation Capability Life
 - [Structured UI Collection Reading](../../../docs/architecture/desktop-automation/structured-ui-collection-reading.md)
 
 历史 Skill 数量演变、P0/P1/P2 计划、测试数量、某次宿主状态、commit 成熟度与逐日期设计决定属于 Git history / `docs/quality/`，不在本 canonical 链路正文维护。
+
+---
+
+## 附录｜文档边界与相关入口
+
+完整 S1—S12 任务内容见 [task-decomposition.md](task-decomposition.md)；实际启动、协调、断点恢复与生命周期入口统一见 [自动化脚本工作流](../WORKFLOW.md)；字段与版本合同见[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)。
+
+本文不维护完整任务树、测试结果、当前实现状态、专项 Runtime 算法或 Skill 安装历史。
