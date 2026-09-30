@@ -146,6 +146,41 @@ order: 9
 这里最重要的是：**每一步执行以后都必须得到一个明确的新结果，下一步只能消费已经成立的结果。** 如果某一步没有做对，就回到真正出错的位置修，而不是为了“完整”从 S1 全部重跑。
 ---
 
+## 0.2 Calculator 在完整求解策略空间中使用了哪些部分
+
+完整方法地图由[自动化求解策略空间](../../../docs/frameworks/automation-problem-solving-framework.md#strategy-space)维护；本例只选择少量必要方法。下面依据 `928515d98849143973124990c12cd8b4c66547d9` 的[参考 calculator.js](../../../examples/agent-to-recipe/calculator.js)做静态映射，不是本轮真实执行、首次发现记录或跨环境资格。
+
+~~~text
+任务形态
+  单窗口，两段串行计算，实际 firstResult 跨步骤交接
+
+对象与能力组合
+  Calculator / Basic window
+    窗口：window.get / activate / current
+    按钮：UI.tapTargets 的 role + name + 当前窗口
+    预检：Accessibility.snapshot，确认结构、唯一性与可调用性
+    结果：UI.readText，配合应用读取规则与实际结果验证
+
+应用封装
+  currentCalculator：窗口/状态检查 helper
+  inspectCalculator：只读应用预检
+  clearCalculator：清空准备操作
+  clickCalculatorButtons：指定按钮序列操作
+  readCalculatorResult：实际读取与格式/采样检查
+  main：Recipe 业务编排
+
+未显式采用的方法
+  OCR-only 定位、图像模板、相对几何或固定坐标点击
+  Structured Collection、分页、批量对象、跨应用
+  多备用策略、长期运行和模块化
+~~~
+
+“未显式采用 OCR-only”只说明参考脚本没有自行编写这条定位路径，不表示高层 `UI.readText` 的 Runtime 内部一定不使用 OCR；来源须看当前实际证据。`232×321`、标题和中文标签是参考代码的限制，不是所有 Calculator 的通用事实，也不能倒推为首次 S2 已观察到的结果。
+
+本例可以说明高层动作与必要结构预检的组合、应用 helper 和真实数据依赖；不能据此宣布 Windows、其他版本/语言/主题、复杂列表或全部方法已通过。完整清空策略及未运行的区分性验证样本见[应用工程 Calculator 示例](../skills/application-engineer/examples/calculator.md)，复杂场景的补充范围见[第二基准线](../design/validation-plan.md#complex-golden-case)。参考代码不为展示总地图而强制重构。
+
+---
+
 ## 1. 先固定不能被实现偷换的要求 [S1]
 
 ### 当前问题

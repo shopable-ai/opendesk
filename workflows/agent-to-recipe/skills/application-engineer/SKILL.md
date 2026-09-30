@@ -23,6 +23,8 @@ description: 为 OpenDesk 桌面自动化建立有证据的应用认识，或补
 
 按工作读取 [操作专业约束](references/operating-guidance.md)。认识包用 [AppProfile 成果模板](templates/app-profile.md)，操作增量用 [规则与维修模板](templates/operation-rules.md)。[Calculator](examples/calculator.md) 只解释方法；[独立审阅基线](references/independent-review.md) 只检查本 Skill。原 [io-spec](references/io-spec.md) 保留为兼容导航，不维护第二套正文。
 
+面对“有哪些可选解法”时先按需查看[求解策略空间](../../../../docs/frameworks/automation-problem-solving-framework.md#strategy-space)；面对“所选操作怎样可靠执行”时读取[操作策略、切换与兼容](../../design/application-operations.md#operation-strategy)。总地图用于选取本次需要的方法，不要求每次阅读全文、填写全部能力或增加策略注册表。独立 Producer 不得读取同任务教学案例补答案。
+
 正式 JSON 字段、引用、发布及状态沿用 [共享合同](../../../../docs/frameworks/agent-to-recipe-skill-contract.md)。模板是生成前的填写清单和同版可读视图，不是新 schema。执行前固定实际方法、四项规格、合同及输入的内容版本；不读取隐含 latest 或用完整聊天补接口缺口。
 
 ## 方法
@@ -36,6 +38,8 @@ description: 为 OpenDesk 桌面自动化建立有证据的应用认识，或补
 - 两类问题同时存在时，先发现足以观察／操作当前步骤的公开能力，再用真实现场建立应用认识；不通读整个 API，也不先建模整个应用。
 
 Capability Discovery、Method Selection、Contract Reading、Runtime Validation 必须分开记录：目录命中只证明“可考虑”，选中只证明“决定尝试”，合同只证明“知道怎样调用”，只有当前环境的实际证据才能写成 pass。高层 API 已完整满足 target identity、scope、唯一性、读取语义、失败／partial／unknown 和副作用约束时优先复用；没有这些条件时不得仅因 API 层级高而采用。不得把 `UI.tapTexts` 或任何 backend 写成全局固定优先级；只有关键约束无法表达、需要额外结构化预检或已有证据证明高层方法不适用时，才有依据地下沉。
+
+对候选分别记录执行入口、观察来源、目标绑定与业务封装。先排除不能满足硬约束的方法，再比较当前可用性、验证能力、版本/语言/主题/窗口/DPI 敏感性和维护成本。Locator 不作为固定抽象层级；高层 API 的 Runtime provider 协调不在应用 helper 中再实现。没有已验证方法时可在原授权内形成待验证候选和最小探查；不能将候选直接登记为自动备用，不能因暂缺未来 S10 规则拒绝 S2。
 
 随后逐项写出必须确认的应用身份、页面/模式、目标、父区/锚点、结果区、进入条件与阻塞项。先复核获准旧资料，只补影响近期任务的缺口；不要先盘点整个软件，也不要把必需目标降级来换通过。
 
@@ -51,6 +55,10 @@ Capability Discovery、Method Selection、Contract Reading、Runtime Validation 
 
 每个待补操作明确输入输出、目标身份、定位范围与唯一性、读取来源/类型、等待条件/上限、动作顺序、运行门禁、后置、失效和停止/恢复约定。把 Target、Locator、Geometry、Coordinate 分开。先确认当前能力及 canonical 契约，再选择可实现策略；未实现接口只能交付缺口。
 
+使用现有 `operations`、定位/几何/验证规则及模板 `actionStrategy` 将选择理由、适用条件、实际执行、验证和失败边界写成完整操作策略。只有真实共享需求才交付应用 helper/Adapter；简单操作可直接表达，不要求多个策略或独立模块。备用路径逐条给出已验证范围、证据与切换条件；未验证候选留在缺口中，没有备用就明确 stop / human handoff。动作已发出但结果未知、序列部分完成、已取消或权限不足时不得用 auto 或人工选策略绕过门禁，按[切换判定表](../../design/application-operations.md#strategy-switching)处理。
+
+环境变化按规则的真实依赖定向检查；稳定身份、观察线索、运行时几何、临时坐标不能互相替代。范围外安全拒绝不计为兼容成功。若工程选型改变 S9 固定能力决定或过程范围，保存实际来源并交原责任更新精确引用，再交 S11；仅漏交资料则找协调者，不静默维护第二份选型。
+
 按授权层级验证定位、读取、等待、动作和必要变化。设计完成、结构正确、动作回执、真实后置及业务资格分别记录。发布规则增量及未测部分；不生成最终 Recipe，不替 S9 改数据流。
 
 ### repair：先确认效果与责任，再改局部
@@ -58,6 +66,8 @@ Capability Discovery、Method Selection、Contract Reading、Runtime Validation 
 冻结原失败、旧规则、已知实际效果及受影响对象。若动作可能已经发生而结果未知，先停止依赖副作用并定向观察，不重放前缀、不换 backend 再提交。
 
 按 failure-handling 判断是事实、取舍、语义、规则、代码还是验收问题。只有应用规则缺陷由本 Skill 修改；其余保持有效 Profile 并准确返回原责任。修订写出旧/新值、证据、原因、依赖和重验范围，保留旧失败和资格。
+
+“没有看到结果”不足以证明未执行。恢复前还要排除原动作仍在进行，并确认已完成前缀、安全接续点与当前授权；规则不支持安全切换则停止。策略/环境/依赖改变只重验受影响操作与消费者，不把其他有效规则全部重建。
 
 先冻结新 Profile/helper，再让审阅/验证记录引用它，最后发布 handoff，避免 hash 环。没有重验只能交付“修订待验证”；影响 Candidate 的改动交原 S11/S12 接续，不沿用旧资格。
 
@@ -70,5 +80,7 @@ S1 拥有目标、授权及成功标准；S3—S6 拥有实际动作/读值；S7
 ## 完成条件
 
 交付物必须同时通过输入范围、逐主张证据、方法边界、失败停止和下游消费审阅；不以文件数量、检查器 PASS 或整链成功代替。未知、未运行和超范围项目保留原状态。按 output-spec 发布真实局部成果及后续请求，未取得现场/模型/人工证据不得宣布对应能力通过。
+
+当前任务 `stage-review.md` 的对应阶段应能追到实际输入、选中/未选理由、规则正文、局部证据及范围、未知、失败责任和下一安全动作；它只投影同版权威成果，不另维护策略运行总报告。
 
 discover 的 S2 与 harden／repair 的 S10 各按 [Workflow 阶段退出循环](../../WORKFLOW.md)和 [唯一五维评分](../../design/validation-plan.md)独立验收；同一 Skill 的局部成果不能合并得分，规则修复只重验实际受影响的下游。

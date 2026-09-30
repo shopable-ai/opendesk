@@ -21,6 +21,16 @@ order: 10
 
 详细字段、版本、hash、handoff、Gate、检查器和测试规则不是本文主线；它们分别由 [共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)、[链路设计](design/chain-design.md) 和 [验证计划](design/validation-plan.md) 负责。
 
+### 按当前问题选择方法入口
+
+| 当前问题 | 阅读入口 | 与本工作流的关系 |
+| --- | --- | --- |
+| 这个任务有哪些可选解法，怎样选择 | [自动化求解策略空间](../../docs/frameworks/automation-problem-solving-framework.md#strategy-space) | 生命周期横向调用的方法总地图，不是新阶段或第二套 Workflow |
+| OpenDesk 有哪些能力，为什么选这个方法 | [能力发现与决策](design/capability-discovery.md) | 发现、选择、契约阅读和当前 Runtime 验证分别留依据 |
+| 当前应用怎样可靠定位、读取、操作与停止 | [应用操作与策略](design/application-operations.md#operation-strategy) | 落实到既有 AppProfile、规则与必要 helper；切换和兼容不能靠猜 |
+
+总地图按需展开，不要求每个任务使用全部方法；Calculator 是一条简单路径，复杂案例只在其声明范围内补充验证。正文不在 WORKFLOW 重复维护，真实执行仍遵守各阶段输入与退出条件。
+
 ---
 
 ## 1. 先看懂：这个工作流把什么变成什么
@@ -150,6 +160,8 @@ Delivery / Publish Handoff
 ~~~
 
 Markdown 只能是权威产物的同版投影，必须写明来源 ref/hash；人工发现错误后先修权威数据/事实，再重生成视图，不能让 Markdown 和 JSON 各自维护一套真相。每个正式阶段都必须在任务根 `stage-review.md` 中有稳定的人工作业入口，即使 S3—S5 没有各自独立业务 JSON，也必须在那里链接本次真实 Execution action / observation / decision。
+
+S2/S10 的选择理由、操作规则和局部证据，以及 S11/S12 的实际消费与验证，应从对应阶段链接同版权威成果；不另建一份策略运行总报告。方法模板和教学内容不能填入 Actual，也不因导航已接好就推断检查器已新增自动核验。
 
 Calculator 的人类可读示例见 [Calculator 阶段产物链](cases/calculator-artifacts.md)。它说明“出错后应该打开哪个文件、里面至少应该看见什么”；真实 Producer 仍必须生成自己的本次运行产物，不能复制黄金案例当 Actual。
 

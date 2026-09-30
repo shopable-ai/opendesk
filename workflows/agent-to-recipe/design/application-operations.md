@@ -13,6 +13,7 @@ order: 50
 本文拥有应用操作工程模型，不负责重新解释业务过程，不拥有 Structured Collection / VLM / traversal 的专项算法，也不记录某次桌面测试状态。
 
 - S2 / S10 的完整阶段职责见 [task-decomposition](task-decomposition.md)。
+- 可选择的方法总地图见 [自动化求解策略空间](../../../docs/frameworks/automation-problem-solving-framework.md#strategy-space)。
 - 能力发现和契约读取见 [capability-discovery](capability-discovery.md)。
 - application-engineer 怎样独立执行见 [SKILL.md](../skills/application-engineer/SKILL.md)。
 
@@ -24,6 +25,8 @@ order: 50
 最小应用认识
   ↓
 Target identity
+  ↓
+选择有条件、有来源的操作策略
   ↓
 Locator / Read / Wait / Action / Verifier
   ↓
@@ -165,6 +168,32 @@ Coordinate
 
 如果现成能力无法表达 Target identity、parent scope、失败停止或必要 verifier，才有理由加入额外应用规则或下沉。
 
+<a id="operation-strategy"></a>
+
+### 6.1 操作策略：把一种做法表达完整，不增加平行产物
+
+**操作策略（Operation Strategy）是某个应用操作在限定条件下怎样实现、验证和停止的完整做法。** 它不是新阶段，也不是必须加载的策略引擎。沿用 `AppProfile.operations`、`targets`、`geometryRules`、`verifiers`、`limitations`、`changeLog` 和普通 helper；现有模板中的 `actionStrategy` 是操作执行部分，不另建 Strategy Registry 或 `strategies.json`。正式字段仍由[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)拥有，本节不宣布 schema 升级或 Guard 已自动支持新增检查。
+
+| 必须说清什么 | 可审阅的实际内容 |
+| --- | --- |
+| 操作合同 | 目的、业务对象、输入来源、输出、前后条件及禁止改变的语义 |
+| 选择理由 | 少量候选、选中与未选理由；先排除硬约束不满足者，再比较复用、维护成本与环境敏感性 |
+| 实现组合 | 实际 API/契约、观察来源、目标绑定分别列出；Locator 不是固定处于高层 UI 与 Accessibility 之间的一层 |
+| 适用条件 | app/OS/version、locale/theme、page/mode、layout/window/DPI、权限及必要依赖；未知明确保留 |
+| 运行规则 | 当前定位、实际读取、有界等待、执行顺序、原始回执、独立验证与停止条件 |
+| 切换边界 | 是否确有已验证替代路径，何种动作状态下才可切换；没有则明确停止/人工接续 |
+| 证据与维修 | 每条路径自己的验证范围和固定证据、失效条件、受影响操作与消费者 |
+
+S2 可以形成待验证候选并在授权内探索，不要求先交完整工程规则。S10 对声明可执行的路径补足必要局部验证，不能把 not-run 提升为已验证备用。一次 Actual 值进入对应运行证据，不成为规则下次运行的默认答案。
+
+只有一条合适路径时就保留一条。真正存在且已验证的替代路径才进入可执行备用集合；未来想法留在候选/缺口中。不得用大量注释代码维护长期备用实现。模板见[规则与维修模板](../skills/application-engineer/templates/operation-rules.md)；教学用完整样本见[Calculator 应用工程示例](../skills/application-engineer/examples/calculator.md)。独立 Producer 仍遵守答案隔离，不把教学样本当本次输入或证据。
+
+### 6.2 与能力决定、Runtime 和上游的衔接
+
+Runtime 已拥有的 Accessibility/OCR 协调由当前 [Desktop UI API](../../../docs/api/desktop-ui.md) 合同负责；应用策略负责业务对象、应用状态、操作约束与结果验证，不在 Recipe 中重新调度底层 provider。换观察来源不等于获得新的输入权限，也不等于动作可以重做。
+
+S10 的实际新选择先保留在原工作包。它若改变 S9 已冻结的 `capabilityDecisions` 或 Procedure 支持范围，发布固定来源与影响，由原责任定向更新，再让 S11 消费一致版本；不静默改业务输入、成功标准或维护第二份互相矛盾的选型。只是固定资料漏交时由协调者补交，不重新选型。源规则与 helper 先冻结，验证记录再引用，避免 hash 环。
+
 ## 7. Read：运行时值只能来自真实 observation
 
 读取规则必须说明：
@@ -240,6 +269,24 @@ UI 已变化
 
 不能默认异常等于“没有发生”。
 
+<a id="strategy-switching"></a>
+
+### 9.1 选择方法与失败后切换，不是同一个决定
+
+以下是既有动作/失败语义的判断表，不新增 Runtime 状态枚举。必须依据原始回执、动作时间顺序与业务观察判断，不能只凭错误名称选择备用。
+
+| 当前事实 | 允许的下一步 | 必须禁止 |
+| --- | --- | --- |
+| 只读观察失败，尚未输入 | 在原权限、范围和预算内补观察或使用适用的获准观察方法 | 将权限/backend/不完整搜索当作零匹配；自动扩大到整屏或云端 |
+| 有证据证明动作未发出 | 重新核对对象、前置、授权后，使用已验证的适用替代路径 | 跳过门禁；把 not-run 候选自动投入业务执行 |
+| 动作已发出，效果 unknown / possibly submitted | 停止依赖副作用，核对是否已发生、是否仍在进行 | 换后端、快捷键、图像或坐标再提交一次 |
+| 操作序列只完成一部分 | 保存已完成前缀及其效果，确认安全接续点和剩余动作 | 从头重放；将异常解释成整段未执行 |
+| 业务成功已被独立确认 | 返回对应范围成功，另记回执或诊断异常 | 因日志格式异常重做成功业务 |
+| 有证据证明未产生效果且原动作已终止 | 在任务许可、重复风险与重新预检均满足时，按明确恢复规则接续 | 把暂未看到结果当未执行；忽略仍在进行的提交 |
+| 取消、权限不足或无可靠备用 | 停止并保留原因，必要时人工接续 | 以人工选择策略、auto 或 fallback 绕过取消/授权/身份限制 |
+
+搜索、打开会话、滚动、切页会改变应用状态，不全部归为只读 fallback。人工选择只选择获准方法，不取消动作门禁。若上游批准 `strategy` 配置，`auto` 也只能在已验证、当前适用、切换条件满足的集合内选择；不是任意失败后遍历全部方法。这里的名称是应用配置设计示意，不是 OpenDesk 公共 API 新参数。
+
 ## 10. Verifier：验证当前业务对象，而不是验证工具自己
 
 Verifier 要尽量从动作自身之外的业务 observation 得到答案。
@@ -277,6 +324,8 @@ Verifier 要尽量从动作自身之外的业务 observation 得到答案。
 - 未验证范围；
 - 失效条件。
 
+每条实际启用的策略及允许的切换都要有对应验证；只测主路径不能证明备用。检查正常、变化、歧义、错误读取来源、部分执行和 unknown 的具体要求见[策略验证矩阵](validation-plan.md#strategy-validation)。运行时可读入口仍为任务根 `stage-review.md`：链接本阶段实际输入、所选理由、规则输出、证据、独立评分、Hard Fail、Unknown、failure owner 与下一安全动作；视图不成为第二份规则或资格来源。
+
 ## 12. 缓存与 repair
 
 可以复用：
@@ -296,6 +345,40 @@ Verifier 要尽量从动作自身之外的业务 observation 得到答案。
 - 示范 runtime value。
 
 出现 app/build、page/mode、layout、locale、DPI/display、target ambiguity 或规则真实失败时，定向 repair。只修失效规则和真实依赖它的下游，不把整个应用重新建模。
+
+<a id="compatibility"></a>
+
+### 12.1 兼容的是有条件的规则，不是永久坐标
+
+| 变化维度 | 需要重新核对 | 不能假定 |
+| --- | --- | --- |
+| app/OS/version、UI hierarchy、identifier | 对象身份、页面结构、动作语义、读取与验证规则 | 小版本一定无影响；原生属性永远稳定 |
+| locale、button text、结果格式 | name/文字匹配、解析规则、单位和原始值 | 标签或位置看似一致就仍是同一对象 |
+| theme、icon、color | 图像模板、颜色/布局线索及相关规则 | 坐标天然比图标稳定；主题不会影响布局 |
+| window size、DPI、display、layout | 最新 bounds、图像到屏幕映射、相对区域与安全边界 | 旧比例或绝对位置可以永久复用 |
+| 列表内容、排序、滚动、页面变化 | 当前业务 identity、可见范围和目标重新定位 | 原来第三行仍是原对象；当前视口等于全集 |
+| Runtime/API、helper 或模块依赖 | 固定契约、代码与依赖版本、验证适用性 | 名字没变就可继承旧 Qualification |
+
+稳定身份规则、当前观察线索、运行时 Geometry、临时 Coordinate 分开保留。相对位置只缩小搜索范围，不独立证明身份；采用几何时从当前窗口/区域和获准观察重新计算执行坐标。固定几何若有证据，在明确限定范围内可用，不因此宣称兼容未来版本。
+
+主策略和备用各记录自己的环境范围、证据与 `revalidateWhen`。范围内正常成功与范围外安全拒绝分别报告；全部拒绝不是兼容通过。requested 场景失败不能移到 excluded 取得 PASS；未测环境保持 not-run/unknown，范围外声明仍遵守共享合同。
+
+<a id="operation-packaging"></a>
+
+### 12.2 应用操作、适配层和 Recipe 的封装边界
+
+| 对象 | 唯一责任 |
+| --- | --- |
+| 通用 Runtime | 窗口、输入、原生观察、OCR、几何与执行生命周期等通用能力 |
+| AppProfile | 应用身份、状态、目标、关系、操作规则、范围和来源 |
+| 应用操作 | 一个有明确输入输出、前后条件、验证和失败边界的应用动作 |
+| App Adapter / helper | 复用应用语义映射、专属定位/操作/保护/验证；不再实现一套 Runtime |
+| Business Step | 为什么执行、业务数据来自哪里、输出交给谁 |
+| Recipe | 组织本任务的顺序、分支、循环、参数和安全停止 |
+
+沿用[应用适配层合同](../../../docs/architecture/desktop-automation/app-adapter-contract.md)。一次操作的多个策略是该操作的实现选择，不是新业务步骤；跨视口业务终止条件与整个流程决策仍归 Recipe。没有复用收益时，内联或少量 helper 足够；不要求每个按钮一个文件、每个操作多个策略或每个应用一个类。
+
+存在真实共享需求时可交付普通应用 helper/模块，并固定其合同、实际字节、依赖与验证范围。当前 `.mjs` 文件入口和静态相对 import 以 [Runtime](../../../docs/api/runtime.md) 为准；普通 `.js` 不因此改为 ESM，内联入口不能自动继承文件模块支持，CommonJS 兼容全局不作公开契约。模块形式不改变 S10 只交付应用规则/helper、S11 生成最终 Candidate、S12 授予资格的边界。
 
 ## 13. 特殊场景只保留工作流入口
 
@@ -347,4 +430,6 @@ current viewport 不等于 whole collection；item recognition 不等于 travers
 4. Actual read 为什么不能由 Expected fallback；
 5. 副作用 Unknown 为什么不能直接重放；
 6. operation rule 最少包含哪些可检查边界；
-7. Structured Collection、VLM 和聊天案例为什么不应该抢占应用工程主线。
+7. Structured Collection、VLM 和聊天案例为什么不应该抢占应用工程主线；
+8. 多个候选怎样选择、何时不能切换、变化影响哪条规则；
+9. 应用操作怎样进入 helper/Adapter，而不接管整个 Recipe。

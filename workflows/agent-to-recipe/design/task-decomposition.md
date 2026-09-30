@@ -55,6 +55,22 @@ order: 30
 | **S11｜候选实现** | 怎样忠实实现已确认过程，而不重新发明业务逻辑 | Procedure、AppProfile/helper、正式 API 合同 | **Recipe.js + CandidateManifest** | 候选字节、入口、依赖、上游版本、步骤映射和支持范围冻结 |
 | **S12｜独立资格** | 固定 Candidate 在声明范围内是否真的成立 | 冻结 Candidate、TaskContract、场景、环境、授权 | **QualificationRecord + 最终结论** | 实际运行同一候选；requested 范围逐项有 pass/fail/not-run/blocked 与证据 |
 
+## 求解策略空间与阶段的接线
+
+[自动化求解策略空间](../../../docs/frameworks/automation-problem-solving-framework.md#strategy-space)是各阶段按需调用的方法地图，不是新阶段。本表只说明消费责任，不在任务树复制选型、切换或兼容的完整正文。
+
+| 阶段 | 本阶段怎样使用方法空间 | 保持的责任边界 |
+| --- | --- | --- |
+| S1 | 判断任务形态、业务对象、子目标、风险、数据依赖与高影响 Unknown | 不预填未知现场、未来操作或最终代码 |
+| S2 | 选择近期观察/操作候选，按[能力发现](capability-discovery.md)取得契约与最小现场依据 | 不要求先有完整 Procedure、多个策略或最终 JS |
+| S3—S6 | 执行、观察、判断并保存实际选择、实际效果与副作用状态 | 计划和待验证方法不能冒充本次事实 |
+| S7—S9 | 保留必要路径，收敛有来源的业务过程、能力选择与复用范围 | 不从参考代码倒造选择历史，不重做原动作取舍 |
+| S10 | 按[应用操作方法](application-operations.md#operation-strategy)落实条件化策略、范围、局部验证与停止规则 | 若改变 S9 固定选择，带来源交原责任更新精确引用；资料漏交找协调者 |
+| S11 | 按 [recipe-build](../skills/recipe-build/SKILL.md)实现已批准操作和选择；按需求内联、抽 helper 或使用已支持模块 | 不临时发明业务策略、未验证 fallback 或模块能力 |
+| S12 | 核验同一候选的实际路径、数据、正常行为及所请求的变化/失败范围 | 不以范围外拒绝冒充兼容，不由局部测试外推整项资格 |
+
+策略、App Adapter、模块不是每个任务的必备产物。使用既有 Profile/规则/helper/manifest 与逐阶段审阅，不增加并行注册表或评分制度。副作用 unknown、部分完成与安全切换统一见[应用操作切换判定](application-operations.md#strategy-switching)。
+
 ## 全局原则
 
 1. **先按业务语义拆任务，不按 Agent、Skill、文件或 API 名称拆任务。**

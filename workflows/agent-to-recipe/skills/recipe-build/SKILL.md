@@ -26,6 +26,8 @@ SemanticProcedure
 
 正式字段和 Candidate 语义以 [共享合同](../../../../docs/frameworks/agent-to-recipe-skill-contract.md) 为唯一依据。原 [io-spec](references/io-spec.md) 仅兼容导航。
 
+[求解策略空间](../../../../docs/frameworks/automation-problem-solving-framework.md#strategy-space)用于理解上游方法来源，不授权 S11 重新选型。所消费的[操作策略](../../design/application-operations.md#operation-strategy)仍是 AppProfile/规则/helper 的条件化做法，不是新 IR、Strategy Registry 或执行引擎。
+
 ## 方法
 
 ### 1. 先做“可实现性反查”
@@ -40,6 +42,8 @@ SemanticProcedure
 - 历史事实缺失：按来源回 demonstration/trace-distill。
 - 不能因为代码“可以猜出来”就继续。
 
+若 S10 的实际新选择与 S9 固定决定冲突，先让原责任更新有来源的精确引用；不能让代码默选其中之一。来源只有设计示意的应用方法名时，不生成仿佛已经存在的调用。
+
 ### 2. 每个 Business Step 建 source mapping
 
 每段业务代码必须能回答“它实现哪个 Business Step，依赖哪条 capability/application rule”。可以抽 helper，但 helper 不能成为新的业务层。
@@ -51,6 +55,29 @@ sourceMapping 至少让审阅者从 Procedure 追到源码区域，并能反向�
 遵守 selected canonical 的参数、返回类型、await、异常和平台约束。不存在的 API、路线图名称、伪 helper 不进入可执行代码。普通 Recipe 不默认依赖 Node 专用宿主能力。
 
 若工程规则只有 partial/not-run，不把它写成已验证。需要 S10 补强时保留明确限制，不能仅靠 Candidate limitations 把原任务缩小后宣称成功。
+
+### 3.1 按需要内联、抽 helper 或复用应用操作
+
+| 当前需要 | 最小合适实现 | 不应附加 |
+| --- | --- | --- |
+| 单次简单、直接可读且合同明确的操作 | 内联普通 JS | 为架构外观增加类、Registry 或文件 |
+| 同合同的重复操作或清晰的读值/准备/保护边界 | 少量普通 helper | 在 helper 中重新决定业务目标、数据来源或偷偷插入重试 |
+| 多个 Recipe 共享应用身份、页面、操作与验证 | 复用已批准应用 operation/helper/Adapter | 重新实现通用 Accessibility/OCR/输入 Runtime，或让 Adapter 接管整个业务流程 |
+| 有真实跨文件维护需求且当前入口支持 | 按公开模块契约组织应用模块 | 所有 Recipe 强制 ESM，或未经核实复制 Node 代码 |
+
+抽象仍须保留前后条件、真实数据流、失败停止和 source mapping。Calculator 可保持单文件与少量 helper；没有复用需要不强制创建 App Adapter。应用边界沿用[App Adapter 合同](../../../../docs/architecture/desktop-automation/app-adapter-contract.md)。
+
+### 3.2 只实现上游批准的策略集合
+
+上游只有一种做法时就实现一种，不为“健壮”添加未验证 fallback。多路径必须在输入中明确各自方法、适用范围、验证证据、选择条件与动作状态边界。需要业务配置 `strategy` 时，只有上游输入/配置合同已批准才提供该参数，验证枚举并让其流向实际 consumer；它不是新的 Runtime option。
+
+`auto` 只在当前合格集合与预定条件内选择，不表示异常后循环尝试所有 backend。人工指定路径同样不能绕过身份、权限、取消、预算和 unknown 门禁。未经验证的想法保留为缺口，不维护大量注释备用代码。Runtime 内部 provider 协调不在 Recipe 中复制。
+
+### 3.3 模块与实际入口必须对应
+
+模块能力以[JavaScript Runtime](../../../../docs/api/runtime.md)与[Execution](../../../../docs/api/execution.md)当前契约为准。已公开的文件路径是 `.mjs` 入口、静态相对 `import/export` 和导出 `main()`；普通 `.js` 保持脚本级 await 方式，不因抽 helper 被迫换入口。不把 `.mjs` 文件入口的支持外推到内联 `-script-text`，不依赖非公开 CommonJS 全局、任意动态 import 或 Node built-ins。
+
+模块化冻结源入口、实际 import graph/第三方依赖与所需 loader/build provenance。`Execution.scriptHash` 在模块入口下标识实际执行 payload，不等于原始 `.mjs` 内容 hash；两者应按现有 manifest/dependencies 与执行证据分别绑定。Node 或 bundler 检查不能证明 OpenDesk CLI/Runtime 运行通过；入口变化须进入受影响的 S12 验证。
 
 ### 4. 落实 runtime dataflow
 
@@ -85,6 +112,8 @@ inputContract
 
 代码中的即时安全 guard 与 S12 Qualification Gate 分开：前者属于运行控制流，后者属于验收结论。
 
+切换规则按[应用操作判定表](../../design/application-operations.md#strategy-switching)实现：尚未发出动作且其他前提满足，才可走获准替代；已发出但效果未知时先对账并排除原动作仍在进行；部分完成保留前缀；业务成功已确认则返回，不为修复回执格式再次执行。暂未看到结果不等于没有发生。搜索、滚动、切页等状态准备也必须受控，不能归入无限只读重试。
+
 ### 7. 双向代码审查
 
 正向：每个合同要求/Business Step 是否有代码实现。
@@ -97,6 +126,8 @@ inputContract
 - 参数是否真消费；
 - final read/output 是否存在；
 - error path 是否停止，不继续副作用。
+
+存在策略分支时，逐路径核对固定上游、可达性、真实选择输入、范围和停止行为；不能只测试默认路径却声明全部备用通过。对当前生产字节可做控制流/数据流与故障注入检查，但须明示 mock 证明层，不代替实际 UI 验证。
 
 ### 8. 冻结 Candidate，不授予资格
 

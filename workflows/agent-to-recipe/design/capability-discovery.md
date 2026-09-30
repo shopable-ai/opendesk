@@ -16,6 +16,7 @@ order: 45
 - S2 / S10 的应用工程方法见 [application-operations](application-operations.md)。
 - API 短入口见 [Agent API 阅读入口](../../../docs/api/agent/README.md)。
 - 验证方法见 [validation-plan](validation-plan.md)。
+- “有哪些可选解法”先按需看[求解策略空间](../../../docs/frameworks/automation-problem-solving-framework.md#strategy-space)；本文只落实当前业务所需能力，不再维护第二份总地图。
 
 ## 30 秒总览
 
@@ -120,6 +121,21 @@ Capability Decision
 
 只有现成能力无法保留关键约束时，才有依据下沉。
 
+### 分开比较四个维度，不产生固定台阶
+
+| 维度 | 当前选择应留下什么 |
+| --- | --- |
+| 执行入口 | 已有应用 helper/operation、高层 UI/Scope/Locator 或必要底层组合及其实际契约 |
+| 观察来源 | 原生属性、OCR 文字、图像/模板、布局等实际来源，不把方法名当业务真相 |
+| 目标绑定 | identifier、role/name、父区、锚点、关系与唯一性要求，不以旧坐标或最高分代替身份 |
+| 业务封装 | 操作、helper、App Adapter 与业务步骤/Recipe 的边界，不另建通用 Runtime |
+
+先排除硬条件不合格者，再在合格候选中优先复用最合适的已验证高层能力；没有已验证能力时形成待验证候选，按原授权做最小探查，不要求 S2 之前已有最终实现。API 成熟度、版本/系统、语言、主题、窗口/DPI/布局敏感性、验证难度和维护成本辅助比较，不能抵消身份、权限或副作用风险，也不新增选型总分。
+
+下沉须指出具体缺口，例如无法表达必要父区、读值无法绑定结果对象、当前入口缺能力或当前实测不适用。Scope/Locator 是执行接口形式，不是固定夹在高层 UI 与 Accessibility 之间的优先级。完整契约阅读后发现原选择不满足条件，应修订选择并保留理由，不为维持先前选择而放松要求。
+
+观察来源组合受当前 [Desktop UI API](../../../docs/api/desktop-ui.md) 的 Runtime 协调与权限边界约束；不让应用 helper 复制内部 provider 调度。应用层额外结构预检必须有身份、完整性或业务状态方面的实际需求。
+
 ## 6. 第四步：读取选中方法的完整 Contract
 
 Method Selection 之后，必须读取选中方法真正拥有的 canonical Reference 和必要公共约束。
@@ -166,6 +182,8 @@ Runtime Validation 只回答：
 
 动作回执成功不等于业务成功。动作效果 Unknown 时先对账，不能通过换 backend 或重放前缀制造更多副作用。
 
+“选择另一个待验证方法”与“自动执行备用动作”不是同一个许可。只读补证仍受权限、隐私、取消与预算控制；搜索、开会话、滚动、切页按实际状态变化处理。效果未知时须排除原动作仍在进行，部分完成须保留已完成前缀；备用路径各自有验证范围才能在获准条件下切换。具体规则只由[应用操作切换判定](application-operations.md#strategy-switching)维护。
+
 ### Runtime Validation 不能证明什么
 
 即使方法在局部真实成功，也不能自动证明：
@@ -196,6 +214,8 @@ Runtime Validation 只回答：
 
 失败候选只有在真的执行并得到失败证据时才写 failed；未尝试只能写 rejected 或 not-run。
 
+本表是阅读含义，正式字段仍以[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)为准。S2—S6/S10 先保留当前实际选择及证据，S9 收敛正式决定；S10 改变既有选型/范围时交原责任带来源更新精确引用，再由 S11 消费。不能从成功代码倒填历史选择，也不能因文档已更新就继续引用旧 Procedure 的相反选择。
+
 ## 9. 资料缓存与重新验证
 
 可以复用的是：
@@ -223,6 +243,8 @@ Runtime Validation 只回答：
 - 原适用范围不再成立。
 
 不需要每个业务调用前都重新扫描所有能力。
+
+应用版本、UI hierarchy/identifier、语言、主题、图标、窗口、DPI/display 或列表顺序变化时，按规则的真实依赖重新确认；保存“条件化选择与失效条件”，不保存“以后永远正确”的结论。稳定身份规则可以复用，一次原生 ref、坐标、行号或示范值不能复用为当前事实。正常支持范围内成功与范围外安全拒绝分别记录，后者不计兼容成功。
 
 ## 10. Calculator 的最短例子
 
