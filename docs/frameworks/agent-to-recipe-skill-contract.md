@@ -11,7 +11,7 @@
 - 专业操作依据：[应用开发框架](app-development-framework.md)、[总体执行闭环](automation-framework.md)。
 - 可调用能力：[API 入口](../api/README.md)、[Execution](../api/execution.md)、[扩展放置原则](runtime-api-extension-framework.md)。
 - 已有质量体系：[G0—G7](../quality/gates-and-evidence.md)、[失败分类](../quality/failure-taxonomy.md)。不另造平行 Gate／Failure 编号。
-- 工作流导航及八个方法文件：[当前入口](../../workflows/agent-to-recipe/WORKFLOW.md)。旧 prompts 目录不是有效入口；方法文件存在不证明宿主已自动安装／加载，也不证明对应业务资格通过。
+- 工作流执行入口：[RUN.md](../../workflows/agent-to-recipe/RUN.md)；生命周期解释：[WORKFLOW.md](../../workflows/agent-to-recipe/WORKFLOW.md)；静态阶段映射：[workflow.yaml](../../workflows/agent-to-recipe/workflow.yaml)。旧 prompts 目录不是有效入口；方法文件存在不证明宿主已自动安装／加载，也不证明对应业务资格通过。
 - 原首个验证任务：[计算器规程](../quality/agent-to-recipe/calculator-validation.md)。行为案例与应用工程评测沿用[当前验证计划](../../workflows/agent-to-recipe/design/validation-plan.md)。
 - 跨 Runtime／Catalog／Authoring 生命周期、CapabilityDefinition／CatalogEntry、运行路由与 P0／P1 优先级：[Automation Capability Lifecycle](../architecture/desktop-automation/task-capability-lifecycle.md)。本文第 10 节只拥有跨来源作者交接约束，不复制第二套运行状态机或能力目录字段。
 
@@ -110,6 +110,8 @@ AppProfile 的事实条目标注 `observed`、`demo-confirmed` 或 `qualified`�
     <必要的同版可读视图>
     handoff.json                # 所有输出完成后才发布
 ```
+
+`progress.json` 只允许承担**当前状态索引**职责，不是事件历史、聊天记忆或第二套证据库。它保存当前阶段、最后确认正确阶段、首个无效边界、当前 attempt/work package、少量 ref、下一 owner/mode 和副作用已知性；不得内嵌 Raw Trace、完整 artifact、原始 Evidence、长日志、全部历史状态或 `stage-review.md` 正文。历史由 request/handoff、主产物和 Execution evidence 保存。恢复时先用 progress 快速定位，再以固定产物、证据和阶段 checker 重新核对；两者冲突时修正 progress，不能让旧进度覆盖真实失败。默认也不要求全文读取 `stage-review.md`，只有人工诊断时才读取首屏或对应阶段。
 
 目标主产物分别为 `task-contract.json`／`work-plan.json`、`app-profile.json`、`dossier.json`、`distilled-steps.json`、`procedure.json`、`candidate.json`、`qualification.json`。这些结构化主产物、真实 Execution evidence 和冻结 JS 负责机器消费、hash、checker 与正式引用，是权威事实来源。
 

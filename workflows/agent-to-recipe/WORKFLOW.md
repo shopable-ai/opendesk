@@ -21,6 +21,20 @@ order: 10
 
 详细字段、版本、hash、handoff、Gate、检查器和测试规则不是本文主线；它们分别由 [共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)、[链路设计](design/chain-design.md) 和 [验证计划](design/validation-plan.md) 负责。
 
+### 日常怎样启动或继续
+
+用户不需要携带一份很长的执行提示词。根 `AGENTS.md` 负责自然语言路由，Agent 实际执行先进入 [RUN.md](RUN.md)，机器可读阶段表见 [workflow.yaml](workflow.yaml)。
+
+~~~text
+新任务：
+用 Agent-to-Recipe 完成：<需求>
+
+继续任务：
+继续 Agent-to-Recipe：<task-id 或 task-root>
+~~~
+
+`RUN.md` 负责启动、断点恢复、按需加载和 compact progress 的执行协议；本文继续只解释 S1—S12 在业务上“把什么变成什么”。
+
 ### 按当前问题选择方法入口
 
 | 当前问题 | 阅读入口 | 与本工作流的关系 |

@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "agent-to-recipe/workflow/v1",
+  "id": "agent-to-recipe",
+  "name": "Agent-to-Recipe",
+  "entry": {
+    "runbook": "RUN.md",
+    "humanGuide": "WORKFLOW.md",
+    "contract": "../../docs/frameworks/agent-to-recipe-skill-contract.md",
+    "startExamples": [
+      "用 Agent-to-Recipe 完成：<需求>",
+      "用需求转自动化脚本工作流完成：<需求>"
+    ],
+    "resumeExamples": [
+      "继续 Agent-to-Recipe：<task-id 或 task-root>",
+      "继续需求转自动化脚本工作流：<task-id 或 task-root>"
+    ]
+  },
+  "state": {
+    "taskRoot": ".runtime/automation-authoring/<task-id>",
+    "progress": "progress.json",
+    "humanReview": "stage-review.md",
+    "progressRole": "compact-index",
+    "maxProgressBytes": 16384,
+    "historySources": ["attempts/*/request.json", "attempts/*/handoff.json", "artifact refs", "Execution evidence"],
+    "authoritativeOrder": ["actual artifacts and evidence", "stage checker result", "published handoff", "progress index"]
+  },
+  "rules": {
+    "stageCount": 12,
+    "noAdditionalLifecycleStage": true,
+    "resumeStrategy": "first-invalid-boundary",
+    "unknownSideEffect": "observe-before-replay",
+    "loadPolicy": "current-stage-only",
+    "progressMustNotContain": ["chatHistory", "fullArtifacts", "rawEvidence", "executionLog", "stageReviewBody"]
+  },
+  "stages": [
+    {"id":"S1","owner":"automation-plan","mode":"plan/create","produces":["TaskContract","WorkPlan"],"onPass":"S2"},
+    {"id":"S2","owner":"application-engineer","mode":"application/discover","produces":["AppProfile"],"onPass":"S3"},
+    {"id":"S3","owner":"task-demonstrate","mode":"normal","produces":["ActualAction"],"onPass":"S4"},
+    {"id":"S4","owner":"task-demonstrate","mode":"normal","produces":["ActualObservation"],"onPass":"S5"},
+    {"id":"S5","owner":"task-demonstrate","mode":"normal","produces":["Decision"],"onPass":"S6"},
+    {"id":"S6","owner":"task-demonstrate","mode":"normal","produces":["DemonstrationDossier"],"onPass":"S7"},
+    {"id":"S7","owner":"trace-distill","mode":"normal","produces":["DistilledSteps"],"onPass":"S8"},
+    {"id":"S8","owner":"procedure-synthesize","mode":"normal","produces":["BusinessSteps"],"onPass":"S9"},
+    {"id":"S9","owner":"procedure-synthesize","mode":"normal","produces":["SemanticProcedure"],"onPass":"S10"},
+    {"id":"S10","owner":"application-engineer","mode":"harden","produces":["AppProfile","OperationRules"],"onPass":"S11"},
+    {"id":"S11","owner":"recipe-build","mode":"normal","produces":["RecipeSource","CandidateManifest"],"onPass":"S12"},
+    {"id":"S12","owner":"recipe-qualify","mode":"normal","produces":["QualificationRecord"],"onPass":"complete"}
+  ]
+}

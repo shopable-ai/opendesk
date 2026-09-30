@@ -10,7 +10,7 @@ order: 40
 
 > **Agent-to-Recipe 中谁生产什么、谁消费什么、怎样交接，失败后应该回到谁？**
 
-完整 S1—S12 任务内容见 [task-decomposition.md](task-decomposition.md)；实际怎样进入和协调执行见 [WORKFLOW.md](../WORKFLOW.md)；字段与版本合同见[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)。
+完整 S1—S12 任务内容见 [task-decomposition.md](task-decomposition.md)；实际启动、协调和断点恢复见 [RUN.md](../RUN.md)，生命周期解释见 [WORKFLOW.md](../WORKFLOW.md)；字段与版本合同见[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)。
 
 本文不维护完整任务树、测试结果、当前实现状态、专项 Runtime 算法或 Skill 安装历史。
 
@@ -72,7 +72,7 @@ delivery / explicit publish boundary
 
 ## 二、Route：不同入口从哪里接入职责链
 
-本节只定义**责任路由**；实际进入和恢复动作由 [WORKFLOW.md](../WORKFLOW.md) 负责。
+本节只定义**责任路由**；实际进入和恢复动作由 [RUN.md](../RUN.md) 负责，静态阶段顺序和 owner 映射由 [workflow.yaml](../workflow.yaml) 提供。
 
 | 情况 | 路由 | 不应该做什么 |
 | --- | --- | --- |
@@ -164,6 +164,8 @@ actual business input
 失败按**最小真实责任方**返回，不默认回 S1。
 
 ## 六、Resume：变化以后哪些下游需要失效
+
+恢复时先用 compact `progress.json` 定位候选阶段，再以固定 artifact / handoff / evidence 和阶段 checker 重新计算真实边界。progress 只是可重建索引；若它与 checker 冲突，按真实 `firstInvalidBoundary` 修正进度，而不是相信旧聊天或旧阶段号。
 
 只从第一个真实受影响点继续：
 

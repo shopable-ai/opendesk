@@ -12,11 +12,19 @@
 
 ## Agent-to-Recipe 自然语言作者链
 
-- 用户要求从自然语言桌面任务生产、接续或资格验证普通 OpenDesk JavaScript，并明确采用 Agent-to-Recipe 时，
-  从 `workflows/agent-to-recipe/WORKFLOW.md` 进入；按当前正式 request、版本和证据找到首个真实缺口，
-  读取相应职责 Skill，完成逐阶段审阅和正式 Guard 交接。Recorder 来源仍先按上节路由，保留 Human lineage。
-- `skills/_nav.yml` 只控制文档排序，CI 的 `agent-to-recipe-chain` 只检查契约；二者不自动执行模型、桌面或 S1—S12。
-  自然语言入口依赖当前 Agent 实际加载本文件并执行 WORKFLOW；未核验宿主加载、权限或现场时不得报告自动运行成功。
+- 用户要求从自然语言桌面任务生产、接续或资格验证普通 OpenDesk JavaScript，并采用 Agent-to-Recipe 时，直接按
+  `workflows/agent-to-recipe/RUN.md` 执行；生命周期解释见 `WORKFLOW.md`，静态阶段映射见 `workflow.yaml`。
+  用户不需要复制长 Prompt、S1—S12 规则、Skill 路径或 checker 命令。
+- 中文自然语言可以直接触发，例如：`用 Agent-to-Recipe 完成：<需求>`、`用需求转自动化脚本工作流完成：<需求>`；
+  接续已有任务可说：`继续 Agent-to-Recipe：<task-id 或 task-root>`。这些只是路由示例，不要求逐字匹配。
+- 新任务从 S1 建立 task root；接续任务先读 compact `progress.json` 快速定位，再用实际 artifact / handoff / evidence
+  和阶段 checker 重算真实边界。若旧 progress 与 checker 冲突，以固定证据和 checker 为准；不得因为聊天说“做到 S9”
+  就跳过更早的真实失败，也不得默认从 S1 全量重跑。
+- 默认只加载当前阶段需要的 Skill 与正式 inputRefs；不要一次性读取全部 Skills、黄金案例、全部历史 attempt 或完整
+  `stage-review.md`。出现失败时再下钻对应阶段的人类视图和原始 evidence，避免上下文随任务时长无限增长。
+- Recorder 来源仍先按上节路由，保留 Human lineage。`skills/_nav.yml` 只控制文档排序，CI 的
+  `agent-to-recipe-chain` 只检查契约；它们不自动执行模型、桌面或 S1—S12。未核验宿主加载、权限或现场时不得
+  报告自动运行成功。
 
 ## OpenDesk 受保护包发布
 
