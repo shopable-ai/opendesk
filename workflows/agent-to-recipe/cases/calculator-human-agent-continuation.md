@@ -144,6 +144,24 @@ prepareCalculator
 
 必须检查 Candidate 字节/入口/依赖、producer → consumer、当前显示读取、requested scope，以及所有 not-run / blocked。Candidate 一旦改变，旧资格失效。
 
+Human H7 的现有入口为 `tests/human-to-recipe/tools/qualify-calculator-partial.cjs`，
+独立观察脚本为 `tests/human-to-recipe/calculator-partial-witness.js`。
+观察器在候选执行期间持续只读观察，不以中途非零值停顿判断结束。Gate 在精确候选进程退出后，
+向该观察 execution 的 artifact 目录原子交付仅包含退出状态和结束时间的边界文件；不交付结果值或 Expected。
+观察器随后要求同一终值连续稳定至少 4 秒；显示不可用、身份变化或新的显示变化均失败。
+Evaluator 再把独立观察的终值与候选本次实际 finalResult 比较，保留零 → firstResult → 清空 → finalResult 的原断言。
+该边界文件不是桌面锁；开始前仍须确认人工停止、并行任务交接和无在途输入。
+旧失败不因 Oracle 修订变成 PASS，新的 live 报告必须绑定本次 Gate、观察器和全部消费依赖。
+
+从仓库根目录执行唯一完整 live 入口（仅在 Calculator 控制交接明确后）：
+
+```sh
+node tests/human-to-recipe/tools/qualify-calculator-partial.cjs --live <Human-plan.json> --reviewed-source-sha256 <exact-candidate-sha256>
+```
+
+该命令不证明真人录制链或内嵌发行加载；两者分别验收。运行报告及观察截图保存在
+`.runtime/tests/human-to-recipe/partial-authoring/qualification-*/`，不提交私人材料。
+
 ## 10. 失败时的最小返工
 
 优先报告：Human 已证明范围、Agent 已补证范围、第一个真实缺口、为什么阻塞、仍可保留的上游、失效下游、下一步最小动作、是否产生新 Candidate、Fresh Run 是否执行、Qualification verdict。

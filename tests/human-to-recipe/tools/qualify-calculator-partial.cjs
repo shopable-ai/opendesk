@@ -24,11 +24,11 @@ function freeze(planFile){
     path.join(skill,'references/semantic-build-plan.schema.json'),path.join(skill,'references/semantic-build-plan-v2.schema.json'),
     path.join(skill,'references/semantic-quality-rubric.json'),path.resolve(repo,plan.source.actionsFile),
     ...plan.source.materials.map(m=>path.resolve(repo,m.artifact.path)),
-    ...['desktop-ui','accessibility','window'].map(name=>path.join(repo,'docs/api',name+'.md'))];
+    ...['desktop-ui','accessibility','window','file','execution','page'].map(name=>path.join(repo,'docs/api',name+'.md'))];
   const raw=path.resolve(repo,plan.source.recordingDir,plan.source.rawReference.file);dependencies.push(raw);
   dependencies.push(path.resolve(repo,plan.source.recordingDir,'manifest.json'));
   const binary=fs.realpathSync(path.join(repo,'dist/opendesk'));
-  dependencies.push(binary,path.join(repo,'tests/workflows/calculator/fresh-witness.js'));
+  dependencies.push(binary,path.join(repo,'tests/human-to-recipe/calculator-partial-witness.js'));
   // This Runtime loads the repository polyfills (also visible in its stack provenance).
   // Freeze every loaded JS initializer, since any one can change the globals consumed by the candidate.
   const polyfills=path.join(repo,'polyfills');
@@ -111,29 +111,42 @@ function assessLive(candidate,witness){
   assert.deepEqual(names,['6','×',...result.firstResult,'=']);
   const complete=objects(witness.stdout).findLast(o=>o.kind==='witness-complete');
   assert.ok(complete&&complete.initialClearObserved,'Independent witness must complete its full run');
+  assert.ok(complete.stableTerminalObserved&&complete.stableTerminalMs>=4000
+    &&complete.completion?.status===0,'Independent witness must observe a stable terminal after candidate completion');
+  assert.equal(complete.lastObservedValue,result.finalResult,'Stable terminal must equal this candidate actual final read');
   const actual=objects(witness.stdout).filter(o=>o.kind==='display-change').map(o=>o.row);
   assert.ok(actual.length,'Independent execution must observe display transitions');
   // Witness values are acquired without Expected and are correlated only by this evaluator.
   const values=actual.map(o=>o.value);
-  const first=values.indexOf(result.firstResult),clear=values.indexOf('0',first+1),final=values.indexOf(result.finalResult,clear+1);
-  assert.ok(values.indexOf('0')>=0&&first>values.indexOf('0')&&clear>first&&final>clear,
+  const initialZero=values.indexOf('0'),first=values.indexOf(result.firstResult,initialZero+1),
+    clear=values.indexOf('0',first+1),final=values.indexOf(result.finalResult,clear+1);
+  assert.ok(initialZero>=0&&first>initialZero&&clear>first&&final>clear,
     'Independent observer must see this run zero → first display → clear → final display');
-  return {firstResult:result.firstResult,finalResult:result.finalResult,consumer:names,observations:actual};
+  return {firstResult:result.firstResult,finalResult:result.finalResult,consumer:names,observations:actual,
+    witnessExecutionId:complete.executionId,application:complete.window,
+    completion:complete.completion,stableTerminalMs:complete.stableTerminalMs};
 }
 async function live(frozen,out){
   const runs=[];
   for(let index=1;index<=2;index++){
     recheck(frozen);
     const prefix=path.join(out,'fresh-'+index),witnessPath=prefix+'-witness.log';
-    const witnessPromise=run(frozen.binary,['-script','tests/workflows/calculator/fresh-witness.js','-console-mode','script','-log-dir',prefix+'-witness'],witnessPath);
+    const witnessPromise=run(frozen.binary,['-script','tests/human-to-recipe/calculator-partial-witness.js','-console-mode','script','-log-dir',prefix+'-witness'],witnessPath);
     // Read-only witness readiness is checked from its separate Execution log, without desktop input.
     const readiness=path.join(prefix+'-witness','stdout.log');const deadline=Date.now()+7000;
     while(Date.now()<deadline){if(fs.existsSync(readiness)&&fs.readFileSync(readiness,'utf8').includes('FRESH_WITNESS_READY'))break;
       await new Promise(resolve=>setTimeout(resolve,100));}
     if(!fs.existsSync(readiness)||!fs.readFileSync(readiness,'utf8').includes('FRESH_WITNESS_READY')){
       const witness=await witnessPromise;runs.push({index,verdict:'blocked',reason:'Independent witness did not become ready',witness});break;}
+    const ready=objects(fs.readFileSync(readiness,'utf8')).find(o=>o.kind==='witness-ready');
+    assert.ok(ready&&path.resolve(ready.completionFile)===path.resolve(prefix+'-witness','candidate-complete.json'),
+      'Completion boundary must belong to this fresh witness execution');
     const command=['-script',path.relative(repo,frozen.source),'-console-mode','script'];
     const candidate=await run(path.join(repo,'dist/opendesk'),command,prefix+'-candidate.log');
+    const completion={kind:'candidate-process-complete',status:candidate.status,finishedAt:Date.now()};
+    const pending=ready.completionFile+'.pending';
+    fs.writeFileSync(pending,JSON.stringify(completion)+'\n',{flag:'wx'});
+    fs.renameSync(pending,ready.completionFile);
     const witness=await witnessPromise;recheck(frozen);
     let verdict='pass',actual,reason;
     try{assert.equal(candidate.status,0);assert.equal(witness.status,0);actual=assessLive(candidate,witness);}catch(error){verdict='fail';reason=error.message;}

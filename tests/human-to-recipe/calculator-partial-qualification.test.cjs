@@ -36,7 +36,8 @@ test('source, task, rules and evaluator changes invalidate the exact frozen qual
 test('live evaluator cannot stitch equal values from a witness that did not see this run clear sequence',()=>{
   const receipt=['6','×','1','1','0','='].map(name=>({actionState:'acknowledged',backend:'macos-ax',requestId:'r',target:{source:'accessibility',locator:{name}}}));
   const candidate={stdout:JSON.stringify({firstResult:'110',finalResult:'660',secondInput:{completed:receipt}})};
-  const witness={stdout:[{kind:'witness-complete',initialClearObserved:true},...['110','660'].map(value=>({kind:'display-change',row:{value}}))].map(v=>JSON.stringify(v)).join('\n')};
+  const witness={stdout:[{kind:'witness-complete',initialClearObserved:true,stableTerminalObserved:true,
+    stableTerminalMs:4000,completion:{status:0},lastObservedValue:'660'},...['110','660'].map(value=>({kind:'display-change',row:{value}}))].map(v=>JSON.stringify(v)).join('\n')};
   assert.throws(()=>assessLive(candidate,witness),/this run/);
 });
 module.exports={candidateFixture};
