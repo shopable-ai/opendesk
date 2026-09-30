@@ -7,6 +7,8 @@ const fs = require('node:fs');
 
 const RUNNER = path.resolve(__dirname, '../../workflows/agent-to-recipe/scripts/workflow-runner.js');
 const SPEC = path.resolve(__dirname, '../../workflows/agent-to-recipe/workflow.yaml');
+const WORKFLOW = path.resolve(__dirname, '../../workflows/agent-to-recipe/WORKFLOW.md');
+const LEGACY_RUN = path.resolve(__dirname, '../../workflows/agent-to-recipe/RUN.md');
 const {
   loadWorkflowSpec,
   initialProgress,
@@ -95,4 +97,19 @@ test('progress rejects embedded history/evidence fields', () => {
   const spec = loadWorkflowSpec(SPEC);
   const progress = { ...initialProgress('t', spec), rawEvidence: [{ huge: true }] };
   assert.throws(() => validateProgress(progress, spec), /forbidden field: rawEvidence/);
+});
+
+
+test('user-facing workflow is a single Chinese entry without stage-heavy prompts', () => {
+  const spec = loadWorkflowSpec(SPEC);
+  assert.equal(spec.name, '自动化脚本工作流');
+  assert.equal(spec.entry.document, 'WORKFLOW.md');
+  assert.equal(spec.entry.runbook, undefined);
+  assert.deepEqual(spec.entry.startExamples, ['用自动化脚本工作流完成：<需求>']);
+  assert.deepEqual(spec.entry.resumeExamples, ['继续自动化脚本工作流：<task-id 或 task-root>']);
+  for (const prompt of [...spec.entry.startExamples, ...spec.entry.resumeExamples]) {
+    assert.doesNotMatch(prompt, /S\d+|Skill|checker|progress|Agent-to-Recipe/i);
+  }
+  assert.equal(fs.existsSync(LEGACY_RUN), false);
+  assert.match(fs.readFileSync(WORKFLOW, 'utf8'), /用户只需要描述任务，不需要提供工作流内部说明/);
 });

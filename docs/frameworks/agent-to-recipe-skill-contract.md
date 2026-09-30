@@ -11,7 +11,7 @@
 - 专业操作依据：[应用开发框架](app-development-framework.md)、[总体执行闭环](automation-framework.md)。
 - 可调用能力：[API 入口](../api/README.md)、[Execution](../api/execution.md)、[扩展放置原则](runtime-api-extension-framework.md)。
 - 已有质量体系：[G0—G7](../quality/gates-and-evidence.md)、[失败分类](../quality/failure-taxonomy.md)。不另造平行 Gate／Failure 编号。
-- 工作流执行入口：[RUN.md](../../workflows/agent-to-recipe/RUN.md)；生命周期解释：[WORKFLOW.md](../../workflows/agent-to-recipe/WORKFLOW.md)；静态阶段映射：[workflow.yaml](../../workflows/agent-to-recipe/workflow.yaml)。旧 prompts 目录不是有效入口；方法文件存在不证明宿主已自动安装／加载，也不证明对应业务资格通过。
+- 工作流唯一入口：[自动化脚本工作流](../../workflows/agent-to-recipe/WORKFLOW.md)；静态机器映射见 [workflow.yaml](../../workflows/agent-to-recipe/workflow.yaml)。`agent-to-recipe` 仅是内部稳定目录/ID，用户日常无需使用英文名称或携带阶段说明。旧 prompts 目录不是有效入口；方法文件存在不证明宿主已自动安装／加载，也不证明对应业务资格通过。
 - 原首个验证任务：[计算器规程](../quality/agent-to-recipe/calculator-validation.md)。行为案例与应用工程评测沿用[当前验证计划](../../workflows/agent-to-recipe/design/validation-plan.md)。
 - 跨 Runtime／Catalog／Authoring 生命周期、CapabilityDefinition／CatalogEntry、运行路由与 P0／P1 优先级：[Automation Capability Lifecycle](../architecture/desktop-automation/task-capability-lifecycle.md)。本文第 10 节只拥有跨来源作者交接约束，不复制第二套运行状态机或能力目录字段。
 

@@ -10,7 +10,7 @@ order: 40
 
 > **Agent-to-Recipe 中谁生产什么、谁消费什么、怎样交接，失败后应该回到谁？**
 
-完整 S1—S12 任务内容见 [task-decomposition.md](task-decomposition.md)；实际启动、协调和断点恢复见 [RUN.md](../RUN.md)，生命周期解释见 [WORKFLOW.md](../WORKFLOW.md)；字段与版本合同见[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)。
+完整 S1—S12 任务内容见 [task-decomposition.md](task-decomposition.md)；实际启动、协调、断点恢复与生命周期入口统一见 [自动化脚本工作流](../WORKFLOW.md)；字段与版本合同见[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)。
 
 本文不维护完整任务树、测试结果、当前实现状态、专项 Runtime 算法或 Skill 安装历史。
 
@@ -72,7 +72,7 @@ delivery / explicit publish boundary
 
 ## 二、Route：不同入口从哪里接入职责链
 
-本节只定义**责任路由**；实际进入和恢复动作由 [RUN.md](../RUN.md) 负责，静态阶段顺序和 owner 映射由 [workflow.yaml](../workflow.yaml) 提供。
+本节只定义**责任路由**；实际进入和恢复动作统一由 [自动化脚本工作流](../WORKFLOW.md) 负责，静态阶段顺序和 owner 映射由 [workflow.yaml](../workflow.yaml) 提供。
 
 | 情况 | 路由 | 不应该做什么 |
 | --- | --- | --- |

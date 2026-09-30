@@ -1,14 +1,16 @@
 ---
-title: "Agent-to-Recipe｜从需求到可交付 Recipe 的工作流"
-description: "说明一个用户自动化需求怎样经过 S1—S12，逐步变成经过独立验收、可以重复运行的 Recipe。"
+title: "自动化脚本工作流｜从需求到可交付 Recipe"
+description: "把自然语言自动化需求逐步变成经过验证、可以重复运行的 OpenDesk JavaScript Recipe。"
 order: 10
 ---
 
-# Agent-to-Recipe｜从需求到可交付 Recipe 的工作流
+# 自动化脚本工作流｜从需求到可交付 Recipe
+
+> 内部稳定目录和机器 ID 仍为 `agent-to-recipe`，用户日常不需要使用这个英文名称。
 
 本文只回答一个核心问题：
 
-> **Agent-to-Recipe 怎样把一个用户自动化需求，逐步变成经过验证、可以重复运行的 Recipe？**
+> **怎样把一个自然语言自动化需求，逐步变成经过验证、可以重复运行的 Recipe？**
 
 同时回答三个执行问题：
 
@@ -21,19 +23,31 @@ order: 10
 
 详细字段、版本、hash、handoff、Gate、检查器和测试规则不是本文主线；它们分别由 [共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md)、[链路设计](design/chain-design.md) 和 [验证计划](design/validation-plan.md) 负责。
 
-### 日常怎样启动或继续
+### 日常调用
 
-用户不需要携带一份很长的执行提示词。根 `AGENTS.md` 负责自然语言路由，Agent 实际执行先进入 [RUN.md](RUN.md)，机器可读阶段表见 [workflow.yaml](workflow.yaml)。
+用户只需要描述任务，不需要提供工作流内部说明。
 
 ~~~text
-新任务：
-用 Agent-to-Recipe 完成：<需求>
-
-继续任务：
-继续 Agent-to-Recipe：<task-id 或 task-root>
+用自动化脚本工作流完成：<需求>
 ~~~
 
-`RUN.md` 负责启动、断点恢复、按需加载和 compact progress 的执行协议；本文继续只解释 S1—S12 在业务上“把什么变成什么”。
+接续已有任务时：
+
+~~~text
+继续自动化脚本工作流：<task-id 或 task-root>
+~~~
+
+不需要在提示词里写阶段编号、Skill、检查器、状态文件、失败恢复规则或执行要求；这些都属于本工作流自身职责。
+
+内部执行采用 [workflow.yaml](workflow.yaml) 的机器可读阶段映射，并遵守下面的统一执行约定：
+
+1. 新任务自行从工作流入口开始，不要求用户指定内部阶段。
+2. 每次只读取当前工作真正需要的方法、正式输入和证据。
+3. 每次工作结束后固定实际产物与交接，并通过现有检查器决定能否继续。
+4. `progress.json` 只保存小型当前状态索引，不保存聊天、历史、Raw Trace 或完整证据。
+5. 接续任务时先用 progress 定位，再以实际产物、交接、证据和检查器重算真实恢复点；发生冲突时以后者为准。
+6. 动作是否已经产生副作用不确定时，先观察实际状态，禁止盲目重放。
+7. 只有最终资格验收真正成立时才称为完成；交付/发布仍是工作流之后的外部边界。
 
 ### 按当前问题选择方法入口
 
