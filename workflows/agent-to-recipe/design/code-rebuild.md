@@ -12,8 +12,6 @@ order: 60
 
 code-rebuild 是**可选、独立**的代码质量作业，不替代 recipe-build，也不负责补造上游业务事实。
 
-需要核对当前公开 API 时，从 [Agent API 短入口](../../../docs/api/agent/README.md) 按任务读取，不在本文复制另一套 API 清单。
-
 ## 30 秒总览
 
 ```text
