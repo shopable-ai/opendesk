@@ -374,7 +374,10 @@ S11 Candidate 字节变化
 | Candidate 已冻结，只缺独立资格 | S12 |
 | 应用定位 / 读取 / 操作规则失效 | 通常 S10 repair，再重验受影响下游 |
 | 已有普通 JS 需要独立改进 | code-rebuild → 冻结新 Candidate → S12 |
+| 已有 Human Recorder 关键片段，需要 AI 接续 | 固定 Human recording/actions/Candidate；先找首个真实业务或证据缺口，只补阻塞项，再回到正常 S1—S12 消费边界；不重写 Human 历史 |
 | Runtime / API 真正缺能力 | 阻塞受影响路径，交给对应能力 owner；不要虚构 API 绕过 |
+
+Recorder 的部分人工示范不是第三种执行者，也不新建 Hybrid-to-Recipe。进入本工作流时，Human recording/actions 是固定上游事实；AI 只对尚未证明且真正阻塞完整 Candidate 的部分产生新的 Agent 动作/observation。先读取固定材料并列出 Known / Unknown / blocker，再选择已有材料、只读观察、定向 Agent 执行、application-engineer 或最小人工补录。最终 Candidate 可以同时依赖 Human 与 Agent 事实，但每条关键事实通过现有 request / handoff / inputRefs / source mapping 追到真实来源，不能写成 source=hybrid。完整示例见 [Calculator 人工关键录制 → Agent 接续黄金案例](cases/calculator-human-agent-continuation.md)。
 
 恢复时不要只看旧聊天里的“做到 S9”之类文字。至少重新确认：
 
