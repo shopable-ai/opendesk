@@ -10,6 +10,7 @@ const {
 } = require('./artifact-validation.js');
 const { isDeepStrictEqual } = require('node:util');
 const path = require('node:path');
+const { renderWorkflowReview } = require('./stage-review.js');
 const CONSUMER_VERIFIER = path.resolve(__dirname, '../../../tests/workflows/tools/calculator-consumer-dataflow.cjs');
 
 const STAGES = Object.freeze(Array.from({ length: 12 }, (_, i) => 'S' + (i + 1)));
@@ -46,7 +47,7 @@ const readCache = new WeakMap();
 
 function checkWorkflowStage(options = {}) {
   const errors = [];
-  const stages = Object.fromEntries(STAGES.map(stage => [stage, { verdict: 'not-run', score: null }]));
+  const stages = Object.fromEntries(STAGES.map(stage => [stage, { verdict: 'not-run', score: null, owner: OWNERS[stage] }]));
   const budget = { bytes: 0 };
   const execution = { verifyConsumer: options.verifyConsumer, calls: 0 };
   let record, roots, acceptance, routing;
@@ -113,7 +114,7 @@ function checkWorkflowStage(options = {}) {
         try { reviewed = evaluateReview(review, record, acceptance, roots, budget, fail, execution); }
         catch {
           fail(stage, 'INVALID_REVIEW_STRUCTURE', 'Malformed stage review cannot pass the bounded stage check.');
-          reviewed = { verdict: 'fail', score: null, outputs: [] };
+          reviewed = { verdict: 'fail', score: null, outputs: [], owner: OWNERS[stage] };
         }
         stages[stage] = reviewed;
         for (const dependency of routing?.dependencies[stage] || REQUIRED_DEPENDENCIES[stage]) {
@@ -217,7 +218,9 @@ function checkWorkflowStage(options = {}) {
   const lastConfirmedCorrectArtifact = preservedUpstream.length
     ? stages[preservedUpstream[preservedUpstream.length - 1]].outputs || [] : [];
   return { tool: 'agent-to-recipe-workflow-stage/v1', verdict: errors.length ? 'fail' : 'pass',
-    allowed: errors.length === 0, from: options.from, to: options.to, stages, final,
+    allowed: errors.length === 0, taskId: record?.taskId || null, attemptId: record?.attemptId || null,
+    planRevision: record?.planRevision || null, workPackageId: record?.workPackageId || null,
+    from: options.from, to: options.to, stages, final,
     lastConfirmedCorrectArtifact, firstInvalidBoundary, failureOwner, missedCheckOwner,
     preservedUpstream, invalidatedDownstream,
     nextMinimumAction: firstInvalidBoundary && stages[firstInvalidBoundary]?.verdict === 'not-run'
@@ -663,8 +666,34 @@ function evaluateReview(review, record, acceptance, roots, budget, fail, executi
     }
     if (finding?.blocking) problem('BLOCKING_FINDING', 'A blocking finding cannot be hidden by a high score.');
   }
-  return { verdict: ok ? 'pass' : 'fail', score,
-    outputs: Array.isArray(review.outputs) ? review.outputs : [],
+  const boundedScoreEvidence = object(review.scoreEvidence) ? Object.fromEntries(
+    Object.entries(review.scoreEvidence).slice(0, 5).map(([dimension, detail]) => [dimension, {
+      reason: text(detail?.reason) ? detail.reason : null,
+      refs: Array.isArray(detail?.refs) ? detail.refs.slice(0, 30) : [],
+      items: Array.isArray(detail?.items) ? detail.items.slice(0, 20).map(item => ({
+        id: item?.id, score: item?.score ?? null, reason: text(item?.reason) ? item.reason : null,
+        refs: Array.isArray(item?.refs) ? item.refs.slice(0, 30) : [],
+      })) : [],
+    }])) : {};
+  return { verdict: ok ? 'pass' : 'fail', score, owner: OWNERS[stage],
+    scoreDimensions: object(review.score) ? { ...review.score } : null,
+    scoreEvidence: boundedScoreEvidence,
+    inputs: Array.isArray(review.inputs) ? review.inputs.slice(0, 60) : [],
+    outputs: Array.isArray(review.outputs) ? review.outputs.slice(0, 60) : [],
+    evidence: Array.isArray(review.evidence) ? review.evidence.slice(0, 60) : [],
+    hardFails: Array.isArray(review.hardFails) ? review.hardFails.slice(0, 20) : [],
+    blockingUnknowns: Array.isArray(review.blockingUnknowns) ? review.blockingUnknowns.slice(0, 20) : [],
+    requiredTests: Array.isArray(review.requiredTests) ? review.requiredTests.slice(0, 40).map(item => ({
+      name: item?.name, status: item?.status,
+    })) : [],
+    findings: Array.isArray(review.findings) ? review.findings.slice(0, 20).map(item => ({
+      blocking: item?.blocking === true, ownerStage: item?.ownerStage,
+      reason: text(item?.reason) ? item.reason : null,
+    })) : [],
+    gate: object(review.gate) ? { verdict: review.gate.verdict } : null,
+    disposition: review.disposition,
+    inputsSufficient: review.inputsSufficient,
+    actualOutputCorrect: review.actualOutputCorrect,
     producer: review.producer, reviewer: review.reviewer,
     qualificationRequestRef: stage === 'S12' ? review.qualificationRequestRef : undefined,
     candidate: stage === 'S11' ? review.outputs?.filter(ref => ['CandidateSource', 'CandidateManifest'].includes(ref.kind)) : undefined,
@@ -920,11 +949,11 @@ function evaluateFinal(final, stages, roots, budget, fail) {
 }
 
 function parseArgs(args) {
-  const options = { roots: [] };
+  const options = { roots: [], format: 'json' };
   for (let i = 0; i < args.length; i += 2) {
     const flag = args[i];
     if (flag === '--final') { options.final = true; i -= 1; continue; }
-    if (!['--record', '--root', '--from', '--to'].includes(flag) || !args[i + 1]) throw new Error('Unsupported or missing option: ' + flag);
+    if (!['--record', '--root', '--from', '--to', '--format'].includes(flag) || !args[i + 1]) throw new Error('Unsupported or missing option: ' + flag);
     const value = args[i + 1];
     if (flag === '--root') {
       const delimiter = value.indexOf('=');
@@ -932,13 +961,17 @@ function parseArgs(args) {
       options.roots.push([value.slice(0, delimiter), value.slice(delimiter + 1)]);
     } else options[flag.slice(2)] = value;
   }
+  if (!['json', 'markdown'].includes(options.format)) throw new Error('Use --format json or markdown.');
   return options;
 }
 
 if (require.main === module) {
   try {
-    const report = checkWorkflowStage(parseArgs(process.argv.slice(2)));
-    process.stdout.write(JSON.stringify(report, null, 2) + '\n');
+    const options = parseArgs(process.argv.slice(2));
+    const report = checkWorkflowStage(options);
+    process.stdout.write(options.format === 'markdown'
+      ? renderWorkflowReview(report) + '\n'
+      : JSON.stringify(report, null, 2) + '\n');
     process.exitCode = report.allowed ? 0 : 2;
   } catch (error) {
     process.stderr.write(JSON.stringify({ verdict: 'fail', code: 'USAGE', message: error.message }) + '\n');

@@ -1301,3 +1301,44 @@ test('S12 evidence repair preserves frozen scenario and Candidate with a distinc
   assert.equal(report.allowed, true, JSON.stringify(report.errors));
   assert.deepEqual(f.reviews[10].outputs, candidateRefs);
 });
+
+test('stage checker exposes a bounded human-review projection without changing the authoritative verdict', t => {
+  const f = fixture(t);
+  const report = f.run('S7', 'S8');
+  assert.equal(report.allowed, true, JSON.stringify(report.errors));
+  assert.equal(report.taskId, 't');
+  assert.equal(report.attemptId, 'a');
+  assert.equal(report.planRevision, 'r1');
+  assert.equal(report.stages.S7.owner, 'trace-distill');
+  assert.equal(report.stages.S7.score, 100);
+  assert.deepEqual(report.stages.S7.scoreDimensions,
+    { requirements: 25, responsibility: 20, continuation: 20, validation: 20, cost: 15 });
+  assert.equal(report.stages.S7.hardFails.length, 0);
+  assert.equal(report.stages.S7.blockingUnknowns.length, 0);
+  assert.equal(report.stages.S7.requiredTests[0].status, 'pass');
+  assert.ok(report.stages.S7.outputs.length > 0);
+  assert.ok(report.stages.S7.evidence.length > 0);
+});
+
+test('stage checker projection preserves a high score while independently failing on Hard Fail', t => {
+  const f = fixture(t);
+  f.reviews[6].hardFails = ['synthetic hard fail'];
+  const report = f.run('S7', 'S8');
+  assert.equal(report.allowed, false);
+  assert.equal(report.stages.S7.score, 100);
+  assert.equal(report.stages.S7.verdict, 'fail');
+  assert.deepEqual(report.stages.S7.hardFails, ['synthetic hard fail']);
+  assert.equal(report.firstInvalidBoundary, 'S7');
+});
+
+test('workflow stage CLI can render the same authoritative result as Markdown', t => {
+  const f = fixture(t);
+  f.run('S7', 'S8');
+  const cli = spawnSync(process.execPath, [path.join(REPO, 'workflows/agent-to-recipe/scripts/check-workflow-stage.js'),
+    '--record', path.join(f.dir, 'review.json'), '--root', 'run=' + f.dir, '--from', 'S7', '--to', 'S8',
+    '--format', 'markdown'], { encoding: 'utf8' });
+  assert.equal(cli.status, 0, cli.stderr);
+  assert.match(cli.stdout, /# Agent-to-Recipe Stage Review/);
+  assert.match(cli.stdout, /## S7/);
+  assert.match(cli.stdout, /trace-distill/);
+});

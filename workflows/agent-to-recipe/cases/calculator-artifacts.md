@@ -70,6 +70,61 @@ JSON / Execution / exact JS
 Markdown
 ~~~
 
+### B.1 `stage-review.md` 的正式生成边界
+
+`stage-review.md` 不由人工重新判断一次 S1—S12，也不维护第二套分数。正式路径是：
+
+~~~text
+StageReview / artifact / evidence refs
+  ↓
+check-workflow-stage.js
+  ↓ 唯一负责 score / Gate / Hard Fail / Unknown / firstInvalidBoundary
+stage-review.js
+  ↓ 只读 Markdown 投影
+<task-root>/stage-review.md
+~~~
+
+例如检查到 S7、准备进入 S8 时：
+
+~~~bash
+node workflows/agent-to-recipe/scripts/check-workflow-stage.js \
+  --record <active-review.json> \
+  --root run=<artifact-root> \
+  --from S7 \
+  --to S8 \
+  --format markdown \
+  > <task-root>/stage-review.md
+~~~
+
+最终 S12 完整检查使用：
+
+~~~bash
+node workflows/agent-to-recipe/scripts/check-workflow-stage.js \
+  --record <active-review.json> \
+  --root run=<artifact-root> \
+  --from S12 \
+  --to S12 \
+  --final \
+  --format markdown \
+  > <task-root>/stage-review.md
+~~~
+
+如果一次 task 使用多个 `rootId`，按 checker 合同重复提供 `--root id=/absolute/root`。Shell 重定向只是把同一次 checker 结果落盘；renderer 本身不执行桌面动作、不修改 StageReview，也不授予 PASS。
+
+报告首屏至少必须直接显示：
+
+~~~text
+当前状态
+first invalid boundary
+failure owner
+last confirmed correct stage
+preserved upstream
+invalidated / blocked downstream
+next minimum action
+~~~
+
+随后按 `## S1` … `## S12` 展示本阶段 Actual Input / Output / Evidence、独立 score、Hard Fail、Blocking Unknown、required tests、Gate、verdict 和 checker errors。**高分遇到 Hard Fail 仍必须显示 FAIL。**
+
 ### C. 阶段产物链（Stage Artifact Chain）
 
 S1—S12 真正产生、更新或固定的成果链：

@@ -103,6 +103,153 @@ function cell(value) {
     char => '&#' + char.charCodeAt(0) + ';');
 }
 
+function list(value) { return Array.isArray(value) ? value : []; }
+
+function compact(value, limit = 1600) {
+  const raw = typeof value === 'string' ? value : JSON.stringify(value) ?? String(value);
+  return raw.length > limit ? raw.slice(0, limit) + ' …〔已截断〕' : raw;
+}
+
+function refSummary(ref) {
+  if (!object(ref)) return 'invalid-ref';
+  const kind = typeof ref.kind === 'string' && ref.kind ? ref.kind : 'artifact';
+  const path = typeof ref.path === 'string' && ref.path ? ref.path : '?';
+  const digest = typeof ref.sha256 === 'string' && ref.sha256 ? ref.sha256.slice(0, 12) : 'no-hash';
+  return kind + ': ' + path + ' @' + digest;
+}
+
+function refsSummary(refs, limit = 3) {
+  const values = list(refs);
+  const shown = values.slice(0, limit).map(refSummary);
+  if (values.length > limit) shown.push('+' + (values.length - limit) + ' more');
+  return shown.length ? shown.join('; ') : '—';
+}
+
+function renderWorkflowReview(report) {
+  requireCheck(object(report) && object(report.stages), 'INVALID_WORKFLOW_REVIEW',
+    'Workflow review renderer requires a check-workflow-stage report.');
+  const stages = Array.from({ length: 12 }, (_, index) => 'S' + (index + 1));
+  const invalid = report.firstInvalidBoundary || '—';
+  const owner = report.failureOwner
+    ? report.failureOwner.stage + ' / ' + report.failureOwner.skill : '—';
+  const lastConfirmed = list(report.preservedUpstream).length
+    ? list(report.preservedUpstream)[list(report.preservedUpstream).length - 1] : '—';
+  const lines = [
+    '# Agent-to-Recipe Stage Review', '',
+    '> 本文件是 check-workflow-stage.js 结果的只读人工投影。它不重新评分、不改变 Gate、不补造 Actual，',
+    '> 也不把 Markdown 变成第二份权威事实。机器权威仍是固定 StageReview、artifact/evidence refs 与 checker 结果。', '',
+    '## 排错结论', '',
+    '| 项目 | 本次结果 |', '| --- | --- |',
+    '| Task | ' + cell(report.taskId || '—') + ' |',
+    '| Attempt | ' + cell(report.attemptId || '—') + ' |',
+    '| Plan Revision | ' + cell(report.planRevision || '—') + ' |',
+    '| 检查范围 | ' + cell((report.from || '—') + ' → ' + (report.to || '—') + (report.final ? ' / final' : '')) + ' |',
+    '| 当前状态 | **' + cell(report.allowed ? 'PASS' : 'FAIL') + '** |',
+    '| 首个无效边界 | **' + cell(invalid) + '** |',
+    '| Failure Owner | ' + cell(owner) + ' |',
+    '| 最后确认正确阶段 | ' + cell(lastConfirmed) + ' |',
+    '| 可保留上游 | ' + cell(list(report.preservedUpstream).join(', ') || '—') + ' |',
+    '| 失效／阻塞下游 | ' + cell(list(report.invalidatedDownstream).join(', ') || '—') + ' |',
+    '| 下一最小动作 | ' + cell(report.nextMinimumAction || '—') + ' |',
+  ];
+  if (report.missedCheckOwner) lines.push(
+    '| Missed-check Owner | ' + cell(report.missedCheckOwner.stage + ' / ' + report.missedCheckOwner.skill
+      + ': ' + (report.missedCheckOwner.reason || '')) + ' |');
+  lines.push('', '## S1—S12 总览', '',
+    '| Stage | Owner | Actual Output / 固定引用 | Score | Hard Fail | Blocking Unknown | Gate | Verdict |',
+    '| --- | --- | --- | ---: | ---: | ---: | --- | --- |');
+  for (const stage of stages) {
+    const item = object(report.stages[stage]) ? report.stages[stage] : {};
+    lines.push('| ' + [
+      stage, item.owner || '—', refsSummary(item.outputs),
+      item.score === null || item.score === undefined ? '—' : item.score + '/100',
+      list(item.hardFails).length, list(item.blockingUnknowns).length,
+      item.gate?.verdict || '—', item.verdict || 'not-run',
+    ].map(cell).join(' | ') + ' |');
+  }
+  for (const stage of stages) {
+    const item = object(report.stages[stage]) ? report.stages[stage] : {};
+    const stageErrors = list(report.errors).filter(error => error?.stage === stage);
+    lines.push('', '## ' + stage, '',
+      '- **Owner：** ' + cell(item.owner || '—'),
+      '- **Producer / Reviewer：** ' + cell((item.producer || '—') + ' / ' + (item.reviewer || '—')),
+      '- **Verdict：** **' + cell(item.verdict || 'not-run') + '**',
+      '- **Score：** ' + cell(item.score === null || item.score === undefined ? '—' : item.score + ' / 100'),
+      '- **Inputs sufficient：** ' + cell(item.inputsSufficient === undefined ? '—' : item.inputsSufficient),
+      '- **Actual output correct：** ' + cell(item.actualOutputCorrect === undefined ? '—' : item.actualOutputCorrect),
+      '- **Gate：** ' + cell(item.gate?.verdict || '—'), '',
+      '### Actual Input / Output / Evidence', '',
+      '| 类型 | 固定引用 |', '| --- | --- |',
+      '| Inputs | ' + cell(refsSummary(item.inputs, 8)) + ' |',
+      '| Outputs | ' + cell(refsSummary(item.outputs, 8)) + ' |',
+      '| Evidence | ' + cell(refsSummary(item.evidence, 8)) + ' |');
+    if (object(item.scoreDimensions)) {
+      lines.push('', '### 独立评分', '', '| 维度 | 得分 |', '| --- | ---: |');
+      for (const [dimension, score] of Object.entries(item.scoreDimensions)) {
+        lines.push('| ' + cell(dimension) + ' | ' + cell(score === null ? '未评价' : score) + ' |');
+      }
+      const exceptionalItems = Object.values(object(item.scoreEvidence) ? item.scoreEvidence : {})
+        .flatMap(detail => list(detail?.items)).filter(entry => entry?.score !== 5);
+      if (exceptionalItems.length) {
+        lines.push('', '未满分／未评价检查项：', '');
+        for (const entry of exceptionalItems.slice(0, 20)) {
+          lines.push('- ' + cell((entry.id || '?') + ' = '
+            + (entry.score === null || entry.score === undefined ? '未评价' : entry.score)
+            + '：' + compact(entry.reason || '无说明')));
+        }
+      }
+    }
+    lines.push('', '### Hard Fail / Unknown / Tests', '');
+    if (list(item.hardFails).length) {
+      lines.push('**Hard Fail：**');
+      for (const value of list(item.hardFails).slice(0, 20)) lines.push('- ' + cell(compact(value)));
+    } else lines.push('**Hard Fail：** 无记录。');
+    if (list(item.blockingUnknowns).length) {
+      lines.push('', '**Blocking Unknown：**');
+      for (const value of list(item.blockingUnknowns).slice(0, 20)) lines.push('- ' + cell(compact(value)));
+    } else lines.push('', '**Blocking Unknown：** 无记录。');
+    if (list(item.requiredTests).length) {
+      lines.push('', '| Required Test | Status |', '| --- | --- |');
+      for (const test of list(item.requiredTests).slice(0, 40)) {
+        lines.push('| ' + cell(test.name || '—') + ' | ' + cell(test.status || '—') + ' |');
+      }
+    } else lines.push('', 'Required Tests：未记录或本阶段未执行。');
+    if (list(item.findings).length) {
+      lines.push('', '### Findings', '');
+      for (const finding of list(item.findings).slice(0, 20)) {
+        lines.push('- ' + cell((finding.blocking ? '[blocking] ' : '')
+          + (finding.ownerStage ? 'owner=' + finding.ownerStage + ' ' : '')
+          + compact(finding.reason || finding)));
+      }
+    }
+    if (stageErrors.length) {
+      lines.push('', '### Checker Errors', '', '| Code | Message |', '| --- | --- |');
+      for (const error of stageErrors.slice(0, 40)) {
+        lines.push('| ' + cell(error.code || '—') + ' | ' + cell(compact(error.message || '')) + ' |');
+      }
+    }
+    let next = '尚无单独返修动作。';
+    if (stage === report.firstInvalidBoundary) next = report.nextMinimumAction || '修复本阶段后重验实际依赖下游。';
+    else if (item.verdict === 'pass') next = '本阶段可以保留；除非其固定输入或依赖版本失效，否则不要机械重做。';
+    else if (item.verdict === 'blocked') next = '等待真正 failure owner 修复；不要在本阶段自行补写上游事实。';
+    else if (item.verdict === 'not-run') next = '尚未执行；不能写成 PASS。';
+    lines.push('', '**本阶段接续：** ' + cell(next));
+  }
+  const unscoped = list(report.errors).filter(error => !error?.stage);
+  if (unscoped.length) {
+    lines.push('', '## 全局检查错误', '', '| Code | Message |', '| --- | --- |');
+    for (const error of unscoped.slice(0, 40)) {
+      lines.push('| ' + cell(error.code || '—') + ' | ' + cell(compact(error.message || '')) + ' |');
+    }
+  }
+  lines.push('', '## 尚未被本报告证明', '');
+  for (const value of list(report.notEvaluated)) lines.push('- ' + cell(value));
+  if (!list(report.notEvaluated).length) lines.push('- 未额外声明。');
+  lines.push('', '**高分不能覆盖 Hard Fail、Blocking Unknown、缺 Actual evidence、失败 Gate 或未通过的 required test。**',
+    '', '**本视图不授予桌面动作权限，也不把历史声明自动升级成真实运行事实。**', '');
+  return lines.join('\n');
+}
+
 function renderReview(report) {
   const lines = ['# 阶段工件审阅', '',
     '**检查结论：' + cell(report.verdict) + '；截止边界：' + cell(report.through) + '。**', '',
@@ -154,4 +301,4 @@ function renderReview(report) {
   return lines.join('\n');
 }
 
-module.exports = { inputsFor, artifactViews, valueLineage, provenChecks, renderReview };
+module.exports = { inputsFor, artifactViews, valueLineage, provenChecks, renderReview, renderWorkflowReview };

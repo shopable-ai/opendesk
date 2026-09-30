@@ -1,9 +1,10 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { valueLineage, renderReview } = require('../../workflows/agent-to-recipe/scripts/stage-review.js');
+const { valueLineage, renderReview, renderWorkflowReview } = require('../../workflows/agent-to-recipe/scripts/stage-review.js');
 const { checkArtifactChain } = require('../../workflows/agent-to-recipe/scripts/check-artifact-chain.js');
 const { representationFixture } = require('./tools/artifact-representation-fixture.js');
+const { fixture: workflowFixture } = require('./tools/stage-review-fixture.js');
 
 function entries(origin, mapping) {
   return {
@@ -63,4 +64,57 @@ test('accepted alternate representations retain blocked business dataflow in rev
   assert.match(markdown, /声明，不是真实运行证明/);
   assert.match(markdown, /business dataflow requires independent exact-byte consumer verification/);
   assert.doesNotMatch(markdown, /direct await\/spread source pattern/);
+});
+
+test('workflow human review renders all twelve stages from the machine review without rescoring', t => {
+  const f = workflowFixture(t);
+  const report = f.run('S12', 'S12', true);
+  assert.equal(report.allowed, true, JSON.stringify(report.errors));
+  const markdown = renderWorkflowReview(report);
+  for (let index = 1; index <= 12; index += 1) assert.match(markdown, new RegExp('## S' + index + '\\b'));
+  assert.match(markdown, /首个无效边界[\s\S]*—/);
+  assert.match(markdown, /S11[\s\S]*recipe-build/);
+  assert.match(markdown, /S12[\s\S]*recipe-qualify/);
+  assert.match(markdown, /高分不能覆盖 Hard Fail/);
+});
+
+test('workflow human review keeps score 100 visible while Hard Fail makes S7 fail and blocks downstream', t => {
+  const f = workflowFixture(t);
+  f.reviews[6].hardFails = ['runtime producer → consumer broken'];
+  const report = f.run('S12', 'S12', true);
+  assert.equal(report.allowed, false);
+  assert.equal(report.stages.S7.score, 100);
+  assert.equal(report.stages.S7.verdict, 'fail');
+  assert.equal(report.firstInvalidBoundary, 'S7');
+  assert.equal(report.stages.S8.verdict, 'blocked');
+  const markdown = renderWorkflowReview(report);
+  assert.match(markdown, /首个无效边界[\s\S]*S7/);
+  assert.match(markdown, /Failure Owner[\s\S]*S7 \/ trace-distill/);
+  assert.match(markdown, /100 \/ 100/);
+  assert.match(markdown, /runtime producer → consumer broken/);
+  assert.match(markdown, /S8[\s\S]*blocked/);
+});
+
+test('workflow human review exposes missing S4 Actual Observation as the first invalid boundary', t => {
+  const f = workflowFixture(t);
+  f.reviews[3].evidence = [];
+  const report = f.run('S4', 'S5');
+  assert.equal(report.allowed, false);
+  assert.equal(report.firstInvalidBoundary, 'S4');
+  const markdown = renderWorkflowReview(report);
+  assert.match(markdown, /首个无效边界[\s\S]*S4/);
+  assert.match(markdown, /EVIDENCE_SCOPE|MISSING_ACTUAL_ACTUALOBSERVATION|MISSING_EVIDENCE/);
+  assert.match(markdown, /尚未执行；不能写成 PASS|等待真正 failure owner 修复/);
+});
+
+test('workflow human review exposes stale S12 Candidate binding instead of hiding it behind Qualification', t => {
+  const f = workflowFixture(t);
+  f.reviews[11].inputs = f.reviews[11].inputs.filter(ref => ref.kind !== 'CandidateSource');
+  const report = f.run('S12', 'S12', true);
+  assert.equal(report.allowed, false);
+  assert.equal(report.firstInvalidBoundary, 'S12');
+  assert.ok(report.errors.some(error => error.code === 'STALE_CANDIDATE'));
+  const markdown = renderWorkflowReview(report);
+  assert.match(markdown, /S12[\s\S]*blocked/);
+  assert.match(markdown, /STALE_CANDIDATE/);
 });

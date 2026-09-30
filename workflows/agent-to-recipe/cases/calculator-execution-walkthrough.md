@@ -30,7 +30,11 @@ order: 9
 
 执行线回答“Agent 怎么做”；产物线回答“以后怎么检查它做得对不对”。
 
-因此每个正式阶段退出前，不仅要有“得到什么事实”，还要能指出本次 task / attempt 中对应的实际文件或固定引用。S1—S12 的文件地图和示例内容统一见 [Calculator 阶段产物链](calculator-artifacts.md)。
+**出现失败时，人工阅读顺序反过来：先看任务根 `stage-review.md`，不要先翻大型 JSON。** 先从首屏确认 `firstInvalidBoundary`、`failureOwner`、可保留上游、失效下游和 `nextMinimumAction`；再进入对应 `## Sx` 查看 Actual Input / Output / Evidence、score、Hard Fail、Unknown、Gate 和 checker errors；只有需要定位字段或原始现场时才下钻权威 JSON / Recipe.js / Execution evidence。
+
+`stage-review.md` 不是另一套判断器：它必须由 `check-workflow-stage.js --format markdown` 对同一次固定 StageReview 生成。即使某阶段分数达到 95 或 100，只要存在适用 Hard Fail、Blocking Unknown、缺 Actual evidence、失败 Gate 或 required test，该阶段仍显示 FAIL / BLOCKED，不能用高分覆盖。
+
+因此每个正式阶段退出前，不仅要有“得到什么事实”，还要能指出本次 task / attempt 中对应的实际文件或固定引用。S1—S12 的文件地图、生成方式和示例内容统一见 [Calculator 阶段产物链](calculator-artifacts.md)。
 
 ---
 
