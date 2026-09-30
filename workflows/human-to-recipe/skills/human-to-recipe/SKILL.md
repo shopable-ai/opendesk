@@ -1,11 +1,11 @@
 ---
 name: human-to-recipe
-description: 将 OpenDesk Recorder 的固定 actions 包加工为可读生产 Recipe、独立资格 Gate 和分离 Evidence。用于人工录制后的语义提炼与生产化；不负责扩展 Recorder、猜测缺失业务意图或未经授权运行桌面动作。
+description: 将 OpenDesk Recorder 的固定 Human actions 包（完整或部分业务示范）加工为可读生产 Recipe、独立资格 Gate 和分离 Evidence；允许在保持 Human 来源不变的前提下接续 Agent 最小补证。用于人工录制后的语义提炼与生产化；不负责扩展 Recorder、猜测缺失业务意图或未经授权运行桌面动作。
 ---
 
 # human-to-recipe
 
-版本：0.4，2026-09-10。当前仓库提供 Skill 源码、`SemanticBuildPlan` schema、validator、静态质量 scorer 和 Calculator golden；通用 renderer 尚未实现。Skill 源码存在不表示已安装到当前 Codex 的用户级 Skill 目录，也不表示任何生成物已经 live verified 或 qualified。
+版本：0.5，2026-10-01。当前仓库提供 Skill 源码、`SemanticBuildPlan` schema、validator、静态质量 scorer 和 Calculator golden；通用 renderer 尚未实现。Skill 源码存在不表示已安装到当前 Codex 的用户级 Skill 目录，也不表示任何生成物已经 live verified 或 qualified。
 
 ## 输入与停止条件
 
@@ -42,6 +42,20 @@ description: 将 OpenDesk Recorder 的固定 actions 包加工为可读生产 Re
 10. 前向样本与 golden 有差距时，按方法论的差距归因表决定修复位置：业务解释错误修方法/plan，规则未执行修 Skill 路由，plan 正确但代码漂移修 renderer，结构和来源错误修 validator，真实环境失败留给 application rule/qualification。不得把所有低分都转化成更多 schema 字段或 scorer 关键词。
 11. 生产 Recipe 只保留业务步骤、决定本次控制流的状态判断、防止误操作所需的目标／权限／布局／边界门禁，以及不改变业务结果的运行可观察性。来源 hash、逐步固定 Oracle、截图矩阵和 evidence 写入独立 Gate／Evidence。
 12. Qualification Gate 必须固定 production path/hash，并读取和执行该文件的实际源码；允许 instrument 现有动作边界以观察结果，不得维护第二份隐藏业务动作实现。候选变化后旧资格失效。
+
+## 部分人工录制 → Agent 接续
+
+部分录制是正常输入形态，不等于损坏录制。先分别判断“录制包是否完整”和“它覆盖了用户业务的多少”；actions readiness 只说明 Recorder 动作包能否被当前生产链消费，不能证明整项业务已经示范完成。
+
+1. 固定 recordingDir、actionsFile、raw/manifest、当前 Candidate/script 及用户目标；原 Human raw/actions 不回写、不补造，也不因为后续 AI 理解更完整就改成 Agent 来源。
+2. 先列 Known / Unknown / blocker：哪些已由 Human/Recorder 真实证明，哪些仍未知，哪些 Unknown 真正阻塞完整 Recipe。
+3. 只补 blocker 所需的最小信息：已有材料 → 获准只读观察 → 获准 Agent 定向执行 → application-engineer 补应用规则 → 只有无法推断的关键业务片段才请求用户定向补录。不得因为录制不完整而默认重做整个任务。
+4. Agent 新动作、observation、Dossier/handoff 保持 Agent 来源。SemanticBuildPlan v1 仍只绑定固定 Human recording/actions；不要把 Agent 补证伪装成 Human event，也不要为了“混合”放宽 schema。
+5. Expected、数学推导、旧 Recipe 或历史资格不能填补缺失事实。运行时 producer → consumer 数据关系必须由真实读取与真实消费支持。
+6. blocker 解决后才生成新的完整普通 JavaScript Candidate；Candidate 改变后，Qualification 必须绑定 exact Candidate。Fresh Run 没执行就写 not-run。
+7. 若剩余关键缺口只能由用户决定或演示，交付 blocked plan，明确缺什么、为什么阻塞、只需补录哪一小段，以及补录后从哪里继续。
+
+跨来源固定引用和分段补证边界见 [共享制作与分段补证合同](../../../../docs/frameworks/agent-to-recipe-skill-contract.md#shared-authoring-contract)。这不是 Hybrid Workflow，也不改变 H1—H8 或 Agent-to-Recipe 的 S1—S12。
 
 ## 运行时语义阶段提示
 
