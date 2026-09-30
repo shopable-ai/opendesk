@@ -6,7 +6,7 @@ order: 10
 
 # Calculator 基准案例｜从需求到交付的端到端可检查参考
 
-从原始需求开始，沿 S1—S12 检查 Calculator 每一步是否正确，并在失败时定位最早出错阶段。实际求解过程见 [Calculator 执行过程演练](calculator-execution-walkthrough.md)；每阶段应该留下哪些文件见 [Calculator 阶段产物链](calculator-artifacts.md)。
+从原始需求开始，沿 S1—S12 检查 Calculator 每一步是否正确，并在失败时定位最早出错阶段。实际求解过程见 [Calculator 执行过程演练](calculator-execution-walkthrough.md)；每阶段应该留下哪些文件见 [Calculator 阶段产物链](calculator-artifacts.md)；人工只录关键片段后由 AI 接续的正式样本见 [Calculator 人工关键录制 → Agent 接续黄金案例](calculator-human-agent-continuation.md)。
 
 ---
 

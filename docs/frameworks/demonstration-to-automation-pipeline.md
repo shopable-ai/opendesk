@@ -1,60 +1,34 @@
-# Agent 驱动的示范到自动化执行方法
+# 示范到自动化制作方法｜跨来源共享方法
 
-## 阅读入口与路线适用边界
+## 阅读入口与职责边界
 
-先看[框架总导航](README.md)；面对具体业务任务，先用[自动化任务求解方法](automation-problem-solving-framework.md)选择模式、拆分步骤和明确交接。本页继续维护完整示范生命周期、工件关系、工程化门槛和第 10 节千牛案例，正文已迁入 `docs/frameworks/`，原架构路径只保留迁移入口，不维护第二份正文。Target 与 Recorder 专项设计按需从[桌面自动化架构导航](../architecture/desktop-automation/README.md)进入。
+本文只维护 Human、Agent 和已有自动化资产都能复用的“示范到自动化制作方法”，**不拥有第三套生命周期编号**。
 
-| 路线 | 怎样使用本页 |
-| --- | --- |
-| 普通 Recipe／应用 helper | 复用任务合同、可信执行、业务分段、参数化、定位和验证方法；用普通 JavaScript 函数及必要结果表达，不要求先建设 IR、Compiler、Recorder 或独立 Workflow Runtime |
-| 明确选择的 Recorder／编译专项 | 使用下述完整工件链、Canonical IR、Compiler、Replay 和资格验证要求；不能跳过该路线必要的验证门槛 |
+正式 Workflow 只有两条：
 
-下文“IR 是权威源”“JavaScript 是派生产物”只约束已选择的 Recorder／编译路线，不否定人工维护 Recipe 的源码地位。方法与路线分类不是新公共 API，也不是所有目标模型已经实现的证明。
+- [Agent-to-Recipe](../../workflows/agent-to-recipe/WORKFLOW.md)：内部阶段仍是 S1—S12。
+- [Human-to-Recipe](../../workflows/human-to-recipe/README.md)：内部阶段仍是 H1—H8。
 
-下述 Current／Gap 保留原核验时间和范围；本次文档组织调整没有重新验证 Recorder 实现或真实业务效果。
+人工关键录制后由 AI 接续，不新增 Hybrid-to-Recipe。Human 提供的真实事实仍是 Human 来源；AI 后续真实执行产生的动作和 observation 仍是 Agent 来源。共同制作的固定引用、Known / Unknown、最小补证和来源边界由[共享制作与分段补证合同](agent-to-recipe-skill-contract.md#shared-authoring-contract)统一定义。
 
-## 0. 结论：缺少的不是更多架构名词，而是一套可执行的方法
+本文的共享主线只有一条无编号方法链：
 
-本文回答一个核心问题：**Agent / 人怎样从亲自完成一次真实任务，逐渐理解、提炼、泛化并生成长期可靠的自动化。**
+~~~text
+目标
+→ 事实
+→ 解释
+→ 必要路径
+→ 数据关系
+→ 缺口补证
+→ 应用工程
+→ Candidate
+→ Qualification
+→ 后续维护
+~~~
 
-当前“真实任务执行、证据采集、状态重建、语义落地、行为归纳、统一模型、健壮性工程、代码生成、回放验证”适合作为**系统一级架构**，但不能直接指导 Agent 工作。原文所谓“二级执行链”仍主要按技术对象和生成物排序，混合了执行方法、数据模型、运行机制和产品成熟过程，所以读者看得到名词，却看不到：为什么此刻做这一步、Agent 正在判断什么、怎样进入下一阶段、判断错了回到哪里。
+这是一组共同问题，不是 S1—S12 或 H1—H8 之外的新阶段。已经被充分证明的工作可以复用，只从第一个真实缺口继续。
 
-本轮推荐把最重要的中间层正式命名为：
-
-> **示范到自动化执行方法（Demonstration-to-Automation Execution Method）**
-
-它采用优化后的 12 个阶段：
-
-1. 建立录制契约，先知道什么叫成功。
-2. 确认起点，并建立最小可用的界面认识。
-3. 真实执行任务，并在关键动作前声明意图。
-4. 动作后观察并验证实际结果。
-5. 分离探索、错误、重试与 Recovery。
-6. 以任务级证据关闭示范。
-7. 复盘完整 Trace，先分类，再理解刚才到底发生了什么。
-8. 按业务状态转换分段，形成可阅读的 Business Episode。
-9. 归纳 Skill、变量和控制结构。
-10. 为语义目标合成可长期重定位的 Target、Locator 和 Geometry。
-11. 构造唯一 Automation IR，并生成接近人工质量的代码。
-12. 真实 Replay、认证、晋级，并在运行中持续维护。
-
-这样拆分不是为了追求层数，而是因为每一阶段都产生一个新的、可检查的判断或工件，并且有不同的阶段门和回退方向。最关键的区别是：
-
-- 一级架构说明**系统有哪些大能力**；13 阶段方法说明**Agent / 人具体怎样推进**。
-- 技术模型放在执行方法之后，为方法服务，不再用 `State / Target / Locator / IR` 等名词代替思考过程。
-- 第一次执行不是代码生成过程，而是**完成任务并建立可信示范**的过程。
-- Trace 不直接进入 JavaScript；中间必须经过语义重建、因果提炼、业务分段、参数化、控制流推断和健壮性工程。
-- “生成一次可运行代码”不是终点；正式链路包含独立验证、扰动测试、晋级、漂移监控、修复和重新认证。
-- 本文描述目标方法与目标架构，不代表 `pkg/recorder` 已经实现全部能力。
-
-当前状态边界：
-
-- **Current**：`pkg/recorder` 已有会话、Trace、`ActionHint`、动作前后观察、Verification、最小 Distill 和确定性 Compiler 骨架。
-- **Gap**：当前 Distill 仍主要生成平面 `Flow.steps[]`，变量产物为空，未知 Verification 可进入 Flow；Compiler 对部分未知后置条件不会失败；Replay 仍缺完整资格验证、修复和晋级闭环。
-- **Target**：本文描述目标执行方法和工程链，不代表这些能力已经实现或验证完成。
-- **Evidence Case**：`examples/app/qianniu.js` 用于反向发现真实桌面业务中的知识和公共能力缺口，不用于证明当前 Recorder 已成熟。
-
-本文的当前实现判断基于 2026-09-03 对本地 `master` 源码的核验；`examples/app/qianniu.js` 仍然存在，历史提交只用于观察演进，不能代替当前源码或当前实现完成度。
+普通 Recipe 的目标交付是普通 OpenDesk JavaScript。Human + AI 发生在制作阶段，不意味着最终运行时必须由 Agent 每一步重新观察、推理和点击。本文后半部分保留 Experience Unit、Target / Locator / Geometry、感知预算、Browser/Desktop 和案例等技术方法，供具体 Workflow 按需调用；它们不是普通 Recipe 的强制 IR / Compiler 前置，也不能因文档存在就宣称 Runtime、Recorder 或真实业务资格已经实现。
 
 ## 1. 六个层级及其边界
 
@@ -68,11 +42,11 @@
 
 这是系统地图，不应承担逐步教学。
 
-### B. 示范到自动化执行方法
+### B. 跨来源共享制作方法
 
 回答：Agent / 人在一次真实任务及其后续工程化过程中，怎样观察、操作、记录、复盘、抽象、生成、验证和修复。
 
-这是本文的执行方法层。跨应用可反复使用的任务求解模式已独立提炼到[任务求解方法](automation-problem-solving-framework.md)，本页不再维护另一套平行模式分类。执行方法必须包含：
+这是本文的共享方法层，不新增阶段编号。跨应用可反复使用的任务求解模式已独立提炼到[任务求解方法](automation-problem-solving-framework.md)，本页不再维护另一套平行模式分类。共享方法必须包含：
 
 - 当前目标和要解决的不确定性；
 - Agent 此时在想什么；
@@ -81,9 +55,9 @@
 - 怎样判断阶段完成；
 - 判断错误时回到哪里。
 
-### C. 自动化知识与工件生命周期
+### C. 自动化知识与工件关系
 
-这是需要新增并单独区分的一层。它回答：每一步形成什么权威工件，下一步以什么作为输入，哪些内容不可被覆盖。
+这一层只回答权威工件之间怎样引用、哪些内容不可被覆盖；它不是第三套 Workflow 或生命周期。
 
 **Task Contract；Raw Trace；Experience Unit；Demonstration Dossier；Semantic Procedure；Generalized Workflow / Skill Spec；Automation IR；Compiled Artifact；Qualification Record；Runtime Evidence；Repair Patch。**
 
@@ -129,245 +103,61 @@ Recorder／编译路线在所选验证等级执行完整生命周期，而不是
 
 `automation-framework.md` 主要描述一次自动化运行时的闭环；`app-development-framework.md` 主要描述怎样为具体应用建立 Profile、State、Region、Target 和 Skill；`capability-development.md` 主要描述能力怎样逐级成熟。三者都与本文互补，但不能代替示范到自动化执行方法。
 
-## 2. 五次关键跃迁
+## 2. 本文不是第三套 Workflow
 
-12 个阶段可以压缩为五次性质不同的跃迁，阶段门不能互相代替。
+S1—S12 和 H1—H8 分别由各自 Workflow 拥有。本文不再维护“阶段 1 → 阶段 2 → ……”的另一套编号，也不把运行维护包装成 S13。
 
-1. **模糊任务变成有效示范**：先定义任务契约，再真实执行并证明完成。
-2. **原始轨迹变成人类认可的语义过程**：先重建意图，再去噪、分段和批准。
-3. **一次具体过程变成可复用规格**：识别变量、常量、分支、循环、Skill 和 Workflow。
-4. **可复用规格变成可靠程序**：设计 Target、Locator、State、Geometry、Verifier、Recovery，形成 IR 和代码。
-5. **候选程序变成长期自动化**：真实回放、扰动验证、晋级、运行监控、修复和重新认证。
+同一个制作任务可以从 Agent 自主示范、Human 完整录制、Human 关键片段 + Agent 补证，或已有 Recipe / AppProfile / Qualification 的维修入口进入。入口不同，但可以共用下面的问题；共同方法不要求共用一个伪造的原始事实格式。
 
-任何阶段都不能用后面的“代码能跑”倒推前面的“理解一定正确”。一段错误理解也可能生成语法正确、偶尔可运行的代码。
+## 3. 跨来源共享制作方法
 
-## 3. 13 阶段示范到自动化执行方法
+### 3.1 目标：固定最终要做成什么
 
-### 阶段 1：接住任务，先定义什么结果才算真正完成
+明确业务结果、输入、授权、成功/失败条件和最终结果怎样被证明。目标可以在录制后补充，但保留真实形成时间；事后说明不能冒充录制前已存在的意图。
 
-Agent 接到任务以后，首先不是开始录鼠标，而是把用户目标变成可执行、可验证的任务契约。用户说“给张三发一条消息”时，真正目标是消息到达指定会话并产生可观察结果，不是“点击发送按钮”。
+### 3.2 事实：只记录实际发生过什么
 
-- **目标**：明确最终业务结果、执行边界、输入、风险和成功证明。
-- **Agent 在想**：最终要改变什么；当前在哪个应用和业务对象；哪些值由用户提供；是否有发送、付款、删除、发货等高风险副作用；屏幕提示是否足以证明成功；能否从 API、剪贴板、文件、数据库、第二会话或稳定业务状态独立验证。
-- **执行**：确认 Goal、应用 / Surface、预期初始状态、输入与候选变量、权限、风险级别、成功条件、失败条件、停止条件、隐私与 Secret 规则；为关键结果指定 Verifier / Oracle 及证据等级。
-- **留存**：`TaskContract`，至少包含 `goal、inputs、surface、initialState、authority、risk、successCriteria、failureCriteria、verificationPlan、privacyPolicy、environmentFingerprint`。
-- **阶段门**：Agent 和人能够用一句业务语言说明“做成什么”，并能说明“拿什么证据证明”。高风险任务没有足够独立验证时，只能进入实验 / Rehearsal，不能承诺 `VERIFIED`。
-- **回退**：目标或权限不清时继续澄清；没有可靠成功证明时先补 Oracle、降低自动化权限或把任务拆小；不能用“工具调用未报错”填补验证缺口。
+Human raw/actions、Recorder 采集事实、Agent 动作、Agent observation、用户明确要求、已有资产版本、Qualification 结论分别保留真实来源。工具调用成功不等于业务成功；Expected 不等于 Actual；旧资格不等于新 Candidate 的资格。
 
-### 阶段 2：进入应用，确认任务起点并建立初始界面认识
+### 3.3 解释：恢复业务含义，但不改写事实
 
-第一次进入陌生应用或陌生状态时，Agent 可以支付一次较完整的观察成本，确定当前到底在哪个应用、窗口和页面状态。此时的目标是建立方向感，不是过早冻结长期 Locator。
+解释可以说明动作为什么存在、多个动作构成哪个业务步骤、某个读值由谁消费。解释必须能回指事实；缺证据时写 Unknown，不通过语言自信补齐。
 
-- **目标**：确认正确 Surface、窗口身份、初始状态、主要区域和当前可操作对象。
-- **Agent 在想**：这是正确应用和窗口吗；是否有遮挡、弹窗、登录过期或错误账号；当前状态是否满足任务前置条件；窗口位置、尺寸、DPI、多显示器和主题会不会影响坐标；哪些区域之后可能变化。
-- **执行**：聚焦或恢复窗口；读取进程、标题、窗口边界、显示器与缩放；优先读取 DOM / Accessibility / UIA / AX；必要时采集完整窗口截图、OCR、Layout 和关键颜色；识别页面 / 状态、区域和关键元素，建立初始状态假设。
-- **留存**：`SurfaceSnapshot、InitialStateHypothesis、RegionMap、EnvironmentFingerprint、PerceptionBudget、CacheKey`，每项带来源、时间和置信度。
-- **阶段门**：应用、窗口、账号 / 上下文和初始状态已经确认；影响下一步的未知项已被识别；高风险情况下不存在未处理的遮挡或目标歧义。
-- **回退**：发现目标应用、账号、任务输入或成功条件不正确时回到阶段 1；状态变化或观察证据冲突时重新观察本阶段，不带着旧截图继续推理。
+### 3.4 必要路径：只保留真正推进业务的部分
 
-### 阶段 3：以完成业务为先，真实执行并同步形成操作经验
+探索、误点、无效重试和 Recovery 可保留在 Evidence 中，不必进入正常 Recipe。删除、合并或重排动作前，要证明目标、输入输出和副作用没有被改变。
 
-第一次执行的首要任务是把真实业务做成功，而不是边探索边硬凑最终代码。允许 Agent 试探、点错、返回、重试和恢复，但每个重要动作都应留下“为什么做、准备操作谁、希望发生什么、实际发生什么、为什么认为成功或失败”的结构化记录。
+### 3.5 数据关系：明确运行时 producer → consumer
 
-每个重要动作采用紧凑微循环：
+每个运行时值都回答：由什么实际读取产生、保存在哪里、允许怎样变换、由谁消费、Fresh Run 是否必须重新取得。数值相同不是因果，正确常量也不能代替真实 producer。
 
-`动作前观察 + 当前子目标 + Target 假设与依据 + 动作 + 预期状态转换 + 动作后观察 + 实际效果 + 验证 + 下一决策`
+### 3.6 缺口补证：只补阻塞最终 Recipe 的最小信息
 
-- **目标**：完成真实任务，同时形成比裸鼠标键盘事件更有学习价值的经验。
-- **Agent 在想**：当前业务子目标是什么；目标是已确认还是猜测；依据来自结构、文字、Anchor、颜色、布局还是图像；动作后应看到哪个状态变化；如果没有发生，应继续、重试、恢复还是停止；这个动作是业务步骤、状态准备、探索还是 Recovery。
-- **执行**：在动作前观察必要状态并提交结构化 Hint；按成本阶梯定位目标；执行点击、输入、滚动、快捷键、窗口切换或 API 调用；动作后优先观察预期变化区域；运行步骤级 Verifier；根据结果继续、有限重试、恢复或停止。
-- **留存**：不可变 Raw Event，加一个 `ExperienceUnit`：`BeforeState + Intent/Subgoal + TargetHypothesis + Basis + Action + ExpectedTransition + AfterState + ActualEffect + Verification + Evidence + Classification + Retry/Recovery Links`。
-- **阶段门**：每个重要动作都得到明确的 `pass / fail / uncertain`，并有证据；“点击函数返回成功”只能证明动作被调用，不能自动证明业务效果。
-- **回退**：目标或状态理解错误时回到阶段 2；只是短暂加载或安全可重试错误时留在本阶段；任务目标或成功条件本身错误时回到阶段 1；未知结果不得伪装成成功继续执行高风险后续动作。
+先列 Known、Unknown 和 blocker。补证优先顺序：
 
-### 阶段 4：动作后观察并验证实际结果
+~~~text
+已有固定材料
+→ 获准只读观察
+→ 获准 Agent 定向执行
+→ application-engineer 补应用规则
+→ 只有真正无法推断的关键业务片段才请求用户定向补录
+~~~
 
-每个重要动作执行以后，Recorder 必须先回答“实际发生了什么”，再决定继续、重试、恢复还是停止。**工具调用没有报错，只能证明动作被调用；不能证明点到了正确目标，更不能证明业务已经成功。**
+录制包完整性与业务覆盖度是两件事。actions ready 不能解释成整项业务已证明；部分录制也不能自动解释成必须完整重做。
 
-- **目标**：把动作执行结果与业务 / 状态效果分开判断，尽早发现错误目标、无效动作、延迟和假成功。
-- **Agent 在想**：实际变化是否符合动作前预期；这是立即成功、延迟加载、无变化、错误目标还是未知；下一步是否安全继续。
-- **执行**：优先观察预期变化区域或结构化状态；运行步骤级 Verifier；必要时局部 OCR、截图或重新读取 Accessibility。
-- **留存**：补齐 `AfterState、ActualEffect、Verification、Evidence、Verdict`，使每个重要动作形成完整 `ExperienceUnit`。
-- **阶段门**：关键动作不能长期处于未知状态；高风险后续动作之前必须有足够证据。
-- **回退**：目标或状态理解错误回到阶段 2；可安全短暂等待或重试留在执行阶段；任务定义错误回到阶段 1。
+### 3.7 应用工程：让正确过程可以可靠操作
 
-### 阶段 5：以任务级证据关闭示范
+Target、Locator、Geometry、读取、等待、动作策略、Verifier 和 Recovery 服务于已确认业务语义。应用工程不能把业务要求换成更容易实现的另一个任务，也不能用 API 名称冒充当前环境已经验证通过。
 
-Agent 认为任务完成以后，先退出“继续操作”模式，重新检查最终业务结果。只有成功路径和最终结果都有足够证据，这次运行才是一份可学习的示范；失败运行仍可保存为反例，但不能作为成功示范直接生成程序。
+### 3.8 Candidate：生成普通、可维护、可重复执行的 JavaScript
 
-- **目标**：区分“界面看起来完成”“工具调用走完”和“业务真的完成”。
-- **Agent 在想**：最终状态是否满足阶段 1 的成功条件；证据是否独立于执行动作；是否可能出现重复发送、重复发货或界面假成功；是否存在尚未解释的高风险动作、未知结果或遗留弹窗。
-- **执行**：读取最终 UI 状态；按 Task Contract 调用业务 Oracle；必要时通过第二通道或重新读取目标对象确认；检查幂等键、业务对象身份和副作用；把成功、失败或待人工对账写入 Verdict。
-- **留存**：封存 `DemonstrationDossier`：`TaskContract + RawTrace + ExperienceUnits + Initial/FinalState + EvidenceManifest + FinalVerdict + Environment + PrivacyMetadata`。Raw Trace 只追加，不被后续“美化”覆盖。
-- **阶段门**：达到要求的证据等级；示范边界清楚；最终业务对象身份正确；所有关键不确定性已显式记录。仅有屏幕成功提示时，可以标记 UI-Rehearsed，但不能冒充独立业务验证。
-- **回退**：业务尚未完成时回到阶段 3；成功条件定义错误时回到阶段 1；证据不足且无法补采时把本次标为 `inconclusive`，重新执行一份定向示范。
+Candidate 消费已确认的业务过程、运行时数据关系和应用规则。正常稳定运行不依赖在线 Agent 每步重新思考；完整来源审计、固定 Oracle 和截图矩阵留在 Qualification / Evidence。
 
-### 阶段 6：复盘完整 Trace，先分类，再理解刚才到底发生了什么
+### 3.9 Qualification 与维护：验证 exact Candidate
 
-任务结束后不能直接执行 `Trace → JavaScript`。系统先基于时间线、动作、窗口、URL、剪贴板、Hint、前后状态、关键帧和最终结果，重建一份人能够检查的任务叙事：总目标是什么、经历了哪些有意义的步骤、每一步为什么存在。
+冻结实际 Candidate、入口、依赖和支持范围，再从干净状态执行，并用独立 observation / Oracle 判断结果。Candidate 改变后旧资格失效；not-run、blocked、synthetic 或旧 hash 不能升级为 PASS。
 
-- **目标**：把机器事件流还原成有业务含义、证据可追溯的意图和步骤。
-- **Agent 在想**：哪一个意图最能解释整段行为；哪些操作是前置条件或为后续提供输入；哪些看似无关的动作实际上是登录、查找、复制或验证；哪些结论只是猜测。
-- **执行**：先读低成本时间线和结构化事件；读取 Agent Hint / 人的旁白；围绕歧义窗口补看局部事件或关键帧，而不是顺序观看全部视频；交叉核对窗口、文字、剪贴板、命令、状态差异和最终证据；生成意图、理由、步骤、证据和置信度。
-- **留存**：`Analysis`，包含人类可读 `title、intent、intentRationale、orderedSteps、evidenceRefs、confidence、openQuestions、revision`。
-- **阶段门**：每个语义步骤都能回指真实证据；意图没有通过“想象缺失步骤”来补全；人或负责审核的 Agent 已批准，或所有未决问题已列出。
-- **回退**：证据仍能解歧时继续补读；意图无法确定时请求人工修订；缺少关键状态或业务结果时回到阶段 1～4 进行新的定向示范，不能凭语言自信补齐。
-
-### 阶段 7：分离探索、错误、重试与 Recovery
-
-真实执行天然混有噪声。目标不是简单删除所有失败动作，而是判断每个操作是否对最终结果有因果作用，并把正常路径与异常经验分开保存。
-
-- **目标**：得到完成任务所必需的成功路径，同时保留可转化为异常策略的经验。
-- **Agent 在想**：这个动作直接推进业务、建立前置状态、提供数据、验证结果，还是只是在探索；一次返回是无效绕路还是必要恢复；连续重试是网络等待、错误定位还是未来循环；删除它以后任务是否仍能成立。
-- **执行**：把 Experience Unit 分类为 `business、setup、state-preparation、verification、exploration、off-task、error、retry、recovery`；建立前后依赖和因果链；合并键入、滚动等低层碎片；把固定停顿转换为待推断的状态等待；为删除、保留或移入异常策略的动作写理由。
-- **留存**：`ClassificationMap、CausalSuccessPath、OmissionLog、RecoveryCandidates、UnresolvedAmbiguities`。探索和失败证据不删除，只是不进入正常路径。
-- **阶段门**：每个保留动作都服务于业务结果、必要前置或验证；每个被排除动作都有可审查理由；重试没有被误判成业务循环；Recovery 没有混入正常路径。
-- **回退**：意图不稳定时回到阶段 6；无法判断某动作是否必要时请求一次对照示范，或在新环境做可逆消融测试；不能用“动作成功”作为唯一保留标准。
-
-### 阶段 8：按业务状态转换分段，形成可阅读的 Business Episode
-
-这一阶段回答：“我刚才做了很多鼠标键盘操作，实际上完成了哪几个业务步骤？” 一个业务步骤应围绕同一子目标，具有清楚的输入、前置状态、后置状态和可观察结果，并能用业务语言命名。
-
-- **目标**：形成普通人可以阅读、修改和批准的 `SemanticProcedure`。
-- **Agent 在想**：哪些相邻动作共同完成一个子目标；步骤边界是否对应明显状态转换；该步骤对外接收什么、产生什么；是否能独立验证；这个粒度适合复用还是只是实现细节。
-- **执行**：按子目标、状态转换、数据流和验证点分段；把实现动作折叠到业务步骤内部；为每步补充前置条件、输入、输出、后置条件、证据、风险和失败语义；检查是否遗漏隐藏等待、选择或验证。
-- **留存**：`SemanticProcedure`，由 `BusinessStep + StateTransition + Inputs/Outputs + Preconditions/Postconditions + Evidence` 组成，并保留到 Experience Unit 的双向映射。
-- **阶段门**：人只看该过程就能判断系统是否理解正确；步骤名称不再是“点击坐标”“等待 1 秒”；每一步有业务目的和可观察后置条件；实现细节仍可追溯但不污染主叙事。
-- **回退**：步骤中仍含探索或重复错误时回到阶段 7；业务命名不能解释动作时回到阶段 6；缺少必要证据时补示范。
-
-示例：
-
-- `点击搜索框 + 输入“张三” + 等待结果 + 点击结果 + 确认聊天标题`，归纳为 `打开联系人(contactName)`。
-- `聚焦输入框 + 输入“你好” + 点击发送 + 确认消息出现在正确会话`，归纳为 `发送消息(message)`。
-- 两个步骤组合为 `发送消息给联系人(contactName, message)`。
-
-等待不是独立业务步骤，应尽量变成步骤内部的 `waitFor(searchResultsReady)` 或 `waitFor(messageVisible)`。
-
-### 阶段 9：归纳 Skill、变量和控制结构
-
-阶段 8 描述“这一次实际发生了什么”；阶段 9 描述“未来不同输入和状态下应该怎样做”。单次示范只能支持有限泛化，系统必须区分已确认规律、候选规律和仍需新示范的问题。
-
-- **目标**：把具体实例变成明确输入输出、可复用边界和可执行控制逻辑。
-- **Agent 在想**：哪些文字、对象和文件每次会变；哪些属于环境配置或稳定业务常量；哪些值由界面运行时产生；是否存在 Secret；重复片段是真循环还是偶然重试；哪些不同路径形成分支；一个业务步骤是否值得成为独立 Skill。
-- **执行**：先利用阶段 3 的候选变量和数据来源，再对所有字面量分类；定义参数类型、来源、默认值、约束和敏感级别；推断顺序、条件、分支、循环、Retry、Recovery、Checkpoint 和完成 / 失败条件；优先把可以由 API、CLI 或已有稳定能力完成的动作替换为原生工具；为候选 Skill 定义合同。
-- **留存**：`GeneralizedWorkflowSpec`，包含 `parameters、constants、config、secretRefs、derivedValues、steps、branches、loops、retryPolicy、recoveryPolicy、skillContracts、workflowContract、confidence、recordNext`。
-- **阶段门**：所有录制字面量都已分类；Secret 只保存引用；每个 Skill 有清楚目标、输入、输出、前置 / 后置、失败语义和验证方式；单示范无法证明的分支或循环不会被假装成事实。
-- **回退**：泛化需要改变业务分段时回到阶段 8；参数来源不清时回到阶段 6 或 Task Contract；关键分支、循环或数据差异欠定时生成 `record-next` 清单，回到阶段 1～4 补录针对性示范。
-
-Skill 边界不等于任意动作组。一个好的 Skill 通常同时满足：业务语义明确、合同清楚、可独立验证、在多个 Workflow 中可能复用、内部实现允许变化、粒度不会小到退化成 `clickButton()`。
-
-### 阶段 10：为语义目标合成可长期重定位的 Target、Locator 和 Geometry
-
-语义正确不代表运行稳定。本阶段把“操作发送按钮”工程化为：先确认正确应用和状态，使用多种线索重新找到正确按钮，解决当前 Geometry，执行动作，等待预期状态，并由独立 Verifier 判断结果。
-
-- **目标**：让同一业务步骤能在窗口移动、尺寸变化、数据变化、轻微 UI 漂移和异步加载下安全执行。
-- **Agent 在想**：Target 的业务身份是什么；可用哪些 Locator；每个 Locator 是否唯一、稳定、最新；需要哪些 Anchor、父区域和状态上下文；坐标属于哪个空间；错误目标点击的后果；验证失败能否安全重试；重复动作是否幂等。
-- **执行**：建立 Target Candidate Set；为候选 Locator 记录结构、Role / Name / Text、稳定标识、父级 / Anchor、OCR、Layout、Image、Color、Vision 和历史命中；测试唯一性和跨运行稳定性；定义 Region、Geometry 变换和动作点；把固定 sleep 改为状态等待；建立步骤级与业务级 Verifier、失败分类、有限 Recovery、幂等键和 Checkpoint。
-- **留存**：`StateModel、TargetSpec、LocatorCandidateSet、AnchorContext、RegionSpec、GeometrySpec、WaitCondition、VerifierContract、FailureTaxonomy、Retry/RecoveryPolicy、IdempotencyContract`。
-- **阶段门**：Target 不依赖单个裸坐标；Locator 歧义会 fail closed；高风险动作具有强前置和后置验证；坐标回退绑定到明确 Surface / Region / DPI；固定 sleep 不是主要同步机制；Recovery 不会重复产生不确定副作用。
-- **回退**：找不到稳定目标时回到阶段 2～4 补采；Target 身份依赖遗漏变量时回到阶段 9；业务结果无法验证时回到阶段 1；不能通过叠加更多 magic number 掩盖模型缺失。
-
-这里必须坚持：
-
-- **Target 是要找谁或什么业务对象。**
-- **Locator 是凭什么认出它。**
-- **Geometry 是怎样把相对位置投影到当前窗口和屏幕。**
-- **Coordinate 只是这一次真正落下动作的临时点。**
-
-把四者分开，UI 移动时改变的是投影结果，不是业务目标身份；某个 Locator 失效时可以换其他候选，而不必重写 Workflow。
-
-### 阶段 11：构造唯一 Automation IR，并生成接近人工质量的代码
-
-在明确选择的 Recorder／编译路线中，正式知识先进入 Canonical Automation IR，再由编译器派生 JavaScript、Skill 或 Playbook。第一版代码可以只达到“正确可回放”，但在晋级前必须完成业务化重构。普通 Recipe 的业务化组织与验证参照任务求解方法，不以本阶段的 IR／Compiler 建设为前置条件。
-
-- **目标**：形成可重新生成、可审计、可维护的唯一事实源，并派生清晰程序。
-- **Agent 在想**：哪些是业务 Workflow，哪些属于应用 Adapter，哪些属于通用 Runtime；编译器是否支持每个条件、Verifier 和 Recovery；生成代码是否仍携带探索噪声、固定坐标、固定等待或含糊成功判断。
-- **执行**：把 Task、State、Target、Locator、Geometry、Variable、Skill、Control Flow、Verifier、Recovery 和 Evidence 编入 IR；进行 Schema、静态语义和安全检查；生成最小可执行版本；再提取业务函数、类型化参数、稳定命名、必要状态等待、错误类型和运行日志；将严格来源核对、逐步 Oracle 和取证写入独立资格工件；删除死步骤和重复观察。
-- **留存**：版本化 `AutomationIR、GeneratedArtifact、SourceMap、CompileDiagnostics、OptimizationReport`。Source Map 能从生成代码回到业务步骤、IR、Experience Unit 和原始证据。
-- **阶段门**：编译器不得静默忽略未知 Postcondition、Locator 或 Recovery；每个副作用步骤都有明确验证归属，且需要运行时立即决定下一步的前置／后置仍留在生产 Recipe；业务层看不到不必要的屏幕坐标、逐步测试 Oracle 和截图路径；代码审阅者能从函数名和合同理解流程。
-- **回退**：定位和验证问题回到阶段 10；参数、分支和 Skill 结构问题回到阶段 9；业务步骤理解错误回到阶段 6～8。
-
-人工质量代码至少应满足：
-
-- 业务函数命名表达意图，而不是录制事件编号；
-- 参数、配置、运行时值和 Secret 明确分离；
-- 原生 API / CLI 优先于脆弱 UI 重放；
-- 业务 Workflow 不直接手写窗口坐标换算；
-- 需要同步或决定后续分支时，用状态等待替代无理由的固定 sleep；完整逐步断言可以由独立资格 Gate 承担；
-- 目标解析、动作、验证和 Recovery 分层；
-- 对危险副作用使用幂等键、Checkpoint 或人工确认；
-- 失败显式停止，不以 `return true` 代表未经证明的业务成功；
-- 正常稳定回放不依赖在线大模型；AI 主要用于歧义、归纳、诊断和修复。
-
-#### 确定性生成与审阅闸门
-
-可读代码不能依赖生成后再做一次无约束人工精修。human-to-recipe 在进入代码生成前，必须冻结一份最小 `SemanticBuildPlan`；名称不要求成为新的 Runtime API 或复杂可执行 IR，但内容必须机器可核对：
-
-- actions 的实际文件、revision、hash，以及每个 action 到原始事件的来源；
-- 每个 action 唯一归类为业务动作、运行门禁、资格断言、Evidence 或明确排除，任何 `unknown` 都阻止生产生成；
-- 已审阅的 Business Episode 名称、顺序、参数、常量、恢复规则和 action source map；
-- 应用／窗口目标、布局范围、Locator、Geometry、动作策略和失效条件；
-- 哪些前置／后置决定本次控制流，哪些固定 Oracle 只属于资格 Gate；
-- 只使用当前 API Reference 中已实现的方法；路线图工作名不得进入代码。
-
-计划固定后，renderer 或生成 Agent 只能做确定性降级：按“来源与正常命令注释 → 应用／布局常量 → 语义目标或控件表 → 通用安全 helper → 命名业务步骤 → 顶层业务顺序 → 简明完成结果”的顺序输出；不得重新解释业务、引入新 fallback、把 action 编号当函数名，或把逐步 Oracle、截图和 Evidence 写入生产 Recipe。窗口或显示器相对点优先消费 `Geometry` 并保留越界拒绝，不在业务函数中重复 `win.x + offset`。
-
-静态审阅至少逐项拒绝：来源或计划 hash 不匹配、action 未映射或重复映射、业务顺序漂移、未实现 API、目标歧义放宽、隐式动作 fallback、手写坐标空间换算、无理由固定等待、资格内容混入生产文件，以及 Gate 未冻结并执行实际生产源码。生成差异只和同一计划的前一候选或 golden 比较；人工修改必须先回写计划并重新生成，不能同时维护两份真相。当前仓库已提供最小 `SemanticBuildPlan` schema、source-check validator 和 Calculator plan/production/gate golden；通用 renderer 仍未实现，Calculator 当前生产源码的 live 资格仍须按其 hash 单独运行，不得把 schema 通过误报为编译器、live 或 qualification 已通过。
-
-#### 生产 Recipe、资格 Gate 与 Evidence 分层
-
-“自动化必须可验证”不表示日常脚本必须长成测试。生成或优化后的交付默认拆成三个独立责任：
-
-| 工件 | 保留什么 | 不应混入什么 |
-| --- | --- | --- |
-| 生产 Recipe | 可读业务动作；避免误操作所必需的目标唯一性、权限、布局和当前状态门禁；决定下一步所需的等待或读取；简明运行结果 | 来源 hash 全量审计、每一步固定答案、截图矩阵、测试报告写入、把动作已发送打印成 `[PASS]` |
-| 资格 Gate | 冻结候选和来源；用独立观察核对目标身份、状态转换、最终 Oracle、失败语义和扰动条件 | 不作为生产 Recipe 的运行时依赖，不用另一份隐藏业务实现冒充已测试正式文件 |
-| Evidence | run-scoped 输入版本、源码 hash、观察、截图、结果和环境事实 | 不回写 Raw Trace 或候选源码，不因旧证据存在而跳过新版本重验 |
-
-生产 Recipe 内的检查按“是否保护这一次动作或决定这一次控制流”取舍，而不是按 `assert` 数量取舍。目标已失效、窗口不唯一、布局超出已验证范围或结果不明且继续会产生副作用时必须 fail closed；只为证明生成质量而存在的逐步固定值、截图和来源一致性检查归资格 Gate。两条入口必须分别运行和报告：Recipe exit 0 只证明该次执行完成，Gate 通过才证明冻结版本满足其 Qualification Profile。
-
-#### 从局部函数晋级为 JS 或 Go 能力
-
-不要因为一个 Recipe 出现重复代码就立即增加公共 API。按责任与原子性逐级判断：
-
-1. 按钮表、页面模式、清零规则和业务步骤属于应用知识，留在 AppProfile 或当前 Recipe 的普通数据／函数中。
-2. 只组合现有公开 API、处理默认值或改善脚本可读性，并且不需要跨调用维持原生身份原子性的逻辑，才考虑普通 JavaScript helper；有多个独立消费者后再考虑公共 polyfill。
-3. 涉及 OS 权限、确切 PID／窗口生命周期、坐标投影与输入之间的竞态、native ref／资源释放或统一 action-state 错误语义时，owner 属于 native Runtime／Go；JavaScript 只提供薄参数 facade。
-4. 测试 Oracle、证据持久化和版本 hash 仍归资格层，不能为了缩短 Gate 下沉为生产 API。
-
-公共能力的晋级至少需要两个独立应用或表面证明相同合同、现有 API 无法安全表达该原子操作、明确的失败语义，以及公开类型／文档／JavaScript Runtime 测试。仅有同一应用的多份脚本只能证明重构候选，不能证明跨应用公共抽象。当前仓库跨 Calculator、TextEdit、Safari、微信、千牛和拼多多的重复证据、P0／P1 owner 与分批实施门槛统一维护在[多应用自动化高频框架能力](multi-application-automation-primitives.md)，本方法不复制其接口草案。
-
-### 阶段 12：真实 Replay、认证、晋级，并在运行中持续维护
-
-录制环境中的成功只能证明“这个样本曾经成功”。正式自动化需要在新会话、新数据和受控扰动下重新完成原任务，并重新证明业务结果。
-
-- **目标**：验证自动化不是对一次窗口布局和一组字面量的过拟合。
-- **Agent 在想**：这次是新运行还是偷偷复用了旧状态；是否点击了错误目标；Locator 失败后采用了什么候选；最终结果是否由独立证据确认；修复是局部 Locator 修复还是业务流程已变化。
-- **执行**：从清洁起点 Replay；使用不同参数；重启应用；改变窗口位置与尺寸、DPI / 显示器、主题、语言、延迟、列表长度和滚动位置；注入弹窗、网络失败、目标缺失、后端拒绝等反例；统计错误目标、假成功、重试、恢复和 AI 成本；产生可审阅 Repair Diff 后重跑相关矩阵。
-- **留存**：`ReplayRun、VerificationReceipt、PerturbationMatrix、FailureReport、RepairProposal、RepairDiff、QualificationRecord`。
-- **阶段门**：达到所选等级的通过矩阵；关键业务结果由要求等级的 Oracle 证明；没有未解释的错误目标点击或假成功；修复后已重新认证；不能用一次 happy path 直接晋级生产。
-- **回退**：业务理解错误回到阶段 6～9；目标 / Geometry 漂移回到阶段 10；编译问题回到阶段 11；成功证明错误回到阶段 1；欠定控制流要求新增 Demonstration。
-
-推荐晋级状态：
-
-- `Captured`：只有原始示范。
-- `Semantically Approved`：人类可读过程已批准。
-- `Compiled`：IR 和程序通过静态门禁。
-- `Rehearsed`：至少一次新会话回放成功，但验证可能仍是 UI 级。
-- `Verified`：最终业务效果由所要求的独立 Oracle 证明。
-- `Qualified`：通过指定参数与环境扰动矩阵。
-- `Production`：在监控、版本、回滚和重新认证策略下运行。
-
-### 阶段 13：投入运行后持续监控漂移、错误目标、假成功与成本
-
-自动化不是编译后永久正确的文件。应用版本、文案、主题、布局、权限、业务流程和后端接口都会变化；维护必须是正式生命周期，而不是运行失败后临时改坐标。
-
-- **目标**：及时发现自动化已偏离原合同，并以最小、可审查的修改恢复可信运行。
-- **Agent 在想**：这是偶发运行错误、Locator 漂移、State 漂移、Geometry 变化、数据变化、权限变化、Verifier 失效，还是业务流程本身变化；旧修复是否仍符合原 Goal；是否需要重新示范。
-- **执行**：保存运行 Evidence 和环境指纹；监测定位置信度下降、候选排序变化、目标歧义、错误目标、Verifier 失败、Recovery 频率、AI 调用和成本；按故障类型提出局部修复；保留旧版本并执行回归 / 扰动矩阵；必要时重新录制差异路径。
-- **留存**：`RuntimeEvidence、DriftReport、RepairPatch、VersionLineage、RequalificationRecord、DeprecationDecision`。
-- **阶段门**：任何修复都保持 Task Contract、语义步骤和业务验证不变，或明确升级版本并重新批准；Verifier 不可用时停止或进入 `reconciliation-required`，不继续声称成功。
-- **回退**：Locator / Geometry 变化回到阶段 10；参数或控制流变化回到阶段 9；业务步骤变化回到阶段 6～8；目标、权限或成功定义变化回到阶段 1；无法从现有证据判断时录制新的定向示范。
+运行失败时按第一个真实缺口定向维修：业务语义错回业务 owner，定位/读取/等待错回 application engineering，代码实现错修 Candidate，资格证据不足只重跑受影响资格；有效上游不机械重做。
 
 ## 4. Recorder 的三个不同学习单位
 
@@ -840,34 +630,18 @@ Windows 使用本机实际构建的 `.exe` 路径。[Runtime 合成入口](../..
 - **维护**：UI 漂移、Repair Diff、回归矩阵和重新认证。
 - **可读性**：人是否能只看 Semantic Procedure 判断理解正确，是否能只看业务代码理解 Workflow。
 
-## 15. 目标文档的信息架构决策
+## 15. 本文的信息架构
 
-本文件最终采用“方法优先、机制随后、案例校准、工程落地”的顺序：
+本文件按“共享问题 → 技术方法 → 案例校准 → 工程边界”组织：
 
-1. 先给结论、层级和 13 阶段执行方法，让人先看懂 Agent 怎样推进。
-2. 再解释 Experience Unit、Trace 后处理、变量、多示范、Browser 和 Desktop 迁移。
-3. 然后给出感知预算、`qianniu.js` Evidence Case、当前实现差距和公共合同。
-4. 最后给开发顺序、Benchmark、自审、原则和参考资料。
+1. 顶部说明两条正式 Workflow 和无编号共享主线，避免把本文当成第三套生命周期。
+2. 目标、事实、解释、必要路径、数据关系、最小补证、应用工程、Candidate 与 Qualification 是共同问题。
+3. Experience Unit、变量、多示范、Browser/Desktop、Target/Locator/Geometry 和感知预算只作为按需方法。
+4. qianniu 等案例用于反向发现能力缺口；实现位置、Benchmark 和参考资料继续明确证据边界。
 
-从旧版保留并深化的正确内容：
+继续保留的核心原则：真实 Evidence 高于自述；Target、Locator 与 Coordinate 分离；Trace 不直接等于 JavaScript；生成程序后仍需独立验证；运行失败只修真实受影响边界。
 
-- 第一次执行优先把真实任务做成；
-- Evidence 高于 Agent 自述；
-- 完整操作经验优于裸 Event；
-- Target、Locator 和 Coordinate 必须分离；
-- 先在 Browser 跑通低复杂度闭环；
-- 正常路径优先缓存、结构化信息和局部低成本感知；
-- `qianniu.js` 用于反向校准公共能力；
-- 生成程序后必须真实 Replay 和验证。
-
-本轮修正的主要问题：
-
-- 删除“一级主链 / 二级执行链”两条同质名词流水线的混用，把第二条改成真正有阶段门和回退的执行方法；
-- 增加 Task Contract、语义批准、工件生命周期、Qualification 和长期维护；
-- 把技术模型移到方法之后，避免技术对象覆盖人的思考逻辑；
-- 把 `qianniu.js` 从“仅历史文件”纠正为“当前 `master` 真实案例 + 历史演进证据”；
-- 区分 OpenDesk 已有截图 / Window / Screen / ImageColor 原语与仍缺的统一 Surface / Geometry / Target / Verifier 契约；
-- 明确当前 `pkg/recorder` 是实验性动作记录与扁平 IR 基础，不把目标方法误写为已实现事实。
+本轮收敛掉的是“本文自己维护阶段 1 到阶段 13”的职责。正式阶段只属于 Agent-to-Recipe 的 S1—S12 和 Human-to-Recipe 的 H1—H8；本文不再拥有 S13，也不要求普通 Recipe 为了使用共享方法先建设大型 Automation IR / Compiler。
 
 ## 16. 专家自审
 

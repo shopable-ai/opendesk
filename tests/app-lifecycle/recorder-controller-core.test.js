@@ -79,6 +79,7 @@ function fixture(initialCapability = capability(true)) {
   let nextCapability = initialCapability;
   const calls = {capabilities: 0, start: 0, activeWindow: 0, stop: 0, pause: 0, resume: 0, exclude: 0, measurement: 0, build: 0, generate: 0, command: 0};
   const alerts = [];
+  const copied = [];
   const saved = {
     recordingDir: '/repo/.runtime/recordings/rec-permission-recovery',
     rawFile: '/repo/.runtime/recordings/rec-permission-recovery/events.ndjson',
@@ -154,6 +155,7 @@ function fixture(initialCapability = capability(true)) {
     execution: {workdir: '/repo', scriptDir: '/repo/apps/opendesk/recorder'},
     system: {product: {website: 'https://opendesk.example'}},
     sleep: async () => {},
+    copyText: async value => { copied.push(String(value)); },
     countdownStepMs: 0,
     logger: {log() {}, error() {}},
 	openMeasurement: async () => { calls.measurement++; },
@@ -162,6 +164,7 @@ function fixture(initialCapability = capability(true)) {
     app,
     calls,
     alerts,
+    copied,
     saved,
     actions,
     generated,
@@ -340,7 +343,44 @@ test('Recorder defaults to semantic generation and requires an explicit compatib
   await basic.app.start();await basic.app.stop();
   assert.equal(basic.calls.generateOptions.mode,'basic');assert.equal(basic.calls.generateOptions.pointerMotion,'smooth');
 });
-test('semantic candidates route to business authoring rather than the basic physical refiner',()=>{
-  const prompt=RecordingConsole.buildAgentRefinementPrompt({execution:{workdir:'/repo'},generated:{mode:'semantic',scriptFile:'/repo/.runtime/recordings/rec-test/semantic.recipe.js'}});
-  assert.match(prompt,/human-to-recipe/);assert.match(prompt,/逐步骤映射/);
+test('Agent refinement prompt carries fixed Human recording lineage into business continuation',()=>{
+  const prompt=RecordingConsole.buildAgentRefinementPrompt({
+    execution:{workdir:'/repo'},
+    saved:{recordingDir:'/repo/.runtime/recordings/rec-test'},
+    actions:{actionsFile:'/repo/.runtime/recordings/rec-test/actions.json',readiness:'ready'},
+    generated:{mode:'semantic',scriptFile:'/repo/.runtime/recordings/rec-test/semantic.recipe.js',candidateFile:'/repo/.runtime/recordings/rec-test/semantic.candidate.json'},
+  });
+  assert.match(prompt,/\.\/\.runtime\/recordings\/rec-test/);
+  assert.match(prompt,/actions\.json/);
+  assert.match(prompt,/semantic\.candidate\.json/);
+  assert.match(prompt,/Human-to-Recipe/);
+  assert.match(prompt,/Agent-to-Recipe/);
+  assert.match(prompt,/Known/);
+  assert.match(prompt,/Unknown/);
+  assert.match(prompt,/Human 原始录制与事实只读保留/);
+  assert.match(prompt,/Agent 来源/);
+  assert.match(prompt,/application-engineer/);
+  assert.match(prompt,/普通 OpenDesk JavaScript Candidate/);
+  assert.match(prompt,/Fresh Run \/ Qualification/);
+  assert.doesNotMatch(prompt,/\/repo\//);
+  assert.doesNotMatch(prompt,/S1.?S12|H1.?H8/);
+});
+
+test('Recorder copy button forwards saved actions and Candidate into the formal Agent continuation prompt',async()=>{
+  const f=fixture();await f.app.show();await f.app.start();await f.app.stop();await f.app.copyAgentPrompt();
+  assert.equal(f.copied.length,1);
+  assert.match(f.copied[0],/rec-permission-recovery/);
+  assert.match(f.copied[0],/actions\.json/);
+  assert.match(f.copied[0],/basic\.candidate\.json/);
+  assert.match(f.copied[0],/录制可能只覆盖关键业务片段/);
+  assert.match(f.copied[0],/不要把 actions ready 当成整项业务已经完成/);
+});
+
+test('Agent refinement prompt rejects artifacts from a different recording package',()=>{
+  assert.throws(()=>RecordingConsole.buildAgentRefinementPrompt({
+    execution:{workdir:'/repo'},
+    saved:{recordingDir:'/repo/.runtime/recordings/rec-a'},
+    actions:{actionsFile:'/repo/.runtime/recordings/rec-b/actions.json',readiness:'ready'},
+    generated:{mode:'semantic',scriptFile:'/repo/.runtime/recordings/rec-a/semantic.recipe.js'},
+  }),/同一录制包/);
 });

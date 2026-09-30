@@ -68,41 +68,69 @@
     return new Promise(resolve => setTimeout(resolve, delayMs));
   }
 
-  function repositoryRelativePath(workdir, value) {
+  function repositoryRecordingPath(workdir, value) {
     const normalize = input => String(input || '').replace(/\\/g, '/').replace(/\/{2,}/g, '/');
     const root = normalize(workdir).replace(/\/+$/, '');
-    const path = normalize(value);
+    const path = normalize(value).replace(/\/+$/, '');
     if (!path || /[\x00-\x1f\x7f`]/.test(path)) return '';
-    const pathSegments = path.replace(/^\.\//, '').split('/');
-    if (pathSegments.includes('.') || pathSegments.includes('..')) return '';
     let relative = '';
     if (root && path.startsWith(root + '/')) relative = './' + path.slice(root.length + 1);
     const absolute = path.startsWith('/') || /^[A-Za-z]:\//.test(path);
     if (!relative && absolute) return '';
-    if (!relative) relative = './' + pathSegments.join('/');
-    const recordingRoot = /^\.\/\.runtime\/recordings\/rec-[A-Za-z0-9][A-Za-z0-9._-]*\//;
+    if (!relative) relative = path.startsWith('./') ? path : './' + path;
+    const segments = relative.replace(/^\.\//, '').split('/');
+    if (segments.some(segment => !segment || segment === '.' || segment === '..')) return '';
+    return /^\.\/\.runtime\/recordings\/rec-[A-Za-z0-9][A-Za-z0-9._-]*(?:\/|$)/.test(relative)
+      ? relative : '';
+  }
+
+  function repositoryRelativePath(workdir, value) {
+    const relative = repositoryRecordingPath(workdir, value);
+    if (!relative) return '';
     const rootScript = /^\.\/\.runtime\/recordings\/rec-[A-Za-z0-9][A-Za-z0-9._-]*\/(?:[A-Za-z0-9][A-Za-z0-9._-]*\.recipe\.js|flow\.js)$/;
     const legacyGeneratedScript = /^\.\/\.runtime\/recordings\/rec-[A-Za-z0-9][A-Za-z0-9._-]*\/generated\/[^/]+\.js$/;
-    if (!recordingRoot.test(relative)) return '';
     return rootScript.test(relative) || legacyGeneratedScript.test(relative) ? relative : '';
   }
 
   function buildAgentRefinementPrompt(input) {
     const context = input || {};
     const execution = context.execution || {};
+    const saved = context.saved || {};
+    const actions = context.actions || {};
     const generated = context.generated || {};
     const workdir = String(execution.workdir || '');
+    const recordingDir = repositoryRecordingPath(workdir, saved.recordingDir);
+    const actionsFile = repositoryRecordingPath(workdir, actions.actionsFile);
     const scriptFile = repositoryRelativePath(workdir, generated.scriptFile);
-    if (!scriptFile) {
-      const error = new Error('无法生成可移植任务：scriptFile 必须是当前仓库内的 Recorder 生成脚本');
+    const candidateFile = generated.candidateFile
+      ? repositoryRecordingPath(workdir, generated.candidateFile) : '';
+    const samePackage = value => !value || value.startsWith(recordingDir + '/');
+    if (!recordingDir || !actionsFile || !scriptFile || (generated.candidateFile && !candidateFile)
+      || !samePackage(actionsFile) || !samePackage(scriptFile) || !samePackage(candidateFile)) {
+      const error = new Error('无法生成可移植任务：Recorder 录制目录、actions、Candidate 与 script 必须位于当前仓库的同一录制包内');
       error.code = 'INVALID_ARGUMENT';
       error.operation = 'buildAgentRefinementPrompt';
       throw error;
     }
 
-    return generated.mode === 'semantic'
-      ? `继续完善 Recorder 语义候选：\`${scriptFile}\`。按 human-to-recipe 复用 actions/candidate 与逐步骤映射；选择简洁公开 API，不重复实现 Runtime 定位策略。先核对业务读取与数据绑定，再按独立授权执行资格验证；不要转入仅适用于 basic 的物理精炼器。`
-      : `优化 Recorder 已生成脚本：\`${scriptFile}\`。`;
+    const mode = generated.mode === 'basic' ? 'basic（兼容物理回放）' : 'semantic（语义 Candidate）';
+    const candidate = candidateFile || scriptFile;
+    return [
+      '继续完成这次 Recorder 自动化制作。',
+      '',
+      '本次固定材料：',
+      '- 录制目录：' + recordingDir,
+      '- actions：' + actionsFile,
+      '- 当前 Candidate：' + candidate,
+      '- 当前脚本：' + scriptFile,
+      '- Recorder 生成方式：' + mode,
+      '',
+      '请直接基于当前仓库已有的 Human-to-Recipe、Agent-to-Recipe、application-engineer/AppProfile 与 Qualification 能力接续，不新增第三套工作流。录制可能只覆盖关键业务片段：先读取以上固定材料，区分已经被真实证据证明的 Known、仍未知的 Unknown，以及真正阻塞最终 Recipe 的缺口；不要把 actions ready 当成整项业务已经完成。',
+      '',
+      'Human 原始录制与事实只读保留，不改写、不补造。需要补证时，只补阻塞项所需的最小信息：优先复用已有材料，其次只读观察，再按已有授权做 Agent 定向执行；应用定位、读取、等待和操作可靠性使用 application-engineer；只有真正无法从现有事实判断的关键业务片段才请求用户定向补录。AI 新执行产生的动作和 observation 保持 Agent 来源，不写回 Human 历史。',
+      '',
+      '补齐完整业务过程和运行时 producer → consumer 数据关系后，生成新的完整普通 OpenDesk JavaScript Candidate；最终日常运行不依赖 Agent 每一步重新观察和思考。随后对 exact Candidate 做独立 Fresh Run / Qualification；未实际运行的项目不得写 PASS。若业务意图仍有无法判断的关键缺口，明确告诉用户缺什么和下一步最小补录动作，不要猜。',
+    ].join('\n');
   }
 
   function createApp(options) {
@@ -933,6 +961,8 @@
           await syncButtons();
           const prompt = buildAgentRefinementPrompt({
             execution,
+            saved: state.saved,
+            actions: state.actions,
             generated: state.generated,
           });
           await copyText(prompt);

@@ -580,6 +580,8 @@ Gap／Failure Package 的整体路由由总纲维护。进入本合同的作者�
 
 ### 11.7 Calculator 的贯穿审阅样本
 
+正式的人可检查案例见 [Calculator 人工关键录制 → Agent 接续黄金案例](../../workflows/agent-to-recipe/cases/calculator-human-agent-continuation.md)。下面保留最短合同投影；该案例同样不把设计样本冒充 live PASS。
+
 ```text
 用户目标：25 × 4 + 10 = → 实际读取 firstResult
          → 清空界面但保留 firstResult → 按钮输入 6 × firstResult =
