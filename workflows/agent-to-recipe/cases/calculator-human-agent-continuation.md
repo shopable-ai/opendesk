@@ -153,6 +153,13 @@ Evaluator 再把独立观察的终值与候选本次实际 finalResult 比较，
 该边界文件不是桌面锁；开始前仍须确认人工停止、并行任务交接和无在途输入。
 旧失败不因 Oracle 修订变成 PASS，新的 live 报告必须绑定本次 Gate、观察器和全部消费依赖。
 
+Gate 同时冻结实际加载的 polyfills/jslibs 初始化文件与文件清单，两个 execution 使用相同
+`dist/opendesk` 入口，并从各自 execution artifact 的框架日志核对实际加载目录。
+`script` 控制台模式会过滤框架初始化日志，不能据其缺行推断实际加载失败；日志行尾的
+结构化 metadata 也不能混入候选读值或 readiness payload。候选与 observer 的 summary
+分别核对实际源码 hash、成功终态和不同 execution ID。Gate 内的 `-log-dir` 仅用于独立证据，
+报告记录完整实际命令；不能把这项 Gate 验收说成未执行的公开裸命令已经通过。
+
 从仓库根目录执行唯一完整 live 入口（仅在 Calculator 控制交接明确后）：
 
 ```sh

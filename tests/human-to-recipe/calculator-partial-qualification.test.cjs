@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {makeFixture,repo,sha,write}=require('./tools/calculator-partial-fixture.cjs');
-const {freeze,recheck,controlled,exercise,assess,assessLive}=require('./tools/qualify-calculator-partial.cjs');
+const {freeze,recheck,controlled,exercise,assess,assessLive,assessRuntimeLoads,objects}=require('./tools/qualify-calculator-partial.cjs');
 const {scoreSemanticBuildPlan}=require('../../workflows/human-to-recipe/skills/human-to-recipe/scripts/score-semantic-build-plan.js');
 const base=path.join(repo,'.runtime/tests/human-to-recipe/partial-candidate-unit');fs.mkdirSync(base,{recursive:true});
 function candidateFixture(){
@@ -41,3 +41,24 @@ test('live evaluator cannot stitch equal values from a witness that did not see 
   assert.throws(()=>assessLive(candidate,witness),/this run/);
 });
 module.exports={candidateFixture};
+test('Runtime initializer bytes, inventory and actual loading roots are bound',()=>{
+  const frozen=freeze(candidateFixture().planFile);
+  for(const name of ['polyfills','jslibs']){
+    const directory=frozen.initializerDirectories.find(item=>item.name===name);assert.ok(directory.files.length);
+    for(const file of directory.files)assert.ok(frozen.dependencies.some(d=>d.path===path.join(directory.path,file)));
+  }
+  const stdout=frozen.initializerDirectories.map(d=>'Using '+d.name+' from: '+d.path).join('\n');
+  assert.doesNotThrow(()=>assessRuntimeLoads({stdout,stderr:''},frozen));
+  assert.throws(()=>assessRuntimeLoads({stdout:stdout.replace(path.join(repo,'jslibs'),'/other/jslibs'),stderr:''},frozen),/root must match/);
+  assert.throws(()=>assessRuntimeLoads({stdout:'',stderr:''},frozen),/root must match/);
+  frozen.initializerDirectories[0].files.push('unfrozen-new-initializer.js');
+  assert.throws(()=>recheck(frozen),/inventory changed/);
+});
+test('Runtime log metadata does not mask readiness or replace observed result payload',()=>{
+  const payload={kind:'witness-ready',completionFile:'/test/{escaped-"quote"}/candidate-complete.json'};
+  for(const suffix of ['', ' {"consoleMethod":"log","location":"console.go:84"}']){
+    assert.deepEqual(objects('[SCRIPT] [LOG] '+JSON.stringify(payload)+suffix),[payload]);
+  }
+  assert.deepEqual(objects('{"kind":"witness-ready","completionFile":"unfinished'),[]);
+  assert.deepEqual(objects('{invalid} {"kind":"witness-ready"}'),[]);
+});

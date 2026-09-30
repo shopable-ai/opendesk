@@ -29,14 +29,33 @@ function freeze(planFile){
   dependencies.push(path.resolve(repo,plan.source.recordingDir,'manifest.json'));
   const binary=fs.realpathSync(path.join(repo,'dist/opendesk'));
   dependencies.push(binary,path.join(repo,'tests/human-to-recipe/calculator-partial-witness.js'));
-  // This Runtime loads the repository polyfills (also visible in its stack provenance).
-  // Freeze every loaded JS initializer, since any one can change the globals consumed by the candidate.
-  const polyfills=path.join(repo,'polyfills');
-  dependencies.push(...fs.readdirSync(polyfills).filter(name=>name.endsWith('.js')).map(name=>path.join(polyfills,name)));
-  return {plan,planFile,source,binary,dependencies:[...new Set(dependencies)].map(file=>({path:file,sha256:digest(file)})),
+  // The documented dist entrypoint loads these repository roots; live logs must confirm them.
+  // Both initializer groups can change globals, including JSON and array/string prototypes.
+  const initializerDirectories=['polyfills','jslibs'].map(name=>{
+    const directory=path.join(repo,name),files=fs.readdirSync(directory,{withFileTypes:true})
+      .filter(entry=>!entry.isDirectory()&&entry.name.endsWith('.js')).map(entry=>entry.name).sort();
+    dependencies.push(...files.map(file=>path.join(directory,file)));return {name,path:directory,files};
+  });
+  return {plan,planFile,source,binary,initializerDirectories,
+    dependencies:[...new Set(dependencies)].map(file=>({path:file,sha256:digest(file)})),
     score:{total:score.totalScore,dimensions:score.dimensions.map(d=>({id:d.id,score:d.score,minimum:d.minimumPoints,passed:d.passed}))}};
 }
-function recheck(frozen){for(const dependency of frozen.dependencies)assert.equal(digest(dependency.path),dependency.sha256,'Frozen dependency changed: '+dependency.path);}
+function recheck(frozen){
+  assert.equal(fs.realpathSync(path.join(repo,'dist/opendesk')),frozen.binary,'Runtime entrypoint changed');
+  for(const directory of frozen.initializerDirectories){
+    const files=fs.readdirSync(directory.path,{withFileTypes:true})
+      .filter(entry=>!entry.isDirectory()&&entry.name.endsWith('.js')).map(entry=>entry.name).sort();
+    assert.deepEqual(files,directory.files,'Runtime initializer inventory changed: '+directory.path);
+  }
+  for(const dependency of frozen.dependencies)assert.equal(digest(dependency.path),dependency.sha256,'Frozen dependency changed: '+dependency.path);
+}
+function assessRuntimeLoads(result,frozen){
+  const output=result.stdout+'\n'+result.stderr;
+  for(const directory of frozen.initializerDirectories){
+    const roots=[...output.matchAll(new RegExp('Using '+directory.name+' from: ([^\\r\\n]+)','g'))].map(match=>match[1].trim());
+    assert.ok(roots.length>0&&roots.every(root=>root===directory.path),'Actual Runtime initializer root must match freeze: '+directory.name);
+  }
+}
 
 async function exercise(code,{first='0040',final='777',fault=null,operationRules=null}={}){
   if(operationRules){
@@ -101,7 +120,19 @@ function run(binary,args,logFile){return new Promise(resolve=>{
   child.on('error',error=>{clearTimeout(timer);resolve({status:null,error:error.message,stdout,stderr});});
   child.on('close',status=>{clearTimeout(timer);fs.writeFileSync(logFile,stdout+stderr,{flag:'wx'});resolve({status,stdout,stderr,logFile});});
 });}
-function objects(output){return output.split('\n').flatMap(line=>{const i=line.indexOf('{');if(i<0)return[];try{return[JSON.parse(line.slice(i))];}catch(_){return[];}});}
+function objects(output){return output.split('\n').flatMap(line=>{
+  const start=line.indexOf('{');if(start<0)return[];
+  // Runtime log files may append a second metadata object. Parse the first complete
+  // JSON value, respecting braces inside strings, rather than treating metadata as payload.
+  let depth=0,inString=false,escaped=false;
+  for(let index=start;index<line.length;index++){
+    const char=line[index];
+    if(inString){if(escaped)escaped=false;else if(char==='\\')escaped=true;else if(char==='"')inString=false;continue;}
+    if(char==='"')inString=true;else if(char==='{')depth++;
+    else if(char==='}'&&--depth===0){try{return [JSON.parse(line.slice(start,index+1))];}catch{return [];}}
+  }
+  return [];
+});}
 function assessLive(candidate,witness){
   const result=objects(candidate.stdout).findLast(o=>o.firstResult&&o.finalResult&&o.secondInput);
   assert.ok(result,'Candidate must emit actual reads and input receipts');
@@ -131,7 +162,7 @@ async function live(frozen,out){
   for(let index=1;index<=2;index++){
     recheck(frozen);
     const prefix=path.join(out,'fresh-'+index),witnessPath=prefix+'-witness.log';
-    const witnessPromise=run(frozen.binary,['-script','tests/human-to-recipe/calculator-partial-witness.js','-console-mode','script','-log-dir',prefix+'-witness'],witnessPath);
+    const witnessPromise=run(path.join(repo,'dist/opendesk'),['-script','tests/human-to-recipe/calculator-partial-witness.js','-console-mode','script','-log-dir',prefix+'-witness'],witnessPath);
     // Read-only witness readiness is checked from its separate Execution log, without desktop input.
     const readiness=path.join(prefix+'-witness','stdout.log');const deadline=Date.now()+7000;
     while(Date.now()<deadline){if(fs.existsSync(readiness)&&fs.readFileSync(readiness,'utf8').includes('FRESH_WITNESS_READY'))break;
@@ -139,9 +170,13 @@ async function live(frozen,out){
     if(!fs.existsSync(readiness)||!fs.readFileSync(readiness,'utf8').includes('FRESH_WITNESS_READY')){
       const witness=await witnessPromise;runs.push({index,verdict:'blocked',reason:'Independent witness did not become ready',witness});break;}
     const ready=objects(fs.readFileSync(readiness,'utf8')).find(o=>o.kind==='witness-ready');
-    assert.ok(ready&&path.resolve(ready.completionFile)===path.resolve(prefix+'-witness','candidate-complete.json'),
-      'Completion boundary must belong to this fresh witness execution');
-    const command=['-script',path.relative(repo,frozen.source),'-console-mode','script'];
+    if(!ready||path.resolve(ready.completionFile)!==path.resolve(prefix+'-witness','candidate-complete.json')){
+      const witness=await witnessPromise;
+      runs.push({index,verdict:'blocked',reason:'Completion boundary must belong to this fresh witness execution',witness});break;
+    }
+    // Console mode filters framework initialization messages. The execution artifact
+    // log, not the filtered console, is the authority for actual loading roots.
+    const command=['-script',path.relative(repo,frozen.source),'-console-mode','script','-log-dir',prefix+'-candidate'];
     const candidate=await run(path.join(repo,'dist/opendesk'),command,prefix+'-candidate.log');
     const completion={kind:'candidate-process-complete',status:candidate.status,finishedAt:Date.now()};
     const pending=ready.completionFile+'.pending';
@@ -149,8 +184,21 @@ async function live(frozen,out){
     fs.renameSync(pending,ready.completionFile);
     const witness=await witnessPromise;recheck(frozen);
     let verdict='pass',actual,reason;
-    try{assert.equal(candidate.status,0);assert.equal(witness.status,0);actual=assessLive(candidate,witness);}catch(error){verdict='fail';reason=error.message;}
-    runs.push({index,verdict,reason,actual,command:'./dist/opendesk '+command.join(' '),candidateLog:candidate.logFile,witnessLog:witness.logFile});
+    let candidateSummary,witnessSummary;
+    try{assert.equal(candidate.status,0);assert.equal(witness.status,0);
+      candidateSummary=JSON.parse(fs.readFileSync(prefix+'-candidate/summary.json','utf8'));
+      witnessSummary=JSON.parse(fs.readFileSync(prefix+'-witness/summary.json','utf8'));
+      assert.equal(candidateSummary.script_hash,digest(frozen.source),'Actual execution must load exact candidate bytes');
+      assert.equal(witnessSummary.script_hash,digest(path.join(repo,'tests/human-to-recipe/calculator-partial-witness.js')));
+      assert.equal(candidateSummary.success,true);assert.equal(witnessSummary.success,true);
+      assert.notEqual(candidateSummary.execution_id,witnessSummary.execution_id,'Candidate and observer executions must be independent');
+      assessRuntimeLoads({stdout:fs.readFileSync(prefix+'-candidate/stdout.log','utf8'),stderr:''},frozen);
+      assessRuntimeLoads({stdout:fs.readFileSync(prefix+'-witness/stdout.log','utf8'),stderr:''},frozen);
+      actual=assessLive(candidate,witness);}catch(error){verdict='fail';reason=error.message;}
+    runs.push({index,verdict,reason,actual,command:'./dist/opendesk '+command.join(' '),
+      candidateExecutionId:candidateSummary?.execution_id,witnessExecutionId:witnessSummary?.execution_id,
+      candidateArtifacts:prefix+'-candidate',witnessArtifacts:prefix+'-witness',
+      candidateLog:candidate.logFile,witnessLog:witness.logFile});
     if(verdict!=='pass')break; // Unknown side effects are never retried automatically.
   }
   return {verdict:runs.length===2&&runs.every(r=>r.verdict==='pass')?'pass':'fail',evidenceLayer:'live',runs,
@@ -164,7 +212,8 @@ async function main(args){
   if(mode!=='--check')assert.equal(review<0?null:rest[review+1],hash,'Operator review of the exact candidate bytes is required');
   const out=fs.mkdtempSync(path.join(repo,'.runtime/tests/human-to-recipe/partial-authoring/qualification-'));
   const report={formatVersion:'human-to-recipe.calculator-qualification/v1',mode,time:new Date().toISOString(),
-    subject:{source:frozen.source,sha256:hash,plan:frozen.planFile},dependencies:frozen.dependencies,score:frozen.score,
+    subject:{source:frozen.source,sha256:hash,plan:frozen.planFile},dependencies:frozen.dependencies,
+    initializerDirectories:frozen.initializerDirectories,score:frozen.score,
     fixtureSource:frozen.plan.environment.otherConstraints.some(s=>/fixture/i.test(s)),qualificationTransferred:false};
   fs.writeFileSync(path.join(out,'freeze.json'),JSON.stringify(report,null,2)+'\n',{flag:'wx'});
   Object.assign(report,mode==='--check'?{verdict:'pass',live:false,scope:'Freeze/structure only; no execution or business qualification'}
@@ -173,5 +222,5 @@ async function main(args){
   console.log(JSON.stringify({verdict:report.verdict,mode,report:output,score:report.score,live:report.evidenceLayer==='live'}));
   if(report.verdict!=='pass')process.exitCode=1;
 }
-module.exports={freeze,recheck,exercise,assess,controlled,assessLive};
+module.exports={freeze,recheck,exercise,assess,controlled,assessLive,assessRuntimeLoads,objects};
 if(require.main===module)main(process.argv.slice(2)).catch(error=>{console.error(error.message);process.exitCode=1;});
