@@ -52,7 +52,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-*.test.js 2>&1 | tee .runtime/tests/agent-to-recipe/contracts.tap
+          node --test tests/workflows/handoff-integrity.test.js tests/workflows/artifact-*.test.js tests/workflows/calculator-human-agent-continuation.test.js 2>&1 | tee .runtime/tests/agent-to-recipe/contracts.tap
       - name: Test Calculator display resolver data path
         run: node tests/runtime-api/ui-perception-resolver.unit.cjs
       - uses: actions/upload-artifact@v4
