@@ -469,7 +469,6 @@ Candidate 字节或影响性依赖一变，旧 Qualification 不再证明新的 
 | 应用定位、读取、等待、动作工程方法 | [application-operations.md](design/application-operations.md) |
 | 已有普通 JS 怎样独立改进 | [code-rebuild.md](design/code-rebuild.md) |
 | request / handoff / artifact 的字段、版本、hash 规则 | [共享合同](../../docs/frameworks/agent-to-recipe-skill-contract.md) |
-| 当前公开 Agent API 的短入口与按需阅读 | [Agent API 短入口](../../docs/api/agent/README.md) |
 | 某项职责专业上怎样执行 | `skills/<skill-name>/SKILL.md` |
 | 完整可检查参考案例 | [Calculator 基准案例](cases/calculator.md) |
 | Agent 实际求解主线 | [Calculator 执行过程演练](cases/calculator-execution-walkthrough.md) |
