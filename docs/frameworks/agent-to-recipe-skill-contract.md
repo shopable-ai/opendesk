@@ -193,7 +193,7 @@ AppProfile 的事实条目标注 `observed`、`demo-confirmed` 或 `qualified`�
 
 `user-task.md` 保存用户原始自然语言／来源，不由 TaskContract 取代。TaskContract 是 Agent 对本次任务的结构化解释，包含 `goal / businessObjects / inputs / config / secretRefs / initialState / authority / successCriteria / failureCriteria / stopConditions / verificationPlan / supportedScope`。每条成功条件有稳定 criterionId、期望、证据来源、所需证明强度。输入、Config、Secret 和运行时派生值明确分开。来源不足的内容保持 Unknown／Proposal，不因结构化而自动变成用户事实。
 
-WorkPlan 包含 `revision / contractRef / businessTaskTree / operationPlan / checkpoints / workPackages / dependencies / budgets / changeLog`。`operationPlan` 面向真实业务执行而不是 Skill 调用顺序：每个近期计划步骤至少能表达业务对象／子目标、输入来源、预期结果、检查方式和必要前置；高影响 Unknown 可以作为先行检查步骤。临近工作包详细化，远期未知项显式列出，不编造全部点击。
+WorkPlan 包含 `revision / contractRef / businessTaskTree / operationPlan / checkpoints / workPackages / dependencies / budgets / changeLog`。`operationPlan` 面向真实业务执行而不是 Skill 调用顺序：每个近期计划步骤至少能表达业务对象／子目标、输入来源、预期结果、检查方式和必要前置；高影响 Unknown 可以作为先行检查步骤。对近期高影响步骤，使用既有 `operationPlan / checkpoints / workPackages` 表达**有界反方预演**：少数最可能且代价高的失败方式、执行前可行的低成本否证、动作后第一验证点和停止／返回边界；这不是新的顶层 schema、风险注册表或额外阶段。临近工作包详细化，远期未知项显式列出，不编造全部点击，也不穷举与当前决策无关的理论风险。
 
 `task-brief.md`／`operation-plan.md` 可以作为同版本的人类可读视图，必须注明源 TaskContract／WorkPlan ref／hash；用户通过自然语言纠正后由 Agent 修订主产物并重新生成视图，不能让 Markdown 与 JSON 分别成为两套需求或计划。扩大对象、权限、支出或改变成功标准必须重新取得授权。
 
