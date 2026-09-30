@@ -6,15 +6,7 @@ order: 9
 
 # Calculator 执行过程演练｜Agent 实际怎样解决这个任务
 
-> **定位：求解过程演练。**
-
-> **本文含完整参考路线和未来阶段答案。** 教学及方法维护可以使用；本轮或后续隔离 Producer 评测的 S1—S11 不得读取。新 Producer 从 [WORKFLOW](../WORKFLOW.md) 与当前阶段 Skill 出发；冻结 Candidate 后独立 Evaluator 才能使用本文与参考 JavaScript 校准。阅读演练不算一次真实阶段执行，也不能据此填写阶段 PASS。
-
-本文回答的不是“每个 S 阶段怎样验收”，而是：
-
-> **如果一个没有历史聊天上下文的新 Agent 收到 Calculator 需求，它实际应该先看什么、调用什么、执行什么、取得什么事实，再根据结果怎样继续。**
-
-逐阶段检查、首错定位和最小返工范围仍看 [Calculator 基准案例](calculator.md)。如果你要直接查看“每一步应该留下什么文件、文件名和最小示例内容”，看 [Calculator 阶段产物链](calculator-artifacts.md)。正式阶段定义仍由 [task-decomposition.md](../design/task-decomposition.md) 负责。
+从 Calculator 原始需求出发，按“当前问题 → 查看或调用什么 → 实际执行 → 得到什么事实 → 下一步”展示 Agent 的真实求解主线。逐阶段正确性检查见 [Calculator 基准案例](calculator.md)；阶段产物文件见 [Calculator 阶段产物链](calculator-artifacts.md)。
 
 ## 0. 先看“执行”和“落盘”两条线
 
@@ -943,3 +935,12 @@ Calculator 逐阶段检查
 3. 只有出现稳定的跨案例共性时，才考虑进一步抽象。
 
 这样可以避免因为一个案例刚暴露出共性，就过早再造第二套主框架。
+
+---
+
+## 附录｜使用边界
+
+本文是求解过程演练，不是新的 Workflow，也不替代 S1—S12 的正式阶段定义。
+
+本文包含完整参考路线和未来阶段答案。方法维护与教学可以使用；隔离 Producer 评测的 S1—S11 不得提前读取本文。新 Producer 应从 [WORKFLOW](../WORKFLOW.md) 与当前阶段方法出发；Candidate 冻结后，独立 Evaluator 才能使用本文与参考 JavaScript 做校准。阅读本文不等于完成一次真实阶段执行，也不能据此填写阶段 PASS。
+

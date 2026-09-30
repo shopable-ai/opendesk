@@ -6,19 +6,7 @@ order: 10
 
 # Calculator 基准案例｜从需求到交付的端到端可检查参考
 
-> **定位：Agent-to-Recipe 的端到端可检查基准案例（End-to-End Inspectable Reference Case）。**
-
-> **隔离评测边界：** 本文含 S1—S12 的参考产物，只供方法维护、教学和独立 Evaluator 检查。验证“新 Producer 能否从原始需求推导 Candidate”时，S1—S11 不得加载本文、配套 Walkthrough、Skill 的 Calculator examples 或参考 JavaScript；从 [WORKFLOW](../WORKFLOW.md) 和当前阶段方法进入。Candidate 冻结后，独立 Evaluator 才能打开参考材料做最终校准，不能把参考答案回传 Producer 作为修复实现。
-
-本文不是历史日志，也不是第二套工作流规范。它只做一件事：
-
-> 让一个完全没有旧聊天上下文的人，只读本文就能沿着“原始需求 → S1 → … → S12 → 最终交付边界”检查每一步是否正确，并在出错时找到**第一个输入仍正确、输出已经错误的阶段**。
-
-正式阶段定义仍由 [task-decomposition.md](../design/task-decomposition.md) 负责；实际路由由 [WORKFLOW.md](../WORKFLOW.md) 负责；验证方法由 [validation-plan.md](../design/validation-plan.md) 负责。本文只把 Calculator 的关键参考数据集中到一个可读案例里。
-
-> **本文是 Inspection View / 阶段检查视图。** 如果你现在的问题是“一个 Agent 实际怎样从需求出发，先查什么、调用什么、执行什么、观察什么，再决定下一步”，先读 [Calculator 执行过程演练](calculator-execution-walkthrough.md)。Walkthrough 展示程序性求解主线；本文负责沿 S1—S12 检查每一步是否正确。
-
-> 如果你现在的问题是“**这个阶段真正产出了哪个文件？文件名是什么？里面至少应该有什么？出错后先打开哪个？**”，直接读 [Calculator 阶段产物链](calculator-artifacts.md)。它把本文每阶段的“正式产物”连接到真实 task / attempt / Execution 的可检查文件。
+从原始需求开始，沿 S1—S12 检查 Calculator 每一步是否正确，并在失败时定位最早出错阶段。实际求解过程见 [Calculator 执行过程演练](calculator-execution-walkthrough.md)；每阶段应该留下哪些文件见 [Calculator 阶段产物链](calculator-artifacts.md)。
 
 ---
 
@@ -1984,3 +1972,12 @@ direct-20260927-025553-861000
 历史记录中，每次包含 16 个原生按钮回执、first actual read = "110"、final actual read = "660"，并曾用另一 execution 的 AX 读取 / 窗口截图做交叉核对。
 
 这些原始 .runtime 证据没有作为版本控制资产保存在当前 Git 仓库。因此它们只能作为历史说明：不能替代当前需要的 fresh execution，也不能仅凭本文档把 S12 写成新的运行通过。更完整的验证层、Hard Fail 和评分方法继续由 [validation-plan.md](../design/validation-plan.md) 负责。
+
+### B.5 隔离评测使用边界
+
+本文是 Agent-to-Recipe 的端到端可检查参考案例，不是历史日志，也不是第二套工作流规范。正式阶段定义由 [task-decomposition.md](../design/task-decomposition.md) 负责，实际路由由 [WORKFLOW.md](../WORKFLOW.md) 负责，验证方法由 [validation-plan.md](../design/validation-plan.md) 负责。
+
+本文包含 S1—S12 的参考产物。方法维护、教学和 Candidate 冻结后的独立 Evaluator 可以使用；验证“新 Producer 能否从原始需求独立推导 Candidate”时，S1—S11 不得加载本文、配套 Walkthrough、Skill 的 Calculator examples 或参考 JavaScript。Candidate 冻结后，Evaluator 才能打开这些参考材料做最终校准，且不能把参考答案回传 Producer 作为修复实现。
+
+阅读分工：本文负责逐阶段检查；如果要看 Agent 实际怎样求解，读 [Calculator 执行过程演练](calculator-execution-walkthrough.md)；如果要找阶段产物文件，读 [Calculator 阶段产物链](calculator-artifacts.md)。
+

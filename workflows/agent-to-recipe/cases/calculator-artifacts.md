@@ -6,19 +6,7 @@ order: 11
 
 # Calculator 阶段产物链｜每一步应该留下哪些可检查文件
 
-> **定位：Calculator 的阶段产物链参考（Stage Artifact Chain Reference）。**
-
-> **隔离评测边界：**本文包含同源黄金案例的未来阶段答案，只供工作流维护、教学和 Candidate 冻结后的独立 Evaluator 使用。隔离 Producer 的 S1—S11 不得提前读取本文来补答案。本文中的示例也不是新的真实桌面证据。
-
-本文专门解决一个实际问题：
-
-> **当某次 Agent-to-Recipe 执行在中途或最终出错时，人应该打开哪个文件，看到哪个阶段的 Actual Output，再判断第一处错误发生在哪里？**
-
-[Calculator 执行过程演练](calculator-execution-walkthrough.md) 说明“Agent 实际怎样做”；[Calculator 基准案例](calculator.md) 说明“S1—S12 什么算正确”；本文补上第三个视角：
-
-> **每一步做完以后，应该留下什么可检查文件或固定引用。**
-
-正式 schema、hash、request / handoff 和任务目录规则仍以 [Agent-to-Recipe Skill Contract](../../../docs/frameworks/agent-to-recipe-skill-contract.md) 为准；评分、Hard Fail 和 `acceptanceRef` 仍以 [validation-plan](../design/validation-plan.md) 为准。本文不创建第二套 schema。
+本文回答两个问题：每个阶段完成后应该留下什么可检查文件或固定引用，以及出错后应该先打开哪里。求解过程见 [Calculator 执行过程演练](calculator-execution-walkthrough.md)；逐阶段正确性见 [Calculator 基准案例](calculator.md)。
 
 ---
 
@@ -646,3 +634,12 @@ tests/.../calculator-artifact-chain/source.json
 ~~~
 
 这四者互相引用，但不能互相冒充。
+
+### 6.1 隔离评测使用边界
+
+本文包含同源黄金案例的未来阶段答案，只供工作流维护、教学和 Candidate 冻结后的独立 Evaluator 使用。隔离 Producer 的 S1—S11 不得提前读取本文来补答案；本文中的示例也不是新的真实桌面证据。
+
+### 6.2 正式规范来源
+
+正式 schema、hash、request / handoff 和任务目录规则以 [Agent-to-Recipe Skill Contract](../../../docs/frameworks/agent-to-recipe-skill-contract.md) 为准；评分、Hard Fail 和 `acceptanceRef` 以 [validation-plan](../design/validation-plan.md) 为准。本文只提供 Calculator 的可读产物链，不创建第二套 schema 或判断规则。
+
