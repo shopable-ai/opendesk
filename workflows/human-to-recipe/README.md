@@ -38,7 +38,8 @@ order: 10
 | 受控坐标脚本 | 声明固定条件的普通 JS | 可以不参与，也可仅辅助整理 |
 | 增强普通 JS | 已确认定位、输入、等待和结果验证 | 开发阶段参与，正常运行不必参与 |
 | JS／Agent 混合流程 | 普通 JS 与明确的必要判断节点 | 只在声明的判断节点参与；需有实际宿主与权限支持 |
-| Recorder → Agent 交接 | 仓库相对 generated script 入口 | 单行调用 `recorder-script-refiner`；无业务问卷，默认只做行为保持的静态优化 |
+| Recorder 关键录制 → Agent 业务接续 | 固定 recording/actions/current Candidate + “复制 Agent 优化脚本”提示词 | 复用 Human-to-Recipe、Agent-to-Recipe 与 application-engineer；只补阻塞完整 Recipe 的最小事实，最终交付普通 JS 并对 exact Candidate 独立资格 |
+| 显式 basic 行为保持精炼 | generated script 作为录制包入口 | 仍可调用 `recorder-script-refiner`；只做行为保持静态精炼，不自动取得业务语义或资格 |
 
 不为普通 JS 强制建设应用对象方法层、Registry、复杂可执行 IR、Compiler、专用 Replay Runtime 或 LangGraph。`calc.tapButton(...)` 不恢复为应用对象层。优先实际存在的框架 API 和有价值的普通函数。
 
@@ -120,7 +121,30 @@ Agent 执行 → 工具调用、观察与验证 → 提炼 → Agent 来源的�
 
 另一会话并行推进 Agent-first 时，默认只读其相关文档，不同时修改其专业正文、Skill 或已有 Recorder 契约。基线核查发现 [recorder API 文档](../../docs/api/recorder.md) 描述的是 Agent-first MCP 会话；不能据此认定人工监听 `Recorder.start()` 已存在，也不能为人工坐标模式放宽其确定性回放要求。完整源码状态在后续工作包核查。
 
-### 6.1 Capability Gap／维修进入 Human 作者链
+### 6.1 Recorder 关键录制后的正式 Agent 接续入口
+
+Recorder 的“复制 Agent 优化脚本”是正常用户入口，不要求用户理解 H1—H8、S1—S12、Dossier 等内部术语。停止并保存后，复制提示词携带本次 recording 目录、actions、当前 Candidate 和脚本的仓库相对路径；新对话从这些固定材料继续。
+
+~~~text
+用户说明任务
+→ 只录关键业务部分
+→ 停止并保存
+→ Recorder 生成 actions 和当前 Candidate
+→ 复制 Agent 优化脚本
+→ 新对话读取固定材料
+→ Known / Unknown / 真正阻塞项
+→ 只做最小补证
+→ 完整业务过程与 runtime data flow
+→ application engineering
+→ 新的完整普通 JS Candidate
+→ exact Candidate Fresh Qualification
+~~~
+
+硬边界：actions readiness 不是“整项业务已经录完”；Human 原始事实保持 Human 来源；AI 后补动作/observation 保持 Agent 来源；缺口优先复用材料和只读观察，不默认完整重做；Human + AI 只发生在 Recipe 制作阶段，正常运行仍是普通 JavaScript。
+
+第一份正式贯穿样本见 [Calculator 人工关键录制 → Agent 接续黄金案例](../agent-to-recipe/cases/calculator-human-agent-continuation.md)。文档会分别标记设计、静态测试、真实 Recorder、真实 Calculator UI、Fresh Run 与 Qualification，未执行的不写 PASS。
+
+### 6.2 Capability Gap／维修进入 Human 作者链
 
 跨 Runtime／Catalog／Authoring 的唯一总纲和任务树见 [Automation Capability Lifecycle](../../docs/architecture/desktop-automation/task-capability-lifecycle.md)。Chat Runner 是产品运行状态机，不增加 Human 专属 Chat Runner 或新的 Workflow 目录。
 
@@ -137,7 +161,7 @@ Normal Mode：没有合格能力／当前范围不适用 → 明确 Gap 或受�
 
 Gap／Failure Package 是作者输入，不是桌面或模型外发授权。来源包只移交获准且必要的引用与脱敏摘要；普通运行的一次确认不涵盖录制、探索、生成、验收、发布和真实发送。涉及发送、覆盖、删除时，采用获准测试对象或停在提交前，不能把演示授权用于真实业务对象。
 
-### 6.2 共用发布合同，保留 Human 原生权威数据
+### 6.3 共用发布合同，保留 Human 原生权威数据
 
 Task Contract、AppProfile、Semantic Procedure、Candidate、Qualification 和 Capability 是共同逻辑成果，不要求新增六份副本。`SemanticBuildPlan` 的已确认 intent、Episode、数据依赖和 source map 仍是本链权威语义；不为接入 Catalog 再手写一份可独立漂移的 SemanticProcedure。逐 action disposition 也不转交另一份 trace-distill 文件重复维护。
 
@@ -145,7 +169,7 @@ Task Contract、AppProfile、Semantic Procedure、Candidate、Qualification 和 
 
 application-engineer 保留现有唯一路径，供本链及运行失败维修共享。界面／定位问题返回 discover、harden 或 repair；动作取舍、业务 Episode、参数来源或成功标准问题修原 Human plan。AppProfile 局部通过与资格范围建议不能代替整份 production Recipe 的独立资格，也不赋予最终发布权。
 
-### 6.3 H7／H8 的资格与发布出口
+### 6.4 H7／H8 的资格与发布出口
 
 H7 继续冻结实际 production 文件及依赖，由独立 Gate 执行其真实源码，并用独立 Observation／Oracle 判断结果；禁止复制业务动作、把 expected 写进生产读值、验中改码或自动继承旧 golden 资格。只读数通过、静态保真通过与完整任务通过分别记录。
 
