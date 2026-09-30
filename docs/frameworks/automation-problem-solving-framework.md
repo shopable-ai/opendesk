@@ -127,6 +127,30 @@
 
 这些是阅读时的证据分类，不新增 Runtime 状态枚举。公开状态、实现状态和验证状态可以同时记录且不同。正文不保存某轮 PASS；每次实际结果仍进入既有 execution、Profile 验证、Qualification 或质量记录。方法文件的静态审阅不能替代阶段独立评分或 Fresh Run。
 
+<a id="case-tailoring"></a>
+
+### 0.6 从总地图到本次成果：裁剪、封装与人工检查
+
+**先判断本任务需要什么，再判断所需方法是否已验证。** “不需要分页”是任务裁剪；“需要分页但不知道结束条件”是阻塞缺口，两者不能互换。未采用一种定位方法，不代表删除业务要求；requested 中失败或未运行的场景不能事后改成 excluded。地图不要求逐项填写所有方法，更不要求同时实现 UI 树、OCR、图像与坐标四套程序。
+
+初始需求、预算、方法偏好及 Unknown 在 S1 已有合同/计划中表达；S2—S6 取得现场事实后，按来源修订原记录。S8 固定业务步骤与数据关系，S9 收敛有来源的复用边界；S10 补应用操作规则，S11 只实现这些固定输入。后续阶段不能把最终代码倒填为早期观察。
+
+| 需要看清的决定 | 正式内容由谁维护 | 本次人工首先看什么 | 下游怎样使用 |
+| --- | --- | --- | --- |
+| 本次采用哪些任务形态，哪些不需要、哪些未知 | TaskContract/WorkPlan，后续经批准的 Procedure scope/分支 | `operation-plan.md`；S9 `procedure.md` | 不漏业务要求，也不强加分页、批量或策略集合 |
+| 每步为什么存在、输入输出及能力边界 | S8 Business Steps、S9 dataDependencies/capabilityDecisions | `business-steps.md`、`procedure.md` | S10 知道工程需求；S11 不重猜 producer/consumer |
+| 选中方法、适用环境、主备与停止条件 | AppProfile/operation rules/helper；与 S9 固定决定一致 | `app-profile.md`、`operation-rules.md` | 只有实际存在且符合条件的路径进入代码 |
+| 哪些内联、哪些复用，入口与依赖是什么 | S11 exact source/CandidateManifest/sourceMapping | `candidate-summary.md` 和所引源码 | S12 验同一候选及实际路径，不把模块名字当实现 |
+| 默认、备用、变化和未知分别证明到哪一层 | 阶段 acceptance、原始 evidence、Qualification | `stage-review.md`、`qualification-summary.md` | 找首错、回原责任、只重验受影响部分 |
+
+这些文件名沿用[Calculator 产物链](../../workflows/agent-to-recipe/cases/calculator-artifacts.md)的人机双层约定。实际路径和 hash 仍来自本次正式引用；视图从同版权威产物生成，不要求再建 `solution-design.json`、能力注册库或第二份总报告。
+
+**可直接使用的正文格式：** [SemanticProcedure 模板](../../workflows/agent-to-recipe/skills/procedure-synthesize/templates/semantic-procedure.md)承接裁剪、业务能力与数据关系；[应用操作模板](../../workflows/agent-to-recipe/skills/application-engineer/templates/operation-rules.md)承接条件化执行；[Candidate 模板](../../workflows/agent-to-recipe/skills/recipe-build/templates/candidate.md)承接代码与实际入口。[Calculator 方法样本](../../workflows/agent-to-recipe/skills/procedure-synthesize/examples/calculator.md)展示填写后的关系，只供教学/维护及允许的评审使用，不是隔离 Producer 的答案输入或本次 Actual。
+
+方法偏好可以来自执行前提示词，但必须明确它是偏好还是不可变需求。先守授权与硬约束，再检查候选适用性与证据，最后在合格集合中应用用户偏好和默认值；显式强制要求不能悄悄降成偏好，无法满足就保留冲突并返回责任方。获准策略配置应记录有效取值、来源与实际消费者；默认值改变也要评估资格影响，不能让配置存在但不生效。
+
+“框架设计能力”首先是业务合同与责任边界，不是文件数：一次简单任务保留内联或少量 helper 即可；多个消费者确实共享同一操作时再封装。操作的目的、输入输出、前后条件、失败及副作用合同不因改名为 `clear()`、`sendMessage()` 就消失。可复用模块的导入不得自动操作桌面；具体生成与验证要求见 [recipe-build 正确性检查](../../workflows/agent-to-recipe/skills/recipe-build/references/validation.md)。此要求是作者约束，不宣称 Runtime 会自动沙箱拦截所有副作用。
+
 ## 一、求解主线：先消除不确定性，再执行动作
 
 ```text
