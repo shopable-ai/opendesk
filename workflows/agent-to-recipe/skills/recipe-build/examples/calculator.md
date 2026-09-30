@@ -1,7 +1,5 @@
 # recipe-build 示例｜Calculator 的 Procedure → Business Step → JS
 
-> 本例解释实现映射，不定义通用 Calculator 规则，也不是 Fresh Run 证据。
-
 ## 输入语义
 
 Procedure 已确认：
@@ -64,3 +62,9 @@ const firstResult = String(25 * 4 + 10);
 ## sourceMapping
 
 候选应能明确指出 B025、B040、B050 分别由哪些源码区域实现，并关联所用 apiRef/operation rule。代码中若出现额外 fallback，也必须有明确工程来源，而不是临时猜测。
+
+---
+
+## 使用边界
+
+本例用于解释 Procedure → Business Step → JS 的实现映射，不定义通用 Calculator 规则，也不是 Fresh Run 证据。

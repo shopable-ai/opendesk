@@ -1,6 +1,6 @@
 # task-demonstrate 示例｜Calculator 的计划、执行、观察与数据消费
 
-> 本例解释方法，不定义 Calculator 通用规则，也不是新的真实桌面证据。业务是：通过按钮输入 `25 × 4 + 10 =`，实际读取 firstResult，再以本次 firstResult 输入 `6 × firstResult =`，实际读取并返回终值。
+业务场景：通过按钮输入 `25 × 4 + 10 =`，实际读取 firstResult，再以本次 firstResult 输入 `6 × firstResult =`，实际读取并返回终值。
 
 ## 输入
 
@@ -76,3 +76,9 @@ calculator-current.js 有 clear/read/click
 完整 Dossier 应让 S7 看见 P10-P60 与 actual 的对应、所有 observation、firstResult/finalResult 的 origin 与 consumers、sideEffects、偏差和 criterion 证据。
 
 example 只解释上述关系。110/660、按钮名称、窗口限制都不进入通用 Skill。
+
+---
+
+## 使用边界
+
+本例用于解释 task-demonstrate 方法，不定义 Calculator 通用规则，也不是新的真实桌面证据。示例中的 Expected、planned、actual、observation 和 runtime value 只能按各自角色使用，不能互相冒充。

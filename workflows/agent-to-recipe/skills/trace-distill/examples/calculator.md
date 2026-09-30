@@ -1,8 +1,6 @@
 # trace-distill 示例｜Calculator 从原动作到必要步骤
 
-> 本例解释方法，不定义通用规则，不是新的真实执行记录。业务来自 [Calculator 案例](../../../cases/calculator.md)：用按钮输入 `25 × 4 + 10 =`，读取 firstResult，再用按钮输入 `6 × 本次 firstResult =`，读取、打印并返回终值。
->
-> 下表 A001—A010、D010—D060 来自 [冻结测试 fixture](../../../../../tests/workflows/fixtures/calculator-artifact-chain/source.json)。该 fixture 明确为 synthetic/fixture-only，不是历史 Dossier；110/660 在需求中是 Expected，在本表中只是合成 observedValue，均不能预填成新运行实际值。fixture 内其他标准产物供检查器测试使用，不能把整份文件交给被测 Producer 当输入；生产评测只交实际获准的合同、actions、Dossier 和必要证据。
+业务场景见 [Calculator 案例](../../../cases/calculator.md)。本例用冻结 fixture 演示怎样从原动作得到必要步骤；A/D 编号是教学数据，不是真实运行记录。
 
 ## 一、输入：保留动作和数据关系
 
@@ -109,3 +107,11 @@ A009 的本值输入片段是 `1,1,0`。两个 `1` 分别占一个数位；变�
 只保留 `prepare → calculate → finish` 不能交付：S9 仍不知道首值来源、第二段状态前提、具体消费者和字符变换。正确交接让 S9 取得这些必要内容，但不通过 lineage 偷渡整个历史。
 
 迁移练习：把来源换成工单页面读取的 `0040`，一个动作按原文本查询、另一个动作按字符输入。仍需一个真实 producer、两个独立 consumerBindings，分别记录 identity/characters，保留前导零、必要等待和终点状态读取。应用按钮、表达式、数值与窗口尺寸不进入通用方法。
+
+---
+
+## 使用边界
+
+本例解释 trace-distill 方法，不定义通用规则，也不是新的真实执行记录。
+
+A001—A010、D010—D060 来自 [冻结测试 fixture](../../../../../tests/workflows/fixtures/calculator-artifact-chain/source.json)。该 fixture 是 synthetic / fixture-only，不是历史 Dossier；110/660 在需求中是 Expected，在本表中只是合成 observedValue，均不能预填成新运行实际值。fixture 内其他标准产物供检查器测试使用，不能把整份文件交给被测 Producer 当输入；生产评测只交实际获准的合同、actions、Dossier 和必要证据。

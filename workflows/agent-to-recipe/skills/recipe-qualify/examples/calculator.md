@@ -1,7 +1,5 @@
 # recipe-qualify 示例｜Calculator 的一次运行、重复运行与参数化
 
-> 本例解释资格证据强度，不是本轮新的真实桌面验收。
-
 ## 固定对象
 
 资格开始前固定：
@@ -63,3 +61,9 @@ caller input
 ## 5. 中间数据链仍要验
 
 最终 660 正确并不足够。若合同要求第二式使用本次 firstResult，则资格应有证据确认 production Candidate 真正消费 runtime value；硬编码 110 的候选即使最终结果相同也不应通过对应 criterion。
+
+---
+
+## 使用边界
+
+本例用于解释资格证据强度，不是本轮新的真实桌面验收，也不能替代与 frozen Candidate 绑定的实际 Qualification evidence。
