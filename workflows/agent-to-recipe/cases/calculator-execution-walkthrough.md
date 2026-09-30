@@ -6,7 +6,7 @@ order: 9
 
 # Calculator 执行过程演练｜Agent 实际怎样解决这个任务
 
-从 Calculator 原始需求出发，按“当前问题 → 查看或调用什么 → 实际执行 → 得到什么事实 → 下一步”展示 Agent 的真实求解主线。逐阶段正确性检查见 [Calculator 基准案例](calculator.md)；阶段产物文件见 [Calculator 阶段产物链](calculator-artifacts.md)。
+从 Calculator 原始需求出发，按“当前问题 → 查看或调用什么 → 实际执行 → 得到什么事实 → 下一步”展示 Agent 的真实求解主线。逐阶段正确性检查见 [Calculator 基准案例](calculator.md)；阶段产物文件见 [Calculator 阶段产物链](calculator-artifacts.md)。如果入口是“人工只录第一段关键操作，再由 AI 接续”，看 [Calculator 人工关键录制 → Agent 接续黄金案例](calculator-human-agent-continuation.md)；它复用本页方法，但不把 Human 动作冒充 Agent 首次执行。
 
 ## 0. 先看“执行”和“落盘”两条线
 
