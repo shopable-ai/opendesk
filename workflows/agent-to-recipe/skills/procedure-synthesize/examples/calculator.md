@@ -1,7 +1,5 @@
 # procedure-synthesize 示例｜Calculator 的 Business Step 与数据关系
 
-> 本例只解释 S8-S9 方法，不定义通用 Calculator 规则，也不把 frozen fixture 当作新的真实执行证据。
-
 ## 输入
 
 S7 已经给出必要路径，例如：
@@ -127,3 +125,9 @@ B050 读取 finalResult 并映射到 final output。因为它没有后续计算�
 ## 输出
 
 最终 SemanticProcedure 应使下游无需看全量 Raw Trace，也能准确实现上述 Business Steps、runtime data dependency、参数边界、终点和支持范围。
+
+---
+
+## 使用边界
+
+本例只解释 S8—S9 方法，不定义通用 Calculator 规则，也不能把 frozen fixture 当作新的真实执行证据。

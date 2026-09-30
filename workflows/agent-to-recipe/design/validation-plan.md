@@ -10,10 +10,6 @@ order: 70
 
 > **凭什么证明 Agent-to-Recipe 的每一层做对了？**
 
-本文定义 **canonical 验证方法**。它不记录某一 commit 跑了多少测试、某个 checker 当前实现到哪一步，也不保存历史 PASS、某轮模型表现或专项实现日志。实际执行结果进入 `docs/quality/`、QualificationRecord 或对应 execution artifacts。
-
-完整“需要做什么”见 [task-decomposition.md](task-decomposition.md)；相邻交接怎样快速人工检查见 [acceptance-map.md](acceptance-map.md)；字段与版本约束见[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)。
-
 ## 30 秒总览
 
 必须分开证明：
@@ -501,3 +497,11 @@ segmentation、continuity、VLM proposal、merge、mutation、end detection、�
 历史失败不能被后续成功覆盖；证据缺失时降低结论，而不是保留无法复核的 PASS。
 
 历史某日期的验证切片、测试数量、checker 覆盖、Calculator 某轮结果、Collection 专项演进和 implementation milestone 不属于本 canonical 方法。需要设计考古时使用 Git history；需要某一版本实际状态时读取 `docs/quality/`。
+
+---
+
+## 附录｜文档边界与相关入口
+
+本文定义 **canonical 验证方法**。它不记录某一 commit 跑了多少测试、某个 checker 当前实现到哪一步，也不保存历史 PASS、某轮模型表现或专项实现日志。实际执行结果进入 `docs/quality/`、QualificationRecord 或对应 execution artifacts。
+
+完整“需要做什么”见 [task-decomposition.md](task-decomposition.md)；相邻交接怎样快速人工检查见 [acceptance-map.md](acceptance-map.md)；字段与版本约束见[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)。

@@ -10,8 +10,6 @@ order: 30
 
 > **把真实任务、人工开发目标或已有自动化资产，转成可验证、可维护的 OpenDesk 自动化成果，完整需要做什么？**
 
-状态：任务分解基线 v0.8，2026-09-27。本文沿用 S1—S12，不新增阶段，不承担专项 Runtime 设计、Skill 实现状态、质量报告或历史迁移记录。字段与版本规则以[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)为准；整体执行入口见 [WORKFLOW](../WORKFLOW.md)。
-
 ## 先看这里：30 秒理解整个任务树
 
 ```text
@@ -662,3 +660,9 @@ QualificationRecord
 | 当前 Skill/宿主/测试/业务资格状态 | [WORKFLOW](../WORKFLOW.md)、[交接审阅地图](acceptance-map.md)及 docs/quality 下对应报告 |
 
 历史 R1—R13 讨论视图、旧版本迁移说明和已纠正的实现争议不再作为当前任务树正文维护；需要设计考古时使用 Git 历史。当前唯一阶段编号是 **S1—S12**。
+
+---
+
+## 附录｜基线状态与文档边界
+
+任务分解基线：v0.8，2026-09-27。本文沿用 S1—S12，不新增阶段，不承担专项 Runtime 设计、Skill 实现状态、质量报告或历史迁移记录。字段与版本规则以[共享合同](../../../docs/frameworks/agent-to-recipe-skill-contract.md)为准；整体执行入口见 [WORKFLOW](../WORKFLOW.md)。
