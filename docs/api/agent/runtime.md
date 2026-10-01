@@ -190,7 +190,7 @@ docType: index
 维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
 
 
-- `docs/api/execution.md` SHA-256 `1af37c7a95db2d27b65215582b3ca963d5c8bf076638031c4a366f5c2e5b0efa`
+- `docs/api/execution.md` SHA-256 `a3f440853eed4d812a9bcaabcf8653c643ce0552e7d4cee0cdfbe0e262253c4f`
 
 - `types/Execution.d.ts` SHA-256 `e1776073124a1585896ead8fdc22ad7f2da61546c9923a0f90fd3378f6c735d0`
 

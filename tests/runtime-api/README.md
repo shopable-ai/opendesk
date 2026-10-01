@@ -10,6 +10,14 @@ API 事实源按优先级为：当前源码和实际 Runtime 行为、`docs/api/
 
 ## 普通示例运行与正式 gate 的边界
 
+`Execution.input` 的结构化 JSON 类型场景从仓库根目录直接运行：
+
+```bash
+./dist/opendesk ai run tests/runtime-api/execution-input.js --input-file tests/runtime-api/fixtures/execution-input.json
+```
+
+该场景不操作桌面，检查普通对象/数组、嵌套 number、字符串标识及 JSON round-trip。附加顶层场景用同一命令将 `--input-file …` 替换为 `--input 'null'`、`--input '232'`、`--input '"0011"'`、`--input '[232,1.25,true,null,"0011"]'` 或 `--input 'false'`。证据由 AI CLI 写入仓库根的 `.runtime/ai/<executionId>/`；类型检查不证明桌面任务或 Recipe 资格。
+
 公开 Dialog 示例的普通体验从仓库根目录只运行一条命令，例如：
 
 ```bash

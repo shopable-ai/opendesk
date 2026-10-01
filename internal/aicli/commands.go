@@ -1432,6 +1432,10 @@ func readRunInput(inline, inputFile string, stdin bool) (any, *Error) {
 		}
 		return nil, &Error{Code: "invalid_json", Message: err.Error()}
 	}
+	if input == nil {
+		// Explicit JSON null differs from an execution with no supplied input.
+		return json.RawMessage("null"), nil
+	}
 	return input, nil
 }
 

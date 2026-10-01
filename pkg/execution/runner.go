@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"opendesk/automation"
@@ -878,10 +879,14 @@ func registerExecutionContext(rt *goja.Runtime, req Request) error {
 		scriptPath = req.ScriptPath
 		scriptDir = filepath.Dir(req.ScriptPath)
 	}
+	input, err := executionInput(rt, req.Input)
+	if err != nil {
+		return fmt.Errorf("register Execution.input: %w", err)
+	}
 	fields := map[string]any{
 		"id":               req.ExecutionID,
 		"executionId":      req.ExecutionID,
-		"input":            executionInput(req.Input),
+		"input":            input,
 		"workdir":          executionWorkDir(req.WorkDir),
 		"env":              environment,
 		"stack":            normalizeStackModeForContext(req.StackMode),
@@ -1023,11 +1028,22 @@ func freezeExecutionObject(rt *goja.Runtime, object *goja.Object, label string) 
 	return nil
 }
 
-func executionInput(input any) any {
+func executionInput(rt *goja.Runtime, input any) (goja.Value, error) {
 	if input == nil {
-		return map[string]any{}
+		return rt.NewObject(), nil
 	}
-	return input
+	// Convert at the JSON boundary rather than exposing Go reflection wrappers.
+	// CLI decoding uses json.Number; ToValue would expose it as an object whose
+	// JSON serialization is a string, breaking normal JavaScript type checks.
+	encoded, err := json.Marshal(input)
+	if err != nil {
+		return nil, fmt.Errorf("input must be JSON-compatible: %w", err)
+	}
+	parse, ok := goja.AssertFunction(rt.Get("JSON").ToObject(rt).Get("parse"))
+	if !ok {
+		return nil, fmt.Errorf("JSON.parse is unavailable")
+	}
+	return parse(goja.Undefined(), rt.ToValue(string(encoded)))
 }
 
 func executionWorkDir(workDir string) string {

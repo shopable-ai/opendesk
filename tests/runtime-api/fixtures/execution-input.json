@@ -1,0 +1,10 @@
+{
+  "window": {"pid": 87465, "width": 232, "height": 321},
+  "decimal": 1.25,
+  "exponent": 1e3,
+  "negativeZero": -0,
+  "safeInteger": 9007199254740991,
+  "identity": "0011",
+  "largeIdentity": "9007199254740993",
+  "items": [232, 1.25, true, null, "0011"]
+}

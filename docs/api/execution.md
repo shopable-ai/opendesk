@@ -126,6 +126,8 @@ Execution.input: unknown;
 
 `ai run` 支持 `--input`、`--input-file`、`--input-stdin`，三者互斥。Runtime 只保证 JSON 合法，业务脚本仍须验证所需形状。
 
+JSON object 和 array 进入 JavaScript 后是普通对象和数组；嵌套及顶层 number、string、boolean、null 保留对应的 JavaScript 类型。数字遵循 JavaScript `Number` 语义；需要保留前导零或超出安全整数范围的业务标识应以字符串传入。显式输入 `null` 不等于未提供输入时的默认 `{}`。
+
 **示例**
 ```js
 const input = Execution.input;
