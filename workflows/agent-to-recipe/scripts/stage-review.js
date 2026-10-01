@@ -152,7 +152,7 @@ function workflowPresentation(report, snapshots, readSnapshot, prefix = '') {
   requireCheck(typeof prefix === 'string' && /^(?:[A-Za-z0-9_.-]+\/)*$/.test(prefix)
     && !prefix.split('/').includes('..'), 'INVALID_VIEW_PREFIX', 'Use a safe relative snapshot prefix.');
   const sources = new Map();
-  const outputs = new Set(Object.values(report.stages || {}).flatMap(stage => list(stage?.outputs)).map(refKey));
+  const outputs = new Set(Object.values(report.stages || {}).flatMap(stage => [...list(stage?.inputs), ...list(stage?.outputs)]).map(refKey));
   for (const entry of list(snapshots)) {
     if (!object(entry) || !object(entry.ref)) continue;
     const source = { ...entry, href: null, document: null };
@@ -173,7 +173,7 @@ function workflowPresentation(report, snapshots, readSnapshot, prefix = '') {
     }
     sources.set(refKey(entry.ref), source);
   }
-  return { sources, indexHref: prefix + 'snapshot-index.md', checkerHref: prefix + 'checker-result.json' };
+  return { sources, snapshots, snapshotPrefix: prefix, indexHref: prefix + 'snapshot-index.md', checkerHref: prefix + 'checker-result.json' };
 }
 
 function workflowRef(ref, view) {
@@ -236,147 +236,171 @@ function artifactExcerpt(ref, document) {
   return rows;
 }
 
+const stageFile = stage => 'S' + String(Number(stage.slice(1))).padStart(2, '0');
+const reviewedStages = report => Object.keys(STAGE_WORK).filter(stage => report.stages[stage]
+  && report.stages[stage].verdict !== 'not-run');
+const statusText = status => ({ pass: '通过', fail: '失败', blocked: '受阻', 'not-run': '未检查' })[status] || status;
+function ownerText(report) {
+  if (!report.failureOwner) return report.allowed ? '未记录失败' : 'UNKNOWN';
+  return report.failureOwner.status === 'ESTABLISHED'
+    ? report.failureOwner.stage + '（仅固定输出修复责任）' : 'UNKNOWN';
+}
+function firstBusinessProblem(report, stage) {
+  const item = report.stages[stage] || {};
+  const finding = list(item.findings).find(value => value.blocking);
+  const mismatch = list(item.businessReview?.assertions).find(value => value.status !== 'PASS');
+  const symptom = list(item.businessReview?.context).find(value => value.role === 'symptom' && value.selection?.available);
+  if (mismatch) return (symptom ? showSelection(symptom.selection) + '。' : '') + mismatch.requirement.replace(/[。；：]+$/, '') + '；Actual：' + showSelection(mismatch.actual);
+  if (finding) return finding.reason;
+  if (list(item.hardFails).length) return compact(item.hardFails[0], 500);
+  if (list(item.blockingUnknowns).length) return compact(item.blockingUnknowns[0], 500);
+  return list(report.errors).find(error => error.stage === stage
+    && !['UPSTREAM_NOT_PASS', 'STAGE_NOT_PASS'].includes(error.code))?.message || '没有足够的业务正文说明；不能补造原因。';
+}
+function showSelection(selection) {
+  if (!selection?.available) return selection?.reason || '未产出／未取得足够的同版内容。';
+  if (Array.isArray(selection.value)) return selection.value.length
+    ? selection.value.map(value => compact(value, 400)).join('；') : '空列表（没有条目）';
+  if (selection.value === null) return 'null（未给出业务值）';
+  if (selection.value === true) return '成立（true）';
+  if (selection.value === false) return '不成立（false）';
+  return compact(selection.value, 1200);
+}
 function renderWorkflowReview(report, view = {}) {
   requireCheck(object(report) && object(report.stages), 'INVALID_WORKFLOW_REVIEW',
     'Workflow review renderer requires a check-workflow-stage report.');
-  const stages = Object.keys(STAGE_WORK);
-  const passed = stages.filter(stage => report.stages[stage]?.verdict === 'pass');
-  const pending = stages.filter(stage => report.stages[stage]?.verdict !== 'pass');
-  const finalPassed = report.allowed === true && report.from === 'S12' && report.to === 'S12'
-    && report.final?.verdict === 'pass' && passed.length === 12;
-  const invalid = report.firstInvalidBoundary || '—';
-  const owner = report.failureOwner ? report.failureOwner.stage + ' / ' + report.failureOwner.skill
-    : report.firstInvalidBoundary || !report.allowed ? '尚未确定责任' : '本次检查未记录失败责任';
-  const lastConfirmed = list(report.preservedUpstream).at(-1) || '—';
-  const lines = ['# 自动化脚本工作流｜阶段审阅', '',
-    '**' + (finalPassed ? '最终阶段门禁：通过。支持范围与真实运行证据见 S12。'
-      : '整条流程验收：尚未完成。') + '**', '',
-    '本次检查 ' + cell((report.from || '—') + ' → ' + (report.to || '—')) + '：**'
-      + cell(report.allowed ? 'PASS' : 'FAIL') + '**。'
-      + (report.allowed && !finalPassed ? '该 PASS 只放行本次阶段边界。' : ''), '',
-    '已通过阶段：' + cell(passed.join('、') || '无') + '。'
-      + (pending.length ? '尚未通过阶段：' + cell(pending.join('、')) + '。' : ''), '',
-    '本页由 check-workflow-stage.js 的固定结果生成；正文摘录仅使用同版产物。'
-      + '未纳入本次检查的执行或修复历史须从案例入口另行审阅。', '',
-    '阅读顺序：先看阶段的业务问题、输入来源和实际成果正文，再核对独立判断、'
-      + '错误与评分。文件存在或高分都不能替代业务证据。', '',
-    '维护工作流本身不授予生产、Runtime 或桌面执行权限；原始用户指令、工作包授权'
-      + '和当前暂停要求须分别核对。已获准但已停止的后续验证保持未运行，'
-      + '静态源码修改保持未执行验证。', '',
-    '## 现在该从哪里检查', '',
-    '| 问题 | 本次记录 |', '| --- | --- |',
-    '| 首个无效边界 | **' + cell(invalid) + '** |',
-    '| Failure Owner（修复责任） | ' + cell(owner) + ' |',
-    '| 最后确认正确阶段 | ' + cell(lastConfirmed) + ' |',
-    '| 可保留上游 | ' + cell(list(report.preservedUpstream).join('、') || '—') + ' |',
-    '| 失效／阻塞下游 | ' + cell(list(report.invalidatedDownstream).join('、') || '—') + ' |',
-    '| 下一最小动作 | ' + cell(report.nextMinimumAction || '未记录；需补充接续依据。') + ' |'];
-  if (report.missedCheckOwner) lines.push('| Missed-check Owner | '
-    + cell(report.missedCheckOwner.stage + ' / ' + report.missedCheckOwner.skill + ': '
-      + (report.missedCheckOwner.reason || '')) + ' |');
-  if (view.indexHref && view.checkerHref) lines.push('',
-    '[本次固定文件与完整引用](' + view.indexHref + ') · [机器原始结论](' + view.checkerHref + ')');
-  const unavailable = [...(view.sources?.values() || [])].filter(source => source.status !== 'retained');
-  if (unavailable.length) lines.push('', '**本视图有 ' + unavailable.length
-    + ' 项同版文件或正文不可用。** 查看固定索引；机器历史 PASS 不能替代当前可访问的证据。');
-  lines.push('', 'Node 维护工具只检查文件、版本与阶段交接；OpenDesk Runtime 的真实动作、'
-    + '读值及独立验收须分别有对应 Execution 证据。');
-  lines.push('', '## S1—S12 总览', '',
-    '| 阶段与工作 | 当前验收 | 实际交付 |', '| --- | --- | --- |');
-  for (const stage of stages) {
-    const item = report.stages[stage] || {};
-    const verdict = item.verdict || 'not-run';
-    const state = { pass: '通过', fail: '失败', blocked: '受阻', 'not-run': '尚未纳入本次验收' }[verdict] || verdict;
-    lines.push('| ' + cell(stage + ' ' + STAGE_WORK[stage][0]) + ' | ' + cell(state + '（' + verdict + '）')
-      + ' | ' + (list(item.outputs).slice(0, 2).map(ref => workflowRef(ref, view)).join('；') || '尚无本次验收产物') + ' |');
+  const stage = report.diagnosisStage || report.firstInvalidBoundary;
+  const checked = reviewedStages(report);
+  const last = list(report.preservedUpstream).at(-1) || '未确认';
+  const lines = ['# 自动化脚本工作流｜诊断入口', '',
+    '材料性质：' + cell(report.sourceNature || '固定记录；未统一声明') + '。', '',
+    '**整条业务流程：本报告不单独证明完成。** 当前机器检查：' + cell(report.allowed ? 'PASS（仅本次范围）' : 'FAIL') + '。', '',
+    '**Failure Owner: ' + cell(ownerText(report)) + '**', '',
+    '| 先回答的问题 | 本次结论 |', '| --- | --- |',
+    '| 当前检查范围 | ' + cell(report.from + ' → ' + report.to) + '；已检查 ' + checked.length + ' 个阶段 |',
+    '| 首个不能继续信任的边界 | ' + cell(report.firstInvalidBoundary || '尚未定位／没有已知阶段失败') + ' |',
+    '| 失败症状发现阶段 | ' + cell(report.failureDiscoveryStage || '未确定／没有已知症状') + ' |',
+    '| 最后确认通过的阶段 | ' + cell(last) + '（仅同版记录的检查通过，不保证现场根因已排除） |',
+    '| 可保留上游 | ' + cell(list(report.preservedUpstream).join('、') || '无已确认项') + ' |',
+    '| 失效／阻塞范围 | ' + cell(list(report.invalidatedDownstream).join('、') || '无已定位范围；未检查不等于可用') + ' |',
+    '| 下一最小动作 | ' + cell(report.nextMinimumAction) + ' |', '',
+    '**当前首个问题：** ' + cell(stage ? firstBusinessProblem(report, stage)
+      : report.allowed ? '本次检查没有报告失败；未检查阶段不作结论。'
+        : list(report.errors)[0]?.message || '检查输入不完整，不能推断业务责任。'), ''];
+  if (stage && checked.includes(stage)) lines.push(view.bundle
+    ? '**只需继续打开：[' + stage + ' 单阶段诊断](stage-review/' + stageFile(stage) + '.md)。**'
+    : '单阶段诊断需要同次报告包；使用 checker 的 --review-dir 输出，不能以此摘要代替详情。', '');
+  lines.push('## 阶段导航', '', '| 阶段 | 状态 | 单阶段入口 |', '| --- | --- | --- |');
+  for (const current of Object.keys(STAGE_WORK)) {
+    const item = report.stages[current] || { verdict: 'not-run' };
+    const link = checked.includes(current) && view.bundle ? '[打开](stage-review/' + stageFile(current) + '.md)'
+      : checked.includes(current) ? '需同次报告包' : '未生成（未检查）';
+    lines.push('| ' + current + ' ' + STAGE_WORK[current][0] + ' | ' + cell(statusText(item.verdict)) + ' | ' + link + ' |');
   }
-  for (const stage of stages) {
-    const item = report.stages[stage] || {};
-    const stageErrors = list(report.errors).filter(error => error?.stage === stage);
-    lines.push('', '## ' + stage + '｜' + STAGE_WORK[stage][0], '', STAGE_WORK[stage][1], '');
-    if ((item.verdict || 'not-run') === 'not-run') {
-      lines.push('本次记录为 **not-run**，尚未纳入阶段验收；不能据此否认其他保留的真实执行，也不能写成 PASS。');
-      continue;
+  lines.push('', '只读顺序：本页 → 一个失败阶段 → 必要时一个固定产物。不得把旧尝试的 PASS 拼接为当前运行成功。', '',
+    '本工具不执行桌面或 Candidate；文件检查 PASS 不等于 Runtime 或业务 Qualification PASS。');
+  if (view.bundle) lines.push('', '[同次机器结论](checker-result.json) · [同次固定文件索引](snapshot-index.json)');
+  return lines.join('\n') + '\n';
+}
+
+function renderWorkflowStage(report, stage, view = {}) {
+  requireCheck(reviewedStages(report).includes(stage), 'UNREVIEWED_STAGE', 'Do not generate invented not-run details.');
+  const item = report.stages[stage];
+  const business = item.businessReview || {};
+  const assertions = list(business.assertions);
+  const first = assertions.find(value => value.status !== 'PASS');
+  const context = list(business.context);
+  const lines = ['# ' + stage + '｜' + STAGE_WORK[stage][0], '',
+    '[返回总览](../stage-review.md)', '', '## 1. 一句话阶段结论', '',
+    '**' + cell(statusText(item.verdict)) + '**。' + cell(item.verdict === 'pass'
+      ? '同版记录的阶段检查通过；未额外证明业务执行真实性。' : firstBusinessProblem(report, stage)), '',
+    '## 2. 本阶段业务问题', '', STAGE_WORK[stage][1], '',
+    '## 3. 本阶段固定输入', '',
+    '来源：本次检查固定工件；阶段计划版本 ' + cell(item.planRevision || report.planRevision || '未记录')
+      + '，阶段 Attempt ' + cell(item.attemptId || '未记录') + '。历史示例不替代本次 Actual。', ''];
+  const inputs = assertions.filter(value => value.expected?.ref).map(value => ({
+    label: value.requirement, selection: value.expected }));
+  inputs.push(...context.filter(value => value.selection?.ref
+    && list(item.inputs).some(ref => refKey(ref) === refKey(value.selection.ref))));
+  if (!inputs.length) {
+    for (const ref of list(item.inputs)) {
+      const rows = artifactExcerpt(ref, view.sources?.get(refKey(ref))?.document);
+      for (const row of rows) lines.push(cell(row), '');
     }
-    lines.push('**责任：** ' + cell(item.owner || '未记录') + '。', '',
-      '### 开始前有什么、应交出什么', '');
-    const businessInputs = list(item.inputs).filter(ref => ref?.kind !== 'Method');
-    for (const ref of businessInputs.slice(0, 5)) lines.push('- 输入：' + workflowRef(ref, view));
-    if (!businessInputs.length) lines.push('- 未记录业务输入引用；完整输入见固定索引。');
-    if (businessInputs.length > 5) lines.push('- 另有 ' + (businessInputs.length - 5) + ' 项输入，见固定索引。');
-    lines.push('- 正式必需成果／证据：' + cell(list(item.expected?.requiredEvidenceKinds).join('、')
-      || '本报告未记录；需回到该阶段正式约束核对。'), '', '### 实际成果与业务内容', '');
-    for (const ref of list(item.outputs).slice(0, 12)) {
-      lines.push('- ' + workflowRef(ref, view));
-      const source = view?.sources?.get(refKey(ref));
-      const rows = source?.document ? artifactExcerpt(ref, source.document) : [];
-      for (const row of rows) lines.push('  - ' + cell(row));
-      if (!rows.length) lines.push('  - 本视图未取得可摘录的同版正文；需打开固定产物核对内容。');
-    }
-    if (!list(item.outputs).length) lines.push('没有本次产物引用；需按下列问题定位缺口。');
-    lines.push('', '### 为什么得到这个判断', '',
-      '**阶段判断：** ' + cell(item.verdict) + '；Gate=' + cell(item.gate?.verdict || '未记录')
-      + '；独立评分=' + cell(item.score == null ? '未评价' : item.score + ' / 100') + '。', '');
-    for (const [dimension, detail] of Object.entries(item.scoreEvidence || {})) {
-      const reasons = [...new Set(list(detail?.items).map(entry => entry?.reason).filter(Boolean))];
-      const dimensionName = { requirements: '需求覆盖', responsibility: '职责与产出',
-        continuation: '下游接续', validation: '验证依据', cost: '成本与预算' }[dimension] || dimension;
-      lines.push('- ' + cell(dimensionName) + '：' + cell(compact(reasons.join('；') || detail?.reason || '无说明', 900)));
-    }
-    if (!object(item.scoreEvidence) || !Object.keys(item.scoreEvidence).length) lines.push('未记录独立判断正文；分数不能代替依据。');
-    const exceptionalItems = Object.values(item.scoreEvidence || {}).flatMap(detail => list(detail?.items))
-      .filter(entry => entry?.score !== 5);
-    if (exceptionalItems.length) {
-      lines.push('', '未满分或尚未评价的检查项：', '');
-      for (const entry of exceptionalItems.slice(0, 20)) lines.push('- ' + cell((entry.id || '?') + ' = '
-        + (entry.score == null ? '未评价' : entry.score) + '：' + compact(entry.reason || '无说明')));
-    }
-    lines.push('', '**生产者：** ' + cell(item.producer || '未记录'), '',
-      '**独立审阅者：** ' + cell(item.reviewer || '未记录'), '',
-      '**输入充分／产出正确：** ' + cell(item.inputsSufficient ?? '未记录') + ' / '
-      + cell(item.actualOutputCorrect ?? '未记录') + '。', '',
-      '### 错误、证据缺口与接续', '');
-    const hardFails = list(item.hardFails), unknowns = list(item.blockingUnknowns);
-    lines.push('**Hard Fail：** ' + (hardFails.length ? '' : '本阶段无记录。'));
-    for (const value of hardFails.slice(0, 20)) lines.push('- ' + cell(compact(value)));
-    lines.push('', '**Blocking Unknown：** ' + (unknowns.length ? '' : '本阶段无记录。'));
-    for (const value of unknowns.slice(0, 20)) lines.push('- ' + cell(compact(value)));
-    for (const finding of list(item.findings).slice(0, 20)) {
-      lines.push('', '- ' + cell((finding.blocking ? '[blocking] ' : '') + compact(finding.reason || finding)),
-        '  - 责任：' + cell(finding.ownerStage || '未确定'),
-        '  - 依据：' + (list(finding.evidence).map(ref => workflowRef(ref, view)).join('；') || '未记录'));
-    }
-    for (const error of stageErrors.slice(0, 40)) lines.push('- **' + cell(error.code || '—') + '**：' + cell(compact(error.message || '')));
-    const next = stage === report.firstInvalidBoundary ? report.nextMinimumAction
-      : item.verdict === 'pass' ? '保留本阶段固定成果；上游版本改变时重验受影响下游。'
-        : item.verdict === 'blocked' ? '等待真正 failure owner 修复；不要在本阶段自行补写上游事实。'
-          : '按上述证据修复对应责任，再重验受影响部分。';
-    lines.push('', '**怎样继续：** ' + cell(next || '未记录下一动作。'), '',
-      '### 必需测试与固定证据', '', '| 必需测试 | 状态 |', '| --- | --- |');
-    for (const test of list(item.requiredTests).slice(0, 40)) lines.push('| ' + cell(test.name || '—') + ' | ' + cell(test.status || '—') + ' |');
-    if (!list(item.requiredTests).length) lines.push('| 未记录 | 未验证 |');
-    lines.push('');
-    const evidence = list(item.evidence);
-    for (const ref of evidence.slice(0, 8)) lines.push('- ' + workflowRef(ref, view));
-    if (evidence.length > 8) lines.push('- 另有 ' + (evidence.length - 8) + ' 条，见本次固定文件索引。');
-    lines.push('', '评分明细：' + cell(Object.entries(item.scoreDimensions || {})
-      .map(([key, value]) => key + '=' + (value == null ? '未评价' : value)).join('；') || '未记录') + '。');
+    if (lines.at(-2)?.startsWith('来源：')) lines.push('本记录没有足够的业务输入摘录；不得从路径或评分推断内容正确。', '');
   }
-  const unscoped = list(report.errors).filter(error => !error?.stage);
-  if (unscoped.length) {
-    lines.push('', '## 全局检查错误', '');
-    for (const error of unscoped.slice(0, 40)) lines.push('- **' + cell(error.code || '—') + '**：' + cell(compact(error.message || '')));
+  for (const input of inputs) lines.push('**' + cell(input.label) + '：** ' + cell(showSelection(input.selection)),
+    '来源：' + cell((input.selection.ref?.kind || '固定要求') + ' · ' + (input.selection.ref?.path?.split('/').at(-1) || '验收内容')) + '。事实性质：' + cell(input.selection.nature || '未取得同版正文') + '。', '');
+  lines.push('## 4. 必须成立的关键断言', '');
+  for (const assertion of assertions) lines.push('**' + cell(assertion.id) + '：** ' + cell(assertion.requirement), '');
+  if (!assertions.length) lines.push('UNKNOWN：旧验收没有记录可直接比较的业务断言；保留原检查结论，但不把必需测试名称或评分当成业务正文。', '');
+  lines.push('## 5. 本次 Actual Output', '');
+  if (!list(item.outputs).length) lines.push('**未产出。** 当前阶段没有绑定输出。', '');
+  for (const assertion of assertions) lines.push('**' + cell(assertion.id) + ' Actual：** ' + cell(showSelection(assertion.actual)),
+    '事实性质：' + cell(assertion.actual?.nature || '内容缺失／未取得') + '。', '');
+  for (const entry of context.filter(value => !inputs.includes(value))) lines.push(
+    '**' + cell(entry.label) + '：** ' + cell(showSelection(entry.selection)),
+    '事实性质：' + cell(entry.selection?.nature || '内容缺失／未取得') + '。', '');
+  if (!assertions.length && !context.length && list(item.outputs).length) {
+    let shown = false;
+    for (const ref of item.outputs) for (const row of artifactExcerpt(ref, view.sources?.get(refKey(ref))?.document)) {
+      shown = true; lines.push(cell(row), '');
+    }
+    if (!shown) lines.push('已绑定输出，但没有可判断业务结果的同版正文。UNKNOWN；不得以“文件存在”当成正确。', '');
   }
-  lines.push('', '## 检查身份与证明边界', '',
-    '任务：' + cell(report.taskId || '—') + '；计划：' + cell(report.planRevision || '—')
-      + '；Attempt：' + cell(report.attemptId || '—') + '。', '',
-    '原始检查记录 hash：' + cell(report.recordSha256 || '未记录') + '。', '',
-    '以下事项没有被本报告单独证明：', '');
-  for (const value of list(report.notEvaluated)) lines.push('- ' + cell(value));
-  if (!list(report.notEvaluated).length) lines.push('- 未额外声明。');
-  lines.push('', '**高分不能覆盖 Hard Fail、Blocking Unknown、缺 Actual evidence、失败 Gate 或未通过的 required test。**',
-    '', '本页不授予桌面动作权限。原始引用、全部评分条目和证据保存在机器记录与固定文件索引中。', '');
+  lines.push('## 6. Required 与 Actual 对照', '',
+    '| 关键断言 | 必须成立 | 本次 Actual | 判断 | 直接依据 |', '| --- | --- | --- | --- | --- |');
+  for (const assertion of assertions) lines.push('| ' + cell(assertion.id) + ' | '
+    + cell(showSelection(assertion.expected)) + ' | ' + cell(showSelection(assertion.actual)) + ' | '
+    + cell(assertion.status) + ' | ' + cell(assertion.reason) + ' |');
+  if (!assertions.length) lines.push('| 业务内容对照 | 需要固定业务要求与本次正文 | 尚无可比较记录 | UNKNOWN | 原机器检查不补造业务判断 |');
+  lines.push('', '## 7. 第一处具体不一致', '', '按本阶段固定断言顺序定位；不是对错误发生时间的推测。', '', first
+    ? '**' + cell(first.id) + '：** ' + cell(first.requirement) + '\n\n要求：' + cell(showSelection(first.expected))
+      + '\n\nActual：' + cell(showSelection(first.actual)) + '\n\n具体位置：' + cell(first.actual?.location || '来源未确定')
+    : item.verdict === 'pass' ? '本次固定检查没有报告不一致。业务断言缺失时仍不能证明业务正确。'
+      : cell(firstBusinessProblem(report, stage)), '',
+    '## 8. 责任与接续', '',
+    '发现阶段：' + cell(report.failureDiscoveryStage || '未确定') + '；首个无效边界：'
+      + cell(report.firstInvalidBoundary || '未确定') + '。', '',
+    '**Failure Owner: ' + cell(ownerText(report)) + '**', '');
+  if (report.failureOwner?.status === 'ESTABLISHED') lines.push(
+    cell(report.failureOwner.basis.reason), '这不是 Runtime 根因、现场真实性或完整 JavaScript 语义的证明。', '');
+  else if (!report.allowed) lines.push('可能责任（尚非结论）：'
+    + cell(list(report.failureOwner?.candidates).join('、') || '尚未形成有依据的候选集合') + '。', '',
+    '取得区分性证据前，不能把发现阶段、无效边界或阶段 Skill 名称当成已证明根因。', '');
+  lines.push('可保留上游：' + cell(list(report.preservedUpstream).join('、') || '尚未确认')
+    + '；保留的是固定产物，不是宣布潜在根因已排除。', '',
+    '失效／阻塞：' + cell(list(report.invalidatedDownstream).join('、') || '未定位') + '。', '',
+    '**下一最小动作：** ' + cell(report.nextMinimumAction), '',
+    '## 9. 机器证明附录', '',
+    '阶段 score：' + cell(item.score == null ? '未评价' : item.score + ' / 100') + '；Gate：'
+      + cell(item.gate?.verdict || '未记录') + '；checker：' + cell(item.verdict) + '。', '',
+    '高分不能覆盖 Hard Fail、Blocking Unknown、缺 Actual、失败测试或证据不足。', '');
+  for (const label of ['hardFails', 'blockingUnknowns']) lines.push(label + '：' + cell(compact(item[label] || [])), '');
+  lines.push('| 必需测试 | 记录状态 |', '| --- | --- |');
+  for (const entry of list(item.requiredTests)) lines.push('| ' + cell(entry.name) + ' | ' + cell(entry.status) + ' |');
+  lines.push('', '本阶段 checker 问题：', '');
+  for (const error of list(report.errors).filter(entry => entry.stage === stage)) lines.push(
+    cell(error.code + '：' + error.message), '');
+  const refs = [...list(item.inputs), ...list(item.outputs), ...list(item.evidence),
+    ...assertions.flatMap(value => [value.expected?.ref, value.actual?.ref]).filter(Boolean)];
+  const seen = new Set();
+  for (const ref of refs) {
+    if (seen.has(refKey(ref))) continue;
+    seen.add(refKey(ref));
+    const snapshot = list(view.snapshots).find(entry => (!view.sources || view.sources.get(refKey(ref))?.href)
+      && refKey(entry.ref) === refKey(ref)
+      && entry.status === 'retained' && entry.actualSha256 === ref.sha256 && safeSnapshot(entry.snapshot));
+    lines.push((snapshot ? '[' + cell(ref.kind + ' · ' + ref.path) + '](../' + (view.snapshotPrefix || '') + snapshot.snapshot + ')'
+      : cell(ref.kind + ' · ' + ref.path + '（同版快照不可用）')) + ' — ' + cell(ref.sha256), '');
+  }
+  lines.push('[同次完整机器结论（含全部评分明细）](../checker-result.json)', '');
   return lines.join('\n');
+}
+function renderWorkflowBundle(report, view = {}) {
+  const stages = {};
+  for (const stage of reviewedStages(report)) stages[stageFile(stage)] = renderWorkflowStage(report, stage, view);
+  return { index: renderWorkflowReview(report, { ...view, bundle: true }), stages };
 }
 
 function renderReview(report) {
@@ -430,4 +454,4 @@ function renderReview(report) {
   return lines.join('\n');
 }
 
-module.exports = { inputsFor, artifactViews, valueLineage, provenChecks, renderReview, renderWorkflowReview, workflowPresentation };
+module.exports = { inputsFor, artifactViews, valueLineage, provenChecks, renderReview, renderWorkflowReview, renderWorkflowStage, renderWorkflowBundle, workflowPresentation };

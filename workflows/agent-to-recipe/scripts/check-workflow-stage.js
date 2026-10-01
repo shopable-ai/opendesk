@@ -10,7 +10,9 @@ const {
 } = require('./artifact-validation.js');
 const { isDeepStrictEqual } = require('node:util');
 const path = require('node:path');
-const { renderWorkflowReview } = require('./stage-review.js');
+const { renderWorkflowReview, renderWorkflowBundle, workflowPresentation } = require('./stage-review.js');
+const fs = require('node:fs');
+const retainedChecks = new WeakMap();
 const CONSUMER_VERIFIER = path.resolve(__dirname, '../../../tests/workflows/tools/calculator-consumer-dataflow.cjs');
 
 const STAGES = Object.freeze(Array.from({ length: 12 }, (_, i) => 'S' + (i + 1)));
@@ -49,6 +51,8 @@ function checkWorkflowStage(options = {}) {
   const errors = [];
   const stages = Object.fromEntries(STAGES.map(stage => [stage, { verdict: 'not-run', score: null, owner: OWNERS[stage] }]));
   const budget = { bytes: 0 };
+  const retained = new Map();
+  budget.retained = retained;
   const execution = { verifyConsumer: options.verifyConsumer, calls: 0 };
   let record, roots, acceptance, routing, recordSha256 = null;
   let requiredStages = [];
@@ -149,10 +153,10 @@ function checkWorkflowStage(options = {}) {
         // A downstream discovery cannot repair upstream meaning in place. It
         // invalidates the named original owner and all consumers of its output.
         for (const finding of reviewed.findings || []) if (finding?.blocking
-          && STAGES.includes(finding.ownerStage)
-          && STAGES.indexOf(finding.ownerStage) <= index) {
-          stages[finding.ownerStage].verdict = 'fail';
-          for (let at = STAGES.indexOf(finding.ownerStage) + 1; at <= index; at += 1) {
+          && STAGES.includes(finding.firstInvalidBoundary)
+          && STAGES.indexOf(finding.firstInvalidBoundary) <= index) {
+          stages[finding.firstInvalidBoundary].verdict = 'fail';
+          for (let at = STAGES.indexOf(finding.firstInvalidBoundary) + 1; at <= index; at += 1) {
             stages[STAGES[at]].verdict = 'blocked';
           }
         }
@@ -176,36 +180,46 @@ function checkWorkflowStage(options = {}) {
       final = { verdict: 'fail' };
     }
     if (errors.length > beforeFinal) {
-    const findings = record.final?.findings || [];
+      const findings = record.final?.findings || [];
       if (Array.isArray(findings)) for (const finding of findings) if (finding?.blocking) {
-        const ownerIndex = STAGES.indexOf(finding.ownerStage);
-        if (ownerIndex < 0 || !text(finding.reason) || !Array.isArray(finding.evidence)
-          || !finding.evidence.length) {
-          fail('S12', 'FINAL_FAILURE_OWNER', 'Blocking final finding requires owner, reason and bound evidence.');
-          continue;
-        }
-        const bound = finding.evidence.map(ref => verifyRef(ref, roots, budget, 'S12', fail));
-        if (!bound.every(Boolean)) continue;
-        stages[finding.ownerStage].verdict = 'fail';
-        for (let at = ownerIndex + 1; at <= 11; at += 1) stages[STAGES[at]].verdict = 'blocked';
+        const normalized = bindFinding(finding, 'S12', record, roots, budget,
+          (code, message) => fail('S12', code, message));
+        if (!normalized) continue;
+        stages.S12.findings = [...(stages.S12.findings || []), normalized];
+        const boundaryIndex = STAGES.indexOf(normalized.firstInvalidBoundary);
+        stages[normalized.firstInvalidBoundary].verdict = 'fail';
+        for (let at = boundaryIndex + 1; at <= 11; at += 1) stages[STAGES[at]].verdict = 'blocked';
       }
       if (stages.S12.verdict === 'pass') stages.S12.verdict = 'fail';
     }
     if (STAGES.some(stage => stages[stage].verdict !== 'pass')) fail(null, 'INCOMPLETE_STAGES', 'Final completion requires S1..S12 independent PASS.');
   }
-  const firstError = errors.find(item => item.stage && STAGES.includes(item.stage));
+  const firstError = errors.find(item => item.stage && STAGES.includes(item.stage)
+    && !['UPSTREAM_NOT_PASS', 'STAGE_NOT_PASS'].includes(item.code));
   const firstInvalidBoundary = STAGES.find(stage => stages[stage].verdict === 'fail' || stages[stage].verdict === 'blocked')
     || (record && Array.isArray(record.stages) && text(record.taskId) && text(record.attemptId)
       ? errors.find(item => item.code === 'STAGE_NOT_PASS')?.stage
         || (firstError && stages[firstError.stage]?.verdict !== 'pass' ? firstError.stage : null) : null);
   const firstIndex = STAGES.indexOf(firstInvalidBoundary);
-  const ownerStage = record?.failureOwnerStage;
-  if (ownerStage !== undefined && (STAGES.indexOf(ownerStage) < 0 || STAGES.indexOf(ownerStage) > firstIndex)) {
-    fail(ownerStage, 'INVALID_FAILURE_OWNER', 'A reported discovery stage cannot substitute for the first actual owner.');
-  }
-  // A downstream discovery can name an earlier owner only when the review of
-  // that owner is invalidated and subsequently reassessed; no silent override.
-  const failureOwner = firstInvalidBoundary ? { stage: firstInvalidBoundary, skill: OWNERS[firstInvalidBoundary] } : null;
+  // Attribution is not an alias for the first failed boundary. Old ownerStage
+  // declarations remain hypotheses unless the SAME checker has a discriminating
+  // input/output comparison. This proves repair responsibility, not a live cause.
+  const selectedFinding = STAGES.flatMap(stage => (stages[stage].findings || []))
+    .find(finding => finding.firstInvalidBoundary === firstInvalidBoundary);
+  const failureDiscoveryStage = selectedFinding?.discoveryStage || firstError?.stage || null;
+  const mismatch = stages[firstInvalidBoundary]?.businessReview?.assertions
+    ?.find(item => item.status === 'FAIL' && item.ownerProof);
+  const otherBlockingIssues = errors.filter(error => error.stage === firstInvalidBoundary
+    && !['BUSINESS_MISMATCH', 'STAGE_NOT_PASS'].includes(error.code));
+  const failureOwner = firstInvalidBoundary ? mismatch && !selectedFinding && !otherBlockingIssues.length
+    ? { status: 'ESTABLISHED', stage: firstInvalidBoundary, skill: OWNERS[firstInvalidBoundary],
+      basis: mismatch.ownerProof, scope: 'fixed-output repair responsibility; not a witnessed runtime root cause' }
+    : { status: 'UNKNOWN', stage: null, skill: null,
+      candidates: [...new Set([record?.failureOwnerStage, ...(selectedFinding?.candidateOwners || []),
+        ...(stages[firstInvalidBoundary]?.businessReview?.candidateOwners || [])].filter(text))],
+      reason: 'No independently discriminating input/output evidence establishes the failure owner.' }
+    : errors.length ? { status: 'UNKNOWN', stage: null, skill: null, candidates: [],
+      reason: 'The check itself is incomplete; no stage owner can be attributed.' } : null;
   let missedCheckOwner = null;
   if (record?.missedCheckOwner !== undefined) {
     const missed = record.missedCheckOwner;
@@ -213,7 +227,7 @@ function checkWorkflowStage(options = {}) {
       || !Array.isArray(missed.evidenceRefs) || !missed.evidenceRefs.length || !firstInvalidBoundary) {
       fail(null, 'MISSED_CHECK_OWNER', 'A missed-check attribution needs an actual failure, stage, reason and evidence.');
     } else if (missed.evidenceRefs.every(ref => verifyRef(ref, roots, budget, missed.stage, fail))) {
-      missedCheckOwner = { ...missed, skill: OWNERS[missed.stage] };
+      missedCheckOwner = { ...missed, status: 'UNCONFIRMED_DECLARATION', skill: OWNERS[missed.stage] };
     }
   }
   const preservedUpstream = firstIndex < 0 ? STAGES.filter(stage => stages[stage].verdict === 'pass')
@@ -222,22 +236,208 @@ function checkWorkflowStage(options = {}) {
     ? [] : STAGES.slice(firstIndex);
   const lastConfirmedCorrectArtifact = preservedUpstream.length
     ? stages[preservedUpstream[preservedUpstream.length - 1]].outputs || [] : [];
-  return { tool: 'agent-to-recipe-workflow-stage/v1', verdict: errors.length ? 'fail' : 'pass',
+  const report = { tool: 'agent-to-recipe-workflow-stage/v1', verdict: errors.length ? 'fail' : 'pass',
     allowed: errors.length === 0, recordSha256, taskId: record?.taskId || null, attemptId: record?.attemptId || null,
     planRevision: record?.planRevision || null, workPackageId: record?.workPackageId || null,
     from: options.from, to: options.to, stages, final,
-    lastConfirmedCorrectArtifact, firstInvalidBoundary, failureOwner, missedCheckOwner,
+    lastConfirmedCorrectArtifact, firstInvalidBoundary, failureDiscoveryStage, failureOwner, missedCheckOwner,
+    diagnosisStage: selectedFinding?.discoveryStage || firstInvalidBoundary,
+    evidenceNature: 'bound records only; this check does not witness desktop execution',
+    sourceNature: text(record?.sourceNature) ? record.sourceNature.slice(0, 250) : '固定记录；原始事实性质未统一声明',
     preservedUpstream, invalidatedDownstream,
     nextMinimumAction: firstInvalidBoundary && stages[firstInvalidBoundary]?.verdict === 'not-run'
-      ? 'Execute ' + firstInvalidBoundary + ' with its frozen inputs and independent acceptance.'
-      : firstInvalidBoundary ? 'Repair ' + firstInvalidBoundary + ' using new evidence or a documented correction, then revalidate its dependent stages.'
-      : toIndex >= 0 && toIndex < 12 ? 'Enter ' + options.to + ' with the current passed prefix.' : 'No invalid stage found.',
+      ? '补齐 ' + firstInvalidBoundary + ' 的正式输入与独立审阅；任何业务执行仍需另行授权。'
+      : firstInvalidBoundary ? (failureOwner?.status === 'ESTABLISHED'
+        ? stages[firstInvalidBoundary]?.businessReview?.nextRepair
+          || '只修正已证明不一致的 ' + firstInvalidBoundary + ' 输出；保持固定要求，重验受影响下游。'
+        : selectedFinding?.nextEvidence || stages[firstInvalidBoundary]?.businessReview?.nextEvidence
+          || '先对照失败位置的固定输入、实际输出与原始回执，补充能区分责任的证据；归属前不修改上游事实，不自动重跑。')
+      : errors.length ? '先修复检查输入或引用读取问题；尚不能确认任何业务阶段或修复责任。'
+      : options.final ? '本次机器检查已结束；真实执行与业务 Qualification 必须依赖独立证据。'
+        : '本次边界可放行至 ' + options.to + '；这不是业务执行授权或整条流程完成。',
     consumerVerificationCalls: execution.calls,
     errors, notEvaluated: ['truth of claimed historical execution or desktop observation',
       'source execution authorization beyond the trusted host callback (never derived from review fields)',
       'whether acceptance was frozen before execution without independent registration evidence',
       'unrecorded producer access to reference/future answers', 'independence of human or model scoring',
       'business correctness of content merely because it has a hash'], desktopActionsAuthorized: false };
+  retainedChecks.set(report, { retained, resultHash: hash(Buffer.from(JSON.stringify(report))) });
+  return report;
+}
+
+// Diagnostic extensions live in this checker, not in a second evaluator. They
+// compare fixed artifact content and retain existing scoring and required tests.
+function bindFinding(finding, discoveryStage, record, roots, budget, problem) {
+  const boundary = finding.firstInvalidBoundary || discoveryStage;
+  if (!STAGES.includes(boundary) || STAGES.indexOf(boundary) > STAGES.indexOf(discoveryStage)
+    || !text(finding.reason) || !Array.isArray(finding.evidence) || !finding.evidence.length) {
+    problem('FINDING_BINDING', 'A blocking finding requires a valid trust boundary, reason and fixed evidence.');
+    return null;
+  }
+  const refs = record.stages?.find(item => item.stage === boundary)?.outputs || [];
+  if (boundary !== discoveryStage && !finding.evidence.some(ref => refs.some(output => identity(ref) === identity(output)))) {
+    problem('FINDING_BOUNDARY_EVIDENCE', 'Invalidating an earlier boundary must bind that exact output, not merely name an owner.');
+    return null;
+  }
+  if (!finding.evidence.map(ref => verifyRef(ref, roots, budget, discoveryStage,
+    (_stage, code, message) => problem(code, message))).every(Boolean)) return null;
+  return { blocking: true, discoveryStage, firstInvalidBoundary: boundary,
+    ownerStage: 'UNKNOWN', reason: finding.reason, evidence: finding.evidence,
+    candidateOwners: [...new Set([finding.ownerStage, ...(Array.isArray(finding.candidateOwners)
+      ? finding.candidateOwners : [])].filter(value => text(value) && value !== 'UNKNOWN'))],
+    nextEvidence: text(finding.nextEvidence) ? finding.nextEvidence : null };
+}
+
+function selectBusinessValue(selector, review, roots, budget, problem) {
+  if (!object(selector) || !['inputs', 'outputs', 'evidence'].includes(selector.collection)
+    || !text(selector.kind)) return { available: false, reason: '未定义有效的固定来源。' };
+  const refs = (Array.isArray(review[selector.collection]) ? review[selector.collection] : [])
+    .filter(ref => ref.kind === selector.kind && (!selector.path || ref.path === selector.path));
+  if (refs.length !== 1) return { available: false,
+    reason: refs.length ? '来源不唯一，不能替维护者选择。' : '未产出或没有绑定此来源。' };
+  const ref = refs[0];
+  const bytes = readRef(ref, roots, budget, review.stage,
+    (_stage, code, message) => problem(code, message));
+  if (!bytes) return { available: false, ref, reason: '固定文件缺失、版本不匹配或不可读取。' };
+  try {
+    if (Array.isArray(selector.lines)) {
+      const [start, end] = selector.lines;
+      requireCheck(selector.lines.length === 2 && Number.isInteger(start) && Number.isInteger(end)
+        && start >= 1 && end >= start && end - start < 30, 'BUSINESS_SELECTOR', 'Use at most 30 explicit source lines.');
+      const lines = bytes.toString('utf8').split('\n');
+      requireCheck(end <= lines.length, 'BUSINESS_SELECTOR', 'Requested source line is absent.');
+      return { available: true, value: lines.slice(start - 1, end).join('\n'), ref,
+        location: 'lines ' + start + '–' + end, nature: '固定源码／文本摘录；未执行' };
+    }
+    requireCheck(typeof selector.pointer === 'string' && selector.pointer.length <= 1024
+      && (selector.pointer === '' || selector.pointer.startsWith('/')), 'BUSINESS_SELECTOR', 'Use a bounded JSON pointer.');
+    let value = parseJson(bytes);
+    const document = value;
+    for (const part of selector.pointer.split('/').slice(1)) {
+      requireCheck(!/~(?:[^01]|$)/.test(part), 'BUSINESS_SELECTOR', 'Invalid JSON pointer escape.');
+      const key = part.replace(/~1/g, '/').replace(/~0/g, '~');
+      requireCheck(value !== null && typeof value === 'object' && own(value, key),
+        'BUSINESS_VALUE_ABSENT', 'The named business value is absent.');
+      value = value[key];
+    }
+    return { available: true, value, ref, location: selector.pointer || '/',
+      nature: text(document?.sourceNature) ? document.sourceNature : '固定工件记录；未由本工具现场见证' };
+  } catch (error) { return { available: false, ref, location: selector.pointer,
+    reason: error.code === 'BUSINESS_VALUE_ABSENT' ? '本次没有记录这项业务内容。' : '不能从固定来源取得该项正文。' }; }
+}
+
+function compareBusinessAssertions(review, requirements, roots, budget, problem) {
+  const definitions = requirements?.businessAssertions;
+  const diagnostics = { assertions: [], context: [], candidateOwners: [], nextEvidence: null,
+    nextRepair: null,
+    coverage: definitions === undefined ? 'LEGACY_UNSPECIFIED' : 'EXPLICIT_FROZEN_ASSERTIONS' };
+  if (definitions !== undefined) {
+    if (!Array.isArray(definitions) || !definitions.length || definitions.length > 20
+      || new Set(definitions.map(item => item?.id)).size !== definitions.length) {
+      problem('BUSINESS_ASSERTION_CONTRACT', 'Freeze a nonempty bounded, unique business assertion set.');
+      diagnostics.coverage = 'INVALID';
+    } else for (const definition of definitions) {
+      if (!object(definition) || !text(definition.id) || !text(definition.requirement)
+        || !requirements.requiredTests.includes(definition.test)
+        || !['equal', 'includes'].includes(definition.comparator)
+        || !object(definition.expected) || !object(definition.actual)
+        || own(definition.expected, 'value') === own(definition.expected, 'selector')
+        || !object(definition.actual.selector)) {
+        problem('BUSINESS_ASSERTION_CONTRACT', 'Each assertion must bind a frozen required test, requirement, expected and actual selection.');
+        diagnostics.assertions.push({ id: definition?.id || '?', requirement: '冻结断言定义不完整。',
+          status: 'UNKNOWN', expected: { available: false }, actual: { available: false } });
+        continue;
+      }
+      const expected = own(definition.expected, 'value')
+        ? { available: true, value: definition.expected.value, nature: 'S1 固定验收要求；不是本次运行时值' }
+        : selectBusinessValue(definition.expected.selector, review, roots, budget, problem);
+      const actual = selectBusinessValue(definition.actual.selector, review, roots, budget, problem);
+      const baselineValid = !own(definition, 'inputBaseline')
+        || expected.available && isDeepStrictEqual(expected.value, definition.inputBaseline);
+      let status = 'UNKNOWN';
+      if (expected.available && actual.available && baselineValid) {
+        if (definition.comparator === 'equal') status = isDeepStrictEqual(expected.value, actual.value) ? 'PASS' : 'FAIL';
+        else if (Array.isArray(expected.value) && Array.isArray(actual.value)) status = expected.value
+          .every(value => actual.value.some(item => isDeepStrictEqual(item, value))) ? 'PASS' : 'FAIL';
+      }
+      const requiredTest = review.requiredTests?.find(item => item.name === definition.test);
+      // An observed equality cannot override a failed/unknown frozen required test.
+      if (status === 'PASS' && requiredTest?.status !== 'pass') status = requiredTest?.status === 'fail' ? 'FAIL' : 'UNKNOWN';
+      const assertion = { id: definition.id, requirement: definition.requirement,
+        test: definition.test, expected, actual, status, comparator: definition.comparator,
+        reason: !baselineValid ? '上游输入尚不满足固定前提，不能据此判断本阶段输出的责任。'
+          : status === 'FAIL' ? '本次业务内容与固定要求不一致，或对应必需测试没有通过。'
+            : status === 'UNKNOWN' ? '缺少足够的同版业务内容或测试依据。' : '固定内容对照及对应必需测试均通过；不是现场真实性证明。' };
+      if (status === 'FAIL' && baselineValid && definition.attribution === 'output-preservation'
+        && definition.expected.selector?.collection === 'inputs'
+        && definition.actual.selector?.collection === 'outputs' && own(definition, 'inputBaseline')
+        && expected.available && actual.available && !isDeepStrictEqual(expected.value, actual.value)) {
+        assertion.ownerProof = { kind: 'input-output-contract-contradiction', assertionId: definition.id,
+          inputRef: expected.ref, inputLocation: expected.location,
+          outputRef: actual.ref, outputLocation: actual.location,
+          reason: '固定输入满足要求，但本阶段交出的输出没有保留该业务内容。仅确定此输出的修复责任。' };
+      }
+      diagnostics.assertions.push(assertion);
+      if (status !== 'PASS') {
+        problem(status === 'FAIL' ? 'BUSINESS_MISMATCH' : 'BUSINESS_UNKNOWN', definition.id + ': ' + definition.requirement);
+        if (!diagnostics.nextEvidence && text(definition.nextEvidence)) diagnostics.nextEvidence = definition.nextEvidence;
+        if (!diagnostics.nextRepair && text(definition.nextRepair)) diagnostics.nextRepair = definition.nextRepair;
+        if (Array.isArray(definition.candidateOwners)) diagnostics.candidateOwners.push(...definition.candidateOwners.filter(text));
+      }
+    }
+  }
+  // Optional excerpts have no verdict or authority. They select already bound
+  // sources only. Content is escaped by the renderer and is never executed.
+  for (const entry of (Array.isArray(review.humanContext) ? review.humanContext : []).slice(0, 12)) {
+    if (text(entry?.label)) diagnostics.context.push({ label: entry.label, role: entry.role === 'symptom' ? 'symptom' : 'context',
+      selection: selectBusinessValue(entry.selector, review, roots, budget, problem) });
+  }
+  return diagnostics;
+}
+
+// A bundle is a new immutable check directory. Fail if it already exists; do
+// not delete stale history, overwrite a user's root report, or re-read latest
+// artifacts after checking them. The caller may publish a navigation pointer.
+function writeWorkflowReviewBundle(report, directory) {
+  requireCheck(retainedChecks.has(report), 'UNBOUND_REVIEW', 'Render a result produced by this checker invocation.');
+  const fixed = retainedChecks.get(report);
+  requireCheck(fixed.resultHash === hash(Buffer.from(JSON.stringify(report))), 'RESULT_CHANGED',
+    'The checker result changed after evaluation; do not publish a rewritten verdict.');
+  const destination = path.resolve(directory);
+  requireCheck(!fs.existsSync(destination), 'REVIEW_EXISTS', 'Use a new check directory; existing reports are not overwritten.');
+  const parent = fs.realpathSync(path.dirname(destination));
+  requireCheck(parent === path.dirname(destination), 'REVIEW_SYMLINK', 'Use a real, existing parent directory.');
+  const temporary = fs.mkdtempSync(path.join(parent, '.stage-review-'));
+  try {
+    fs.mkdirSync(path.join(temporary, 'files'));
+    const snapshots = [];
+    const snapshotBytes = new Map();
+    for (const entry of fixed.retained.values()) {
+      const ext = path.extname(entry.ref.path).slice(1);
+      const safeExt = /^[a-zA-Z0-9]{1,12}$/.test(ext) ? ext : 'txt';
+      const name = 'files/' + String(snapshots.length + 1).padStart(4, '0') + '.' + safeExt;
+      fs.writeFileSync(path.join(temporary, name), entry.bytes, { flag: 'wx' });
+      snapshotBytes.set(name, entry.bytes);
+      snapshots.push({ ref: entry.ref, snapshot: name, status: 'retained', actualSha256: hash(entry.bytes) });
+    }
+    const view = workflowPresentation(report, snapshots, name => snapshotBytes.get(name));
+    const bundle = renderWorkflowBundle(report, view);
+    fs.mkdirSync(path.join(temporary, 'stage-review'));
+    fs.writeFileSync(path.join(temporary, 'stage-review.md'), bundle.index, { flag: 'wx' });
+    for (const [name, markdown] of Object.entries(bundle.stages)) fs.writeFileSync(path.join(temporary,
+      'stage-review', name + '.md'), markdown, { flag: 'wx' });
+    fs.writeFileSync(path.join(temporary, 'checker-result.json'), JSON.stringify(report, null, 2) + '\n', { flag: 'wx' });
+    fs.writeFileSync(path.join(temporary, 'snapshot-index.json'), JSON.stringify(snapshots, null, 2) + '\n', { flag: 'wx' });
+    // mkdir with no recursive flag provides an exclusive final-name reservation.
+    // No other report is removed if another publisher wins that name.
+    fs.mkdirSync(destination);
+    for (const name of fs.readdirSync(temporary).sort((a, b) => (a === 'stage-review.md') - (b === 'stage-review.md'))) fs.renameSync(path.join(temporary, name), path.join(destination, name));
+    fs.rmdirSync(temporary);
+    return { directory: destination, stages: Object.keys(bundle.stages) };
+  } catch (error) {
+    fs.rmSync(temporary, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 function dependencyClosure(stage, dependencies, found = new Set()) {
@@ -469,7 +669,9 @@ function evaluateReview(review, record, acceptance, roots, budget, fail, executi
         item.consumerVerification?.evaluatorRef]),
       ...(review.repair?.basisRefs || []), review.repair?.previousReviewRef,
       member?.reuseReviewRef, ...(member?.applicabilityEvidence || [])].filter(Boolean);
-    if (everyRef.some(ref => /(^|\/)examples\/agent-to-recipe\/calculator\.js$/.test(ref?.path || '')
+    if (everyRef.some(ref => /(?:^|\/)tests\/workflows\/fixtures\/stage-review-diagnostics\//.test(ref?.path || '')
+      || /(?:^|\/)workflows\/agent-to-recipe\/cases\/calculator(?:\/|[.-])/.test(ref?.path || '')
+      || /(^|\/)examples\/agent-to-recipe\/calculator\.js$/.test(ref?.path || '')
       || ['ReferenceAnswer', 'QualificationRecord'].includes(ref?.kind)
       || ['CandidateSource', 'CandidateManifest'].includes(ref?.kind) && stage !== 'S11'
       || ref?.kind === 'SemanticProcedure' && STAGES.indexOf(stage) < 8
@@ -667,19 +869,12 @@ function evaluateReview(review, record, acceptance, roots, budget, fail, executi
   }
   if (Array.isArray(review.findings)) for (const finding of review.findings) {
     if (finding?.blocking) {
-      const validOwner = STAGES.includes(finding.ownerStage)
-        && STAGES.indexOf(finding.ownerStage) <= STAGES.indexOf(stage);
-      if (!validOwner || !text(finding.reason) || !Array.isArray(finding.evidence)
-        || !finding.evidence.length) {
-        problem('FAILURE_OWNER', 'Blocking attribution requires an earlier owner, a reason and bound evidence.');
-      } else {
-        const verified = finding.evidence.map(ref => verifyRef(ref, roots, budget, stage, fail));
-        if (verified.every(Boolean)) boundFindings.push(finding);
-        else ok = false;
-      }
+      const normalized = bindFinding(finding, stage, record, roots, budget, problem);
+      if (normalized) boundFindings.push(normalized);
+      problem('BLOCKING_FINDING', 'A blocking finding cannot be hidden by a high score.');
     }
-    if (finding?.blocking) problem('BLOCKING_FINDING', 'A blocking finding cannot be hidden by a high score.');
   }
+  const businessReview = compareBusinessAssertions(review, stageRequirements, roots, budget, problem);
   const boundedScoreEvidence = object(review.scoreEvidence) ? Object.fromEntries(
     Object.entries(review.scoreEvidence).slice(0, 5).map(([dimension, detail]) => [dimension, {
       reason: text(detail?.reason) ? detail.reason : null,
@@ -690,6 +885,7 @@ function evaluateReview(review, record, acceptance, roots, budget, fail, executi
       })) : [],
     }])) : {};
   return { verdict: ok ? 'pass' : 'fail', score, owner: OWNERS[stage],
+    businessReview, attemptId: review.attemptId, planRevision: review.planRevision,
     expected: { requiredTests: stageRequirements?.requiredTests || [],
       requiredEvidenceKinds: stageRequirements?.requiredEvidenceKinds || [],
       requiredValidators: stageRequirements?.requiredValidators || [] },
@@ -707,11 +903,7 @@ function evaluateReview(review, record, acceptance, roots, budget, fail, executi
     validationReports: Array.isArray(review.validationReports) ? review.validationReports.slice(0, 40).map(item => ({
       tool: item?.tool, reportRef: item?.reportRef, consumerVerification: item?.consumerVerification,
     })) : [],
-    findings: boundFindings.slice(0, 20).map(item => ({
-      blocking: item?.blocking === true, ownerStage: item?.ownerStage,
-      reason: text(item?.reason) ? item.reason : null,
-      evidence: item.evidence,
-    })),
+    findings: boundFindings.slice(0, 20),
     gate: object(review.gate) ? { verdict: review.gate.verdict,
       evidence: Array.isArray(review.gate.evidence) ? review.gate.evidence.slice(0, 60) : [] } : null,
     disposition: review.disposition,
@@ -766,6 +958,7 @@ function readRef(ref, roots, budget, stage, fail) {
           'LIVE_EVIDENCE_CONTRADICTION', 'Required live evidence explicitly declares a lower-layer, host-only or synthetic substitute.');
       }
     }
+    if (budget.retained) budget.retained.set(identity(ref), { ref: { ...ref }, bytes: Buffer.from(bytes) });
     return bytes;
   } catch (error) {
     fail(stage, error instanceof CheckError ? error.code : 'FILE_UNREADABLE',
@@ -976,7 +1169,7 @@ function parseArgs(args) {
   for (let i = 0; i < args.length; i += 2) {
     const flag = args[i];
     if (flag === '--final') { options.final = true; i -= 1; continue; }
-    if (!['--record', '--root', '--from', '--to', '--format'].includes(flag) || !args[i + 1]) throw new Error('Unsupported or missing option: ' + flag);
+    if (!['--record', '--root', '--from', '--to', '--format', '--review-dir'].includes(flag) || !args[i + 1]) throw new Error('Unsupported or missing option: ' + flag);
     const value = args[i + 1];
     if (flag === '--root') {
       const delimiter = value.indexOf('=');
@@ -992,6 +1185,7 @@ if (require.main === module) {
   try {
     const options = parseArgs(process.argv.slice(2));
     const report = checkWorkflowStage(options);
+    if (options['review-dir']) writeWorkflowReviewBundle(report, options['review-dir']);
     process.stdout.write(options.format === 'markdown'
       ? renderWorkflowReview(report) + '\n'
       : JSON.stringify(report, null, 2) + '\n');
@@ -1002,4 +1196,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { checkWorkflowStage, STAGES, WEIGHTS };
+module.exports = { checkWorkflowStage, writeWorkflowReviewBundle, STAGES, WEIGHTS };

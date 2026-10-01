@@ -1,0 +1,192 @@
+{
+  "schemaVersion": "stage-review-maintenance-fixtures/v1",
+  "sourceNature": "合成维护 fixture；不是原始 Execution 或新的 Calculator 运行",
+  "cases": [
+    {
+      "id": "early-display-binding",
+      "stage": "S3",
+      "to": "S4",
+      "inputKind": "AppProfile",
+      "outputKind": "StageOutput",
+      "input": {
+        "resultAreaRequirement": "必须确认当前 Calculator 结果区归属后才允许继续输入。"
+      },
+      "output": {
+        "displayBindingVerified": false,
+        "error": "Wrong display binding",
+        "buttonInputs": 0,
+        "firstResult": null
+      },
+      "assertion": {
+        "id": "display-owner-before-input",
+        "requirement": "实际使用的结果区必须通过本次归属校验；未通过时不能继续按钮输入。",
+        "expected": {
+          "value": true
+        },
+        "actual": {
+          "selector": {
+            "collection": "outputs",
+            "kind": "StageOutput",
+            "pointer": "/displayBindingVerified"
+          }
+        },
+        "comparator": "equal",
+        "candidateOwners": [
+          "S2",
+          "S3",
+          "Runtime"
+        ],
+        "nextEvidence": "只核对 S3 的归属判断表达式、同次树与请求/回执，并与 S2 结果区规则及接口契约逐项对照；区分对象引用相等假设、错误目标规则和 Runtime 回传问题。证据齐全前不指定修复责任、不重跑桌面。"
+      },
+      "context": [
+        {
+          "label": "固定应用规则",
+          "selector": {
+            "collection": "inputs",
+            "kind": "AppProfile",
+            "pointer": "/resultAreaRequirement"
+          }
+        },
+        {
+          "label": "失败现象",
+          "selector": {
+            "collection": "outputs",
+            "kind": "StageOutput",
+            "pointer": "/error"
+          },
+          "role": "symptom"
+        },
+        {
+          "label": "本次 Calculator 按钮输入数",
+          "selector": {
+            "collection": "outputs",
+            "kind": "StageOutput",
+            "pointer": "/buttonInputs"
+          }
+        },
+        {
+          "label": "本次 firstResult",
+          "selector": {
+            "collection": "outputs",
+            "kind": "StageOutput",
+            "pointer": "/firstResult"
+          }
+        }
+      ],
+      "expectedBoundary": "S3",
+      "expectedOwner": "UNKNOWN",
+      "historicalBasis": "calculator.md 的 2.1 节保存了 Wrong display binding、按钮输入为0、未取得firstResult和owner未知；此fixture不复制原始未取得的运行文件。"
+    },
+    {
+      "id": "middle-lost-consumer",
+      "stage": "S7",
+      "to": "S8",
+      "inputKind": "DemonstrationDossier",
+      "outputKind": "DistilledSteps",
+      "input": {
+        "firstResult": {
+          "producer": "读取第一次结果区",
+          "consumers": [
+            "第二次按钮输入：按原字符顺序消费firstResult"
+          ]
+        }
+      },
+      "output": {
+        "firstResult": {
+          "producer": "读取第一次结果区",
+          "consumers": []
+        }
+      },
+      "assertion": {
+        "id": "retain-first-result-consumer",
+        "requirement": "S7 必须保留 S6 中 firstResult 的生产者与第二次按钮消费者关系，不能只留下读取动作。",
+        "expected": {
+          "selector": {
+            "collection": "inputs",
+            "kind": "DemonstrationDossier",
+            "pointer": "/firstResult/consumers"
+          }
+        },
+        "actual": {
+          "selector": {
+            "collection": "outputs",
+            "kind": "DistilledSteps",
+            "pointer": "/firstResult/consumers"
+          }
+        },
+        "inputBaseline": [
+          "第二次按钮输入：按原字符顺序消费firstResult"
+        ],
+        "comparator": "equal",
+        "attribution": "output-preservation",
+        "nextRepair": "保留同版 S6；只修正 S7 输出中丢失的 firstResult 消费者关系，重新执行该边界检查；受影响 S8 以后不能继续消费旧 S7。此结论不要求重做真实示范。",
+        "nextEvidence": "先取得并核对同版输入前提、输出正文及对应必需测试；若输入或证据缺失，不把本阶段命名为已证明修复责任。"
+      },
+      "context": [
+        {
+          "label": "上游实际声明的生产者",
+          "selector": {
+            "collection": "inputs",
+            "kind": "DemonstrationDossier",
+            "pointer": "/firstResult/producer"
+          }
+        }
+      ],
+      "expectedBoundary": "S7",
+      "expectedOwner": "S7"
+    },
+    {
+      "id": "late-literal-first-result",
+      "stage": "S11",
+      "to": "S12",
+      "inputKind": "SemanticProcedure",
+      "outputKind": "CandidateManifest",
+      "input": {
+        "firstResultSource": "本次结果显示区的runtime:firstResult"
+      },
+      "output": {
+        "firstResultSource": "固定常量110"
+      },
+      "source": "// SYNTHETIC MAINTENANCE COUNTEREXAMPLE — NEVER EXECUTED\nconst firstResult = 110;\nmodule.exports = () => String(firstResult);\n",
+      "assertion": {
+        "id": "candidate-runtime-source",
+        "requirement": "Candidate 不得把 Procedure 规定的本次运行时 firstResult 替换成固定常量110。",
+        "expected": {
+          "selector": {
+            "collection": "inputs",
+            "kind": "SemanticProcedure",
+            "pointer": "/firstResultSource"
+          }
+        },
+        "actual": {
+          "selector": {
+            "collection": "outputs",
+            "kind": "CandidateManifest",
+            "pointer": "/firstResultSource"
+          }
+        },
+        "inputBaseline": "本次结果显示区的runtime:firstResult",
+        "comparator": "equal",
+        "attribution": "output-preservation",
+        "nextRepair": "保留正确的 Procedure；修正 S11 Candidate 对 firstResult 来源的错误声明及固定源码第2行的常量赋值，再冻结新版本。随后仍需现有 exact-byte consumer 验证；本次纯文件检查不执行 Candidate、不授予 Qualification。",
+        "nextEvidence": "先取得并核对同版输入前提、输出正文及对应必需测试；若输入或证据缺失，不把本阶段命名为已证明修复责任。"
+      },
+      "context": [
+        {
+          "label": "同版候选源码第2行（静态摘录）",
+          "selector": {
+            "collection": "outputs",
+            "kind": "CandidateSource",
+            "lines": [
+              2,
+              2
+            ]
+          }
+        }
+      ],
+      "expectedBoundary": "S11",
+      "expectedOwner": "S11",
+      "limit": "对照证明当前 CandidateManifest 与输入过程矛盾，源码行供人直接核对；不声称通用JavaScript语义证明。"
+    }
+  ]
+}

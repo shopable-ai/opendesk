@@ -1,0 +1,44 @@
+# 自动化脚本工作流｜诊断入口
+
+材料性质：合成维护 fixture；不是原始 Execution 或新的 Calculator 运行。
+
+**整条业务流程：本报告不单独证明完成。** 当前机器检查：FAIL。
+
+**Failure Owner: S11（仅固定输出修复责任）**
+
+| 先回答的问题 | 本次结论 |
+| --- | --- |
+| 当前检查范围 | S11 → S12；已检查 11 个阶段 |
+| 首个不能继续信任的边界 | S11 |
+| 失败症状发现阶段 | S11 |
+| 最后确认通过的阶段 | S10（仅同版记录的检查通过，不保证现场根因已排除） |
+| 可保留上游 | S1、S2、S3、S4、S5、S6、S7、S8、S9、S10 |
+| 失效／阻塞范围 | S11、S12 |
+| 下一最小动作 | 保留正确的 Procedure；修正 S11 Candidate 对 firstResult 来源的错误声明及固定源码第2行的常量赋值，再冻结新版本。随后仍需现有 exact-byte consumer 验证；本次纯文件检查不执行 Candidate、不授予 Qualification。 |
+
+**当前首个问题：** Candidate 不得把 Procedure 规定的本次运行时 firstResult 替换成固定常量110；Actual：固定常量110
+
+**只需继续打开：[S11 单阶段诊断](stage-review/S11.md)。**
+
+## 阶段导航
+
+| 阶段 | 状态 | 单阶段入口 |
+| --- | --- | --- |
+| S1 任务与权限 | 通过 | [打开](stage-review/S01.md) |
+| S2 应用能力核验 | 通过 | [打开](stage-review/S02.md) |
+| S3 实际执行动作 | 通过 | [打开](stage-review/S03.md) |
+| S4 观察实际效果 | 通过 | [打开](stage-review/S04.md) |
+| S5 决定怎样继续 | 通过 | [打开](stage-review/S05.md) |
+| S6 示范事实收口 | 通过 | [打开](stage-review/S06.md) |
+| S7 提炼必要步骤 | 通过 | [打开](stage-review/S07.md) |
+| S8 解释业务语义 | 通过 | [打开](stage-review/S08.md) |
+| S9 形成业务过程 | 通过 | [打开](stage-review/S09.md) |
+| S10 补强应用规则 | 通过 | [打开](stage-review/S10.md) |
+| S11 生成并冻结脚本 | 失败 | [打开](stage-review/S11.md) |
+| S12 独立运行验收 | 未检查 | 未生成（未检查） |
+
+只读顺序：本页 → 一个失败阶段 → 必要时一个固定产物。不得把旧尝试的 PASS 拼接为当前运行成功。
+
+本工具不执行桌面或 Candidate；文件检查 PASS 不等于 Runtime 或业务 Qualification PASS。
+
+[同次机器结论](checker-result.json) · [同次固定文件索引](snapshot-index.json)

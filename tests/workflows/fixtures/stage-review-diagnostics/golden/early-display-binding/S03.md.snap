@@ -1,0 +1,102 @@
+# S3｜实际执行动作
+
+[返回总览](../stage-review.md)
+
+## 1. 一句话阶段结论
+
+**失败**。Wrong display binding。实际使用的结果区必须通过本次归属校验；未通过时不能继续按钮输入；Actual：不成立（false）
+
+## 2. 本阶段业务问题
+
+保存获准动作的请求、实际回执和副作用状态。
+
+## 3. 本阶段固定输入
+
+来源：本次检查固定工件；阶段计划版本 r1，阶段 Attempt a。历史示例不替代本次 Actual。
+
+**固定应用规则：** 必须确认当前 Calculator 结果区归属后才允许继续输入。
+来源：AppProfile · business-input.json。事实性质：合成维护 fixture；不是原始 Execution 或新的 Calculator 运行。
+
+## 4. 必须成立的关键断言
+
+**display-owner-before-input：** 实际使用的结果区必须通过本次归属校验；未通过时不能继续按钮输入。
+
+## 5. 本次 Actual Output
+
+**display-owner-before-input Actual：** 不成立（false）
+事实性质：合成维护 fixture；不是原始 Execution 或新的 Calculator 运行。
+
+**失败现象：** Wrong display binding
+事实性质：合成维护 fixture；不是原始 Execution 或新的 Calculator 运行。
+
+**本次 Calculator 按钮输入数：** 0
+事实性质：合成维护 fixture；不是原始 Execution 或新的 Calculator 运行。
+
+**本次 firstResult：** null（未给出业务值）
+事实性质：合成维护 fixture；不是原始 Execution 或新的 Calculator 运行。
+
+## 6. Required 与 Actual 对照
+
+| 关键断言 | 必须成立 | 本次 Actual | 判断 | 直接依据 |
+| --- | --- | --- | --- | --- |
+| display-owner-before-input | 成立（true） | 不成立（false） | FAIL | 本次业务内容与固定要求不一致，或对应必需测试没有通过。 |
+
+## 7. 第一处具体不一致
+
+按本阶段固定断言顺序定位；不是对错误发生时间的推测。
+
+**display-owner-before-input：** 实际使用的结果区必须通过本次归属校验；未通过时不能继续按钮输入。
+
+要求：成立（true）
+
+Actual：不成立（false）
+
+具体位置：/displayBindingVerified
+
+## 8. 责任与接续
+
+发现阶段：S3；首个无效边界：S3。
+
+**Failure Owner: UNKNOWN**
+
+可能责任（尚非结论）：S2、S3、Runtime。
+
+取得区分性证据前，不能把发现阶段、无效边界或阶段 Skill 名称当成已证明根因。
+
+可保留上游：S1、S2；保留的是固定产物，不是宣布潜在根因已排除。
+
+失效／阻塞：S3、S4、S5、S6、S7、S8、S9、S10、S11、S12。
+
+**下一最小动作：** 只核对 S3 的归属判断表达式、同次树与请求/回执，并与 S2 结果区规则及接口契约逐项对照；区分对象引用相等假设、错误目标规则和 Runtime 回传问题。证据齐全前不指定修复责任、不重跑桌面。
+
+## 9. 机器证明附录
+
+阶段 score：100 / 100；Gate：pass；checker：fail。
+
+高分不能覆盖 Hard Fail、Blocking Unknown、缺 Actual、失败测试或证据不足。
+
+hardFails：&#91;&#93;
+
+blockingUnknowns：&#91;&#93;
+
+| 必需测试 | 记录状态 |
+| --- | --- |
+| test-S3 | pass |
+
+本阶段 checker 问题：
+
+BUSINESS&#95;MISMATCH：display-owner-before-input: 实际使用的结果区必须通过本次归属校验；未通过时不能继续按钮输入。
+
+STAGE&#95;NOT&#95;PASS：Every required responsibility must independently pass before entry.
+
+[Acceptance · acceptance.json](../files/0001.json) — 470845ee564a74e09726a768a0c6e8c1270562031a8202e5fb19787232468585
+
+[StageOutput · S2-output.json](../files/0006.json) — 60635058905d32a16cb4f71d6a2a82d32d59eafc2953a28a5cedf2349268a4b3
+
+[AppProfile · business-input.json](../files/0007.json) — f979f366c218538d09e8874a1d9a1199c84894a669004100a5c50870dff3b6b0
+
+[StageOutput · business-output.json](../files/0009.json) — caa7d1611bebe6b0ed97c0f26b875bcf82e17ab56c5787bb2976a135258494bb
+
+[ActualExecution · S3-observation.txt](../files/0008.txt) — c67f77bd365ae00f7b0efaadea5d6df940b65c285d76e2dc0c7614eb8bc9c0bc
+
+[同次完整机器结论（含全部评分明细）](../checker-result.json)

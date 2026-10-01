@@ -1,0 +1,97 @@
+# S11｜生成并冻结脚本
+
+[返回总览](../stage-review.md)
+
+## 1. 一句话阶段结论
+
+**失败**。Candidate 不得把 Procedure 规定的本次运行时 firstResult 替换成固定常量110；Actual：固定常量110
+
+## 2. 本阶段业务问题
+
+由过程和应用规则生成普通 JavaScript，绑定源码、入口和依赖。
+
+## 3. 本阶段固定输入
+
+来源：本次检查固定工件；阶段计划版本 r1，阶段 Attempt a。历史示例不替代本次 Actual。
+
+**Candidate 不得把 Procedure 规定的本次运行时 firstResult 替换成固定常量110。：** 本次结果显示区的runtime:firstResult
+来源：SemanticProcedure · business-input.json。事实性质：合成维护 fixture；不是原始 Execution 或新的 Calculator 运行。
+
+## 4. 必须成立的关键断言
+
+**candidate-runtime-source：** Candidate 不得把 Procedure 规定的本次运行时 firstResult 替换成固定常量110。
+
+## 5. 本次 Actual Output
+
+**candidate-runtime-source Actual：** 固定常量110
+事实性质：合成维护 fixture；不是原始 Execution 或新的 Calculator 运行。
+
+**同版候选源码第2行（静态摘录）：** const firstResult = 110;
+事实性质：固定源码／文本摘录；未执行。
+
+## 6. Required 与 Actual 对照
+
+| 关键断言 | 必须成立 | 本次 Actual | 判断 | 直接依据 |
+| --- | --- | --- | --- | --- |
+| candidate-runtime-source | 本次结果显示区的runtime:firstResult | 固定常量110 | FAIL | 本次业务内容与固定要求不一致，或对应必需测试没有通过。 |
+
+## 7. 第一处具体不一致
+
+按本阶段固定断言顺序定位；不是对错误发生时间的推测。
+
+**candidate-runtime-source：** Candidate 不得把 Procedure 规定的本次运行时 firstResult 替换成固定常量110。
+
+要求：本次结果显示区的runtime:firstResult
+
+Actual：固定常量110
+
+具体位置：/firstResultSource
+
+## 8. 责任与接续
+
+发现阶段：S11；首个无效边界：S11。
+
+**Failure Owner: S11（仅固定输出修复责任）**
+
+固定输入满足要求，但本阶段交出的输出没有保留该业务内容。仅确定此输出的修复责任。
+这不是 Runtime 根因、现场真实性或完整 JavaScript 语义的证明。
+
+可保留上游：S1、S2、S3、S4、S5、S6、S7、S8、S9、S10；保留的是固定产物，不是宣布潜在根因已排除。
+
+失效／阻塞：S11、S12。
+
+**下一最小动作：** 保留正确的 Procedure；修正 S11 Candidate 对 firstResult 来源的错误声明及固定源码第2行的常量赋值，再冻结新版本。随后仍需现有 exact-byte consumer 验证；本次纯文件检查不执行 Candidate、不授予 Qualification。
+
+## 9. 机器证明附录
+
+阶段 score：100 / 100；Gate：pass；checker：fail。
+
+高分不能覆盖 Hard Fail、Blocking Unknown、缺 Actual、失败测试或证据不足。
+
+hardFails：&#91;&#93;
+
+blockingUnknowns：&#91;&#93;
+
+| 必需测试 | 记录状态 |
+| --- | --- |
+| test-S11 | pass |
+
+本阶段 checker 问题：
+
+BUSINESS&#95;MISMATCH：candidate-runtime-source: Candidate 不得把 Procedure 规定的本次运行时 firstResult 替换成固定常量110。
+
+STAGE&#95;NOT&#95;PASS：Every required responsibility must independently pass before entry.
+
+[Acceptance · acceptance.json](../files/0001.json) — 21def962a2740cf1765b156928f9635240f41f8087e1986f174bb0fdd85e970f
+
+[StageOutput · S10-output.json](../files/0022.json) — d83719a8d31ea0c9b8aac0f1e8368dc362b069eacea8d3c74523fd442c9df96a
+
+[SemanticProcedure · business-input.json](../files/0023.json) — 0e8613fe2759acebd712e84f076b1454372ff20e697e0aabadd0f9268a4551db
+
+[CandidateManifest · business-output.json](../files/0025.json) — 5b2716bdddbccf0e7a453f00afdfd9f58b5672c7eeb8f4f05f1c03ed2eb6ef30
+
+[CandidateSource · candidate.js](../files/0026.js) — 619b38d5535516733a707d23e0a061a5c6a6dcd32d68434e0507a8321319c161
+
+[evidence · S11-observation.txt](../files/0024.txt) — cfb1d3a2be89c1846850512b8260217e97680a59888daf97f0643398a043cb86
+
+[同次完整机器结论（含全部评分明细）](../checker-result.json)

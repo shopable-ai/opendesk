@@ -1,0 +1,97 @@
+# S7｜提炼必要步骤
+
+[返回总览](../stage-review.md)
+
+## 1. 一句话阶段结论
+
+**失败**。S7 必须保留 S6 中 firstResult 的生产者与第二次按钮消费者关系，不能只留下读取动作；Actual：空列表（没有条目）
+
+## 2. 本阶段业务问题
+
+说明每个步骤为何保留或删除，保留完整的值生产者与消费者关系。
+
+## 3. 本阶段固定输入
+
+来源：本次检查固定工件；阶段计划版本 r1，阶段 Attempt a。历史示例不替代本次 Actual。
+
+**S7 必须保留 S6 中 firstResult 的生产者与第二次按钮消费者关系，不能只留下读取动作。：** 第二次按钮输入：按原字符顺序消费firstResult
+来源：DemonstrationDossier · business-input.json。事实性质：合成维护 fixture；不是原始 Execution 或新的 Calculator 运行。
+
+**上游实际声明的生产者：** 读取第一次结果区
+来源：DemonstrationDossier · business-input.json。事实性质：合成维护 fixture；不是原始 Execution 或新的 Calculator 运行。
+
+## 4. 必须成立的关键断言
+
+**retain-first-result-consumer：** S7 必须保留 S6 中 firstResult 的生产者与第二次按钮消费者关系，不能只留下读取动作。
+
+## 5. 本次 Actual Output
+
+**retain-first-result-consumer Actual：** 空列表（没有条目）
+事实性质：合成维护 fixture；不是原始 Execution 或新的 Calculator 运行。
+
+## 6. Required 与 Actual 对照
+
+| 关键断言 | 必须成立 | 本次 Actual | 判断 | 直接依据 |
+| --- | --- | --- | --- | --- |
+| retain-first-result-consumer | 第二次按钮输入：按原字符顺序消费firstResult | 空列表（没有条目） | FAIL | 本次业务内容与固定要求不一致，或对应必需测试没有通过。 |
+
+## 7. 第一处具体不一致
+
+按本阶段固定断言顺序定位；不是对错误发生时间的推测。
+
+**retain-first-result-consumer：** S7 必须保留 S6 中 firstResult 的生产者与第二次按钮消费者关系，不能只留下读取动作。
+
+要求：第二次按钮输入：按原字符顺序消费firstResult
+
+Actual：空列表（没有条目）
+
+具体位置：/firstResult/consumers
+
+## 8. 责任与接续
+
+发现阶段：S7；首个无效边界：S7。
+
+**Failure Owner: S7（仅固定输出修复责任）**
+
+固定输入满足要求，但本阶段交出的输出没有保留该业务内容。仅确定此输出的修复责任。
+这不是 Runtime 根因、现场真实性或完整 JavaScript 语义的证明。
+
+可保留上游：S1、S2、S3、S4、S5、S6；保留的是固定产物，不是宣布潜在根因已排除。
+
+失效／阻塞：S7、S8、S9、S10、S11、S12。
+
+**下一最小动作：** 保留同版 S6；只修正 S7 输出中丢失的 firstResult 消费者关系，重新执行该边界检查；受影响 S8 以后不能继续消费旧 S7。此结论不要求重做真实示范。
+
+## 9. 机器证明附录
+
+阶段 score：100 / 100；Gate：pass；checker：fail。
+
+高分不能覆盖 Hard Fail、Blocking Unknown、缺 Actual、失败测试或证据不足。
+
+hardFails：&#91;&#93;
+
+blockingUnknowns：&#91;&#93;
+
+| 必需测试 | 记录状态 |
+| --- | --- |
+| test-S7 | pass |
+
+本阶段 checker 问题：
+
+BUSINESS&#95;MISMATCH：retain-first-result-consumer: S7 必须保留 S6 中 firstResult 的生产者与第二次按钮消费者关系，不能只留下读取动作。
+
+STAGE&#95;NOT&#95;PASS：Every required responsibility must independently pass before entry.
+
+[Acceptance · acceptance.json](../files/0001.json) — da538d180a65fe5dc1aee79907278f8dbca5877fd21d4b6c5f03f661788dfeba
+
+[StageOutput · S6-output.json](../files/0014.json) — 01366bae7097a5d945ec31fff27db97a1a3bb5d624fd1c0f4357d3448f307015
+
+[DemonstrationDossier · business-input.json](../files/0015.json) — cb79ec6f2b89020cbdb03616569ae1148cd01752ee58e335275fd87b8b52089e
+
+[StageOutput · S7-output.json](../files/0017.json) — 244d1bfbe52ee69f65937560302061c1649514ca2aef817d6e3584661e73440d
+
+[DistilledSteps · business-output.json](../files/0018.json) — 8a52f46ab03a0f1088c4bde7aec49e9be5960adb279b9fd57fa1639e92cc1aa6
+
+[evidence · S7-observation.txt](../files/0016.txt) — 5b7d7c63c95edf85ccedc6f2f619268a61b9222da36770113afa0bb503f4f82d
+
+[同次完整机器结论（含全部评分明细）](../checker-result.json)
