@@ -10,6 +10,14 @@ order: 220
 
 本页描述 JavaScript Runtime 全局对象。Agent-first MCP 会话仍使用独立的 [Recorder MCP 协议](recorder.md)，两者不共享数据模型或生命周期。
 
+## Browser 边界
+
+当前 `Recorder` 是 Desktop / native input recorder。它拥有 pointer、keyboard、window context 与可用的 Accessibility target semantics；即使录制期间前台应用是浏览器，它得到的仍是桌面/native 来源事实。
+
+它不负责监听页面 DOM、推断 Browser selector、捕获 Browser MCP/API action，也不把 Chrome/Edge 窗口中的屏幕坐标自动升级为 DOM target。未来的 Browser Human Demonstration 由 Browser-side capture provider 在浏览器内部独立采集；Agent 通过 Browser MCP/API 操作网页时，则由 Browser execution owner 直接保存实际请求、resolved target、action、post-observation、verification 与 Evidence，不再通过 Recorder 重录同一次动作。
+
+Browser 与 Desktop 的组合发生在 Recipe / Workflow 和后续制作、验证层，而不是让 Desktop Recorder 与 Browser capture 相互监听。该未来架构目前仍是 Planned/E0，见 [Browser Extension Runtime Bridge](../architecture/browser-automation/extension-runtime-bridge.md)；本节不新增任何 Recorder API。
+
 ## API 一览
 
 | 方法 | 用途 |

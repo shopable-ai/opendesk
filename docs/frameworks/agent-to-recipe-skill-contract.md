@@ -20,7 +20,7 @@
 
 ### 路线 A 的边界
 
-Agent 使用 OpenDesk 当前能力完成真实任务，保存关键事实，先从执行事实提炼必要路径，再形成业务语义、参数和复用规格，直接交付普通 JavaScript Recipe／Workflow，并由现有入口 Fresh Run 验证。不建设 Browser Recorder、Go Distillation Runtime、可执行 Skill／Workflow IR、Recorder Compiler、独立 Replay Runtime 或专用运行入口。
+Agent 使用 OpenDesk 当前能力完成真实任务，保存关键事实，先从执行事实提炼必要路径，再形成业务语义、参数和复用规格，直接交付普通 JavaScript Recipe／Workflow，并由现有入口 Fresh Run 验证。Agent-to-Recipe 不依赖 Desktop Recorder 监控网页：未来 Agent 通过 Browser MCP／Browser capability 操作网页时，实际 Observation、resolved target、Action、Verification 与 Evidence 由 Browser execution owner 作为 Browser Agent demonstration 来源；未来 Human Browser Demonstration 则由 Browser-side capture provider 独立提供事实。两者都不因此新建第二套 Agent-to-Recipe 或改变 S1—S12。仍不建设 Go Distillation Runtime、可执行 Skill／Workflow IR、Recorder Compiler、独立 Replay Runtime 或专用运行入口。
 
 用户仍以自然语言、截图、样例或已有资产表达任务；`TaskContract`、`WorkPlan` 是 Agent／宿主为接续生成的内部结构化成果。用户纠正的是业务含义，不要求编辑 JSON。任务合同定义正确性；操作计划表达“准备怎样做”；Evidence 证明“实际发生了什么”；DistilledSteps 表达“哪些实际动作构成必要路径”；SemanticProcedure 表达“怎样解释和复用”；普通 JS 定义业务执行。它们不能互相冒充。
 
@@ -629,6 +629,7 @@ Agent 评分沿用第 9 节及验证计划；Human 沿用其 Skill 的 validator
 
 ### 修订记录
 
+- 2026-10-02：补 Browser source ownership 边界。Agent Browser 操作以 Browser MCP/API 的实际执行事实为 demonstration 来源；Human Browser 演示由 Browser-side capture 独立采集；Desktop Recorder 不负责监控网页。未修改 S1—S12、机器 schema、MCP/Browser 实现或任何 live 资格。
 - 2026-10-01，文档 v1.3：增加第 11 节共享制作与分段补证合同及第 1 节阅读入口，明确角色／工具／材料分离、部分业务覆盖、版本化双来源消费、控制交接、变更依据、Calculator 审阅样本及反例要求。仅文档增量，不改变 S/H 阶段、机器 schema、原生事实 owner 或评分规则，不声明实现与 live 资格通过。
 - 2026-09-19：落地 trace-distill、procedure-synthesize、code-rebuild 方法文件、共用读取基础及相邻工件检查切片；稳定 fixture 与正反测试进入 tests/workflows。没有改变 v1 枚举或 S/G 编号；宿主加载、盲上下文与人类验收未据此通过，实际结果见[质量总览](../quality/agent-to-recipe-workflow-review-20260919.md)。
 - 2026-09-19 本轮续作：增加 `recipe-qualify` S12 方法文件，复用既有 QualificationRecord 与验证计划，不新增 S13、评分 Gate、发布器或公共 schema；高分不能覆盖 requested scope 的 fail/not-run/blocked。

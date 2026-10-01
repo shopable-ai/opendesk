@@ -4,6 +4,70 @@
 
 Evidence 引用漂移由 `python3 scripts/validate_browser_automation_evidence.py` 做确定性检查；该脚本只验证引用完整性，不是 capability/semantics 认证器。
 
+## Real Browser execution track
+
+这条路线用于建立真实 Browser execution surface；它与下面的历史 compatibility container 工作分开。所有条目在实际实现和验证前均为 planned，不因本文存在而获得 capability Evidence。
+
+### B10 — Surface / ownership contract
+
+Status: planned
+
+冻结 Browser Agent、Browser Human、Desktop Agent、Desktop Human 四类事实来源。Desktop Recorder 不监听 Browser DOM；Browser Agent 的权威轨迹来自 Browser MCP/API execution；Browser Human demonstration 由 Browser Extension 独立采集。正文见 `docs/architecture/browser-automation/extension-runtime-bridge.md`。
+
+### B11 — Browser execution owner + Extension connection
+
+Status: planned
+
+建立或复用唯一 Browser execution owner。P0 只选择一条主 transport，并在 Native Messaging、Native Messaging bootstrap + authenticated local WebSocket、直接 localhost 或 OS IPC 中基于生命周期、安全、事件吞吐和安装成本做决定。不得并行建设多套正式 transport。
+
+### B12 — Browser MCP vertical slice
+
+Status: planned
+
+优先扩展现有 `cmd/opendesk-mcp` / `pkg/mcpserver`，让 Agent 能通过同一 Browser owner 完成受控 fixture 的 observe / locate / read / act / verify。没有当前代码证据时不新建第二个 MCP server。
+
+### B13 — Browser Agent structured trace
+
+Status: planned
+
+把 Browser 请求、实际 target、动作、结果、后置 observation、verification 和 Evidence 绑定为一条权威 Agent Trace。不得再通过 Browser Recorder 或 Desktop Recorder 重录同一次 Agent action。
+
+### B14 — Browser Agent golden sample
+
+Status: planned
+
+使用仓库可控网页 fixture 验证“输入业务参数 → 查询 → 读取运行时值 → 消费该真实值 → 提交 → 验证页面状态”的完整 Agent Browser 链。先证明 MCP/Browser owner/Extension/DOM/Trace/Evidence，再进入 Recipe 生产。
+
+### B15 — Recipe Fresh Run + Qualification
+
+Status: planned
+
+将通过的 Browser Agent 示例接入现有 Agent-to-Recipe 后半段，生成普通 OpenDesk JavaScript Recipe 并独立 Fresh Run。不得因一次 MCP 成功就宣称可重复自动化。
+
+### B16 — Browser Human capture
+
+Status: planned
+
+在 Agent Browser 链稳定后，再由 Extension 建立独立的人工网页演示采集。它保存 Browser-specific DOM/Tab 事实，不复制 Desktop Recorder，也不创建第二套 Human-to-Recipe。
+
+### B17 — Human-to-Recipe Browser source
+
+Status: planned
+
+把固定 Browser Human Trace 作为新的 demonstration source 接入现有 Human-to-Recipe 生产链，复用适用的 Distill / Procedure / Recipe / Qualification 职责，同时保留 browser provenance。
+
+### B18 — Browser + Desktop cross-surface
+
+Status: planned
+
+至少验证一个需要 Browser DOM → native/system UI → Browser DOM 的任务，证明 surface transition 由 Workflow/Recipe 显式编排，而不是两个 Recorder 相互监听。
+
+### B19 — Driver / Playwright / Cloud provider
+
+Status: deferred
+
+在 Extension Provider 的 contract 与黄金链路稳定后，再评估 Playwright/CDP/Cloud Browser provider。不得为 API parity 扩展历史 Playwright-shaped shim。
+
 ## P0
 
 ### B01 — Browser/Context lifecycle regression coverage

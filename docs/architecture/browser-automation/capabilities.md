@@ -29,6 +29,21 @@ browser-shaped 兼容对象不因此成为用户 API。
 | Cookies/storage/session | internal context maps | 不连接 cookie jar、profile、localStorage、sessionStorage 或网络会话 | E4：`automation/browser.go`、`automation/browser_compat_test.go` | Not public |
 | Real browser driver | none | 没有 browser process、tab protocol、DOM、CSS/XPath selector 或 network-idle | E0 | Unsupported |
 
+## Planned real-browser architecture (E0)
+
+下列条目是 2026-10-02 冻结的架构方向，不是当前已实现能力。它们在取得源码、自动测试和对应 live evidence 前保持 E0：
+
+| Planned capability | Intended responsibility | Evidence | Status |
+| --- | --- | --- | --- |
+| Browser Extension Provider | 在用户当前浏览器内提供 Tab / Frame / DOM 观察与语义动作 | E0 | Planned |
+| Browser execution owner / Broker | 统一承接 MCP、JavaScript/Flow 等 Browser 请求，并管理连接、请求关联、session、reconnect 与 Evidence | E0 | Planned |
+| Browser MCP semantic tools | 让 Agent/Codex 通过现有 OpenDesk MCP 使用 Browser observe / locate / read / act / verify 能力 | E0 | Planned |
+| Browser Agent structured trace | 直接从 Browser MCP/API 的真实请求、目标解析、动作、后置观察与验证形成 Agent Trace；不由 Recorder 重录 | E0 | Planned |
+| Browser Human capture | 由 Browser Extension 独立采集人工网页演示的 DOM/Tab 语义；不由 Desktop Recorder 推断 | E0 | Planned |
+| Browser + Desktop cross-surface execution | 在同一 Recipe/Flow 中显式切换 Browser 与 Desktop surface | E0 | Planned |
+
+架构正文见 [Browser Extension Runtime Bridge](extension-runtime-bridge.md)。任何 Planned/E0 条目都不能用于宣称公开 API、DOM Runtime、MCP Browser tool 或 Browser Recorder 已经可用。
+
 ## Current Interpretation
 
 OpenDesk 当前公开的是桌面自动化能力。源码仍含历史 Browser/Context 容器和

@@ -66,6 +66,24 @@ H1—H8 是制作和维护自动化的方法，不是每次运行都重走的步
 → 仅在声明节点调用 Agent → 验证实际结果 → 完成或明确停止
 ```
 
+### 3.1 Browser demonstration source 边界
+
+Human-to-Recipe 的制作方法不要求所有 demonstration 共用同一个底层监听器。
+
+```text
+Desktop Human
+→ 当前 Desktop Recorder
+→ Desktop-native facts
+
+Browser Human
+→ 未来 Browser Extension Capture
+→ Browser DOM / Tab facts
+```
+
+当前已实现的 `Recorder` 仍只拥有 Desktop/native capture；它不监听页面 DOM，也不根据浏览器窗口内的 x/y 反推 Browser target。未来 Browser Human Demonstration 若实现，应由 Browser-specific capture source 提供固定材料，再按实际需要复用本工作流后续的审阅、业务语义、Recipe 和资格职责。
+
+Agent 通过 Browser MCP/API 完成网页操作时，其 Browser execution trace 属于 Agent 来源，不应伪装成 Human recording，也不需要由 Browser Human capture 或 Desktop Recorder 重录一次。同一业务任务可以在上层把 Browser 与 Desktop 材料组合，但必须保留 source/surface provenance 和各自的事实 owner。
+
 ## 4. 只保留四份主文档
 
 | 文件 | 唯一职责 |
