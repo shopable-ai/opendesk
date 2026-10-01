@@ -17,7 +17,7 @@ function candidateFixture(){
 test('exact candidate runs against changed read values and all dependent faults stop',async()=>{
   const f=candidateFixture(),report=await controlled(freeze(f.planFile));
   assert.equal(report.verdict,'pass',JSON.stringify(report.scenarios.map(s=>({input:s.input,verdict:s.verdict,reason:s.reason}))));
-  assert.equal(report.live,false);assert.equal(report.scenarios.length,8);
+  assert.equal(report.live,false);assert.equal(report.scenarios.length,17);
 });
 test('hardcoded/history first values and equal final answers fail observed consumer dataflow',async()=>{
   const f=candidateFixture();

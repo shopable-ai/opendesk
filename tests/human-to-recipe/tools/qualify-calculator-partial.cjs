@@ -24,7 +24,7 @@ function freeze(planFile){
     path.join(skill,'references/semantic-build-plan.schema.json'),path.join(skill,'references/semantic-build-plan-v2.schema.json'),
     path.join(skill,'references/semantic-quality-rubric.json'),path.resolve(repo,plan.source.actionsFile),
     ...plan.source.materials.map(m=>path.resolve(repo,m.artifact.path)),
-    ...['desktop-ui','accessibility','window','file','execution','page'].map(name=>path.join(repo,'docs/api',name+'.md'))];
+    ...['desktop-ui','accessibility','window','file','execution','page','global-apis','environment'].map(name=>path.join(repo,'docs/api',name+'.md'))];
   const raw=path.resolve(repo,plan.source.recordingDir,plan.source.rawReference.file);dependencies.push(raw);
   dependencies.push(path.resolve(repo,plan.source.recordingDir,'manifest.json'));
   const binary=fs.realpathSync(path.join(repo,'dist/opendesk'));
@@ -57,7 +57,7 @@ function assessRuntimeLoads(result,frozen){
   }
 }
 
-async function exercise(code,{first='0040',final='777',fault=null,operationRules=null}={}){
+async function exercise(code,{first='0040',final='777',initial='987',initialClear='清除',fault=null,diagnosticFailure=false,operationRules=null}={}){
   if(operationRules){
     assert.deepEqual(operationRules.operations.map(op=>op.id),['operation.input','operation.read','operation.clear']);
     assert.ok(typeof operationRules.applicationIdentity?.title==='string'&&operationRules.applicationIdentity.title);
@@ -67,30 +67,47 @@ async function exercise(code,{first='0040',final='777',fault=null,operationRules
   }
   const win={id:'synthetic-calculator',pid:1,handle:1,title:operationRules?.applicationIdentity.title||'Calculator',
     width:operationRules?.environmentScope.windowWidth||232,height:operationRules?.environmentScope.windowHeight||321,x:0,y:0,isForeground:true,hasFocus:true};
-  const actions=[],reads=[],logs=[],events=[];let phase='initial',display='987',clear='清除',inputCount=0,faulted=false;
+  const actions=[],reads=[],logs=[],events=[];let phase='initial',display=initial,clear=initialClear,inputCount=0,faulted=false;
   const scope=o=>assert.equal(o.within.id,win.id);
   const window={get:async q=>{assert.equal(q.app.bundleId,'com.apple.calculator');return {...win};},
     activate:async w=>{assert.equal(w.id,win.id);return {...win};},
-    current:async()=>({...win,hasFocus:!(fault==='stale'&&inputCount>0)})};
+    current:async()=>({...win,hasFocus:!(fault==='initial-stale'||(fault==='stale'&&inputCount>0)),
+      x:fault==='bounds'&&inputCount>0?1:win.x})};
   const Accessibility={snapshot:async o=>{scope(o);const children=[...'0123456789','×','+','=',clear].map(name=>({role:'button',name,enabled:true,actions:['invoke'],children:[]}));
     if(fault==='ambiguous')children.push({...children[0]});
     children.push({role:'staticText',name:operationRules?.environmentScope.nativeDisplayName||'主显示器',value:fault==='mismatch'&&phase==='first'?'wrong':display,children:[]});
-    return {complete:true,truncated:false,root:{children}};}};
-  const UI={readText:async o=>{scope(o);if(fault==='read'&&phase==='first'){faulted=true;throw new Error('CONTROLLED_READ_FAILURE');}
+    return {complete:fault!=='incomplete',truncated:fault==='incomplete',root:{children}};}};
+  const UI={readText:async o=>{scope(o);if((fault==='read'&&phase==='first')||(fault==='initial-read'&&phase==='initial')){faulted=true;throw new Error('CONTROLLED_READ_FAILURE');}
       reads.push({phase,value:display});events.push({kind:'read',phase,value:display});return display;},
     tapTargets:async(targets,o)=>{scope(o);assert.equal(faulted,false,'No input after uncertain side effects/read failure');
       const names=Array.from(targets,t=>{assert.equal(t.role,'button');return t.name;});actions.push(names);events.push({kind:'input',names});
-      if(names.length===1&&['清除','全部清除'].includes(names[0])){display='0';clear='全部清除';phase='clear';}
+      if(names.length===1&&['清除','全部清除'].includes(names[0])){
+        if(fault==='clear-unknown'){faulted=true;throw Object.assign(new Error('CONTROLLED_CLEAR_UNKNOWN'),{actionState:'unknown'});}
+        display=fault==='clear-nonzero'?'9':'0';clear=fault==='clear-stuck'?'清除':'全部清除';phase='clear';}
       else {inputCount++;if(fault==='unknown'&&inputCount===1){faulted=true;throw Object.assign(new Error('CONTROLLED_INPUT_UNKNOWN'),{actionState:'unknown'});}
         phase=inputCount===1?'first':'final';display=inputCount===1?first:final;clear='清除';}
-      return {ok:true,action:'tapTargets',completed:names.map(name=>({backend:'macos-ax',requestId:'controlled-'+actions.length,
-        actionState:'acknowledged',target:{source:'accessibility',locator:{role:'button',name}}}))};}};
+      const receipt={ok:true,action:'tapTargets',completed:names.map(name=>({backend:'macos-ax',requestId:'controlled-'+actions.length,
+        actionState:'acknowledged',target:{source:'accessibility',locator:{role:'button',name}}}))};
+      if(names.length>1&&inputCount===1){
+        if(fault==='receipt-missing')receipt.completed.pop();
+        if(fault==='receipt-locator')receipt.completed[0].target.locator.name='wrong';
+        if(fault==='receipt-state')receipt.completed[0].actionState='unknown';
+      }
+      return receipt;}};
   let error;
   try {await new vm.Script('(async()=>{\n'+code+'\n})()',{filename:'exact-frozen-candidate.js'})
-    .runInNewContext({window,Accessibility,UI,console:{log:v=>logs.push(v)}},{timeout:1000});}catch(e){error={message:e.message,actionState:e.actionState};}
+    .runInNewContext({window,Accessibility,UI,console:{log:v=>logs.push(v),debug:v=>{
+      if(diagnosticFailure)throw new Error('CONTROLLED_DIAGNOSTIC_FAILURE');logs.push(v);}}},{timeout:1000});}catch(e){error={message:e.message,actionState:e.actionState};}
   return {actions,reads,events,logs,error};
 }
 function assess(run,scenario){
+  if(scenario.unsupportedInitial){assert.ok(run.error,'Unsupported initial state must stop');
+    assert.equal(run.actions.length,0,'No reset/input before initial eligibility is established');return;}
+  if(scenario.invalidProducedValue){
+    assert.ok(run.error,'Invalid produced value must stop');
+    assert.equal(run.actions.filter(names=>names.length>1).length,scenario.invalidProducedValue==='first'?1:2);
+    assert.ok(!objects(run.logs.join('\n')).some(o=>o.firstResult&&o.finalResult),'No completion after format rejection');return;
+  }
   if(scenario.fault){assert.ok(run.error,'Fault must stop the candidate');assert.ok(run.actions.length<7,'Candidate continued after fault');
     assert.ok(!run.reads.some(r=>r.phase==='final'),'No terminal read after failure');return;}
   assert.equal(run.error,undefined,run.error?.message);
@@ -106,17 +123,28 @@ function assess(run,scenario){
 }
 async function controlled(frozen){
   const code=fs.readFileSync(frozen.source,'utf8'),scenarios=[];
+  const initialDelta=frozen.plan.applicationKnowledge.some(rule=>rule.id==='initial-integer-domain')
+    ?[{first:'0040',final:'777',initial:'-2'},
+      {first:'0',final:'0'},{first:'000',final:'000'},
+      {first:'999999999999',final:'999999999999'},
+      {first:'1000000000000',final:'777',invalidProducedValue:'first'},
+      {first:'0040',final:'1000000000000',invalidProducedValue:'final'},
+      ...['receipt-missing','receipt-locator','receipt-state'].map(fault=>({first:'0040',final:'777',fault})),
+      ...['-2.5','0.5'].map(initial=>({first:'0040',final:'777',initial,unsupportedInitial:true}))]:[];
   for(const input of [{first:'0040',final:'777'},{first:'9900',final:'888'},{first:'7',final:'555'},
-    ...['read','unknown','stale','ambiguous','mismatch'].map(fault=>({first:'0040',final:'777',fault}))]){
+    ...['read','unknown','stale','ambiguous','mismatch','initial-read','initial-stale','incomplete','bounds',
+      'clear-stuck','clear-nonzero','clear-unknown'].map(fault=>({first:'0040',final:'777',fault})),
+    {first:'0040',final:'777',initial:'0',initialClear:'全部清除'},
+    {first:'0040',final:'777',diagnosticFailure:true},...initialDelta]){
     const actual=await exercise(code,input);let verdict='pass',reason=null;try{assess(actual,input);}catch(e){verdict='fail';reason=e.message;}
     scenarios.push({input,verdict,reason,actual});
   }
   recheck(frozen);return {verdict:scenarios.every(s=>s.verdict==='pass')?'pass':'fail',evidenceLayer:'controlled',live:false,scenarios};
 }
-function run(binary,args,logFile){return new Promise(resolve=>{
+function run(binary,args,logFile,deadline=null){return new Promise(resolve=>{
   const child=spawn(binary,args,{cwd:repo,stdio:['ignore','pipe','pipe']});let stdout='',stderr='';
   child.stdout.on('data',b=>{stdout+=b;});child.stderr.on('data',b=>{stderr+=b;});
-  const timer=setTimeout(()=>child.kill('SIGTERM'),60000);
+  const timer=setTimeout(()=>child.kill('SIGTERM'),deadline===null?60000:Math.max(1,Math.min(60000,deadline-Date.now())));
   child.on('error',error=>{clearTimeout(timer);resolve({status:null,error:error.message,stdout,stderr});});
   child.on('close',status=>{clearTimeout(timer);fs.writeFileSync(logFile,stdout+stderr,{flag:'wx'});resolve({status,stdout,stderr,logFile});});
 });}
@@ -134,10 +162,17 @@ function objects(output){return output.split('\n').flatMap(line=>{
   return [];
 });}
 function assessLive(candidate,witness){
-  const result=objects(candidate.stdout).findLast(o=>o.firstResult&&o.finalResult&&o.secondInput);
+  const payload=candidate.artifactStdout||candidate.stdout;
+  const result=objects(payload).findLast(o=>o.firstResult&&o.finalResult);
   assert.ok(result,'Candidate must emit actual reads and input receipts');
   assert.equal(result.firstResult,'110');assert.equal(result.finalResult,'660');
-  const names=result.secondInput.completed.map(item=>{assert.equal(item.actionState,'acknowledged');assert.equal(item.backend,'macos-ax');
+  const traces=objects(payload).filter(o=>o.kind==='calculator-input');
+  const expressions=traces.filter(o=>o.completed?.length>1);
+  if(!result.secondInput){assert.equal(expressions.length,2,'Observe exactly two expression input receipts from the actual source');
+    assert.deepEqual(expressions[0].completed.map(item=>item.target.locator.name),['2','5','×','4','+','1','0','=']);}
+  const secondInput=result.secondInput||expressions[1];
+  assert.ok(secondInput?.completed,'Actual source must expose acknowledged inputs through its debug artifact');
+  const names=secondInput.completed.map(item=>{assert.equal(item.actionState,'acknowledged');assert.equal(item.backend,'macos-ax');
     assert.ok(item.requestId);assert.equal(item.target.source,'accessibility');return item.target.locator.name;});
   assert.deepEqual(names,['6','×',...result.firstResult,'=']);
   const complete=objects(witness.stdout).findLast(o=>o.kind==='witness-complete');
@@ -157,15 +192,39 @@ function assessLive(candidate,witness){
     witnessExecutionId:complete.executionId,application:complete.window,
     completion:complete.completion,stableTerminalMs:complete.stableTerminalMs};
 }
-async function live(frozen,out){
+function findCandidateArtifacts(before,source,root=path.join(repo,'.runtime/runs')){
+  const hash=digest(source),label='file:'+path.relative(repo,source),matches=[];
+  for(const entry of fs.readdirSync(root,{withFileTypes:true})){
+    if(!entry.isDirectory()||before.has(entry.name))continue;
+    const directory=path.join(root,entry.name),summary=path.join(directory,'summary.json');
+    if(!fs.existsSync(summary))continue;
+    const actual=JSON.parse(fs.readFileSync(summary,'utf8'));
+    if(actual.source===label&&actual.script_hash===hash)matches.push(directory);
+  }
+  assert.equal(matches.length,1,'Normal command must create one fresh exact-source execution artifact');
+  return matches[0];
+}
+function handoffDeadline(file,now=Date.now()){
+  const record=JSON.parse(fs.readFileSync(file,'utf8')),start=Date.parse(record.recordedAt);
+  assert.equal(record.granted,true,'Desktop handoff must be explicitly granted');
+  assert.ok(Number.isFinite(start)&&start<=now,'Desktop handoff time must be valid and not future');
+  assert.ok(Number.isInteger(record.maximumWindowMs)&&record.maximumWindowMs>0,'Desktop handoff budget must be explicit');
+  assert.equal(record.ownNativeInputsInflight,0);assert.equal(record.ownAxObserversInflight,0);
+  const deadline=start+record.maximumWindowMs;
+  assert.ok(now<deadline,'Desktop handoff window expired; no witness or candidate may be started');
+  return deadline;
+}
+function checkDesktopTime(deadline){assert.ok(Date.now()<deadline,'Desktop handoff window expired; no new desktop work may be dispatched');}
+async function live(frozen,out,deadline){
   const runs=[];
   for(let index=1;index<=2;index++){
     recheck(frozen);
+    if(Date.now()>=deadline){runs.push({index,verdict:'blocked',reason:'Desktop handoff expired before fresh run',candidateStarted:false});break;}
     const prefix=path.join(out,'fresh-'+index),witnessPath=prefix+'-witness.log';
-    const witnessPromise=run(path.join(repo,'dist/opendesk'),['-script','tests/human-to-recipe/calculator-partial-witness.js','-console-mode','script','-log-dir',prefix+'-witness'],witnessPath);
+    const witnessPromise=run(path.join(repo,'dist/opendesk'),['-script','tests/human-to-recipe/calculator-partial-witness.js','-console-mode','script','-log-dir',prefix+'-witness'],witnessPath,deadline);
     // Read-only witness readiness is checked from its separate Execution log, without desktop input.
-    const readiness=path.join(prefix+'-witness','stdout.log');const deadline=Date.now()+7000;
-    while(Date.now()<deadline){if(fs.existsSync(readiness)&&fs.readFileSync(readiness,'utf8').includes('FRESH_WITNESS_READY'))break;
+    const readiness=path.join(prefix+'-witness','stdout.log');const readinessDeadline=Math.min(Date.now()+7000,deadline);
+    while(Date.now()<readinessDeadline){if(fs.existsSync(readiness)&&fs.readFileSync(readiness,'utf8').includes('FRESH_WITNESS_READY'))break;
       await new Promise(resolve=>setTimeout(resolve,100));}
     if(!fs.existsSync(readiness)||!fs.readFileSync(readiness,'utf8').includes('FRESH_WITNESS_READY')){
       const witness=await witnessPromise;runs.push({index,verdict:'blocked',reason:'Independent witness did not become ready',witness});break;}
@@ -174,30 +233,38 @@ async function live(frozen,out){
       const witness=await witnessPromise;
       runs.push({index,verdict:'blocked',reason:'Completion boundary must belong to this fresh witness execution',witness});break;
     }
-    // Console mode filters framework initialization messages. The execution artifact
-    // log, not the filtered console, is the authority for actual loading roots.
-    const command=['-script',path.relative(repo,frozen.source),'-console-mode','script','-log-dir',prefix+'-candidate'];
-    const candidate=await run(path.join(repo,'dist/opendesk'),command,prefix+'-candidate.log');
+    // Run the documented one-line production command exactly, including its normal
+    // console mode. Discover this fresh execution by source/hash; do not substitute
+    // a wrapper, temporary script, different binary or run-local command.
+    const normalRoot=path.join(repo,'.runtime/runs');fs.mkdirSync(normalRoot,{recursive:true});
+    const previous=new Set(fs.readdirSync(normalRoot));
+    const command=['-script',path.relative(repo,frozen.source),'-console-mode','normal'];
+    if(Date.now()>=deadline){const witness=await witnessPromise;runs.push({index,verdict:'blocked',reason:'Desktop handoff expired before candidate dispatch',witness});break;}
+    const candidate=await run(path.join(repo,'dist/opendesk'),command,prefix+'-candidate.log',deadline);
     const completion={kind:'candidate-process-complete',status:candidate.status,finishedAt:Date.now()};
     const pending=ready.completionFile+'.pending';
     fs.writeFileSync(pending,JSON.stringify(completion)+'\n',{flag:'wx'});
     fs.renameSync(pending,ready.completionFile);
     const witness=await witnessPromise;recheck(frozen);
     let verdict='pass',actual,reason;
-    let candidateSummary,witnessSummary;
-    try{assert.equal(candidate.status,0);assert.equal(witness.status,0);
-      candidateSummary=JSON.parse(fs.readFileSync(prefix+'-candidate/summary.json','utf8'));
+    let candidateSummary,witnessSummary,candidateArtifacts;
+    try{
+      candidateArtifacts=findCandidateArtifacts(previous,frozen.source,normalRoot);
+      candidateSummary=JSON.parse(fs.readFileSync(path.join(candidateArtifacts,'summary.json'),'utf8'));
       witnessSummary=JSON.parse(fs.readFileSync(prefix+'-witness/summary.json','utf8'));
+      assert.equal(candidate.status,0,'Candidate failed: '+(candidateSummary.error||'exit '+candidate.status));
+      assert.equal(witness.status,0,'Observer failed: '+(witnessSummary.error||'exit '+witness.status));
       assert.equal(candidateSummary.script_hash,digest(frozen.source),'Actual execution must load exact candidate bytes');
       assert.equal(witnessSummary.script_hash,digest(path.join(repo,'tests/human-to-recipe/calculator-partial-witness.js')));
       assert.equal(candidateSummary.success,true);assert.equal(witnessSummary.success,true);
       assert.notEqual(candidateSummary.execution_id,witnessSummary.execution_id,'Candidate and observer executions must be independent');
-      assessRuntimeLoads({stdout:fs.readFileSync(prefix+'-candidate/stdout.log','utf8'),stderr:''},frozen);
+      candidate.artifactStdout=fs.readFileSync(path.join(candidateArtifacts,'stdout.log'),'utf8');
+      assessRuntimeLoads({stdout:candidate.artifactStdout,stderr:''},frozen);
       assessRuntimeLoads({stdout:fs.readFileSync(prefix+'-witness/stdout.log','utf8'),stderr:''},frozen);
       actual=assessLive(candidate,witness);}catch(error){verdict='fail';reason=error.message;}
     runs.push({index,verdict,reason,actual,command:'./dist/opendesk '+command.join(' '),
       candidateExecutionId:candidateSummary?.execution_id,witnessExecutionId:witnessSummary?.execution_id,
-      candidateArtifacts:prefix+'-candidate',witnessArtifacts:prefix+'-witness',
+      candidateArtifacts,witnessArtifacts:prefix+'-witness',
       candidateLog:candidate.logFile,witnessLog:witness.logFile});
     if(verdict!=='pass')break; // Unknown side effects are never retried automatically.
   }
@@ -206,21 +273,26 @@ async function live(frozen,out){
 }
 async function main(args){
   const [mode,planFile,...rest]=args;assert.ok(['--check','--controlled','--live'].includes(mode)&&planFile,
-    'Usage: node qualify-calculator-partial.cjs --check|--controlled|--live <plan.json> [--reviewed-source-sha256 <sha256>]');
+    'Usage: node qualify-calculator-partial.cjs --check|--controlled|--live <plan.json> [--reviewed-source-sha256 <sha256>] [--desktop-handoff <granted-record.json>]');
+  const handoff=rest.indexOf('--desktop-handoff');
+  const handoffFile=mode==='--live'?(assert.ok(handoff>=0&&rest[handoff+1],'Live requires an explicit granted desktop handoff record'),path.resolve(rest[handoff+1])):null;
+  const deadline=handoffFile?handoffDeadline(handoffFile):null;
   const frozen=freeze(planFile),hash=digest(frozen.source);
+  if(handoffFile)frozen.dependencies.push({path:handoffFile,sha256:digest(handoffFile)});
   const review=rest.indexOf('--reviewed-source-sha256');
   if(mode!=='--check')assert.equal(review<0?null:rest[review+1],hash,'Operator review of the exact candidate bytes is required');
   const out=fs.mkdtempSync(path.join(repo,'.runtime/tests/human-to-recipe/partial-authoring/qualification-'));
   const report={formatVersion:'human-to-recipe.calculator-qualification/v1',mode,time:new Date().toISOString(),
     subject:{source:frozen.source,sha256:hash,plan:frozen.planFile},dependencies:frozen.dependencies,
     initializerDirectories:frozen.initializerDirectories,score:frozen.score,
+    desktopHandoff:handoffFile?{path:handoffFile,deadline:new Date(deadline).toISOString()}:null,
     fixtureSource:frozen.plan.environment.otherConstraints.some(s=>/fixture/i.test(s)),qualificationTransferred:false};
   fs.writeFileSync(path.join(out,'freeze.json'),JSON.stringify(report,null,2)+'\n',{flag:'wx'});
   Object.assign(report,mode==='--check'?{verdict:'pass',live:false,scope:'Freeze/structure only; no execution or business qualification'}
-    :mode==='--controlled'?await controlled(frozen):await live(frozen,out));
+    :mode==='--controlled'?await controlled(frozen):await live(frozen,out,deadline));
   recheck(frozen);const output=path.join(out,'report.json');fs.writeFileSync(output,JSON.stringify(report,null,2)+'\n',{flag:'wx'});
   console.log(JSON.stringify({verdict:report.verdict,mode,report:output,score:report.score,live:report.evidenceLayer==='live'}));
   if(report.verdict!=='pass')process.exitCode=1;
 }
-module.exports={freeze,recheck,exercise,assess,controlled,assessLive,assessRuntimeLoads,objects};
+module.exports={freeze,recheck,exercise,assess,controlled,assessLive,assessRuntimeLoads,objects,findCandidateArtifacts,handoffDeadline};
 if(require.main===module)main(process.argv.slice(2)).catch(error=>{console.error(error.message);process.exitCode=1;});

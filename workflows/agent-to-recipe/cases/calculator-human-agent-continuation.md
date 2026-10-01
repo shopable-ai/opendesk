@@ -157,17 +157,24 @@ Gate 同时冻结实际加载的 polyfills/jslibs 初始化文件与文件清单
 `dist/opendesk` 入口，并从各自 execution artifact 的框架日志核对实际加载目录。
 `script` 控制台模式会过滤框架初始化日志，不能据其缺行推断实际加载失败；日志行尾的
 结构化 metadata 也不能混入候选读值或 readiness payload。候选与 observer 的 summary
-分别核对实际源码 hash、成功终态和不同 execution ID。Gate 内的 `-log-dir` 仅用于独立证据，
-报告记录完整实际命令；不能把这项 Gate 验收说成未执行的公开裸命令已经通过。
+分别核对实际源码 hash、成功终态和不同 execution ID。
+当前 Gate 从仓库根目录原样执行候选的公开命令（`-console-mode normal`），
+按新增 execution 的 source/hash 唯一关联实际 artifact；历史或同时出现的多个匹配均拒绝。
+observer 使用独立 `-log-dir`。正常候选只输出实际读值，必要输入回执从该源码的
+debug artifact 读取，不能复制业务动作或让诊断失败改变输入。
+报告记录完整实际命令；命令未真实运行时仍记 not-run，不用受控检查代替公开运行。
 
 从仓库根目录执行唯一完整 live 入口（仅在 Calculator 控制交接明确后）：
 
 ```sh
-node tests/human-to-recipe/tools/qualify-calculator-partial.cjs --live <Human-plan.json> --reviewed-source-sha256 <exact-candidate-sha256>
+node tests/human-to-recipe/tools/qualify-calculator-partial.cjs --live <Human-plan.json> --reviewed-source-sha256 <exact-candidate-sha256> --desktop-handoff <explicit-granted-record.json>
 ```
 
 该命令不证明真人录制链或内嵌发行加载；两者分别验收。运行报告及观察截图保存在
 `.runtime/tests/human-to-recipe/partial-authoring/qualification-*/`，不提交私人材料。
+交接记录明确 `recordedAt`、`maximumWindowMs`、已授予及对方在途输入/观察为零；
+过期记录在启动 observer/candidate 前拒绝，每次新派发及运行 deadline 均受同一窗口限制。
+文件标记只绑定本次人工/任务间交接事实，不构成宿主排他锁。
 
 ## 10. 失败时的最小返工
 
