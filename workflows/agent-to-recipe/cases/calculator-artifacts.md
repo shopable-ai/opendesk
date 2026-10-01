@@ -154,6 +154,39 @@ failure owner / next action
 
 ---
 
+## 0.1 本次接续的真实入口（2026-09-30 UTC / 2026-10-01 本地）
+
+任务 `revision-20260929-s1` 的实际产物保存在 [calculator-completion-20261001](../../../.runtime/automation-authoring/calculator-completion-20261001/)。本节是事实导航；第 3 节仍是参考示例。当前权威入口是 [根 stage-review.md](../../../.runtime/automation-authoring/calculator-completion-20261001/stage-review.md)，引用解析依据是 [roots.json](../../../.runtime/automation-authoring/calculator-completion-20261001/roots.json)。
+
+导航的阅读顺序是阶段业务正文 → 原始来源与同版产物 → 证据及限制 → 检查结论与评分。此轮维护只允许静态读写；生产和桌面权限仍以用户指令及工作包为准。已发生的 Execution 保留原状态，暂停后没有执行的修复验证标为未运行，投影源码与文档修改标为未执行验证。
+
+下表绑定固定检查 [check-2026-10-01T09-34-11-006Z-6f6568fc](../../../.runtime/automation-authoring/calculator-completion-20261001/checks/check-2026-10-01T09-34-11-006Z-6f6568fc/checker-result.json)，计划 `completion-recovery-r3`；该检查仅放行 S2 → S3。[同次快照索引](../../../.runtime/automation-authoring/calculator-completion-20261001/checks/check-2026-10-01T09-34-11-006Z-6f6568fc/snapshot-index.md)包含完整 hash 和固定文件。后来进度以根视图链接的新检查为准；保留的旧示范不能自动继承新准入。
+
+**比该固定检查更新的事实：** 2026-10-01 17:35（Asia/Shanghai）的新 S3 Execution `ai-20261001-173517-643000` 已 failed，`Wrong display binding`，Calculator 按钮输入为 0。此失败尚未由本文件给出正式阶段分数或 verdict。原始 [summary](../../../.runtime/ai/ai-20261001-173517-643000/summary.json)、[源码快照](../../../.runtime/ai/ai-20261001-173517-643000/script_snapshot.js)、[stdout 请求／回执](../../../.runtime/ai/ai-20261001-173517-643000/stdout.log)绑定源码 hash `f2822f77a0f769d593a3fb33e11004f19216e0f60d001810b5604d6b56613e01`。新失败的定位正文见 [正确性案例](calculator.md#21-本次-actual-的审阅边界)。根投影尚需唯一协调者在正式检查后更新；不能把旧放行误读为本次运行成功。
+
+| 阶段及责任 Skill | 应达到的业务结果 | 实际产物、版本及下游 | cases 对照入口 | 本固定检查与已知修复责任 |
+| --- | --- | --- | --- | --- |
+| S1 automation-plan | 固定按钮任务、实际读值链、权限、停止和预算 | [TaskContract](../../../.runtime/automation-authoring/calculator-completion-20261001/s1-binding-broker-006/task-contract.json) `994930bcd1b2…`；[r3 WorkPlan](../../../.runtime/automation-authoring/calculator-completion-20261001/recovery-current/continuation-001/work-plan.json) `de66161ff8c7…`；S2 实际复用业务要求 | [S1 六问](calculator.md#s1任务与计划) | 正式阶段判断见固定报告；历史未知不由新预算追写 |
+| S2 application-engineer discover | 确认目标、按钮、结果区和清空规则的依据与范围 | [AppProfile 人工视图](../../../.runtime/automation-authoring/calculator-completion-20261001/application-increment/broker-r004/app-profile.md)对应 JSON `80309cb181ca…`；当前复用绑定、独立审阅和预检进入 S3 | [认识方法](calculator-execution-walkthrough.md#4-建立最小应用认识并验证所选能力能否在当前现场成立-s2) | 清空规则缺口已有定向真实试验；新的输入仍须现场和预算预检 |
+| S3 task-demonstrate | 保存真实动作及回执 | 旧 [第一段事件索引](../../../.runtime/automation-authoring/calculator-completion-20261001/demo-first-actual-event-index.json)和 [第二段事件索引](../../../.runtime/automation-authoring/calculator-completion-20261001/demo-second-actual-event-index.json)分别绑定 `direct-20261001-044351-656000` / `ai-20261001-051140-472000`；新示范 `ai-20261001-173517-643000` 的 [固定失败源码](../../../.runtime/ai/ai-20261001-173517-643000/script_snapshot.js)和 [summary](../../../.runtime/ai/ai-20261001-173517-643000/summary.json)独立保留 | [S3 六问](calculator.md#s3执行当前获准动作) | 旧准入 F01 保留；新尝试在显示区绑定校验失败，owner 尚未确定，无新业务读值 |
+| S4 task-demonstrate | 从正确结果区实际读取 | [firstResult 保存](../../../.runtime/automation-authoring/calculator-completion-20261001/first-result-actual.json)绑定 A032；[读值／输出核对](../../../.runtime/automation-authoring/calculator-completion-20261001/demo-independent-result-verification.json)绑定 B052 与两个独立观察；值交给旧事实包 | [S4 六问](calculator.md#s4观察并验证实际效果) | 保留真实 `110` 和 `660` 观察；不补成当前 S4 验收 |
+| S5 task-demonstrate | 保存继续、停止、恢复的决定 | 两段实际原始事件含 decision/stop；[四阶段审阅](../../../.runtime/automation-authoring/calculator-completion-20261001/reviews/demo-review-findings.json)区分事实可信与准入不足 | [S5 六问](calculator.md#s5分类并决定下一步) | 旧 S5 受 F01 影响；不以正常结果抹去停止条件 |
+| S6 task-demonstrate | 交出完整示范事实包 | [Dossier 同版人工视图](../../../.runtime/automation-authoring/calculator-completion-20261001/s6-bound/dossier.md)、[权威 JSON](../../../.runtime/automation-authoring/calculator-completion-20261001/s6-bound/dossier.json)、[RawTrace](../../../.runtime/automation-authoring/calculator-completion-20261001/demo-raw-trace.json)；48 条动作/读值切片保留原始来源 | [S6 六问](calculator.md#s6任务级事实收口) | 已有产物；旧 S6 退出受 F01 阻塞，未交为合格 S7 输入 |
+| S7 trace-distill | 保留必要路径和全部数据关系 | 本固定检查尚未发布 DistilledSteps；不能从最终代码反推 | [S7 六问](calculator.md#s7提炼必要步骤) | 等待合格 S6，复核 firstResult 生产者和逐字符消费者 |
+| S8 procedure-synthesize | 明确业务语义 | 本固定检查尚未发布业务步骤版本 | [S8 六问](calculator.md#s8解释业务语义) | 不把参数、运行时值和验收 Expected 混用 |
+| S9 procedure-synthesize | 固定过程与数据依赖 | 本固定检查尚未发布 SemanticProcedure | [S9 六问](calculator.md#s9形成可复用业务过程) | 核对固定 S7/S8 版本、生产者和消费者 |
+| S10 application-engineer harden | 补强过程所需应用规则 | S2 discover Profile 与未来 harden 版本须分开绑定 | [S10 六问](calculator.md#s10应用操作工程化) | 已有清空试验可作为限定资产，不能代替完整过程规则验收 |
+| S11 recipe-build | 生成并冻结普通 JS | 本固定检查没有最终 Candidate；示范 JS 和历史维护候选均不能代替 | [S11 六问](calculator.md#s11生成并冻结-javascript-候选程序) | 待真实上游交接后生产、固定源码和依赖 |
+| S12 recipe-qualify | 同一冻结候选独立运行 | 本固定检查没有本生产链 Qualification | [S12 六问](calculator.md#s12独立资格验收) | 按合同三次完整 Fresh Run；其他任务两次 Human H7 不进入本链 |
+
+**定位错误直接进入 [Actual 数据链和四项问题](calculator.md#21-本次-actual-的审阅边界)。** 其中清空规则、Runtime 类型修复、旧预算准入缺口和新显示区绑定失败分别有原始记录、保留范围及责任确定程度；不能统称为 Skill 出错。表内职责和导航不独立评分，正式判断仍由唯一 checker 与其投影提供。
+
+本次可读性修订仅静态读取、编辑既有文件。没有运行 Node、render、测试或 Runtime，没有刷新根 stage-review/progress/production，也没有生成独立 preview。用户暂停执行期间，这些修改的生成效果、链接全面核验和新失败修复均保持未验证；现有源码修改不能冒充运行结果。
+
+`.runtime/` 是可清理的运行目录。证据被清理、同版链接失效或 hash 不匹配后，必须标记不可验证；本案例正文不能保留无依据的当前通过声明。
+
+---
+
 ## 1. 一次真实运行的文件应该从哪里找
 
 推荐的人机双层目录视图如下。并不是每个 attempt 都会拥有下面所有文件；只生成该职责实际产生的主产物和对应视图。
@@ -642,4 +675,3 @@ tests/.../calculator-artifact-chain/source.json
 ### 6.2 正式规范来源
 
 正式 schema、hash、request / handoff 和任务目录规则以 [Agent-to-Recipe Skill Contract](../../../docs/frameworks/agent-to-recipe-skill-contract.md) 为准；评分、Hard Fail 和 `acceptanceRef` 以 [validation-plan](../design/validation-plan.md) 为准。本文只提供 Calculator 的可读产物链，不创建第二套 schema 或判断规则。
-

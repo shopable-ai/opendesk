@@ -1,7 +1,8 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { valueLineage, renderReview, renderWorkflowReview } = require('../../workflows/agent-to-recipe/scripts/stage-review.js');
+const { valueLineage, renderReview, renderWorkflowReview, workflowPresentation } = require('../../workflows/agent-to-recipe/scripts/stage-review.js');
+const { createHash } = require('node:crypto');
 const { checkArtifactChain } = require('../../workflows/agent-to-recipe/scripts/check-artifact-chain.js');
 const { representationFixture } = require('./tools/artifact-representation-fixture.js');
 const { fixture: workflowFixture } = require('./tools/stage-review-fixture.js');
@@ -103,8 +104,8 @@ test('workflow human review exposes missing S4 Actual Observation as the first i
   assert.equal(report.firstInvalidBoundary, 'S4');
   const markdown = renderWorkflowReview(report);
   assert.match(markdown, /首个无效边界[\s\S]*S4/);
-  assert.match(markdown, /EVIDENCE_SCOPE|MISSING_ACTUAL_ACTUALOBSERVATION|MISSING_EVIDENCE/);
-  assert.match(markdown, /尚未执行；不能写成 PASS|等待真正 failure owner 修复/);
+  assert.match(markdown, /EVIDENCE&#95;SCOPE|MISSING&#95;ACTUAL&#95;ACTUALOBSERVATION|MISSING&#95;EVIDENCE/);
+  assert.match(markdown, /尚未纳入阶段验收[\s\S]*不能写成 PASS|等待真正 failure owner 修复/);
 });
 
 test('workflow human review exposes stale S12 Candidate binding instead of hiding it behind Qualification', t => {
@@ -116,5 +117,65 @@ test('workflow human review exposes stale S12 Candidate binding instead of hidin
   assert.ok(report.errors.some(error => error.code === 'STALE_CANDIDATE'));
   const markdown = renderWorkflowReview(report);
   assert.match(markdown, /S12[\s\S]*blocked/);
-  assert.match(markdown, /STALE_CANDIDATE/);
+  assert.match(markdown, /STALE&#95;CANDIDATE/);
+});
+
+test('a passed prefix explicitly remains incomplete and does not fill unreviewed stages with empty checks', t => {
+  const f = workflowFixture(t);
+  const report = f.run('S2', 'S3');
+  const before = JSON.stringify(report);
+  assert.equal(report.allowed, true);
+  const markdown = renderWorkflowReview(report);
+  assert.match(markdown, /整条流程验收：尚未完成/);
+  assert.match(markdown, /该 PASS 只放行本次阶段边界/);
+  assert.match(markdown, /维护工作流本身不授予生产、Runtime 或桌面执行权限/);
+  assert.match(markdown, /已获准但已停止的后续验证保持未运行/);
+  assert.match(markdown, /S3｜实际执行动作/);
+  const unreviewed = markdown.slice(markdown.indexOf('## S3｜'), markdown.indexOf('## 检查身份'));
+  assert.doesNotMatch(unreviewed, /Hard Fail|Required Tests|输入充分/);
+  assert.match(unreviewed, /不能据此否认其他保留的真实执行/);
+  assert.equal(JSON.stringify(report), before);
+});
+
+test('business excerpts and links are taken from the exact retained output rather than latest files', () => {
+  const bytes = Buffer.from(JSON.stringify({ goal: '保留本次实际读值', inputs: { runtimeDerived: [
+    { name: 'firstResult', producer: '当前结果区', lifetime: '跨清空保留', consumer: '逐字符按钮输入' },
+  ] } }));
+  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  const ref = { rootId: 'task', path: 'contract.json', kind: 'TaskContract', sha256 };
+  const report = { allowed: true, from: 'S1', to: 'S2', stages: {
+    S1: { verdict: 'pass', outputs: [ref], score: 100 },
+  } };
+  const snapshots = [{ ref, status: 'retained', actualSha256: sha256, snapshot: 'files/0001.json' }];
+  const reads = [];
+  const view = workflowPresentation(report, snapshots, filename => { reads.push(filename); return bytes; }, 'checks/check-001/');
+  const markdown = renderWorkflowReview(report, view);
+  assert.deepEqual(reads, ['files/0001.json']);
+  assert.match(markdown, /保留本次实际读值/);
+  assert.match(markdown, /跨清空保留/);
+  assert.match(markdown, /逐字符按钮输入/);
+  assert.match(markdown, /\]\(checks\/check-001\/files\/0001.json\)/);
+  assert.match(markdown, /计划版本|实际成果与业务内容/);
+  const stage = markdown.slice(markdown.indexOf('## S1｜'), markdown.indexOf('## S2｜'));
+  assert.ok(stage.indexOf('开始前有什么') < stage.indexOf('实际成果与业务内容'));
+  assert.ok(stage.indexOf('保留本次实际读值') < stage.indexOf('阶段判断'));
+});
+
+test('drifted retained bytes and unsafe snapshot paths cannot supply business content or active links', () => {
+  const bytes = Buffer.from(JSON.stringify({ goal: '<script>forged</script>' }));
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  const ref = { rootId: 'task', path: 'contract.json', kind: 'TaskContract', sha256: digest };
+  const report = { allowed: true, from: 'S1', to: 'S2', stages: { S1: { verdict: 'pass', outputs: [ref] } } };
+  const before = JSON.stringify(report);
+  const view = workflowPresentation(report, [{ ref, status: 'retained', actualSha256: digest,
+    snapshot: 'files/0001.json' }], () => Buffer.from('{}'));
+  const markdown = renderWorkflowReview(report, view);
+  assert.doesNotMatch(markdown, /forged|\]\(files\/0001.json\)/);
+  assert.match(markdown, /同版文件不可用/);
+  let reads = 0;
+  const unsafe = workflowPresentation(report, [{ ref, status: 'retained', actualSha256: digest,
+    snapshot: '../../secret.json' }], () => { reads++; return bytes; });
+  assert.equal(reads, 0);
+  assert.doesNotMatch(renderWorkflowReview(report, unsafe), /secret|forged/);
+  assert.equal(JSON.stringify(report), before);
 });

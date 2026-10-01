@@ -12,6 +12,7 @@ const REPO = path.resolve(__dirname, '../..');
 const SOURCE = 'examples/agent-to-recipe/calculator.js';
 const source = fs.readFileSync(path.join(REPO, SOURCE), 'utf8');
 const spec = JSON.parse(fs.readFileSync(path.join(REPO, 'tests/workflows/calculator/spec.json'), 'utf8'));
+const currentSource = JSON.parse(fs.readFileSync(path.join(REPO, 'tests/workflows/calculator/current-source-l1.json'), 'utf8'));
 const firstButtons = ['2', '5', '×', '4', '+', '1', '0', '='];
 const { fixture } = require('./tools/artifact-fixture.js');
 
@@ -34,10 +35,78 @@ function maintainedDescriptor() {
     roots: [['repo', REPO], ['task', maintainedTaskRoot]] };
 }
 
-test('available maintained exact Candidate: clear semantics, memory artifacts and fail-stop observations',
-  { skip: !fs.existsSync(maintainedManifestPath) && 'Local maintained Candidate unavailable; not live qualification' }, () => {
-    const descriptor = maintainedDescriptor();
+// Test-owned metadata only: no historical dependency rebinding or qualification reuse.
+// Keep source bytes exact; the evaluator supplies controlled substitutes, not a Runtime.
+function maintainedL1Descriptor(t, bytes) {
+  const base = path.join(REPO, '.runtime/tests/workflows');
+  fs.mkdirSync(base, { recursive: true });
+  const root = fs.mkdtempSync(path.join(base, 'maintained-source-l1-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const scriptPath = path.join(root, 'candidate.js');
+  fs.writeFileSync(scriptPath, bytes, { flag: 'wx' });
+  assert.deepEqual(fs.readFileSync(scriptPath), Buffer.from(bytes));
+  const scriptRef = { kind: 'CandidateSource', rootId: 'synthetic', path: 'candidate.js',
+    sha256: digest(scriptPath), schemaVersion: 'text/v1' };
+  const candidate = { schemaVersion: 'agent-to-recipe/v1',
+    candidateId: 'synthetic-maintained-source-l1-only', producer: 'host-side-test-fixture',
+    synthetic: true, evidenceLayer: 'L1-controlled-substitutes',
+    historicalQualificationTransferred: false, liveQualificationGranted: false,
+    scriptRef, scriptHash: scriptRef.sha256, dependencies: [],
+    limitations: ['Test-owned metadata; no historical or live Candidate qualification',
+      'Controlled substitutes only; no native Runtime, desktop, AppProfile or OperationRules execution'] };
+  const candidatePath = path.join(root, 'candidate.json');
+  fs.writeFileSync(candidatePath, JSON.stringify(candidate, null, 2) + '\n', { flag: 'wx' });
+  return { schemaVersion: 'calculator-consumer-l1/v1', harness: 'calculator-runtime-v1',
+    runtimeModel: 'calculator-clear-state-v1',
+    evaluatorSha256: digest(path.join(__dirname, 'tools/calculator-consumer-dataflow.cjs')),
+    candidateRef: { kind: 'CandidateManifest', rootId: 'synthetic', path: 'candidate.json',
+      sha256: digest(candidatePath), schemaVersion: candidate.schemaVersion },
+    scriptRef, dependencies: candidate.dependencies,
+    script: { path: scriptPath, sha256: scriptRef.sha256 },
+    roots: [['synthetic', root]], outputDir: path.join(root, 'observations') };
+}
+
+function maintainedBytes() {
+  const descriptor = maintainedDescriptor();
+  assert.equal(descriptor.script.sha256, maintainedHash);
+  assert.equal(digest(descriptor.script.path), maintainedHash);
+  return fs.readFileSync(descriptor.script.path);
+}
+
+test('historical maintained Candidate rejects current dependency drift before execution', () => {
+  const descriptor = maintainedDescriptor();
+  assert.equal(descriptor.script.sha256, maintainedHash);
+  assert.equal(digest(descriptor.script.path), maintainedHash);
+  const runtime = descriptor.dependencies.find(dependency => dependency.kind === 'RuntimeBinary');
+  assert.ok(runtime, 'Historical RuntimeBinary ref required');
+  assert.equal(runtime.sha256, 'ce97c66e4dd942bf22aa06f9a036250b9bd35d4c44933f477079b730eff03b30');
+  assert.notEqual(digest(path.join(REPO, runtime.path)), runtime.sha256, 'Current Runtime must have drifted');
+  const report = verifyFrozenConsumer(descriptor);
+  assert.equal(report.verdict, 'blocked', JSON.stringify(report));
+  assert.equal(report.code, 'VERIFICATION_BLOCKED');
+  assert.ok(report.message.includes('Bound ref drift: ' + runtime.path), report.message);
+  assert.deepEqual(report.scenarios, []);
+  assert.deepEqual(report.subjectRefs, []);
+  assert.deepEqual(report.verification.evidenceRefs, []);
+  assert.deepEqual(report.dependencyVerification, { mode: 'hash-only-metadata', executed: false });
+  assert.deepEqual(report.businessDataflow, { verdict: 'unknown', releaseBlocked: true });
+  assert.equal(report.desktopActions, false);
+  assert.equal(report.liveQualificationGranted, false);
+  assert.equal(report.businessHardFailGranted, false);
+});
+
+test('synthetic L1-only maintained exact bytes: clear semantics, memory artifacts and fail-stop observations', t => {
+    const bytes = maintainedBytes();
+    const descriptor = maintainedL1Descriptor(t, bytes);
     assert.equal(descriptor.script.sha256, maintainedHash);
+    assert.notEqual(descriptor.candidateRef.sha256, digest(maintainedManifestPath));
+    assert.deepEqual(fs.readFileSync(descriptor.script.path), bytes);
+    const metadata = JSON.parse(fs.readFileSync(path.join(descriptor.roots[0][1], descriptor.candidateRef.path), 'utf8'));
+    assert.equal(metadata.synthetic, true);
+    assert.equal(metadata.evidenceLayer, 'L1-controlled-substitutes');
+    assert.equal(metadata.historicalQualificationTransferred, false);
+    assert.equal(metadata.liveQualificationGranted, false);
+    assert.deepEqual(metadata.dependencies, []);
     const report = verifyFrozenConsumer(descriptor);
     assert.equal(report.verdict, 'pass', JSON.stringify(report));
     assert.deepEqual(report.subjectRefs, [descriptor.candidateRef, descriptor.scriptRef, ...descriptor.dependencies]);
@@ -45,6 +114,7 @@ test('available maintained exact Candidate: clear semantics, memory artifacts an
     assert.equal(report.scenarios.length, 8);
     assert.ok(report.scenarios.every(scenario => scenario.verdict === 'pass'));
     assert.equal(report.liveQualificationGranted, false);
+    assert.equal(report.desktopActions, false);
     assert.equal(report.businessHardFailGranted, false);
     assert.equal(report.applicability.reviewedSourceSha256, maintainedHash);
     assert.equal(report.applicability.kind, 'reviewed-frozen-candidate-adapter');
@@ -78,19 +148,11 @@ for (const [name, transform] of [
     "const firstResult = await readDisplay('first-result').catch(() => '0040');")],
   ['unknown input swallowed', code => code.replace('throw error; // No retry, backend switch, or prefix replay.', 'return;')],
 ]) {
-  test('clear-state oracle rejects controlled maintained-source defect: ' + name,
-    { skip: !fs.existsSync(maintainedManifestPath) && 'Local maintained Candidate unavailable' }, t => {
-      const original = fs.readFileSync(maintainedDescriptor().script.path, 'utf8');
+  test('clear-state oracle rejects controlled maintained-source defect: ' + name, t => {
+      const original = maintainedBytes().toString('utf8');
       const mutant = transform(original);
       assert.notEqual(mutant, original);
-      const f = fixture(t, state => { state.candidateSource = mutant; });
-      const candidate = JSON.parse(fs.readFileSync(f.file('candidate.json'), 'utf8'));
-      const report = verifyFrozenConsumer({ schemaVersion: 'calculator-consumer-l1/v1',
-        harness: 'calculator-runtime-v1', runtimeModel: 'calculator-clear-state-v1', dependencies: [],
-        candidateRef: f.ref('candidate.json', 'CandidateManifest'), scriptRef: candidate.scriptRef,
-        roots: [['fixture', f.root], ['repo', REPO]],
-        script: { path: f.file('candidate.js'), sha256: candidate.scriptRef.sha256 },
-        evaluatorSha256: digest(path.join(__dirname, 'tools/calculator-consumer-dataflow.cjs')) });
+      const report = verifyFrozenConsumer(maintainedL1Descriptor(t, mutant));
       assert.equal(report.verdict, 'fail', JSON.stringify(report));
       assert.equal(report.businessDataflow.releaseBlocked, true);
       if (name === 'read failure replaced by cached value') {
@@ -112,19 +174,11 @@ for (const [name, transform] of [
   ['different artifact name', code => code.replace("'/runtime-data-first.json'", "'/saved-first.json'")],
   ['equivalent but not reviewed source bytes', code => code + '\n// evaluator-owned equivalent diagnostic variant\n'],
 ]) {
-  test('clear-state adapter reports unsupported, not business failure: ' + name,
-    { skip: !fs.existsSync(maintainedManifestPath) && 'Local maintained Candidate unavailable' }, t => {
-      const original = fs.readFileSync(maintainedDescriptor().script.path, 'utf8');
+  test('clear-state adapter reports unsupported, not business failure: ' + name, t => {
+      const original = maintainedBytes().toString('utf8');
       const variant = transform(original);
       assert.notEqual(variant, original);
-      const f = fixture(t, state => { state.candidateSource = variant; });
-      const candidate = JSON.parse(fs.readFileSync(f.file('candidate.json'), 'utf8'));
-      const report = verifyFrozenConsumer({ schemaVersion: 'calculator-consumer-l1/v1',
-        harness: 'calculator-runtime-v1', runtimeModel: 'calculator-clear-state-v1', dependencies: [],
-        candidateRef: f.ref('candidate.json', 'CandidateManifest'), scriptRef: candidate.scriptRef,
-        roots: [['fixture', f.root], ['repo', REPO]],
-        script: { path: f.file('candidate.js'), sha256: candidate.scriptRef.sha256 },
-        evaluatorSha256: digest(path.join(__dirname, 'tools/calculator-consumer-dataflow.cjs')) });
+      const report = verifyFrozenConsumer(maintainedL1Descriptor(t, variant));
       assert.equal(report.verdict, 'blocked', JSON.stringify(report));
       assert.equal(report.businessDataflow.verdict, 'unknown');
       assert.equal(report.businessHardFailGranted, false);
@@ -134,8 +188,7 @@ for (const [name, transform] of [
     });
 }
 
-test('metadata hash drift and executable dependency roles cannot be treated as L1 pass',
-  { skip: !fs.existsSync(maintainedManifestPath) && 'Local maintained Candidate unavailable' }, () => {
+test('metadata hash drift and executable dependency roles cannot be treated as L1 pass', () => {
     for (const mutation of ['hash', 'role']) {
       const descriptor = maintainedDescriptor();
       if (mutation === 'hash') descriptor.dependencies[0].sha256 = '0'.repeat(64);
@@ -154,13 +207,15 @@ for (const [name, valid, transform] of [
   ['Set', false, code => code.replace('...firstResult', '...new Set([...firstResult])')],
   ['replace', false, code => code.replace('...firstResult', "...firstResult.replace(/0/g, '9')")],
   ['overwrite', false, code => code.replace('const firstResult', 'let firstResult')
-    .replace('  const secondInput =', "  firstResult = '110';\n  const secondInput =")],
+    .replace("  await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);", "  firstResult = '110';\n  await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);")],
   ['unreachable dynamic call', false, code => code.replace(
-    "  const secondInput = await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);",
-    "  if (false) await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);\n  const secondInput = await clickCalculatorButtons(win, ['6', '×', '1', '1', '0', '=']);")],
+    "  await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);",
+    "  if (false) await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);\n  await clickCalculatorButtons(win, ['6', '×', '1', '1', '0', '=']);")],
 ]) {
   test('reusable frozen-byte L1 production harness: ' + name, t => {
-    const f = fixture(t, state => { state.candidateSource = transform(source); });
+    const transformed = transform(source);
+    if (name !== 'frozen original') assert.notEqual(transformed, source, 'Mutation must reach current production bytes');
+    const f = fixture(t, state => { state.candidateSource = transformed; });
     const candidate = JSON.parse(fs.readFileSync(f.file('candidate.json'), 'utf8'));
     const report = verifyFrozenConsumer({ schemaVersion: 'calculator-consumer-l1/v1',
       harness: 'calculator-runtime-v1', dependencies: [],
@@ -181,15 +236,16 @@ function assertDataflow(run, first, final) {
   assert.equal(run.error, undefined, run.error?.message);
   assert.equal(run.logs.length, 1);
   assert.deepEqual(run.actions, [['全部清除'], firstButtons, ['全部清除'], ['6', '×', ...first, '=']]);
-  assert.equal(run.value.firstResult, first);
-  assert.equal(run.value.finalResult, final);
-  assert.deepEqual(run.value.firstInput, run.receipts[0]);
-  assert.deepEqual(run.value.secondInput, run.receipts[1]);
+  assert.equal(run.logs[0], final);
+  assert.equal(run.value, Number(final));
   assert.deepEqual(run.reads.filter(item => item.phase === 'first').map(item => item.value), [first, first]);
 }
 
-test('maintained production source still matches the fixed r003 spec; no rewritten test recipe', () => {
-  assert.equal(createHash('sha256').update(source).digest('hex'), spec.scriptHash);
+test('current production source matches its reviewed L1 snapshot; historical r003 qualification stays separate', () => {
+  assert.equal(createHash('sha256').update(source).digest('hex'), currentSource.scriptHash);
+  assert.equal(currentSource.evidenceLayer, 'L1');
+  assert.equal(currentSource.historicalQualificationTransferred, false);
+  assert.equal(spec.scriptHash, 'a62c72aa2b00f256755aac2524d14e4655a88194c012bf6765f0d314a62774cc');
 });
 
 for (const [first, final] of [['110', '660'], ['0040', '777'], ['9', '888']]) {
@@ -270,10 +326,10 @@ for (const [name, transform] of [
 
 for (const [name, transform] of [
   ['overwrite after clear', code => code.replace('const firstResult', 'let firstResult')
-    .replace('  const secondInput =', "  firstResult = '110';\n  const secondInput =")],
+    .replace("  await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);", "  firstResult = '110';\n  await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);")],
   ['dead dynamic call masking a constant', code => code.replace(
-    "  const secondInput = await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);",
-    "  if (false) await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);\n  const secondInput = await clickCalculatorButtons(win, ['6', '×', '1', '1', '0', '=']);")],
+    "  await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);",
+    "  if (false) await clickCalculatorButtons(win, ['6', '×', ...firstResult, '=']);\n  await clickCalculatorButtons(win, ['6', '×', '1', '1', '0', '=']);")],
 ]) {
   test('production host oracle detects controlled ' + name, { timeout: 3000 }, async () => {
     const code = transform(source);

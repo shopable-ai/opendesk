@@ -113,7 +113,10 @@ function readJson(filename) {
 function validateRoute(route) {
   exact(route, ['version', 'mode', 'endpoint', 'model', 'expectedResponseModel', 'stream', ...(route?.version === 2 ? ['aliasMapping'] : [])]);
   requireCondition([1, 2].includes(route.version) && ['mock', 'live'].includes(route.mode), 'invalid_route');
-  requireCondition(route.model === 'hr-6-astra', 'unexpected_requested_model');
+  // Direct same-model production is explicit and preserves the exact selector;
+  // legacy alias evidence/mapping applies only to the existing hr-6-astra route.
+  requireCondition(route.model === 'hr-6-astra'
+    || route.version === 1 && route.model === 'gpt-6.1-sol', 'unexpected_requested_model');
   identifier(route.expectedResponseModel);
   if (route.version === 1) requireCondition(route.expectedResponseModel === route.model, 'unexpected_expected_model');
   else {
@@ -374,7 +377,9 @@ function post(endpoint, bodyText, streaming, authenticate, timeoutMs, httpsAgent
     let captureDirectory;
     let descriptor;
     try {
-      exact(options, options?.wireCaptureRoot === undefined ? [] : ['wireCaptureRoot']);
+      exact(options, options?.wireCaptureRoot === undefined ? [] : ['wireCaptureRoot',
+        ...(options.successOnly === undefined ? [] : ['successOnly'])]);
+      requireCondition(options.successOnly === undefined || typeof options.successOnly === 'boolean', 'invalid_capture_policy');
       if (options.wireCaptureRoot !== undefined) {
         requireCondition(typeof options.wireCaptureRoot === 'string', 'invalid_wire_capture_root');
         captureDirectory = evidenceDirectory(options.wireCaptureRoot, 'wire-');
@@ -417,7 +422,8 @@ function post(endpoint, bodyText, streaming, authenticate, timeoutMs, httpsAgent
           receivedBytes, capturedBytes: persistedBytes, captureLimitBytes: MAX_RESPONSE,
           capturedAllObservedBytes: persistedBytes === receivedBytes, truncated: persistedBytes < receivedBytes,
           wireSha256: sha256(persisted), hashScope: responseEnded && persistedBytes === receivedBytes ? 'complete_response_body' : 'received_prefix_only',
-          streaming, sse: streaming ? sseBoundaries(persisted) : null, captureError };
+          streaming, sse: streaming ? sseBoundaries(persisted) : null, captureError,
+          ...(options.successOnly ? { capturePolicy: 'successful-http-response-only' } : {}) };
         try { save(captureDirectory, 'response.diagnostic.json', JSON.stringify(diagnostic, null, 2)); }
         catch { diagnostic.captureError = 'wire_capture_diagnostic_write_failed'; }
         if (diagnostic.captureError && !error) error = new BrokerError('wire_capture_failed');
@@ -460,7 +466,7 @@ function post(endpoint, bodyText, streaming, authenticate, timeoutMs, httpsAgent
         const retained = chunk.subarray(0, MAX_RESPONSE - retainedBytes);
         chunks.push(retained);
         retainedBytes += retained.length;
-        if (descriptor !== undefined) {
+        if (descriptor !== undefined && (!options.successOnly || httpStatus >= 200 && httpStatus < 300)) {
           let offset = 0;
           try {
             while (offset < retained.length) {
@@ -500,15 +506,19 @@ function createBroker({ packetRoot, evidenceRoot = EVIDENCE_ROOT, authenticate, 
   return {
     async send({ packet, route, allowLive = false }) {
       requireCondition(!inFlight, 'serial_request_required');
-      const endpoint = validateRoute(route);
-      requireCondition(route.mode === 'mock' || allowLive === true, 'live_not_authorized');
-      const compiled = compilePacket({ packetRoot, packet, route });
-      const outbound = resolveOutbound(compiled, route);
-      if (previous) requireCondition(compiled.taskId === previous.taskId && compiled.turn === previous.turn + 1 && compiled.stage >= previous.stage, 'invalid_turn_sequence');
       inFlight = true;
       let directory;
+      let receivedDiagnostic;
+      let transportStarted = false;
       try {
         directory = evidenceDirectory(evidenceRoot);
+        save(directory, 'invocation.json', JSON.stringify({ startedAt: new Date().toISOString(),
+          phase: 'preparing-packet', role: 'File retention only; not model execution or a stage verdict.' }));
+        const endpoint = validateRoute(route);
+        requireCondition(route.mode === 'mock' || allowLive === true, 'live_not_authorized');
+        const compiled = compilePacket({ packetRoot, packet, route });
+        const outbound = resolveOutbound(compiled, route);
+        if (previous) requireCondition(compiled.taskId === previous.taskId && compiled.turn === previous.turn + 1 && compiled.stage >= previous.stage, 'invalid_turn_sequence');
         save(directory, 'request.body.json', outbound.bodyText);
         if (route.version === 2) save(directory, 'request.selector.body.json', compiled.bodyText);
         save(directory, 'request.manifest.json', JSON.stringify({ version: 1, taskId: compiled.taskId, stage: compiled.stage, turn: compiled.turn, files: compiled.manifest }, null, 2));
@@ -516,9 +526,15 @@ function createBroker({ packetRoot, evidenceRoot = EVIDENCE_ROOT, authenticate, 
         previous = { taskId: compiled.taskId, stage: compiled.stage, turn: compiled.turn };
         const capturedRoute = { ...route };
         save(directory, 'route.json', JSON.stringify(capturedRoute, null, 2));
-        const received = await post(endpoint, outbound.bodyText, capturedRoute.stream, authenticate, timeoutMs, httpsAgent);
+        // Preserve original model bytes before parsing. A malformed response or
+        // interrupted SSE stream must remain inspectable. HTTP error bodies
+        // stay excluded; their status/code/hash are captured separately.
+        transportStarted = true;
+        const received = await post(endpoint, outbound.bodyText, capturedRoute.stream, authenticate, timeoutMs, httpsAgent,
+          { wireCaptureRoot: directory, successOnly: true });
+        receivedDiagnostic = received.diagnostic;
         const wire = { mode: capturedRoute.mode, endpoint: capturedRoute.endpoint, requestedModel: capturedRoute.model, backendModel: outbound.backendModel, expectedResponseModel: capturedRoute.expectedResponseModel, status: received.status, requestBodySha256: outbound.bodySha256, selectorBodySha256: compiled.bodySha256, aliasEvidenceSha256: outbound.aliasEvidenceSha256, aliasMappingSha256: outbound.aliasMappingSha256, responseBodySha256: sha256(received.bytes) };
-        save(directory, 'transport.json', JSON.stringify(wire, null, 2));
+        save(directory, 'transport.json', JSON.stringify({ ...wire, diagnostic: received.diagnostic }, null, 2));
         if (received.status < 200 || received.status >= 300) {
           let errorBody;
           try { errorBody = JSON.parse(decode(received.bytes)); } catch {}
@@ -528,12 +544,32 @@ function createBroker({ packetRoot, evidenceRoot = EVIDENCE_ROOT, authenticate, 
         requireCondition(received.status >= 200 && received.status < 300, 'http_status_rejected');
         const response = parseResponse(received.bytes, capturedRoute.stream);
         save(directory, 'response.json', JSON.stringify(response, null, 2));
+        save(directory, 'producer-output.txt', response.outputText);
         requireCondition(response.model === capturedRoute.expectedResponseModel, 'response_model_mismatch');
         return { evidenceDirectory: directory, ...wire, response };
       } catch (error) {
         const safe = error instanceof BrokerError ? error : new BrokerError('broker_io_error');
+        if (!safe.diagnostic && receivedDiagnostic) safe.diagnostic = receivedDiagnostic;
+        if (directory) safe.evidenceDirectory = directory;
         if (directory) {
-          try { save(directory, 'failure.json', JSON.stringify({ code: safe.code })); } catch {}
+          try { save(directory, 'failure.json', JSON.stringify({ code: safe.code, transportStarted,
+            diagnostic: safe.diagnostic || null,
+            nextAction: 'Inspect retained request and wire diagnostic/raw response before classifying the failure; do not retry or execute partial output.' }));
+            const wireRef = safe.diagnostic?.captureDirectory
+              ? path.relative(directory, safe.diagnostic.captureDirectory).split(path.sep).join('/') : null;
+            save(directory, 'failure.md', [
+              '# Producer 本次失败', '',
+              '| 项目 | 实际记录 |', '| --- | --- |',
+              '| 失败代码 | ' + safe.code + ' |',
+              '| 传输调用已开始 | ' + transportStarted + '（不证明远端模型已执行） |',
+              '| 实际收到字节 | ' + (safe.diagnostic?.receivedBytes ?? '尚无传输诊断') + ' |',
+              '| 业务阶段正确性 / Owner | 未验证；不能仅从传输错误猜测 |', '',
+              '[失败原始诊断](failure.json)', '',
+              ...(fs.existsSync(path.join(directory, 'request.body.json')) ? ['[实际请求正文](request.body.json)', ''] : ['请求未编译成功，未发送。', '']),
+              ...(wireRef ? [`[收到的原始响应](${wireRef}/response.wire) · [接收诊断](${wireRef}/response.diagnostic.json)`, ''] : []),
+              '先检查原始输入、实际输出和截断/完成状态，再交原职责；不执行半成品，不自动重试。', ''
+            ].join('\n'));
+          } catch { safe.retentionError = 'failure_record_write_failed'; }
         }
         throw safe;
       } finally {
@@ -575,7 +611,8 @@ No prior response is automatically reused. Returned output is inert text, never 
 Route exact schema:
 {version:1, mode:"mock"|"live", endpoint:"http://127.0.0.1:<port>/v1/responses",
  model:"hr-6-astra", expectedResponseModel:"<explicit expected reported model>", stream:true|false}
-Route v1 requires model=expectedResponseModel=hr-6-astra (no declared mapping).
+Route v1 requires model=expectedResponseModel=hr-6-astra or gpt-6.1-sol
+(explicit direct same-model route, no declared mapping or fallback).
 Route v2 adds aliasMapping:{requestedSelector,provider,backendModel,evidencePath,evidenceSha256}.
 The selector remains hr-6-astra; expectedResponseModel must equal backendModel.
 An exact, recent, hash-bound /api/aliases observation must declare that mapping.
@@ -595,10 +632,14 @@ manual projection. Keep source/projection hashes and review ledger outside model
 This version does not yet enforce that content-review ledger.
 Local paths are evidence metadata, never model tools or automatically expanded content.
 Evidence defaults to .runtime/tests/agent-to-recipe/revision-20260929/isolation-probe/.
-The default CLI saves exact outbound body/hash, manifest, route, response wire hash and
-validated response projection (id/model/status/text); never headers, auth config, raw
-error bodies or raw SSE.
-Trusted API callers may opt in per transport leg:
+The default broker/CLI saves exact outbound body/hash, manifest, route, response
+wire hash and validated response projection (id/model/status/text). It also retains
+successful HTTP model responses incrementally before parsing, including partial or
+invalid SSE/JSON. Each wire-* folder has response.wire and response.diagnostic.json.
+HTTP error bodies, headers and auth config are excluded. Timeout/parse failures keep
+the original bytes actually received, or an empty file with awaiting-headers diagnostic;
+none of these files proves completion, model behavior correctness or qualification.
+Low-level transport callers may separately opt in per leg:
 post(endpoint, bodyText, streaming, authenticate, timeoutMs, httpsAgent,
   {wireCaptureRoot: "<absolute directory under isolation-probe>"})
 This creates a private wire-* directory and incrementally writes response.wire (body
@@ -610,7 +651,8 @@ capture directory, HTTP status (null before headers), absolute timeout, byte cou
 prefix/full-body SHA256, and bounded SSE frame byte offsets plus trailing-byte count.
 SSE boundaries are diagnostic only, not proof of completion or valid model output.
 Capture errors fail closed; an existing transport error is not replaced by flush failure.
-Without the seventh argument, return shape and no-persistence behavior are unchanged.
+Without the seventh post argument, return shape and no-persistence behavior are unchanged.
+createBroker uses successOnly:true by default, preserving only 2xx model output.
 Timeout remains absolute wall-clock, not idle timeout; no automatic extension or retry.
 Do not treat mock response IDs as a real Producer run. Full model-route proof needs a
 separately authorized production request after packet and proxy qualification.
@@ -653,6 +695,8 @@ async function main(args) {
 
 module.exports = { BrokerError, EVIDENCE_ROOT, compilePacket, resolveOutbound, createBroker, readJson, sha256, parseResponse, post };
 if (require.main === module) main(process.argv.slice(2)).catch(error => {
-  process.stderr.write(`${JSON.stringify({ error: error instanceof BrokerError ? error.code : 'broker_io_error' })}\n`);
+  process.stderr.write(`${JSON.stringify({ error: error instanceof BrokerError ? error.code : 'broker_io_error',
+    ...(error.evidenceDirectory ? { evidenceDirectory: error.evidenceDirectory } : {}),
+    ...(error.retentionError ? { retentionError: error.retentionError } : {}) })}\n`);
   process.exitCode = 1;
 });

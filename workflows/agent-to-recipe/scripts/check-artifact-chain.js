@@ -375,7 +375,17 @@ function checkArtifactChain(options = {}) {
         'Unknown, partial or uncovered side effects must be resolved before successful distillation.');
     });
 
-    for (const [index, runtimeValue] of array(dossier.runtimeValues, 'RUNTIME_VALUES', 'runtimeValues must be an array.').entries()) {
+    const runtimeValues = array(dossier.runtimeValues, 'RUNTIME_VALUES', 'runtimeValues must be an array.');
+    // Compare the retained consumer output with the historical declaration set.
+    // Emptying the set must not vacuously pass every lineage check. Preparation
+    // reads are not business runtime values; do not require a value per AX read.
+    for (const step of steps.filter(item => item.classification === 'runtime-read')) {
+      attempt('trace-distill', 'dossier.runtimeValues.coverage.' + step.stepId, () => requireCheck(
+        (step.outputs || []).every(name => runtimeValues.some(value => value.name === name
+          && step.sourceActionRefs.includes(originAction(value)))), 'RUNTIME_VALUE_COVERAGE',
+        'Every retained runtime-read output must bind a Dossier value to its source action.'));
+    }
+    for (const [index, runtimeValue] of runtimeValues.entries()) {
       const base = 'dossier.runtimeValues[' + index + ']';
       const producerId = originAction(runtimeValue);
       const match = producerId && [producerId];

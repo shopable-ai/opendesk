@@ -125,128 +125,257 @@ function refsSummary(refs, limit = 3) {
   return shown.length ? shown.join('; ') : '—';
 }
 
-function renderWorkflowReview(report) {
-  requireCheck(object(report) && object(report.stages), 'INVALID_WORKFLOW_REVIEW',
-    'Workflow review renderer requires a check-workflow-stage report.');
-  const stages = Array.from({ length: 12 }, (_, index) => 'S' + (index + 1));
-  const invalid = report.firstInvalidBoundary || '—';
-  const owner = report.failureOwner
-    ? report.failureOwner.stage + ' / ' + report.failureOwner.skill : '—';
-  const lastConfirmed = list(report.preservedUpstream).length
-    ? list(report.preservedUpstream)[list(report.preservedUpstream).length - 1] : '—';
-  const lines = [
-    '# Agent-to-Recipe Stage Review', '',
-    '> 本文件是 check-workflow-stage.js 结果的只读人工投影。它不重新评分、不改变 Gate、不补造 Actual，',
-    '> 也不把 Markdown 变成第二份权威事实。机器权威仍是固定 StageReview、artifact/evidence refs 与 checker 结果。', '',
-    '## 排错结论', '',
-    '| 项目 | 本次结果 |', '| --- | --- |',
-    '| Task | ' + cell(report.taskId || '—') + ' |',
-    '| Attempt | ' + cell(report.attemptId || '—') + ' |',
-    '| Plan Revision | ' + cell(report.planRevision || '—') + ' |',
-    '| 检查范围 | ' + cell((report.from || '—') + ' → ' + (report.to || '—') + (report.final ? ' / final' : '')) + ' |',
-    '| 当前状态 | **' + cell(report.allowed ? 'PASS' : 'FAIL') + '** |',
-    '| 首个无效边界 | **' + cell(invalid) + '** |',
-    '| Failure Owner | ' + cell(owner) + ' |',
-    '| 最后确认正确阶段 | ' + cell(lastConfirmed) + ' |',
-    '| 可保留上游 | ' + cell(list(report.preservedUpstream).join(', ') || '—') + ' |',
-    '| 失效／阻塞下游 | ' + cell(list(report.invalidatedDownstream).join(', ') || '—') + ' |',
-    '| 下一最小动作 | ' + cell(report.nextMinimumAction || '—') + ' |',
-  ];
-  if (report.missedCheckOwner) lines.push(
-    '| Missed-check Owner | ' + cell(report.missedCheckOwner.stage + ' / ' + report.missedCheckOwner.skill
-      + ': ' + (report.missedCheckOwner.reason || '')) + ' |');
-  lines.push('', '## S1—S12 总览', '',
-    '| Stage | Owner | Actual Output / 固定引用 | Score | Hard Fail | Blocking Unknown | Gate | Verdict |',
-    '| --- | --- | --- | ---: | ---: | ---: | --- | --- |');
-  for (const stage of stages) {
-    const item = object(report.stages[stage]) ? report.stages[stage] : {};
-    lines.push('| ' + [
-      stage, item.owner || '—', refsSummary(item.outputs),
-      item.score === null || item.score === undefined ? '—' : item.score + '/100',
-      list(item.hardFails).length, list(item.blockingUnknowns).length,
-      item.gate?.verdict || '—', item.verdict || 'not-run',
-    ].map(cell).join(' | ') + ' |');
-  }
-  for (const stage of stages) {
-    const item = object(report.stages[stage]) ? report.stages[stage] : {};
-    const stageErrors = list(report.errors).filter(error => error?.stage === stage);
-    lines.push('', '## ' + stage, '',
-      '- **Owner：** ' + cell(item.owner || '—'),
-      '- **Producer / Reviewer：** ' + cell((item.producer || '—') + ' / ' + (item.reviewer || '—')),
-      '- **Verdict：** **' + cell(item.verdict || 'not-run') + '**',
-      '- **Score：** ' + cell(item.score === null || item.score === undefined ? '—' : item.score + ' / 100'),
-      '- **Inputs sufficient：** ' + cell(item.inputsSufficient === undefined ? '—' : item.inputsSufficient),
-      '- **Actual output correct：** ' + cell(item.actualOutputCorrect === undefined ? '—' : item.actualOutputCorrect),
-      '- **Gate：** ' + cell(item.gate?.verdict || '—'), '',
-      '### Actual Input / Output / Evidence', '',
-      '| 类型 | 固定引用 |', '| --- | --- |',
-      '| Inputs | ' + cell(refsSummary(item.inputs, 8)) + ' |',
-      '| Outputs | ' + cell(refsSummary(item.outputs, 8)) + ' |',
-      '| Evidence | ' + cell(refsSummary(item.evidence, 8)) + ' |');
-    if (object(item.scoreDimensions)) {
-      lines.push('', '### 独立评分', '', '| 维度 | 得分 |', '| --- | ---: |');
-      for (const [dimension, score] of Object.entries(item.scoreDimensions)) {
-        lines.push('| ' + cell(dimension) + ' | ' + cell(score === null ? '未评价' : score) + ' |');
-      }
-      const exceptionalItems = Object.values(object(item.scoreEvidence) ? item.scoreEvidence : {})
-        .flatMap(detail => list(detail?.items)).filter(entry => entry?.score !== 5);
-      if (exceptionalItems.length) {
-        lines.push('', '未满分／未评价检查项：', '');
-        for (const entry of exceptionalItems.slice(0, 20)) {
-          lines.push('- ' + cell((entry.id || '?') + ' = '
-            + (entry.score === null || entry.score === undefined ? '未评价' : entry.score)
-            + '：' + compact(entry.reason || '无说明')));
+// Human names describe the existing responsibilities; they never decide a Gate.
+const STAGE_WORK = Object.freeze({
+  S1: ['任务与权限', '把原始要求、成功条件、权限和停止条件固定到合同与计划。'],
+  S2: ['应用能力核验', '确认当前应用身份、目标、读值方式和下一步操作的证据与限制。'],
+  S3: ['实际执行动作', '保存获准动作的请求、实际回执和副作用状态。'],
+  S4: ['观察实际效果', '从正确对象重新观察；保存实际读值及其原始来源。'],
+  S5: ['决定怎样继续', '依据动作与观察判断继续、停止或返回修复，并保存判断依据。'],
+  S6: ['示范事实收口', '把动作、观察、运行时值和未决事项交成下游可消费的事实包。'],
+  S7: ['提炼必要步骤', '说明每个步骤为何保留或删除，保留完整的值生产者与消费者关系。'],
+  S8: ['解释业务语义', '把必要步骤解释为业务结果、对象、条件和数据含义。'],
+  S9: ['形成业务过程', '固定步骤、参数、运行时数据依赖和支持范围。'],
+  S10: ['补强应用规则', '为实际过程需要的操作提供经过验证的定位、执行、验证与停止规则。'],
+  S11: ['生成并冻结脚本', '由过程和应用规则生成普通 JavaScript，绑定源码、入口和依赖。'],
+  S12: ['独立运行验收', '独立运行同一冻结候选，按声明范围验收结果与失败行为。'],
+});
+const refKey = ref => object(ref) ? [ref.rootId, ref.path, ref.sha256].join('\0') : '';
+const safeSnapshot = value => typeof value === 'string' && /^files\/\d{4,}\.[A-Za-z0-9]{1,12}$/.test(value);
+const EXCERPT_KINDS = new Set(['TaskContract', 'WorkPlan', 'AppProfile', 'Dossier',
+  'DemonstrationDossier', 'DistilledSteps', 'BusinessSteps', 'SemanticProcedure',
+  'CandidateManifest', 'QualificationRecord']);
+
+// The caller supplies the check's existing retained files. No latest lookup,
+// file I/O, directory discovery, score or verdict is performed by this module.
+function workflowPresentation(report, snapshots, readSnapshot, prefix = '') {
+  requireCheck(typeof prefix === 'string' && /^(?:[A-Za-z0-9_.-]+\/)*$/.test(prefix)
+    && !prefix.split('/').includes('..'), 'INVALID_VIEW_PREFIX', 'Use a safe relative snapshot prefix.');
+  const sources = new Map();
+  const outputs = new Set(Object.values(report.stages || {}).flatMap(stage => list(stage?.outputs)).map(refKey));
+  for (const entry of list(snapshots)) {
+    if (!object(entry) || !object(entry.ref)) continue;
+    const source = { ...entry, href: null, document: null };
+    if (entry.status === 'retained' && entry.actualSha256 === entry.ref.sha256 && safeSnapshot(entry.snapshot)) {
+      source.href = prefix + entry.snapshot;
+      if (outputs.has(refKey(entry.ref)) && EXCERPT_KINDS.has(entry.ref.kind) && typeof readSnapshot === 'function') {
+        try {
+          const bytes = readSnapshot(entry.snapshot);
+          requireCheck(bytes && bytes.length <= 512 * 1024 && hash(bytes) === entry.ref.sha256,
+            'VIEW_HASH_MISMATCH', 'Retained artifact bytes do not match the checked reference.');
+          source.document = JSON.parse(bytes.toString('utf8'));
+        } catch (error) {
+          source.status = 'view-unavailable';
+          source.message = error.code || 'VIEW_READ_FAILED';
+          source.href = null;
         }
       }
     }
-    lines.push('', '### Hard Fail / Unknown / Tests', '');
-    if (list(item.hardFails).length) {
-      lines.push('**Hard Fail：**');
-      for (const value of list(item.hardFails).slice(0, 20)) lines.push('- ' + cell(compact(value)));
-    } else lines.push('**Hard Fail：** 无记录。');
-    if (list(item.blockingUnknowns).length) {
-      lines.push('', '**Blocking Unknown：**');
-      for (const value of list(item.blockingUnknowns).slice(0, 20)) lines.push('- ' + cell(compact(value)));
-    } else lines.push('', '**Blocking Unknown：** 无记录。');
-    if (list(item.requiredTests).length) {
-      lines.push('', '| Required Test | Status |', '| --- | --- |');
-      for (const test of list(item.requiredTests).slice(0, 40)) {
-        lines.push('| ' + cell(test.name || '—') + ' | ' + cell(test.status || '—') + ' |');
-      }
-    } else lines.push('', 'Required Tests：未记录或本阶段未执行。');
-    if (list(item.findings).length) {
-      lines.push('', '### Findings', '');
-      for (const finding of list(item.findings).slice(0, 20)) {
-        lines.push('- ' + cell((finding.blocking ? '[blocking] ' : '')
-          + (finding.ownerStage ? 'owner=' + finding.ownerStage + ' ' : '')
-          + compact(finding.reason || finding)));
-      }
+    sources.set(refKey(entry.ref), source);
+  }
+  return { sources, indexHref: prefix + 'snapshot-index.md', checkerHref: prefix + 'checker-result.json' };
+}
+
+function workflowRef(ref, view) {
+  const source = view?.sources?.get(refKey(ref));
+  const label = cell((ref?.kind || '产物') + ' · ' + String(ref?.path || '?').split('/').pop());
+  const digest = cell(String(ref?.sha256 || 'no-hash').slice(0, 12));
+  if (source?.href) return '[' + label + '](' + source.href + ') @' + digest;
+  return cell(refSummary(ref)) + (source && source.status !== 'retained'
+    ? '〔同版文件不可用：' + cell(source.status) + '〕' : '');
+}
+
+function artifactExcerpt(ref, document) {
+  if (!object(document)) return [];
+  const rows = [];
+  const add = (label, value) => {
+    if (value !== undefined && value !== null && value !== '') rows.push(label + '：' + compact(value, 420));
+  };
+  const summarize = (value, names) => {
+    if (typeof value === 'string') return value;
+    if (!object(value)) return compact(value, 420);
+    return names.filter(name => value[name] !== undefined).map(name => compact(value[name], 300)).join('；')
+      || compact(value, 420);
+  };
+  const entries = (label, values, names, limit = 5) => {
+    for (const value of list(values).slice(0, limit)) add(label, summarize(value, names));
+    if (list(values).length > limit) add(label + '余项', '另有 ' + (values.length - limit) + ' 项，打开同版产物查看。');
+  };
+  if (ref.kind === 'TaskContract') {
+    add('任务目标', document.goal);
+    entries('运行时数据约束', document.inputs?.runtimeDerived, ['name', 'type', 'producer', 'lifetime', 'consumer']);
+    entries('成功条件', document.successCriteria, ['criterionId', 'expected'], 20);
+    add('声明支持范围', document.supportedScope?.intended || document.supportedScope);
+  } else if (ref.kind === 'WorkPlan') {
+    add('计划版本', document.revision || document.planRevision);
+    entries('任务分解', document.businessTaskTree, ['id', 'goal']);
+    entries('计划动作（尚非执行事实）', document.operationPlan, ['id', 'objectAndGoal', 'plannedAction', 'check']);
+  } else if (ref.kind === 'AppProfile') {
+    add('应用身份', document.applicationIdentity);
+    add('适用环境', document.environmentScope);
+    entries('操作规则', document.operations, ['id', 'inputs', 'outputs', 'postconditions'], 3);
+    entries('限制', document.limitations, ['reason', 'scope'], 3);
+  } else if (['Dossier', 'DemonstrationDossier'].includes(ref.kind)) {
+    entries('实际读值与消费者', document.runtimeValues, ['name', 'observedValue', 'origin', 'consumers']);
+    add('副作用记录', document.sideEffects);
+    entries('未决事项', document.unresolved, ['id', 'reason', 'owner']);
+  } else if (ref.kind === 'CandidateManifest') {
+    add('冻结源码', document.scriptRef);
+    add('支持范围', document.supportedScope);
+    entries('限制', document.limitations, ['reason', 'scope']);
+  } else if (ref.kind === 'QualificationRecord') {
+    add('资格记录声明', document.verdict);
+    add('验收范围', document.qualificationScope);
+    entries('独立场景', document.scenarios, ['id', 'name', 'verdict', 'executionRef']);
+    entries('失败条件', document.failedCriteria, ['id', 'reason']);
+  } else {
+    entries('业务步骤', document.businessSteps || document.steps, ['stepId', 'goal', 'businessMeaning', 'action', 'postconditions']);
+    entries('运行时数据依赖', document.dataDependencies || document.runtimeValues, ['name', 'producer', 'consumers']);
+    entries('未决事项', document.unresolved, ['id', 'reason', 'owner']);
+  }
+  return rows;
+}
+
+function renderWorkflowReview(report, view = {}) {
+  requireCheck(object(report) && object(report.stages), 'INVALID_WORKFLOW_REVIEW',
+    'Workflow review renderer requires a check-workflow-stage report.');
+  const stages = Object.keys(STAGE_WORK);
+  const passed = stages.filter(stage => report.stages[stage]?.verdict === 'pass');
+  const pending = stages.filter(stage => report.stages[stage]?.verdict !== 'pass');
+  const finalPassed = report.allowed === true && report.from === 'S12' && report.to === 'S12'
+    && report.final?.verdict === 'pass' && passed.length === 12;
+  const invalid = report.firstInvalidBoundary || '—';
+  const owner = report.failureOwner ? report.failureOwner.stage + ' / ' + report.failureOwner.skill
+    : report.firstInvalidBoundary || !report.allowed ? '尚未确定责任' : '本次检查未记录失败责任';
+  const lastConfirmed = list(report.preservedUpstream).at(-1) || '—';
+  const lines = ['# 自动化脚本工作流｜阶段审阅', '',
+    '**' + (finalPassed ? '最终阶段门禁：通过。支持范围与真实运行证据见 S12。'
+      : '整条流程验收：尚未完成。') + '**', '',
+    '本次检查 ' + cell((report.from || '—') + ' → ' + (report.to || '—')) + '：**'
+      + cell(report.allowed ? 'PASS' : 'FAIL') + '**。'
+      + (report.allowed && !finalPassed ? '该 PASS 只放行本次阶段边界。' : ''), '',
+    '已通过阶段：' + cell(passed.join('、') || '无') + '。'
+      + (pending.length ? '尚未通过阶段：' + cell(pending.join('、')) + '。' : ''), '',
+    '本页由 check-workflow-stage.js 的固定结果生成；正文摘录仅使用同版产物。'
+      + '未纳入本次检查的执行或修复历史须从案例入口另行审阅。', '',
+    '阅读顺序：先看阶段的业务问题、输入来源和实际成果正文，再核对独立判断、'
+      + '错误与评分。文件存在或高分都不能替代业务证据。', '',
+    '维护工作流本身不授予生产、Runtime 或桌面执行权限；原始用户指令、工作包授权'
+      + '和当前暂停要求须分别核对。已获准但已停止的后续验证保持未运行，'
+      + '静态源码修改保持未执行验证。', '',
+    '## 现在该从哪里检查', '',
+    '| 问题 | 本次记录 |', '| --- | --- |',
+    '| 首个无效边界 | **' + cell(invalid) + '** |',
+    '| Failure Owner（修复责任） | ' + cell(owner) + ' |',
+    '| 最后确认正确阶段 | ' + cell(lastConfirmed) + ' |',
+    '| 可保留上游 | ' + cell(list(report.preservedUpstream).join('、') || '—') + ' |',
+    '| 失效／阻塞下游 | ' + cell(list(report.invalidatedDownstream).join('、') || '—') + ' |',
+    '| 下一最小动作 | ' + cell(report.nextMinimumAction || '未记录；需补充接续依据。') + ' |'];
+  if (report.missedCheckOwner) lines.push('| Missed-check Owner | '
+    + cell(report.missedCheckOwner.stage + ' / ' + report.missedCheckOwner.skill + ': '
+      + (report.missedCheckOwner.reason || '')) + ' |');
+  if (view.indexHref && view.checkerHref) lines.push('',
+    '[本次固定文件与完整引用](' + view.indexHref + ') · [机器原始结论](' + view.checkerHref + ')');
+  const unavailable = [...(view.sources?.values() || [])].filter(source => source.status !== 'retained');
+  if (unavailable.length) lines.push('', '**本视图有 ' + unavailable.length
+    + ' 项同版文件或正文不可用。** 查看固定索引；机器历史 PASS 不能替代当前可访问的证据。');
+  lines.push('', 'Node 维护工具只检查文件、版本与阶段交接；OpenDesk Runtime 的真实动作、'
+    + '读值及独立验收须分别有对应 Execution 证据。');
+  lines.push('', '## S1—S12 总览', '',
+    '| 阶段与工作 | 当前验收 | 实际交付 |', '| --- | --- | --- |');
+  for (const stage of stages) {
+    const item = report.stages[stage] || {};
+    const verdict = item.verdict || 'not-run';
+    const state = { pass: '通过', fail: '失败', blocked: '受阻', 'not-run': '尚未纳入本次验收' }[verdict] || verdict;
+    lines.push('| ' + cell(stage + ' ' + STAGE_WORK[stage][0]) + ' | ' + cell(state + '（' + verdict + '）')
+      + ' | ' + (list(item.outputs).slice(0, 2).map(ref => workflowRef(ref, view)).join('；') || '尚无本次验收产物') + ' |');
+  }
+  for (const stage of stages) {
+    const item = report.stages[stage] || {};
+    const stageErrors = list(report.errors).filter(error => error?.stage === stage);
+    lines.push('', '## ' + stage + '｜' + STAGE_WORK[stage][0], '', STAGE_WORK[stage][1], '');
+    if ((item.verdict || 'not-run') === 'not-run') {
+      lines.push('本次记录为 **not-run**，尚未纳入阶段验收；不能据此否认其他保留的真实执行，也不能写成 PASS。');
+      continue;
     }
-    if (stageErrors.length) {
-      lines.push('', '### Checker Errors', '', '| Code | Message |', '| --- | --- |');
-      for (const error of stageErrors.slice(0, 40)) {
-        lines.push('| ' + cell(error.code || '—') + ' | ' + cell(compact(error.message || '')) + ' |');
-      }
+    lines.push('**责任：** ' + cell(item.owner || '未记录') + '。', '',
+      '### 开始前有什么、应交出什么', '');
+    const businessInputs = list(item.inputs).filter(ref => ref?.kind !== 'Method');
+    for (const ref of businessInputs.slice(0, 5)) lines.push('- 输入：' + workflowRef(ref, view));
+    if (!businessInputs.length) lines.push('- 未记录业务输入引用；完整输入见固定索引。');
+    if (businessInputs.length > 5) lines.push('- 另有 ' + (businessInputs.length - 5) + ' 项输入，见固定索引。');
+    lines.push('- 正式必需成果／证据：' + cell(list(item.expected?.requiredEvidenceKinds).join('、')
+      || '本报告未记录；需回到该阶段正式约束核对。'), '', '### 实际成果与业务内容', '');
+    for (const ref of list(item.outputs).slice(0, 12)) {
+      lines.push('- ' + workflowRef(ref, view));
+      const source = view?.sources?.get(refKey(ref));
+      const rows = source?.document ? artifactExcerpt(ref, source.document) : [];
+      for (const row of rows) lines.push('  - ' + cell(row));
+      if (!rows.length) lines.push('  - 本视图未取得可摘录的同版正文；需打开固定产物核对内容。');
     }
-    let next = '尚无单独返修动作。';
-    if (stage === report.firstInvalidBoundary) next = report.nextMinimumAction || '修复本阶段后重验实际依赖下游。';
-    else if (item.verdict === 'pass') next = '本阶段可以保留；除非其固定输入或依赖版本失效，否则不要机械重做。';
-    else if (item.verdict === 'blocked') next = '等待真正 failure owner 修复；不要在本阶段自行补写上游事实。';
-    else if (item.verdict === 'not-run') next = '尚未执行；不能写成 PASS。';
-    lines.push('', '**本阶段接续：** ' + cell(next));
+    if (!list(item.outputs).length) lines.push('没有本次产物引用；需按下列问题定位缺口。');
+    lines.push('', '### 为什么得到这个判断', '',
+      '**阶段判断：** ' + cell(item.verdict) + '；Gate=' + cell(item.gate?.verdict || '未记录')
+      + '；独立评分=' + cell(item.score == null ? '未评价' : item.score + ' / 100') + '。', '');
+    for (const [dimension, detail] of Object.entries(item.scoreEvidence || {})) {
+      const reasons = [...new Set(list(detail?.items).map(entry => entry?.reason).filter(Boolean))];
+      const dimensionName = { requirements: '需求覆盖', responsibility: '职责与产出',
+        continuation: '下游接续', validation: '验证依据', cost: '成本与预算' }[dimension] || dimension;
+      lines.push('- ' + cell(dimensionName) + '：' + cell(compact(reasons.join('；') || detail?.reason || '无说明', 900)));
+    }
+    if (!object(item.scoreEvidence) || !Object.keys(item.scoreEvidence).length) lines.push('未记录独立判断正文；分数不能代替依据。');
+    const exceptionalItems = Object.values(item.scoreEvidence || {}).flatMap(detail => list(detail?.items))
+      .filter(entry => entry?.score !== 5);
+    if (exceptionalItems.length) {
+      lines.push('', '未满分或尚未评价的检查项：', '');
+      for (const entry of exceptionalItems.slice(0, 20)) lines.push('- ' + cell((entry.id || '?') + ' = '
+        + (entry.score == null ? '未评价' : entry.score) + '：' + compact(entry.reason || '无说明')));
+    }
+    lines.push('', '**生产者：** ' + cell(item.producer || '未记录'), '',
+      '**独立审阅者：** ' + cell(item.reviewer || '未记录'), '',
+      '**输入充分／产出正确：** ' + cell(item.inputsSufficient ?? '未记录') + ' / '
+      + cell(item.actualOutputCorrect ?? '未记录') + '。', '',
+      '### 错误、证据缺口与接续', '');
+    const hardFails = list(item.hardFails), unknowns = list(item.blockingUnknowns);
+    lines.push('**Hard Fail：** ' + (hardFails.length ? '' : '本阶段无记录。'));
+    for (const value of hardFails.slice(0, 20)) lines.push('- ' + cell(compact(value)));
+    lines.push('', '**Blocking Unknown：** ' + (unknowns.length ? '' : '本阶段无记录。'));
+    for (const value of unknowns.slice(0, 20)) lines.push('- ' + cell(compact(value)));
+    for (const finding of list(item.findings).slice(0, 20)) {
+      lines.push('', '- ' + cell((finding.blocking ? '[blocking] ' : '') + compact(finding.reason || finding)),
+        '  - 责任：' + cell(finding.ownerStage || '未确定'),
+        '  - 依据：' + (list(finding.evidence).map(ref => workflowRef(ref, view)).join('；') || '未记录'));
+    }
+    for (const error of stageErrors.slice(0, 40)) lines.push('- **' + cell(error.code || '—') + '**：' + cell(compact(error.message || '')));
+    const next = stage === report.firstInvalidBoundary ? report.nextMinimumAction
+      : item.verdict === 'pass' ? '保留本阶段固定成果；上游版本改变时重验受影响下游。'
+        : item.verdict === 'blocked' ? '等待真正 failure owner 修复；不要在本阶段自行补写上游事实。'
+          : '按上述证据修复对应责任，再重验受影响部分。';
+    lines.push('', '**怎样继续：** ' + cell(next || '未记录下一动作。'), '',
+      '### 必需测试与固定证据', '', '| 必需测试 | 状态 |', '| --- | --- |');
+    for (const test of list(item.requiredTests).slice(0, 40)) lines.push('| ' + cell(test.name || '—') + ' | ' + cell(test.status || '—') + ' |');
+    if (!list(item.requiredTests).length) lines.push('| 未记录 | 未验证 |');
+    lines.push('');
+    const evidence = list(item.evidence);
+    for (const ref of evidence.slice(0, 8)) lines.push('- ' + workflowRef(ref, view));
+    if (evidence.length > 8) lines.push('- 另有 ' + (evidence.length - 8) + ' 条，见本次固定文件索引。');
+    lines.push('', '评分明细：' + cell(Object.entries(item.scoreDimensions || {})
+      .map(([key, value]) => key + '=' + (value == null ? '未评价' : value)).join('；') || '未记录') + '。');
   }
   const unscoped = list(report.errors).filter(error => !error?.stage);
   if (unscoped.length) {
-    lines.push('', '## 全局检查错误', '', '| Code | Message |', '| --- | --- |');
-    for (const error of unscoped.slice(0, 40)) {
-      lines.push('| ' + cell(error.code || '—') + ' | ' + cell(compact(error.message || '')) + ' |');
-    }
+    lines.push('', '## 全局检查错误', '');
+    for (const error of unscoped.slice(0, 40)) lines.push('- **' + cell(error.code || '—') + '**：' + cell(compact(error.message || '')));
   }
-  lines.push('', '## 尚未被本报告证明', '');
+  lines.push('', '## 检查身份与证明边界', '',
+    '任务：' + cell(report.taskId || '—') + '；计划：' + cell(report.planRevision || '—')
+      + '；Attempt：' + cell(report.attemptId || '—') + '。', '',
+    '原始检查记录 hash：' + cell(report.recordSha256 || '未记录') + '。', '',
+    '以下事项没有被本报告单独证明：', '');
   for (const value of list(report.notEvaluated)) lines.push('- ' + cell(value));
   if (!list(report.notEvaluated).length) lines.push('- 未额外声明。');
   lines.push('', '**高分不能覆盖 Hard Fail、Blocking Unknown、缺 Actual evidence、失败 Gate 或未通过的 required test。**',
-    '', '**本视图不授予桌面动作权限，也不把历史声明自动升级成真实运行事实。**', '');
+    '', '本页不授予桌面动作权限。原始引用、全部评分条目和证据保存在机器记录与固定文件索引中。', '');
   return lines.join('\n');
 }
 
@@ -301,4 +430,4 @@ function renderReview(report) {
   return lines.join('\n');
 }
 
-module.exports = { inputsFor, artifactViews, valueLineage, provenChecks, renderReview, renderWorkflowReview };
+module.exports = { inputsFor, artifactViews, valueLineage, provenChecks, renderReview, renderWorkflowReview, workflowPresentation };

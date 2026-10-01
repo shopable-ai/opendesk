@@ -21,6 +21,9 @@
     "historySources": [
       "attempts/*/request.json",
       "attempts/*/handoff.json",
+      "attempts/*/captures/*/capture.json",
+      "checks/*/checker-result.json",
+      "checks/*/entry-error.json",
       "artifact refs",
       "Execution evidence"
     ],

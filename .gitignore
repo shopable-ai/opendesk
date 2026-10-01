@@ -18,6 +18,7 @@ __debug*
 .runtime/
 # Includes Agent-to-Recipe Calculator qualification output under .runtime/tests/workflows/calculator/.
 # Includes Agent-to-Recipe stage reviews, guard reports, and isolated fresh runs under .runtime/tests/agent-to-recipe/.
+# Includes workflow attempts, raw Producer captures and immutable check/file snapshots under .runtime/automation-authoring/ or .runtime/tests/.
 # Includes Runtime API Conformance Lab logs, screenshots, generated scripts, and evidence.
 .staging-sync/
 dist/

@@ -796,7 +796,7 @@ test('a high score cannot cancel a runtime hardcoded-value Hard Fail', t => {
 test('later S11 finding assigns broken producer-consumer semantics to S8, not S11', t => {
   const f = fixture(t);
   f.reviews[10].findings = [{ blocking: true, ownerStage: 'S8',
-    reason: 'firstResult incorrectly fixed in Business Step' }];
+    reason: 'firstResult incorrectly fixed in Business Step', evidence: [f.reviews[7].outputs[0]] }];
   const report = f.run('S11', 'S12');
   assert.equal(report.firstInvalidBoundary, 'S8');
   assert.deepEqual(report.failureOwner, { stage: 'S8', skill: 'procedure-synthesize' });

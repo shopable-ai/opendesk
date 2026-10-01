@@ -51,6 +51,13 @@ function completed(model = 'hr-6-astra') {
   return { id: 'resp_mock_only', object: 'response', status: 'completed', model, output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'SYNTHETIC_INERT_PROPOSAL' }] }] };
 }
 
+function evidenceFiles(directory) {
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+    const file = path.join(directory, entry.name);
+    return entry.isDirectory() ? evidenceFiles(file) : [file];
+  });
+}
+
 async function serverFor(context, handler) {
   const server = http.createServer((request, response) => {
     const chunks = [];
@@ -91,6 +98,14 @@ test('exact packet construction has no paths, tools, history, hidden rules or ca
   } finally {
     delete process.env.ISOLATED_PRODUCER_AMBIENT_SENTINEL;
   }
+});
+
+test('direct same-model packet preserves gpt-6.1-sol exactly and rejects a different expected response model', () => {
+  const current = fixture();
+  current.route.model = current.route.expectedResponseModel = 'gpt-6.1-sol';
+  assert.equal(JSON.parse(compile(current).bodyText).model, 'gpt-6.1-sol');
+  current.route.expectedResponseModel = 'hr-6-astra';
+  assert.throws(() => compile(current), { code: 'unexpected_expected_model' });
 });
 
 const rejections = [
@@ -179,11 +194,11 @@ test('mock HTTP captures exact complete wire body; evidence excludes auth/header
   assert.equal(result.requestedModel, 'hr-6-astra');
   assert.equal(result.mode, 'mock');
   assert.equal(result.response.id, 'resp_mock_only');
-  for (const name of fs.readdirSync(result.evidenceDirectory)) {
-    const evidence = fs.readFileSync(path.join(result.evidenceDirectory, name), 'utf8');
+  for (const file of evidenceFiles(result.evidenceDirectory)) {
+    const evidence = fs.readFileSync(file, 'utf8');
     assert.equal(evidence.includes(AUTH_SENTINEL), false);
     assert.equal(evidence.includes('authorization'), false);
-    assert.equal(evidence.includes('headers'), false);
+    assert.equal(evidence.includes('"headers"'), false);
   }
   const recorded = fs.readFileSync(path.join(result.evidenceDirectory, 'request.body.json'));
   assert.deepEqual(recorded, captured);
@@ -283,7 +298,86 @@ test('no HTTP redirects or retries; raw error body is not written', async contex
   await assert.rejects(createBroker({ packetRoot: current.root, evidenceRoot }).send({ packet: current.packet, route: current.route }), { code: 'http_status_rejected' });
   assert.equal(requests, 1);
   const directory = path.join(evidenceRoot, fs.readdirSync(evidenceRoot)[0]);
-  for (const filename of fs.readdirSync(directory)) assert.equal(fs.readFileSync(path.join(directory, filename), 'utf8').includes(AUTH_SENTINEL), false);
+  for (const file of evidenceFiles(directory)) assert.equal(fs.readFileSync(file, 'utf8').includes(AUTH_SENTINEL), false);
+});
+
+test('broker retains invalid successful response before parsing, with exact bytes and failure diagnostic', async context => {
+  const current = fixture();
+  const raw = '{"partial_model_response":';
+  current.route.endpoint = await serverFor(context, (request, response) => response.end(raw));
+  const evidenceRoot = fs.mkdtempSync(path.join(runRoot, 'invalid-response-'));
+  let failure;
+  await assert.rejects(createBroker({ packetRoot: current.root, evidenceRoot }).send({ packet: current.packet, route: current.route }), error => {
+    failure = error;
+    return true;
+  });
+  const diagnostic = failure.diagnostic;
+  assert.equal(diagnostic.responseEnded, true);
+  assert.equal(diagnostic.capturedAllObservedBytes, true);
+  assert.equal(fs.readFileSync(path.join(diagnostic.captureDirectory, 'response.wire'), 'utf8'), raw);
+  assert.equal(readFailure(failure.evidenceDirectory).diagnostic.wireSha256, sha256(raw));
+  assert.equal(fs.existsSync(path.join(failure.evidenceDirectory, 'producer-output.txt')), false);
+  assert.ok(fs.existsSync(path.join(failure.evidenceDirectory, 'failure.md')));
+});
+
+test('invalid packet is retained as a preparation failure without persisting undeclared secret fields or sending HTTP', async context => {
+  const current = fixture();
+  let requests = 0;
+  current.route.endpoint = await serverFor(context, (request, response) => { requests += 1; response.end('{}'); });
+  current.packet.history = AUTH_SENTINEL;
+  const evidenceRoot = fs.mkdtempSync(path.join(runRoot, 'packet-failure-'));
+  let failure;
+  await assert.rejects(createBroker({ packetRoot: current.root, evidenceRoot }).send({ packet: current.packet, route: current.route }), error => {
+    failure = error;
+    return error.code === 'undeclared_or_missing_field';
+  });
+  assert.equal(requests, 0);
+  assert.equal(readFailure(failure.evidenceDirectory).transportStarted, false);
+  assert.ok(fs.existsSync(path.join(failure.evidenceDirectory, 'failure.md')));
+  for (const file of evidenceFiles(failure.evidenceDirectory)) assert.equal(fs.readFileSync(file, 'utf8').includes(AUTH_SENTINEL), false);
+});
+
+function readFailure(directory) {
+  return JSON.parse(fs.readFileSync(path.join(directory, 'failure.json'), 'utf8'));
+}
+
+test('broker timeout retains partial SSE and records it as a prefix, without retry', async context => {
+  const current = fixture();
+  current.route.stream = true;
+  let requests = 0;
+  const prefix = 'data: {"type":"response.output_text.delta","delta":"unfinished"}\n\n';
+  current.route.endpoint = await serverFor(context, (request, response) => {
+    requests += 1;
+    response.writeHead(200, { 'content-type': 'text/event-stream' });
+    response.write(prefix); // No terminal response; absolute timeout must stop.
+  });
+  const evidenceRoot = fs.mkdtempSync(path.join(runRoot, 'partial-response-'));
+  let failure;
+  await assert.rejects(createBroker({ packetRoot: current.root, evidenceRoot, timeoutMs: 200 }).send({ packet: current.packet, route: current.route }), error => {
+    failure = error;
+    return error.code === 'transport_timeout';
+  });
+  assert.equal(requests, 1);
+  assert.equal(failure.diagnostic.responseEnded, false);
+  assert.equal(failure.diagnostic.hashScope, 'received_prefix_only');
+  assert.equal(fs.readFileSync(path.join(failure.diagnostic.captureDirectory, 'response.wire'), 'utf8'), prefix);
+  assert.equal(readFailure(failure.evidenceDirectory).diagnostic.receivedBytes, Buffer.byteLength(prefix));
+});
+
+test('broker timeout before headers still leaves files explaining that no output was received', async context => {
+  const current = fixture();
+  current.route.endpoint = await serverFor(context, () => {});
+  const evidenceRoot = fs.mkdtempSync(path.join(runRoot, 'no-response-'));
+  let failure;
+  await assert.rejects(createBroker({ packetRoot: current.root, evidenceRoot, timeoutMs: 200 }).send({ packet: current.packet, route: current.route }), error => {
+    failure = error;
+    return error.code === 'transport_timeout';
+  });
+  assert.equal(failure.diagnostic.phase, 'awaiting_response_headers');
+  assert.equal(failure.diagnostic.receivedBytes, 0);
+  assert.equal(fs.statSync(path.join(failure.diagnostic.captureDirectory, 'response.wire')).size, 0);
+  assert.ok(fs.existsSync(path.join(failure.evidenceDirectory, 'request.body.json')));
+  assert.equal(readFailure(failure.evidenceDirectory).diagnostic.capturedBytes, 0);
 });
 
 test('CLI prepare produces evidence without sending HTTP, rejects unknown flags', () => {
@@ -339,7 +433,7 @@ test('authentication callback exception is sanitized and cannot inject a body fi
   await assert.rejects(broker.send({ packet: current.packet, route: current.route }), error => error.code === 'authentication_callback_failed' && !error.message.includes(AUTH_SENTINEL));
   assert.equal(requests, 0);
   const directory = path.join(evidenceRoot, fs.readdirSync(evidenceRoot)[0]);
-  for (const filename of fs.readdirSync(directory)) assert.equal(fs.readFileSync(path.join(directory, filename), 'utf8').includes(AUTH_SENTINEL), false);
+  for (const file of evidenceFiles(directory)) assert.equal(fs.readFileSync(file, 'utf8').includes(AUTH_SENTINEL), false);
   const injected = createBroker({ packetRoot: current.root, evidenceRoot, authenticate: setHeader => { setHeader('x-history', 'forbidden'); } });
   await assert.rejects(injected.send({ packet: current.packet, route: current.route }), { code: 'authentication_callback_failed' });
   assert.equal(requests, 0);

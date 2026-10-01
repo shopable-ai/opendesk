@@ -177,6 +177,30 @@ order: 9
 
 ---
 
+## 0.3 本次执行怎样接续
+
+本文第 1—9 节解释方法；本节只连接真实执行与恢复点。任务为 `revision-20260929-s1`，当前正式阶段入口是 [stage-review.md](../../../.runtime/automation-authoring/calculator-completion-20261001/stage-review.md)。固定检查 `check-2026-10-01T09-34-11-006Z-6f6568fc` 放行 S2 → S3；这没有把以前的示范自动升级为合格 S3—S6。逐阶段版本和消费者见 [产物主表](calculator-artifacts.md#01-本次接续的真实入口2026-09-30-utc--2026-10-01-本地)。
+
+当前维护工作是静态完善方法、说明和证据导航。本文中的 API 路线和未来验证步骤不授予生产或桌面执行权限；它们须结合原始需求、工作包授权和当前执行约束阅读。用户已经暂停脚本、测试与桌面执行，后续修复验证标为未运行。先理解每一步要解决的业务问题和已有事实，再看该阶段的检查状态。
+
+真实推进已经暴露并处理了以下问题：
+
+1. **怎样确认清空后下一式可以独立开始？** 原 Profile 只有“按 C 后显示归零”的证据。`reset-rule-001` 从待处理 `8 × 9` 开始，C 后输入 `2 =` 实读 `16`，显式 AC 后同一探针实读 `2`。据 [实际规则证据](../../../.runtime/automation-authoring/calculator-completion-20261001/reset-rule-001-evidence.json)补强应用规则：检查当前按钮状态，必要时 C → 显式 AC，再读回。这是限定环境的规则试验，读值不进入业务 firstResult。
+2. **怎样取得并保留真实 firstResult？** `direct-20261001-044351-656000` 实际输入第一式，A032 读取结果区字符串 `110`；[原样保存记录](../../../.runtime/automation-authoring/calculator-completion-20261001/first-result-actual.json)绑定读取动作和 Execution。独立观察 `direct-20261001-044813-819000` 只比较结果，不提供生产值。
+3. **第二段为什么曾停止，怎样继续？** `ai-20261001-045808-116000` 在任何 Calculator API 之前拒绝了输入：CLI JSON 数值进入 JS 后成了对象，窗口身份校验失败。按 [Runtime 修复记录](../../../.runtime/automation-authoring/calculator-completion-20261001/runtime-input-failure-repair.json)修 `Execution.input` 的 owner，以正式 JS 类型测试核验新发行。保留第一段，使用同一份第二段源码接续为 `ai-20261001-051140-472000`。
+4. **清空和字符传递怎样被证明？** 第二段 C → AC 后保存字符串仍为 `110`；B031、B037、B043 分别输入索引 0、1、2 的 `1,1,0`，B052 实读 `660`，真实 JS 调用方打印并取得返回字符串。详见 [实际读值和消费者核对](../../../.runtime/automation-authoring/calculator-completion-20261001/demo-independent-result-verification.json)；此执行不是 Recipe Qualification。
+5. **业务做完为何没有交到 S7？** [四阶段独立审阅](../../../.runtime/automation-authoring/calculator-completion-20261001/reviews/demo-review-findings.json)找到了旧 S3 准入缺口 F01：单次槽位的用量有证据，共享预算的派发前余额和单位却没有可信记录。应保留真实动作、观察、读值和 [已形成的事实包](../../../.runtime/automation-authoring/calculator-completion-20261001/s6-bound/dossier.md)，保留该 Unknown。后来建立的新预算不能补造过去的准入证据。
+
+当前接续计划已重新绑定预算与阶段前提；[新完整示范 JS](../../../.runtime/automation-authoring/calculator-completion-20261001/recovery-current/demo-complete-producer-20261001-001/demonstration.js)是实际 Producer 的新提案。在上述固定检查时，它只取得静态准入，尚未成为冻结 Recipe。
+
+**新示范在 2026-10-01 17:35（Asia/Shanghai）实际失败。** [Execution summary](../../../.runtime/ai/ai-20261001-173517-643000/summary.json)记录 `ai-20261001-173517-643000`，源码 hash `f2822f77a0f7…`，`inspect` 第 68 行报 `Wrong display binding`。实际只发生 `window.get`、`window.activate`、`window.current`、`Accessibility.snapshot` 四个 API 调用；没有 Calculator 按钮输入、第一次计算或新 firstResult。窗口激活改变了前台焦点；日志里的 `nativeInputReservations=1` 是激活额度预留，不能写成一次 Calculator 按钮输入。
+
+现在要解决的是**为何正确结果区没有被脚本接受**。同次 [原始日志](../../../.runtime/ai/ai-20261001-173517-643000/stdout.log)中的 snapshot 为 complete，`_NS:11` 下面确有 `_NS:16` 主显示器、字符串值 `660`；该值是已有现场状态。应静态对照 [执行源码快照](../../../.runtime/ai/ai-20261001-173517-643000/script_snapshot.js)第 68 行、API 契约和上述树，逐一检查归属、标识与类型条件。`descendants(displayGroup).includes(display)` 依赖 JS 对象引用相等；返回包装是否保持引用身份目前未确认，不能直接归为 Runtime bug。按钮归属的 `keys.includes(target)` 也依赖同类假设，需要一并审阅。
+
+应保留已验收的 S1/S2、此次失败源码、请求／回执和完整树；当前 failure owner 尚未确定。最小修复是先明确合法的节点身份与层级关系判定方法，再由原责任方提交对应修订及验证要求。当前用户已暂停脚本、测试和桌面执行，因此此处没有“修好重跑”的新证据。根报告仍须由唯一协调者把新失败纳入正式检查后更新，旧 S2 → S3 PASS 不能解释本次失败。Node 文件检查与 OpenDesk Runtime 业务执行必须分别审阅。
+
+---
+
 ## 1. 先固定不能被实现偷换的要求 [S1]
 
 ### 当前问题
@@ -946,4 +970,3 @@ Calculator 逐阶段检查
 本文是求解过程演练，不是新的 Workflow，也不替代 S1—S12 的正式阶段定义。
 
 本文包含完整参考路线和未来阶段答案。方法维护与教学可以使用；隔离 Producer 评测的 S1—S11 不得提前读取本文。新 Producer 应从 [WORKFLOW](../WORKFLOW.md) 与当前阶段方法出发；Candidate 冻结后，独立 Evaluator 才能使用本文与参考 JavaScript 做校准。阅读本文不等于完成一次真实阶段执行，也不能据此填写阶段 PASS。
-

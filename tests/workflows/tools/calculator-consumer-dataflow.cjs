@@ -21,6 +21,11 @@ const CLEAR_SCENARIOS = Object.freeze([
 const firstButtons = ['2', '5', '×', '4', '+', '1', '0', '='];
 const REPO = path.resolve(__dirname, '../../..');
 const REVIEWED_CLEAR_SOURCE = 'b06efeb299e227efb59e822dfc9df1e52cc6408924d8de5264d62e8ce8a6a7db';
+const DYNAMICS_MODEL = 'calculator-button-dynamics-v1';
+
+function modelUnsupported(message, code = 'HARNESS_UNSUPPORTED') {
+  throw Object.assign(new Error(message), { code, modelUnsupported: true });
+}
 
 function boundedFailure(code, message) {
   throw Object.assign(new Error(message), { code, boundedObservationFailure: true });
@@ -259,7 +264,291 @@ function assertClearState(run, scenario) {
   assert.deepEqual(run.screenshots.map(shot => shot.display), [scenario.first, scenario.final]);
 }
 
+// Evaluator-owned L1 model, independent of Candidate names/hashes/artifact names.
+// Two fixed expressions only. This observes source execution and ordered inputs;
+// it does not emulate arithmetic, native I/O, external JS, or a desktop Runtime.
+function exerciseButtonDynamics({ code, filename, first, final, fault, initialClear = '清除' }) {
+  const win = { id: 'synthetic-window', pid: 1, handle: 1, title: 'Calculator',
+    app: { bundleId: 'com.apple.calculator' }, exeName: 'Calculator',
+    exePath: '/System/Applications/Calculator.app/Contents/MacOS/Calculator',
+    x: 0, y: 0, width: 232, height: 321,
+    isForeground: true, hasFocus: true };
+  const artifactDir = '/synthetic/artifacts';
+  const run = { actions: [], buttons: [], reads: [], snapshots: [], windows: [], transitions: [],
+    files: Object.create(null), writes: [], screenshots: [], logs: [], events: [], expressions: [] };
+  let display = '987', phase = 'initial', clearName = initialClear;
+  let dirty = initialClear === '清除', tokens = [], entry = '', equals = 0, calls = 0, capturedBytes = 0;
+  let faultSeen = false, completed = false, modelError;
+  const state = () => ({ phase, display, clearName, expressionDirty: dirty });
+  const scope = options => {
+    if (!options?.within || options.within.id !== win.id) modelUnsupported('Current synthetic window scope required');
+    for (const key of ['pid', 'handle']) {
+      if (options.within[key] !== undefined && options.within[key] !== win[key]) {
+        boundedFailure('WINDOW_IDENTITY_MISMATCH', 'Window ' + key + ' differs from the current identity');
+      }
+    }
+  };
+  const scopedPath = name => {
+    if (typeof name !== 'string' || !name.startsWith(artifactDir + '/')) modelUnsupported('In-memory artifact path required');
+    const parts = name.slice(artifactDir.length + 1).split('/');
+    if (!parts.every(part => part && part !== '.' && part !== '..' && !/[\\:\x00-\x1f]/.test(part))) {
+      modelUnsupported('Portable in-memory artifact path required');
+    }
+    return parts.join('/');
+  };
+  const capture = value => {
+    const bytes = JSON.stringify(value);
+    capturedBytes += Buffer.byteLength(bytes);
+    if (capturedBytes > 64 * 1024) modelUnsupported('Observation capture limit exceeded');
+    return JSON.parse(bytes);
+  };
+  const faultEvent = kind => {
+    faultSeen = true;
+    run.faultObserved = { kind, phase, display };
+    run.events.push({ operation: kind, phase });
+  };
+  const dispatch = (operation, args) => {
+    if (++calls > 512) modelUnsupported('Bounded model call budget exceeded');
+    if (operation.startsWith('window.')) {
+      const target = args[0];
+      if (operation === 'window.get') {
+        if (target?.app?.bundleId !== win.app.bundleId) modelUnsupported('Only the Calculator bundle is modeled');
+      } else scope({ within: target });
+      run.windows.push({ operation, identity: { ...win } });
+      return win;
+    }
+    if (operation === 'Accessibility.snapshot') {
+      scope(args[0]);
+      const value = fault === 'ax-mismatch' && phase === 'first' ? 'mismatched' : display;
+      if (value !== display) faultEvent('ax-mismatch');
+      run.snapshots.push({ phase, value, display, windowId: win.id });
+      const children = [...'0123456789', '×', '+', '='].map(name => ({
+        role: 'button', name, enabled: true, actions: ['invoke'], children: [],
+      }));
+      children.push({ role: 'button', name: clearName, identifier: '_NS:407',
+        enabled: true, actions: ['invoke'], children: [] });
+      children.push({ role: 'staticText', name: '主显示器', identifier: '_NS:16', value, children: [] });
+      return { complete: true, truncated: false, root: { children } };
+    }
+    if (operation === 'UI.readText') {
+      scope(args[0]);
+      if (fault === 'read-failure' && phase === 'first') {
+        faultEvent('read-failure');
+        throw Object.assign(new Error('SYNTHETIC_READ_FAILURE'), { code: 'SYNTHETIC_READ_FAILURE' });
+      }
+      run.reads.push({ phase, value: display, windowId: win.id });
+      run.events.push({ operation: 'read', phase, value: display });
+      return display;
+    }
+    if (operation === 'UI.tapTargets') {
+      scope(args[1]);
+      const targets = args[0];
+      if (!Array.isArray(targets) || !targets.length || targets.length > 64) modelUnsupported('Finite nonempty button batch required');
+      run.actions.push(targets.map(target => target?.name));
+      run.events.push({ operation: 'input-call', afterFault: faultSeen, names: run.actions.at(-1) });
+      if (faultSeen) boundedFailure('FAIL_STOP_VIOLATION', 'Input attempted after an unknown action, failed read or AX contradiction');
+      const completedTargets = [];
+      for (const target of targets) {
+        if (target?.role !== 'button' || ![...'0123456789', '×', '+', '=', clearName].includes(target.name)) {
+          modelUnsupported('Only currently visible Basic Calculator role=button targets are modeled');
+        }
+        if (target.identifier !== undefined && (target.identifier !== '_NS:407' || target.name !== clearName)) {
+          modelUnsupported('Unknown button identity');
+        }
+        const before = state(), name = target.name;
+        const button = { role: 'button', name, before, actionState: 'acknowledged' };
+        run.buttons.push(button);
+        if (name === clearName) {
+          if (tokens.length) modelUnsupported('Clearing a partial expression is outside this slice');
+          if (name === '全部清除') dirty = false;
+          display = '0'; entry = ''; clearName = '全部清除'; phase = 'clear';
+          run.transitions.push({ input: name, before, after: state() });
+        } else {
+          if (!tokens.length && dirty) boundedFailure('MODEL_STATE_VIOLATION', 'C alone preserves the pending expression; AC is required');
+          if (equals >= 2) modelUnsupported('More than two expressions are outside this slice');
+          tokens.push(name); dirty = true; clearName = '清除';
+          phase = equals === 0 ? 'first-entry' : 'second-entry';
+          if (/^[0-9]$/.test(name)) { entry += name; display = entry; }
+          else if (name !== '=') entry = '';
+          if (name === '=') {
+            run.expressions.push(tokens); tokens = []; equals += 1;
+            display = equals === 1 ? first : final;
+            phase = equals === 1 ? 'first' : 'final';
+            if (fault === (equals === 1 ? 'unknown-first' : 'unknown-second')) {
+              button.actionState = 'unknown'; button.after = state();
+              faultEvent('input-unknown');
+              throw Object.assign(new Error('SYNTHETIC_INPUT_UNKNOWN'), { actionState: 'unknown', code: 'SYNTHETIC_INPUT_UNKNOWN' });
+            }
+          }
+        }
+        button.after = state();
+        completedTargets.push({ target: { locator: { role: 'button', name } }, actionState: 'acknowledged' });
+      }
+      return { ok: true, action: 'tapTargets', completed: completedTargets };
+    }
+    if (operation === 'File.writeJSON') {
+      const name = scopedPath(args[0]), value = capture(args[1]);
+      run.files[name] = value;
+      run.writes.push({ name, value, phase, afterFault: faultSeen });
+      run.events.push({ operation, name, phase, afterFault: faultSeen });
+      return undefined;
+    }
+    if (operation === 'page.screenshot') {
+      const options = args[0];
+      if (options?.target !== 'activeWindow' || options.returnType !== 'path') modelUnsupported('Only activeWindow path screenshots are modeled');
+      const name = scopedPath(options.path);
+      run.screenshots.push({ name, synthetic: true, phase, display, windowId: win.id, afterFault: faultSeen });
+      return options.path;
+    }
+    if (operation === 'console.log') {
+      run.logs.push({ values: capture(args), phase, afterFault: faultSeen });
+      return undefined;
+    }
+    if (operation === 'completion') {
+      completed = true;
+      run.returned = args.length ? { defined: true, value: capture(args[0]) } : { defined: false };
+      return undefined;
+    }
+    if (operation === 'rejection') {
+      completed = true; run.error = args[0]; return undefined;
+    }
+    modelUnsupported('Unknown observation operation');
+  };
+  // The bridge returns JSON only. Candidate-visible functions/Promises/errors
+  // belong to the context, so async continuations share the vm time budget.
+  const context = vm.createContext({ __bridge: (operation, encoded) => {
+    try { return JSON.stringify({ ok: true, value: dispatch(operation, JSON.parse(encoded)) }); }
+    catch (error) {
+      if (error.modelUnsupported || error.boundedObservationFailure) modelError ||= error;
+      return JSON.stringify({ ok: false, error: { message: error.message, code: error.code,
+        actionState: error.actionState, modelUnsupported: error.modelUnsupported,
+        boundedObservationFailure: error.boundedObservationFailure } });
+    }
+  } }, { microtaskMode: 'afterEvaluate', codeGeneration: { strings: false, wasm: false } });
+  // This is a liveness ceiling, not a business oracle. A 250ms VM deadline
+  // rejected finite key-by-key sources under parallel workflow-suite load.
+  const limits = { timeout: 1000 };
+  try {
+    const observeCompletion = new vm.Script(`(() => {
+      const bridge = __bridge; delete globalThis.__bridge;
+      const invoke = (op, args) => {
+        const result = JSON.parse(bridge(op, JSON.stringify(args)));
+        if (!result.ok) throw Object.assign(new Error(result.error.message), result.error);
+        return result.value;
+      };
+      const api = (name, methods) => Object.fromEntries(methods.map(method =>
+        [method, async (...args) => invoke(name + '.' + method, args)]));
+      globalThis.window = api('window', ['get', 'activate', 'current']);
+      globalThis.Accessibility = api('Accessibility', ['snapshot']);
+      globalThis.UI = api('UI', ['readText', 'tapTargets']);
+      globalThis.File = api('File', ['writeJSON']);
+      globalThis.page = api('page', ['screenshot']);
+      globalThis.console = { log: (...args) => invoke('console.log', args) };
+      globalThis.Execution = ${JSON.stringify({ artifactDir, scriptPath: filename, scriptDir: path.dirname(filename) })};
+      return value => Promise.resolve(value).then(
+        result => invoke('completion', result === undefined ? [] : [result]),
+        error => invoke('rejection', [{ message: String(error?.message || error), name: error?.name,
+          code: error?.code, actionState: error?.actionState,
+          modelUnsupported: error?.modelUnsupported, boundedObservationFailure: error?.boundedObservationFailure }]));
+    })()`).runInContext(context, limits);
+    let script;
+    try { script = new vm.Script(code, { filename }); run.entryForm = 'script-completion'; }
+    catch (error) {
+      if (error.name !== 'SyntaxError') throw error;
+      // Runtime function-body scripts may contain top-level await/return. No
+      // source statement, function name or log convention is rewritten.
+      script = new vm.Script('(async function(){\n' + code + '\n})()', { filename });
+      run.entryForm = 'async-body';
+    }
+    const actualCompletion = script.runInContext(context, limits);
+    // The observer is private while source executes. It cannot be called to
+    // manufacture a resolved return from a diagnostic or fabricated value.
+    Object.defineProperty(context, '__observeCompletion', { value: observeCompletion, configurable: true });
+    Object.defineProperty(context, '__candidateCompletion', { value: actualCompletion, configurable: true });
+    new vm.Script('__observeCompletion(__candidateCompletion)').runInContext(context, limits);
+    if (!completed) modelUnsupported('Pending completion needs unmodeled scheduling', 'ASYNC_COMPLETION_UNSUPPORTED');
+  } catch (error) { run.error = error; }
+  if (modelError) run.error = modelError;
+  return run;
+}
+
+function assertButtonDynamics(run, scenario) {
+  if (run.error?.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT') modelUnsupported('VM execution exceeded its time budget', 'RUNTIME_MODEL_TIMEOUT');
+  if (run.error?.modelUnsupported) throw run.error;
+  if (run.error?.boundedObservationFailure) throw run.error;
+  if (run.error && ['ReferenceError', 'TypeError', 'SyntaxError', 'EvalError'].includes(run.error.name)) {
+    modelUnsupported('Source requires unsupported JavaScript or Runtime facilities: ' + run.error.message);
+  }
+  const fail = message => boundedFailure('CONSUMER_DATAFLOW_MISMATCH', message);
+  // Inspect observations, not diagnostic labels or the final console line.
+  const inspect = (value, callback) => {
+    callback(value);
+    if (typeof value === 'string') {
+      let parsed;
+      try { parsed = JSON.parse(value); } catch { /* diagnostic text */ }
+      if (typeof parsed === 'object' && parsed !== null) inspect(parsed, callback);
+    } else if (value && typeof value === 'object') for (const child of Object.values(value)) inspect(child, callback);
+  };
+  const outputs = [...run.logs.map(log => log.values), ...run.writes.map(write => write.value),
+    ...(run.returned?.defined ? [run.returned.value] : [])];
+  if (scenario.fault) {
+    if (!run.faultObserved) boundedFailure('FAULT_NOT_EXERCISED', 'Source never observed the selected fault');
+    if (run.events.some(event => event.afterFault && event.operation === 'input-call')) {
+      boundedFailure('FAIL_STOP_VIOLATION', 'Input attempted after the selected fault');
+    }
+    const expected = scenario.fault === 'unknown-second' ? [firstButtons, ['6', '×', ...scenario.first, '=']] : [firstButtons];
+    if (JSON.stringify(run.expressions) !== JSON.stringify(expected)) fail('Fault-path ordered input differs from scope');
+    if (scenario.fault === 'ax-mismatch' || scenario.fault === 'read-failure') {
+      if (run.buttons.at(-1)?.name !== '=') boundedFailure('FAIL_STOP_VIOLATION', 'Dependent preparation followed a read/AX failure');
+    }
+    if (run.screenshots.some(shot => shot.afterFault)) boundedFailure('FAIL_STOP_VIOLATION', 'Screenshot attempted after failure');
+    for (const value of outputs) inspect(value, item => {
+      if (item === scenario.final || (item && typeof item === 'object' && Object.hasOwn(item, 'finalResult'))) {
+        boundedFailure('FAIL_STOP_VIOLATION', 'Terminal result published after failure');
+      }
+    });
+    return;
+  }
+  if (run.error) boundedFailure('CANDIDATE_EXECUTION_FAILED', run.error.message);
+  if (JSON.stringify(run.expressions) !== JSON.stringify([firstButtons, ['6', '×', ...scenario.first, '=']])) {
+    fail('Actual ordered buttons must consume every raw producer character, including repeats and leading zeros');
+  }
+  for (const [phase, value] of [['first', scenario.first], ['final', scenario.final]]) {
+    if (!run.reads.some(read => read.phase === phase && read.value === value)) fail('Missing actual ' + phase + ' UI read');
+  }
+  const firstRead = run.events.findIndex(event => event.operation === 'read' && event.phase === 'first');
+  const nextInput = run.events.findIndex((event, index) => index > firstRead && event.operation === 'input-call');
+  if (firstRead < 0 || nextInput <= firstRead) fail('Fresh producer read must precede dependent input');
+  let terminalObserved = false;
+  for (const value of outputs) inspect(value, item => {
+    if (item === scenario.final) terminalObserved = true;
+    if (!item || typeof item !== 'object') return;
+    for (const [key, expected] of [['firstResult', scenario.first], ['finalResult', scenario.final]]) {
+      if (Object.hasOwn(item, key) && item[key] !== expected) fail('Published ' + key + ' differs from the fresh UI string');
+    }
+  });
+  if (!terminalObserved) modelUnsupported('No supported string-valued terminal observation in return, console or JSON capture');
+}
+
+function observeButtonDynamics(payload) {
+  const scenarios = CLEAR_SCENARIOS.map(scenario => {
+    const run = exerciseButtonDynamics({ ...payload, ...scenario });
+    let verdict = 'pass', error;
+    try { assertButtonDynamics(run, scenario); } catch (caught) {
+      error = caught; verdict = error.modelUnsupported ? 'blocked' : 'fail';
+    }
+    const { error: executionError, ...observations } = run;
+    return { ...scenario, verdict, ...observations,
+      ...(error ? { code: error.code || 'CONSUMER_OBSERVATION_FAILED', message: error.message } : {}),
+      stoppedError: executionError && { message: executionError.message, actionState: executionError.actionState },
+    };
+  });
+  return { verdict: scenarios.some(scenario => scenario.verdict === 'fail') ? 'fail'
+    : scenarios.some(scenario => scenario.verdict === 'blocked') ? 'blocked' : 'pass', scenarios };
+}
+
 async function observe(payload) {
+  if (payload.runtimeModel === DYNAMICS_MODEL) return observeButtonDynamics(payload);
   const scenarios = [];
   const clearState = payload.runtimeModel === 'calculator-clear-state-v1';
   for (const scenario of clearState ? CLEAR_SCENARIOS : SCENARIOS) {
@@ -280,8 +569,17 @@ async function observe(payload) {
       assert.equal(run.error, undefined, run.error?.message);
       assert.deepEqual(run.actions, [['全部清除'], firstButtons,
         ['全部清除'], ['6', '×', ...scenario.first, '=']]);
-      assert.equal(run.value.firstResult, scenario.first);
-      assert.equal(run.value.finalResult, scenario.final);
+      // The production example logs the final result directly; older frozen
+      // fixture bytes log both values. The observed button sequence above is
+      // the independent proof that the first read reached the second input.
+      if (typeof run.value === 'number') {
+        assert.equal(run.logs.at(-1), scenario.final);
+        assert.equal(run.value, Number(scenario.final));
+      }
+      else {
+        assert.equal(run.value.firstResult, scenario.first);
+        assert.equal(run.value.finalResult, scenario.final);
+      }
       assert.ok(run.reads.some(read => read.phase === 'first' && read.value === scenario.first));
       assert.ok(run.reads.some(read => read.phase === 'final' && read.value === scenario.final));
       scenarios.push({ ...scenario, verdict: 'pass', actions: run.actions, reads: run.reads, output: run.value });
@@ -298,6 +596,7 @@ async function observe(payload) {
 
 function verifyFrozenConsumer(descriptor) {
   const evaluatorSha256 = sha256(fs.readFileSync(__filename));
+  const dynamics = descriptor?.runtimeModel === DYNAMICS_MODEL;
   const report = { schemaVersion: SCHEMA, verdict: 'blocked', evidenceLayer: 'L1-controlled-substitutes',
     desktopActions: false, liveQualificationGranted: false, generalJavaScriptProof: false,
     evaluatorSha256, harness: descriptor?.harness, script: descriptor?.script, dependencies: descriptor?.dependencies,
@@ -310,12 +609,19 @@ function verifyFrozenConsumer(descriptor) {
         'result.json and runtime-data-first.json observations', 'first/final screenshot calls'],
       unsupportedDisposition: 'blocked; different batching, diagnostics or artifact conventions need independent review and adapter validation, not a business Hard Fail',
       producerGuidance: false,
-    } : { kind: 'bounded-synthetic-consumer-fixture', generalCalculatorContract: false },
-    dependencyVerification: { mode: 'hash-only-metadata', executed: false },
+    } : dynamics ? { kind: 'bounded-original-byte-button-observer', generalCalculatorContract: false,
+      sourceHashAllowlist: false, producerGuidance: false,
+      assumptions: ['two fixed Basic Calculator expressions separated by AC',
+        'ordered role=button calls, per-key or equivalent batches', 'context-local bounded Promise scheduling',
+        'fresh first/final UI reads and string-valued observed terminal output'],
+      unsupportedDisposition: 'blocked; outside this synthetic model, not a business Hard Fail' }
+      : { kind: 'bounded-synthetic-consumer-fixture', generalCalculatorContract: false },
+    dependencyVerification: { mode: dynamics ? 'content-bound-only' : 'hash-only-metadata', executed: false },
     scope: 'Fixed synthetic Calculator read values, observed ordered button sequences and selected fail-stop scenarios only; not live execution or a general JavaScript proof.',
     modeledSemantics: descriptor?.runtimeModel === 'calculator-clear-state-v1'
       ? 'C changes the entry to zero but preserves pending expression state; AC resets it. AX and UI share display state except the explicit mismatch scenario. JSON and screenshots are in-memory observations, not native I/O.'
-      : 'Legacy synthetic consumer boundary; no native execution.',
+      : dynamics ? 'Per-button state and equals boundaries inject fixed non-arithmetic first/final strings. C preserves pending expression state; AC resets it. AX and UI share current display except the explicit mismatch. Window identity is synthetic; JSON/screenshot effects are captured in memory.'
+        : 'Legacy synthetic consumer boundary; no native execution.',
     executionBoundary: 'Bounded child process; vm is not an OS security sandbox. Only evaluator-approved source may be executed.',
     candidateRef: descriptor?.candidateRef, scriptRef: descriptor?.scriptRef,
     subjectRefs: [], businessDataflow: { verdict: 'unknown', releaseBlocked: true },
@@ -330,7 +636,7 @@ function verifyFrozenConsumer(descriptor) {
     assert.equal(descriptor?.schemaVersion, SCHEMA, 'Unsupported descriptor schema');
     assert.equal(descriptor.evaluatorSha256, evaluatorSha256, 'Evaluator version drift');
     assert.ok(['calculator-runtime-v1', 'calculator-helper-fixture-v1'].includes(descriptor.harness), 'Unsupported harness');
-    assert.ok(['legacy-v1', 'calculator-clear-state-v1'].includes(report.runtimeModel), 'Unsupported runtime model');
+    assert.ok(['legacy-v1', 'calculator-clear-state-v1', DYNAMICS_MODEL].includes(report.runtimeModel), 'Unsupported runtime model');
     assert.ok(report.runtimeModel === 'legacy-v1' || descriptor.harness === 'calculator-runtime-v1', 'State model requires runtime harness');
     assert.ok(Array.isArray(descriptor.dependencies), 'Explicit dependency inventory required');
     assert.ok(Array.isArray(descriptor.roots) && descriptor.roots.length, 'Approved roots required');
@@ -346,7 +652,15 @@ function verifyFrozenConsumer(descriptor) {
     const candidate = JSON.parse(fs.readFileSync(candidatePath, 'utf8'));
     assert.deepEqual(candidate.scriptRef, descriptor.scriptRef, 'Candidate binds another source ref');
     assert.deepEqual(candidate.dependencies, descriptor.dependencies, 'Candidate dependency inventory differs');
+    if (dynamics) assert.equal(candidate.schemaVersion, descriptor.candidateRef.schemaVersion, 'Candidate schema differs');
     for (const dependency of descriptor.dependencies) {
+      if (dynamics && dependency.kind === 'RuntimeSupportFile') {
+        // Descriptor-local role: Runtime-loaded support bytes are frozen only.
+        // No require/import/eval, installation, or added callable surface.
+        assert.ok(/\.(?:js|mjs|cjs)$/i.test(dependency.path), 'Runtime support file must name JavaScript bytes');
+        resolveBoundRef(roots, dependency);
+        continue;
+      }
       assert.ok(['RuntimeBinary', 'AppProfile', 'OperationRules'].includes(dependency.kind), 'Executable or unknown external dependency is unsupported');
       assert.ok(!/\.(?:js|mjs|cjs)$/i.test(dependency.path), 'External JavaScript dependency is unsupported');
       const filename = resolveBoundRef(roots, dependency);
@@ -382,14 +696,14 @@ function verifyFrozenConsumer(descriptor) {
     assert.ok(Buffer.from(code).equals(bytes), 'Source must round-trip as UTF-8');
     const worker = spawnSync(process.execPath, [__filename, '--worker'], {
       input: JSON.stringify({ code, filename: descriptor.script.path, harness: descriptor.harness, runtimeModel: report.runtimeModel }),
-      encoding: 'utf8', timeout: 5000, maxBuffer: 1024 * 1024,
+      encoding: 'utf8', timeout: dynamics ? 20000 : 5000, maxBuffer: (dynamics ? 4 : 1) * 1024 * 1024,
     });
     if (worker.error || worker.status !== 0) {
       return { ...report, code: 'EXECUTION_INCOMPLETE', message: worker.error?.message || worker.stderr || 'Worker did not complete' };
     }
     const observations = JSON.parse(worker.stdout);
     assert.ok(['pass', 'fail', 'blocked'].includes(observations.verdict), 'Invalid worker verdict');
-    assert.equal(observations.scenarios.length, report.runtimeModel === 'calculator-clear-state-v1'
+    assert.equal(observations.scenarios.length, dynamics || report.runtimeModel === 'calculator-clear-state-v1'
       ? CLEAR_SCENARIOS.length : SCENARIOS.length, 'Incomplete scenario coverage');
     assert.equal(sha256(fs.readFileSync(descriptor.script.path)), descriptor.script.sha256, 'Source changed during verification');
     assert.equal(sha256(fs.readFileSync(__filename)), evaluatorSha256, 'Evaluator changed during verification');

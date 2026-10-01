@@ -190,6 +190,41 @@ S12：验收同一 Candidate，确认真实 producer → consumer
 
 ---
 
+## 2.1 本次 Actual 的审阅边界
+
+下面十二个阶段的六问正文用于判断“应当怎样做”；本节与 [产物主表](calculator-artifacts.md#01-本次接续的真实入口2026-09-30-utc--2026-10-01-本地)连接已经发生的事实。以固定检查 `check-2026-10-01T09-34-11-006Z-6f6568fc` 为边界，正式发布到 S2；S3—S12 未纳入该次阶段验收。保留的真实示范、当前新示范提案和历史维护候选必须分别阅读。
+
+每阶段先核对业务正文、原始要求和产物来源，再看判断与评分。维护这些文件不自动授权生产或桌面操作。当前暂停要求优先于先前执行授权：17:35 的失败已经发生，应保留真实失败；其后修复、重验和独立资格运行均未运行，静态修订不能填为验证成功。
+
+**旧示范的读值链可直接检查：**
+
+| 环节 | 实际内容 | 固定事实入口 |
+| --- | --- | --- |
+| 第一次读值 | Execution `direct-20261001-044351-656000`，A032 从当前主显示器取得字符串 `110` | [first-result-actual.json](../../../.runtime/automation-authoring/calculator-completion-20261001/first-result-actual.json)；[277 条原始事件索引](../../../.runtime/automation-authoring/calculator-completion-20261001/demo-first-actual-event-index.json) |
+| 跨清空保留 | 第二段实际 C → AC 后显示为 `0`，任务中保存的原文清空前后均为 `110` | [第二段原始日志](../../../.runtime/ai/ai-20261001-051140-472000/stdout.log)的 B016 和 preservation/verification 记录 |
+| 全字符消费 | B031/B037/B043 分别消费索引 0/1/2 的 `1/1/0`；重复 `1` 没有被去重 | [消费者核对](../../../.runtime/automation-authoring/calculator-completion-20261001/demo-independent-result-verification.json)与同次原始日志 |
+| 最终交付 | B052 实读 `660`；代码中的实际调用方打印并取得该字符串。CLI envelope 本身没有导出 JS return value | [同次 summary](../../../.runtime/ai/ai-20261001-051140-472000/summary.json)、原始 finalPrint/finalReturn；独立 witness `direct-20261001-051405-666000` |
+| 事实收口 | Producer 已依据真实记录形成 Dossier；尚未获得正常 S6 → S7 交接 | [同版 Dossier 人工视图](../../../.runtime/automation-authoring/calculator-completion-20261001/s6-bound/dossier.md)；[独立审阅](../../../.runtime/automation-authoring/calculator-completion-20261001/reviews/demo-review-findings.json) |
+
+**问题如何出现、定位与接续：**
+
+| 真实问题 | 怎样发现／最早边界 | 保留什么、修哪里、怎样证明继续 |
+| --- | --- | --- |
+| C 后显示 `0` 仍不能证明独立起算 | 受控应用规则试验：待处理乘法经 C 后输入 `2 =` 实读 `16`；显式 AC 路径实读 `2`。原 S2 → S3 操作前提不足 | 保留原 Profile 和原停止提案；application-engineer 补有证据的清空规则，并验证下游实际使用显式 AC。见 [试验证据](../../../.runtime/automation-authoring/calculator-completion-20261001/reset-rule-001-evidence.json) |
+| 输入数值在 JS 中变成对象 | 原第二段在第一个 Calculator API 前失败，输入为 0；`Execution.input` 身份校验边界失效 | 保留第一段实际值、原失败和源码；修 Runtime JSON 转换，六个真实 JS 输入契约场景验证后，使用同源第二段完成接续。见 [失败修复记录](../../../.runtime/automation-authoring/calculator-completion-20261001/runtime-input-failure-repair.json) |
+| 旧示范缺派发前共享预算依据 F01 | 独立审阅确认每槽用量，却不能确认共享余额和单位；最早责任是旧 S3 准入，不是“已经证明超额” | 保留动作、观察和数据链；Coordinator 修预算派发方法。历史证据缺口仍保留，新预算只约束未来运行。S3/S5/S6 尚不能正常发布到 S7。见 [F01 原始判断](../../../.runtime/automation-authoring/calculator-completion-20261001/reviews/demo-review-findings.json) |
+| 新 S3 在显示区绑定校验失败 | `ai-20261001-173517-643000` 的 `inspect:68` 报 `Wrong display binding`；4 个 API 调用已结束，Calculator 按钮输入为 0。完整 snapshot 内 `_NS:11` 下存在 `_NS:16`、string `660`；本次没有 firstResult | 保留 S1/S2、失败源码和树。对象引用相等的假设是疑点，owner 尚未确定；静态核对条件与 API 契约，提交有依据的归属判定修订。尚未修复验证，不宣称 Runtime bug。见 [summary](../../../.runtime/ai/ai-20261001-173517-643000/summary.json)、[源码快照](../../../.runtime/ai/ai-20261001-173517-643000/script_snapshot.js)和 [原始日志](../../../.runtime/ai/ai-20261001-173517-643000/stdout.log) |
+
+四项问题的证据类型不同：第一项是受控真实 UI 规则试验，第二项是真实 Runtime 失败与修复，第三项是对真实示范的独立证据审阅，第四项是新示范已结束的真实失败。它们都不是最终 Recipe 的独立资格运行。
+
+新失败应从 **S3 的显示区归属校验**开始定位，不能因为 snapshot 里有 `660` 就判断计算成功。窗口激活确实发生；预算预留的 1 次输入额度不能当作 Calculator 按钮事实。`includes` 的对象引用假设需要和接口契约核对，责任目前未确定。它与先前已修复的 `Execution.input` 数值类型问题不同，不能沿用那次修复结论。
+
+当前用户已暂停执行脚本、Node 检查、测试和桌面动作。本次案例修订仅静态对照保存的事实；没有新的修复运行或资格结论。根报告若仍指向上面的 S2 → S3 检查，尚未覆盖此新失败，应先读此次 Execution；正式 S3 判断由唯一协调者补充证据并通过原 checker 发布。Node 维护工具的检查通过不能证明 OpenDesk Runtime 中的按钮、读值和输出成功。
+
+审阅最新进度时打开 [根 stage-review.md](../../../.runtime/automation-authoring/calculator-completion-20261001/stage-review.md)，沿它的同版快照继续；不得从本文参考示例或旧执行的 `110 → 660` 给新运行填值。
+
+---
+
 ## 3. 怎样阅读下面的 12 个阶段
 
 下面不再把每个阶段拆成九个工程化栏目。每个阶段只回答六个问题：
@@ -1980,4 +2015,3 @@ direct-20260927-025553-861000
 本文包含 S1—S12 的参考产物。方法维护、教学和 Candidate 冻结后的独立 Evaluator 可以使用；验证“新 Producer 能否从原始需求独立推导 Candidate”时，S1—S11 不得加载本文、配套 Walkthrough、Skill 的 Calculator examples 或参考 JavaScript。Candidate 冻结后，Evaluator 才能打开这些参考材料做最终校准，且不能把参考答案回传 Producer 作为修复实现。
 
 阅读分工：本文负责逐阶段检查；如果要看 Agent 实际怎样求解，读 [Calculator 执行过程演练](calculator-execution-walkthrough.md)；如果要找阶段产物文件，读 [Calculator 阶段产物链](calculator-artifacts.md)。
-

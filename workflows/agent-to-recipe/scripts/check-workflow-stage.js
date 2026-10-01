@@ -50,7 +50,7 @@ function checkWorkflowStage(options = {}) {
   const stages = Object.fromEntries(STAGES.map(stage => [stage, { verdict: 'not-run', score: null, owner: OWNERS[stage] }]));
   const budget = { bytes: 0 };
   const execution = { verifyConsumer: options.verifyConsumer, calls: 0 };
-  let record, roots, acceptance, routing;
+  let record, roots, acceptance, routing, recordSha256 = null;
   let requiredStages = [];
   const fail = (stage, code, message) => errors.push({ stage, code, message });
   const attempt = (stage, code, fn) => {
@@ -59,8 +59,11 @@ function checkWorkflowStage(options = {}) {
       error instanceof CheckError ? error.message : 'Could not validate the required input.'); }
   };
   roots = attempt(null, 'ROOTS', () => makeRoots(options.roots));
-  if (roots) record = attempt(null, 'RECORD', () => parseDocument(
-    readBytes(entryFile(roots, options.record), JSON_LIMIT, budget)));
+  if (roots) record = attempt(null, 'RECORD', () => {
+    const bytes = readBytes(entryFile(roots, options.record), JSON_LIMIT, budget);
+    recordSha256 = hash(bytes);
+    return parseDocument(bytes);
+  });
   const fromIndex = STAGES.indexOf(options.from);
   const toIndex = STAGES.indexOf(options.to);
   if (fromIndex < 0 || toIndex < 0) fail(null, 'STAGE_REQUIRED', 'Specify --from and --to as S1..S12.');
@@ -145,7 +148,7 @@ function checkWorkflowStage(options = {}) {
         }
         // A downstream discovery cannot repair upstream meaning in place. It
         // invalidates the named original owner and all consumers of its output.
-        for (const finding of Array.isArray(review.findings) ? review.findings : []) if (finding?.blocking
+        for (const finding of reviewed.findings || []) if (finding?.blocking
           && STAGES.includes(finding.ownerStage)
           && STAGES.indexOf(finding.ownerStage) <= index) {
           stages[finding.ownerStage].verdict = 'fail';
@@ -181,7 +184,8 @@ function checkWorkflowStage(options = {}) {
           fail('S12', 'FINAL_FAILURE_OWNER', 'Blocking final finding requires owner, reason and bound evidence.');
           continue;
         }
-        for (const ref of finding.evidence) verifyRef(ref, roots, budget, 'S12', fail);
+        const bound = finding.evidence.map(ref => verifyRef(ref, roots, budget, 'S12', fail));
+        if (!bound.every(Boolean)) continue;
         stages[finding.ownerStage].verdict = 'fail';
         for (let at = ownerIndex + 1; at <= 11; at += 1) stages[STAGES[at]].verdict = 'blocked';
       }
@@ -191,8 +195,9 @@ function checkWorkflowStage(options = {}) {
   }
   const firstError = errors.find(item => item.stage && STAGES.includes(item.stage));
   const firstInvalidBoundary = STAGES.find(stage => stages[stage].verdict === 'fail' || stages[stage].verdict === 'blocked')
-    || errors.find(item => item.code === 'STAGE_NOT_PASS')?.stage
-    || (firstError && stages[firstError.stage]?.verdict !== 'pass' ? firstError.stage : null);
+    || (record && Array.isArray(record.stages) && text(record.taskId) && text(record.attemptId)
+      ? errors.find(item => item.code === 'STAGE_NOT_PASS')?.stage
+        || (firstError && stages[firstError.stage]?.verdict !== 'pass' ? firstError.stage : null) : null);
   const firstIndex = STAGES.indexOf(firstInvalidBoundary);
   const ownerStage = record?.failureOwnerStage;
   if (ownerStage !== undefined && (STAGES.indexOf(ownerStage) < 0 || STAGES.indexOf(ownerStage) > firstIndex)) {
@@ -218,7 +223,7 @@ function checkWorkflowStage(options = {}) {
   const lastConfirmedCorrectArtifact = preservedUpstream.length
     ? stages[preservedUpstream[preservedUpstream.length - 1]].outputs || [] : [];
   return { tool: 'agent-to-recipe-workflow-stage/v1', verdict: errors.length ? 'fail' : 'pass',
-    allowed: errors.length === 0, taskId: record?.taskId || null, attemptId: record?.attemptId || null,
+    allowed: errors.length === 0, recordSha256, taskId: record?.taskId || null, attemptId: record?.attemptId || null,
     planRevision: record?.planRevision || null, workPackageId: record?.workPackageId || null,
     from: options.from, to: options.to, stages, final,
     lastConfirmedCorrectArtifact, firstInvalidBoundary, failureOwner, missedCheckOwner,
@@ -442,6 +447,7 @@ function verifyCurrentConsumer(verification, review, record, roots, budget, fail
 
 function evaluateReview(review, record, acceptance, roots, budget, fail, execution) {
   const stage = review.stage;
+  const boundFindings = [];
   let ok = true;
   const problem = (code, message) => { fail(stage, code, message); ok = false; };
   if (review.taskId !== record.taskId || !text(review.attemptId)
@@ -660,9 +666,17 @@ function evaluateReview(review, record, acceptance, roots, budget, fail, executi
     }
   }
   if (Array.isArray(review.findings)) for (const finding of review.findings) {
-    if (finding?.blocking && (!STAGES.includes(finding.ownerStage)
-      || STAGES.indexOf(finding.ownerStage) > STAGES.indexOf(stage))) {
-      problem('FAILURE_OWNER', 'Blocking finding must be assigned to an existing stage no later than discovery.');
+    if (finding?.blocking) {
+      const validOwner = STAGES.includes(finding.ownerStage)
+        && STAGES.indexOf(finding.ownerStage) <= STAGES.indexOf(stage);
+      if (!validOwner || !text(finding.reason) || !Array.isArray(finding.evidence)
+        || !finding.evidence.length) {
+        problem('FAILURE_OWNER', 'Blocking attribution requires an earlier owner, a reason and bound evidence.');
+      } else {
+        const verified = finding.evidence.map(ref => verifyRef(ref, roots, budget, stage, fail));
+        if (verified.every(Boolean)) boundFindings.push(finding);
+        else ok = false;
+      }
     }
     if (finding?.blocking) problem('BLOCKING_FINDING', 'A blocking finding cannot be hidden by a high score.');
   }
@@ -676,6 +690,9 @@ function evaluateReview(review, record, acceptance, roots, budget, fail, executi
       })) : [],
     }])) : {};
   return { verdict: ok ? 'pass' : 'fail', score, owner: OWNERS[stage],
+    expected: { requiredTests: stageRequirements?.requiredTests || [],
+      requiredEvidenceKinds: stageRequirements?.requiredEvidenceKinds || [],
+      requiredValidators: stageRequirements?.requiredValidators || [] },
     scoreDimensions: object(review.score) ? { ...review.score } : null,
     scoreEvidence: boundedScoreEvidence,
     inputs: Array.isArray(review.inputs) ? review.inputs.slice(0, 60) : [],
@@ -685,12 +702,18 @@ function evaluateReview(review, record, acceptance, roots, budget, fail, executi
     blockingUnknowns: Array.isArray(review.blockingUnknowns) ? review.blockingUnknowns.slice(0, 20) : [],
     requiredTests: Array.isArray(review.requiredTests) ? review.requiredTests.slice(0, 40).map(item => ({
       name: item?.name, status: item?.status,
+      evidence: Array.isArray(item?.evidence) ? item.evidence.slice(0, 60) : [],
     })) : [],
-    findings: Array.isArray(review.findings) ? review.findings.slice(0, 20).map(item => ({
+    validationReports: Array.isArray(review.validationReports) ? review.validationReports.slice(0, 40).map(item => ({
+      tool: item?.tool, reportRef: item?.reportRef, consumerVerification: item?.consumerVerification,
+    })) : [],
+    findings: boundFindings.slice(0, 20).map(item => ({
       blocking: item?.blocking === true, ownerStage: item?.ownerStage,
       reason: text(item?.reason) ? item.reason : null,
-    })) : [],
-    gate: object(review.gate) ? { verdict: review.gate.verdict } : null,
+      evidence: item.evidence,
+    })),
+    gate: object(review.gate) ? { verdict: review.gate.verdict,
+      evidence: Array.isArray(review.gate.evidence) ? review.gate.evidence.slice(0, 60) : [] } : null,
     disposition: review.disposition,
     inputsSufficient: review.inputsSufficient,
     actualOutputCorrect: review.actualOutputCorrect,
