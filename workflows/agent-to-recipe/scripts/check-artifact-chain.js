@@ -803,6 +803,17 @@ function checkArtifactChain(options = {}) {
       upstreamOK = upstreamOK && status[boundary] === 'pass';
     }
     const subjectRefs = [];
+    // Prefix reviews bind their actual current output too. This adds byte
+    // provenance, not a new business validator or execution authority.
+    if (!entries.candidate && roots) {
+      const name = entries.procedure ? 'procedure' : entries.distilled ? 'distilled' : null;
+      const entry = name && entries[name];
+      const root = entry && [...roots].sort((left, right) => right[1].length - left[1].length)
+        .find(([, directory]) => entry.filename.startsWith(directory + path.sep));
+      if (root) subjectRefs.push({kind:name === 'procedure' ? 'SemanticProcedure' : 'DistilledSteps',
+        rootId:root[0],path:path.relative(root[1],entry.filename).split(path.sep).join('/'),
+        sha256:hash(entry.bytes),schemaVersion:entry.parsed.schemaVersion || SCHEMA});
+    }
     if (entries.candidate && roots) {
       const manifest = entries.candidate;
       const root = [...roots].sort((left, right) => right[1].length - left[1].length)

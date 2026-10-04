@@ -10,8 +10,10 @@ const { TextDecoder } = require('node:util');
 
 const SCHEMA = 'agent-to-recipe/v1';
 const JSON_LIMIT = 4 * 1024 * 1024;
-const FILE_LIMIT = 64 * 1024 * 1024;
-const TOTAL_LIMIT = 256 * 1024 * 1024;
+// Native executable dependencies (for example the installed Node runtime) can
+// exceed 64 MiB. Keep explicit finite limits instead of omitting those bytes.
+const FILE_LIMIT = 256 * 1024 * 1024;
+const TOTAL_LIMIT = 1024 * 1024 * 1024;
 const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const text = value => typeof value === 'string' && value.trim().length > 0;

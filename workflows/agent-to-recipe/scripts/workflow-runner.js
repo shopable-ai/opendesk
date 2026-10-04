@@ -171,6 +171,10 @@ function parseArgs(argv) {
     '--stage', '--attempt-id', '--request', '--output', '--error-file']);
   for (let i = 0; i < rest.length; i += 2) {
     const flag = rest[i];
+    if (flag === '--authorize-consumer') {
+      if (options.authorizeConsumer) throw new Error('Repeated --authorize-consumer.');
+      options.authorizeConsumer = true; i -= 1; continue;
+    }
     if (flag === '--final') {
       if (options.final) throw new Error('Repeated --final.');
       options.final = true; i -= 1; continue;
@@ -274,6 +278,16 @@ function main(argv) {
       to: options.final ? 'S12' : options.to || nextStage(spec, options.from || progress.currentStage) || 'S12',
       final: Boolean(options.final)
     };
+    if (options.authorizeConsumer) {
+      // Explicit trusted-host authorization; artifact/descriptor fields alone
+      // cannot execute code. The stage checker pins the maintained evaluator.
+      checkerOptions.verifyConsumer = descriptor => {
+        if (descriptor.schemaVersion === 'browser-consumer-l1/v1') {
+          return require('../../../tests/workflows/tools/browser-consumer-dataflow.cjs').verifyBrowserConsumer(descriptor);
+        }
+        throw new Error('Unsupported authorized consumer adapter');
+      };
+    }
     fs.writeFileSync(path.join(journal, 'checker-options.json'), JSON.stringify(checkerOptions, null, 2) + '\n', { flag: 'wx' });
     // Retain the record first and compare with the checker's actual read hash.
     // If acquisition fails, leave entry-error instead of fake stages.

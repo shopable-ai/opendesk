@@ -14,6 +14,7 @@ const { renderWorkflowReview, renderWorkflowBundle, workflowPresentation } = req
 const fs = require('node:fs');
 const retainedChecks = new WeakMap();
 const CONSUMER_VERIFIER = path.resolve(__dirname, '../../../tests/workflows/tools/calculator-consumer-dataflow.cjs');
+const BROWSER_CONSUMER_VERIFIER = path.resolve(__dirname, '../../../tests/workflows/tools/browser-consumer-dataflow.cjs');
 
 const STAGES = Object.freeze(Array.from({ length: 12 }, (_, i) => 'S' + (i + 1)));
 const WEIGHTS = Object.freeze({ requirements: 25, responsibility: 20, continuation: 20,
@@ -599,14 +600,16 @@ function verifyCurrentConsumer(verification, review, record, roots, budget, fail
   if (!evaluatorBytes || !descriptorBytes) return false;
   try {
     const evaluatorPath = resolveFile(roots, verification.evaluatorRef.rootId, verification.evaluatorRef.path);
-    if (evaluatorPath !== CONSUMER_VERIFIER) return reject('Only the fixed maintained verifier may execute this check.');
     const descriptor = parseDocument(descriptorBytes);
+    const browser = descriptor.schemaVersion === 'browser-consumer-l1/v1';
+    const maintainedEvaluator = browser ? BROWSER_CONSUMER_VERIFIER : CONSUMER_VERIFIER;
+    if (evaluatorPath !== maintainedEvaluator) return reject('Only the fixed maintained verifier may execute this check.');
     const expected = expectedReportSubjects(review, record);
     const candidateRef = expected.find(ref => ref.kind === 'CandidateManifest');
     const scriptRef = expected.find(ref => ref.kind === 'CandidateSource');
     const dependencies = expected.filter(ref => ref !== candidateRef && ref !== scriptRef);
-    if (descriptor.schemaVersion !== 'calculator-consumer-l1/v1'
-      || descriptor.harness !== 'calculator-runtime-v1' || !text(descriptor.evaluator)
+    if (descriptor.schemaVersion !== (browser ? 'browser-consumer-l1/v1' : 'calculator-consumer-l1/v1')
+      || descriptor.harness !== (browser ? 'browser-runtime-v1' : 'calculator-runtime-v1') || !text(descriptor.evaluator)
       || descriptor.evaluator === review.producer
       || descriptor.evaluator === record.stages.find(item => item.stage === 'S11')?.producer
       || descriptor.evaluatorSha256 !== hash(evaluatorBytes)
@@ -631,7 +634,7 @@ function verifyCurrentConsumer(verification, review, record, roots, budget, fail
       || result.businessDataflow?.releaseBlocked !== false || result.evidenceLayer !== 'L1-controlled-substitutes'
       || result.desktopActions !== false || result.liveQualificationGranted !== false
       || result.generalJavaScriptProof !== false || result.verification?.mode !== 'controlled-exact-byte'
-      || result.verification?.evaluator?.path !== CONSUMER_VERIFIER
+      || result.verification?.evaluator?.path !== maintainedEvaluator
       || result.verification?.evaluator?.sha256 !== descriptor.evaluatorSha256
       || !Array.isArray(result.verification?.evidenceRefs) || !result.verification.evidenceRefs.length)
       return reject('The current maintained verifier did not independently pass exact-byte controlled observations.');

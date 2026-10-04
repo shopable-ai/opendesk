@@ -1338,7 +1338,7 @@ test('workflow stage CLI can render the same authoritative result as Markdown', 
     '--record', path.join(f.dir, 'review.json'), '--root', 'run=' + f.dir, '--from', 'S7', '--to', 'S8',
     '--format', 'markdown'], { encoding: 'utf8' });
   assert.equal(cli.status, 0, cli.stderr);
-  assert.match(cli.stdout, /# Agent-to-Recipe Stage Review/);
+  assert.match(cli.stdout, /# 自动化脚本工作流｜阶段审阅/);
   assert.match(cli.stdout, /## S7/);
   assert.match(cli.stdout, /trace-distill/);
 });
