@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "kind": "user-authorized-task-sequence",
+  "requirement": "用户要求创建新任务，在完成上一个 Core Demo 后继续附件中的 Integration Golden Demo，并创建合适目标。",
+  "projectRoot": "/Users/mac/Documents/workspace/clawdesk",
+  "environment": "existing local workspace; existing master branch",
+  "predecessor": {
+    "name": "Demo 1 — Browser Automation Core Demo",
+    "threadId": "01a0fdba-5418-7150-a1e4-5a56a58b725b",
+    "hostId": "local",
+    "acceptanceSpec": "docs/quality/browser-automation/core-demo-acceptance.json",
+    "stateIndex": ".runtime/tests/browser-automation-core/current-state.json",
+    "statusAtSequenceCreation": "BLOCKED",
+    "originThreadId": "01a0f8b9-aceb-7392-9b53-e03d66af8f4c",
+    "title": "Demo 1 — 完整实证 Core PASS 交接",
+    "continuationReason": "User requested a fresh task to resolve plugin visibility/installability and complete Core",
+    "previousTaskIds": [
+      "01a0f921-8236-7b03-9739-52a8a238afa9"
+    ],
+    "verifiedCoreCandidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b"
+  },
+  "successor": {
+    "name": "Demo 2 — OpenDesk Browser Integration Golden Demo",
+    "threadId": "01a0f903-7dcc-7470-99cd-dc45512ebe50",
+    "hostId": "local",
+    "requirementsSource": "/Users/mac/.codex/attachments/47a1d56f-fac6-4b3e-a6a1-e2baec3a8fed/pasted-text.txt",
+    "initialization": "Register full continuing goal; preserve A–G acceptance and F1–F5 negative qualification conditions; implementation waits for verified predecessor PASS.",
+    "preconditionAtSequenceCreation": "BLOCKED",
+    "plannedAcceptanceSpec": "docs/quality/browser-automation/integration-golden-demo-acceptance.json",
+    "plannedStateIndex": ".runtime/tests/browser-integration-golden-demo/current-state.json"
+  },
+  "releaseConditions": [
+    "Demo 1 A–D all PASS with source-matched live evidence",
+    "Real Extension bidirectional communication",
+    "Real DOM observe/locate/read/act/verify",
+    "Runtime DOM read → variable → fill with independent server verification",
+    "Stale and ambiguous/wrong Tab target rejection",
+    "Lost ACK has no duplicate submission",
+    "Reconnect does not replay unknown side effects"
+  ],
+  "handoff": {
+    "authorized": true,
+    "trigger": "After the predecessor's actual full Core PASS audit; before leaving its completed task",
+    "action": "Send a single completion handoff to the successor through codex_app__send_message_to_thread, authorizing it to verify the prerequisite then start Demo 2.",
+    "requiredContents": [
+      "requirement source",
+      "commit SHA",
+      "push state",
+      "related uncommitted changes",
+      "source/build/version provenance",
+      "Core A–D evidence locations",
+      "independent verifier evidence",
+      "safety/failure/recovery evidence",
+      "known unsupported cases",
+      "exact minimum startup commands"
+    ],
+    "truthRule": "The successor rechecks artifacts and evidence. A PASS string or goal status alone cannot release implementation."
+  },
+  "scope": {
+    "predecessor": "Finish standalone Core; its only post-PASS continuation is this user-authorized handoff to the separate task.",
+    "successor": "Existing OpenDesk MCP → same Core → unique authoritative Agent Trace → existing automation-script workflow → ordinary JS → frozen candidate → three new inputs without Agent → Qualification.",
+    "stopAfterSuccessorPass": "Stop; only suggest Demo 3. Do not implement Human Browser Recorder or Browser+Desktop cross-surface work."
+  }
+}

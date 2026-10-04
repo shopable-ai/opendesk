@@ -20,6 +20,8 @@ __debug*
 # Includes Agent-to-Recipe stage reviews, guard reports, and isolated fresh runs under .runtime/tests/agent-to-recipe/.
 # Includes workflow attempts, raw Producer captures and immutable check/file snapshots under .runtime/automation-authoring/ or .runtime/tests/.
 # Includes Runtime API Conformance Lab logs, screenshots, generated scripts, and evidence.
+# Browser Core Demo private IPC/credentials live in .runtime/browser-core/;
+# component/live reports, research snapshots and traces live in .runtime/tests/browser-automation-core/.
 .staging-sync/
 dist/
 /opendesk

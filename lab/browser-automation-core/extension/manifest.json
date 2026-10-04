@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Browser Automation Core Demo",
+  "version": "0.3.1",
+  "description": "Standalone Native Messaging feasibility demo. No arbitrary eval.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAx/jTmDWKJ2z2tc624fCRWNYOULzLT9dqWS/2e7mCH9syLiTYQr7oG1n3Dyer5mPdb604iI+mhwUMSn9NZhsK9z6bSo44nCwfkqFT/z1Ax+UGyI8gAZvNJJZCQCRpoF33n1dT5rmmENKaXYBNTlEjBdAP+KzXlla216ww/6fkfrA53yZkRHTnN/OM49dzqpqObXWMY2MB57AS5pr3l55Prbzup8zjbDKRK+RikpcsIoqDUUIvq15dTCPNfQQ+IhrDfBAvPfdHmp0odWyh+AV++SXyCqxHi8v2Ip/3/ozkEI9J6AWzVkIP8hAhsS5ffChnzNbGfYX2BoE9YK0vlbXt8QIDAQAB",
+  "permissions": ["nativeMessaging", "storage", "alarms", "tabs", "scripting", "webNavigation"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "background": {"service_worker": "worker.js"},
+  "action": {"default_title": "Browser Core connection status", "default_popup": "status.html"}
+}

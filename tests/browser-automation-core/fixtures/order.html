@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Order Demo</title>
+<style>
+*{box-sizing:border-box}body{font:16px/1.5 system-ui,sans-serif;margin:0;background:#f5f7fb;color:#182230}main{max-width:640px;margin:32px auto;padding:28px;background:white;border:1px solid #dce2eb;border-radius:12px}h1{margin:0 0 8px;font-size:28px}.muted{color:#657084}label{display:block;margin-top:18px;font-weight:600}input{display:block;width:100%;font:inherit;padding:10px;margin-top:6px;border:1px solid #b4bfce;border-radius:6px}button{font:inherit;padding:10px 18px;margin:14px 10px 0 0;border:1px solid #9caabc;border-radius:6px;background:#eef3fa;cursor:pointer}button:disabled{opacity:.45;cursor:default}output{display:block;padding:12px 0;font-weight:700}.status{padding:14px;background:#edf5ff;border-radius:6px}details{margin-top:24px;padding-top:16px;border-top:1px solid #e0e5ed}table{width:100%;border-collapse:collapse;font-size:13px;overflow-wrap:anywhere}th,td{text-align:left;padding:8px 4px;border-bottom:1px solid #e0e5ed}details button{font-size:13px;padding:8px}iframe{width:100%;height:95px;margin-top:16px;border:1px solid #dce2eb}small{display:block;margin-top:8px}@media(max-width:680px){main{margin:16px;padding:20px}}
+</style>
+<main data-testid="order-panel"><h1>Order Demo</h1><output hidden style="display:none" data-sensitive data-testid="private-mirror"></output><p class="muted">Query an order, read its amount, and confirm that amount.</p>
+<label for="order-id">Order ID</label><input id="order-id" name="orderId" data-testid="order-id" autocomplete="off">
+<button data-testid="query" data-action="query">Query</button>
+<label>Amount</label><output data-testid="amount" aria-label="Amount"></output>
+<label for="confirmation">Confirmation Amount</label><input id="confirmation" name="confirmationAmount" data-testid="confirmation" autocomplete="off">
+<div data-testid="confirm-slot"><button data-testid="confirm" data-action="confirm">Confirm</button></div>
+<p class="status" role="status" data-testid="status">Ready</p><p data-testid="note">Observed note</p><table aria-label="Completed orders"><thead><tr><th>Order</th><th>Amount</th><th>Status</th><th>Submissions</th></tr></thead><tbody data-testid="completed-orders"></tbody></table>
+<details open><summary>Reliability checks</summary><button data-testid="hide-checks">Hide checks</button>
+<button data-testid="replace">Replace Confirm</button><button data-testid="spa">Next view</button>
+<button data-testid="reveal">Reveal message</button><output data-testid="delayed"></output>
+<button data-testid="duplicate-a">Duplicate</button><button data-testid="duplicate-b">Duplicate</button>
+<button data-testid="disabled" disabled>Unavailable</button>
+<small>Confirm click count: <output data-testid="click-count">0</output></small>
+<output data-testid="action-count">0</output><output data-testid="app-order-value"></output><output data-testid="app-confirmation-value"></output><div data-testid="matrix-panel"></div><button data-testid="matrix-one">One matrix target</button><button data-testid="matrix-two">Two matrix targets</button><button data-testid="matrix-zero">Zero matrix targets</button><button data-testid="frame-replace">Replace frame</button><label for="private-note">Private note</label><input id="private-note" type="password" data-testid="private-note" autocomplete="new-password">
+<iframe src="/frame.html" title="Secondary order frame"></iframe>
+</details></main>
+<script src="/order.js"></script></html>

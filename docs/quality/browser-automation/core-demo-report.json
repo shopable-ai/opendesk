@@ -1,0 +1,4473 @@
+{
+  "name": "Browser Automation Core Demo",
+  "coreStatus": "PASS",
+  "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+  "gitSha": "877c852acca28b4658d01fd727b37b883b4792d1",
+  "branch": "master",
+  "pushState": "No commit or push authorized or performed",
+  "uncommitted": [
+    "M .gitignore",
+    "?? docs/plans/browser-automation/demo-sequence.json",
+    "?? docs/plans/browser-automation/integration-golden-demo-requirements.md",
+    "?? docs/quality/browser-automation/core-demo-acceptance.json",
+    "?? docs/quality/browser-automation/integration-golden-demo-acceptance.json",
+    "?? lab/",
+    "?? tests/browser-automation-core/"
+  ],
+  "requirementSources": [
+    "AGENTS.md",
+    "docs/quality/browser-automation/core-demo-acceptance.json",
+    ".runtime/tests/browser-automation-core/continuation-requirements.json",
+    "docs/plans/browser-automation/demo-sequence.json"
+  ],
+  "actualChangesThisTask": [
+    {
+      "file": "tests/browser-automation-core/audit-core.mjs",
+      "problem": "Actual Chrome JPEG screenshots were incorrectly rejected by PNG-only signature check",
+      "result": "Accept PNG or a complete JPEG envelope, retain hash/identity/deadline/manual-review assertions"
+    }
+  ],
+  "retainedPredecessorChanges": [
+    "Origin-bound owned tabs and close/reload validation",
+    "Tab creation capacity precheck",
+    "Executable receiver fingerprint before DOM input",
+    "Hidden sensitive mirror display:none"
+  ],
+  "evidenceInvalidation": "Audit source edit invalidated candidate a98312c28c26ef976cf3aab18423cea752ad19f7a4f35a7b77bd95090ef952a6. Full components, A-D, visual and all public commands were rerun for candidate 74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b.",
+  "gates": {
+    "A": {
+      "status": "PASS",
+      "cases": 16
+    },
+    "B": {
+      "status": "PASS",
+      "cases": 39
+    },
+    "C": {
+      "status": "PASS",
+      "cases": 9
+    },
+    "D": {
+      "status": "PASS",
+      "cases": 29
+    }
+  },
+  "testLevels": [
+    {
+      "level": "unit-deterministic",
+      "status": "PASS",
+      "exitCode": 0,
+      "tests": 20,
+      "log": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/components-1790964096210/unit-deterministic.log"
+    },
+    {
+      "level": "integration",
+      "status": "PASS",
+      "exitCode": 0,
+      "tests": 34,
+      "log": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/components-1790964096210/integration.log"
+    },
+    {
+      "level": "live-browser",
+      "status": "PASS",
+      "cases": 93,
+      "scope": "Real Chrome/installed Host/MV3 Worker/Content/Frame/Document/DOM; mocks excluded from Live",
+      "reports": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/report.json",
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/report.json"
+      ]
+    }
+  ],
+  "browser": [
+    {
+      "brand": "Not;A=Brand",
+      "version": "8.0.0.0"
+    },
+    {
+      "brand": "Chromium",
+      "version": "150.0.7871.125"
+    },
+    {
+      "brand": "Google Chrome",
+      "version": "150.0.7871.125"
+    }
+  ],
+  "node": "v24.15.0",
+  "transport": "Chrome Native Messaging; authenticated private Unix IPC to long-lived Broker",
+  "installation": {
+    "status": "PASS",
+    "scope": "registration/filesystem only; actual Chrome spawn not implied",
+    "nativeManifest": "/Users/mac/Library/Application Support/Google/Chrome/NativeMessagingHosts/org.opendesk.browser_core_demo.json",
+    "wrapper": "/Users/mac/Library/Application Support/OpenDesk/browser-core-demo/dc3e8dd3017f/native-host",
+    "testMode": true,
+    "checks": {
+      "name": true,
+      "path": true,
+      "type": true,
+      "allowedOrigins": true,
+      "wrapperExecutable": true,
+      "nodeExecutable": true,
+      "privateDirectory": true,
+      "privateCredentialFile": true,
+      "workspacePointerPrivate": true,
+      "installedEntry": true,
+      "currentSourceSnapshot": true,
+      "socketBinding": true
+    },
+    "installedNativeDirectory": "/Users/mac/Library/Application Support/OpenDesk/browser-core-demo/dc3e8dd3017f",
+    "stagingDirectory": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/native-staging-1790964095697",
+    "socketPath": "/Users/mac/Library/Application Support/OpenDesk/browser-core-demo/dc3e8dd3017f/broker.sock",
+    "build": {
+      "status": "PASS",
+      "sourceDirectory": "/Users/mac/Documents/workspace/clawdesk/lab/browser-automation-core",
+      "nodeExecutable": "/Users/mac/.nvm/versions/node/v24.15.0/bin/node",
+      "files": [
+        {
+          "name": "config.mjs",
+          "sha256": "d88d16e05818e5791eac72d789ca7a8ee2379d40afd43adbccc2f82f940011c8"
+        },
+        {
+          "name": "protocol.mjs",
+          "sha256": "163778a06856ec52c6b8da056a3cec7a8658eb7276d29ff78ee17e8b109c00f8"
+        },
+        {
+          "name": "native-diagnostic.mjs",
+          "sha256": "6c687e1201154247a26811e596260766dca179ca32f4da6af6f7faa94849e01e"
+        },
+        {
+          "name": "native-host.mjs",
+          "sha256": "a828fa9f9fbd6fc22242947eb23f6f3b652deecafed28aa4a3b0a6222ccb3202"
+        },
+        {
+          "name": "installed-native-entry.mjs",
+          "sha256": "c77e8073ae01b5e0d286f510d0835c6552817a71468caf8829375f223b1d28f5"
+        },
+        {
+          "name": "native-host",
+          "sha256": "a6e93211dbaa15d971df09367956cc9dba514b89b15196f8cd1eac5f838e8fc5"
+        }
+      ]
+    }
+  },
+  "actualLoaded": {
+    "worker": {
+      "workerCodeSha256": "548ac05424bba2d36e97f53b9d0f4d553e91fae6fbe17d13aecf1143b5a7ecd9",
+      "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+      "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad",
+      "resources": {
+        "manifest.json": "31e0980ff693f61c0aff30d344649185624bb6f2d5ecb3a63addc47d809e1837",
+        "worker.js": "2f61f080d57f1bd0e21feabaf3999a89a31b3c20728fec562c519366457a63ad",
+        "locator.js": "0332e9d5ab70ad3e528016cef7e815cd6fd1fd40b43e94d714ac3da15707d6b7",
+        "content.js": "14dccdfda3a55a33b771be3d2e106db2a9b8c788082cef353949923282e34b0a"
+      },
+      "workerStartedAt": "2026-10-02T18:01:56.281Z"
+    },
+    "expected": {
+      "workerCodeSha256": "548ac05424bba2d36e97f53b9d0f4d553e91fae6fbe17d13aecf1143b5a7ecd9",
+      "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+      "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad",
+      "resources": {
+        "manifest.json": "31e0980ff693f61c0aff30d344649185624bb6f2d5ecb3a63addc47d809e1837",
+        "worker.js": "2f61f080d57f1bd0e21feabaf3999a89a31b3c20728fec562c519366457a63ad",
+        "locator.js": "0332e9d5ab70ad3e528016cef7e815cd6fd1fd40b43e94d714ac3da15707d6b7",
+        "content.js": "14dccdfda3a55a33b771be3d2e106db2a9b8c788082cef353949923282e34b0a"
+      }
+    },
+    "documents": [
+      {
+        "observedAt": "2026-10-02T18:02:02.042Z",
+        "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+        "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+        "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+        "tab": 759147596,
+        "frame": 0,
+        "document": "400F0772AD6812417DA3E9BB27FB42CD",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:02.058Z",
+        "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+        "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+        "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+        "tab": 759147596,
+        "frame": 0,
+        "document": "400F0772AD6812417DA3E9BB27FB42CD",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:03.445Z",
+        "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+        "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+        "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+        "tab": 759147596,
+        "frame": 633,
+        "document": "DAA8A50110423AD09C9A4D6338A46E8E",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:03.606Z",
+        "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+        "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+        "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+        "tab": 759147596,
+        "frame": 634,
+        "document": "356515BDF53C3444662BEF99C0E42216",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:28.270Z",
+        "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+        "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+        "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+        "tab": 759147596,
+        "frame": 0,
+        "document": "6CD2388F382B913C46391D6EFD645F65",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:29.284Z",
+        "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+        "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+        "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+        "tab": 759147597,
+        "frame": 0,
+        "document": "A66B30E26F683AACFEA2C1E37492E532",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:30.677Z",
+        "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+        "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+        "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+        "tab": 759147598,
+        "frame": 0,
+        "document": "38D48F250D06AF719C4B9613C98C03F6",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:30.877Z",
+        "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+        "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+        "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+        "tab": 759147596,
+        "frame": 0,
+        "document": "6CD2388F382B913C46391D6EFD645F65",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:30.907Z",
+        "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+        "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+        "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+        "tab": 759147597,
+        "frame": 0,
+        "document": "A66B30E26F683AACFEA2C1E37492E532",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:31.705Z",
+        "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+        "browserSession": "5fa30178-65ff-4746-8cf9-94e78d210c8a",
+        "connectionEpoch": "ff842bf7-05be-45c3-8e54-a6d3ad1ad744",
+        "tab": 759147596,
+        "frame": 0,
+        "document": "6CD2388F382B913C46391D6EFD645F65",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:33.029Z",
+        "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+        "browserSession": "5fa30178-65ff-4746-8cf9-94e78d210c8a",
+        "connectionEpoch": "9dcb540c-a6e1-46ac-aaa2-105de349229f",
+        "tab": 759147596,
+        "frame": 0,
+        "document": "6CD2388F382B913C46391D6EFD645F65",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:33.934Z",
+        "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+        "browserSession": "5fa30178-65ff-4746-8cf9-94e78d210c8a",
+        "connectionEpoch": "66b48953-37ea-494f-ba29-94dbb0ae4143",
+        "tab": 759147596,
+        "frame": 0,
+        "document": "6CD2388F382B913C46391D6EFD645F65",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:34.371Z",
+        "brokerSession": "fad83e04-23cd-41e6-8f8e-6b42be9bf07c",
+        "browserSession": "5fa30178-65ff-4746-8cf9-94e78d210c8a",
+        "connectionEpoch": "8c4a5a99-4258-424c-a05d-d30148653d16",
+        "tab": 759147596,
+        "frame": 0,
+        "document": "6CD2388F382B913C46391D6EFD645F65",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:34.627Z",
+        "brokerSession": "f97c30ab-cb2f-45a3-bc5e-21e7decb43ce",
+        "browserSession": "5fa30178-65ff-4746-8cf9-94e78d210c8a",
+        "connectionEpoch": "52e1d62c-59d9-4840-8092-9b4c5cb17ab2",
+        "tab": 759147596,
+        "frame": 0,
+        "document": "6CD2388F382B913C46391D6EFD645F65",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:35.453Z",
+        "brokerSession": "f97c30ab-cb2f-45a3-bc5e-21e7decb43ce",
+        "browserSession": "b6b2a4fc-6f1e-423b-9e4b-547d0c9febff",
+        "connectionEpoch": "4b02dba3-c11f-470e-97ed-d77a88f28df4",
+        "tab": 759147596,
+        "frame": 0,
+        "document": "6CD2388F382B913C46391D6EFD645F65",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:35.756Z",
+        "brokerSession": "0290544c-07db-4a10-bf91-0235374e7f4f",
+        "browserSession": "b6b2a4fc-6f1e-423b-9e4b-547d0c9febff",
+        "connectionEpoch": "7ec34c48-bf27-4964-b594-732a679e611f",
+        "tab": 759147596,
+        "frame": 0,
+        "document": "6CD2388F382B913C46391D6EFD645F65",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:36.509Z",
+        "brokerSession": "0290544c-07db-4a10-bf91-0235374e7f4f",
+        "browserSession": "b6b2a4fc-6f1e-423b-9e4b-547d0c9febff",
+        "connectionEpoch": "7ec34c48-bf27-4964-b594-732a679e611f",
+        "tab": 759147600,
+        "frame": 0,
+        "document": "156A1822534E0BC2D315B56B5FF50960",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:37.358Z",
+        "brokerSession": "0290544c-07db-4a10-bf91-0235374e7f4f",
+        "browserSession": "b6b2a4fc-6f1e-423b-9e4b-547d0c9febff",
+        "connectionEpoch": "7ec34c48-bf27-4964-b594-732a679e611f",
+        "tab": 759147602,
+        "frame": 0,
+        "document": "5040157C9BC60434840519B4AEF00B08",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:38.068Z",
+        "brokerSession": "0290544c-07db-4a10-bf91-0235374e7f4f",
+        "browserSession": "b6b2a4fc-6f1e-423b-9e4b-547d0c9febff",
+        "connectionEpoch": "7ec34c48-bf27-4964-b594-732a679e611f",
+        "tab": 759147604,
+        "frame": 0,
+        "document": "EB70A3D90B4DC1A183A144AC424101D2",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:38.729Z",
+        "brokerSession": "0290544c-07db-4a10-bf91-0235374e7f4f",
+        "browserSession": "b6b2a4fc-6f1e-423b-9e4b-547d0c9febff",
+        "connectionEpoch": "7ec34c48-bf27-4964-b594-732a679e611f",
+        "tab": 759147606,
+        "frame": 0,
+        "document": "E0AC1A29129F748DFB391FD6FE6420CC",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:40.257Z",
+        "brokerSession": "0290544c-07db-4a10-bf91-0235374e7f4f",
+        "browserSession": "b6b2a4fc-6f1e-423b-9e4b-547d0c9febff",
+        "connectionEpoch": "7ec34c48-bf27-4964-b594-732a679e611f",
+        "tab": 759147608,
+        "frame": 0,
+        "document": "34F075D1424009F65D9DE53DDE384B0D",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:41.657Z",
+        "brokerSession": "0290544c-07db-4a10-bf91-0235374e7f4f",
+        "browserSession": "b6b2a4fc-6f1e-423b-9e4b-547d0c9febff",
+        "connectionEpoch": "7ec34c48-bf27-4964-b594-732a679e611f",
+        "tab": 759147610,
+        "frame": 0,
+        "document": "1CA27B3857F6F89C5A543E0D29ADD031",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:42.923Z",
+        "brokerSession": "0290544c-07db-4a10-bf91-0235374e7f4f",
+        "browserSession": "b6b2a4fc-6f1e-423b-9e4b-547d0c9febff",
+        "connectionEpoch": "7ec34c48-bf27-4964-b594-732a679e611f",
+        "tab": 759147612,
+        "frame": 0,
+        "document": "1BADE49FE8E3D01C5E8062FC0CCB2147",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:43.737Z",
+        "brokerSession": "0290544c-07db-4a10-bf91-0235374e7f4f",
+        "browserSession": "b6b2a4fc-6f1e-423b-9e4b-547d0c9febff",
+        "connectionEpoch": "878fc6cc-b3a6-4a82-be4d-d0767befe452",
+        "tab": 759147614,
+        "frame": 0,
+        "document": "E55CAD4437068995B5F90FE9FBBF7017",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:51.843Z",
+        "brokerSession": "0290544c-07db-4a10-bf91-0235374e7f4f",
+        "browserSession": "b6b2a4fc-6f1e-423b-9e4b-547d0c9febff",
+        "connectionEpoch": "878fc6cc-b3a6-4a82-be4d-d0767befe452",
+        "tab": 759147616,
+        "frame": 0,
+        "document": "F252423EABE8F32A84D0AD5EBBC25D86",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      },
+      {
+        "observedAt": "2026-10-02T18:02:52.110Z",
+        "brokerSession": "0290544c-07db-4a10-bf91-0235374e7f4f",
+        "browserSession": "b6b2a4fc-6f1e-423b-9e4b-547d0c9febff",
+        "connectionEpoch": "84aa3833-42ed-4192-b8fd-f6792c909c20",
+        "tab": 759147616,
+        "frame": 0,
+        "document": "F252423EABE8F32A84D0AD5EBBC25D86",
+        "loadedResources": {
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+        }
+      }
+    ],
+    "nativeHostCommand": "/Users/mac/.nvm/versions/node/v24.15.0/bin/node /Users/mac/Library/Application Support/OpenDesk/browser-core-demo/dc3e8dd3017f/installed-native-entry.mjs chrome-extension://jpjgepfbapojijlabljgdpbhfmiapkin/",
+    "parentCommand": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+  },
+  "resourceHashes": [
+    {
+      "file": "docs/quality/browser-automation/core-demo-acceptance.json",
+      "sha256": "ae9964b6f1dec485ee0279fa9119ff81cb676ee683df2e61af3d0ad98aff1d26"
+    },
+    {
+      "file": "lab/browser-automation-core/README.md",
+      "sha256": "02ab7fa4e1ca9a2164779443800fed3961f4f6ed74abe64617a34cf3a42ceb5a"
+    },
+    {
+      "file": "lab/browser-automation-core/broker.mjs",
+      "sha256": "8dcfdb600a7d919646c07a660575900a2fa08497f9ddc8ae7706f37b2b68622e"
+    },
+    {
+      "file": "lab/browser-automation-core/candidate.mjs",
+      "sha256": "2a1daecb0c7c86974f865aa3f50cc653d1df2c1693b7269750c4dbd0affd82cd"
+    },
+    {
+      "file": "lab/browser-automation-core/cli.mjs",
+      "sha256": "42053aad5107972d8b3a362ffcbfe9db2bbd762eae14c358ff063357a876c958"
+    },
+    {
+      "file": "lab/browser-automation-core/client.mjs",
+      "sha256": "a3341fd7bd4e6452a4367ac1a89db7cf6a0f80075a40221e13937b815d0cd856"
+    },
+    {
+      "file": "lab/browser-automation-core/config.mjs",
+      "sha256": "d88d16e05818e5791eac72d789ca7a8ee2379d40afd43adbccc2f82f940011c8"
+    },
+    {
+      "file": "lab/browser-automation-core/extension-installation.mjs",
+      "sha256": "c6511dcdbae18df71a74c6d07d2a729d8ff452d0b1633682cbdf2dbb46c5ee66"
+    },
+    {
+      "file": "lab/browser-automation-core/extension/content.js",
+      "sha256": "14dccdfda3a55a33b771be3d2e106db2a9b8c788082cef353949923282e34b0a"
+    },
+    {
+      "file": "lab/browser-automation-core/extension/locator.js",
+      "sha256": "0332e9d5ab70ad3e528016cef7e815cd6fd1fd40b43e94d714ac3da15707d6b7"
+    },
+    {
+      "file": "lab/browser-automation-core/extension/manifest.json",
+      "sha256": "31e0980ff693f61c0aff30d344649185624bb6f2d5ecb3a63addc47d809e1837"
+    },
+    {
+      "file": "lab/browser-automation-core/extension/status.html",
+      "sha256": "9ea79c0251b6fea712a2ac9d7e77d152dd45d766fb4ed17017a04aeafa75344a"
+    },
+    {
+      "file": "lab/browser-automation-core/extension/status.js",
+      "sha256": "d5589cebd60bb0d3474050f29a5929a8dbc48ba7719f222c962078e23e4af15e"
+    },
+    {
+      "file": "lab/browser-automation-core/extension/worker.js",
+      "sha256": "2f61f080d57f1bd0e21feabaf3999a89a31b3c20728fec562c519366457a63ad"
+    },
+    {
+      "file": "lab/browser-automation-core/golden.mjs",
+      "sha256": "61bba3dfa5214357bab66d8ac0cf49bbadd98f5160c3f1b9961a41a9be0af2d4"
+    },
+    {
+      "file": "lab/browser-automation-core/installation.mjs",
+      "sha256": "64c87da0c23a8c791ec9a98f094a381c77b8043c3dba286b1964ba4ef678ba0c"
+    },
+    {
+      "file": "lab/browser-automation-core/installed-native-entry.mjs",
+      "sha256": "c77e8073ae01b5e0d286f510d0835c6552817a71468caf8829375f223b1d28f5"
+    },
+    {
+      "file": "lab/browser-automation-core/native-build.mjs",
+      "sha256": "fc79d06ebfc3e0652c192b1a38ad911fafd48b3284a9d78e4e8600713601e768"
+    },
+    {
+      "file": "lab/browser-automation-core/native-diagnostic.mjs",
+      "sha256": "6c687e1201154247a26811e596260766dca179ca32f4da6af6f7faa94849e01e"
+    },
+    {
+      "file": "lab/browser-automation-core/native-host.mjs",
+      "sha256": "a828fa9f9fbd6fc22242947eb23f6f3b652deecafed28aa4a3b0a6222ccb3202"
+    },
+    {
+      "file": "lab/browser-automation-core/process-control.mjs",
+      "sha256": "7989bb52f4f8bf944f28536ed0dad4dbcb7e951dd1516167b858e47fb39be09d"
+    },
+    {
+      "file": "lab/browser-automation-core/protocol.mjs",
+      "sha256": "163778a06856ec52c6b8da056a3cec7a8658eb7276d29ff78ee17e8b109c00f8"
+    },
+    {
+      "file": "lab/browser-automation-core/setup.mjs",
+      "sha256": "a9c69fab997660a361c663149d8bfe59191ce0117dfad2ba2c76c959a5273816"
+    },
+    {
+      "file": "lab/browser-automation-core/trace.mjs",
+      "sha256": "d0f8ec79c6a6db87d3065579f84280a143c42d106f3f403f30b1dee3463c73f3"
+    },
+    {
+      "file": "lab/browser-automation-core/transport.mjs",
+      "sha256": "3768dde611e3f72fa64f1803ec07c37cce6766dfb0906759c0909f9978da808a"
+    },
+    {
+      "file": "tests/browser-automation-core/audit-core.mjs",
+      "sha256": "76ad67861c71f13631eab17a148ebe281756a91fd1bb4dcd805e00cc9508a103"
+    },
+    {
+      "file": "tests/browser-automation-core/audit-negative.mjs",
+      "sha256": "f82b35b5e6e1e6bd208f47106628faebccaa2e9da5e4988366bfc78a28d65dac"
+    },
+    {
+      "file": "tests/browser-automation-core/case-subcases.mjs",
+      "sha256": "8dd4d9512c5b95fb062de1edb93215cdcfa51d1144b91092e18a0ae2d82ac59e"
+    },
+    {
+      "file": "tests/browser-automation-core/component-check.mjs",
+      "sha256": "8b4a8fd1b9c4be33c7c5b618fa4c5acf5c4de372395607c08e155a38a2d17fec"
+    },
+    {
+      "file": "tests/browser-automation-core/evidence-contract.mjs",
+      "sha256": "ff8c8d59966c0c65c9e35c487930761595b06d83c1f5ad447e20816c6cd129b6"
+    },
+    {
+      "file": "tests/browser-automation-core/fixture-server.mjs",
+      "sha256": "aed97719c6740d55e231f87d8b5495fde0a21aac2982b906de1346aaf985c09a"
+    },
+    {
+      "file": "tests/browser-automation-core/fixtures/frame.html",
+      "sha256": "2e5de59a36337e7cfed431b2915775bf489a8ef5263fcb457785d2a3fea65725"
+    },
+    {
+      "file": "tests/browser-automation-core/fixtures/frame.js",
+      "sha256": "3e16710da174b2597e219e7fa44a02a2bcfbf55f57fe392770566a40821f6538"
+    },
+    {
+      "file": "tests/browser-automation-core/fixtures/order.html",
+      "sha256": "e4cd37d1864a2b497ead45f2daccf3dc68bf3dc3ceaaab3ecce74a510332dafb"
+    },
+    {
+      "file": "tests/browser-automation-core/fixtures/order.js",
+      "sha256": "77ec2fa948e22130db04601c0c424ec5f4eeb352fd5e2a6dfd52bac8537c9483"
+    },
+    {
+      "file": "tests/browser-automation-core/fixtures/resources.html",
+      "sha256": "dc8e5ac63943919ea19f8686cc4d875eae3d1b6ed0595e2aca86424093ebb328"
+    },
+    {
+      "file": "tests/browser-automation-core/fixtures/resources.js",
+      "sha256": "663a53bd6fc28a2031b8a1bc97483dbadde8fa8b077600ed9537501bf843949f"
+    },
+    {
+      "file": "tests/browser-automation-core/independent-verifier.mjs",
+      "sha256": "385037d3f3d035968950498d8adc06f154555c0ddb5b36e1a6ee8ac5f821cb23"
+    },
+    {
+      "file": "tests/browser-automation-core/installation.test.mjs",
+      "sha256": "5987b3322cb33365c31342181e2797ddb81e0ef80b7d260eafd919e24ce504c6"
+    },
+    {
+      "file": "tests/browser-automation-core/integration.test.mjs",
+      "sha256": "3c33a634441efa45145b10ff804d7b397fb9698b37e60e2119594854039b6c8a"
+    },
+    {
+      "file": "tests/browser-automation-core/live-dom.mjs",
+      "sha256": "8dff9be3006c045589102d853c983e654e0df404e43c40e3ee4e740f3dd3b278"
+    },
+    {
+      "file": "tests/browser-automation-core/live-gate-a.mjs",
+      "sha256": "99063ffe4adb3179a428a0d342899e9e366743faecb23e14ac4b5317fde34d7d"
+    },
+    {
+      "file": "tests/browser-automation-core/live-resources.mjs",
+      "sha256": "09fd7f769b4abd08013348de0545f6d6448046616940f09afcfc913fcc416ac0"
+    },
+    {
+      "file": "tests/browser-automation-core/locator.test.mjs",
+      "sha256": "e624aee0afd5726be79cedf6aa3018ba1b64ddf5cb68589fd58d8a5fee07bcfe"
+    },
+    {
+      "file": "tests/browser-automation-core/native-installation.test.mjs",
+      "sha256": "581a9038262082c8b850e601ac71dcc92e02085f1b424a9c2a27296faf3cfa38"
+    },
+    {
+      "file": "tests/browser-automation-core/process-control.test.mjs",
+      "sha256": "feb4522750fd2ef785c9860c8c7d7262e2426c6e0141e04286ddb74e9e23e33e"
+    },
+    {
+      "file": "tests/browser-automation-core/protocol.test.mjs",
+      "sha256": "c776f16e470e8582d230e062e1bd5d5bde080dc331c7eb1d09575c59c9f33312"
+    },
+    {
+      "file": "tests/browser-automation-core/redaction-scan.mjs",
+      "sha256": "ff946c63265a515aaad2100b85f918857a2329f11a9eaf32c7bf48d1ed28b24f"
+    },
+    {
+      "file": "tests/browser-automation-core/resources.test.mjs",
+      "sha256": "17f13b3da2a01636c591f8020c0e14af9cc7cf2ae0098e0c0f8b70b8958a36f0"
+    },
+    {
+      "file": "tests/browser-automation-core/tools/broker-peer/main.mjs",
+      "sha256": "4109141c76ae9ac1bb71f04c971a1c218aa9fcf0556d4928633b35c1df78ec3b"
+    },
+    {
+      "file": "tests/browser-automation-core/tools/native-host-peer/main.mjs",
+      "sha256": "17f20b3bf193c2f1c26a82bf76060e7d62a13cf569e79e1c20adb3eaaf1e30fe"
+    },
+    {
+      "file": "tests/browser-automation-core/verifier.test.mjs",
+      "sha256": "cd44f6cb54b284ff30f8199dcef8b448cd9fa9ea03e28cf6497a885223af3ea9"
+    },
+    {
+      "file": "tests/browser-automation-core/worker-limits.test.mjs",
+      "sha256": "b1079537b9da705d55c88ada05c509f314599b51cb29d1cbe5c7371a75fda356"
+    }
+  ],
+  "fixture": {
+    "url": "http://127.0.0.1:49489/",
+    "origin": "http://127.0.0.1:49489",
+    "directory": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/fixture-1790964120989",
+    "evidenceFile": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/fixture-1790964120989/submissions.json",
+    "instance": "21ce8a8b-591f-4585-985f-f2b7d72c7970"
+  },
+  "connections": [
+    {
+      "connected": true,
+      "brokerPid": 59775,
+      "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+      "connectionStage": "READY",
+      "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+      "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+      "browser": {
+        "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+        "extensionId": "jpjgepfbapojijlabljgdpbhfmiapkin",
+        "extensionVersion": "0.3.1",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+        "loadedResources": {
+          "workerCodeSha256": "548ac05424bba2d36e97f53b9d0f4d553e91fae6fbe17d13aecf1143b5a7ecd9",
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad",
+          "resources": {
+            "manifest.json": "31e0980ff693f61c0aff30d344649185624bb6f2d5ecb3a63addc47d809e1837",
+            "worker.js": "2f61f080d57f1bd0e21feabaf3999a89a31b3c20728fec562c519366457a63ad",
+            "locator.js": "0332e9d5ab70ad3e528016cef7e815cd6fd1fd40b43e94d714ac3da15707d6b7",
+            "content.js": "14dccdfda3a55a33b771be3d2e106db2a9b8c788082cef353949923282e34b0a"
+          },
+          "workerStartedAt": "2026-10-02T18:01:57.809Z"
+        },
+        "nativeHost": {
+          "hostPid": 59776,
+          "parentPid": 2139,
+          "origin": "chrome-extension://jpjgepfbapojijlabljgdpbhfmiapkin/",
+          "build": {
+            "sourceDirectory": "/Users/mac/Documents/workspace/clawdesk/lab/browser-automation-core",
+            "files": [
+              {
+                "name": "config.mjs",
+                "sha256": "d88d16e05818e5791eac72d789ca7a8ee2379d40afd43adbccc2f82f940011c8"
+              },
+              {
+                "name": "protocol.mjs",
+                "sha256": "163778a06856ec52c6b8da056a3cec7a8658eb7276d29ff78ee17e8b109c00f8"
+              },
+              {
+                "name": "native-diagnostic.mjs",
+                "sha256": "6c687e1201154247a26811e596260766dca179ca32f4da6af6f7faa94849e01e"
+              },
+              {
+                "name": "native-host.mjs",
+                "sha256": "a828fa9f9fbd6fc22242947eb23f6f3b652deecafed28aa4a3b0a6222ccb3202"
+              },
+              {
+                "name": "installed-native-entry.mjs",
+                "sha256": "c77e8073ae01b5e0d286f510d0835c6552817a71468caf8829375f223b1d28f5"
+              },
+              {
+                "name": "native-host",
+                "sha256": "a6e93211dbaa15d971df09367956cc9dba514b89b15196f8cd1eac5f838e8fc5"
+              }
+            ]
+          }
+        }
+      },
+      "pendingCount": 0,
+      "evidenceDirectory": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/broker-1790964121094-1c43c139",
+      "limits": {
+        "version": 1,
+        "maxMessageBytes": 65536,
+        "maxPending": 32,
+        "maxQueue": 16,
+        "maxEvents": 128,
+        "defaultTimeoutMs": 5000,
+        "maxTimeoutMs": 15000,
+        "authTimeoutMs": 2000,
+        "handshakeTimeoutMs": 5000,
+        "maxConnections": 48,
+        "maxTraceBytes": 16777216,
+        "maxRequestsPerSession": 4096,
+        "reconnectPollMs": 100,
+        "reconnectDeadlineMs": 45000,
+        "maxTargets": 512,
+        "maxTrackedTabs": 64,
+        "maxFramesPerTab": 24,
+        "maxObserveElements": 24,
+        "maxScanNodes": 2048,
+        "maxTextChars": 128,
+        "cancelDeadlineMs": 1000,
+        "minTimeoutMs": 10,
+        "maxClientPending": 33,
+        "clientResponseGraceMs": 1000,
+        "maxFillChars": 4096,
+        "maxQueryChars": 200,
+        "maxUrlChars": 512,
+        "deadlineToleranceMs": 250,
+        "visualDeadlineMs": 60000,
+        "maxNativeDiagnostics": 16
+      },
+      "resourceCounts": {
+        "connections": 2,
+        "targets": 0,
+        "documents": 0,
+        "readSources": 0,
+        "ownedTabs": 0,
+        "events": 2,
+        "requestMemory": 2,
+        "traceBytes": 591
+      },
+      "nativeParentCommand": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    },
+    {
+      "connected": true,
+      "brokerPid": 59809,
+      "brokerSession": "fad83e04-23cd-41e6-8f8e-6b42be9bf07c",
+      "connectionStage": "READY",
+      "browserSession": "5fa30178-65ff-4746-8cf9-94e78d210c8a",
+      "connectionEpoch": "8c4a5a99-4258-424c-a05d-d30148653d16",
+      "browser": {
+        "browserSession": "5fa30178-65ff-4746-8cf9-94e78d210c8a",
+        "extensionId": "jpjgepfbapojijlabljgdpbhfmiapkin",
+        "extensionVersion": "0.3.1",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+        "loadedResources": {
+          "workerCodeSha256": "548ac05424bba2d36e97f53b9d0f4d553e91fae6fbe17d13aecf1143b5a7ecd9",
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad",
+          "resources": {
+            "manifest.json": "31e0980ff693f61c0aff30d344649185624bb6f2d5ecb3a63addc47d809e1837",
+            "worker.js": "2f61f080d57f1bd0e21feabaf3999a89a31b3c20728fec562c519366457a63ad",
+            "locator.js": "0332e9d5ab70ad3e528016cef7e815cd6fd1fd40b43e94d714ac3da15707d6b7",
+            "content.js": "14dccdfda3a55a33b771be3d2e106db2a9b8c788082cef353949923282e34b0a"
+          },
+          "workerStartedAt": "2026-10-02T18:02:31.524Z"
+        },
+        "nativeHost": {
+          "hostPid": 59810,
+          "parentPid": 2139,
+          "origin": "chrome-extension://jpjgepfbapojijlabljgdpbhfmiapkin/",
+          "build": {
+            "sourceDirectory": "/Users/mac/Documents/workspace/clawdesk/lab/browser-automation-core",
+            "files": [
+              {
+                "name": "config.mjs",
+                "sha256": "d88d16e05818e5791eac72d789ca7a8ee2379d40afd43adbccc2f82f940011c8"
+              },
+              {
+                "name": "protocol.mjs",
+                "sha256": "163778a06856ec52c6b8da056a3cec7a8658eb7276d29ff78ee17e8b109c00f8"
+              },
+              {
+                "name": "native-diagnostic.mjs",
+                "sha256": "6c687e1201154247a26811e596260766dca179ca32f4da6af6f7faa94849e01e"
+              },
+              {
+                "name": "native-host.mjs",
+                "sha256": "a828fa9f9fbd6fc22242947eb23f6f3b652deecafed28aa4a3b0a6222ccb3202"
+              },
+              {
+                "name": "installed-native-entry.mjs",
+                "sha256": "c77e8073ae01b5e0d286f510d0835c6552817a71468caf8829375f223b1d28f5"
+              },
+              {
+                "name": "native-host",
+                "sha256": "a6e93211dbaa15d971df09367956cc9dba514b89b15196f8cd1eac5f838e8fc5"
+              }
+            ]
+          }
+        }
+      },
+      "pendingCount": 0,
+      "evidenceDirectory": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/broker-1790964154136-fad83e04",
+      "limits": {
+        "version": 1,
+        "maxMessageBytes": 65536,
+        "maxPending": 32,
+        "maxQueue": 16,
+        "maxEvents": 128,
+        "defaultTimeoutMs": 5000,
+        "maxTimeoutMs": 15000,
+        "authTimeoutMs": 2000,
+        "handshakeTimeoutMs": 5000,
+        "maxConnections": 48,
+        "maxTraceBytes": 16777216,
+        "maxRequestsPerSession": 4096,
+        "reconnectPollMs": 100,
+        "reconnectDeadlineMs": 45000,
+        "maxTargets": 512,
+        "maxTrackedTabs": 64,
+        "maxFramesPerTab": 24,
+        "maxObserveElements": 24,
+        "maxScanNodes": 2048,
+        "maxTextChars": 128,
+        "cancelDeadlineMs": 1000,
+        "minTimeoutMs": 10,
+        "maxClientPending": 33,
+        "clientResponseGraceMs": 1000,
+        "maxFillChars": 4096,
+        "maxQueryChars": 200,
+        "maxUrlChars": 512,
+        "deadlineToleranceMs": 250,
+        "visualDeadlineMs": 60000,
+        "maxNativeDiagnostics": 16
+      },
+      "resourceCounts": {
+        "connections": 2,
+        "targets": 0,
+        "documents": 0,
+        "readSources": 0,
+        "ownedTabs": 0,
+        "events": 2,
+        "requestMemory": 3,
+        "traceBytes": 1182
+      },
+      "nativeParentCommand": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    },
+    {
+      "connected": true,
+      "brokerPid": 59814,
+      "brokerSession": "f97c30ab-cb2f-45a3-bc5e-21e7decb43ce",
+      "connectionStage": "READY",
+      "browserSession": "5fa30178-65ff-4746-8cf9-94e78d210c8a",
+      "connectionEpoch": "52e1d62c-59d9-4840-8092-9b4c5cb17ab2",
+      "browser": {
+        "browserSession": "5fa30178-65ff-4746-8cf9-94e78d210c8a",
+        "extensionId": "jpjgepfbapojijlabljgdpbhfmiapkin",
+        "extensionVersion": "0.3.1",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+        "loadedResources": {
+          "workerCodeSha256": "548ac05424bba2d36e97f53b9d0f4d553e91fae6fbe17d13aecf1143b5a7ecd9",
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad",
+          "resources": {
+            "manifest.json": "31e0980ff693f61c0aff30d344649185624bb6f2d5ecb3a63addc47d809e1837",
+            "worker.js": "2f61f080d57f1bd0e21feabaf3999a89a31b3c20728fec562c519366457a63ad",
+            "locator.js": "0332e9d5ab70ad3e528016cef7e815cd6fd1fd40b43e94d714ac3da15707d6b7",
+            "content.js": "14dccdfda3a55a33b771be3d2e106db2a9b8c788082cef353949923282e34b0a"
+          },
+          "workerStartedAt": "2026-10-02T18:02:31.524Z"
+        },
+        "nativeHost": {
+          "hostPid": 59813,
+          "parentPid": 2139,
+          "origin": "chrome-extension://jpjgepfbapojijlabljgdpbhfmiapkin/",
+          "build": {
+            "sourceDirectory": "/Users/mac/Documents/workspace/clawdesk/lab/browser-automation-core",
+            "files": [
+              {
+                "name": "config.mjs",
+                "sha256": "d88d16e05818e5791eac72d789ca7a8ee2379d40afd43adbccc2f82f940011c8"
+              },
+              {
+                "name": "protocol.mjs",
+                "sha256": "163778a06856ec52c6b8da056a3cec7a8658eb7276d29ff78ee17e8b109c00f8"
+              },
+              {
+                "name": "native-diagnostic.mjs",
+                "sha256": "6c687e1201154247a26811e596260766dca179ca32f4da6af6f7faa94849e01e"
+              },
+              {
+                "name": "native-host.mjs",
+                "sha256": "a828fa9f9fbd6fc22242947eb23f6f3b652deecafed28aa4a3b0a6222ccb3202"
+              },
+              {
+                "name": "installed-native-entry.mjs",
+                "sha256": "c77e8073ae01b5e0d286f510d0835c6552817a71468caf8829375f223b1d28f5"
+              },
+              {
+                "name": "native-host",
+                "sha256": "a6e93211dbaa15d971df09367956cc9dba514b89b15196f8cd1eac5f838e8fc5"
+              }
+            ]
+          }
+        }
+      },
+      "pendingCount": 0,
+      "evidenceDirectory": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/broker-1790964154516-f97c30ab",
+      "limits": {
+        "version": 1,
+        "maxMessageBytes": 65536,
+        "maxPending": 32,
+        "maxQueue": 16,
+        "maxEvents": 128,
+        "defaultTimeoutMs": 5000,
+        "maxTimeoutMs": 15000,
+        "authTimeoutMs": 2000,
+        "handshakeTimeoutMs": 5000,
+        "maxConnections": 48,
+        "maxTraceBytes": 16777216,
+        "maxRequestsPerSession": 4096,
+        "reconnectPollMs": 100,
+        "reconnectDeadlineMs": 45000,
+        "maxTargets": 512,
+        "maxTrackedTabs": 64,
+        "maxFramesPerTab": 24,
+        "maxObserveElements": 24,
+        "maxScanNodes": 2048,
+        "maxTextChars": 128,
+        "cancelDeadlineMs": 1000,
+        "minTimeoutMs": 10,
+        "maxClientPending": 33,
+        "clientResponseGraceMs": 1000,
+        "maxFillChars": 4096,
+        "maxQueryChars": 200,
+        "maxUrlChars": 512,
+        "deadlineToleranceMs": 250,
+        "visualDeadlineMs": 60000,
+        "maxNativeDiagnostics": 16
+      },
+      "resourceCounts": {
+        "connections": 2,
+        "targets": 0,
+        "documents": 0,
+        "readSources": 0,
+        "ownedTabs": 0,
+        "events": 2,
+        "requestMemory": 1,
+        "traceBytes": 0
+      },
+      "nativeParentCommand": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    },
+    {
+      "connected": true,
+      "brokerPid": 59821,
+      "brokerSession": "0290544c-07db-4a10-bf91-0235374e7f4f",
+      "connectionStage": "READY",
+      "browserSession": "b6b2a4fc-6f1e-423b-9e4b-547d0c9febff",
+      "connectionEpoch": "7ec34c48-bf27-4964-b594-732a679e611f",
+      "browser": {
+        "browserSession": "b6b2a4fc-6f1e-423b-9e4b-547d0c9febff",
+        "extensionId": "jpjgepfbapojijlabljgdpbhfmiapkin",
+        "extensionVersion": "0.3.1",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+        "loadedResources": {
+          "workerCodeSha256": "548ac05424bba2d36e97f53b9d0f4d553e91fae6fbe17d13aecf1143b5a7ecd9",
+          "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+          "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad",
+          "resources": {
+            "manifest.json": "31e0980ff693f61c0aff30d344649185624bb6f2d5ecb3a63addc47d809e1837",
+            "worker.js": "2f61f080d57f1bd0e21feabaf3999a89a31b3c20728fec562c519366457a63ad",
+            "locator.js": "0332e9d5ab70ad3e528016cef7e815cd6fd1fd40b43e94d714ac3da15707d6b7",
+            "content.js": "14dccdfda3a55a33b771be3d2e106db2a9b8c788082cef353949923282e34b0a"
+          },
+          "workerStartedAt": "2026-10-02T18:02:35.261Z"
+        },
+        "nativeHost": {
+          "hostPid": 59822,
+          "parentPid": 2139,
+          "origin": "chrome-extension://jpjgepfbapojijlabljgdpbhfmiapkin/",
+          "build": {
+            "sourceDirectory": "/Users/mac/Documents/workspace/clawdesk/lab/browser-automation-core",
+            "files": [
+              {
+                "name": "config.mjs",
+                "sha256": "d88d16e05818e5791eac72d789ca7a8ee2379d40afd43adbccc2f82f940011c8"
+              },
+              {
+                "name": "protocol.mjs",
+                "sha256": "163778a06856ec52c6b8da056a3cec7a8658eb7276d29ff78ee17e8b109c00f8"
+              },
+              {
+                "name": "native-diagnostic.mjs",
+                "sha256": "6c687e1201154247a26811e596260766dca179ca32f4da6af6f7faa94849e01e"
+              },
+              {
+                "name": "native-host.mjs",
+                "sha256": "a828fa9f9fbd6fc22242947eb23f6f3b652deecafed28aa4a3b0a6222ccb3202"
+              },
+              {
+                "name": "installed-native-entry.mjs",
+                "sha256": "c77e8073ae01b5e0d286f510d0835c6552817a71468caf8829375f223b1d28f5"
+              },
+              {
+                "name": "native-host",
+                "sha256": "a6e93211dbaa15d971df09367956cc9dba514b89b15196f8cd1eac5f838e8fc5"
+              }
+            ]
+          }
+        }
+      },
+      "pendingCount": 0,
+      "evidenceDirectory": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/broker-1790964155629-0290544c",
+      "limits": {
+        "version": 1,
+        "maxMessageBytes": 65536,
+        "maxPending": 32,
+        "maxQueue": 16,
+        "maxEvents": 128,
+        "defaultTimeoutMs": 5000,
+        "maxTimeoutMs": 15000,
+        "authTimeoutMs": 2000,
+        "handshakeTimeoutMs": 5000,
+        "maxConnections": 48,
+        "maxTraceBytes": 16777216,
+        "maxRequestsPerSession": 4096,
+        "reconnectPollMs": 100,
+        "reconnectDeadlineMs": 45000,
+        "maxTargets": 512,
+        "maxTrackedTabs": 64,
+        "maxFramesPerTab": 24,
+        "maxObserveElements": 24,
+        "maxScanNodes": 2048,
+        "maxTextChars": 128,
+        "cancelDeadlineMs": 1000,
+        "minTimeoutMs": 10,
+        "maxClientPending": 33,
+        "clientResponseGraceMs": 1000,
+        "maxFillChars": 4096,
+        "maxQueryChars": 200,
+        "maxUrlChars": 512,
+        "deadlineToleranceMs": 250,
+        "visualDeadlineMs": 60000,
+        "maxNativeDiagnostics": 16
+      },
+      "resourceCounts": {
+        "connections": 2,
+        "targets": 0,
+        "documents": 0,
+        "readSources": 0,
+        "ownedTabs": 0,
+        "events": 2,
+        "requestMemory": 1,
+        "traceBytes": 0
+      },
+      "nativeParentCommand": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    }
+  ],
+  "orders": [
+    {
+      "orderId": "ORDER_39919176",
+      "amount": "605.43",
+      "confirmation": "605.43",
+      "serverAmount": "605.43",
+      "submissionCount": 1,
+      "status": "Completed",
+      "readRequestId": "2f69511a-0fb0-4105-8c6d-96483f2ca2aa",
+      "fillSourceReadRequestId": "2f69511a-0fb0-4105-8c6d-96483f2ca2aa",
+      "document": "400F0772AD6812417DA3E9BB27FB42CD",
+      "execution": {
+        "orderId": "ORDER_39919176",
+        "domReadAmount": "605.43",
+        "readRequestId": "2f69511a-0fb0-4105-8c6d-96483f2ca2aa",
+        "readTarget": {
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "tab": 759147596,
+          "frame": 0,
+          "document": "400F0772AD6812417DA3E9BB27FB42CD",
+          "elementIdentity": "137e4e9d-9e25-476b-818e-4f2d0dbbcd34",
+          "semanticRevision": "0:0:http://127.0.0.1:49489/"
+        },
+        "fillRequestId": "8de13430-1e5e-4838-8a4f-55c4629da877",
+        "fillSourceReadRequestId": "2f69511a-0fb0-4105-8c6d-96483f2ca2aa",
+        "readResponse": {
+          "v": 1,
+          "kind": "response",
+          "requestId": "2f69511a-0fb0-4105-8c6d-96483f2ca2aa",
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "result": {
+            "identity": {
+              "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+              "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+              "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+              "tab": 759147596,
+              "frame": 0,
+              "document": "400F0772AD6812417DA3E9BB27FB42CD"
+            },
+            "value": "605.43",
+            "redacted": false,
+            "trace": {
+              "resolvedTarget": {
+                "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+                "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+                "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+                "tab": 759147596,
+                "frame": 0,
+                "document": "400F0772AD6812417DA3E9BB27FB42CD",
+                "elementIdentity": "137e4e9d-9e25-476b-818e-4f2d0dbbcd34",
+                "semanticRevision": "0:0:http://127.0.0.1:49489/"
+              },
+              "beforeObservation": {
+                "tag": "output",
+                "role": "status",
+                "name": "Amount",
+                "text": "605.43",
+                "value": "605.43",
+                "redacted": false,
+                "disabled": false,
+                "id": "",
+                "testId": "amount"
+              },
+              "action": null,
+              "afterObservation": {
+                "tag": "output",
+                "role": "status",
+                "name": "Amount",
+                "text": "605.43",
+                "value": "605.43",
+                "redacted": false,
+                "disabled": false,
+                "id": "",
+                "testId": "amount"
+              },
+              "verification": null
+            },
+            "loadedResources": {
+              "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+              "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+            },
+            "resourceCounts": {
+              "targets": 16,
+              "waits": 0,
+              "barriers": 0
+            }
+          },
+          "outcome": "SUCCEEDED"
+        },
+        "fillResponse": {
+          "v": 1,
+          "kind": "response",
+          "requestId": "8de13430-1e5e-4838-8a4f-55c4629da877",
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "result": {
+            "identity": {
+              "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+              "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+              "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+              "tab": 759147596,
+              "frame": 0,
+              "document": "400F0772AD6812417DA3E9BB27FB42CD"
+            },
+            "trace": {
+              "resolvedTarget": {
+                "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+                "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+                "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+                "tab": 759147596,
+                "frame": 0,
+                "document": "400F0772AD6812417DA3E9BB27FB42CD",
+                "elementIdentity": "5a827139-8288-4e57-9959-136ce49cbe56",
+                "semanticRevision": "0:0:http://127.0.0.1:49489/"
+              },
+              "beforeObservation": {
+                "tag": "input",
+                "role": "textbox",
+                "name": "Confirmation Amount",
+                "text": "",
+                "value": "",
+                "redacted": false,
+                "disabled": false,
+                "id": "confirmation",
+                "testId": "confirmation"
+              },
+              "action": {
+                "type": "fill",
+                "value": "605.43",
+                "redacted": false,
+                "sourceReadRequestId": "2f69511a-0fb0-4105-8c6d-96483f2ca2aa"
+              },
+              "afterObservation": {
+                "tag": "input",
+                "role": "textbox",
+                "name": "Confirmation Amount",
+                "text": "",
+                "value": "605.43",
+                "redacted": false,
+                "disabled": false,
+                "id": "confirmation",
+                "testId": "confirmation"
+              },
+              "verification": null
+            },
+            "value": "605.43",
+            "redacted": false,
+            "loadedResources": {
+              "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+              "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+            },
+            "resourceCounts": {
+              "targets": 16,
+              "waits": 0,
+              "barriers": 0
+            }
+          },
+          "outcome": "SUCCEEDED"
+        },
+        "confirmationReadResponse": {
+          "v": 1,
+          "kind": "response",
+          "requestId": "edbe45fb-112d-470d-9f6f-3e59a83b6442",
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "result": {
+            "identity": {
+              "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+              "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+              "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+              "tab": 759147596,
+              "frame": 0,
+              "document": "400F0772AD6812417DA3E9BB27FB42CD"
+            },
+            "value": "605.43",
+            "redacted": false,
+            "trace": {
+              "resolvedTarget": {
+                "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+                "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+                "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+                "tab": 759147596,
+                "frame": 0,
+                "document": "400F0772AD6812417DA3E9BB27FB42CD",
+                "elementIdentity": "5a827139-8288-4e57-9959-136ce49cbe56",
+                "semanticRevision": "0:0:http://127.0.0.1:49489/"
+              },
+              "beforeObservation": {
+                "tag": "input",
+                "role": "textbox",
+                "name": "Confirmation Amount",
+                "text": "",
+                "value": "605.43",
+                "redacted": false,
+                "disabled": false,
+                "id": "confirmation",
+                "testId": "confirmation"
+              },
+              "action": null,
+              "afterObservation": {
+                "tag": "input",
+                "role": "textbox",
+                "name": "Confirmation Amount",
+                "text": "",
+                "value": "605.43",
+                "redacted": false,
+                "disabled": false,
+                "id": "confirmation",
+                "testId": "confirmation"
+              },
+              "verification": null
+            },
+            "loadedResources": {
+              "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+              "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+            },
+            "resourceCounts": {
+              "targets": 16,
+              "waits": 0,
+              "barriers": 0
+            }
+          },
+          "outcome": "SUCCEEDED"
+        },
+        "verificationResponse": {
+          "v": 1,
+          "kind": "response",
+          "requestId": "101aa119-c5d1-468f-8e98-151fbbc38cc4",
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "result": {
+            "identity": {
+              "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+              "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+              "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+              "tab": 759147596,
+              "frame": 0,
+              "document": "400F0772AD6812417DA3E9BB27FB42CD"
+            },
+            "trace": {
+              "resolvedTarget": {
+                "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+                "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+                "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+                "tab": 759147596,
+                "frame": 0,
+                "document": "400F0772AD6812417DA3E9BB27FB42CD",
+                "elementIdentity": "bc25502a-ce2f-4a8e-a50d-c7a5d278e6f5",
+                "semanticRevision": "0:0:http://127.0.0.1:49489/"
+              },
+              "beforeObservation": {
+                "tag": "p",
+                "role": "status",
+                "name": "",
+                "text": "Completed",
+                "value": null,
+                "redacted": false,
+                "disabled": false,
+                "id": "",
+                "testId": "status"
+              },
+              "action": null,
+              "afterObservation": {
+                "tag": "p",
+                "role": "status",
+                "name": "",
+                "text": "Completed",
+                "value": null,
+                "redacted": false,
+                "disabled": false,
+                "id": "",
+                "testId": "status"
+              },
+              "verification": {
+                "pass": true,
+                "field": "text",
+                "expected": "Completed",
+                "actual": "Completed",
+                "redacted": false
+              }
+            },
+            "value": null,
+            "redacted": false,
+            "loadedResources": {
+              "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+              "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+            },
+            "resourceCounts": {
+              "targets": 16,
+              "waits": 0,
+              "barriers": 0
+            }
+          },
+          "outcome": "SUCCEEDED"
+        },
+        "confirmationActual": "605.43",
+        "confirmTarget": {
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "tab": 759147596,
+          "frame": 0,
+          "document": "400F0772AD6812417DA3E9BB27FB42CD",
+          "elementIdentity": "c5aa7976-d510-4f2c-95a6-d9f2edd54139",
+          "semanticRevision": "0:0:http://127.0.0.1:49489/"
+        },
+        "confirmResponse": {
+          "v": 1,
+          "kind": "response",
+          "requestId": "6ed81f5c-eb70-47fa-9c03-ec4a8f070c8f",
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "result": {
+            "identity": {
+              "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+              "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+              "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+              "tab": 759147596,
+              "frame": 0,
+              "document": "400F0772AD6812417DA3E9BB27FB42CD"
+            },
+            "trace": {
+              "resolvedTarget": {
+                "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+                "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+                "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+                "tab": 759147596,
+                "frame": 0,
+                "document": "400F0772AD6812417DA3E9BB27FB42CD",
+                "elementIdentity": "c5aa7976-d510-4f2c-95a6-d9f2edd54139",
+                "semanticRevision": "0:0:http://127.0.0.1:49489/"
+              },
+              "beforeObservation": {
+                "tag": "button",
+                "role": "button",
+                "name": "Confirm",
+                "text": "Confirm",
+                "value": "",
+                "redacted": false,
+                "disabled": false,
+                "id": "",
+                "testId": "confirm"
+              },
+              "action": {
+                "type": "click",
+                "elementIdentity": "c5aa7976-d510-4f2c-95a6-d9f2edd54139"
+              },
+              "afterObservation": {
+                "tag": "button",
+                "role": "button",
+                "name": "Confirm",
+                "text": "Confirm",
+                "value": "",
+                "redacted": false,
+                "disabled": false,
+                "id": "",
+                "testId": "confirm"
+              },
+              "verification": null
+            },
+            "value": null,
+            "redacted": false,
+            "loadedResources": {
+              "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+              "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+            },
+            "resourceCounts": {
+              "targets": 16,
+              "waits": 0,
+              "barriers": 0
+            }
+          },
+          "outcome": "SUCCEEDED"
+        },
+        "confirmBoundary": null,
+        "domFinalStatus": "Completed",
+        "verificationRequestId": "101aa119-c5d1-468f-8e98-151fbbc38cc4"
+      },
+      "independent": {
+        "status": "PASS",
+        "orderId": "ORDER_39919176",
+        "domReadAmount": "605.43",
+        "confirmationActual": "605.43",
+        "domFinalStatus": "Completed",
+        "serverRecordedAmount": "605.43",
+        "serverAmount": "605.43",
+        "submissionCount": 1,
+        "submissions": [
+          {
+            "confirmation": "605.43",
+            "recordedAmount": "605.43",
+            "accepted": true,
+            "timestamp": "2026-10-02T18:02:03.811Z"
+          }
+        ],
+        "verifierRunAfterExecution": true,
+        "readRequestId": "2f69511a-0fb0-4105-8c6d-96483f2ca2aa",
+        "fillSourceReadRequestId": "2f69511a-0fb0-4105-8c6d-96483f2ca2aa",
+        "readTarget": {
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "tab": 759147596,
+          "frame": 0,
+          "document": "400F0772AD6812417DA3E9BB27FB42CD",
+          "elementIdentity": "137e4e9d-9e25-476b-818e-4f2d0dbbcd34",
+          "semanticRevision": "0:0:http://127.0.0.1:49489/"
+        },
+        "serverSnapshot": {
+          "instance": "21ce8a8b-591f-4585-985f-f2b7d72c7970",
+          "orderId": "ORDER_39919176",
+          "amount": "605.43",
+          "generatedAt": "2026-10-02T18:02:03.687Z",
+          "submissions": [
+            {
+              "confirmation": "605.43",
+              "recordedAmount": "605.43",
+              "accepted": true,
+              "timestamp": "2026-10-02T18:02:03.811Z"
+            }
+          ],
+          "submissionCount": 1,
+          "confirmAttemptCount": 1
+        }
+      }
+    },
+    {
+      "orderId": "ORDER_48097630",
+      "amount": "721.14",
+      "confirmation": "721.14",
+      "serverAmount": "721.14",
+      "submissionCount": 1,
+      "status": "Completed",
+      "readRequestId": "0ba38e26-5cb8-4729-a339-8ab804662339",
+      "fillSourceReadRequestId": "0ba38e26-5cb8-4729-a339-8ab804662339",
+      "document": "400F0772AD6812417DA3E9BB27FB42CD",
+      "execution": {
+        "orderId": "ORDER_48097630",
+        "domReadAmount": "721.14",
+        "readRequestId": "0ba38e26-5cb8-4729-a339-8ab804662339",
+        "readTarget": {
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "tab": 759147596,
+          "frame": 0,
+          "document": "400F0772AD6812417DA3E9BB27FB42CD",
+          "elementIdentity": "137e4e9d-9e25-476b-818e-4f2d0dbbcd34",
+          "semanticRevision": "0:0:http://127.0.0.1:49489/"
+        },
+        "fillRequestId": "00fdcdfc-7f6a-42e3-a52d-dce14b2ce9f1",
+        "fillSourceReadRequestId": "0ba38e26-5cb8-4729-a339-8ab804662339",
+        "readResponse": {
+          "v": 1,
+          "kind": "response",
+          "requestId": "0ba38e26-5cb8-4729-a339-8ab804662339",
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "result": {
+            "identity": {
+              "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+              "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+              "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+              "tab": 759147596,
+              "frame": 0,
+              "document": "400F0772AD6812417DA3E9BB27FB42CD"
+            },
+            "value": "721.14",
+            "redacted": false,
+            "trace": {
+              "resolvedTarget": {
+                "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+                "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+                "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+                "tab": 759147596,
+                "frame": 0,
+                "document": "400F0772AD6812417DA3E9BB27FB42CD",
+                "elementIdentity": "137e4e9d-9e25-476b-818e-4f2d0dbbcd34",
+                "semanticRevision": "0:0:http://127.0.0.1:49489/"
+              },
+              "beforeObservation": {
+                "tag": "output",
+                "role": "status",
+                "name": "Amount",
+                "text": "721.14",
+                "value": "721.14",
+                "redacted": false,
+                "disabled": false,
+                "id": "",
+                "testId": "amount"
+              },
+              "action": null,
+              "afterObservation": {
+                "tag": "output",
+                "role": "status",
+                "name": "Amount",
+                "text": "721.14",
+                "value": "721.14",
+                "redacted": false,
+                "disabled": false,
+                "id": "",
+                "testId": "amount"
+              },
+              "verification": null
+            },
+            "loadedResources": {
+              "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+              "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+            },
+            "resourceCounts": {
+              "targets": 16,
+              "waits": 0,
+              "barriers": 0
+            }
+          },
+          "outcome": "SUCCEEDED"
+        },
+        "fillResponse": {
+          "v": 1,
+          "kind": "response",
+          "requestId": "00fdcdfc-7f6a-42e3-a52d-dce14b2ce9f1",
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "result": {
+            "identity": {
+              "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+              "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+              "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+              "tab": 759147596,
+              "frame": 0,
+              "document": "400F0772AD6812417DA3E9BB27FB42CD"
+            },
+            "trace": {
+              "resolvedTarget": {
+                "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+                "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+                "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+                "tab": 759147596,
+                "frame": 0,
+                "document": "400F0772AD6812417DA3E9BB27FB42CD",
+                "elementIdentity": "5a827139-8288-4e57-9959-136ce49cbe56",
+                "semanticRevision": "0:0:http://127.0.0.1:49489/"
+              },
+              "beforeObservation": {
+                "tag": "input",
+                "role": "textbox",
+                "name": "Confirmation Amount",
+                "text": "",
+                "value": "605.43",
+                "redacted": false,
+                "disabled": false,
+                "id": "confirmation",
+                "testId": "confirmation"
+              },
+              "action": {
+                "type": "fill",
+                "value": "721.14",
+                "redacted": false,
+                "sourceReadRequestId": "0ba38e26-5cb8-4729-a339-8ab804662339"
+              },
+              "afterObservation": {
+                "tag": "input",
+                "role": "textbox",
+                "name": "Confirmation Amount",
+                "text": "",
+                "value": "721.14",
+                "redacted": false,
+                "disabled": false,
+                "id": "confirmation",
+                "testId": "confirmation"
+              },
+              "verification": null
+            },
+            "value": "721.14",
+            "redacted": false,
+            "loadedResources": {
+              "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+              "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+            },
+            "resourceCounts": {
+              "targets": 16,
+              "waits": 0,
+              "barriers": 0
+            }
+          },
+          "outcome": "SUCCEEDED"
+        },
+        "confirmationReadResponse": {
+          "v": 1,
+          "kind": "response",
+          "requestId": "13ba18e1-177b-4af9-a38e-5f9da98d947c",
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "result": {
+            "identity": {
+              "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+              "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+              "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+              "tab": 759147596,
+              "frame": 0,
+              "document": "400F0772AD6812417DA3E9BB27FB42CD"
+            },
+            "value": "721.14",
+            "redacted": false,
+            "trace": {
+              "resolvedTarget": {
+                "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+                "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+                "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+                "tab": 759147596,
+                "frame": 0,
+                "document": "400F0772AD6812417DA3E9BB27FB42CD",
+                "elementIdentity": "5a827139-8288-4e57-9959-136ce49cbe56",
+                "semanticRevision": "0:0:http://127.0.0.1:49489/"
+              },
+              "beforeObservation": {
+                "tag": "input",
+                "role": "textbox",
+                "name": "Confirmation Amount",
+                "text": "",
+                "value": "721.14",
+                "redacted": false,
+                "disabled": false,
+                "id": "confirmation",
+                "testId": "confirmation"
+              },
+              "action": null,
+              "afterObservation": {
+                "tag": "input",
+                "role": "textbox",
+                "name": "Confirmation Amount",
+                "text": "",
+                "value": "721.14",
+                "redacted": false,
+                "disabled": false,
+                "id": "confirmation",
+                "testId": "confirmation"
+              },
+              "verification": null
+            },
+            "loadedResources": {
+              "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+              "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+            },
+            "resourceCounts": {
+              "targets": 16,
+              "waits": 0,
+              "barriers": 0
+            }
+          },
+          "outcome": "SUCCEEDED"
+        },
+        "verificationResponse": {
+          "v": 1,
+          "kind": "response",
+          "requestId": "fae84e4c-ae66-441b-ad87-8c6a36eb6d00",
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "result": {
+            "identity": {
+              "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+              "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+              "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+              "tab": 759147596,
+              "frame": 0,
+              "document": "400F0772AD6812417DA3E9BB27FB42CD"
+            },
+            "trace": {
+              "resolvedTarget": {
+                "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+                "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+                "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+                "tab": 759147596,
+                "frame": 0,
+                "document": "400F0772AD6812417DA3E9BB27FB42CD",
+                "elementIdentity": "bc25502a-ce2f-4a8e-a50d-c7a5d278e6f5",
+                "semanticRevision": "0:0:http://127.0.0.1:49489/"
+              },
+              "beforeObservation": {
+                "tag": "p",
+                "role": "status",
+                "name": "",
+                "text": "Completed",
+                "value": null,
+                "redacted": false,
+                "disabled": false,
+                "id": "",
+                "testId": "status"
+              },
+              "action": null,
+              "afterObservation": {
+                "tag": "p",
+                "role": "status",
+                "name": "",
+                "text": "Completed",
+                "value": null,
+                "redacted": false,
+                "disabled": false,
+                "id": "",
+                "testId": "status"
+              },
+              "verification": {
+                "pass": true,
+                "field": "text",
+                "expected": "Completed",
+                "actual": "Completed",
+                "redacted": false
+              }
+            },
+            "value": null,
+            "redacted": false,
+            "loadedResources": {
+              "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+              "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+            },
+            "resourceCounts": {
+              "targets": 16,
+              "waits": 0,
+              "barriers": 0
+            }
+          },
+          "outcome": "SUCCEEDED"
+        },
+        "confirmationActual": "721.14",
+        "confirmTarget": {
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "tab": 759147596,
+          "frame": 0,
+          "document": "400F0772AD6812417DA3E9BB27FB42CD",
+          "elementIdentity": "c5aa7976-d510-4f2c-95a6-d9f2edd54139",
+          "semanticRevision": "0:0:http://127.0.0.1:49489/"
+        },
+        "confirmResponse": {
+          "v": 1,
+          "kind": "response",
+          "requestId": "3de0038a-b9bf-44f7-81e7-92859d2d023e",
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "result": {
+            "identity": {
+              "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+              "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+              "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+              "tab": 759147596,
+              "frame": 0,
+              "document": "400F0772AD6812417DA3E9BB27FB42CD"
+            },
+            "trace": {
+              "resolvedTarget": {
+                "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+                "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+                "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+                "tab": 759147596,
+                "frame": 0,
+                "document": "400F0772AD6812417DA3E9BB27FB42CD",
+                "elementIdentity": "c5aa7976-d510-4f2c-95a6-d9f2edd54139",
+                "semanticRevision": "0:0:http://127.0.0.1:49489/"
+              },
+              "beforeObservation": {
+                "tag": "button",
+                "role": "button",
+                "name": "Confirm",
+                "text": "Confirm",
+                "value": "",
+                "redacted": false,
+                "disabled": false,
+                "id": "",
+                "testId": "confirm"
+              },
+              "action": {
+                "type": "click",
+                "elementIdentity": "c5aa7976-d510-4f2c-95a6-d9f2edd54139"
+              },
+              "afterObservation": {
+                "tag": "button",
+                "role": "button",
+                "name": "Confirm",
+                "text": "Confirm",
+                "value": "",
+                "redacted": false,
+                "disabled": false,
+                "id": "",
+                "testId": "confirm"
+              },
+              "verification": null
+            },
+            "value": null,
+            "redacted": false,
+            "loadedResources": {
+              "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+              "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+            },
+            "resourceCounts": {
+              "targets": 16,
+              "waits": 0,
+              "barriers": 0
+            }
+          },
+          "outcome": "SUCCEEDED"
+        },
+        "confirmBoundary": null,
+        "domFinalStatus": "Completed",
+        "verificationRequestId": "fae84e4c-ae66-441b-ad87-8c6a36eb6d00"
+      },
+      "independent": {
+        "status": "PASS",
+        "orderId": "ORDER_48097630",
+        "domReadAmount": "721.14",
+        "confirmationActual": "721.14",
+        "domFinalStatus": "Completed",
+        "serverRecordedAmount": "721.14",
+        "serverAmount": "721.14",
+        "submissionCount": 1,
+        "submissions": [
+          {
+            "confirmation": "721.14",
+            "recordedAmount": "721.14",
+            "accepted": true,
+            "timestamp": "2026-10-02T18:02:03.990Z"
+          }
+        ],
+        "verifierRunAfterExecution": true,
+        "readRequestId": "0ba38e26-5cb8-4729-a339-8ab804662339",
+        "fillSourceReadRequestId": "0ba38e26-5cb8-4729-a339-8ab804662339",
+        "readTarget": {
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "tab": 759147596,
+          "frame": 0,
+          "document": "400F0772AD6812417DA3E9BB27FB42CD",
+          "elementIdentity": "137e4e9d-9e25-476b-818e-4f2d0dbbcd34",
+          "semanticRevision": "0:0:http://127.0.0.1:49489/"
+        },
+        "serverSnapshot": {
+          "instance": "21ce8a8b-591f-4585-985f-f2b7d72c7970",
+          "orderId": "ORDER_48097630",
+          "amount": "721.14",
+          "generatedAt": "2026-10-02T18:02:03.870Z",
+          "submissions": [
+            {
+              "confirmation": "721.14",
+              "recordedAmount": "721.14",
+              "accepted": true,
+              "timestamp": "2026-10-02T18:02:03.990Z"
+            }
+          ],
+          "submissionCount": 1,
+          "confirmAttemptCount": 2
+        }
+      }
+    },
+    {
+      "orderId": "ORDER_0d599838",
+      "amount": "671.43",
+      "confirmation": "671.43",
+      "serverAmount": "671.43",
+      "submissionCount": 1,
+      "status": "Completed",
+      "readRequestId": "6d4044f0-792f-4b63-a05e-385280d70411",
+      "fillSourceReadRequestId": "6d4044f0-792f-4b63-a05e-385280d70411",
+      "document": "400F0772AD6812417DA3E9BB27FB42CD",
+      "execution": {
+        "orderId": "ORDER_0d599838",
+        "domReadAmount": "671.43",
+        "readRequestId": "6d4044f0-792f-4b63-a05e-385280d70411",
+        "readTarget": {
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "tab": 759147596,
+          "frame": 0,
+          "document": "400F0772AD6812417DA3E9BB27FB42CD",
+          "elementIdentity": "137e4e9d-9e25-476b-818e-4f2d0dbbcd34",
+          "semanticRevision": "0:0:http://127.0.0.1:49489/"
+        },
+        "fillRequestId": "f3d13ef8-a10a-407b-a206-e541d991bfee",
+        "fillSourceReadRequestId": "6d4044f0-792f-4b63-a05e-385280d70411",
+        "readResponse": {
+          "v": 1,
+          "kind": "response",
+          "requestId": "6d4044f0-792f-4b63-a05e-385280d70411",
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "result": {
+            "identity": {
+              "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+              "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+              "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+              "tab": 759147596,
+              "frame": 0,
+              "document": "400F0772AD6812417DA3E9BB27FB42CD"
+            },
+            "value": "671.43",
+            "redacted": false,
+            "trace": {
+              "resolvedTarget": {
+                "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+                "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+                "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+                "tab": 759147596,
+                "frame": 0,
+                "document": "400F0772AD6812417DA3E9BB27FB42CD",
+                "elementIdentity": "137e4e9d-9e25-476b-818e-4f2d0dbbcd34",
+                "semanticRevision": "0:0:http://127.0.0.1:49489/"
+              },
+              "beforeObservation": {
+                "tag": "output",
+                "role": "status",
+                "name": "Amount",
+                "text": "671.43",
+                "value": "671.43",
+                "redacted": false,
+                "disabled": false,
+                "id": "",
+                "testId": "amount"
+              },
+              "action": null,
+              "afterObservation": {
+                "tag": "output",
+                "role": "status",
+                "name": "Amount",
+                "text": "671.43",
+                "value": "671.43",
+                "redacted": false,
+                "disabled": false,
+                "id": "",
+                "testId": "amount"
+              },
+              "verification": null
+            },
+            "loadedResources": {
+              "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+              "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+            },
+            "resourceCounts": {
+              "targets": 16,
+              "waits": 0,
+              "barriers": 0
+            }
+          },
+          "outcome": "SUCCEEDED"
+        },
+        "fillResponse": {
+          "v": 1,
+          "kind": "response",
+          "requestId": "f3d13ef8-a10a-407b-a206-e541d991bfee",
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "result": {
+            "identity": {
+              "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+              "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+              "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+              "tab": 759147596,
+              "frame": 0,
+              "document": "400F0772AD6812417DA3E9BB27FB42CD"
+            },
+            "trace": {
+              "resolvedTarget": {
+                "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+                "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+                "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+                "tab": 759147596,
+                "frame": 0,
+                "document": "400F0772AD6812417DA3E9BB27FB42CD",
+                "elementIdentity": "5a827139-8288-4e57-9959-136ce49cbe56",
+                "semanticRevision": "0:0:http://127.0.0.1:49489/"
+              },
+              "beforeObservation": {
+                "tag": "input",
+                "role": "textbox",
+                "name": "Confirmation Amount",
+                "text": "",
+                "value": "721.14",
+                "redacted": false,
+                "disabled": false,
+                "id": "confirmation",
+                "testId": "confirmation"
+              },
+              "action": {
+                "type": "fill",
+                "value": "671.43",
+                "redacted": false,
+                "sourceReadRequestId": "6d4044f0-792f-4b63-a05e-385280d70411"
+              },
+              "afterObservation": {
+                "tag": "input",
+                "role": "textbox",
+                "name": "Confirmation Amount",
+                "text": "",
+                "value": "671.43",
+                "redacted": false,
+                "disabled": false,
+                "id": "confirmation",
+                "testId": "confirmation"
+              },
+              "verification": null
+            },
+            "value": "671.43",
+            "redacted": false,
+            "loadedResources": {
+              "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+              "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+            },
+            "resourceCounts": {
+              "targets": 16,
+              "waits": 0,
+              "barriers": 0
+            }
+          },
+          "outcome": "SUCCEEDED"
+        },
+        "confirmationReadResponse": {
+          "v": 1,
+          "kind": "response",
+          "requestId": "28865b07-f2b9-4970-b824-1337c7893426",
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "result": {
+            "identity": {
+              "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+              "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+              "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+              "tab": 759147596,
+              "frame": 0,
+              "document": "400F0772AD6812417DA3E9BB27FB42CD"
+            },
+            "value": "671.43",
+            "redacted": false,
+            "trace": {
+              "resolvedTarget": {
+                "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+                "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+                "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+                "tab": 759147596,
+                "frame": 0,
+                "document": "400F0772AD6812417DA3E9BB27FB42CD",
+                "elementIdentity": "5a827139-8288-4e57-9959-136ce49cbe56",
+                "semanticRevision": "0:0:http://127.0.0.1:49489/"
+              },
+              "beforeObservation": {
+                "tag": "input",
+                "role": "textbox",
+                "name": "Confirmation Amount",
+                "text": "",
+                "value": "671.43",
+                "redacted": false,
+                "disabled": false,
+                "id": "confirmation",
+                "testId": "confirmation"
+              },
+              "action": null,
+              "afterObservation": {
+                "tag": "input",
+                "role": "textbox",
+                "name": "Confirmation Amount",
+                "text": "",
+                "value": "671.43",
+                "redacted": false,
+                "disabled": false,
+                "id": "confirmation",
+                "testId": "confirmation"
+              },
+              "verification": null
+            },
+            "loadedResources": {
+              "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+              "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+            },
+            "resourceCounts": {
+              "targets": 16,
+              "waits": 0,
+              "barriers": 0
+            }
+          },
+          "outcome": "SUCCEEDED"
+        },
+        "verificationResponse": {
+          "v": 1,
+          "kind": "response",
+          "requestId": "5a4a958e-e47e-4642-bc99-2ac58ed5d63f",
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "result": {
+            "identity": {
+              "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+              "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+              "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+              "tab": 759147596,
+              "frame": 0,
+              "document": "400F0772AD6812417DA3E9BB27FB42CD"
+            },
+            "trace": {
+              "resolvedTarget": {
+                "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+                "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+                "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+                "tab": 759147596,
+                "frame": 0,
+                "document": "400F0772AD6812417DA3E9BB27FB42CD",
+                "elementIdentity": "bc25502a-ce2f-4a8e-a50d-c7a5d278e6f5",
+                "semanticRevision": "0:0:http://127.0.0.1:49489/"
+              },
+              "beforeObservation": {
+                "tag": "p",
+                "role": "status",
+                "name": "",
+                "text": "Completed",
+                "value": null,
+                "redacted": false,
+                "disabled": false,
+                "id": "",
+                "testId": "status"
+              },
+              "action": null,
+              "afterObservation": {
+                "tag": "p",
+                "role": "status",
+                "name": "",
+                "text": "Completed",
+                "value": null,
+                "redacted": false,
+                "disabled": false,
+                "id": "",
+                "testId": "status"
+              },
+              "verification": {
+                "pass": true,
+                "field": "text",
+                "expected": "Completed",
+                "actual": "Completed",
+                "redacted": false
+              }
+            },
+            "value": null,
+            "redacted": false,
+            "loadedResources": {
+              "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+              "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+            },
+            "resourceCounts": {
+              "targets": 16,
+              "waits": 0,
+              "barriers": 0
+            }
+          },
+          "outcome": "SUCCEEDED"
+        },
+        "confirmationActual": "671.43",
+        "confirmTarget": {
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "tab": 759147596,
+          "frame": 0,
+          "document": "400F0772AD6812417DA3E9BB27FB42CD",
+          "elementIdentity": "c5aa7976-d510-4f2c-95a6-d9f2edd54139",
+          "semanticRevision": "0:0:http://127.0.0.1:49489/"
+        },
+        "confirmResponse": {
+          "v": 1,
+          "kind": "response",
+          "requestId": "2239c619-d418-476d-ae39-fd17e65a89e1",
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "result": {
+            "identity": {
+              "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+              "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+              "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+              "tab": 759147596,
+              "frame": 0,
+              "document": "400F0772AD6812417DA3E9BB27FB42CD"
+            },
+            "trace": {
+              "resolvedTarget": {
+                "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+                "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+                "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+                "tab": 759147596,
+                "frame": 0,
+                "document": "400F0772AD6812417DA3E9BB27FB42CD",
+                "elementIdentity": "c5aa7976-d510-4f2c-95a6-d9f2edd54139",
+                "semanticRevision": "0:0:http://127.0.0.1:49489/"
+              },
+              "beforeObservation": {
+                "tag": "button",
+                "role": "button",
+                "name": "Confirm",
+                "text": "Confirm",
+                "value": "",
+                "redacted": false,
+                "disabled": false,
+                "id": "",
+                "testId": "confirm"
+              },
+              "action": {
+                "type": "click",
+                "elementIdentity": "c5aa7976-d510-4f2c-95a6-d9f2edd54139"
+              },
+              "afterObservation": {
+                "tag": "button",
+                "role": "button",
+                "name": "Confirm",
+                "text": "Confirm",
+                "value": "",
+                "redacted": false,
+                "disabled": false,
+                "id": "",
+                "testId": "confirm"
+              },
+              "verification": null
+            },
+            "value": null,
+            "redacted": false,
+            "loadedResources": {
+              "contentCodeSha256": "668ef7fa89894f524410fcdbc1ed2c4b830ebfd0ac4056a0000bcdfb5f017d2a",
+              "locatorCodeSha256": "b7a4658d3f5c49e1641307ad7ffa9652d46f6386af140243249939d3158de7ad"
+            },
+            "resourceCounts": {
+              "targets": 16,
+              "waits": 0,
+              "barriers": 0
+            }
+          },
+          "outcome": "SUCCEEDED"
+        },
+        "confirmBoundary": null,
+        "domFinalStatus": "Completed",
+        "verificationRequestId": "5a4a958e-e47e-4642-bc99-2ac58ed5d63f"
+      },
+      "independent": {
+        "status": "PASS",
+        "orderId": "ORDER_0d599838",
+        "domReadAmount": "671.43",
+        "confirmationActual": "671.43",
+        "domFinalStatus": "Completed",
+        "serverRecordedAmount": "671.43",
+        "serverAmount": "671.43",
+        "submissionCount": 1,
+        "submissions": [
+          {
+            "confirmation": "671.43",
+            "recordedAmount": "671.43",
+            "accepted": true,
+            "timestamp": "2026-10-02T18:02:04.186Z"
+          }
+        ],
+        "verifierRunAfterExecution": true,
+        "readRequestId": "6d4044f0-792f-4b63-a05e-385280d70411",
+        "fillSourceReadRequestId": "6d4044f0-792f-4b63-a05e-385280d70411",
+        "readTarget": {
+          "brokerSession": "1c43c139-c31e-43e5-aaf2-3589a3a949c3",
+          "browserSession": "8a83570f-415c-4138-98af-758e80a1dad3",
+          "connectionEpoch": "4df37423-b470-4ac7-bdcd-c8dd7206d04a",
+          "tab": 759147596,
+          "frame": 0,
+          "document": "400F0772AD6812417DA3E9BB27FB42CD",
+          "elementIdentity": "137e4e9d-9e25-476b-818e-4f2d0dbbcd34",
+          "semanticRevision": "0:0:http://127.0.0.1:49489/"
+        },
+        "serverSnapshot": {
+          "instance": "21ce8a8b-591f-4585-985f-f2b7d72c7970",
+          "orderId": "ORDER_0d599838",
+          "amount": "671.43",
+          "generatedAt": "2026-10-02T18:02:04.064Z",
+          "submissions": [
+            {
+              "confirmation": "671.43",
+              "recordedAmount": "671.43",
+              "accepted": true,
+              "timestamp": "2026-10-02T18:02:04.186Z"
+            }
+          ],
+          "submissionCount": 1,
+          "confirmAttemptCount": 3
+        }
+      }
+    }
+  ],
+  "requiredCaseCount": 93,
+  "traceCount": 4759,
+  "requirementMatrix": [
+    {
+      "requirement": "A01",
+      "gate": "A",
+      "level": "live-browser",
+      "implementation": "Client/Broker/Native Host/real Worker",
+      "input": "Local Client 发送随机 nonce，经 Broker/Host 到真实 Extension",
+      "expected": "Extension 返回完全相同 nonce；requestId 对应唯一",
+      "assertions": [
+        "端到端请求响应与 Extension 来源"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A01.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "gate-a-1790964104234"
+    },
+    {
+      "requirement": "A02",
+      "gate": "A",
+      "level": "live-browser",
+      "implementation": "Client/Broker/Native Host/real Worker",
+      "input": "Extension 自行产生随机 eventId 并发送到 Broker/Client",
+      "expected": "Client 收到同一 eventId，来源和连接 epoch 可验证",
+      "assertions": [
+        "浏览器产生事件与 Client 接收记录"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A02.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "gate-a-1790964104234"
+    },
+    {
+      "requirement": "A03",
+      "gate": "A",
+      "level": "live-browser",
+      "implementation": "Client/Broker/Native Host/real Worker",
+      "input": "100 次顺序随机 nonce 请求",
+      "expected": "100 次均有唯一正确响应，无丢失或错配",
+      "assertions": [
+        "100 条关联记录与汇总"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A03.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "gate-a-1790964104234"
+    },
+    {
+      "requirement": "A04",
+      "gate": "A",
+      "level": "live-browser",
+      "implementation": "Client/Broker/Native Host/real Worker",
+      "input": "10 个并发随机 nonce 请求",
+      "expected": "全部正确关联，不依赖响应顺序",
+      "assertions": [
+        "10 条并发请求响应记录"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A04.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "gate-a-1790964104234"
+    },
+    {
+      "requirement": "A05",
+      "gate": "A",
+      "level": "live-browser",
+      "implementation": "Client/Broker/Native Host/real Worker",
+      "input": "故意延迟或不返回一个通信响应",
+      "expected": "配置期限内 TIMEOUT，pending 清除，迟到响应不匹配其他请求",
+      "assertions": [
+        "时间、pending 状态与迟到响应处理"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A05.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "gate-a-1790964104234"
+    },
+    {
+      "requirement": "A06",
+      "gate": "A",
+      "level": "live-browser",
+      "implementation": "Client/Broker/Native Host/real Worker",
+      "input": "Extension 连接中断，包括请求处理中",
+      "expected": "断连被检测，pending 有界结束，新请求得到明确断连状态",
+      "assertions": [
+        "disconnect、pending 终态和恢复记录"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A06.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "gate-a-1790964104234"
+    },
+    {
+      "requirement": "A07",
+      "gate": "A",
+      "level": "live-browser",
+      "implementation": "Client/Broker/Native Host/real Worker",
+      "input": "真实 Native Host 退出",
+      "expected": "Broker/Extension 明确检测，有限恢复，无 silent loss",
+      "assertions": [
+        "host 退出与双方检测记录"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A07.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "gate-a-1790964104234"
+    },
+    {
+      "requirement": "A08",
+      "gate": "A",
+      "level": "live-browser",
+      "implementation": "Client/Broker/Native Host/real Worker",
+      "input": "真实 Extension reload",
+      "expected": "恢复连接使用新 epoch，不重放旧 pending",
+      "assertions": [
+        "reload、旧新连接与请求记录"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A08.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "gate-a-1790964104234"
+    },
+    {
+      "requirement": "A09",
+      "gate": "A",
+      "level": "live-browser",
+      "implementation": "Client/Broker/Native Host/real Worker",
+      "input": "Broker restart",
+      "expected": "Client 得到明确终态，重连新 session/epoch，旧 pending 不重放",
+      "assertions": [
+        "Broker 进程及连接前后身份"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A09.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "gate-a-1790964104234"
+    },
+    {
+      "requirement": "A10",
+      "gate": "A",
+      "level": "live-browser",
+      "implementation": "Client/Broker/Native Host/real Worker",
+      "input": "protocol version mismatch",
+      "expected": "握手或请求明确拒绝，不进入执行",
+      "assertions": [
+        "版本与结构化拒绝"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A10.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "gate-a-1790964104234"
+    },
+    {
+      "requirement": "A11",
+      "gate": "A",
+      "level": "live-browser",
+      "implementation": "Client/Broker/Native Host/real Worker",
+      "input": "malformed message",
+      "expected": "受控拒绝或关闭连接，服务无崩溃/挂起，后续健康检查成功",
+      "assertions": [
+        "无效输入类别、拒绝与健康检查"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A11.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "gate-a-1790964104234"
+    },
+    {
+      "requirement": "A12",
+      "gate": "A",
+      "level": "live-browser",
+      "implementation": "Client/Broker/Native Host/real Worker",
+      "input": "oversized message 与队列超限",
+      "expected": "执行前拒绝，资源有界，无无限积压",
+      "assertions": [
+        "实际限制、超限字节/请求数、错误与队列状态"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A12.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "gate-a-1790964104234"
+    },
+    {
+      "requirement": "A05.timeout",
+      "gate": "A",
+      "level": "live-browser",
+      "implementation": "Client/Broker/Native Host/real Worker",
+      "input": "Independent judgment of real capture from A05",
+      "expected": "All selected return, identity and independent postcondition assertions match",
+      "assertions": [
+        "Original live evidence preserved",
+        "No action replay to generate this judgment"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A05.timeout.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "gate-a-1790964104234"
+    },
+    {
+      "requirement": "A05.late",
+      "gate": "A",
+      "level": "live-browser",
+      "implementation": "Client/Broker/Native Host/real Worker",
+      "input": "Independent judgment of real capture from A05",
+      "expected": "All selected return, identity and independent postcondition assertions match",
+      "assertions": [
+        "Original live evidence preserved",
+        "No action replay to generate this judgment"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A05.late.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "gate-a-1790964104234"
+    },
+    {
+      "requirement": "A05.duplicate",
+      "gate": "A",
+      "level": "live-browser",
+      "implementation": "Client/Broker/Native Host/real Worker",
+      "input": "Independent judgment of real capture from A05",
+      "expected": "All selected return, identity and independent postcondition assertions match",
+      "assertions": [
+        "Original live evidence preserved",
+        "No action replay to generate this judgment"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A05.duplicate.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "gate-a-1790964104234"
+    },
+    {
+      "requirement": "A12.bytes",
+      "gate": "A",
+      "level": "live-browser",
+      "implementation": "Client/Broker/Native Host/real Worker",
+      "input": "Independent judgment of real capture from A12",
+      "expected": "All selected return, identity and independent postcondition assertions match",
+      "assertions": [
+        "Original live evidence preserved",
+        "No action replay to generate this judgment"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A12.bytes.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "gate-a-1790964104234"
+    },
+    {
+      "requirement": "B01",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "listTabs/status",
+      "expected": "发现真实 tabs，返回明确 session/tab identity 与连接状态",
+      "assertions": [
+        "真实 tabs 列表与身份"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B01.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B02",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "observe 真实页面",
+      "expected": "返回当前 document 的 DOM 观察结果，明确 tab/frame/document/epoch",
+      "assertions": [
+        "观察快照与页面截图"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B02.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "分别使用 role+accessible name、label、text、test-id、stable attribute、limited DOM relation",
+      "expected": "每类至少唯一定位一个真实 DOM element，支持范围明确",
+      "assertions": [
+        "定位请求、候选计数和 resolvedTarget"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B04",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "不存在的 target",
+      "expected": "TARGET_NOT_FOUND，无输入或点击",
+      "assertions": [
+        "错误 trace 与动作计数"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B04.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B05",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "多个匹配的 target",
+      "expected": "AMBIGUOUS_TARGET，不选第一个",
+      "assertions": [
+        "候选计数、拒绝 trace 与动作计数"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B05.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B06",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "read 文本和 input value",
+      "expected": "读取真实 DOM 当前值，trace 可追踪真实来源",
+      "assertions": [
+        "read 结果、resolvedTarget 和 document"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B06.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B07",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "fill 与 click",
+      "expected": "操作真实 DOM，动作前后观察可验证，错误映射准确",
+      "assertions": [
+        "before/action/after 和页面实际结果"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B07.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B08",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "wait 异步变化以及未满足条件",
+      "expected": "满足时成功，不满足时有界 timeout，可取消",
+      "assertions": [
+        "条件、时限、观察变化和终态"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B08.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B09",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "verify 满足及不满足的 postcondition",
+      "expected": "独立 DOM 观察判定，通过与失败均有实值，click ACK 不替代 verify",
+      "assertions": [
+        "verification expected/actual"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B09.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B10",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "不同 frame 中存在同名 target",
+      "expected": "依 frame identity 路由，身份不足时拒绝，不跨 frame 猜测",
+      "assertions": [
+        "frame/document 身份与实际操作对象"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B10.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03.role.unique",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fixture matrix role unique",
+      "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+      "assertions": [
+        "Candidate count and full identity",
+        "Page event count unchanged for rejected locate"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.role.unique.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03.label.unique",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fixture matrix label unique",
+      "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+      "assertions": [
+        "Candidate count and full identity",
+        "Page event count unchanged for rejected locate"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.label.unique.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03.text.unique",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fixture matrix text unique",
+      "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+      "assertions": [
+        "Candidate count and full identity",
+        "Page event count unchanged for rejected locate"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.text.unique.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03.testId.unique",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fixture matrix testId unique",
+      "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+      "assertions": [
+        "Candidate count and full identity",
+        "Page event count unchanged for rejected locate"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.testId.unique.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03.attribute.unique",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fixture matrix attribute unique",
+      "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+      "assertions": [
+        "Candidate count and full identity",
+        "Page event count unchanged for rejected locate"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.attribute.unique.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03.relation.unique",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fixture matrix relation unique",
+      "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+      "assertions": [
+        "Candidate count and full identity",
+        "Page event count unchanged for rejected locate"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.relation.unique.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03.role.missing",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fixture matrix role missing",
+      "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+      "assertions": [
+        "Candidate count and full identity",
+        "Page event count unchanged for rejected locate"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.role.missing.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03.label.missing",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fixture matrix label missing",
+      "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+      "assertions": [
+        "Candidate count and full identity",
+        "Page event count unchanged for rejected locate"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.label.missing.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03.text.missing",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fixture matrix text missing",
+      "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+      "assertions": [
+        "Candidate count and full identity",
+        "Page event count unchanged for rejected locate"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.text.missing.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03.testId.missing",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fixture matrix testId missing",
+      "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+      "assertions": [
+        "Candidate count and full identity",
+        "Page event count unchanged for rejected locate"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.testId.missing.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03.attribute.missing",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fixture matrix attribute missing",
+      "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+      "assertions": [
+        "Candidate count and full identity",
+        "Page event count unchanged for rejected locate"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.attribute.missing.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03.relation.missing",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fixture matrix relation missing",
+      "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+      "assertions": [
+        "Candidate count and full identity",
+        "Page event count unchanged for rejected locate"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.relation.missing.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03.role.ambiguous",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fixture matrix role ambiguous",
+      "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+      "assertions": [
+        "Candidate count and full identity",
+        "Page event count unchanged for rejected locate"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.role.ambiguous.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03.label.ambiguous",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fixture matrix label ambiguous",
+      "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+      "assertions": [
+        "Candidate count and full identity",
+        "Page event count unchanged for rejected locate"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.label.ambiguous.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03.text.ambiguous",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fixture matrix text ambiguous",
+      "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+      "assertions": [
+        "Candidate count and full identity",
+        "Page event count unchanged for rejected locate"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.text.ambiguous.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03.testId.ambiguous",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fixture matrix testId ambiguous",
+      "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+      "assertions": [
+        "Candidate count and full identity",
+        "Page event count unchanged for rejected locate"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.testId.ambiguous.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03.attribute.ambiguous",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fixture matrix attribute ambiguous",
+      "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+      "assertions": [
+        "Candidate count and full identity",
+        "Page event count unchanged for rejected locate"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.attribute.ambiguous.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B03.relation.ambiguous",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fixture matrix relation ambiguous",
+      "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+      "assertions": [
+        "Candidate count and full identity",
+        "Page event count unchanged for rejected locate"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B03.relation.ambiguous.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B10.identity",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Frame identity incomplete or wrong",
+      "expected": "Rejected before input",
+      "assertions": [
+        "Both frames action counts unchanged"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B10.identity.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B10.replacement",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Replace Frame after locating",
+      "expected": "Old target stale; fresh target works",
+      "assertions": [
+        "Old/new document differ",
+        "Non-target frame actions unchanged"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B10.replacement.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "C1",
+      "gate": "C",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "New runtime-generated order",
+      "expected": "Completed; exactly one accepted server submission",
+      "assertions": [
+        "DOM amount = input actual = server amount",
+        "Actual read response, fill source and document agree"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/C1.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "C2",
+      "gate": "C",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "New runtime-generated order",
+      "expected": "Completed; exactly one accepted server submission",
+      "assertions": [
+        "DOM amount = input actual = server amount",
+        "Actual read response, fill source and document agree"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/C2.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "C3",
+      "gate": "C",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "New runtime-generated order",
+      "expected": "Completed; exactly one accepted server submission",
+      "assertions": [
+        "DOM amount = input actual = server amount",
+        "Actual read response, fill source and document agree"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/C3.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "C.negative.amount",
+      "gate": "C",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Mutate isolated server amount",
+      "expected": "Verifier rejects",
+      "assertions": [
+        "Successful evidence preserved"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/C.negative.amount.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "C.negative.missing",
+      "gate": "C",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Remove isolated submission",
+      "expected": "Verifier rejects",
+      "assertions": [
+        "Successful evidence preserved"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/C.negative.missing.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "C.negative.duplicate",
+      "gate": "C",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Duplicate isolated submission",
+      "expected": "Verifier rejects",
+      "assertions": [
+        "Successful evidence preserved"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/C.negative.duplicate.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "C.negative.status",
+      "gate": "C",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Change isolated final DOM status",
+      "expected": "Verifier rejects",
+      "assertions": [
+        "Successful evidence preserved"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/C.negative.status.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "C.negative.lineage-missing",
+      "gate": "C",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Remove fill source association",
+      "expected": "Verifier rejects",
+      "assertions": [
+        "Successful evidence preserved"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/C.negative.lineage-missing.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "C.negative.lineage-wrong",
+      "gate": "C",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Replace fill source association",
+      "expected": "Verifier rejects",
+      "assertions": [
+        "Successful evidence preserved"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/C.negative.lineage-wrong.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D01",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "locate Confirm → refresh → 使用旧 target click",
+      "expected": "STALE_TARGET，NOT_DISPATCHED；新页面按钮不被点击",
+      "assertions": [
+        "旧新 document、拒绝 trace、服务端 submissionCount"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D01.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D02",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "两个同名 Order Demo tab；请求仅提供标题或不足的身份",
+      "expected": "明确拒绝，不猜活动 Tab；完整身份能唯一操作指定 tab",
+      "assertions": [
+        "两个 tab 身份、拒绝记录与动作计数"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D02.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D03",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "locate 按钮 → DOM replacement → 使用旧 target",
+      "expected": "STALE_TARGET，不重新解释 selector，不点击新 element",
+      "assertions": [
+        "旧新 element 身份与拒绝记录"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D03.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D04",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "SPA navigation 后使用旧 target",
+      "expected": "旧页面语义假设失效，STALE_TARGET，重新 observe/locate 后才允许执行",
+      "assertions": [
+        "navigation/页面 revision 与拒绝记录"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D04.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D05",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "locate → 关闭 tab → 使用旧 target",
+      "expected": "STALE_TARGET 或明确 tab closed 拒绝，NOT_DISPATCHED，不路由到其他 tab",
+      "assertions": [
+        "tab close 事件与无误操作证据"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D05.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D06",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Extension reload/reconnect 后使用旧 target",
+      "expected": "new connection epoch；旧 target STALE_TARGET，旧 pending 不重放",
+      "assertions": [
+        "旧新 epoch 与 pending 终态"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D06.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D08",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "真实 Confirm click → 服务端记录且 DOM Completed → 故意丢弃 Extension→Broker response",
+      "expected": "OUTCOME_UNKNOWN；禁止自动 retry。独立 verifier 证明 submissionCount=1，随后重连也无第二次 Confirm",
+      "assertions": [
+        "实际 click、服务端提交、Completed、精确 ACK 丢弃点、Broker unknown trace、重连及最终 submissionCount"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D08.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D03.race",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Hold at Content Script execution boundary, replace original node, release",
+      "expected": "STALE_TARGET, FAILED_CONFIRMED",
+      "assertions": [
+        "Barrier event has exact requestId and document",
+        "No click of replacement"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D03.race.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D09",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "dispatch 前取消动作",
+      "expected": "CANCELLED_BEFORE_DISPATCH；DOM 与服务端无动作",
+      "assertions": [
+        "cancel 时间、dispatch 边界与动作计数"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D09.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D10",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "dispatch 后动作响应超时、断连或取消",
+      "expected": "不能证明未执行时为 OUTCOME_UNKNOWN，停止，不自动重试",
+      "assertions": [
+        "dispatch 边界、终态与无重放证据"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D10.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D.identity-fields",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Forge each of the eight identity fields independently",
+      "expected": "STALE_TARGET/NOT_DISPATCHED",
+      "assertions": [
+        "Page actions and server attempt count unchanged"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D.identity-fields.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D11",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "浏览器确认执行前拒绝，例如 target stale 或不可操作",
+      "expected": "未发送为 NOT_DISPATCHED；已发送且能证明未产生动作则为 FAILED_CONFIRMED；实际成功与验证记录为 SUCCEEDED",
+      "assertions": [
+        "各 outcome 的边界与实际结果"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D11.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D09.response-race",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Controlled dispatch cancellation and ACK race",
+      "expected": "Exactly one terminal response",
+      "assertions": [
+        "Pending zero",
+        "No later replay"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D09.response-race.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D12",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "未授权 Extension identity 或错误/缺失 local credential",
+      "expected": "执行前拒绝；127.0.0.1 不作为身份认证替代",
+      "assertions": [
+        "身份约束、拒绝记录；不记录 credential 值"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D12.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D12.normal-mode",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Normal Broker rejects all fault/test operations and flags",
+      "expected": "TEST_MODE_REQUIRED before dispatch",
+      "assertions": [
+        "Authorized echo control",
+        "No business execution"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D12.normal-mode.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D13",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "credential 和敏感 input 经过 read/fill/error/trace",
+      "expected": "普通日志、trace、错误与观察中无明文泄漏；保留脱敏状态和动作证据",
+      "assertions": [
+        "日志及 trace 脱敏扫描结果"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D13.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D13.scanner-negative",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Isolated copy with planted plaintext",
+      "expected": "Scanner FAIL",
+      "assertions": [
+        "Report does not print sensitive value",
+        "Missing and empty inventory rejected"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D13.scanner-negative.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D14",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "arbitrary eval 或未支持 operation 请求",
+      "expected": "明确拒绝，不执行任意脚本",
+      "assertions": [
+        "协议允许列表与拒绝结果"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D14.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D15",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Service Worker 生命周期变化，包含已发出的副作用请求",
+      "expected": "Broker 仍为长期状态 owner；丢失的请求有明确终态；恢复不重放未知副作用",
+      "assertions": [
+        "生命周期事件、Broker trace 与恢复后的服务端计数"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D15.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D07",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Broker restart 后尝试继续旧会话或旧 pending click",
+      "expected": "新连接重新验证身份；拒绝旧 target，不恢复执行旧副作用",
+      "assertions": [
+        "session/epoch、重连与无重放记录"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D07.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "R.DOM-scan",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "DOM scan and observation N-1/N/N+1",
+      "expected": "Bounded success/rejection/truncation and recovery",
+      "assertions": [
+        "Frozen LIMITS used",
+        "Pending zero",
+        "No action from rejected operations"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/R.DOM-scan.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "R.fill-query-text",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Fill/query capacity and text truncation boundaries",
+      "expected": "Bounded success/rejection/truncation and recovery",
+      "assertions": [
+        "Frozen LIMITS used",
+        "Pending zero",
+        "No action from rejected operations"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/R.fill-query-text.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "R.frames",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Real frame inventory N-1/N/N+1",
+      "expected": "Bounded success/rejection/truncation and recovery",
+      "assertions": [
+        "Frozen LIMITS used",
+        "Pending zero",
+        "No action from rejected operations"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/R.frames.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "R.targets",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Real target stores N-1/N/N+1 with fresh-document recovery",
+      "expected": "Bounded success/rejection/truncation and recovery",
+      "assertions": [
+        "Frozen LIMITS used",
+        "Pending zero",
+        "No action from rejected operations"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/R.targets.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "R.read-sources",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Real DOM read cache N-1/N/N+1 and an evicted source consumer",
+      "expected": "Bounded eviction, rejected old source with zero action, fresh real read accepted",
+      "assertions": [
+        "Cache capacity matches config",
+        "DOM page event count unchanged for rejection",
+        "Consumer uses latest runtime read value"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/R.read-sources.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B06.text",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Independent judgment of real capture from B06",
+      "expected": "All selected return, identity and independent postcondition assertions match",
+      "assertions": [
+        "Original live evidence preserved",
+        "No action replay to generate this judgment"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B06.text.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B06.input",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Independent judgment of real capture from B06",
+      "expected": "All selected return, identity and independent postcondition assertions match",
+      "assertions": [
+        "Original live evidence preserved",
+        "No action replay to generate this judgment"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B06.input.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B07.fill",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Independent judgment of real capture from B07",
+      "expected": "All selected return, identity and independent postcondition assertions match",
+      "assertions": [
+        "Original live evidence preserved",
+        "No action replay to generate this judgment"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B07.fill.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B07.click",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Independent judgment of real capture from B07",
+      "expected": "All selected return, identity and independent postcondition assertions match",
+      "assertions": [
+        "Original live evidence preserved",
+        "No action replay to generate this judgment"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B07.click.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B08.satisfied",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Independent judgment of real capture from B08",
+      "expected": "All selected return, identity and independent postcondition assertions match",
+      "assertions": [
+        "Original live evidence preserved",
+        "No action replay to generate this judgment"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B08.satisfied.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B08.timeout",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Independent judgment of real capture from B08",
+      "expected": "All selected return, identity and independent postcondition assertions match",
+      "assertions": [
+        "Original live evidence preserved",
+        "No action replay to generate this judgment"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B08.timeout.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B08.cancel",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Independent judgment of real capture from B08",
+      "expected": "All selected return, identity and independent postcondition assertions match",
+      "assertions": [
+        "Original live evidence preserved",
+        "No action replay to generate this judgment"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B08.cancel.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B09.pass",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Independent judgment of real capture from B09",
+      "expected": "All selected return, identity and independent postcondition assertions match",
+      "assertions": [
+        "Original live evidence preserved",
+        "No action replay to generate this judgment"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B09.pass.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "B09.fail",
+      "gate": "B",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Independent judgment of real capture from B09",
+      "expected": "All selected return, identity and independent postcondition assertions match",
+      "assertions": [
+        "Original live evidence preserved",
+        "No action replay to generate this judgment"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B09.fail.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D12.identity",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Independent judgment of real capture from D12",
+      "expected": "All selected return, identity and independent postcondition assertions match",
+      "assertions": [
+        "Original live evidence preserved",
+        "No action replay to generate this judgment"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D12.identity.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D12.credential",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Independent judgment of real capture from D12",
+      "expected": "All selected return, identity and independent postcondition assertions match",
+      "assertions": [
+        "Original live evidence preserved",
+        "No action replay to generate this judgment"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D12.credential.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D14.eval",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Independent judgment of real capture from D14",
+      "expected": "All selected return, identity and independent postcondition assertions match",
+      "assertions": [
+        "Original live evidence preserved",
+        "No action replay to generate this judgment"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D14.eval.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    },
+    {
+      "requirement": "D14.unsupported",
+      "gate": "D",
+      "level": "live-browser",
+      "implementation": "Worker/Content/Locator/fixture/independent verifier",
+      "input": "Independent judgment of real capture from D14",
+      "expected": "All selected return, identity and independent postcondition assertions match",
+      "assertions": [
+        "Original live evidence preserved",
+        "No action replay to generate this judgment"
+      ],
+      "actualEvidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D14.unsupported.json"
+      ],
+      "status": "PASS",
+      "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+      "runId": "dom-1790964120948"
+    }
+  ],
+  "resourceMatrix": [
+    {
+      "fields": [
+        "version"
+      ],
+      "level": "configuration",
+      "evidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/candidate-1790964096073/candidate.json"
+      ],
+      "contract": "Frozen single LIMITS source",
+      "values": {
+        "version": 1
+      },
+      "status": "PASS"
+    },
+    {
+      "fields": [
+        "maxMessageBytes",
+        "maxQueue",
+        "maxTraceBytes"
+      ],
+      "level": "integration/component seam plus real A bytes",
+      "evidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/components-1790964096210/integration.log",
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A12.json"
+      ],
+      "contract": "Byte/send/Trace N-1/N/N+1; bounded rejection and Trace completion reserve; send-buffer seam is simulated",
+      "values": {
+        "maxMessageBytes": 65536,
+        "maxQueue": 16,
+        "maxTraceBytes": 16777216
+      },
+      "status": "PASS"
+    },
+    {
+      "fields": [
+        "maxPending",
+        "maxClientPending"
+      ],
+      "level": "live-browser and simulated Worker seam",
+      "evidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A12.json",
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/components-1790964096210/unit-deterministic.log"
+      ],
+      "contract": "Overlapping capacity/overflow, pending zero and fresh nonce recovery",
+      "values": {
+        "maxPending": 32,
+        "maxClientPending": 33
+      },
+      "status": "PASS"
+    },
+    {
+      "fields": [
+        "maxConnections",
+        "maxEvents",
+        "maxRequestsPerSession",
+        "authTimeoutMs",
+        "handshakeTimeoutMs"
+      ],
+      "level": "integration: actual Broker/IPC, simulated browser peer",
+      "evidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/components-1790964096210/integration.log"
+      ],
+      "contract": "N-1/N/N+1 capacities, ring eviction/expired cursor, sealed request memory, authentication/hello deadlines and fresh-session recovery",
+      "values": {
+        "maxConnections": 48,
+        "maxEvents": 128,
+        "maxRequestsPerSession": 4096,
+        "authTimeoutMs": 2000,
+        "handshakeTimeoutMs": 5000
+      },
+      "status": "PASS"
+    },
+    {
+      "fields": [
+        "defaultTimeoutMs",
+        "minTimeoutMs",
+        "maxTimeoutMs",
+        "clientResponseGraceMs",
+        "cancelDeadlineMs",
+        "reconnectPollMs",
+        "reconnectDeadlineMs",
+        "deadlineToleranceMs"
+      ],
+      "level": "live-browser",
+      "evidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A05.json",
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A06.json",
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A07.json",
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A08.json",
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A09.json",
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/cases/A12.json",
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/B08.json",
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D09.json",
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D10.json"
+      ],
+      "contract": "Frozen dispatch deadlines, legal timeout bounds, controlled cancellation, connection loss and recovery; no relaxed post-failure tolerance",
+      "values": {
+        "defaultTimeoutMs": 5000,
+        "minTimeoutMs": 10,
+        "maxTimeoutMs": 15000,
+        "clientResponseGraceMs": 1000,
+        "cancelDeadlineMs": 1000,
+        "reconnectPollMs": 100,
+        "reconnectDeadlineMs": 45000,
+        "deadlineToleranceMs": 250
+      },
+      "status": "PASS"
+    },
+    {
+      "fields": [
+        "maxTargets"
+      ],
+      "level": "live-browser",
+      "evidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/R.targets.json",
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/R.read-sources.json"
+      ],
+      "contract": "Target store capacity/refusal and read-source N-1/N/N+1 eviction, refused old source with unchanged DOM actions, fresh source recovery",
+      "values": {
+        "maxTargets": 512
+      },
+      "status": "PASS"
+    },
+    {
+      "fields": [
+        "maxTrackedTabs",
+        "maxUrlChars"
+      ],
+      "level": "unit: simulated Chrome inventory; actual owned-tab lifecycle in Live",
+      "evidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/components-1790964096210/unit-deterministic.log",
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D05.json"
+      ],
+      "contract": "Tab inventory/create boundary and origin ownership; URL truncation. Capacity 64 is simulated, not a 64-tab Live claim.",
+      "values": {
+        "maxTrackedTabs": 64,
+        "maxUrlChars": 512
+      },
+      "status": "PASS"
+    },
+    {
+      "fields": [
+        "maxFramesPerTab"
+      ],
+      "level": "live-browser plus simulated Worker seam",
+      "evidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/R.frames.json",
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/components-1790964096210/unit-deterministic.log"
+      ],
+      "contract": "Actual frame inventories N-1/N/N+1, rejection and fresh-document recovery",
+      "values": {
+        "maxFramesPerTab": 24
+      },
+      "status": "PASS"
+    },
+    {
+      "fields": [
+        "maxObserveElements",
+        "maxScanNodes"
+      ],
+      "level": "live-browser",
+      "evidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/R.DOM-scan.json"
+      ],
+      "contract": "N-1/N/N+1, explicit observation truncation; incomplete scan cannot assert uniqueness",
+      "values": {
+        "maxObserveElements": 24,
+        "maxScanNodes": 2048
+      },
+      "status": "PASS"
+    },
+    {
+      "fields": [
+        "maxFillChars",
+        "maxQueryChars",
+        "maxTextChars"
+      ],
+      "level": "live-browser",
+      "evidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/R.fill-query-text.json"
+      ],
+      "contract": "Fill/query/text boundaries, unchanged actions on refused fill and truncation",
+      "values": {
+        "maxFillChars": 4096,
+        "maxQueryChars": 200,
+        "maxTextChars": 128
+      },
+      "status": "PASS"
+    },
+    {
+      "fields": [
+        "maxNativeDiagnostics"
+      ],
+      "level": "unit: real diagnostic file",
+      "evidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/components-1790964096210/unit-deterministic.log"
+      ],
+      "contract": "N-1/N/N+1 bounded ring and safe error-code diagnostics",
+      "values": {
+        "maxNativeDiagnostics": 16
+      },
+      "status": "PASS"
+    },
+    {
+      "fields": [
+        "visualDeadlineMs"
+      ],
+      "level": "real browser observation and human/model visual review",
+      "evidence": [
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/visual-request.json",
+        "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/visual-reviewed.json"
+      ],
+      "contract": "60 seconds fixed; original JPEG capture and actual viewing/review completed in 23.359 seconds",
+      "values": {
+        "visualDeadlineMs": 60000
+      },
+      "status": "PASS"
+    }
+  ],
+  "safety": {
+    "outcomes": [
+      "SUCCEEDED",
+      "NOT_DISPATCHED",
+      "FAILED_CONFIRMED",
+      "OUTCOME_UNKNOWN",
+      "CANCELLED_BEFORE_DISPATCH"
+    ],
+    "lostAck": [
+      "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D08.json"
+    ],
+    "sameInstanceAfterBrokerRestart": [
+      "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D07.json"
+    ],
+    "controlledCancellation": [
+      "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D09.json",
+      "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D10.json",
+      "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D09.response-race.json"
+    ],
+    "normalModeDenied": [
+      "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/cases/D12.normal-mode.json"
+    ],
+    "redaction": {
+      "status": "PASS",
+      "reportPath": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/final-redaction-scan.json"
+    },
+    "owner": "Broker",
+    "ownerConfidence": "CONFIRMED"
+  },
+  "expectedInjectedFaults": [
+    "Timeout with late and duplicate ACK",
+    "Actual disconnect/Host exit/Extension reload/Broker restart",
+    "Protocol/malformed/oversize/queue overload",
+    "Stale and forged identity/Frame/DOM replacement/race",
+    "Confirm completed and server recorded before exact ACK drop",
+    "Controlled cancel/response race",
+    "Wrong/missing credential and declared unauthorized Extension identity",
+    "Normal-mode test denial",
+    "Planted leak and corrupted verifier/audit evidence copies"
+  ],
+  "unexpectedFailures": [
+    {
+      "condition": "First latest-source verification exceeded 60s visual review deadline",
+      "owner": "Visual observer",
+      "confidence": "CONFIRMED",
+      "evidence": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/delivery-current/verify-final.log",
+      "lastConfirmed": "Three C orders and screenshot captured",
+      "firstInvalid": "VISUAL_CHECKPOINT_TIMEOUT; review at 71.756s",
+      "resolution": "Fresh fixture/run, single mutable observer, capture and immediate review; no deadline change"
+    },
+    {
+      "condition": "Audit rejected original JPEG screenshot",
+      "owner": "tests/browser-automation-core/audit-core.mjs",
+      "confidence": "CONFIRMED",
+      "lastConfirmed": "Real screenshot bytes and hash with on-time review",
+      "firstInvalid": "PNG-only signature assertion",
+      "resolution": "Minimal format-check correction, complete new candidate regression"
+    }
+  ],
+  "boundaries": {
+    "lastConfirmed": "Real Confirm click, server submission count 1 and DOM Completed before Extension deliberately omitted the exact response",
+    "firstUnknown": "Missing Extension-to-Broker ACK; OUTCOME_UNKNOWN, executor stopped and did not retry",
+    "failureOwner": "Controlled ACK-drop injection at Worker",
+    "confidence": "CONFIRMED",
+    "restored": "New nonce/session/epoch recovered; same fixture record remained count 1 after reconnect and Broker restart"
+  },
+  "visual": {
+    "status": "PASS",
+    "candidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+    "runId": "dom-1790964120948",
+    "observedAt": "2026-10-02T18:02:11.628Z",
+    "reviewedAt": "2026-10-02T18:02:27.650Z",
+    "screenshots": [
+      {
+        "file": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/visual-full.jpg",
+        "mimeType": "image/jpeg",
+        "sha256": "ea3fefb11e0006abb1a54ff068380a415b36fde5d21f491a2df6a1a768c05f10"
+      },
+      {
+        "file": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/visual-viewport.jpg",
+        "mimeType": "image/jpeg",
+        "sha256": "edebfd1f86330b779c6fb787dd1428cc2157ff6a1bfe8898d3a064f36fd15aa7"
+      },
+      {
+        "file": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/visual-lower-viewport.jpg",
+        "mimeType": "image/jpeg",
+        "sha256": "3e77b5dbd91cd5c5ae3097f7545a30ebd990cc9ff7d56b867d8db85902995e7d"
+      }
+    ],
+    "observationPath": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/visual-observation.json",
+    "checks": {
+      "windowSize": true,
+      "whitespace": true,
+      "wrapping": true,
+      "clipping": true,
+      "inputAlignment": true,
+      "buttonAlignment": true,
+      "threeCompletedOrders": true
+    },
+    "review": "Viewed original JPEG full-page and lower viewport captures. Centered 640px panel, aligned controls, readable text, all three Completed/count=1 rows visible with ordinary vertical scrolling; no unintended clipping or oversized whitespace."
+  },
+  "visualDelivery": {
+    "codeModified": "Predecessor fixture fixes retained; this task fixes audit format check",
+    "actualLoaded": "PASS with executable hashes",
+    "visualConfirmed": "PASS from viewed original screenshots",
+    "functionalVerified": "PASS from real A-D"
+  },
+  "delivery": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/delivery-current/delivery-report.json",
+  "finalInstallation": {
+    "installed": true,
+    "testMode": false,
+    "brokerRunning": false,
+    "publicFixtureRunning": false,
+    "nativeHostObservedRunning": false,
+    "extension": "Previously installed unpacked Extension remains loaded; protected management UI was not accessed",
+    "statePath": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/delivery-current/final-state-confirmed.json",
+    "note": "Chrome may make bounded Native reconnect attempts while no Broker is running; transient attempts do not own long-term state."
+  },
+  "auditNegatives": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/delivery-current/audit-negatives-final/report.json",
+  "preservedEvidence": {
+    "schemaVersion": 1,
+    "candidate": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/candidate-1790964096073/candidate.json",
+    "components": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/components-1790964096210/report.json",
+    "A": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/gate-a-1790964104234/report.json",
+    "BCD": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/dom-1790964120948/report.json",
+    "delivery": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/delivery-current/delivery-report.json",
+    "auditNegatives": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/delivery-current/audit-negatives-final/report.json",
+    "qualityReport": "/Users/mac/Documents/workspace/clawdesk/docs/quality/browser-automation/core-demo-report.json"
+  },
+  "knownUnsupported": [
+    "macOS + Google Chrome only",
+    "Local 127.0.0.1 HTTP fixture only",
+    "No arbitrary eval/CSS, complete ARIA, shadow DOM or cross origin",
+    "No uploads/downloads or complex profiles/cookies",
+    "No Core integration with MCP/Recipe/Recorder/Flow/Scheduler/Marketplace/Desktop in this task"
+  ],
+  "handoff": {
+    "status": "RECEIVED",
+    "successor": "01a0f903-7dcc-7470-99cd-dc45512ebe50",
+    "hostId": "local",
+    "receipt": ".runtime/tests/browser-automation-core/handoff-receipt.json",
+    "turnId": "01a0fdd6-57a0-7050-ad48-214b1168321f"
+  },
+  "timestamp": "2026-10-02T18:14:45.787Z",
+  "finalAudit": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/final-audit.json",
+  "finalAuditCommand": {
+    "cwd": "/Users/mac/Documents/workspace/clawdesk",
+    "exactCommand": "node lab/browser-automation-core/cli.mjs audit",
+    "exitCode": 0,
+    "outputPath": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/delivery-current/final-core-audit-confirmed.log"
+  },
+  "extendedRedactionScan": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-automation-core/delivery-current/final-handoff-output-scan.json"
+}

@@ -1,0 +1,1255 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "acceptance-specification",
+  "name": "Browser Automation Core Demo",
+  "requirementSource": "用户本任务中的 GOAL 与二十节需求；最后要求设置目标和关键测试条件",
+  "objective": "交付可独立运行的本地 Client → Broker → Native Host/Bridge → 真实 MV3 Extension → Content Script → 真实 Tab/Frame/Document/DOM，并用真实浏览器完成 A–D 验收，证明可靠观察、定位、读取、操作、验证以及副作用安全性。",
+  "initialStatus": "NOT_RUN",
+  "statusValues": [
+    "PASS",
+    "FAIL",
+    "BLOCKED",
+    "NOT_RUN"
+  ],
+  "scope": {
+    "demoSourceLocation": "隔离的 lab/demo/prototype 目录；实施时选定，不预定最终正式产品 package",
+    "stableTestsLocation": "tests/browser-automation-core/",
+    "fixtureLocation": "tests/browser-automation-core/fixtures/",
+    "runtimeEvidenceLocation": ".runtime/tests/browser-automation-core/<run-id>/",
+    "standalone": true,
+    "requiredOperations": [
+      "status",
+      "tabs",
+      "observe",
+      "locate",
+      "read",
+      "fill",
+      "click",
+      "wait",
+      "verify"
+    ],
+    "excluded": [
+      "现有桌面主程序依赖",
+      "Agent-to-Recipe",
+      "Human-to-Recipe",
+      "MCP 集成",
+      "Browser Recorder",
+      "Desktop Recorder",
+      "Flow",
+      "Scheduler",
+      "Marketplace",
+      "Browser + Desktop file picker",
+      "Playwright Provider",
+      "Cloud Browser",
+      "复杂 cookies/profile management",
+      "browser userscript runtime",
+      "完整上传下载系统"
+    ],
+    "invalidLiveSubstitutes": [
+      "mock extension",
+      "Playwright 代替 Extension",
+      "仅两个本地进程互发消息",
+      "假 DOM",
+      "单元测试结果"
+    ]
+  },
+  "executionOrder": [
+    "P0 transport 决策与验收参数冻结",
+    "A",
+    "B",
+    "C",
+    "D",
+    "交付核验"
+  ],
+  "transportDecision": {
+    "status": "SELECTED",
+    "selected": "Native Messaging",
+    "candidates": [
+      "Native Messaging",
+      "Native Messaging bootstrap + local authenticated transport"
+    ],
+    "defaultPreference": "Native Messaging",
+    "criteria": [
+      "实现复杂度",
+      "安装复杂度",
+      "双向通信",
+      "长连接",
+      "重连",
+      "并发请求",
+      "身份认证",
+      "Service Worker 生命周期",
+      "后续 event streaming"
+    ],
+    "rule": "先快速比较，只实现一种 P0；没有证据证明第二种必要时选择 Native Messaging。",
+    "requiredAbstraction": "transport 替换不得要求重写 DOM execution、target model 或 trace model",
+    "decisionEvidence": [
+      "采用方案",
+      "官方约束来源",
+      "安装步骤",
+      "为何最简单方案足够或不足"
+    ]
+  },
+  "acceptanceParameters": {
+    "freezeBeforeGateA": true,
+    "requiredFiniteLimits": [
+      "每种 operation 的 timeout",
+      "最大消息字节数",
+      "最大 in-flight requests",
+      "最大等待队列",
+      "最大 trace/event 缓冲",
+      "重连等待期限",
+      "取消完成期限"
+    ],
+    "rule": "在实现与 README 中给出具体值；边界值、超限一项和过载测试必须引用同一配置，并在运行证据中记录。"
+  },
+  "owners": {
+    "broker": [
+      "长期状态",
+      "extension connection",
+      "request/response correlation",
+      "browser session",
+      "tab/frame/document identity",
+      "connection epoch",
+      "timeouts",
+      "cancellation",
+      "reconnect",
+      "structured errors",
+      "execution trace"
+    ],
+    "extension": [
+      "tab discovery",
+      "frame routing",
+      "document identity",
+      "content script lifecycle",
+      "DOM observation",
+      "DOM target resolution",
+      "DOM action",
+      "page verification",
+      "browser-side events"
+    ],
+    "extensionMustNotOwn": [
+      "长期业务状态",
+      "完整 Workflow",
+      "Agent planning",
+      "Recipe generation",
+      "Scheduler"
+    ]
+  },
+  "testLevels": [
+    {
+      "level": "unit-deterministic",
+      "initialStatus": "NOT_RUN",
+      "coverage": [
+        "protocol",
+        "request correlation",
+        "target matching",
+        "error mapping",
+        "trace serialization"
+      ],
+      "limitation": "仅证明确定性逻辑，不计为真实 Extension 或真实 DOM 证据"
+    },
+    {
+      "level": "integration",
+      "initialStatus": "NOT_RUN",
+      "coverage": [
+        "Broker ↔ Native Host ↔ Extension components"
+      ],
+      "limitation": "组件模拟必须明确标记，不能计为 Live Browser PASS"
+    },
+    {
+      "level": "live-browser",
+      "initialStatus": "NOT_RUN",
+      "coverage": [
+        "真实 Chrome/Chromium",
+        "真实 MV3 Extension",
+        "真实 Content Script",
+        "真实 DOM"
+      ],
+      "requiredProvenance": [
+        "浏览器版本",
+        "Extension ID 和已加载版本",
+        "Client/Broker/Host/Extension 源码版本或 hash",
+        "浏览器 session",
+        "连接 epoch",
+        "真实 tab/frame/document identity"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "A",
+      "name": "Extension ↔ Local Communication",
+      "initialStatus": "NOT_RUN",
+      "dependsOn": [],
+      "requiredLevel": "live-browser",
+      "blocks": "未真实 PASS 不写 DOM Automation",
+      "commonAssertions": [
+        "response 无错配",
+        "无 silent loss",
+        "无永久挂起",
+        "队列和缓冲有上限",
+        "失败有明确错误和完成期限"
+      ],
+      "cases": [
+        {
+          "id": "A01",
+          "stimulus": "Local Client 发送随机 nonce，经 Broker/Host 到真实 Extension",
+          "expect": "Extension 返回完全相同 nonce；requestId 对应唯一",
+          "evidence": "端到端请求响应与 Extension 来源"
+        },
+        {
+          "id": "A02",
+          "stimulus": "Extension 自行产生随机 eventId 并发送到 Broker/Client",
+          "expect": "Client 收到同一 eventId，来源和连接 epoch 可验证",
+          "evidence": "浏览器产生事件与 Client 接收记录"
+        },
+        {
+          "id": "A03",
+          "stimulus": "100 次顺序随机 nonce 请求",
+          "expect": "100 次均有唯一正确响应，无丢失或错配",
+          "evidence": "100 条关联记录与汇总"
+        },
+        {
+          "id": "A04",
+          "stimulus": "10 个并发随机 nonce 请求",
+          "expect": "全部正确关联，不依赖响应顺序",
+          "evidence": "10 条并发请求响应记录"
+        },
+        {
+          "id": "A05",
+          "stimulus": "故意延迟或不返回一个通信响应",
+          "expect": "配置期限内 TIMEOUT，pending 清除，迟到响应不匹配其他请求",
+          "evidence": "时间、pending 状态与迟到响应处理"
+        },
+        {
+          "id": "A06",
+          "stimulus": "Extension 连接中断，包括请求处理中",
+          "expect": "断连被检测，pending 有界结束，新请求得到明确断连状态",
+          "evidence": "disconnect、pending 终态和恢复记录"
+        },
+        {
+          "id": "A07",
+          "stimulus": "真实 Native Host 退出",
+          "expect": "Broker/Extension 明确检测，有限恢复，无 silent loss",
+          "evidence": "host 退出与双方检测记录"
+        },
+        {
+          "id": "A08",
+          "stimulus": "真实 Extension reload",
+          "expect": "恢复连接使用新 epoch，不重放旧 pending",
+          "evidence": "reload、旧新连接与请求记录"
+        },
+        {
+          "id": "A09",
+          "stimulus": "Broker restart",
+          "expect": "Client 得到明确终态，重连新 session/epoch，旧 pending 不重放",
+          "evidence": "Broker 进程及连接前后身份"
+        },
+        {
+          "id": "A10",
+          "stimulus": "protocol version mismatch",
+          "expect": "握手或请求明确拒绝，不进入执行",
+          "evidence": "版本与结构化拒绝"
+        },
+        {
+          "id": "A11",
+          "stimulus": "malformed message",
+          "expect": "受控拒绝或关闭连接，服务无崩溃/挂起，后续健康检查成功",
+          "evidence": "无效输入类别、拒绝与健康检查"
+        },
+        {
+          "id": "A12",
+          "stimulus": "oversized message 与队列超限",
+          "expect": "执行前拒绝，资源有界，无无限积压",
+          "evidence": "实际限制、超限字节/请求数、错误与队列状态"
+        }
+      ]
+    },
+    {
+      "id": "B",
+      "name": "DOM Execution",
+      "initialStatus": "NOT_RUN",
+      "dependsOn": [
+        "A"
+      ],
+      "requiredLevel": "live-browser",
+      "cases": [
+        {
+          "id": "B01",
+          "stimulus": "listTabs/status",
+          "expect": "发现真实 tabs，返回明确 session/tab identity 与连接状态",
+          "evidence": "真实 tabs 列表与身份"
+        },
+        {
+          "id": "B02",
+          "stimulus": "observe 真实页面",
+          "expect": "返回当前 document 的 DOM 观察结果，明确 tab/frame/document/epoch",
+          "evidence": "观察快照与页面截图"
+        },
+        {
+          "id": "B03",
+          "stimulus": "分别使用 role+accessible name、label、text、test-id、stable attribute、limited DOM relation",
+          "expect": "每类至少唯一定位一个真实 DOM element，支持范围明确",
+          "evidence": "定位请求、候选计数和 resolvedTarget"
+        },
+        {
+          "id": "B04",
+          "stimulus": "不存在的 target",
+          "expect": "TARGET_NOT_FOUND，无输入或点击",
+          "evidence": "错误 trace 与动作计数"
+        },
+        {
+          "id": "B05",
+          "stimulus": "多个匹配的 target",
+          "expect": "AMBIGUOUS_TARGET，不选第一个",
+          "evidence": "候选计数、拒绝 trace 与动作计数"
+        },
+        {
+          "id": "B06",
+          "stimulus": "read 文本和 input value",
+          "expect": "读取真实 DOM 当前值，trace 可追踪真实来源",
+          "evidence": "read 结果、resolvedTarget 和 document"
+        },
+        {
+          "id": "B07",
+          "stimulus": "fill 与 click",
+          "expect": "操作真实 DOM，动作前后观察可验证，错误映射准确",
+          "evidence": "before/action/after 和页面实际结果"
+        },
+        {
+          "id": "B08",
+          "stimulus": "wait 异步变化以及未满足条件",
+          "expect": "满足时成功，不满足时有界 timeout，可取消",
+          "evidence": "条件、时限、观察变化和终态"
+        },
+        {
+          "id": "B09",
+          "stimulus": "verify 满足及不满足的 postcondition",
+          "expect": "独立 DOM 观察判定，通过与失败均有实值，click ACK 不替代 verify",
+          "evidence": "verification expected/actual"
+        },
+        {
+          "id": "B10",
+          "stimulus": "不同 frame 中存在同名 target",
+          "expect": "依 frame identity 路由，身份不足时拒绝，不跨 frame 猜测",
+          "evidence": "frame/document 身份与实际操作对象"
+        }
+      ]
+    },
+    {
+      "id": "C",
+      "name": "Golden Business Task",
+      "initialStatus": "NOT_RUN",
+      "dependsOn": [
+        "A",
+        "B"
+      ],
+      "requiredLevel": "live-browser",
+      "minimumDifferentOrders": 3,
+      "fixture": "订单号 → Query → 异步出现运行时 Amount → Confirmation Amount → Confirm → Completed",
+      "executorDataFlow": "Query → DOM read amount → runtime variable amount → fill confirmation = amount → Confirm → DOM wait/verify Completed",
+      "forbiddenAnswerSources": [
+        "hard-code amount",
+        "根据 orderId 自行计算 amount",
+        "执行器直接读取 fixture backend amount",
+        "执行器读取测试 oracle 或 verifier 答案"
+      ],
+      "independentVerifier": "执行完成后，单独读取服务端实际 submission；不得为执行器提供确认金额",
+      "perOrderEvidence": [
+        "orderId",
+        "DOM read amount",
+        "read 对应 requestId/document/target",
+        "fill 来源 read requestId",
+        "confirmation actual value",
+        "Confirm action",
+        "DOM final status",
+        "server actual submission",
+        "submission count"
+      ],
+      "assertions": [
+        "每个订单 DOM amount = filled actual confirmation amount = server recorded amount",
+        "每个订单 submissionCount = 1",
+        "每个订单 DOM final status = Completed",
+        "三组不同订单分别完成且金额在运行时产生"
+      ]
+    },
+    {
+      "id": "D",
+      "name": "Reliability / Safety",
+      "initialStatus": "NOT_RUN",
+      "dependsOn": [
+        "A",
+        "B",
+        "C"
+      ],
+      "requiredLevel": "live-browser",
+      "cases": [
+        {
+          "id": "D01",
+          "stimulus": "locate Confirm → refresh → 使用旧 target click",
+          "expect": "STALE_TARGET，NOT_DISPATCHED；新页面按钮不被点击",
+          "evidence": "旧新 document、拒绝 trace、服务端 submissionCount"
+        },
+        {
+          "id": "D02",
+          "stimulus": "两个同名 Order Demo tab；请求仅提供标题或不足的身份",
+          "expect": "明确拒绝，不猜活动 Tab；完整身份能唯一操作指定 tab",
+          "evidence": "两个 tab 身份、拒绝记录与动作计数"
+        },
+        {
+          "id": "D03",
+          "stimulus": "locate 按钮 → DOM replacement → 使用旧 target",
+          "expect": "STALE_TARGET，不重新解释 selector，不点击新 element",
+          "evidence": "旧新 element 身份与拒绝记录"
+        },
+        {
+          "id": "D04",
+          "stimulus": "SPA navigation 后使用旧 target",
+          "expect": "旧页面语义假设失效，STALE_TARGET，重新 observe/locate 后才允许执行",
+          "evidence": "navigation/页面 revision 与拒绝记录"
+        },
+        {
+          "id": "D05",
+          "stimulus": "locate → 关闭 tab → 使用旧 target",
+          "expect": "STALE_TARGET 或明确 tab closed 拒绝，NOT_DISPATCHED，不路由到其他 tab",
+          "evidence": "tab close 事件与无误操作证据"
+        },
+        {
+          "id": "D06",
+          "stimulus": "Extension reload/reconnect 后使用旧 target",
+          "expect": "new connection epoch；旧 target STALE_TARGET，旧 pending 不重放",
+          "evidence": "旧新 epoch 与 pending 终态"
+        },
+        {
+          "id": "D07",
+          "stimulus": "Broker restart 后尝试继续旧会话或旧 pending click",
+          "expect": "新连接重新验证身份；拒绝旧 target，不恢复执行旧副作用",
+          "evidence": "session/epoch、重连与无重放记录"
+        },
+        {
+          "id": "D08",
+          "stimulus": "真实 Confirm click → 服务端记录且 DOM Completed → 故意丢弃 Extension→Broker response",
+          "expect": "OUTCOME_UNKNOWN；禁止自动 retry。独立 verifier 证明 submissionCount=1，随后重连也无第二次 Confirm",
+          "evidence": "实际 click、服务端提交、Completed、精确 ACK 丢弃点、Broker unknown trace、重连及最终 submissionCount"
+        },
+        {
+          "id": "D09",
+          "stimulus": "dispatch 前取消动作",
+          "expect": "CANCELLED_BEFORE_DISPATCH；DOM 与服务端无动作",
+          "evidence": "cancel 时间、dispatch 边界与动作计数"
+        },
+        {
+          "id": "D10",
+          "stimulus": "dispatch 后动作响应超时、断连或取消",
+          "expect": "不能证明未执行时为 OUTCOME_UNKNOWN，停止，不自动重试",
+          "evidence": "dispatch 边界、终态与无重放证据"
+        },
+        {
+          "id": "D11",
+          "stimulus": "浏览器确认执行前拒绝，例如 target stale 或不可操作",
+          "expect": "未发送为 NOT_DISPATCHED；已发送且能证明未产生动作则为 FAILED_CONFIRMED；实际成功与验证记录为 SUCCEEDED",
+          "evidence": "各 outcome 的边界与实际结果"
+        },
+        {
+          "id": "D12",
+          "stimulus": "未授权 Extension identity 或错误/缺失 local credential",
+          "expect": "执行前拒绝；127.0.0.1 不作为身份认证替代",
+          "evidence": "身份约束、拒绝记录；不记录 credential 值"
+        },
+        {
+          "id": "D13",
+          "stimulus": "credential 和敏感 input 经过 read/fill/error/trace",
+          "expect": "普通日志、trace、错误与观察中无明文泄漏；保留脱敏状态和动作证据",
+          "evidence": "日志及 trace 脱敏扫描结果"
+        },
+        {
+          "id": "D14",
+          "stimulus": "arbitrary eval 或未支持 operation 请求",
+          "expect": "明确拒绝，不执行任意脚本",
+          "evidence": "协议允许列表与拒绝结果"
+        },
+        {
+          "id": "D15",
+          "stimulus": "Service Worker 生命周期变化，包含已发出的副作用请求",
+          "expect": "Broker 仍为长期状态 owner；丢失的请求有明确终态；恢复不重放未知副作用",
+          "evidence": "生命周期事件、Broker trace 与恢复后的服务端计数"
+        }
+      ]
+    }
+  ],
+  "targetModel": {
+    "identityFields": [
+      "browserSession",
+      "tab",
+      "frame",
+      "document",
+      "connectionEpoch",
+      "elementIdentity"
+    ],
+    "semanticFreshness": "SPA/page revision 必须可观察并失效相关旧 target；DOM replacement 必须识别旧 element 已失效",
+    "rule": "旧 target 不是 selector 的重解析授权。身份失效返回 STALE_TARGET，重新 observe/locate 后才能再次操作。"
+  },
+  "actionOutcomes": {
+    "NOT_DISPATCHED": "确定尚未把动作发往浏览器执行边界",
+    "SUCCEEDED": "浏览器确认动作成功；业务成功仍需独立 postcondition",
+    "FAILED_CONFIRMED": "已确认动作失败，证据能够排除未知副作用",
+    "CANCELLED_BEFORE_DISPATCH": "取消发生在 dispatch 前，确定无输入",
+    "OUTCOME_UNKNOWN": "动作可能已发生，当前证据不能安全判定，禁止自动重试或重连重放"
+  },
+  "trace": {
+    "requiredFromFirstImplementation": true,
+    "requiredFields": [
+      "executionId",
+      "requestId",
+      "timestamp",
+      "browserSession",
+      "tab",
+      "frame",
+      "document",
+      "connectionEpoch",
+      "operation",
+      "targetRequest",
+      "resolvedTarget",
+      "beforeObservation",
+      "action",
+      "afterObservation",
+      "verification",
+      "status",
+      "errorCode",
+      "duration"
+    ],
+    "additionalSafetyEvidence": [
+      "action outcome",
+      "dispatch boundary",
+      "cancel boundary",
+      "read→fill 数据来源关联"
+    ],
+    "unavailableValueRule": "字段仍存在；不适用或无法确认的值显式 null/unknown，不伪造身份、观察或验证。",
+    "sensitiveValueRule": "session credential 不进入普通日志；敏感 input 在观察、action、error 和 trace 中脱敏。"
+  },
+  "delivery": {
+    "required": [
+      "README",
+      "setup",
+      "start broker",
+      "load/install extension",
+      "doctor",
+      "list tabs",
+      "run golden fixture",
+      "verify",
+      "cleanup"
+    ],
+    "usageRule": "少量清晰命令，明确工作目录；从文档工作目录原样执行才报告命令通过。",
+    "cleanupRule": "只移除本 Demo 所属进程、安装项及运行产物；不批量清理用户浏览器或仓库未跟踪文件。",
+    "acceptance": "全新 run 使用文档入口完成 doctor、tabs、golden、故障验证；证据路径默认 .runtime。"
+  },
+  "report": {
+    "requiredFields": [
+      "Browser Automation Core Demo",
+      "A. Extension ↔ Local Communication",
+      "B. DOM Execution",
+      "C. Golden Business Task",
+      "D. Reliability / Safety",
+      "Unit / deterministic",
+      "Integration",
+      "Live Browser",
+      "Browser version",
+      "Transport",
+      "Last Confirmed Boundary",
+      "First Invalid / Unknown Boundary",
+      "Failure Owner",
+      "Preserved Evidence",
+      "Known Unsupported Cases"
+    ],
+    "failureOwnerConfidence": [
+      "CONFIRMED",
+      "SUSPECTED",
+      "UNKNOWN"
+    ],
+    "boundaryRule": "分别记录预期注入故障和非预期故障；未知原因不猜测 owner，最后确认与首个无效/未知边界以实际证据填写。",
+    "handoffFields": [
+      "需求来源",
+      "提交 SHA",
+      "推送状态",
+      "相关未提交修改",
+      "实际完成证据",
+      "未完成验收"
+    ]
+  },
+  "corePassRule": {
+    "allGatesMustPass": [
+      "A",
+      "B",
+      "C",
+      "D"
+    ],
+    "allTestLevelsReportedSeparately": true,
+    "hardConditions": [
+      "真实 Extension 双向通信",
+      "真实 DOM 操作",
+      "真实运行时 DOM read → variable → fill",
+      "真实 postcondition verification",
+      "真实 independent verifier",
+      "stale target 被拒绝",
+      "同名 Tab 不误操作",
+      "lost ACK 不重复提交",
+      "reconnect 不重放未知副作用"
+    ],
+    "missingEvidenceRule": "任一必需项未满足则 Core 为 FAIL/BLOCKED/NOT_RUN，不使用基本完成、理论可行或百分比完成。",
+    "stopAfterPass": true,
+    "nextStageSuggestionOnly": "Integration Demo：Codex/MCP → Core Browser Automation → Agent Trace → ordinary JS Recipe；不自动开始。"
+  },
+  "supplementalAcceptance": {
+    "requirementSource": "User Core Demo implementation and acceptance objective, 2026-10-02; original requirements remain required",
+    "requiredCases": [
+      {
+        "caseId": "C1",
+        "gate": "C",
+        "input": "New runtime-generated order",
+        "expected": "Completed; exactly one accepted server submission",
+        "assertions": [
+          "DOM amount = input actual = server amount",
+          "Actual read response, fill source and document agree"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "C2",
+        "gate": "C",
+        "input": "New runtime-generated order",
+        "expected": "Completed; exactly one accepted server submission",
+        "assertions": [
+          "DOM amount = input actual = server amount",
+          "Actual read response, fill source and document agree"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "C3",
+        "gate": "C",
+        "input": "New runtime-generated order",
+        "expected": "Completed; exactly one accepted server submission",
+        "assertions": [
+          "DOM amount = input actual = server amount",
+          "Actual read response, fill source and document agree"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B03.role.unique",
+        "gate": "B",
+        "input": "Fixture matrix role unique",
+        "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+        "assertions": [
+          "Candidate count and full identity",
+          "Page event count unchanged for rejected locate"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B03.role.missing",
+        "gate": "B",
+        "input": "Fixture matrix role missing",
+        "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+        "assertions": [
+          "Candidate count and full identity",
+          "Page event count unchanged for rejected locate"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B03.role.ambiguous",
+        "gate": "B",
+        "input": "Fixture matrix role ambiguous",
+        "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+        "assertions": [
+          "Candidate count and full identity",
+          "Page event count unchanged for rejected locate"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B03.label.unique",
+        "gate": "B",
+        "input": "Fixture matrix label unique",
+        "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+        "assertions": [
+          "Candidate count and full identity",
+          "Page event count unchanged for rejected locate"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B03.label.missing",
+        "gate": "B",
+        "input": "Fixture matrix label missing",
+        "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+        "assertions": [
+          "Candidate count and full identity",
+          "Page event count unchanged for rejected locate"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B03.label.ambiguous",
+        "gate": "B",
+        "input": "Fixture matrix label ambiguous",
+        "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+        "assertions": [
+          "Candidate count and full identity",
+          "Page event count unchanged for rejected locate"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B03.text.unique",
+        "gate": "B",
+        "input": "Fixture matrix text unique",
+        "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+        "assertions": [
+          "Candidate count and full identity",
+          "Page event count unchanged for rejected locate"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B03.text.missing",
+        "gate": "B",
+        "input": "Fixture matrix text missing",
+        "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+        "assertions": [
+          "Candidate count and full identity",
+          "Page event count unchanged for rejected locate"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B03.text.ambiguous",
+        "gate": "B",
+        "input": "Fixture matrix text ambiguous",
+        "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+        "assertions": [
+          "Candidate count and full identity",
+          "Page event count unchanged for rejected locate"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B03.testId.unique",
+        "gate": "B",
+        "input": "Fixture matrix testId unique",
+        "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+        "assertions": [
+          "Candidate count and full identity",
+          "Page event count unchanged for rejected locate"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B03.testId.missing",
+        "gate": "B",
+        "input": "Fixture matrix testId missing",
+        "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+        "assertions": [
+          "Candidate count and full identity",
+          "Page event count unchanged for rejected locate"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B03.testId.ambiguous",
+        "gate": "B",
+        "input": "Fixture matrix testId ambiguous",
+        "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+        "assertions": [
+          "Candidate count and full identity",
+          "Page event count unchanged for rejected locate"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B03.attribute.unique",
+        "gate": "B",
+        "input": "Fixture matrix attribute unique",
+        "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+        "assertions": [
+          "Candidate count and full identity",
+          "Page event count unchanged for rejected locate"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B03.attribute.missing",
+        "gate": "B",
+        "input": "Fixture matrix attribute missing",
+        "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+        "assertions": [
+          "Candidate count and full identity",
+          "Page event count unchanged for rejected locate"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B03.attribute.ambiguous",
+        "gate": "B",
+        "input": "Fixture matrix attribute ambiguous",
+        "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+        "assertions": [
+          "Candidate count and full identity",
+          "Page event count unchanged for rejected locate"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B03.relation.unique",
+        "gate": "B",
+        "input": "Fixture matrix relation unique",
+        "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+        "assertions": [
+          "Candidate count and full identity",
+          "Page event count unchanged for rejected locate"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B03.relation.missing",
+        "gate": "B",
+        "input": "Fixture matrix relation missing",
+        "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+        "assertions": [
+          "Candidate count and full identity",
+          "Page event count unchanged for rejected locate"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B03.relation.ambiguous",
+        "gate": "B",
+        "input": "Fixture matrix relation ambiguous",
+        "expected": "Unique target or TARGET_NOT_FOUND/AMBIGUOUS_TARGET",
+        "assertions": [
+          "Candidate count and full identity",
+          "Page event count unchanged for rejected locate"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B10.identity",
+        "gate": "B",
+        "input": "Frame identity incomplete or wrong",
+        "expected": "Rejected before input",
+        "assertions": [
+          "Both frames action counts unchanged"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B10.replacement",
+        "gate": "B",
+        "input": "Replace Frame after locating",
+        "expected": "Old target stale; fresh target works",
+        "assertions": [
+          "Old/new document differ",
+          "Non-target frame actions unchanged"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "D03.race",
+        "gate": "D",
+        "input": "Hold at Content Script execution boundary, replace original node, release",
+        "expected": "STALE_TARGET, FAILED_CONFIRMED",
+        "assertions": [
+          "Barrier event has exact requestId and document",
+          "No click of replacement"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "D09.response-race",
+        "gate": "D",
+        "input": "Controlled dispatch cancellation and ACK race",
+        "expected": "Exactly one terminal response",
+        "assertions": [
+          "Pending zero",
+          "No later replay"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "D12.normal-mode",
+        "gate": "D",
+        "input": "Normal Broker rejects all fault/test operations and flags",
+        "expected": "TEST_MODE_REQUIRED before dispatch",
+        "assertions": [
+          "Authorized echo control",
+          "No business execution"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "D13.scanner-negative",
+        "gate": "D",
+        "input": "Isolated copy with planted plaintext",
+        "expected": "Scanner FAIL",
+        "assertions": [
+          "Report does not print sensitive value",
+          "Missing and empty inventory rejected"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "C.negative.amount",
+        "gate": "C",
+        "input": "Mutate isolated server amount",
+        "expected": "Verifier rejects",
+        "assertions": [
+          "Successful evidence preserved"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "C.negative.missing",
+        "gate": "C",
+        "input": "Remove isolated submission",
+        "expected": "Verifier rejects",
+        "assertions": [
+          "Successful evidence preserved"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "C.negative.duplicate",
+        "gate": "C",
+        "input": "Duplicate isolated submission",
+        "expected": "Verifier rejects",
+        "assertions": [
+          "Successful evidence preserved"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "C.negative.status",
+        "gate": "C",
+        "input": "Change isolated final DOM status",
+        "expected": "Verifier rejects",
+        "assertions": [
+          "Successful evidence preserved"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "C.negative.lineage-missing",
+        "gate": "C",
+        "input": "Remove fill source association",
+        "expected": "Verifier rejects",
+        "assertions": [
+          "Successful evidence preserved"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "C.negative.lineage-wrong",
+        "gate": "C",
+        "input": "Replace fill source association",
+        "expected": "Verifier rejects",
+        "assertions": [
+          "Successful evidence preserved"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "R.DOM-scan",
+        "gate": "D",
+        "input": "DOM scan and observation N-1/N/N+1",
+        "expected": "Bounded success/rejection/truncation and recovery",
+        "assertions": [
+          "Frozen LIMITS used",
+          "Pending zero",
+          "No action from rejected operations"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "R.fill-query-text",
+        "gate": "D",
+        "input": "Fill/query capacity and text truncation boundaries",
+        "expected": "Bounded success/rejection/truncation and recovery",
+        "assertions": [
+          "Frozen LIMITS used",
+          "Pending zero",
+          "No action from rejected operations"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "R.frames",
+        "gate": "D",
+        "input": "Real frame inventory N-1/N/N+1",
+        "expected": "Bounded success/rejection/truncation and recovery",
+        "assertions": [
+          "Frozen LIMITS used",
+          "Pending zero",
+          "No action from rejected operations"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "R.targets",
+        "gate": "D",
+        "input": "Real target stores N-1/N/N+1 with fresh-document recovery",
+        "expected": "Bounded success/rejection/truncation and recovery",
+        "assertions": [
+          "Frozen LIMITS used",
+          "Pending zero",
+          "No action from rejected operations"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "D.identity-fields",
+        "gate": "D",
+        "input": "Forge each of the eight identity fields independently",
+        "expected": "STALE_TARGET/NOT_DISPATCHED",
+        "assertions": [
+          "Page actions and server attempt count unchanged"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "R.read-sources",
+        "gate": "D",
+        "input": "Real DOM read cache N-1/N/N+1 and an evicted source consumer",
+        "expected": "Bounded eviction, rejected old source with zero action, fresh real read accepted",
+        "assertions": [
+          "Cache capacity matches config",
+          "DOM page event count unchanged for rejection",
+          "Consumer uses latest runtime read value"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "A05.timeout",
+        "gate": "A",
+        "input": "Independent judgment of real capture from A05",
+        "expected": "All selected return, identity and independent postcondition assertions match",
+        "assertions": [
+          "Original live evidence preserved",
+          "No action replay to generate this judgment"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "A05.late",
+        "gate": "A",
+        "input": "Independent judgment of real capture from A05",
+        "expected": "All selected return, identity and independent postcondition assertions match",
+        "assertions": [
+          "Original live evidence preserved",
+          "No action replay to generate this judgment"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "A05.duplicate",
+        "gate": "A",
+        "input": "Independent judgment of real capture from A05",
+        "expected": "All selected return, identity and independent postcondition assertions match",
+        "assertions": [
+          "Original live evidence preserved",
+          "No action replay to generate this judgment"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "A12.bytes",
+        "gate": "A",
+        "input": "Independent judgment of real capture from A12",
+        "expected": "All selected return, identity and independent postcondition assertions match",
+        "assertions": [
+          "Original live evidence preserved",
+          "No action replay to generate this judgment"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B06.text",
+        "gate": "B",
+        "input": "Independent judgment of real capture from B06",
+        "expected": "All selected return, identity and independent postcondition assertions match",
+        "assertions": [
+          "Original live evidence preserved",
+          "No action replay to generate this judgment"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B06.input",
+        "gate": "B",
+        "input": "Independent judgment of real capture from B06",
+        "expected": "All selected return, identity and independent postcondition assertions match",
+        "assertions": [
+          "Original live evidence preserved",
+          "No action replay to generate this judgment"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B07.fill",
+        "gate": "B",
+        "input": "Independent judgment of real capture from B07",
+        "expected": "All selected return, identity and independent postcondition assertions match",
+        "assertions": [
+          "Original live evidence preserved",
+          "No action replay to generate this judgment"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B07.click",
+        "gate": "B",
+        "input": "Independent judgment of real capture from B07",
+        "expected": "All selected return, identity and independent postcondition assertions match",
+        "assertions": [
+          "Original live evidence preserved",
+          "No action replay to generate this judgment"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B08.satisfied",
+        "gate": "B",
+        "input": "Independent judgment of real capture from B08",
+        "expected": "All selected return, identity and independent postcondition assertions match",
+        "assertions": [
+          "Original live evidence preserved",
+          "No action replay to generate this judgment"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B08.timeout",
+        "gate": "B",
+        "input": "Independent judgment of real capture from B08",
+        "expected": "All selected return, identity and independent postcondition assertions match",
+        "assertions": [
+          "Original live evidence preserved",
+          "No action replay to generate this judgment"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B08.cancel",
+        "gate": "B",
+        "input": "Independent judgment of real capture from B08",
+        "expected": "All selected return, identity and independent postcondition assertions match",
+        "assertions": [
+          "Original live evidence preserved",
+          "No action replay to generate this judgment"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B09.pass",
+        "gate": "B",
+        "input": "Independent judgment of real capture from B09",
+        "expected": "All selected return, identity and independent postcondition assertions match",
+        "assertions": [
+          "Original live evidence preserved",
+          "No action replay to generate this judgment"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "B09.fail",
+        "gate": "B",
+        "input": "Independent judgment of real capture from B09",
+        "expected": "All selected return, identity and independent postcondition assertions match",
+        "assertions": [
+          "Original live evidence preserved",
+          "No action replay to generate this judgment"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "D12.identity",
+        "gate": "D",
+        "input": "Independent judgment of real capture from D12",
+        "expected": "All selected return, identity and independent postcondition assertions match",
+        "assertions": [
+          "Original live evidence preserved",
+          "No action replay to generate this judgment"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "D12.credential",
+        "gate": "D",
+        "input": "Independent judgment of real capture from D12",
+        "expected": "All selected return, identity and independent postcondition assertions match",
+        "assertions": [
+          "Original live evidence preserved",
+          "No action replay to generate this judgment"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "D14.eval",
+        "gate": "D",
+        "input": "Independent judgment of real capture from D14",
+        "expected": "All selected return, identity and independent postcondition assertions match",
+        "assertions": [
+          "Original live evidence preserved",
+          "No action replay to generate this judgment"
+        ],
+        "deadlineMs": 45000
+      },
+      {
+        "caseId": "D14.unsupported",
+        "gate": "D",
+        "input": "Independent judgment of real capture from D14",
+        "expected": "All selected return, identity and independent postcondition assertions match",
+        "assertions": [
+          "Original live evidence preserved",
+          "No action replay to generate this judgment"
+        ],
+        "deadlineMs": 45000
+      }
+    ],
+    "candidateBinding": [
+      "All source/test/fixture/verifier/config/spec resource hashes",
+      "Running Worker function fingerprint plus loaded file hashes",
+      "Running Content and Locator function fingerprints for every participating document"
+    ],
+    "auditNegativeMutations": [
+      "missing required case",
+      "duplicate case ID",
+      "old candidate hash",
+      "missing raw evidence",
+      "broken read-fill association",
+      "NOT_RUN/unknown relabelled PASS",
+      "visual marker without screenshot and observation"
+    ],
+    "finiteResourceBoundaries": "Each LIMITS parameter must have matched candidate evidence with declared semantics; N-1/N/N+1 for capacities where applicable",
+    "publicCommands": [
+      "setup",
+      "start",
+      "doctor",
+      "tabs",
+      "fixture",
+      "golden",
+      "verify-golden",
+      "verify",
+      "cleanup"
+    ],
+    "corePassExtraConditions": [
+      "Resource boundaries",
+      "Normal-mode test capability denial",
+      "Redaction scanner negative controls",
+      "Required-case-driven audit negative controls",
+      "Visual evidence reviewed within frozen deadline",
+      "Public commands executed verbatim",
+      "Repeated setup, resource validation, cleanup and reinstall diagnostic"
+    ]
+  }
+}
