@@ -279,6 +279,10 @@ type Config struct {
 	ExperimentalNativeExtension           bool
 	ExperimentalUnsafeNativeExtensionCall bool
 	AllowRecorderCapture                  bool
+	AllowBrowserDOM                       bool
+	BrowserCoreRoot                       string
+	BrowserOrigin                         string
+	BrowserTab                            int
 	MarketplaceDevelopmentConfig          string
 	CustomUI                              bool
 	CustomUIDisabled                      bool
@@ -328,6 +332,10 @@ func parseFlags() *Config {
 	flag.BoolVar(&config.ExperimentalNativeExtension, "experimental-native-extension", false, "Deprecated compatibility flag; local CLI JavaScript already enables manifest-discovered NativeExtensions")
 	flag.BoolVar(&config.ExperimentalUnsafeNativeExtensionCall, "experimental-unsafe-native-extension-call", false, "Enable unsafe low-level NativeExtension.call for explicit local diagnostics")
 	flag.BoolVar(&config.AllowRecorderCapture, "allow-recorder-capture", false, "Allow this trusted local script execution to start Recorder global input capture")
+	flag.BoolVar(&config.AllowBrowserDOM, "allow-browser", false, "Allow the execution-scoped BrowserDOM capability for one configured local website/tab")
+	flag.StringVar(&config.BrowserCoreRoot, "browser-core-root", "", "Absolute workspace containing the installed, verified Browser Core")
+	flag.StringVar(&config.BrowserOrigin, "browser-origin", "", "Exact allowed 127.0.0.1 HTTP website origin")
+	flag.IntVar(&config.BrowserTab, "browser-tab", -1, "Exact host-authorized Chrome tab identity")
 	flag.StringVar(&config.MarketplaceDevelopmentConfig, "marketplace-development-config", "", "Enable the explicit loopback Marketplace development client from a local config file")
 	flag.BoolVar(&config.CustomUI, "ui", false, "Explicitly enable custom UI for this CLI execution or HTTP server")
 	flag.BoolVar(&config.CustomUIDisabled, "no-ui", false, "Explicitly disable custom UI, overriding every other activation source")
@@ -1036,6 +1044,8 @@ func executeScript(config *Config) error {
 		EnableDownload:                  true,
 		EnableWebhook:                   true,
 		EnableAccessibility:             true,
+		EnableBrowserDOM:                config.AllowBrowserDOM,
+		BrowserDOMPolicy:                automation.BrowserDOMPolicy{CoreRoot: config.BrowserCoreRoot, Origin: config.BrowserOrigin, Tab: config.BrowserTab},
 		// SQLite is a first-party local Runtime API. HTTP, MCP, and Scheduler
 		// requests construct their own execution.Request values and leave this
 		// capability false so they do not inherit host file database access.

@@ -107,6 +107,8 @@ type Request struct {
 	// Trusted local script entrypoints set it; remote and scheduled requests
 	// leave it false.
 	EnableAccessibility bool
+	EnableBrowserDOM    bool
+	BrowserDOMPolicy    automation.BrowserDOMPolicy
 	// AccessibilityPolicy can only narrow an enabled first-party execution.
 	// It is used by source-controlled internal programs, never by public HTTP
 	// script requests.
@@ -424,6 +426,8 @@ func runJavaScript(req Request, emitter *Emitter) error {
 				EnableDownload:                  req.EnableDownload,
 				EnableWebhook:                   req.EnableWebhook,
 				EnableAccessibility:             req.EnableAccessibility,
+				EnableBrowserDOM:                req.EnableBrowserDOM,
+				BrowserDOMPolicy:                req.BrowserDOMPolicy,
 				AccessibilityPolicy:             req.AccessibilityPolicy,
 				EnableSQLite:                    req.EnableSQLite,
 				EnableRecorderCapture:           req.EnableRecorderCapture,

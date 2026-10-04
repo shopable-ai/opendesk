@@ -3,6 +3,12 @@
 // it; no fixed method count is used as a pass condition.
 
 globalThis.RuntimeAPIObjects = {
+  BrowserDOM: {
+    docs: 'docs/api/browser-dom.md', types: 'types/BrowserDOM.d.ts',
+    source: 'automation/browser_dom.go + automation/browser_core_adapter.mjs',
+    status: 'experimental-local', platforms: ['darwin'], authorization: 'explicit-host-origin-tab',
+    methods: ['status', 'tabs', 'observe', 'locate', 'read', 'act', 'wait', 'verify', 'close'],
+  },
   page: { docs: 'docs/api/page.md', types: 'types/page.d.ts', source: 'automation/page.go + polyfills/000-page.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
     'screenshot', 'captureScreen', 'goto', 'openURL', 'openApp', 'openURLInApp', 'title', 'url',
     'waitFor', 'waitForTimeout', 'waitForNavigation', 'waitForFunction', 'waitForAll',

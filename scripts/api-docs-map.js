@@ -5,6 +5,7 @@
 const groups = [
   ['targets', '应用、窗口与几何', '识别应用/窗口、等待就绪、截图入口与坐标换算', ['app', 'window', 'page', 'geometry']],
   ['elements', '桌面目标与取值', '按文字、图片或原生语义发现目标、读值、等待和操作', ['desktop-ui', 'accessibility']],
+  ['browser', '网页 DOM 与 Browser', '在已授权网站和 Tab 内通过已安装 Core 观察、语义定位、读取、操作和验证', ['browser-dom']],
   ['vision', '图像、OCR 与显示器', '已有图片分析、OCR、颜色、屏幕和录屏', ['vision', 'image-color', 'screen']],
   ['input-events', '输入、剪贴板与事件', '键鼠触摸、剪贴板、快捷键、桌面事件与通知观察', ['mouse', 'input', 'clipboard', 'global-shortcut', 'events', 'notifications']],
   ['data', '文件、路径与数据', '本地文件、JSON、路径、键值、SQL 与内置数据处理库', ['file', 'path', 'storage', 'sqlite', 'libs']],
@@ -31,6 +32,7 @@ const bundledLibraries = [
 const surfaces = {
   app: ['App'], window: ['window'], page: ['page'], geometry: ['Geometry'],
   'desktop-ui': ['UI', 'scope', 'Locator'], accessibility: ['Accessibility'],
+  'browser-dom': ['BrowserDOM'],
   vision: ['Vision', 'OCR'], 'image-color': ['ImageColor'], screen: ['Screen'],
   mouse: ['mouse'], input: ['keyboard', 'touchscreen'], clipboard: ['clipboard'],
   'global-shortcut': ['globalShortcut'], events: ['Events'], notifications: ['Notifications'],
@@ -46,6 +48,7 @@ const surfaces = {
 const types = {
   app: ['App'], window: ['window'], page: ['page'], geometry: ['Geometry'], 'desktop-ui': ['UI'],
   accessibility: ['Accessibility'], vision: ['Vision'], 'image-color': ['ImageColor'], screen: ['Screen'],
+  'browser-dom': ['BrowserDOM'],
   mouse: ['mouse'], input: ['keyboard', 'touchscreen'], clipboard: ['clipboard'], 'global-shortcut': ['globalShortcut'],
   events: ['Events'], notifications: ['Notifications'], file: ['File'], path: ['path'], storage: ['AppStorage'],
   sqlite: ['sqlite'], execution: ['Execution'], 'global-apis': ['global', 'console'], system: ['System'],

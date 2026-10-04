@@ -95,6 +95,10 @@ type InitJSOptions struct {
 	// native Accessibility owner. Generic Runtime, HTTP, MCP, and Scheduler
 	// executions leave it false while retaining the capability summary.
 	EnableAccessibility bool
+	// BrowserDOM is a separate, explicit trusted-host capability. Its policy
+	// binds one local website/tab before any JavaScript or MCP action.
+	EnableBrowserDOM bool
+	BrowserDOMPolicy BrowserDOMPolicy
 	// AccessibilityPolicy is an optional host-owned restriction for a bounded
 	// first-party execution. Ordinary local scripts leave it zero-valued. The
 	// Accessibility Workbench uses it to deny every mutation/value read and to
@@ -177,11 +181,15 @@ type RuntimeLifecycle struct {
 	FileSystem     *FileSystem
 	SQLite         *SQLiteRuntime
 	Recorder       *RecorderRuntime
+	BrowserDOM     *BrowserDOMRuntime
 }
 
 // Wait joins host workers after their execution context has been cancelled.
 // RuntimeLifecycle is never exposed to JavaScript.
 func (l *RuntimeLifecycle) Wait() {
+	if l != nil && l.BrowserDOM != nil {
+		l.BrowserDOM.Wait()
+	}
 	if l != nil && l.HTTP != nil {
 		l.HTTP.Wait()
 	}
@@ -229,6 +237,9 @@ func (l *RuntimeLifecycle) Wait() {
 // CancelAsync discards pending host callbacks after the execution context is
 // cancelled. It is called by the runtime owner before EventLoop.Terminate.
 func (l *RuntimeLifecycle) CancelAsync() {
+	if l != nil && l.BrowserDOM != nil {
+		l.BrowserDOM.Close()
+	}
 	if l != nil && l.AppShell != nil {
 		l.AppShell.BeginCancel()
 	}
@@ -1047,6 +1058,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	appRuntime := registerApp(runtime, opts)
 	notificationsRuntime := registerNotifications(runtime, opts)
 	commandRuntime := registerCommand(runtime, opts)
+	browserDOMRuntime := registerBrowserDOM(runtime, opts)
 
 	globalShortcut := registerGlobalShortcut(runtime, opts)
 	events := registerDesktopEvents(runtime, opts)
@@ -1229,7 +1241,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 		return fmt.Errorf("failed to register automation.app: %w", err)
 	}
 	if opts.OnReady != nil {
-		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, AppShell: appShellRuntime, Accessibility: accessibilityRuntime, Notifications: notificationsRuntime, Command: commandRuntime, AudioPatterns: audioPatterns, FileJSON: fileJSON, FileSystem: fileSystem, SQLite: sqliteRuntime, Recorder: recorderRuntime})
+		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, AppShell: appShellRuntime, Accessibility: accessibilityRuntime, Notifications: notificationsRuntime, Command: commandRuntime, AudioPatterns: audioPatterns, FileJSON: fileJSON, FileSystem: fileSystem, SQLite: sqliteRuntime, Recorder: recorderRuntime, BrowserDOM: browserDOMRuntime})
 	}
 	recorderReady = true
 	return nil
