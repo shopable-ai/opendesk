@@ -10,7 +10,8 @@ import (
 )
 
 type AutomationRuntime struct {
-	vision *automation.Vision
+	vision  *automation.Vision
+	browser *automation.BrowserDOMRuntime
 }
 
 func NewAutomationRuntime(container *pkgContainer.Container) *AutomationRuntime {

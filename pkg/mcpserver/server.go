@@ -83,6 +83,9 @@ func NewServer(runtime Runtime) *Server {
 	for _, tool := range builtinTools() {
 		s.tools[tool.Name] = tool
 	}
+	for _, tool := range browserTools() {
+		s.tools[tool.Name] = tool
+	}
 	return s
 }
 
@@ -209,15 +212,22 @@ func (s *Server) handleToolsCall(req Request) Response {
 	if err != nil {
 		return s.errorResponse(req.ID, ErrCodeInternal, err.Error(), map[string]any{"name": params.Name})
 	}
-	return s.resultResponse(req.ID, map[string]any{
+	result := map[string]any{
 		"content": []map[string]any{{
 			"type": "text",
 			"text": mustJSONString(payload),
 		}},
-	})
+	}
+	if strings.HasPrefix(params.Name, "tm_browser_") && payload["error"] != nil {
+		result["isError"] = true
+	}
+	return s.resultResponse(req.ID, result)
 }
 
 func (s *Server) callTool(name string, args map[string]any) (map[string]any, error) {
+	if strings.HasPrefix(name, "tm_browser_") {
+		return s.callBrowserTool(name, args)
+	}
 	if strings.HasPrefix(name, "tm_recorder_") {
 		return s.callRecorderTool(name, args)
 	}
@@ -465,6 +475,13 @@ func validateObjectSchema(path string, value map[string]any, schema map[string]a
 	}
 
 	properties, _ := schema["properties"].(map[string]any)
+	if additional, explicit := schema["additionalProperties"].(bool); explicit && !additional {
+		for name := range value {
+			if _, declared := properties[name]; !declared {
+				return fmt.Errorf("%s includes an unsupported field", path)
+			}
+		}
+	}
 	names := make([]string, 0, len(properties))
 	for name := range properties {
 		names = append(names, name)
@@ -1584,7 +1601,7 @@ func centerPoint(bounds map[string]any) (float64, float64, error) {
 }
 
 func toolOrder() []string {
-	return []string{
+	order := []string{
 		"tm_status",
 		"tm_recorder_start",
 		"tm_recorder_annotate",
@@ -1618,6 +1635,10 @@ func toolOrder() []string {
 		"tm_press_key",
 		"tm_scroll",
 	}
+	for _, tool := range browserTools() {
+		order = append(order, tool.Name)
+	}
+	return order
 }
 
 func builtinTools() []Tool {
