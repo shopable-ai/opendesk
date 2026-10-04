@@ -1,0 +1,1022 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "acceptance-specification",
+  "name": "Demo 2 — OpenDesk Browser Integration Golden Demo",
+  "objective": "完成已验证 Browser Core 的正式集成：真实 Codex 经现有 OpenDesk MCP 完成订单任务，固定唯一 Browser Agent Trace，经现有自动化脚本工作流生成普通 OpenDesk JavaScript；冻结候选后用同一 hash 对至少三个新订单进行无 Agent 逐步决策的 Fresh Run，并通过独立业务验证、完整 lineage 和 F1–F5 错误候选拒绝。",
+  "requirementSource": {
+    "originalAttachment": "/Users/mac/.codex/attachments/47a1d56f-fac6-4b3e-a6a1-e2baec3a8fed/pasted-text.txt",
+    "preservedVerbatim": "docs/plans/browser-automation/integration-golden-demo-requirements.md",
+    "sha256": "20d566b6aa4ef940aca9ca4297813192127c78a51b8c486337f148e5d5e1db14",
+    "bytes": 15751,
+    "rule": "原文与本规范共同作为验收输入；示例订单和金额只说明数据流，不得作为运行答案。"
+  },
+  "taskSequence": {
+    "spec": "docs/plans/browser-automation/demo-sequence.json",
+    "taskId": "01a0f903-7dcc-7470-99cd-dc45512ebe50",
+    "hostId": "local",
+    "predecessorTaskId": "01a0fdba-5418-7150-a1e4-5a56a58b725b",
+    "predecessorTitle": "Demo 1 — 完整实证 Core PASS 交接",
+    "historicalCoreTaskId": "01a0f8b9-aceb-7392-9b53-e03d66af8f4c",
+    "predecessorAcceptance": "docs/quality/browser-automation/core-demo-acceptance.json",
+    "predecessorState": ".runtime/tests/browser-automation-core/current-state.json",
+    "predecessorEvidence": ".runtime/tests/browser-automation-core/",
+    "predecessorSource": "lab/browser-automation-core/",
+    "predecessorTests": "tests/browser-automation-core/",
+    "branchPolicy": "使用现有 master；未经用户明确授权不创建、切换或推送新分支；保留其他任务修改。",
+    "previousPredecessorTaskIds": [
+      "01a0f921-8236-7b03-9739-52a8a238afa9"
+    ]
+  },
+  "statusValues": [
+    "PASS",
+    "FAIL",
+    "BLOCKED",
+    "NOT_RUN"
+  ],
+  "initialState": {
+    "initializationOnly": true,
+    "demoStatus": "BLOCKED",
+    "precondition": "BLOCKED",
+    "stages": {
+      "A": "NOT_RUN",
+      "B": "NOT_RUN",
+      "C": "NOT_RUN",
+      "D": "NOT_RUN",
+      "E": "NOT_RUN",
+      "F": "NOT_RUN",
+      "G": "NOT_RUN"
+    },
+    "goalStatus": "active",
+    "rule": "完成初始化不等于 Demo 2 完成；初次缺少前置不把完整持续目标标 complete 或 blocked。三次连续 goal turn 同一阻塞且无有意义进展才可标 blocked；同一 turn 内多次文件检查不增加计数。"
+  },
+  "scope": {
+    "runtimeEvidenceLocation": ".runtime/tests/browser-integration-golden-demo/",
+    "stateIndex": ".runtime/tests/browser-integration-golden-demo/current-state.json",
+    "stableTestsLocation": "tests/browser-integration-golden-demo/",
+    "fixture": "复用 Demo 1 受控订单 fixture；不另造 Core 或业务答案源。",
+    "excluded": [
+      "Demo 3 Human Browser Capture",
+      "Human DOM event recorder",
+      "Human-to-Recipe Browser source",
+      "Desktop Recorder browser integration",
+      "Demo 4 Browser + Desktop Cross-Surface",
+      "Native File Picker integration"
+    ],
+    "preconditionBlockedBehavior": "只维护目标、验收条件和恢复索引，等待新前驱有效交接；不改 Core/MCP/Workflow，不启动 Browser Agent/Fresh Run，不重复 Core 全套测试，不创建轮询自动化或忙等。"
+  },
+  "precondition": {
+    "releaseRule": "前驱实际 A–D 全部 PASS，且 P01–P09 逐项有当前源码匹配的真实 Evidence 与独立 verifier；开工交接只触发核对，PASS 字符串、goal 状态、聊天描述和组件模拟均不能放行。",
+    "requiredEvidence": [
+      {
+        "id": "P01",
+        "name": "Real Extension communication",
+        "coreGateRefs": [
+          "A"
+        ],
+        "assertions": [
+          "真实已加载 MV3 Extension 与 Native Host/Broker 双向通信",
+          "真实浏览器版本、Extension ID/版本、session/epoch 和 request/event 关联可核对"
+        ]
+      },
+      {
+        "id": "P02",
+        "name": "Real DOM observe / locate / read",
+        "coreGateRefs": [
+          "B01",
+          "B02",
+          "B03",
+          "B06"
+        ],
+        "assertions": [
+          "真实 Tab/Frame/Document 的 observe、唯一语义定位及文本/input 读值有原始证据",
+          "支持的 locator contract 来自已验收 Core"
+        ]
+      },
+      {
+        "id": "P03",
+        "name": "Real DOM act / verify",
+        "coreGateRefs": [
+          "B07",
+          "B08",
+          "B09"
+        ],
+        "assertions": [
+          "真实 fill/click、before/after 观察及 wait/verify 均可追溯",
+          "动作 ACK 不冒充 postcondition"
+        ]
+      },
+      {
+        "id": "P04",
+        "name": "Runtime value read → fill",
+        "coreGateRefs": [
+          "C"
+        ],
+        "assertions": [
+          "至少三个不同订单真实 DOM read → runtime variable → confirmation fill",
+          "读值来源、消费者、实际输入和最终 Completed 可核对",
+          "执行器不使用 backend、oracle、提示词答案、orderId 计算或硬编码"
+        ]
+      },
+      {
+        "id": "P05",
+        "name": "Independent verifier",
+        "coreGateRefs": [
+          "C"
+        ],
+        "assertions": [
+          "执行后独立读取实际服务端 submission",
+          "每单 DOM amount = actual confirmation = server recorded amount，submissionCount = 1",
+          "verifier 不向执行器提供答案"
+        ]
+      },
+      {
+        "id": "P06",
+        "name": "Stale target rejection",
+        "coreGateRefs": [
+          "D01",
+          "D03",
+          "D04",
+          "D05",
+          "D06"
+        ],
+        "assertions": [
+          "refresh/replacement/navigation/close/epoch 变化使旧 target 失效",
+          "结构化拒绝与无误点击/提交有真实证据，旧 target 不被重解析成新元素"
+        ]
+      },
+      {
+        "id": "P07",
+        "name": "Wrong/ambiguous tab rejection",
+        "coreGateRefs": [
+          "D02"
+        ],
+        "assertions": [
+          "两个同名真实 Tab 身份不足时拒绝，不猜活动 Tab",
+          "完整身份只操作指定 Tab，错误 Tab 无输入/提交"
+        ]
+      },
+      {
+        "id": "P08",
+        "name": "Lost ACK no duplicate submit",
+        "coreGateRefs": [
+          "D08"
+        ],
+        "assertions": [
+          "真实 Confirm 已提交后在精确边界丢 ACK",
+          "OUTCOME_UNKNOWN 后无自动 retry，重连后独立 verifier 仍证明 submissionCount = 1"
+        ]
+      },
+      {
+        "id": "P09",
+        "name": "Reconnect no unsafe replay",
+        "coreGateRefs": [
+          "A08",
+          "A09",
+          "D06",
+          "D07",
+          "D08",
+          "D10",
+          "D15"
+        ],
+        "assertions": [
+          "Extension/Host/Broker 生命周期变化有旧新 session/epoch/pending 证据",
+          "不重放旧 pending 或未知副作用，不产生第二次 Confirm"
+        ]
+      }
+    ],
+    "handoffAudit": [
+      "读取小型恢复索引、正式 Core 验收和原始运行产物；区分 deterministic/component/live。",
+      "逐项核对 Core A–D case、P01–P09 原始 evidence 引用、实际 outcome 与 independent verifier；报告要有对应原始证据。",
+      "核对 commit SHA、push 状态、未提交修改、源码/测试内容 hash、构建/Host/Extension 来源及实际加载版本；旧证据 hash 漂移不得视为当前 PASS。",
+      "核对 fixture、独立 verifier 的版本与来源，订单身份、实际 DOM/服务端结果和安全场景副作用计数。",
+      "读取指定架构/计划文件；缺失记录真实缺口，不猜测正文或以历史兼容 browser facade 代替正式 capability。",
+      "证据冲突时保留已有效上游，记录最早无效/未知边界，等待对应 Core owner 最小修复和受影响 Gate 重验。"
+    ],
+    "referencedDocuments": [
+      {
+        "path": "docs/plans/browser-automation/demo-validation-plan.md",
+        "availabilityAtInitialization": "MISSING",
+        "action": "记录缺口，交接时核对；不制造正文或 PASS"
+      },
+      {
+        "path": "docs/architecture/browser-automation/extension-runtime-bridge.md",
+        "availabilityAtInitialization": "MISSING",
+        "action": "记录缺口，交接时核对；不制造正文或 PASS"
+      },
+      {
+        "path": "docs/architecture/browser-automation/capabilities.md",
+        "availabilityAtInitialization": "PRESENT",
+        "limitation": "当前描述桌面 API 和历史 browser-shaped facade；不是已通过 Demo 1 的正式 Browser Runtime 契约"
+      }
+    ],
+    "policyBoundary": "Chrome 控制工具拒绝 chrome://extensions/ 后不改用其他浏览器控制方式绕路；插件可安装交付与真实加载验收由新前驱任务解决。",
+    "initialEvidenceLimit": "已有通信 Unit 12 项及组件 Integration 19 场景 PASS；组件 Chrome API 模拟不算 Live。17 项组件签名匹配仅证明该组件报告版本；旧 Gate A BLOCKED 报告已存在源码漂移，不证明当前 Live。"
+  },
+  "architecture": {
+    "mcpReuse": [
+      "cmd/opendesk-mcp",
+      "pkg/mcpserver"
+    ],
+    "adapterResponsibilities": [
+      "tool schema",
+      "parameter normalization",
+      "execution identity",
+      "context association",
+      "Browser Core call",
+      "structured result/error mapping"
+    ],
+    "coreOwnedResponsibilities": [
+      "Extension transport",
+      "Native Host transport",
+      "DOM selector engine",
+      "target resolution",
+      "tab/frame/document identity and validation",
+      "actionability",
+      "request correlation",
+      "timeouts",
+      "reconnect",
+      "retry policy",
+      "stale detection",
+      "side-effect outcome model",
+      "trace ownership"
+    ],
+    "requiredCapabilitySemantics": [
+      "status",
+      "tabs",
+      "observe",
+      "locate",
+      "read",
+      "act",
+      "wait",
+      "verify"
+    ],
+    "capabilityNamingRule": "名称按现有 MCP 注册机制和已核验 Core/公开 Runtime 契约确定；本规范不预定 API 名称、option 或实现。",
+    "requiredStructuredErrorsOrVerifiedEquivalents": [
+      "TARGET_NOT_FOUND",
+      "AMBIGUOUS_TARGET",
+      "STALE_TARGET",
+      "TIMEOUT",
+      "PERMISSION_DENIED",
+      "OUTCOME_UNKNOWN"
+    ],
+    "unsupportedDefaults": [
+      "arbitrary evaluate",
+      "arbitrary page JavaScript",
+      "unbounded DOM dump",
+      "复制完整 Playwright API"
+    ],
+    "forbidden": [
+      "默认创建独立 opendesk-browser-mcp",
+      "MCP 与 Recipe 各自实现 Browser Core",
+      "MCP/Recipe 偷补 Core workaround",
+      "以历史兼容 shim 声称真实 Browser DOM 能力"
+    ],
+    "coreDefectProtocol": "明确 Core defect → First Invalid Boundary → 定向修复对应 Core owner → 重验受影响 Demo 1 Gate → 核对新 provenance → 返回 Demo 2；不重新设计 Core。"
+  },
+  "goldenTask": {
+    "steps": [
+      "输入 orderId",
+      "Query",
+      "等待页面产生 runtime Amount",
+      "从本次 DOM read Amount",
+      "保存为 runtime variable amount",
+      "confirmationAmount = bind(amount)",
+      "Confirm",
+      "DOM wait/verify Status = Completed"
+    ],
+    "orderIdSource": "business parameter",
+    "amountSource": "本次真实页面 DOM read",
+    "forbiddenAmountSources": [
+      "提示词或需求中的示例答案",
+      "fixture backend",
+      "test oracle/verifier",
+      "orderId 计算",
+      "第一次执行常量"
+    ],
+    "independentVerifierAssertions": [
+      "orderId 与本次执行一致",
+      "DOM runtime amount = actual filled confirmation = actual server submitted amount",
+      "submissionCount = 1",
+      "final DOM status = Completed"
+    ],
+    "verifierSeparation": "执行器只消费 DOM；verifier 执行后独立取实际服务端状态，保留自身版本、运行 ID、输入/输出和结果，不把答案回传执行器。"
+  },
+  "authoritativeTrace": {
+    "owner": "Browser execution owner 的 MCP/API execution trace",
+    "source": "agent",
+    "surface": "browser",
+    "requiredFieldsOrFixedReferences": [
+      "executionId",
+      "actionId / requestId",
+      "source",
+      "surface",
+      "browserSession",
+      "connectionEpoch",
+      "tab",
+      "frame",
+      "document",
+      "origin / URL where appropriate",
+      "operation",
+      "targetRequest",
+      "resolvedTarget",
+      "targetSemantics",
+      "beforeObservation",
+      "runtimeInput",
+      "runtimeOutput",
+      "actualActionResult",
+      "afterObservation",
+      "verification",
+      "status",
+      "errorClass",
+      "timestamps",
+      "evidenceReferences"
+    ],
+    "canonicalRule": "每次 Agent action 只有一条 canonical action；MCP 请求和 Core action/observation 通过 executionId/requestId 关联，Extension 低层 DOM events 只作为 evidence。",
+    "forbiddenDuplicateTruth": [
+      "Browser Human Capture 重录 Agent action",
+      "Desktop Recorder 重录 Agent action",
+      "以 adapter 复制出第二份 canonical Browser action"
+    ],
+    "missingValueRule": "不适用/未知字段显式保留 null/unknown 与原因，不伪造观察、身份或验证。",
+    "dataDependencyEvidence": [
+      "Amount read 的 requestId、document、resolved target、实际 output",
+      "runtime variable amount 与 read 事实的来源引用",
+      "confirmation fill 的 input 与 producer read 引用",
+      "fill 后实际 confirmation 读值",
+      "DOM final verification 与独立 server submission 对应关系"
+    ],
+    "minimalEvidence": "只保存完成任务和验证所需的观察/目标/读值；不全量保存 DOM，敏感 input 脱敏，credential 不入普通日志。",
+    "recorderReview": {
+      "allowedInspection": [
+        "pkg/recorder/",
+        "pkg/mcpserver/recorder.go"
+      ],
+      "allowedReuseThroughAdapter": [
+        "storage",
+        "session identity",
+        "evidence reference",
+        "distill structure"
+      ],
+      "rule": "理解 session/trace/distill/compile 责任；复用不改变 Browser Execution 的唯一 canonical truth。"
+    }
+  },
+  "workflowReuse": {
+    "userFacingName": "自动化脚本工作流",
+    "entry": "workflows/agent-to-recipe/WORKFLOW.md",
+    "root": "workflows/agent-to-recipe/",
+    "contract": "docs/frameworks/agent-to-recipe-skill-contract.md",
+    "reuse": [
+      "Artifact",
+      "Validator",
+      "Gate",
+      "Evidence",
+      "QualificationRecord",
+      "现有 S1–S12 和检查器"
+    ],
+    "registrationTiming": "有效前置核验后才进入 S1/S2；A/B 的真实示范对应 S3–S6；C 消费有效事实推进 S7–S10；D/E 对应 S11；F/G 对应 S12。A–G 是 Demo 验收分组，不是第二套制作阶段。",
+    "adapterScope": "仅最小 Browser source/adapter/schema extension；trace 引用固定原事实，不重新录制、补造执行或自动从 S1 全量重做。",
+    "forbidden": [
+      "browser-agent-to-recipe/",
+      "第二套 S1–S12",
+      "第二套 workflow checker",
+      "第二套 qualification"
+    ],
+    "loadingRule": "每次只读当前阶段方法与正式输入；不预读同源黄金答案、未来参考 JS 或历史完整解答来生产成果。",
+    "stageExitRule": "遵守现有阶段独立检查、评分门槛、Hard Fail/Blocking Unknown/必需证据与测试；后续正确结果不能反推上游真实成立。",
+    "retentionRule": "开始阶段工作前固定 request/输入/attempt；原始输出先留档再解析，失败/拒绝/截断也留档；使用既有同版 stage-review、checker 记录和 inputRefs。"
+  },
+  "amountLineage": {
+    "mandatory": true,
+    "chain": [
+      "Browser Agent Trace",
+      "raw Browser observation/action",
+      "Distilled Action",
+      "business step",
+      "runtime variable amount",
+      "Browser locator / read rule",
+      "Procedure",
+      "generated JavaScript",
+      "Fresh Run verification"
+    ],
+    "requiredProof": [
+      "每一环有固定 artifact/evidence ref 与版本/hash",
+      "read 和 fill producer→consumer 不断链",
+      "可定位生成 JS 读取行和消费者行及对应首次真实事实",
+      "三个 Fresh Run 分别证明消费的是本次 DOM 实值"
+    ],
+    "reviewerQuestions": [
+      "这行 JS 为什么存在？",
+      "来自首次执行哪个事实？",
+      "读取哪个 document/target 的什么值？",
+      "值由谁消费？",
+      "怎样证明消费者使用实际 read 值？"
+    ]
+  },
+  "stages": [
+    {
+      "id": "A",
+      "name": "Real Codex → MCP → Browser",
+      "initialStatus": "NOT_RUN",
+      "dependsOn": [
+        "Precondition"
+      ],
+      "plan": "前置放行后固定 S1/S2，再用现有 MCP capability adapter 让真实 Codex 完成受控订单任务。",
+      "requiredEvidence": [
+        "实际 Codex task/tool call 的固定引用",
+        "现有 OpenDesk MCP 注册/调用来源与 execution/request 关联",
+        "同一已验收 Core 源码/构建 hash 与调用链",
+        "真实 Extension/Tab/Frame/Document 的动作和 DOM 结果",
+        "Golden independent verifier"
+      ],
+      "passAssertions": [
+        "Codex → existing OpenDesk MCP → adapter → same Core → real Extension → DOM 真实成立",
+        "Golden 任务 DOM read→fill→Completed，独立 verifier submissionCount = 1",
+        "必需结构化错误语义通过 adapter 保留"
+      ],
+      "invalidSubstitutes": [
+        "直接 browser-lab",
+        "直接 Core Go API",
+        "MCP unit test",
+        "仅 tools/list 可见",
+        "手工 JSON-RPC",
+        "外部 Playwright/CDP",
+        "Node/Python 直接控制浏览器"
+      ]
+    },
+    {
+      "id": "B",
+      "name": "Authoritative Browser Agent Trace",
+      "initialStatus": "NOT_RUN",
+      "dependsOn": [
+        "A"
+      ],
+      "plan": "审阅 A 的实际 Browser execution 事实，固定唯一 canonical trace 和 Amount read→fill 来源；完成 S3–S6 对应事实验收。",
+      "requiredEvidence": [
+        "完整字段或固定引用的 canonical Agent Trace",
+        "MCP request/Core action/Extension evidence 关联",
+        "Amount 实际 read、runtime variable、fill producer→consumer 与独立结果",
+        "重复 canonical action 检查"
+      ],
+      "passAssertions": [
+        "source=agent、surface=browser 且每个 Agent action 唯一",
+        "所有必需 trace 信息存在或如实 unknown；阻断性 unknown 不放行",
+        "DOM amount 来源不是 backend、提示词或常量",
+        "低层事件不形成第二份 action truth"
+      ]
+    },
+    {
+      "id": "C",
+      "name": "Agent-to-Recipe transformation",
+      "initialStatus": "NOT_RUN",
+      "dependsOn": [
+        "B"
+      ],
+      "plan": "按自动化脚本工作流消费正式 trace source，推进 Distill、业务步骤、Procedure、data dependency 和 Browser 定位/操作规则。",
+      "requiredEvidence": [
+        "既有 S1–S6 正式产物与当前阶段 inputRefs/handoff",
+        "S7–S10 Artifact/Validator/Gate/Evidence",
+        "Amount read 完整 lineage",
+        "Core 支持的 semantic locator contract 与来源"
+      ],
+      "passAssertions": [
+        "复用既有制作链，无第二套 S1–S12/checker/qualification",
+        "orderId=business parameter；amount=runtime Browser DOM read；confirmationAmount=bind(amount)",
+        "role/name、label、text、test-id、stable attribute 或 DOM relation 仅在已验证 Core 支持范围使用",
+        "不以屏幕坐标代替普通网页元素，不发明 selector semantics"
+      ]
+    },
+    {
+      "id": "D",
+      "name": "Ordinary JS Recipe",
+      "initialStatus": "NOT_RUN",
+      "dependsOn": [
+        "C"
+      ],
+      "plan": "通过既有 S11 recipe-build 生成忠实实现 Procedure 的普通 OpenDesk JavaScript。",
+      "requiredEvidence": [
+        "实际 .js Candidate 与上游固定引用",
+        "公开 Browser Runtime capability 文档与加载来源",
+        "生成 execution ID",
+        "read/variable/fill/wait/verify 代码映射",
+        "MCP 与 Recipe 共用同一 Core 的来源证据"
+      ],
+      "passAssertions": [
+        "普通 OpenDesk JavaScript → 正式 Browser capability → same Core → Extension → DOM",
+        "业务参数与运行时 DOM 金额分离，结果有实际最终验证",
+        "Runtime native/execution owner 与 JS facade 分工遵守仓库规则"
+      ],
+      "invalidArtifacts": [
+        "Codex prompt",
+        "Agent plan",
+        "MCP replay log",
+        "Browser macro JSON",
+        "Playwright script"
+      ]
+    },
+    {
+      "id": "E",
+      "name": "Candidate Freeze",
+      "initialStatus": "NOT_RUN",
+      "dependsOn": [
+        "D"
+      ],
+      "plan": "固定实际候选源码、影响性依赖、环境与上游 provenance，登记既有 CandidateManifest；之后才允许 Fresh Run。",
+      "requiredEvidence": [
+        "CandidateManifest 与实际源码的 hash 对照",
+        "generation execution ID 和支持范围",
+        "权限与 origin scope",
+        "Fresh Run 前冻结时间与不可变输入记录"
+      ],
+      "passAssertions": [
+        "全部冻结项真实存在",
+        "执行前核对实际加载 candidate 内容 hash",
+        "影响性依赖变化不会沿用旧 Qualification"
+      ]
+    },
+    {
+      "id": "F",
+      "name": "Fresh Run without Agent",
+      "initialStatus": "NOT_RUN",
+      "dependsOn": [
+        "E"
+      ],
+      "plan": "固定同一候选，分别用至少三个新的订单参数由普通 OpenDesk Runtime 独立执行，保存每次原始执行和 verifier。",
+      "requiredEvidence": [
+        "每次 candidate path/hash 与实际加载源码",
+        "新 orderId 与运行时 DOM Amount",
+        "执行入口、execution ID、core/Extension provenance",
+        "每次 read→fill 来源及 final verify",
+        "全程无 Agent 逐步控制/补救的调用与进程证据",
+        "每单 independent verifier"
+      ],
+      "passAssertions": [
+        "至少三个互不相同且不同于 Agent Golden 的订单",
+        "每次 Amount 在运行时产生且不同于 Golden Amount",
+        "三次完全相同 frozen candidate hash",
+        "每单 DOM amount = filled confirmation = submitted amount，submissionCount = 1，Status = Completed",
+        "没有 Agent 临场决策、locator 修复、JS 改写或网页补救"
+      ]
+    },
+    {
+      "id": "G",
+      "name": "Qualification",
+      "initialStatus": "NOT_RUN",
+      "dependsOn": [
+        "F"
+      ],
+      "plan": "复用既有 S12 Qualification，对同一冻结候选、三个 Fresh Run、Amount lineage 和 F1–F5 负例逐项审查，生成完整 Stage Review。",
+      "requiredEvidence": [
+        "同一候选 QualificationRecord",
+        "三个独立 verifier 原始输入/输出",
+        "F1–F5 注入、错误候选各自 hash、执行/拒绝及资格结果",
+        "完整 A–G Stage Review 与固定 evidence 引用"
+      ],
+      "passAssertions": [
+        "所有正例独立 verifier PASS",
+        "F1–F5 均以真实证据证明错误候选不能取得完整 Qualification PASS",
+        "实际注入、预期拒绝与非预期故障分开报告",
+        "A–G 和所有 Hard Gate 均 PASS 才结束"
+      ]
+    }
+  ],
+  "candidateFreeze": {
+    "requiredItems": [
+      "candidate path",
+      "candidate content hash",
+      "generation execution id",
+      "supported assumptions",
+      "required permissions",
+      "target website / origin scope",
+      "影响性依赖及其 hash",
+      "Runtime 入口/环境",
+      "上游产物版本关系"
+    ],
+    "contentHashRule": "对实际候选字节计算内容 hash；使用既有 CandidateManifest 格式。每次 Fresh Run 前后与冻结值相同，禁止仅核对文件名。",
+    "forbiddenAfterFreeze": [
+      "重新生成 candidate",
+      "修改 candidate",
+      "Agent 临场重写 locator",
+      "Agent 根据失败继续操作网页补救"
+    ],
+    "changeProtocol": "原 Fresh Run 判失败并留证 → 回到最早责任制作阶段 → 新 candidate hash → 重新冻结与 Qualification；旧结果不证明新候选。"
+  },
+  "freshRun": {
+    "minimumNewBusinessInputs": 3,
+    "sameCandidateHashRequired": true,
+    "agentStepDecisionAllowed": false,
+    "recipeMutationAllowed": false,
+    "amountRule": "每次 fixture 运行时产生 Amount，每个新订单的实值不同于首次 Agent Golden；示例 B/C/D 金额不作预设答案。",
+    "perRunEvidence": [
+      "orderId",
+      "candidatePath/hash",
+      "executionId",
+      "actual loaded entry/hash",
+      "DOM amount read source",
+      "actual confirmation amount",
+      "actual server submitted amount",
+      "submissionCount",
+      "final DOM status",
+      "independent verifier ref",
+      "Agent/JS mutation audit"
+    ],
+    "unknownOutcomeRule": "可能已输入/提交或 OUTCOME_UNKNOWN 时停止依赖动作，先独立观察结果；不重放前缀、不切换 backend 重复点击、不启动 Agent 补救。"
+  },
+  "negativeQualification": {
+    "owner": "现有 S12 Qualification 与已验收 Core 安全拒绝边界",
+    "baselineRule": "错误候选分别保存新路径/hash 和注入记录，不修改已冻结正例候选；使用独立受控订单/Tab 场景。没有真正注入或没有原始结果，不可记负例 PASS。",
+    "cases": [
+      {
+        "id": "F1",
+        "name": "硬编码首次金额",
+        "injection": "错误候选 confirmationAmount = 首次 Agent Golden 实值；对新订单执行",
+        "expectedCandidateVerdict": "FAIL",
+        "requiredEvidence": [
+          "错误源码/hash 与 constant 来源",
+          "新订单 DOM amount 不等于常量",
+          "实际 fill/submission/最终状态及独立 verifier",
+          "Qualification 拒绝与数据依赖错误归属"
+        ]
+      },
+      {
+        "id": "F2",
+        "name": "错误 Tab",
+        "injection": "错误候选指向另一个同名真实 Tab 或身份不足的目标",
+        "expectedCandidateVerdict": "REJECT_OR_FAIL",
+        "requiredEvidence": [
+          "两个真实 Tab 的完整身份与错误请求",
+          "Core/资格结构化拒绝",
+          "错误 Tab 无输入和无提交证据"
+        ],
+        "rule": "不能误操作后仅以金额正确宣称 PASS"
+      },
+      {
+        "id": "F3",
+        "name": "Stale Document",
+        "injection": "locate 后刷新真实页面，再执行旧 target",
+        "expectedCandidateVerdict": "REJECT_OR_FAIL",
+        "requiredEvidence": [
+          "locate 与旧新 document 身份",
+          "Browser Core STALE_TARGET 或已验证等价拒绝",
+          "dispatch/outcome 与无误提交证据"
+        ],
+        "rule": "不在 MCP/Recipe 层重新定位并执行来掩盖 Core 拒绝"
+      },
+      {
+        "id": "F4",
+        "name": "重复 Confirm",
+        "injection": "独立错误候选明确执行 Confirm、Confirm 两次",
+        "expectedCandidateVerdict": "FAIL",
+        "requiredEvidence": [
+          "错误源码/hash 和两个有意动作",
+          "实际服务端 submissionCount != 1 的独立 verifier",
+          "Qualification 因重复提交拒绝"
+        ],
+        "rule": "两次有意动作不是未知结果 retry；不绕过 Core 安全限制。若真实 fixture 未产生重复计数，则本要求尚未被证明，不能伪造或仅凭源码代替运行结果。"
+      },
+      {
+        "id": "F5",
+        "name": "缺少最终验证",
+        "injection": "错误候选完成输入/点击但缺少 Status = Completed 的最终验证",
+        "expectedCandidateVerdict": "NO_FULL_QUALIFICATION_PASS",
+        "requiredEvidence": [
+          "错误源码/hash 与缺失步骤",
+          "实际运行及 qualification 检查结果",
+          "即使点击 ACK/服务端结果存在，缺少 candidate final verification 仍不获完整 PASS"
+        ]
+      }
+    ]
+  },
+  "stageReview": {
+    "requiredFields": [
+      "Demo",
+      "Precondition",
+      "A. Real Codex → MCP → Browser",
+      "B. Authoritative Browser Agent Trace",
+      "C. Agent-to-Recipe transformation",
+      "D. Ordinary JS Recipe",
+      "E. Candidate Freeze",
+      "F. Fresh Run without Agent",
+      "G. Qualification",
+      "Last Confirmed Boundary",
+      "First Invalid / Unknown Boundary",
+      "Failure Owner",
+      "Candidate Path",
+      "Candidate Hash",
+      "Fresh Run Count",
+      "Same Hash Used",
+      "Agent Used During Fresh Run",
+      "Evidence",
+      "Preserve",
+      "Invalidate",
+      "Next Minimum Action"
+    ],
+    "failureOwnerConfidence": [
+      "CONFIRMED",
+      "SUSPECTED",
+      "UNKNOWN"
+    ],
+    "truthRule": "当前恢复索引仅导航；每阶段 verdict 必须有原始产物和 evidence。人工可读视图引用同版 JSON/hash，不能成为第二份执行真相。",
+    "notRunRule": "candidate 未产出则 path/hash=null；Fresh Run Count=0；Same Hash Used/Agent Used 未验收时为 null 并标 NOT_RUN，不把未知填成 yes/no 成功事实。实际运行后输出 yes/no。",
+    "handoffFields": [
+      "需求来源",
+      "提交 SHA",
+      "推送状态",
+      "相关未提交修改",
+      "已完成证据及证明限度",
+      "未完成验收",
+      "当前阻塞",
+      "最小接续动作"
+    ]
+  },
+  "hardGate": {
+    "preconditionMustPass": true,
+    "allStagesMustPass": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G"
+    ],
+    "conditions": [
+      {
+        "id": "H01",
+        "assertion": "真实 Codex 调用现有 OpenDesk MCP",
+        "stageRefs": [
+          "A"
+        ]
+      },
+      {
+        "id": "H02",
+        "assertion": "MCP 与 Recipe 共用 Demo 1 已验证的同一个 Browser Core",
+        "stageRefs": [
+          "A",
+          "D"
+        ]
+      },
+      {
+        "id": "H03",
+        "assertion": "真实 Browser Extension / DOM 执行",
+        "stageRefs": [
+          "A",
+          "F"
+        ]
+      },
+      {
+        "id": "H04",
+        "assertion": "真实运行时 DOM value read → fill",
+        "stageRefs": [
+          "A",
+          "B",
+          "F"
+        ]
+      },
+      {
+        "id": "H05",
+        "assertion": "Browser Agent Trace 是唯一 canonical Agent action truth",
+        "stageRefs": [
+          "B"
+        ]
+      },
+      {
+        "id": "H06",
+        "assertion": "真实 Agent Trace 成功进入现有自动化脚本工作流",
+        "stageRefs": [
+          "C"
+        ]
+      },
+      {
+        "id": "H07",
+        "assertion": "生成普通 OpenDesk JavaScript Recipe",
+        "stageRefs": [
+          "D"
+        ]
+      },
+      {
+        "id": "H08",
+        "assertion": "candidate hash 与全部冻结项固定",
+        "stageRefs": [
+          "E"
+        ]
+      },
+      {
+        "id": "H09",
+        "assertion": "至少三个新业务输入 Fresh Run，金额均不同于首次 Golden",
+        "stageRefs": [
+          "F"
+        ]
+      },
+      {
+        "id": "H10",
+        "assertion": "Fresh Run 无 Agent 逐步决策或补救，无 candidate 改写",
+        "stageRefs": [
+          "F"
+        ]
+      },
+      {
+        "id": "H11",
+        "assertion": "所有 Fresh Run 使用相同 candidate hash",
+        "stageRefs": [
+          "E",
+          "F"
+        ]
+      },
+      {
+        "id": "H12",
+        "assertion": "independent verifier 全部通过且每单 submissionCount=1",
+        "stageRefs": [
+          "A",
+          "F",
+          "G"
+        ]
+      },
+      {
+        "id": "H13",
+        "assertion": "F1–F5 错误候选全部不能获得完整 Qualification PASS",
+        "stageRefs": [
+          "G"
+        ]
+      },
+      {
+        "id": "H14",
+        "assertion": "Amount read 完整 lineage 可追溯至首次事实与每个 Fresh Run",
+        "stageRefs": [
+          "B",
+          "C",
+          "D",
+          "G"
+        ]
+      },
+      {
+        "id": "H15",
+        "assertion": "A–G 完整 Stage Review 真实有据",
+        "stageRefs": [
+          "G"
+        ]
+      }
+    ],
+    "missingEvidenceRule": "任何核心项缺真实 Evidence 时仅能 FAIL/BLOCKED/NOT_RUN；不用基本完成、理论可行、95%完成、大致通过。",
+    "completionRule": "仅完整 Demo 2 PASS 才把持续目标标 complete；初始化完成不关闭持续目标。",
+    "stopAfterPass": true,
+    "nextStageSuggestionOnly": "Demo 3 — Browser Human Demonstration Golden Demo；只建议，不自动实施。"
+  },
+  "requirementCoverage": [
+    {
+      "section": 1,
+      "refs": [
+        "precondition"
+      ]
+    },
+    {
+      "section": 2,
+      "refs": [
+        "architecture"
+      ]
+    },
+    {
+      "section": 3,
+      "refs": [
+        "architecture",
+        "A"
+      ]
+    },
+    {
+      "section": 4,
+      "refs": [
+        "architecture",
+        "A"
+      ]
+    },
+    {
+      "section": 5,
+      "refs": [
+        "goldenTask",
+        "A"
+      ]
+    },
+    {
+      "section": 6,
+      "refs": [
+        "authoritativeTrace",
+        "B"
+      ]
+    },
+    {
+      "section": 7,
+      "refs": [
+        "authoritativeTrace",
+        "B"
+      ]
+    },
+    {
+      "section": 8,
+      "refs": [
+        "goldenTask",
+        "authoritativeTrace",
+        "B"
+      ]
+    },
+    {
+      "section": 9,
+      "refs": [
+        "workflowReuse",
+        "C"
+      ]
+    },
+    {
+      "section": 10,
+      "refs": [
+        "goldenTask",
+        "C"
+      ]
+    },
+    {
+      "section": 11,
+      "refs": [
+        "C",
+        "D"
+      ]
+    },
+    {
+      "section": 12,
+      "refs": [
+        "amountLineage",
+        "C",
+        "G"
+      ]
+    },
+    {
+      "section": 13,
+      "refs": [
+        "D"
+      ]
+    },
+    {
+      "section": 14,
+      "refs": [
+        "candidateFreeze",
+        "E"
+      ]
+    },
+    {
+      "section": 15,
+      "refs": [
+        "freshRun",
+        "F"
+      ]
+    },
+    {
+      "section": 16,
+      "refs": [
+        "goldenTask",
+        "freshRun",
+        "F",
+        "G"
+      ]
+    },
+    {
+      "section": 17,
+      "refs": [
+        "negativeQualification",
+        "G"
+      ]
+    },
+    {
+      "section": 18,
+      "refs": [
+        "authoritativeTrace"
+      ]
+    },
+    {
+      "section": 19,
+      "refs": [
+        "scope"
+      ]
+    },
+    {
+      "section": 20,
+      "refs": [
+        "scope"
+      ]
+    },
+    {
+      "section": 21,
+      "refs": [
+        "stageReview"
+      ]
+    },
+    {
+      "section": 22,
+      "refs": [
+        "hardGate"
+      ]
+    },
+    {
+      "section": 23,
+      "refs": [
+        "hardGate"
+      ]
+    }
+  ]
+}

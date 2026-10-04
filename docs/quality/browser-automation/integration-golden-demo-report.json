@@ -1,0 +1,725 @@
+{
+  "name": "Demo 2 — OpenDesk Browser Integration Golden Demo",
+  "demoStatus": "PASS",
+  "precondition": {
+    "status": "PASS",
+    "sourceTaskId": "01a0fdba-5418-7150-a1e4-5a56a58b725b",
+    "coreCandidateId": "74d9700a9a7dbc30837e2b34ebba714473d8e3e3dbc5aeed736a00f31968169b",
+    "independentAudit": {
+      "kind": "ValidationReport",
+      "path": ".runtime/tests/browser-integration-golden-demo/precondition-1790965183997/prerequisite-review.json",
+      "rootId": "repo",
+      "sha256": "e040f34f4e2c0727c3cdc60940c0c56f40f3f2dd5e1f402b15f949c7b77e0da4",
+      "schemaVersion": "application/json"
+    },
+    "requiredNineEvidenceStatus": "PASS"
+  },
+  "stages": {
+    "A": "PASS",
+    "B": "PASS",
+    "C": "PASS",
+    "D": "PASS",
+    "E": "PASS",
+    "F": "PASS",
+    "G": "PASS"
+  },
+  "agentGolden": {
+    "status": "PASS",
+    "traceAudit": {
+      "status": "PASS",
+      "count": 19,
+      "uniqueCanonicalActions": 19,
+      "tracePath": "/Users/mac/Documents/workspace/clawdesk/.runtime/browser-executions/agent-golden-958ca407222849fcbaf9962a03057331/canonical-trace.ndjson",
+      "traceSha256": "8f723500a2c3e7b7594d1b20f74d44ad4345930cf9dbcf16e89fa9e2f55614d4"
+    },
+    "codexAudit": {
+      "status": "PASS",
+      "realCodexMCPCalls": 19,
+      "onlyExistingOpenDeskBrowserMCP": true,
+      "canonicalBindings": [
+        {
+          "codexItemId": "item_1",
+          "tool": "tm_browser_status",
+          "requestId": "f568847549f8bad87556e05d687285aa",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        },
+        {
+          "codexItemId": "item_2",
+          "tool": "tm_browser_tabs",
+          "requestId": "8502b66651883ff0191318e6c726a461",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        },
+        {
+          "codexItemId": "item_3",
+          "tool": "tm_browser_observe",
+          "requestId": "e4e325349ec8ea27e728691cb322044e",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        },
+        {
+          "codexItemId": "item_4",
+          "tool": "tm_browser_locate",
+          "requestId": "dc8e5a15c13d7c65cbd1f31ed09a1e79",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        },
+        {
+          "codexItemId": "item_5",
+          "tool": "tm_browser_locate",
+          "requestId": "5cb9410bf1295fd32ec8e612a7c9124c",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        },
+        {
+          "codexItemId": "item_6",
+          "tool": "tm_browser_locate",
+          "requestId": "f278452b2bd0fd0052eb74bc40d7a9c3",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        },
+        {
+          "codexItemId": "item_7",
+          "tool": "tm_browser_locate",
+          "requestId": "a2491d81e9327ef2a6827e3227eec4a3",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        },
+        {
+          "codexItemId": "item_8",
+          "tool": "tm_browser_locate",
+          "requestId": "19436f00f69440a790e3fbab5c343ca6",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        },
+        {
+          "codexItemId": "item_9",
+          "tool": "tm_browser_locate",
+          "requestId": "61c6ef8f9ddb4b4d8473bf0ef8fd08fd",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        },
+        {
+          "codexItemId": "item_11",
+          "tool": "tm_browser_act",
+          "requestId": "3582a782cc5c024de6aba95cb694015b",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        },
+        {
+          "codexItemId": "item_12",
+          "tool": "tm_browser_verify",
+          "requestId": "7daa827565f4e59255ed0597994b7448",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        },
+        {
+          "codexItemId": "item_13",
+          "tool": "tm_browser_act",
+          "requestId": "5c39667caa9d3eac313e330730581600",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        },
+        {
+          "codexItemId": "item_14",
+          "tool": "tm_browser_wait",
+          "requestId": "cae9d318a7327660eb4719eb4bd2ad58",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        },
+        {
+          "codexItemId": "item_15",
+          "tool": "tm_browser_read",
+          "requestId": "16226e115cec7c030e247074fb314c71",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        },
+        {
+          "codexItemId": "item_16",
+          "tool": "tm_browser_act",
+          "requestId": "661773126878a8505b497a67e65636b5",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        },
+        {
+          "codexItemId": "item_17",
+          "tool": "tm_browser_verify",
+          "requestId": "5298f385ef0673abbce8eaa270a316fa",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        },
+        {
+          "codexItemId": "item_19",
+          "tool": "tm_browser_act",
+          "requestId": "379ab43523fcaed80f9ce7673223db6e",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        },
+        {
+          "codexItemId": "item_20",
+          "tool": "tm_browser_wait",
+          "requestId": "df1c957fb7cdc41227a4f5e2bf7d4e2c",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        },
+        {
+          "codexItemId": "item_21",
+          "tool": "tm_browser_verify",
+          "requestId": "8aa6193d642d34f83c51d28f3c1398bb",
+          "executionId": "agent-golden-958ca407222849fcbaf9962a03057331"
+        }
+      ],
+      "codexEventsSha256": "be824388555105c0eddee5a3c1f899922b38d32ad4b5d8e1724ca06f06d90640"
+    },
+    "independentVerifier": {
+      "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S3-agent-golden-r001/independent-verifier.json",
+      "sha256": "47aa6088ad75f6de70589048535790d940d9274d872a33c2404c9f605aafcc09"
+    },
+    "evidenceRole": "Real Codex MCP Browser Agent Golden and source-bound canonical trace; future Recipe/Fresh Run not yet proven"
+  },
+  "goldenBusiness": {
+    "orderId": "INTEG_AGENT_0510af10d35a",
+    "domAmount": "596.96",
+    "confirmation": "596.96",
+    "serverRecordedAmount": "596.96",
+    "submissionCount": 1,
+    "finalStatus": "Completed"
+  },
+  "candidatePath": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S11-build-r001/order.recipe.js",
+  "candidateHash": "0492f858504d8a6116bc91554865979e7031192c2b2d21841b6442584b578543",
+  "generationExecutionId": "codex-task-01a0f903-7dcc-7470-99cd-dc45512ebe50/S11-build-r001",
+  "requiredPermissions": {
+    "BrowserDOM": true,
+    "origin": "http://127.0.0.1:51722",
+    "tab": 759147624,
+    "arbitraryEvaluate": false,
+    "backendOracleAccessByRecipe": false
+  },
+  "websiteScope": {
+    "origin": "http://127.0.0.1:51722",
+    "url": "http://127.0.0.1:51722/"
+  },
+  "frozenCandidateManifestRef": {
+    "kind": "CandidateManifest",
+    "path": "attempts/S11-build-r001/candidate.json",
+    "rootId": "task",
+    "sha256": "7b87713656d64d86f8ae73a53105705664a5db8d284447284d230c112c0681f3",
+    "schemaVersion": "agent-to-recipe/v1"
+  },
+  "freshRunCount": 3,
+  "sameHashUsed": true,
+  "agentUsedDuringFreshRun": false,
+  "freshRuns": [
+    {
+      "scenarioId": "fresh-B",
+      "status": "PASS",
+      "orderId": "INTEG_fresh_B_54a40b0584",
+      "amountDOM": "997.40",
+      "confirmationActual": "997.40",
+      "serverRecordedAmount": "997.40",
+      "submissionCount": 1,
+      "finalStatus": "Completed",
+      "candidateHash": "0492f858504d8a6116bc91554865979e7031192c2b2d21841b6442584b578543",
+      "executionId": "direct-20261003-171055-609000",
+      "agentUsedDuringRun": false,
+      "receiptPath": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S12-qualify-r001/fresh-B/run.json",
+      "verifierPath": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S12-qualify-r001/fresh-B/independent-verifier.json"
+    },
+    {
+      "scenarioId": "fresh-C",
+      "status": "PASS",
+      "orderId": "INTEG_fresh_C_fd5f5d2d2a",
+      "amountDOM": "215.03",
+      "confirmationActual": "215.03",
+      "serverRecordedAmount": "215.03",
+      "submissionCount": 1,
+      "finalStatus": "Completed",
+      "candidateHash": "0492f858504d8a6116bc91554865979e7031192c2b2d21841b6442584b578543",
+      "executionId": "direct-20261003-171057-433000",
+      "agentUsedDuringRun": false,
+      "receiptPath": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S12-qualify-r001/fresh-C/run.json",
+      "verifierPath": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S12-qualify-r001/fresh-C/independent-verifier.json"
+    },
+    {
+      "scenarioId": "fresh-D",
+      "status": "PASS",
+      "orderId": "INTEG_fresh_D_3f010ef26b",
+      "amountDOM": "64.57",
+      "confirmationActual": "64.57",
+      "serverRecordedAmount": "64.57",
+      "submissionCount": 1,
+      "finalStatus": "Completed",
+      "candidateHash": "0492f858504d8a6116bc91554865979e7031192c2b2d21841b6442584b578543",
+      "executionId": "direct-20261003-171059-223000",
+      "agentUsedDuringRun": false,
+      "receiptPath": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S12-qualify-r001/fresh-D/run.json",
+      "verifierPath": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S12-qualify-r001/fresh-D/independent-verifier.json"
+    }
+  ],
+  "F1F5": [
+    {
+      "id": "F1",
+      "testVerdict": "PASS",
+      "incorrectCandidateVerdict": "FAIL",
+      "primaryRejectedCriterion": "DOM runtime amount 313.27 was replaced by hardcoded first-run 596.96",
+      "evidence": "/Users/mac/Documents/workspace/clawdesk/.runtime/browser-executions/direct-20261003-172104-039000/canonical-trace.ndjson"
+    },
+    {
+      "id": "F2",
+      "testVerdict": "PASS",
+      "incorrectCandidateVerdict": "FAIL",
+      "primaryRejectedCriterion": "Host-bound permission rejects another same-name Tab before Core dispatch/input",
+      "evidence": "/Users/mac/Documents/workspace/clawdesk/.runtime/browser-executions/direct-20261003-172107-212000/canonical-trace.ndjson"
+    },
+    {
+      "id": "F3",
+      "testVerdict": "PASS",
+      "incorrectCandidateVerdict": "FAIL",
+      "primaryRejectedCriterion": "Core rejects old opaque target after actual document refresh as STALE_TARGET before input",
+      "evidence": "/Users/mac/Documents/workspace/clawdesk/.runtime/browser-executions/direct-20261003-172456-909000/canonical-trace.ndjson"
+    },
+    {
+      "id": "F4",
+      "testVerdict": "PASS",
+      "incorrectCandidateVerdict": "FAIL",
+      "primaryRejectedCriterion": "Independent server submissionCount = 2 instead of 1",
+      "evidence": "/Users/mac/Documents/workspace/clawdesk/.runtime/browser-executions/direct-20261003-172109-101000/canonical-trace.ndjson"
+    },
+    {
+      "id": "F5",
+      "testVerdict": "PASS",
+      "incorrectCandidateVerdict": "FAIL",
+      "primaryRejectedCriterion": "Missing actual candidate final DOM verify despite accepted server submission",
+      "evidence": "/Users/mac/Documents/workspace/clawdesk/.runtime/browser-executions/direct-20261003-172111-614000/canonical-trace.ndjson"
+    }
+  ],
+  "qualificationRef": {
+    "kind": "QualificationRecord",
+    "path": "attempts/S12-qualify-r001/qualification-r002.json",
+    "rootId": "task",
+    "sha256": "438d515f9cecc570a64d7fcea9d37fcc8812ba70ef79ad50e311317ad1e2d068",
+    "schemaVersion": "agent-to-recipe/v1"
+  },
+  "amountLineageRef": {
+    "kind": "ValidationReport",
+    "path": "attempts/S12-qualify-r001/amount-lineage.json",
+    "rootId": "task",
+    "sha256": "4ac7ed5d0180a6254400443ba3a0832d35a2db928c6a923086a608f755bab8f0",
+    "schemaVersion": "application/json"
+  },
+  "workflowStageReview": {
+    "kind": "StageReview",
+    "path": "checks/check-2026-10-03T09-45-53-244Z-f8fad42e/checker-result.json",
+    "rootId": "task",
+    "sha256": "5e09e67e78509b57186a418f650bce3f3d72195ed5e2e35efb660da71d46cd5d",
+    "schemaVersion": "stage-check/v1"
+  },
+  "workflowStages": {
+    "S1": {
+      "verdict": "pass",
+      "score": 100
+    },
+    "S2": {
+      "verdict": "pass",
+      "score": 95
+    },
+    "S3": {
+      "verdict": "pass",
+      "score": 100
+    },
+    "S4": {
+      "verdict": "pass",
+      "score": 100
+    },
+    "S5": {
+      "verdict": "pass",
+      "score": 100
+    },
+    "S6": {
+      "verdict": "pass",
+      "score": 100
+    },
+    "S7": {
+      "verdict": "pass",
+      "score": 100
+    },
+    "S8": {
+      "verdict": "pass",
+      "score": 100
+    },
+    "S9": {
+      "verdict": "pass",
+      "score": 100
+    },
+    "S10": {
+      "verdict": "pass",
+      "score": 100
+    },
+    "S11": {
+      "verdict": "pass",
+      "score": 100
+    },
+    "S12": {
+      "verdict": "pass",
+      "score": 100
+    }
+  },
+  "requirementCoverage": [
+    {
+      "criterionId": "H01",
+      "status": "pass",
+      "evidence": [
+        {
+          "kind": "ValidationReport",
+          "path": "attempts/S3-agent-golden-r001/agent-golden-review.json",
+          "rootId": "task",
+          "sha256": "c7b7ca58ab0bfb2eefdb65b3d1000fe72fe3242269407f929993698381c22d0b",
+          "schemaVersion": "application/json"
+        }
+      ]
+    },
+    {
+      "criterionId": "H02",
+      "status": "pass",
+      "evidence": [
+        {
+          "kind": "ValidationReport",
+          "path": ".runtime/tests/browser-integration-golden-demo/precondition-1790965183997/prerequisite-review.json",
+          "rootId": "repo",
+          "sha256": "e040f34f4e2c0727c3cdc60940c0c56f40f3f2dd5e1f402b15f949c7b77e0da4",
+          "schemaVersion": "application/json"
+        },
+        {
+          "kind": "CandidateManifest",
+          "path": "attempts/S11-build-r001/candidate.json",
+          "rootId": "task",
+          "sha256": "7b87713656d64d86f8ae73a53105705664a5db8d284447284d230c112c0681f3",
+          "schemaVersion": "agent-to-recipe/v1"
+        }
+      ]
+    },
+    {
+      "criterionId": "H03",
+      "status": "pass",
+      "evidence": [
+        {
+          "kind": "ValidationReport",
+          "path": "attempts/S3-agent-golden-r001/agent-golden-review.json",
+          "rootId": "task",
+          "sha256": "c7b7ca58ab0bfb2eefdb65b3d1000fe72fe3242269407f929993698381c22d0b",
+          "schemaVersion": "application/json"
+        },
+        {
+          "kind": "independent-fresh-run",
+          "path": "attempts/S12-qualify-r001/fresh-runs.json",
+          "rootId": "task",
+          "sha256": "c486ce4b7c599311db004d00b3d148b477478d12b684b4616ce37cda021df167",
+          "schemaVersion": "application/json"
+        }
+      ]
+    },
+    {
+      "criterionId": "H04",
+      "status": "pass",
+      "evidence": [
+        {
+          "kind": "ValidationReport",
+          "path": "attempts/S12-qualify-r001/amount-lineage.json",
+          "rootId": "task",
+          "sha256": "4ac7ed5d0180a6254400443ba3a0832d35a2db928c6a923086a608f755bab8f0",
+          "schemaVersion": "application/json"
+        },
+        {
+          "kind": "ValidationReport",
+          "path": "attempts/S3-agent-golden-r001/agent-golden-review.json",
+          "rootId": "task",
+          "sha256": "c7b7ca58ab0bfb2eefdb65b3d1000fe72fe3242269407f929993698381c22d0b",
+          "schemaVersion": "application/json"
+        },
+        {
+          "kind": "independent-fresh-run",
+          "path": "attempts/S12-qualify-r001/fresh-runs.json",
+          "rootId": "task",
+          "sha256": "c486ce4b7c599311db004d00b3d148b477478d12b684b4616ce37cda021df167",
+          "schemaVersion": "application/json"
+        }
+      ]
+    },
+    {
+      "criterionId": "H05",
+      "status": "pass",
+      "evidence": [
+        {
+          "kind": "ValidationReport",
+          "path": "attempts/S3-agent-golden-r001/agent-golden-review.json",
+          "rootId": "task",
+          "sha256": "c7b7ca58ab0bfb2eefdb65b3d1000fe72fe3242269407f929993698381c22d0b",
+          "schemaVersion": "application/json"
+        }
+      ]
+    },
+    {
+      "criterionId": "H06",
+      "status": "pass",
+      "evidence": [
+        {
+          "kind": "DistilledSteps",
+          "path": "attempts/S7-distill-r001/distilled-steps.json",
+          "rootId": "task",
+          "sha256": "def58ce3113a18c0ca7582bdea089386d2f6af8ea13254f53734a83060b580b4",
+          "schemaVersion": "agent-to-recipe/v1"
+        },
+        {
+          "kind": "SemanticProcedure",
+          "path": "attempts/S9-procedure-r001/procedure.json",
+          "rootId": "task",
+          "sha256": "3a9ff897462a8b606fecc2fbf733b6e8997551b0180e806dfe5bfcdc2d053153",
+          "schemaVersion": "agent-to-recipe/v1"
+        }
+      ]
+    },
+    {
+      "criterionId": "H07",
+      "status": "pass",
+      "evidence": [
+        {
+          "kind": "CandidateManifest",
+          "path": "attempts/S11-build-r001/candidate.json",
+          "rootId": "task",
+          "sha256": "7b87713656d64d86f8ae73a53105705664a5db8d284447284d230c112c0681f3",
+          "schemaVersion": "agent-to-recipe/v1"
+        },
+        {
+          "kind": "CandidateSource",
+          "path": "attempts/S11-build-r001/order.recipe.js",
+          "rootId": "task",
+          "sha256": "0492f858504d8a6116bc91554865979e7031192c2b2d21841b6442584b578543",
+          "schemaVersion": "javascript/script"
+        }
+      ]
+    },
+    {
+      "criterionId": "H08",
+      "status": "pass",
+      "evidence": [
+        {
+          "kind": "CandidateFreeze",
+          "path": "attempts/S11-build-r001/freeze.json",
+          "rootId": "task",
+          "sha256": "3536e5ae335de4713c2d3c5730fea0cfec4b8c47e41d12b6752f7557f9772e59",
+          "schemaVersion": "agent-to-recipe/v1"
+        },
+        {
+          "kind": "CandidateManifest",
+          "path": "attempts/S11-build-r001/candidate.json",
+          "rootId": "task",
+          "sha256": "7b87713656d64d86f8ae73a53105705664a5db8d284447284d230c112c0681f3",
+          "schemaVersion": "agent-to-recipe/v1"
+        }
+      ]
+    },
+    {
+      "criterionId": "H09",
+      "status": "pass",
+      "evidence": [
+        {
+          "kind": "independent-fresh-run",
+          "path": "attempts/S12-qualify-r001/fresh-runs.json",
+          "rootId": "task",
+          "sha256": "c486ce4b7c599311db004d00b3d148b477478d12b684b4616ce37cda021df167",
+          "schemaVersion": "application/json"
+        }
+      ]
+    },
+    {
+      "criterionId": "H10",
+      "status": "pass",
+      "evidence": [
+        {
+          "kind": "independent-fresh-run",
+          "path": "attempts/S12-qualify-r001/fresh-runs.json",
+          "rootId": "task",
+          "sha256": "c486ce4b7c599311db004d00b3d148b477478d12b684b4616ce37cda021df167",
+          "schemaVersion": "application/json"
+        },
+        {
+          "kind": "CandidateSource",
+          "path": "attempts/S11-build-r001/order.recipe.js",
+          "rootId": "task",
+          "sha256": "0492f858504d8a6116bc91554865979e7031192c2b2d21841b6442584b578543",
+          "schemaVersion": "javascript/script"
+        }
+      ]
+    },
+    {
+      "criterionId": "H11",
+      "status": "pass",
+      "evidence": [
+        {
+          "kind": "independent-fresh-run",
+          "path": "attempts/S12-qualify-r001/fresh-runs.json",
+          "rootId": "task",
+          "sha256": "c486ce4b7c599311db004d00b3d148b477478d12b684b4616ce37cda021df167",
+          "schemaVersion": "application/json"
+        },
+        {
+          "kind": "CandidateFreeze",
+          "path": "attempts/S11-build-r001/freeze.json",
+          "rootId": "task",
+          "sha256": "3536e5ae335de4713c2d3c5730fea0cfec4b8c47e41d12b6752f7557f9772e59",
+          "schemaVersion": "agent-to-recipe/v1"
+        }
+      ]
+    },
+    {
+      "criterionId": "H12",
+      "status": "pass",
+      "evidence": [
+        {
+          "kind": "ValidationReport",
+          "path": "attempts/S3-agent-golden-r001/agent-golden-review.json",
+          "rootId": "task",
+          "sha256": "c7b7ca58ab0bfb2eefdb65b3d1000fe72fe3242269407f929993698381c22d0b",
+          "schemaVersion": "application/json"
+        },
+        {
+          "kind": "independent-fresh-run",
+          "path": "attempts/S12-qualify-r001/fresh-runs.json",
+          "rootId": "task",
+          "sha256": "c486ce4b7c599311db004d00b3d148b477478d12b684b4616ce37cda021df167",
+          "schemaVersion": "application/json"
+        }
+      ]
+    },
+    {
+      "criterionId": "H13",
+      "status": "pass",
+      "evidence": [
+        {
+          "kind": "ValidationReport",
+          "path": "attempts/S12-qualify-r001/all-negatives.json",
+          "rootId": "task",
+          "sha256": "05b9aa9838986cae777ece3ea084e896e9b538b1312fd7476c58e27bbafb6c85",
+          "schemaVersion": "application/json"
+        }
+      ]
+    },
+    {
+      "criterionId": "H14",
+      "status": "pass",
+      "evidence": [
+        {
+          "kind": "ValidationReport",
+          "path": "attempts/S12-qualify-r001/amount-lineage.json",
+          "rootId": "task",
+          "sha256": "4ac7ed5d0180a6254400443ba3a0832d35a2db928c6a923086a608f755bab8f0",
+          "schemaVersion": "application/json"
+        }
+      ]
+    },
+    {
+      "criterionId": "H15",
+      "status": "pass",
+      "evidence": [
+        {
+          "kind": "QualificationRecord",
+          "path": "attempts/S12-qualify-r001/qualification-r002.json",
+          "rootId": "task",
+          "sha256": "438d515f9cecc570a64d7fcea9d37fcc8812ba70ef79ad50e311317ad1e2d068",
+          "schemaVersion": "agent-to-recipe/v1"
+        },
+        {
+          "kind": "ValidationReport",
+          "path": "attempts/S3-agent-golden-r001/agent-golden-review.json",
+          "rootId": "task",
+          "sha256": "c7b7ca58ab0bfb2eefdb65b3d1000fe72fe3242269407f929993698381c22d0b",
+          "schemaVersion": "application/json"
+        },
+        {
+          "kind": "independent-fresh-run",
+          "path": "attempts/S12-qualify-r001/fresh-runs.json",
+          "rootId": "task",
+          "sha256": "c486ce4b7c599311db004d00b3d148b477478d12b684b4616ce37cda021df167",
+          "schemaVersion": "application/json"
+        },
+        {
+          "kind": "ValidationReport",
+          "path": "attempts/S12-qualify-r001/all-negatives.json",
+          "rootId": "task",
+          "sha256": "05b9aa9838986cae777ece3ea084e896e9b538b1312fd7476c58e27bbafb6c85",
+          "schemaVersion": "application/json"
+        }
+      ]
+    }
+  ],
+  "changes": {
+    "nativeOwner": "automation/browser_dom.go + embedded browser_core_adapter.mjs imports the same existing Core Client",
+    "mcp": "Existing cmd/opendesk-mcp/pkg/mcpserver; eight orthogonal tools; structured Core error/outcome preserved",
+    "canonicalTruth": "One Browser execution owner canonical action per actual request; Core protocol terminal facts are references, no Recorder re-recording",
+    "workflow": "Existing S1-S12/Artifact/Validator/Gate/Qualification; minimal source projection and maintained exact-byte Browser consumer adapter",
+    "bounds": "Finite artifact read budget increased for the actual 122278784-byte Node executable dependency; binary hash not omitted"
+  },
+  "validation": {
+    "nativeBuilds": "Current CLI and existing MCP builds passed",
+    "publicRuntimeJS": "Disabled contract, real read-only, actual mutation/source-bound restore and observed-ready wait/read/verify passed; failed first wait retained",
+    "MCPPackageRegression": "PASS",
+    "workflowRegression": {
+      "passed": 339,
+      "failed": 0
+    },
+    "apiNavigation": "PASS; known unrelated old canonical gaps remain reported by existing docs checker",
+    "apiDocsContract": "PASS",
+    "gitDiffCheck": "PASS",
+    "testArchitectureAudit": {
+      "status": "FAIL",
+      "limitation": "15 existing unclassified Go tests; this task new pkg/mcpserver/browser_test.go registered. No foreign tests removed or silently classified."
+    }
+  },
+  "visualEvidence": {
+    "goldenCompleted": {
+      "kind": "Image",
+      "path": "attempts/S3-agent-golden-r001/golden-completed.jpg",
+      "rootId": "task",
+      "sha256": "4c9d309a793a4f03bef6955176032792ce85ab921200ae1d293dac745cf82a34",
+      "schemaVersion": "image/jpeg"
+    },
+    "currentAfterF3Refresh": {
+      "kind": "Image",
+      "path": "attempts/S12-qualify-r001/final-real-window.jpg",
+      "rootId": "task",
+      "sha256": "fd407df5109de6d69690a093cf30f770e97f8f7f7b2db4b05f07da9dd60fa47c",
+      "schemaVersion": "image/jpeg"
+    },
+    "limitation": "The final refreshed view is Ready/empty as required for stale-document injection; it is not used as a screenshot claim of the three prior completed runs. Their real DOM/independent server evidence is retained."
+  },
+  "deliveryStatus": {
+    "codeModified": true,
+    "actuallyLoaded": true,
+    "visualConfirmed": "Actual controlled browser windows viewed; pure DOM target strategy, no product UI redesign",
+    "functionsVerified": true,
+    "actualCLI": ".runtime/tests/browser-integration-golden-demo/bin/opendesk",
+    "actualMCP": ".runtime/tests/browser-integration-golden-demo/bin/opendesk-mcp",
+    "signedDistAppChanged": false,
+    "productionDistributionQualified": false
+  },
+  "lastConfirmedBoundary": "Same frozen ordinary JS completed three new orders through real Core/Extension/DOM, independent verifier count=1, and all F1-F5 incorrect candidates rejected; existing S1-S12 final qualification allowed=true",
+  "firstInvalidOrUnknownBoundary": null,
+  "failureOwner": {
+    "confidence": "CONFIRMED",
+    "owner": "Controlled negative injection owners; no unresolved Demo 2 hard-gate failure"
+  },
+  "preserve": [
+    "Core original evidence/source",
+    "Unique Agent canonical trace",
+    "All authoring versions/failed attempts",
+    "Frozen candidate/dependency bytes",
+    "All fresh and negative run evidence",
+    "Other tasks uncommitted changes"
+  ],
+  "invalidate": [
+    "Old incomplete/blocked Demo 2 state",
+    "Qualification cannot transfer to changed source/dependency/permission",
+    "Incorrect candidates remain qualification FAIL"
+  ],
+  "nextMinimumAction": "Stop Demo 2. Only suggest Demo 3 Browser Human Demonstration Golden Demo; do not implement it.",
+  "knownLimitations": [
+    "macOS + Chrome, fixed loopback fixture origin/Tab and finite Core API only",
+    "Requires verified installed Core in this local workspace and Node; no general distribution/packaging pass",
+    "No eval/CSS/full ARIA/shadow DOM/cross origin/upload/download",
+    "No Human Recorder or Browser+Desktop cross-surface implementation",
+    "Two originally referenced Core plan/architecture files remained absent and were recorded; no invented contents or PASS"
+  ],
+  "git": {
+    "branch": "master",
+    "sha": "877c852acca28b4658d01fd727b37b883b4792d1",
+    "commit": "No commit performed",
+    "push": "No push performed"
+  },
+  "timestamp": "2026-10-03T10:06:27.303578+00:00",
+  "finalAudit": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-integration-golden-demo/final-audit.json",
+  "cleanup": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-integration-golden-demo/cleanup-confirmed.json",
+  "completionStop": "Owned Demo2 Browser tabs, Broker and fixture stopped; existing Core installation and all evidence preserved"
+}
