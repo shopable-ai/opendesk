@@ -1,0 +1,457 @@
+{
+  "conclusion": "Demo3 BLOCKED：Demo2 准入未通过",
+  "demoStatus": "BLOCKED",
+  "name": "OpenDesk Browser Demo3 准入核验",
+  "requirementSource": "本任务用户请求：OpenDesk Browser Demo3：真实人工演示 → 可审阅记录 → 可重复运行的普通 JavaScript",
+  "auditedAt": "2026-10-04T10:45:14.181235+00:00",
+  "scope": "只读核验 Demo2 当前冻结产物与历史原始证据。未执行新的 Browser 业务动作，未构建，未新增 Demo3 功能。",
+  "prerequisite": [
+    {
+      "id": "D2-01",
+      "name": "明确入口运行实际普通 OpenDesk JavaScript Recipe",
+      "status": "PASS",
+      "scope": "Demo2 历史固定绑定范围",
+      "basis": "三份原始 run receipt、canonical trace 和独立 verifier 均对应同一冻结 order.recipe.js，未由 Demo1 golden 代跑。"
+    },
+    {
+      "id": "D2-02",
+      "name": "新会话自动取得并校验当前页面绑定",
+      "status": "FAIL",
+      "basis": "冻结源码第 19/23 行、manifest 和 qualification.mjs 的 entryArgs 均固定旧 origin/Tab。",
+      "evidenceRefs": [
+        {
+          "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S11-build-r001/order.recipe.js",
+          "sha256": "0492f858504d8a6116bc91554865979e7031192c2b2d21841b6442584b578543",
+          "bytes": 4938
+        },
+        {
+          "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S11-build-r001/candidate.json",
+          "sha256": "7b87713656d64d86f8ae73a53105705664a5db8d284447284d230c112c0681f3",
+          "bytes": 21793
+        },
+        {
+          "path": "/Users/mac/Documents/workspace/clawdesk/tests/browser-integration-golden-demo/qualification.mjs",
+          "sha256": "4a5ca052fe9ddac49c3037e0b5826bcb12e89546fcd9865616295463b6e2e229",
+          "bytes": 6198
+        }
+      ]
+    },
+    {
+      "id": "D2-03",
+      "name": "同一冻结 Recipe 在新 Demo 会话完成新订单并独立核对",
+      "status": "NOT_RUN",
+      "basis": "已有三单的 fixtureInstance、brokerSession、browserSession、connectionEpoch、Tab、document 全部相同；未取得重启、更换端口和重建 Tab 后的同候选结果。"
+    },
+    {
+      "id": "D2-04",
+      "name": "验收证据对应当前源码、执行依赖和实际结果",
+      "status": "PASS",
+      "scope": "Demo2 原固定绑定资格范围，不能扩展为跨会话",
+      "basis": "当前源码及 59 项依赖匹配冻结 hash；120 处原始 response/Core terminal 引用一致；read→fill→独立服务端结果仍可核对。",
+      "evidenceRef": {
+        "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-human-demonstration-demo/prerequisite-20261004T104514Z-11a4f0be/integrity.json",
+        "sha256": "6f9de80f230f44d195ce8bfa7d4205ea150d5adb7440e9e9c76a2ede01ac205d",
+        "bytes": 75012
+      }
+    }
+  ],
+  "firstInvalidBoundary": {
+    "owner": "Demo2 启动/会话绑定入口与 Candidate 环境假设",
+    "expected": "新会话由既有入口自动取得受控页面当前绑定，校验后执行同一冻结 Recipe；用户无需编辑端口、Tab 或业务代码。",
+    "actual": "冻结 Recipe 要求 origin=http://127.0.0.1:51722、tab=759147624；公开命令与资格工具使用相同旧绑定。",
+    "sourceLines": [
+      {
+        "line": 19,
+        "text": "      context.origin !== 'http://127.0.0.1:51722' || context.tab !== 759147624) {"
+      },
+      {
+        "line": 23,
+        "text": "  if (tabs.filter(function (tab) { return tab.tab === context.tab && tab.url === 'http://127.0.0.1:51722/'; }).length !== 1) {"
+      }
+    ],
+    "evidenceRefs": [
+      {
+        "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S11-build-r001/order.recipe.js",
+        "sha256": "0492f858504d8a6116bc91554865979e7031192c2b2d21841b6442584b578543",
+        "bytes": 4938
+      },
+      {
+        "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S11-build-r001/candidate.json",
+        "sha256": "7b87713656d64d86f8ae73a53105705664a5db8d284447284d230c112c0681f3",
+        "bytes": 21793
+      },
+      {
+        "path": "/Users/mac/Documents/workspace/clawdesk/tests/browser-integration-golden-demo/qualification.mjs",
+        "sha256": "4a5ca052fe9ddac49c3037e0b5826bcb12e89546fcd9865616295463b6e2e229",
+        "bytes": 6198
+      }
+    ],
+    "liveRestartFailureObserved": false,
+    "classification": "源码/冻结合同与准入条件冲突；本轮未启动失效注入，不把静态审阅写成实际运行失败。"
+  },
+  "historicalDemo2Results": [
+    {
+      "status": "PASS",
+      "scope": "Historical Demo2, 2026-10-03 fixed binding; no new live run in this audit",
+      "orderId": "INTEG_fresh_B_54a40b0584",
+      "domReadAmount": "997.40",
+      "confirmationActual": "997.40",
+      "serverRecordedAmount": "997.40",
+      "submissionCount": 1,
+      "finalStatus": "Completed",
+      "fixtureInstance": "13272777-7534-4f01-967f-6b87887f4465",
+      "browserIdentity": {
+        "brokerSession": "4801e720-3663-4569-bbad-0691b585ced7",
+        "browserSession": "b6b2a4fc-6f1e-423b-9e4b-547d0c9febff",
+        "connectionEpoch": "a6724634-2717-41e8-a1be-61a9060189d7",
+        "document": "6F91FBF4247504F74D43989BE5BF91C9",
+        "elementIdentity": "f3762bc6-bc28-42f0-9312-960acd2ee4ff",
+        "frame": 0,
+        "semanticRevision": "0:0:http://127.0.0.1:51722/",
+        "tab": 759147624
+      },
+      "candidateHash": "0492f858504d8a6116bc91554865979e7031192c2b2d21841b6442584b578543",
+      "actualCommand": ".runtime/tests/browser-integration-golden-demo/bin/opendesk -allow-browser -browser-core-root /Users/mac/Documents/workspace/clawdesk -browser-origin http://127.0.0.1:51722 -browser-tab 759147624 -script .runtime/automation-authoring/browser-integration-golden-demo/attempts/S11-build-r001/order.recipe.js -console-mode script",
+      "executionId": "direct-20261003-171055-609000",
+      "agentUsedForStepDecision": false,
+      "readRequestId": "804ba4c670bcb589fd0ae7a539b336df",
+      "fillRequestId": "dc527d7a1e324b683fd02a8718c89e58",
+      "confirmRequestIds": [
+        "0a9f0667ad4e3156bce0dcfa864c4372"
+      ],
+      "finalVerificationRequestIds": [
+        "750e8900b556d3d072b1bee308c6c4bf"
+      ],
+      "checks": {
+        "receipt": true,
+        "readToFill": true,
+        "independentResult": true,
+        "canonicalTrace": true
+      },
+      "evidenceRefs": [
+        {
+          "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S12-qualify-r001/fresh-B/run.json",
+          "sha256": "35ea5db15e40e62d5ac7c7bac8dccb8983033216bd83d4608272fefc63ee7b43",
+          "bytes": 1372
+        },
+        {
+          "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S12-qualify-r001/fresh-B/independent-verifier.json",
+          "sha256": "5370acc35c15550e5c3c087e7d795351eed62c69d324d4be29a2401774eee4d8",
+          "bytes": 1722
+        },
+        {
+          "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/browser-executions/direct-20261003-171055-609000/canonical-trace.ndjson",
+          "sha256": "668437fbad2fc6abda185f9487cfcea1f7e30e6aba539c14f0902a69e3732714",
+          "bytes": 73829
+        }
+      ]
+    },
+    {
+      "status": "PASS",
+      "scope": "Historical Demo2, 2026-10-03 fixed binding; no new live run in this audit",
+      "orderId": "INTEG_fresh_C_fd5f5d2d2a",
+      "domReadAmount": "215.03",
+      "confirmationActual": "215.03",
+      "serverRecordedAmount": "215.03",
+      "submissionCount": 1,
+      "finalStatus": "Completed",
+      "fixtureInstance": "13272777-7534-4f01-967f-6b87887f4465",
+      "browserIdentity": {
+        "brokerSession": "4801e720-3663-4569-bbad-0691b585ced7",
+        "browserSession": "b6b2a4fc-6f1e-423b-9e4b-547d0c9febff",
+        "connectionEpoch": "a6724634-2717-41e8-a1be-61a9060189d7",
+        "document": "6F91FBF4247504F74D43989BE5BF91C9",
+        "elementIdentity": "f3762bc6-bc28-42f0-9312-960acd2ee4ff",
+        "frame": 0,
+        "semanticRevision": "0:0:http://127.0.0.1:51722/",
+        "tab": 759147624
+      },
+      "candidateHash": "0492f858504d8a6116bc91554865979e7031192c2b2d21841b6442584b578543",
+      "actualCommand": ".runtime/tests/browser-integration-golden-demo/bin/opendesk -allow-browser -browser-core-root /Users/mac/Documents/workspace/clawdesk -browser-origin http://127.0.0.1:51722 -browser-tab 759147624 -script .runtime/automation-authoring/browser-integration-golden-demo/attempts/S11-build-r001/order.recipe.js -console-mode script",
+      "executionId": "direct-20261003-171057-433000",
+      "agentUsedForStepDecision": false,
+      "readRequestId": "86ef7329e70089c317f164f0fc122c84",
+      "fillRequestId": "931adcf4e51a4f923e9534550c722769",
+      "confirmRequestIds": [
+        "bc299871726ebc36494a1894a9fc8c01"
+      ],
+      "finalVerificationRequestIds": [
+        "caa9cf7db7df642866214d4c34671530"
+      ],
+      "checks": {
+        "receipt": true,
+        "readToFill": true,
+        "independentResult": true,
+        "canonicalTrace": true
+      },
+      "evidenceRefs": [
+        {
+          "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S12-qualify-r001/fresh-C/run.json",
+          "sha256": "b30647f5b9ad094cd3cdb978cdf41fb840667df4710c525da6603b52a7532bce",
+          "bytes": 1372
+        },
+        {
+          "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S12-qualify-r001/fresh-C/independent-verifier.json",
+          "sha256": "0a1b29aa6d2dc42e2c542f13454cb15227e435d14064de5719253d76fb5eb1ca",
+          "bytes": 1722
+        },
+        {
+          "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/browser-executions/direct-20261003-171057-433000/canonical-trace.ndjson",
+          "sha256": "f93f68dd1ac14ab6d4bde86e4cf28dbbebf6f1bc959fefdf2293f9d4a0ae7115",
+          "bytes": 73869
+        }
+      ]
+    },
+    {
+      "status": "PASS",
+      "scope": "Historical Demo2, 2026-10-03 fixed binding; no new live run in this audit",
+      "orderId": "INTEG_fresh_D_3f010ef26b",
+      "domReadAmount": "64.57",
+      "confirmationActual": "64.57",
+      "serverRecordedAmount": "64.57",
+      "submissionCount": 1,
+      "finalStatus": "Completed",
+      "fixtureInstance": "13272777-7534-4f01-967f-6b87887f4465",
+      "browserIdentity": {
+        "brokerSession": "4801e720-3663-4569-bbad-0691b585ced7",
+        "browserSession": "b6b2a4fc-6f1e-423b-9e4b-547d0c9febff",
+        "connectionEpoch": "a6724634-2717-41e8-a1be-61a9060189d7",
+        "document": "6F91FBF4247504F74D43989BE5BF91C9",
+        "elementIdentity": "f3762bc6-bc28-42f0-9312-960acd2ee4ff",
+        "frame": 0,
+        "semanticRevision": "0:0:http://127.0.0.1:51722/",
+        "tab": 759147624
+      },
+      "candidateHash": "0492f858504d8a6116bc91554865979e7031192c2b2d21841b6442584b578543",
+      "actualCommand": ".runtime/tests/browser-integration-golden-demo/bin/opendesk -allow-browser -browser-core-root /Users/mac/Documents/workspace/clawdesk -browser-origin http://127.0.0.1:51722 -browser-tab 759147624 -script .runtime/automation-authoring/browser-integration-golden-demo/attempts/S11-build-r001/order.recipe.js -console-mode script",
+      "executionId": "direct-20261003-171059-223000",
+      "agentUsedForStepDecision": false,
+      "readRequestId": "1186342fbff0c22ec45b902651994060",
+      "fillRequestId": "9ea4e779c1bb9a4ae126822e5ef148f9",
+      "confirmRequestIds": [
+        "c2b7d2081d15814a1031b2e197712b4c"
+      ],
+      "finalVerificationRequestIds": [
+        "3a18d6112f584a08006d7fc05e9f000a"
+      ],
+      "checks": {
+        "receipt": true,
+        "readToFill": true,
+        "independentResult": true,
+        "canonicalTrace": true
+      },
+      "evidenceRefs": [
+        {
+          "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S12-qualify-r001/fresh-D/run.json",
+          "sha256": "3ee35f381835b49bb49982ba691bb33efd60cd5b02284825d783e55e95de8e91",
+          "bytes": 1372
+        },
+        {
+          "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S12-qualify-r001/fresh-D/independent-verifier.json",
+          "sha256": "1f46f0ed02c5dcb64f5c0b059302b9c210800cd8a3b8ae5f4bca2b82b9a0ed2b",
+          "bytes": 1713
+        },
+        {
+          "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/browser-executions/direct-20261003-171059-223000/canonical-trace.ndjson",
+          "sha256": "4a1dd5cc7c9b93a740132db6455a45f45b4122fda4b802129d537fe9e51ca93a",
+          "bytes": 73881
+        }
+      ]
+    }
+  ],
+  "distinctHistoricalSessionBindingCount": 1,
+  "candidate": {
+    "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S11-build-r001/order.recipe.js",
+    "sha256": "0492f858504d8a6116bc91554865979e7031192c2b2d21841b6442584b578543",
+    "frozenAt": "2026-10-03T08:43:22.700079+00:00",
+    "manifestRef": {
+      "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/automation-authoring/browser-integration-golden-demo/attempts/S11-build-r001/candidate.json",
+      "sha256": "7b87713656d64d86f8ae73a53105705664a5db8d284447284d230c112c0681f3",
+      "bytes": 21793
+    },
+    "snapshotRef": {
+      "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-human-demonstration-demo/prerequisite-20261004T104514Z-11a4f0be/demo2-candidate.snapshot.js",
+      "sha256": "0492f858504d8a6116bc91554865979e7031192c2b2d21841b6442584b578543",
+      "bytes": 4938
+    },
+    "note": "这是保留的 Demo2 候选，不是本次 Demo3 生成物。"
+  },
+  "preserve": [
+    "Demo1 Browser Core、现有 Browser 执行 owner、普通 JavaScript 入口与共同制作流程。",
+    "Demo2 原 Agent Trace、制作链、冻结源码/依赖及固定绑定范围内三单结果和历史拒绝证据；本轮未重新验证全部上游 gate。",
+    "仓库现有未提交修改和全部历史证据。"
+  ],
+  "nextMinimumAction": [
+    "回到 Demo2 的既有启动/运行入口修当前会话绑定：从受控 Demo 会话取得当前 origin 和完整目标身份，校验唯一性、页面身份和授权后交给同一 Browser Core；缺失、歧义、失效或断连时明确停止，不猜活动 Tab。",
+    "移除候选中旧录制会话端口/Tab 的固定假设，保留真实 DOM read→fill、单次 Confirm、最终 DOM 验证和独立 Oracle。沿现有 S10/S11/S12 修受影响下游，重新冻结源码及关键执行依赖。",
+    "用同一新冻结 Recipe 关闭/重启后完成新订单；至少一次更换服务端口、重建目标 Tab，并逐单核对 DOM/实际填写/服务端金额、提交次数及 Completed。",
+    "取得有效 Demo2 收尾证据后再进入 Demo3 人工录制；不重做或改写已有有效事实。"
+  ],
+  "acceptance": [
+    {
+      "item": "Demo2 准入",
+      "status": "BLOCKED",
+      "basis": "固定端口/Tab；同候选跨会话证据缺失。"
+    },
+    {
+      "item": "真实人工演示",
+      "status": "NOT_RUN",
+      "basis": "尚未取得用户本次真实操作记录。"
+    },
+    {
+      "item": "录制功能",
+      "status": "NOT_RUN",
+      "basis": "准入受阻；本轮未新增或验收开始、状态、停止、保存与查看。"
+    },
+    {
+      "item": "记录可判断",
+      "status": "NOT_RUN",
+      "basis": "本次 Demonstration 未产生。"
+    },
+    {
+      "item": "来源可追溯",
+      "status": "NOT_RUN",
+      "basis": "本次 Candidate 未产生。"
+    },
+    {
+      "item": "数据依赖正确",
+      "status": "NOT_RUN",
+      "basis": "Demo3 未生成/运行；Demo2 历史 read→fill 有效不等于此项通过。"
+    },
+    {
+      "item": "独立复跑",
+      "status": "NOT_RUN",
+      "basis": "本次两轮六单均未执行。"
+    },
+    {
+      "item": "结果独立核对",
+      "status": "NOT_RUN",
+      "basis": "本次六单无结果可核对。"
+    },
+    {
+      "item": "错误可发现",
+      "status": "NOT_RUN",
+      "basis": "本次缺失依据、固定金额、目标失效及断连场景均未测试；不能移植旧通过结论。"
+    },
+    {
+      "item": "人工交付",
+      "status": "BLOCKED",
+      "basis": "尚无通过本轮验收的录制、审阅、生成、运行与重启复测入口。"
+    }
+  ],
+  "humanExperience": {
+    "status": "BLOCKED",
+    "instruction": "尚无已验证的 Demo3 体验入口。先解除 Demo2 准入阻塞；不要求用户手改旧端口/Tab。",
+    "demonstrationRef": null,
+    "frozenDemo3RecipeRef": null,
+    "humanDemonstrationSummary": null
+  },
+  "demo3FreshRuns": [
+    {
+      "session": 1,
+      "orderSlot": 1,
+      "status": "NOT_RUN",
+      "orderId": null,
+      "domReadAmount": null,
+      "confirmationActual": null,
+      "serverRecordedAmount": null,
+      "submissionCount": null,
+      "finalStatus": null
+    },
+    {
+      "session": 1,
+      "orderSlot": 2,
+      "status": "NOT_RUN",
+      "orderId": null,
+      "domReadAmount": null,
+      "confirmationActual": null,
+      "serverRecordedAmount": null,
+      "submissionCount": null,
+      "finalStatus": null
+    },
+    {
+      "session": 1,
+      "orderSlot": 3,
+      "status": "NOT_RUN",
+      "orderId": null,
+      "domReadAmount": null,
+      "confirmationActual": null,
+      "serverRecordedAmount": null,
+      "submissionCount": null,
+      "finalStatus": null
+    },
+    {
+      "session": 2,
+      "orderSlot": 1,
+      "status": "NOT_RUN",
+      "orderId": null,
+      "domReadAmount": null,
+      "confirmationActual": null,
+      "serverRecordedAmount": null,
+      "submissionCount": null,
+      "finalStatus": null
+    },
+    {
+      "session": 2,
+      "orderSlot": 2,
+      "status": "NOT_RUN",
+      "orderId": null,
+      "domReadAmount": null,
+      "confirmationActual": null,
+      "serverRecordedAmount": null,
+      "submissionCount": null,
+      "finalStatus": null
+    },
+    {
+      "session": 2,
+      "orderSlot": 3,
+      "status": "NOT_RUN",
+      "orderId": null,
+      "domReadAmount": null,
+      "confirmationActual": null,
+      "serverRecordedAmount": null,
+      "submissionCount": null,
+      "finalStatus": null
+    }
+  ],
+  "executionSummary": {
+    "newBusinessOrdersExecuted": 0,
+    "humanDemonstrationsCaptured": 0,
+    "liveBrowserTestsRun": false,
+    "buildRun": false,
+    "historicalEvidenceReused": true
+  },
+  "requestGateQuotes": [
+    "在新会话中取得并校验当前页面绑定，不要求用户修改端口、Tab 或业务代码。",
+    "缺少关键准入条件时：明确输出“Demo3 BLOCKED：Demo2 准入未通过”，指出缺失条件、已有证据和下一最小修复动作。",
+    "不得一边继续新增 Demo3 功能，一边把这个缺口默认标为通过。"
+  ],
+  "businessRule": "确认金额必须消费本次从页面实际读取的金额，不能使用演示时的固定金额。",
+  "evidenceIntegrityRef": {
+    "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-human-demonstration-demo/prerequisite-20261004T104514Z-11a4f0be/integrity.json",
+    "sha256": "6f9de80f230f44d195ce8bfa7d4205ea150d5adb7440e9e9c76a2ede01ac205d",
+    "bytes": 75012
+  },
+  "upstreamReportRef": {
+    "path": "/Users/mac/Documents/workspace/clawdesk/docs/quality/browser-automation/integration-golden-demo-report.json",
+    "sha256": "2ca8f98cf2c1a1e8e3848b94adf4959f4a982b1c59a6394f69bd7047f48c848e",
+    "bytes": 27642
+  },
+  "upstreamCleanupRef": {
+    "path": "/Users/mac/Documents/workspace/clawdesk/.runtime/tests/browser-integration-golden-demo/cleanup-confirmed.json",
+    "sha256": "0943900d836f25a33751379a5c9e5f37ac06642ab85e52ffedd37bbc4e4ca16e",
+    "bytes": 281
+  },
+  "doNotInfer": [
+    "历史同会话三单 PASS 不代表重启后自动绑定、换端口/重建 Tab 已通过。",
+    "只读审计不表示当前 Chrome/Host 已启动或加载。",
+    "修改源码、关键执行依赖或授权绑定后旧资格不转移。"
+  ],
+  "git": {
+    "branch": "master",
+    "sha": "877c852acca28b4658d01fd727b37b883b4792d1",
+    "commitState": "not committed by this task",
+    "pushState": "not pushed by this task",
+    "preexistingChangesPreserved": true
+  }
+}
