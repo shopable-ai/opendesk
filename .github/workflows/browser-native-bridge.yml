@@ -25,10 +25,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
       - name: Native framing, authentication, socket and install tests
-        run: go test -count=1 ./internal/browserbridge ./internal/browsercli
+        run: go test -v -timeout=90s -count=1 ./internal/browserbridge ./internal/browsercli

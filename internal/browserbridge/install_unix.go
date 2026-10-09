@@ -145,9 +145,14 @@ func validateManifest(file string,cfg Installation) error {
 	var m map[string]json.RawMessage
 	if json.Unmarshal(b,&m)!=nil{return errors.New("E_MANIFEST_CONFLICT")}
 	expected:=expectedManifest(cfg)
-	for _,key:=range []string{"name","path","type","allowed_origins"}{
+	for _,key:=range []string{"name","path","type"}{
 		want,_:=json.Marshal(expected[key])
 		if string(m[key])!=string(want){return errors.New("E_MANIFEST_CONFLICT")}
+	}
+	var origins []string
+	if err:=json.Unmarshal(m["allowed_origins"],&origins);err!=nil ||
+		len(origins)!=1 || origins[0]!="chrome-extension://"+cfg.ExtensionID+"/"{
+		return errors.New("E_MANIFEST_CONFLICT")
 	}
 	return nil
 }
@@ -173,6 +178,9 @@ func Setup(extensionID,browser,userDataDir,executable string) (map[string]any,er
 		return nil,errors.New("E_EXECUTABLE")
 	}
 	root:=installRoot()
+	if len(filepath.Join(root,"agent.sock"))>=104{
+		return nil,errors.New("E_SOCKET_PATH")
+	}
 	if err=ensureDir(filepath.Dir(root));err!=nil{return nil,err}
 	if err=ensureDir(root);err!=nil{return nil,err}
 	cfg:=Installation{Name:HostName,ExtensionID:extensionID,Browser:browser,UserDataDir:userDataDir,
