@@ -17,7 +17,14 @@ import (
 const testExtensionID="abcdefghijklmnopabcdefghijklmnop"
 func testHost(t *testing.T) (*Host,*io.PipeWriter,*io.PipeReader,string) {
 	t.Helper()
-	root:=t.TempDir()
+	root,err:=os.MkdirTemp("","od-host-")
+	if err!=nil{t.Fatal(err)}
+	t.Cleanup(func(){_ = os.RemoveAll(root)})
+	if err=os.Chmod(root,0700);err!=nil{t.Fatal(err)}
+	if err=requireDir(root);err!=nil{
+		info,_:=os.Lstat(root)
+		t.Fatalf("host directory rejected: %v, mode=%s uid=%d",err,info.Mode(),os.Getuid())
+	}
 	socket:=filepath.Join(root,"agent.sock")
 	cfg:=Installation{Name:HostName,ExtensionID:testExtensionID,ClientCredential:strings.Repeat("a",64),
 		InstallRoot:root,SocketPath:socket,Provider:"opendesk"}
@@ -126,7 +133,14 @@ func TestProviderReverseRequestsAndDisconnect(t *testing.T) {
 	if String(sf,"kind")!="dev.state" || Bool(sf,"connected"){t.Fatalf("disconnect: %s",state)}
 }
 func TestHostNeverDeletesExistingSocket(t *testing.T) {
-	root:=t.TempDir()
+	root,err:=os.MkdirTemp("","od-host-")
+	if err!=nil{t.Fatal(err)}
+	t.Cleanup(func(){_ = os.RemoveAll(root)})
+	if err=os.Chmod(root,0700);err!=nil{t.Fatal(err)}
+	if err=requireDir(root);err!=nil{
+		info,_:=os.Lstat(root)
+		t.Fatalf("host directory rejected: %v, mode=%s uid=%d",err,info.Mode(),os.Getuid())
+	}
 	socket:=filepath.Join(root,"agent.sock")
 	if err:=os.WriteFile(socket,[]byte("preserve"),0600);err!=nil{t.Fatal(err)}
 	cfg:=Installation{Name:HostName,ExtensionID:testExtensionID,ClientCredential:strings.Repeat("a",64),
