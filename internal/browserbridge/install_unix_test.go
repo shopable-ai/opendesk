@@ -11,7 +11,7 @@ import (
 )
 
 func TestFreshInstallRejectsLegacyAndPreservesOtherHosts(t *testing.T) {
-	home,err:=os.MkdirTemp("","od-inst-")
+	home,err:=os.MkdirTemp("/tmp","od-inst-")
 	if err!=nil{t.Fatal(err)}
 	t.Cleanup(func(){_ = os.RemoveAll(home)})
 	if err=os.Chmod(home,0700);err!=nil{t.Fatal(err)}
