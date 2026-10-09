@@ -1,0 +1,34 @@
+name: Browser Native Messaging Go bridge
+
+on:
+  push:
+    paths:
+      - "internal/browserbridge/**"
+      - "internal/browsercli/**"
+      - "cmd/opendesk/main.go"
+      - ".github/workflows/browser-native-bridge.yml"
+  pull_request:
+    paths:
+      - "internal/browserbridge/**"
+      - "internal/browsercli/**"
+      - "cmd/opendesk/main.go"
+      - ".github/workflows/browser-native-bridge.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  transport:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Native framing, authentication, socket and install tests
+        run: go test -count=1 ./internal/browserbridge ./internal/browsercli

@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"opendesk/automation"
 	"opendesk/internal/aicli"
+	"opendesk/internal/browsercli"
 	"opendesk/internal/appcli"
 	"opendesk/internal/flowcli"
 	"opendesk/internal/licensecli"
@@ -234,6 +235,9 @@ func bundledAppModePathForExecutable(executable, platform string) string {
 
 func init() {
 	args := commandLineArgs()
+	if browsercli.IsCommand(args) {
+		return // Chrome stdio must not acquire AppKit/desktop initialization
+	}
 	if automation.MacOSRegionSelectorHelperRequested(args) || appModeRequested(args) || bundledAppModePath() != "" {
 		// Pin the primordial process thread before Go can schedule main
 		// elsewhere. AppKit must own that thread for selector and App Mode
@@ -408,9 +412,12 @@ var isAutoRunJs bool = false
 
 func main() {
 	normalizeMacOSLaunchServicesArgs()
+	args := commandLineArgs()
+	if browsercli.IsCommand(args) {
+		os.Exit(browsercli.Execute(args, os.Stdout, os.Stderr))
+	}
 	normalizeMacOSBundleLaunchWorkingDirectory()
 	os.Stdout.Sync()
-	args := commandLineArgs()
 	if appcli.IsCommand(args) {
 		os.Exit(appcli.Execute(args, os.Stdout, os.Stderr))
 	}
