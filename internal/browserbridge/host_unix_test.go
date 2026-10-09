@@ -26,13 +26,27 @@ func testHost(t *testing.T) (*Host,*io.PipeWriter,*io.PipeReader,string) {
 	host,err:=NewHost(cfg,"chrome-extension://"+testExtensionID+"/",input,output)
 	if err!=nil{t.Fatal(err)}
 	done:=make(chan error,1)
-	go func(){done<-host.Run()}()
+	go func(){
+		err:=host.Run()
+		if err!=nil{_ = output.CloseWithError(err)} else {_ = output.Close()}
+		done<-err
+	}()
 	t.Cleanup(func(){
 		host.Close();extensionWrite.Close();extensionRead.Close();output.Close()
 		select{case <-done:case <-time.After(time.Second):t.Error("host failed to exit")}
 	})
-	raw,err:=ReadFrame(extensionRead)
-	if err!=nil{t.Fatal(err)}
+	type firstResult struct{raw []byte;err error}
+	first:=make(chan firstResult,1)
+	go func(){raw,err:=ReadFrame(extensionRead);first<-firstResult{raw,err}}()
+	var raw []byte
+	select{
+	case frame:=<-first:
+		if frame.err!=nil{t.Fatalf("native host failed before hello: %v",frame.err)}
+		raw=frame.raw
+	case <-time.After(5*time.Second):
+		t.Fatal("native host never sent hello")
+	}
+	var err error
 	f,_:=Decode(raw)
 	if String(f,"kind")!="hello"{t.Fatalf("initial frame %s",raw)}
 	return host,extensionWrite,extensionRead,socket
