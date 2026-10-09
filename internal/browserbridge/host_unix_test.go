@@ -46,7 +46,6 @@ func testHost(t *testing.T) (*Host,*io.PipeWriter,*io.PipeReader,string) {
 	case <-time.After(5*time.Second):
 		t.Fatal("native host never sent hello")
 	}
-	var err error
 	f,_:=Decode(raw)
 	if String(f,"kind")!="hello"{t.Fatalf("initial frame %s",raw)}
 	return host,extensionWrite,extensionRead,socket
