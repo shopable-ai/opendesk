@@ -33,3 +33,26 @@ jobs:
           go-version-file: go.mod
       - name: Native framing, authentication, socket and install tests
         run: go test -v -timeout=90s -count=1 ./internal/browserbridge ./internal/browsercli
+
+  installed-macos-host:
+    name: Real OpenDesk executable against simulated Chrome
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Build the same distributable binary used by App Mode
+        shell: bash
+        run: APP_MODE_PACKAGE= SKIP_CODESIGN=1 ./scripts/build_macos_app.sh
+      - uses: actions/checkout@v4
+        with:
+          repository: shopable-ai/opendesk-browser
+          ref: c4633bf19e4a66523d37a607d6ed611e98dc267b
+          path: opendesk-browser-fixture
+      - name: Chrome Native framing, installer and CLI process smoke
+        shell: bash
+        env:
+          OPENDESK_BROWSER_BINARY: ${{ github.workspace }}/dist/OpenDesk.app/Contents/MacOS/opendesk
+        run: node --test opendesk-browser-fixture/tests/environment/opendesk-native-provider.test.mjs
