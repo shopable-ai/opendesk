@@ -1,6 +1,8 @@
 # OpenDesk 原生接管 Chrome Native Messaging（实施 R1）
 
-日期：2026-10-10。状态：**源码候选已实现；跨实现与真实 Chrome 验收未完成时，不声明生产切换成功。**
+日期：2026-10-10。状态：**Go Host 源码实现 + Linux/macOS 单元验证 PASS + macOS 发行二进制模拟 Chrome 互通 PASS；真实 Chrome 与旧安装迁移仍未验收。**
+
+当次可核验候选：OpenDesk `41311e8bab78c71645958abd090f6e71a697cac2`、Browser 测试驱动 `c4633bf19e4a66523d37a607d6ed611e98dc267b`。证据：[GitHub Actions #37980235403](https://github.com/shopable-ai/opendesk/actions/runs/37980235403)：`transport (ubuntu-latest)`、`transport (macos-latest)`、`Real OpenDesk executable against simulated Chrome` 全部 PASS。此处的“Chrome”是帧协议**模拟客户端**，没有实际浏览器页面、网站授权、Sidebar 任务或 Node→Go 生产安装切换证据。
 
 适用：`shopable-ai/opendesk` 的 `opendesk browser` 子命令及 `shopable-ai/opendesk-browser` 的现有 Chrome 扩展。架构前置审计见 Browser 仓库 `docs/architecture/browser-framework/opendesk-native-takeover-r1.zh-CN.md`。
 
