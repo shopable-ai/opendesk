@@ -1,0 +1,181 @@
+{
+  "sourceCommit": "34649d24ee821298f586abba257e9e41b89a4cec",
+  "scope": "affected Go packages, CLI fixture and module dependency locks",
+  "files": [
+    {
+      "path": "go.mod",
+      "sha256": "7190d49047545191c002cf681e6a7ee4009c24f2092dcd234eb587f9bfe8ae2d",
+      "bytes": 3549
+    },
+    {
+      "path": "go.sum",
+      "sha256": "2be5272e7c7860c2598c4cbbe4ea1dc4059e7f595dd1bdc49bbd934e8eefc8aa",
+      "bytes": 83165
+    },
+    {
+      "path": "internal/browserbridge/client.go",
+      "sha256": "734c747adbcc22cd0e50ad1faadd5840575ea2ad4ba0e41e5dceeba4fa7fa207",
+      "bytes": 3159
+    },
+    {
+      "path": "internal/browserbridge/client_unix_test.go",
+      "sha256": "30633d956c1a1de3dc70dc94bebf5838ca5fb8e72c49e3a444d43b33b95c31a1",
+      "bytes": 3339
+    },
+    {
+      "path": "internal/browserbridge/dev_workspace_unix.go",
+      "sha256": "2e0e3aeecfd1cd543a4901305c480aaed9b20e909e53b568322ee1412171ac48",
+      "bytes": 9861
+    },
+    {
+      "path": "internal/browserbridge/dev_workspace_unix_test.go",
+      "sha256": "b14e2f60b4793c7f0c289a4081030da424f0b34c34b9b64be44fcb0542706fe9",
+      "bytes": 28267
+    },
+    {
+      "path": "internal/browserbridge/files_protocol.go",
+      "sha256": "aee8918a58a3a4bdeb9048b861edb5dd17a81e4ae31d9c3805dacfff8e622002",
+      "bytes": 3479
+    },
+    {
+      "path": "internal/browserbridge/files_service_unix.go",
+      "sha256": "4f6ef66de76aa2dc298251472241aab8563507865a76014a00f421142dbe91cf",
+      "bytes": 20779
+    },
+    {
+      "path": "internal/browserbridge/files_unix_test.go",
+      "sha256": "df847fc16a02f02d377ef636d3ec670820d79f6f20da74b8ec1e37845d0ebadd",
+      "bytes": 18009
+    },
+    {
+      "path": "internal/browserbridge/host_ai_unix.go",
+      "sha256": "bf1271259979cdee513789a3cce8a1a28ca028752f8e064918d1c23f4463ea15",
+      "bytes": 1617
+    },
+    {
+      "path": "internal/browserbridge/host_ai_unix_test.go",
+      "sha256": "afee56470749e28e90f802aaf5913d51648b8da70e3f4552cb59e6ad56d903ef",
+      "bytes": 4054
+    },
+    {
+      "path": "internal/browserbridge/host_dev_multi_unix.go",
+      "sha256": "a4fefe52e3e2226bef518499a7215ebfe24c6fd6cd53d04f0ae75d6e9a36f45c",
+      "bytes": 18422
+    },
+    {
+      "path": "internal/browserbridge/host_dev_multi_unix_test.go",
+      "sha256": "09edb10b3a1c3fabea732c7a2eeb993d45927b1251a652b6041278591d58da3a",
+      "bytes": 17151
+    },
+    {
+      "path": "internal/browserbridge/host_files_unix.go",
+      "sha256": "b3904e8a43929eafdd702220241bf74a82d80eed5f516a226f0ab39482a42f42",
+      "bytes": 958
+    },
+    {
+      "path": "internal/browserbridge/host_shutdown_test.go",
+      "sha256": "961fb34d8755dae1ce1a27d7bc76d9154dc8537725f9f9014736fe99a2458ade",
+      "bytes": 2923
+    },
+    {
+      "path": "internal/browserbridge/host_unix.go",
+      "sha256": "34dd2ded25dc40cef2d65d6c62ce4ea017654795f2b2183d459c2038a41fb37e",
+      "bytes": 17874
+    },
+    {
+      "path": "internal/browserbridge/host_unix_test.go",
+      "sha256": "e539e731fbc368aaaeff7c6081e2e6fe5f455b5ff404c2ba92ec6cb516713605",
+      "bytes": 6401
+    },
+    {
+      "path": "internal/browserbridge/install_unix.go",
+      "sha256": "b5777a2f118410cac3d0c994d431795e02d94ec287f1185c039aa5bc66d543cd",
+      "bytes": 13801
+    },
+    {
+      "path": "internal/browserbridge/install_unix_test.go",
+      "sha256": "27b8f2e6a55af03ca041393b620432d2d29909b68bf4844074aae7978aa1f51f",
+      "bytes": 5831
+    },
+    {
+      "path": "internal/browserbridge/project_notification_unix_test.go",
+      "sha256": "cc6c9551af4684b4ca00affb2d67bc5de0df962946ad4fc69b3a673c04b6c21c",
+      "bytes": 2533
+    },
+    {
+      "path": "internal/browserbridge/project_notify_unix.go",
+      "sha256": "19acad718b8d1c03637f55018a3c05f490d389b739ff8605d05317f969fcc47e",
+      "bytes": 1242
+    },
+    {
+      "path": "internal/browserbridge/project_provider_unix_test.go",
+      "sha256": "50c7d31efe004d4d8612628dbe41acc0a68541f2e6ae9cfa49c833ee33265113",
+      "bytes": 4747
+    },
+    {
+      "path": "internal/browserbridge/project_store_unix.go",
+      "sha256": "f8ff07828005a969f09ec0b4e4b180d7a5c7466b86c12e539fba96163b7a980a",
+      "bytes": 10965
+    },
+    {
+      "path": "internal/browserbridge/project_store_unix_test.go",
+      "sha256": "a1626c66d59480dde7cadfcff8c576597568006f1293ed18075059f84f475925",
+      "bytes": 5425
+    },
+    {
+      "path": "internal/browserbridge/unsupported.go",
+      "sha256": "9cc0f57f79905dc2abdd4182d3e6b53b6b578f8bb71d39a26f12b97e39137a7c",
+      "bytes": 1691
+    },
+    {
+      "path": "internal/browserbridge/wire.go",
+      "sha256": "e438bd8ade85f00ddfa9d551c00c4d789edd00408a819202c5be0178022d924d",
+      "bytes": 4949
+    },
+    {
+      "path": "internal/browserbridge/wire_test.go",
+      "sha256": "0d71ff102844685b0e328ad8b16691922da88ed52bf615d69dfb1a6958d27744",
+      "bytes": 1879
+    },
+    {
+      "path": "internal/browserbridge/workspace_store_unix.go",
+      "sha256": "e87ce4a043acdce0069ea0b70636e2884980cc3dfd511e3e66dcbfa70bf1401f",
+      "bytes": 11503
+    },
+    {
+      "path": "internal/browsercli/command.go",
+      "sha256": "9ca6732568d3027968588c298934571ede1042dece7a046b8b134682253ce9c8",
+      "bytes": 9778
+    },
+    {
+      "path": "internal/browsercli/command_test.go",
+      "sha256": "fb7e9c8c404e3a32cdc8fe8238d384bb6a8675f55f2bba77551866aa68a1fd13",
+      "bytes": 2930
+    },
+    {
+      "path": "internal/browsercli/dev_unix.go",
+      "sha256": "b927a51c674a00d13b85e77843a863a56c803515ef74c99eb48e3ef3642a5720",
+      "bytes": 6831
+    },
+    {
+      "path": "internal/browsercli/dev_unix_test.go",
+      "sha256": "64f70aac3731d5250927d85029021fcce74e5b73c605d1fcc4cc8f4236fabfc3",
+      "bytes": 4514
+    },
+    {
+      "path": "internal/browsercli/dev_unsupported.go",
+      "sha256": "b13191f2d67771fe90b0c2bdcdd061763b95068bed479b259d8029d6142c919f",
+      "bytes": 824
+    },
+    {
+      "path": "internal/browsercli/workspace_test.go",
+      "sha256": "468651fa29ba81ec3d1a35d1ea2b263928390134d1d393d9f35ff3b753fa78b3",
+      "bytes": 2235
+    },
+    {
+      "path": "tests/browser-native-files/tools/native-host/main.go",
+      "sha256": "c3cb8657851e52880feb67cf6c7a4c54cda493d13d89f2974a2e34bbe2141236",
+      "bytes": 375
+    }
+  ]
+}

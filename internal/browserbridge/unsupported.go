@@ -36,3 +36,6 @@ func ProjectAdd(string,string,string,string) (map[string]any,error) {return nil,
 func ProjectList() (map[string]any,error) {return nil,errPlatform}
 func ProjectRevoke(string) (map[string]any,error) {return nil,errPlatform}
 func ResolveProject(string) (map[string]any,error) {return nil,errPlatform}
+func WorkspaceAdd(string,string) (map[string]any,error) {return nil,errPlatform}
+func WorkspaceList() (map[string]any,error) {return nil,errPlatform}
+func WorkspaceRevoke(string) (map[string]any,error) {return nil,errPlatform}

@@ -111,10 +111,54 @@ func doCall(method string, opts map[string]string, timeout time.Duration) (json.
 	return json.RawMessage(reply), nil
 }
 func Execute(args []string,stdout,stderr io.Writer) int {
-	if !IsCommand(args) || len(args)<2{
-		return exitError(stderr,errors.New("E_CAPABILITY: browser [setup|update|doctor|cleanup|native-host|bridge.status|target.current|script.save|run.start|run.get|run.stop|page.preview|page.get|page.dispose|request.get]"))
+    if !IsCommand(args) {
+        return exitError(stderr,errors.New("E_CAPABILITY: browser [dev|setup|update|doctor|cleanup|native-host|workspace|project|ai|bridge.status|target.current|run.start|run.get|run.stop]"))
+    }
+    if len(args)==1 {return runBrowserDev(nil,stdout,stderr)}
+    command,rest:=args[1],args[2:]
+    if command=="help"||command=="--help"||command=="-h" {
+        if len(rest)!=0{return exitError(stderr,browserbridge.ErrSchema)}
+        _,_=io.WriteString(stdout,devHelp)
+        return 0
+    }
+    if command=="--version"||command=="-V"||command=="version" {
+        if len(rest)!=0{return exitError(stderr,browserbridge.ErrSchema)}
+        _,_=io.WriteString(stdout,"OpenDesk Browser CLI R17\n")
+        return 0
+    }
+    if command=="dev" {return runBrowserDev(rest,stdout,stderr)}
+    if command=="--read-only" {return runBrowserDev(args[1:],stdout,stderr)}
+	if command=="workspace" {
+		if len(rest)==0 || rest[0]=="help" || rest[0]=="--help" {
+			writeJSON(stdout,map[string]any{"commands":[]string{
+				"opendesk browser workspace add --path /absolute/existing/directory --access read-write",
+				"opendesk browser workspace add --path /absolute/existing/directory --access read-only",
+				"opendesk browser workspace list",
+				"opendesk browser workspace revoke --workspace-id <workspace-id>",
+			},"note":"Grant an explicit existing directory from this trusted local CLI. Native requests cannot add grants. The extension receives opaque IDs, not local paths."})
+			return 0
+		}
+		action,fields:=rest[0],rest[1:]
+		var result map[string]any
+		var err error
+		switch action {
+		case "list":
+			if len(fields)!=0{return exitError(stderr,browserbridge.ErrSchema)}
+			result,err=browserbridge.WorkspaceList()
+		case "add":
+			opts,parseErr:=parseOptions(fields,map[string]bool{"--path":true,"--access":true})
+			if parseErr!=nil{return exitError(stderr,parseErr)}
+			result,err=browserbridge.WorkspaceAdd(opts["--path"],opts["--access"])
+		case "revoke":
+			opts,parseErr:=parseOptions(fields,map[string]bool{"--workspace-id":true})
+			if parseErr!=nil{return exitError(stderr,parseErr)}
+			result,err=browserbridge.WorkspaceRevoke(opts["--workspace-id"])
+		default:
+			return exitError(stderr,errors.New("E_CAPABILITY: workspace [add|list|revoke|help]"))
+		}
+		if err!=nil{return exitError(stderr,err)}
+		writeJSON(stdout,result);return 0
 	}
-	command,rest:=args[1],args[2:]
 	if command=="ai" {
 		if len(rest)!=1||rest[0]!="doctor"{return exitError(stderr,errors.New("E_CAPABILITY: browser ai doctor"))}
 		manager:=browserai.NewManager(browserai.Options{});defer manager.Close()

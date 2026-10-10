@@ -1,0 +1,84 @@
+=== RUN   TestR17TemporaryWorkspacesAreScopedReadOnlyAndIndependent
+--- PASS: TestR17TemporaryWorkspacesAreScopedReadOnlyAndIndependent (0.03s)
+=== RUN   TestR17PermanentWorkspaceNeverBecomesTemporary
+--- PASS: TestR17PermanentWorkspaceNeverBecomesTemporary (0.01s)
+=== RUN   TestR17WritableTemporaryDirectoryTwoRoundsAndEpochReplay
+--- PASS: TestR17WritableTemporaryDirectoryTwoRoundsAndEpochReplay (0.03s)
+=== RUN   TestR17EffectiveAccessAndReadOnlyConflicts
+=== RUN   TestR17EffectiveAccessAndReadOnlyConflicts/temporary-ro-remains-ro
+=== RUN   TestR17EffectiveAccessAndReadOnlyConflicts/temporary-rw-refuses-ro
+=== RUN   TestR17EffectiveAccessAndReadOnlyConflicts/temporary-rw-duplicate
+=== RUN   TestR17EffectiveAccessAndReadOnlyConflicts/permanent-ro-default-rw
+=== RUN   TestR17EffectiveAccessAndReadOnlyConflicts/permanent-rw-refuses-ro
+=== RUN   TestR17EffectiveAccessAndReadOnlyConflicts/permanent-rw-legacy-reuse
+=== RUN   TestR17EffectiveAccessAndReadOnlyConflicts/permanent-rw-explicit-reuse
+--- PASS: TestR17EffectiveAccessAndReadOnlyConflicts (0.05s)
+    --- PASS: TestR17EffectiveAccessAndReadOnlyConflicts/temporary-ro-remains-ro (0.01s)
+    --- PASS: TestR17EffectiveAccessAndReadOnlyConflicts/temporary-rw-refuses-ro (0.01s)
+    --- PASS: TestR17EffectiveAccessAndReadOnlyConflicts/temporary-rw-duplicate (0.01s)
+    --- PASS: TestR17EffectiveAccessAndReadOnlyConflicts/permanent-ro-default-rw (0.01s)
+    --- PASS: TestR17EffectiveAccessAndReadOnlyConflicts/permanent-rw-refuses-ro (0.01s)
+    --- PASS: TestR17EffectiveAccessAndReadOnlyConflicts/permanent-rw-legacy-reuse (0.01s)
+    --- PASS: TestR17EffectiveAccessAndReadOnlyConflicts/permanent-rw-explicit-reuse (0.01s)
+=== RUN   TestR17PermanentGrantRevokeAndLeaseReleaseFence
+--- PASS: TestR17PermanentGrantRevokeAndLeaseReleaseFence (0.01s)
+=== RUN   TestR17PermanentChangeDoesNotLeaveTemporaryWriteOverride
+--- PASS: TestR17PermanentChangeDoesNotLeaveTemporaryWriteOverride (0.01s)
+=== RUN   TestR17ExplicitPermanentAccessChangeInvalidatesOldCLIView
+--- PASS: TestR17ExplicitPermanentAccessChangeInvalidatesOldCLIView (0.01s)
+=== RUN   TestR17ExplicitAbsentLeaseFencesAttachBeforeSave
+--- PASS: TestR17ExplicitAbsentLeaseFencesAttachBeforeSave (0.01s)
+=== RUN   TestR17WorkspacePermissionABARejectsRetiredLease
+=== RUN   TestR17WorkspacePermissionABARejectsRetiredLease/permanent/observed
+=== RUN   TestR17WorkspacePermissionABARejectsRetiredLease/permanent/between-requests
+=== RUN   TestR17WorkspacePermissionABARejectsRetiredLease/temporary/observed
+=== RUN   TestR17WorkspacePermissionABARejectsRetiredLease/temporary/between-requests
+--- PASS: TestR17WorkspacePermissionABARejectsRetiredLease (2.12s)
+    --- PASS: TestR17WorkspacePermissionABARejectsRetiredLease/permanent/observed (0.02s)
+    --- PASS: TestR17WorkspacePermissionABARejectsRetiredLease/permanent/between-requests (1.03s)
+    --- PASS: TestR17WorkspacePermissionABARejectsRetiredLease/temporary/observed (0.02s)
+    --- PASS: TestR17WorkspacePermissionABARejectsRetiredLease/temporary/between-requests (1.04s)
+=== RUN   TestR17DevLeaseMetadataIsNotAuthorization
+--- PASS: TestR17DevLeaseMetadataIsNotAuthorization (0.01s)
+=== RUN   TestR17DevLeaseMetadataFailureGrantsNoAccess
+--- PASS: TestR17DevLeaseMetadataFailureGrantsNoAccess (0.01s)
+=== RUN   TestR17UnchangedPermanentGrantKeepsActiveLease
+--- PASS: TestR17UnchangedPermanentGrantKeepsActiveLease (0.01s)
+=== RUN   TestNativeFilesActualReadWriteCreateAndPrivateListing
+--- PASS: TestNativeFilesActualReadWriteCreateAndPrivateListing (0.01s)
+=== RUN   TestNativeFilesConflictAndKnownRequestReceiptNeverReplay
+--- PASS: TestNativeFilesConflictAndKnownRequestReceiptNeverReplay (0.01s)
+=== RUN   TestNativeFilesContainmentSymlinksHardlinksAndHiddenPaths
+--- PASS: TestNativeFilesContainmentSymlinksHardlinksAndHiddenPaths (0.01s)
+=== RUN   TestNativeFilesGrantRevocationReadOnlyAndDirectoryReplacement
+--- PASS: TestNativeFilesGrantRevocationReadOnlyAndDirectoryReplacement (0.01s)
+=== RUN   TestNativeFilesLimitsEncodingAndEscapedFrameBudget
+--- PASS: TestNativeFilesLimitsEncodingAndEscapedFrameBudget (0.02s)
+=== RUN   TestNativeFilesConcurrentConnectionsHonorOneRevision
+--- PASS: TestNativeFilesConcurrentConnectionsHonorOneRevision (0.01s)
+=== RUN   TestNativeFilesSessionCloseAndCredentialRotationRevokeAuthority
+--- PASS: TestNativeFilesSessionCloseAndCredentialRotationRevokeAuthority (0.00s)
+=== RUN   TestNativeFilesSchemaStrictAndLegacyRPCUnchanged
+--- PASS: TestNativeFilesSchemaStrictAndLegacyRPCUnchanged (0.00s)
+=== RUN   TestNativeFilesNegotiatedHostFramesAndReconnectionSession
+--- PASS: TestNativeFilesNegotiatedHostFramesAndReconnectionSession (0.00s)
+=== RUN   TestNativeFilesUninstallRevokesWorkspaceStore
+--- PASS: TestNativeFilesUninstallRevokesWorkspaceStore (0.00s)
+=== RUN   TestNativeFilesEmptyTextAndGrantLock
+--- PASS: TestNativeFilesEmptyTextAndGrantLock (0.01s)
+=== RUN   TestR17DevAttachStrictSchemaAndLegacyAccess
+--- PASS: TestR17DevAttachStrictSchemaAndLegacyAccess (0.00s)
+=== RUN   TestR17AccessCapabilityMustBeNegotiated
+--- PASS: TestR17AccessCapabilityMustBeNegotiated (0.01s)
+PASS
+ok  	opendesk/internal/browserbridge	3.425s
+=== RUN   TestR17GoCLIHelpVersionAndUnknownNeverAuthorizeDirectory
+--- PASS: TestR17GoCLIHelpVersionAndUnknownNeverAuthorizeDirectory (0.00s)
+=== RUN   TestR17ReadOnlyArgumentsAreValidatedBeforeNodeOrAuthorization
+--- PASS: TestR17ReadOnlyArgumentsAreValidatedBeforeNodeOrAuthorization (0.00s)
+=== RUN   TestR17GoRejectsLegacyNPMReceiptAndPreservesHashPin
+--- PASS: TestR17GoRejectsLegacyNPMReceiptAndPreservesHashPin (0.00s)
+=== RUN   TestWorkspaceCLIExplicitGrantListAndRevoke
+--- PASS: TestWorkspaceCLIExplicitGrantListAndRevoke (0.03s)
+PASS
+ok  	opendesk/internal/browsercli	1.052s

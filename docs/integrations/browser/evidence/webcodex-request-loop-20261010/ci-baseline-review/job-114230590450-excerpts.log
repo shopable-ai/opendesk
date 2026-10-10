@@ -1,0 +1,17 @@
+GitHub Actions original log excerpts
+Repository: shopable-ai/opendesk
+Job: 114230590450
+URL: https://github.com/shopable-ai/opendesk/actions/runs/38058099375/job/114230590450
+Retrieved read-only; no jobs were rerun. Timestamps and error text below are unchanged.
+
+[original log line 93] 2026-10-10T14:03:33.5979670Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +3feba12b86f19bd7543fb1353b9f5f8b057ffd50:refs/remotes/origin/master
+[original log line 95] 2026-10-10T14:03:35.2503060Z  * [new ref]         3feba12b86f19bd7543fb1353b9f5f8b057ffd50 -> origin/master
+[original log line 107] 2026-10-10T14:03:35.9494100Z 3feba12b86f19bd7543fb1353b9f5f8b057ffd50
+[original log line 303] 2026-10-10T14:06:07.6478830Z [SCRIPT] 3feba12b86f19bd7543fb1353b9f5f8b057ffd50
+[original log line 304] 2026-10-10T14:06:07.6899690Z [SCRIPT] [LOG] [RUNTIME-API] mode=contract runId=direct-20261010-140556-843000 evidence=/Users/runner/work/opendesk/opendesk/.runtime/tests/runtime-api/direct-20261010-140556-843000
+[original log line 305] 2026-10-10T14:06:19.2392100Z [SCRIPT] [WARN] [ERROR] script execution failed: Error: Runtime API catalog drift: contract-only entry lacks risk reason: BrowserDOM.status | contract-only entry lacks risk reason: BrowserDOM.tabs | contract-only entry lacks risk reason: BrowserDOM.observe | contract-only entry lacks risk reason: BrowserDOM.locate | contract-only entry lacks risk reason: BrowserDOM.read | contract-only entry lacks risk reason: BrowserDOM.act | contract-only entry lacks risk reason: BrowserDOM.wait | contract-only entry lacks risk reason: BrowserDOM.verify | contract-only entry lacks risk reason: BrowserDOM.close
+[original log line 306] 2026-10-10T14:06:19.2396300Z [SCRIPT] [SUMMARY] status=failed duration=903ms source=file:/Users/runner/work/opendesk/opendesk/.runtime/tests/runtime-api/direct-20261010-140556-843000/generated/contract.generated.js hash=b2343042ba3f487dd25c4829625b3ee817b31ef57a16daefa2cbf953d8e524dc
+[original log line 307] 2026-10-10T14:06:19.2416550Z [SCRIPT] [WARN] 	at assertValid (<eval>:223:27(18))
+[original log line 308] 2026-10-10T14:06:19.2420590Z [SCRIPT] [SUMMARY] logs=/Users/runner/work/opendesk/opendesk/.runtime/tests/runtime-api/direct-20261010-140556-843000/runtime-logs/contract stdout=/Users/runner/work/opendesk/opendesk/.runtime/tests/runtime-api/direct-20261010-140556-843000/runtime-logs/contract/stdout.log stderr=/Users/runner/work/opendesk/opendesk/.runtime/tests/runtime-api/direct-20261010-140556-843000/runtime-logs/contract/stderr.log
+[original log line 386] 2026-10-10T14:06:36.2542680Z [SCRIPT] 3feba12b86f19bd7543fb1353b9f5f8b057ffd50
+

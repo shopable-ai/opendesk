@@ -1,0 +1,97 @@
+{
+  "parent": "3feba12b86f19bd7543fb1353b9f5f8b057ffd50",
+  "source": "34649d24ee821298f586abba257e9e41b89a4cec",
+  "comparisons": [
+    {
+      "path": ".github/workflows/api-doc-contract.yml",
+      "parentBlob": "b2927475a6169fcb30524c6584eb06d9177cfa65",
+      "sourceBlob": "b2927475a6169fcb30524c6584eb06d9177cfa65",
+      "identical": true
+    },
+    {
+      "path": ".github/workflows/windows-core.yml",
+      "parentBlob": "30d76f0dad4f2ab5bbb68c070f94c56947b78ae1",
+      "sourceBlob": "30d76f0dad4f2ab5bbb68c070f94c56947b78ae1",
+      "identical": true
+    },
+    {
+      "path": "internal/browserbridge/unsupported.go",
+      "parentBlob": "8fa301b4b66b43518a1bfe245c5c810d02413cfc",
+      "sourceBlob": "8fa301b4b66b43518a1bfe245c5c810d02413cfc",
+      "identical": true
+    },
+    {
+      "path": "tests/workflows/artifact-calculator-production.test.js",
+      "parentBlob": "3ebafdc506fcda09cd381e1871183003d7dab007",
+      "sourceBlob": "3ebafdc506fcda09cd381e1871183003d7dab007",
+      "identical": true
+    },
+    {
+      "path": "workflows/agent-to-recipe/WORKFLOW.md",
+      "parentBlob": "c865a806e4d52ff3f8e28e661290dfd61505469f",
+      "sourceBlob": "c865a806e4d52ff3f8e28e661290dfd61505469f",
+      "identical": true
+    },
+    {
+      "path": "tests/api-docs/reader.test.js",
+      "parentBlob": "8e440e18adae03eb49ab511634b602f6dbb35e38",
+      "sourceBlob": "8e440e18adae03eb49ab511634b602f6dbb35e38",
+      "identical": true
+    },
+    {
+      "path": "tests/api-docs/discovery.test.js",
+      "parentBlob": "c33d1fc1b74461d32a0384df008ca9f57bdeabe9",
+      "sourceBlob": "c33d1fc1b74461d32a0384df008ca9f57bdeabe9",
+      "identical": true
+    },
+    {
+      "path": "scripts/api-docs.js",
+      "parentBlob": "caa4e690b7109af915f80038bb9cc6ccdd5ac85f",
+      "sourceBlob": "caa4e690b7109af915f80038bb9cc6ccdd5ac85f",
+      "identical": true
+    },
+    {
+      "path": "docs/api/agent/authoring.md",
+      "parentBlob": "5785ffff21f0288dfc2acf953b5c76441f501ca3",
+      "sourceBlob": "5785ffff21f0288dfc2acf953b5c76441f501ca3",
+      "identical": true
+    },
+    {
+      "path": "docs/api/recorder-runtime.md",
+      "parentBlob": "84b79703d0704ccaa744983d670dcc97a8ad55a1",
+      "sourceBlob": "84b79703d0704ccaa744983d670dcc97a8ad55a1",
+      "identical": true
+    },
+    {
+      "path": "tests/runtime-api/catalog_validation.js",
+      "parentBlob": "accb4d044e3c521602c545d01db9814cd05d577e",
+      "sourceBlob": "accb4d044e3c521602c545d01db9814cd05d577e",
+      "identical": true
+    },
+    {
+      "path": "scripts/audit_test_architecture.js",
+      "parentBlob": "62c2036f72ff7558a67e22448b210357acae2fa4",
+      "sourceBlob": "62c2036f72ff7558a67e22448b210357acae2fa4",
+      "identical": true
+    },
+    {
+      "path": "docs/quality/go-test-file-classification.md",
+      "parentBlob": "66eb0381db143b485ab6d4e920b710d3ce2ce430",
+      "sourceBlob": "66eb0381db143b485ab6d4e920b710d3ce2ce430",
+      "identical": true
+    },
+    {
+      "path": "docs/quality/go-test-file-classification-measurement.md",
+      "parentBlob": "6dbe07489aa13967d04b4e10385c50e983a52f1f",
+      "sourceBlob": "6dbe07489aa13967d04b4e10385c50e983a52f1f",
+      "identical": true
+    },
+    {
+      "path": "docs/quality/go-test-file-classification-measurement-recorder.md",
+      "parentBlob": "3b07e685560488d9c87053a66cfb8e9996f307b4",
+      "sourceBlob": "3b07e685560488d9c87053a66cfb8e9996f307b4",
+      "identical": true
+    }
+  ],
+  "note": "Read-only git object comparison; no refs updated, no tests or CI rerun."
+}

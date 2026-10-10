@@ -25,7 +25,7 @@ const (
 )
 
 type pendingCall struct { answer chan []byte }
-type pendingDev struct { epoch string; timer *time.Timer }
+type pendingDev struct { epoch string; timer *time.Timer; owner *localClient; aggregateEpoch string; scopedID string; rawID string }
 type localClient struct {
 	socket *net.UnixConn
 	writeMu sync.Mutex
@@ -42,11 +42,17 @@ type Host struct {
 	socketInfo os.FileInfo
 	ready bool
 	localDev bool
+	localDevMulti bool
+	localDevAccess bool
 	closed bool
 	clients map[*localClient]bool
 	pending map[string]*pendingCall
 	devPending map[string]*pendingDev
 	provider *localClient
+    modern map[*localClient]*modernProvider
+    leases map[string]devLease
+    aggregateEpoch string
+    legacyQueries map[string]chan Fields
 	// The bundled Go single-file provider is active only for explicit
 	// user-owned grants. An external Node MCP provider takes precedence.
 	internalEpoch string
@@ -55,6 +61,9 @@ type Host struct {
 	ai *browserai.Manager
 	aiPending int
 	aiControlPending int
+	localFiles bool
+	files *nativeFiles
+	filesPending int
 	done chan struct{}
 	closeOnce sync.Once
 }
@@ -65,9 +74,11 @@ func NewHost(cfg Installation,origin string,input io.Reader,output io.Writer) (*
 		return nil,errors.New("E_EXTENSION_ID")
 	}
 	if input==nil || output==nil{return nil,ErrSchema}
+	files,err:=newNativeFiles(cfg)
+	if err!=nil{return nil,err}
 	return &Host{cfg:cfg,origin:origin,input:input,output:output,clients:make(map[*localClient]bool),
 		pending:make(map[string]*pendingCall),devPending:make(map[string]*pendingDev),
-		internalIDs:make(map[string]bool),ai:browserai.NewManager(browserai.Options{}),done:make(chan struct{})},nil
+		internalIDs:make(map[string]bool),modern:make(map[*localClient]*modernProvider),leases:make(map[string]devLease),legacyQueries:make(map[string]chan Fields),ai:browserai.NewManager(browserai.Options{}),files:files,done:make(chan struct{})},nil
 }
 func (h *Host) sendChrome(raw []byte) error {
 	h.writeMu.Lock();defer h.writeMu.Unlock()
@@ -89,10 +100,11 @@ func (h *Host) devError(id,epoch,code string) {
 }
 func (h *Host) providerState() {
 	h.mu.Lock()
-	connected:=h.ready && (h.provider!=nil || h.internalEpoch!="")
-	epoch:=""
-	if h.provider!=nil{epoch=h.provider.providerEpoch
-	}else if h.internalEpoch!=""{epoch=h.internalEpoch}
+	connected:=h.ready && (h.provider!=nil || h.internalEpoch!="" || len(h.modern)>0)
+    epoch:=""
+    if len(h.modern)>0 { epoch=h.aggregateEpoch
+    } else if h.provider!=nil{epoch=h.provider.providerEpoch
+    } else if h.internalEpoch!=""{epoch=h.internalEpoch}
 	h.mu.Unlock()
 	var current any
 	if connected{current=epoch}
@@ -109,7 +121,9 @@ func (h *Host) Close() {
 		for client:=range h.clients{clients=append(clients,client)}
 		for _,p:=range h.devPending{p.timer.Stop()}
 		ai:=h.ai
+		files:=h.files
 		h.mu.Unlock()
+		if files!=nil{files.Close()}
 		if ai!=nil{ai.Close()}
 		if listener!=nil{_ = listener.Close()}
 		for _,c:=range clients{_ = c.socket.Close()}
@@ -170,6 +184,7 @@ func (h *Host) releaseProvider(c *localClient) {
 	if h.provider!=c{h.mu.Unlock();return}
 	epoch:=c.providerEpoch
 	h.provider=nil
+    if len(h.modern)>0{h.rotateAggregateLocked()}
 	var ids []string
 	for id,p:=range h.devPending{
 		if p.epoch==epoch{p.timer.Stop();delete(h.devPending,id);ids=append(ids,id)}
@@ -181,6 +196,8 @@ func (h *Host) releaseProvider(c *localClient) {
 func (h *Host) serveLocal(c *localClient) {
 	defer func(){
 		h.releaseProvider(c)
+        h.releaseModernProvider(c)
+        h.releaseDevLease(c)
 		h.mu.Lock();delete(h.clients,c);h.mu.Unlock()
 		c.socket.Close()
 	}()
@@ -194,10 +211,13 @@ func (h *Host) serveLocal(c *localClient) {
 		subtle.ConstantTimeCompare([]byte(String(auth,"credential")),[]byte(h.cfg.ClientCredential))!=1{
 		return
 	}
-	h.mu.Lock();ready:=h.ready;dev:=h.localDev;h.mu.Unlock()
+	h.mu.Lock();ready:=h.ready;dev:=h.localDev;multi:=h.localDevMulti;devAccess:=h.localDevAccess;filesReady:=h.localFiles;h.mu.Unlock()
 	if err=h.sendLocal(c,MustEncode(map[string]any{
 		"v":1,"kind":"authenticated","browserReady":ready,
 		"localDevVersion":func()int{if dev{return 1};return 0}(),
+        "localDevMultiVersion":func()int{if multi{return 1};return 0}(),
+        "localDevAccessVersion":func()int{if devAccess{return 1};return 0}(),
+        "localFilesVersion":func()int{if filesReady{return FilesVersion};return 0}(),
 	}));err!=nil{return}
 	_ = c.socket.SetReadDeadline(time.Now().Add(10*time.Second))
 	payload,err:=ReadLine(reader)
@@ -233,13 +253,30 @@ func (h *Host) serveLocal(c *localClient) {
 		h.providerState()
 		return
 	}
-	if String(f,"kind")=="provider.register"{
+    if String(f,"kind")=="dev.attach"{
+        // This local authorization message rejects duplicate keys and nulls
+        // before the handler validates its exact field allowlist.
+        strict,decodeErr:=decodeDevAttach(payload)
+        if decodeErr!=nil {
+            _=h.sendLocal(c,MustEncode(map[string]any{"v":1,"kind":"dev.rejected",
+                "error":map[string]string{"code":"E_SCHEMA"}}))
+            return
+        }
+        h.serveDevAttach(c, strict, reader)
+        return
+    }
+    if String(f,"kind")=="provider.register" && Int(f,"catalogVersion")==2{
+        h.serveModernProvider(c, f, reader)
+        return
+    }
+    if String(f,"kind")=="provider.register"{
 		h.mu.Lock()
 		ready=h.ready;dev=h.localDev
 		conflict:=h.provider!=nil
 		if ready && dev && !conflict && RequestIDValid(String(f,"providerId")){
 			c.providerEpoch,_=NewID()
 			h.provider=c
+            if len(h.modern)>0{h.rotateAggregateLocked()}
 		}
 		h.mu.Unlock()
 		if c.providerEpoch==""{
@@ -260,15 +297,7 @@ func (h *Host) serveLocal(c *localClient) {
 			case "provider.changed":
 				h.providerState()
 			case "dev.response":
-				if !RequestIDValid(String(reply,"requestId")) || Has(reply,"result")==Has(reply,"error"){return}
-				id:=String(reply,"requestId")
-				h.mu.Lock()
-				entry,ok:=h.devPending[id]
-				if ok && entry.epoch==c.providerEpoch {
-					entry.timer.Stop();delete(h.devPending,id)
-				}
-				h.mu.Unlock()
-				if ok && entry.epoch==c.providerEpoch{_ = h.sendChrome(raw)}
+                if !h.deliverDevReply(c,reply,raw) { return }
 			default:return
 			}
 		}
@@ -307,7 +336,7 @@ func (h *Host) handleChrome(raw []byte) error {
 		if Int(f,"v")!=1 || String(f,"kind")!="welcome" ||
 			String(f,"extensionId")!=h.cfg.ExtensionID ||
 			String(f,"extensionVersion")==""{return errors.New("E_NATIVE_HANDSHAKE")}
-		h.mu.Lock();h.ready=true;h.localDev=Int(f,"localDevVersion")==1;h.mu.Unlock()
+		h.mu.Lock();h.ready=true;h.localDev=Int(f,"localDevVersion")==1;h.localDevMulti=Int(f,"localDevMultiVersion")==1;h.localDevAccess=Int(f,"localDevAccessVersion")==1;h.localFiles=Int(f,"localFilesVersion")==FilesVersion;h.mu.Unlock()
 		// The built-in Go provider never touches the disk before the browser
 		// has authorized Native and completed the exact welcome handshake.
 		// With no user file grants, keep Node's original disconnected state.
@@ -320,10 +349,13 @@ func (h *Host) handleChrome(raw []byte) error {
 				}
 			}
 		}
+		if Int(f,"localFilesVersion")==FilesVersion{return h.sendChrome(MustEncode(h.files.state()))}
 		return nil
 	}
 	if Int(f,"v")!=1{return ErrSchema}
 	switch String(f,"kind"){
+	case "files.request":
+		return h.handleFiles(raw)
 	case "ai.request":
 		return h.handleAI(raw)
 	case "response":
@@ -334,6 +366,8 @@ func (h *Host) handleChrome(raw []byte) error {
 		return nil
 	case "dev.request":
 		if err=ValidateDevRequest(f);err!=nil{return err}
+        h.mu.Lock();modern:=len(h.modern)>0;h.mu.Unlock()
+        if modern{return h.handleModernDevRequest(f)}
 		id:=String(f,"requestId");epoch:=String(f,"providerEpoch")
 		params,_:=Decode(f["params"])
 		bindingId:=String(params,"bindingId")
@@ -418,7 +452,7 @@ func (h *Host) Run() error {
 	if h.cfg.Provider!="opendesk" {return errors.New("E_MIGRATION_REQUIRED")}
 	defer h.Close()
 	if err:=h.startSocket();err!=nil{return err}
-	if err:=h.sendChrome(MustEncode(map[string]any{"v":1,"kind":"hello","workflowAiVersion":1}));err!=nil{return err}
+	if err:=h.sendChrome(MustEncode(map[string]any{"v":1,"kind":"hello","workflowAiVersion":1,"localFilesVersion":FilesVersion,"localDevMultiVersion":1,"localDevAccessVersion":1}));err!=nil{return err}
 	timer:=time.AfterFunc(handshakeTimeout,func(){
 		h.mu.Lock();ready:=h.ready;h.mu.Unlock()
 		if !ready{h.Close()}

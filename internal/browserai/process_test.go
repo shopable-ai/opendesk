@@ -32,6 +32,64 @@ func TestStrictWorkflowAIProtocol(t *testing.T) {
 	}
 }
 
+func TestNvmCodexCandidatesAreBoundedAndSemverOrdered(t *testing.T) {
+	home := t.TempDir()
+	root := filepath.Join(home, ".nvm", "versions", "node")
+	for _, name := range []string{"v9.21.0", "v22.9.0", "v22.10.1", "v22.10.1-untrusted"} {
+		dir := filepath.Join(root, name, "bin")
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "codex"), []byte("synthetic, never executed"), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	candidates := nvmCodexCandidates(home)
+	if len(candidates) != 3 {
+		t.Fatalf("invalid NVM directory names were considered: %v", candidates)
+	}
+	want := []string{"v22.10.1", "v22.9.0", "v9.21.0"}
+	for i, version := range want {
+		if candidates[i] != filepath.Join(root, version, "bin", "codex") {
+			t.Fatalf("wrong NVM version precedence: %v", candidates)
+		}
+	}
+	for i := 0; i < 62; i++ {
+		if err := os.MkdirAll(filepath.Join(root, fmt.Sprintf("invalid-%03d", i)), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := nvmCodexCandidates(home); len(got) != 0 {
+		t.Fatal("unbounded NVM directory was not rejected")
+	}
+}
+
+func TestOwnedNvmCodexLauncherResolvesItsNodeWithoutShellPATH(t *testing.T) {
+	if os.PathSeparator != '/' {
+		t.Skip("POSIX npm launcher test")
+	}
+	root := t.TempDir()
+	node := filepath.Join(root, "node")
+	codex := filepath.Join(root, "codex")
+	if err := os.WriteFile(node, []byte("#!/bin/sh\nprintf synthetic-node-ok"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(codex, []byte("#!/usr/bin/env node\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", "/usr/bin:/bin")
+	cmd := ownedCommand(context.Background(), codex, root)
+	output, err := cmd.Output()
+	if err != nil || string(output) != "synthetic-node-ok" {
+		t.Fatalf("native launcher cannot locate its paired Node binary: %v %q", err, output)
+	}
+	for _, env := range cmd.Env {
+		if strings.HasPrefix(env, "PATH=") && !strings.HasPrefix(env, "PATH="+root+string(os.PathListSeparator)) {
+			t.Fatal("Codex launcher directory is not the first PATH entry")
+		}
+	}
+}
+
 func TestAmbientSecretsAndExecutableOverridesAreNotInherited(t *testing.T) {
 	for _, key := range []string{"OPENAI_API_KEY", "OPENAI_BASE_URL", "NODE_OPTIONS", "LD_PRELOAD", "HTTP_PROXY", "ANTHROPIC_API_KEY", "CODEX_REMOTE_URL"} {
 		t.Setenv(key, "sensitive-value")

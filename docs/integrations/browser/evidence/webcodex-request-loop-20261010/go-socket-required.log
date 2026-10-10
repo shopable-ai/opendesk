@@ -1,0 +1,6 @@
+=== RUN   TestR17HostConcurrentDirectoriesAndScopedResolver
+    host_dev_multi_unix_test.go:125: Native Host stopped before hello: listen unix /tmp/od-go-project-3669429027/.opendesk-browser/native-agent-r1/agent.sock: socket: operation not permitted
+--- FAIL: TestR17HostConcurrentDirectoriesAndScopedResolver (0.00s)
+FAIL
+FAIL	opendesk/internal/browserbridge	0.004s
+FAIL

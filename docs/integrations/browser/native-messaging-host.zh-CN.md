@@ -4,7 +4,9 @@
 
 当次可核验候选：OpenDesk `41311e8bab78c71645958abd090f6e71a697cac2`、Browser 测试驱动 `c4633bf19e4a66523d37a607d6ed611e98dc267b`。证据：[GitHub Actions #37980235403](https://github.com/shopable-ai/opendesk/actions/runs/37980235403)：`transport (ubuntu-latest)`、`transport (macos-latest)`、`Real OpenDesk executable against simulated Chrome` 全部 PASS。此处的“Chrome”是帧协议**模拟客户端**，没有实际浏览器页面、网站授权、Sidebar 任务或 Node→Go 生产安装切换证据。
 
-适用：`shopable-ai/opendesk` 的 `opendesk browser` 子命令及 `shopable-ai/opendesk-browser` 的现有 Chrome 扩展。架构前置审计见 Browser 仓库 `docs/architecture/browser-framework/opendesk-native-takeover-r1.zh-CN.md`。
+适用：`shopable-ai/opendesk` 的 `opendesk browser` 子命令及 `shopable-ai/opendesk-browser` 的现有 Chrome 扩展。
+
+> **R17 当前增量：** 裸 `opendesk browser` 现用于当前目录直连，`opendesk browser dev [dir]` 与 Node `opendesk-dev [dir]` 共用一个 Resolver；新增多来源协商，旧 Go 单文件、长期 Workspace 和高级 MCP 保持独立。此文其余 R1 安装/单 Provider 介绍保留历史口径。直接使用见 [R17 说明](local-directory-cli-r17.zh-CN.md)。架构前置审计见 Browser 仓库 `docs/architecture/browser-framework/opendesk-native-takeover-r1.zh-CN.md`。
 
 > **Mac 本地实施入口 R5（2026-10-10）**：重新编译完整 OpenDesk.app、安装到长期固定路径、让 Chrome 按需启动 Go Native Host，以及通过 Codex CLI 联调真实网页的操作说明见 [Mac 构建、安装与测试](native-mac-build-install-test-r5.zh-CN.md)。可直接复制的本地 Codex GOAL 见 [R5 提示词](../../../prompts/automation/native-messaging-host-mac-codex-r5.zh-CN.md)。该文档不会把模拟 Chrome 或旧 Node Host 的成功外推为真实 Go/Chrome 全链路验收。
 

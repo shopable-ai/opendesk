@@ -1,0 +1,38 @@
+GitHub Actions original log excerpts
+Repository: shopable-ai/opendesk
+Job: 114237687075
+URL: https://github.com/shopable-ai/opendesk/actions/runs/38060523312/job/114237687075
+Retrieved read-only; no jobs were rerun. Timestamps and error text below are unchanged.
+
+[original log line 92] 2026-10-10T14:40:13.9901527Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +34649d24ee821298f586abba257e9e41b89a4cec:refs/remotes/origin/master
+[original log line 94] 2026-10-10T14:40:15.4218025Z  * [new ref]         34649d24ee821298f586abba257e9e41b89a4cec -> origin/master
+[original log line 106] 2026-10-10T14:40:15.7208303Z 34649d24ee821298f586abba257e9e41b89a4cec
+[original log line 487] 2026-10-10T14:40:17.0007861Z not ok 59 - historical maintained Candidate rejects current dependency drift before execution
+[original log line 488] 2026-10-10T14:40:17.0036902Z   ---
+[original log line 489] 2026-10-10T14:40:17.0066851Z   duration_ms: 2.78747
+[original log line 490] 2026-10-10T14:40:17.0067805Z   type: 'test'
+[original log line 491] 2026-10-10T14:40:17.0097470Z   location: '/home/runner/work/opendesk/opendesk/tests/workflows/artifact-calculator-production.test.js:76:1'
+[original log line 492] 2026-10-10T14:40:17.0126947Z   failureType: 'testCodeFailure'
+[original log line 493] 2026-10-10T14:40:17.0157616Z   error: "ENOENT: no such file or directory, open '/home/runner/work/opendesk/opendesk/.runtime/tests/agent-to-recipe/revision-20260929/repeat-candidate/candidate.json'"
+[original log line 494] 2026-10-10T14:40:17.0159777Z   code: 'ENOENT'
+[original log line 495] 2026-10-10T14:40:17.0186982Z   stack: |-
+[original log line 496] 2026-10-10T14:40:17.0216920Z     Object.readFileSync (node:fs:440:20)
+[original log line 497] 2026-10-10T14:40:17.0245561Z     maintainedDescriptor (/home/runner/work/opendesk/opendesk/tests/workflows/artifact-calculator-production.test.js:27:35)
+[original log line 505] 2026-10-10T14:40:17.0422018Z not ok 60 - synthetic L1-only maintained exact bytes: clear semantics, memory artifacts and fail-stop observations
+[original log line 526] 2026-10-10T14:40:17.0877089Z not ok 61 - clear-state oracle rejects controlled maintained-source defect: slice
+[original log line 547] 2026-10-10T14:40:17.1259599Z not ok 62 - clear-state oracle rejects controlled maintained-source defect: Set
+[original log line 568] 2026-10-10T14:40:17.1284376Z not ok 63 - clear-state oracle rejects controlled maintained-source defect: replace
+[original log line 589] 2026-10-10T14:40:17.1308380Z not ok 64 - clear-state oracle rejects controlled maintained-source defect: overwrite
+[original log line 610] 2026-10-10T14:40:17.1325628Z not ok 65 - clear-state oracle rejects controlled maintained-source defect: dead dynamic call
+[original log line 631] 2026-10-10T14:40:17.1340862Z not ok 66 - clear-state oracle rejects controlled maintained-source defect: C without AC
+[original log line 652] 2026-10-10T14:40:17.1359154Z not ok 67 - clear-state oracle rejects controlled maintained-source defect: read failure replaced by cached value
+[original log line 673] 2026-10-10T14:40:17.1376584Z not ok 68 - clear-state oracle rejects controlled maintained-source defect: unknown input swallowed
+[original log line 694] 2026-10-10T14:40:17.1396802Z not ok 69 - clear-state adapter reports unsupported, not business failure: different batching
+[original log line 715] 2026-10-10T14:40:17.1458662Z not ok 70 - clear-state adapter reports unsupported, not business failure: extra diagnostic read
+[original log line 736] 2026-10-10T14:40:17.1478071Z not ok 71 - clear-state adapter reports unsupported, not business failure: different artifact name
+[original log line 757] 2026-10-10T14:40:17.1497229Z not ok 72 - clear-state adapter reports unsupported, not business failure: equivalent but not reviewed source bytes
+[original log line 778] 2026-10-10T14:40:17.1516590Z not ok 73 - metadata hash drift and executable dependency roles cannot be treated as L1 pass
+[original log line 2658] 2026-10-10T14:40:24.3789994Z # tests 383
+[original log line 2660] 2026-10-10T14:40:24.3790150Z # pass 368
+[original log line 2661] 2026-10-10T14:40:24.3790224Z # fail 15
+

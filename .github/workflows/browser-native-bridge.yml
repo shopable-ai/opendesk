@@ -4,12 +4,14 @@ on:
   push:
     paths:
       - "internal/browserbridge/**"
+      - "internal/browserai/**"
       - "internal/browsercli/**"
       - "cmd/opendesk/main.go"
       - ".github/workflows/browser-native-bridge.yml"
   pull_request:
     paths:
       - "internal/browserbridge/**"
+      - "internal/browserai/**"
       - "internal/browsercli/**"
       - "cmd/opendesk/main.go"
       - ".github/workflows/browser-native-bridge.yml"
@@ -32,7 +34,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Native framing, authentication, socket and install tests
-        run: go test -v -timeout=90s -count=1 ./internal/browserbridge ./internal/browsercli
+        run: go test -v -timeout=90s -count=1 ./internal/browserbridge ./internal/browsercli ./internal/browserai
 
   installed-macos-host:
     name: Real OpenDesk executable against simulated Chrome
@@ -49,7 +51,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: shopable-ai/opendesk-browser
-          ref: 8c43a2ecb5f63cbc36707de545e03a75dd7432a5
+          # Immutable Browser fixture: Go hello asserts R16 + local-files capabilities.
+          ref: 7f87dc2a08b70419e7e2a37d7f53da31bdabdd6c
           path: opendesk-browser-fixture
       - name: Chrome Native framing, installer and CLI process smoke
         shell: bash
