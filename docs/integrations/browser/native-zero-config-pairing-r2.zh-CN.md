@@ -28,7 +28,9 @@ Go 安装器负责注册应用自有 Host 路径/允许来源/文件权限；Bro
 
 安全测试包括恶意站点伪造协议链接、伪造 extensionId、过期/重放请求、非本用户目录、profile 混用、symlink、manifest 路径劫持、credential 泄漏与未知效果重放；任意失败均不得静默扩大 allowed_origins 或重新执行脚本。
 
-**当前状态**：Go R1 Host/CLI 已存在，但 `Setup(extensionID,...)` 仍拒绝空 ID，正式扩展可信 ID 未在仓库经核验确定；没有实际免 ID 安装、开发配对或 Go 文件 Provider 交付。R2.0 先核验发行 ID，再实施安装器；在此之前保留现有命令行作为开发者 fallback。
+**当前状态**：Go R1 Host/CLI 已存在，但 `Setup(extensionID,...)` 仍拒绝空 ID，正式扩展可信 ID 未在仓库经核验确定；没有实际免 ID 安装或开发版 GUI 配对；Go **单文件**项目 Provider 已有 Go 实现候选，完整目录/ESM/npm 与用户图形授权仍未交付。R2.0 先核验发行 ID，再实施安装器；在此之前保留现有命令行作为开发者 fallback。
+
+> **2026-10-10 Go R4 增量**：`internal/browserbridge/project_store_unix.go`、`project_notify_unix.go` 已有 Node-free 精确单文件授权、撤权、私有 grant 与原 `projects.list/project.resolve` 传输；CI 与真实 Chrome 的证据层次见 [Native Host 实施说明](native-messaging-host.zh-CN.md)。Go 项目读源码不等于 Browser 网站授权或执行，Node 高级 ESM/npm 开发环境仍有真实消费者。原有“全部 Node 项目仍未实施”的措辞以本增量为准，但普通用户零 ID / GUI 配对仍未完成。
 
 ## R2.0 安全默认参数的已实现切片（2026-10-10）
 
@@ -40,7 +42,7 @@ Go 安装器负责注册应用自有 Host 路径/允许来源/文件权限；Bro
 - **旧 Node Host、不正确文件权限、冲突渠道/浏览器/Profile、无效显式 ID**：不自动升级、不覆盖、不跳过安全校验。相应回归测试位于 `internal/browserbridge/install_unix_test.go`。
 - **当前仍需要管理员/AI 调用 setup 命令吗？** 未把系统安装器/首次启动绑定到该入口前，需要；`SetupAutomatic` 只是把参数推断逻辑放在 Go Owner，不能误称普通用户新安装已经做到零命令。
 
-**后续必须执行：** 实际签名的 Chrome Web Store ID 与发行元数据比对 → 在发布构建中固定 ID → OpenDesk 安装器调用 `SetupAutomatic` → Mac 实测“先 App 后扩展 / 先扩展后 App” → 原生确认的开发版配对 → 免 Node 项目 Provider。不得因单测通过抬升成产品 95 分。
+**后续必须执行：** 实际签名的 Chrome Web Store ID 与发行元数据比对 → 在发布构建中固定 ID → OpenDesk 安装器调用 `SetupAutomatic` → Mac 实测“先 App 后扩展 / 先扩展后 App” → 原生确认的开发版配对 → Go 原生文件授权 GUI → 多文件 ESM/npm 的等价解析与验收。不得因单测通过抬升成产品 95 分。
 
 ## 反方审计与直接实施规格（2026-10-10）
 
@@ -48,13 +50,13 @@ Go 安装器负责注册应用自有 Host 路径/允许来源/文件权限；Bro
 
 ### 硬性证据和产品边界
 
-1. **当前不属于完整桌面端一键可用。** Go 原生 Host/Socket/CLI + Mac/Linux 定向组件已经有代码；独立 OpenDesk GUI 安装器首次注册、Chrome Store 正式 ID、开发版 GUI 安全配对、Go 原生本地项目 Provider 和同发行构建的真实 Chrome E2E 仍缺证据。
+1. **当前不属于完整桌面端一键可用。** Go 原生 Host/Socket/CLI + Mac/Linux 定向组件已经有代码；独立 OpenDesk GUI 安装器首次注册、Chrome Store 正式 ID、开发版 GUI 安全配对、Go 原生项目**图形授权与高级多文件**、同发行构建的真实 Chrome E2E 仍缺证据；受权 Go 单文件已有实现候选。
 2. `browser setup` / `browser update` 新增无参数入口仅在**已经合法安装 Go Host**时自动继承 `extensionId`、`browser`、`userDataDir` 和原 `clientCredential`。官方 ID 常量 `verifiedOfficialExtensionID` 当前为空，故全新无参数安装报 `E_OFFICIAL_ID_UNAVAILABLE` 并保持文件不变，**禁止**自动退化成猜测临时 Chrome ID 或 `allowed_origins` wildcard。
 3. `internal/browsercli/command_test.go` 与 `internal/browserbridge/install_unix_test.go` 覆盖无参重复调用、旧 Node 文件 fail closed、错误 ID/browser、credentials 不轮换；测试目录使用短用户私有 `/tmp/od-cli-` 根目录，保留 macOS Unix Socket 路径长度安全限制，不为适应 CI 放宽生产合同。
 4. OpenDesk GUI 第一次启动自动注册的合法条件：真实可验的已发布 extension ID 在发行二进制中固定；程序确实安装在不会被清理的绝对路径；确认用户的 OS 账户可写私有 Chrome NativeMessagingHosts 目录；确保旧 Node/其他 Host 不被覆盖；对半途异常事务回滚。**不要**仅因用户双击 GUI 就猜测 Chrome Profile 或本地扩展 ID。
 5. Chrome 下 `connectNative` 才启动 Go Host；Go GUI **不要求常驻**。Native Host 连接成功仍只表示 transport 可用，不能假称当前 Sidebar Host 注册、网站权限或项目 Provider 已连接。
 6. 当前单安装根/单 `agent.sock`/单 `ExtensionID` 的实现对多个并发 Chrome Profiles、多个渠道扩展 ID 和多个 Host 实例存在已知限制。进行并行验收前制定明确的单用户实例仲裁与身份隔离模型；在此之前并发场景必须正确报错而不是竞态接管或删除他人 Socket。
-7. `project.resolve` 的 Go Provider 未实现，不得以 Go Host 已有 `provider.register` 转发功能冒充用户普通多文件项目无 Node。先推进受控单文件，再推进完整静态 ESM。外部 npm/HTTPS 必须保留锁定/缓存/供应链信任合同，不能让 Go 无限制运行 `npm install`。
+7. Go `project.resolve` 已支持经过本机用户明确授权的**单个真实 JS 文件**，在 Host 里复用原 `providerEpoch` 与消息格式；尚不支持目录、静态 ESM 依赖图或用户图形文件授权，因此不得冒充普通多文件项目无 Node。下一步先完善原生 GUI，再验证完整静态 ESM。外部 npm/HTTPS 必须保留锁定/缓存/供应链信任合同，不能让 Go 无限制运行 `npm install`。
 8. 用户授权不可合并：`nativeMessaging` ≠ 某个项目目录授权 ≠ Chrome 网站访问 ≠ 明确 Run 按钮。OS 深链是潜在不可信请求源，不能在后台收到后静默登记来源。Run/Stop、未知效果恢复始终由 Browser 原 ledger/RunHost 负责。
 9. `Windows` 原生 Host 仍返回 `E_PLATFORM`；Windows Core CI 的失败不能误报为 Native 连接成功。也不要因为整个 OpenDesk Windows CI 有历史问题而忽略本轮 Go 代码对应的 cross-build 和组件结果。
 

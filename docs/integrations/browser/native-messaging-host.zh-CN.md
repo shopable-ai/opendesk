@@ -67,6 +67,26 @@ opendesk browser run.get --file ./run.json --request-id read-existing-run-1
 - 本机 Host 不拥有浏览器页面权限、脚本业务执行、录制、Flow 发布、跨运行结果库或 Desktop Scheduler。
 - `doctor` 区分 `installed`、`socketExists` 和真实 `connected`，不得把套接字存在当作可用连接。
 
+## Go 原生单文件项目读取（Node-free R4 候选）
+
+Go Host 新增最小的 `projects.list / project.resolve` 单文件 Provider，不需要额外启动 Node MCP。该 Provider **只读取用户明确授权的真实 JS 文件**，并沿用 Browser 原有 Native/Sidebar/RunHost 权限和结果接口；Go 不执行网页脚本。
+
+```sh
+# 已完成真实 Extension ID 的 Go Host 首次安装后，用户/AI 显式授权：
+opendesk browser project add --path /absolute/path/to/example.js --runtime-kind controller --site-origin http://127.0.0.1:43111
+opendesk browser project list
+# 使用上条真实返回的 bindingId 进行撤销：
+opendesk browser project revoke --binding-id local-xxxxxxxxxxxxxxxxxxxx
+```
+
+仅支持 `.js/.mjs` 单文件：Controller 的 `async-main`，或 Page 的 `--runtime-kind page-userscript --entry-format async-main|classic-userscript`；最多 8 个文件，48 KiB 单文件上限。每条授权绑定**精确文件 inode、网站 origin、执行种类、extensionId 和 Native credential**。路径符号链接、目录、文件替换、无效来源、超限或非 UTF-8 均拒绝；不会扫描整个项目、发送文件路径、执行 npm 脚本或自动运行 Browser。
+
+授权持久化于用户私有 0600 文件。已连接的 Go Host 会接收经过凭据校验的 `project.changed` 只读授权变化通知，轮换 Provider epoch，让 Sidebar 刷新项目而非运行网页代码。命令输出 `providerNotified: true` 表示 Host 已确认通知；为 false 时代表可能尚无活动 Native Host，下一次正常连接会读取持久授权。撤销后旧 epoch 不能重新获得原项目源码。卸载 Go Host 时授权一并销毁，不让另一扩展身份继承。
+
+Node.js 的价值因此进一步收缩：**普通浏览器草稿本来就不需要 Node；现在受权单文件也不需要 Node 运行服务**。原 `native-agent/local-dev` 的 Node MCP/webpack 仍用于多文件 ESM、npm/HTTPS 锁定依赖、开发 source map 等高级能力；浏览器扩展自身的 JS 和 WXT/Vite 构建工具也必须保留。未来只有证据证明这些高级消费者已有可靠 Go 等价能力才能退役其 Node 实现。
+
+正式 Go 文件选择/目录授权 GUI、Chrome Web Store 固定 ID 的零参数安装、开发版安全配对、旧 Node→Go 安装备份/回滚、多 Profile、真实 Chrome 页面 Run/Stop 以及 Windows Native Host 均需单独验收。项目 Provider 的 stdio 模拟 Chrome 测试不能被升级为真实网页执行证据。
+
 ## Node 旧安装与正式迁移
 
 `opendesk browser setup/update` **绝不会静默覆盖**现有 Node Host 安装：检测到旧 `install.json`、launcher 或冲突 manifest 返回 `E_MIGRATION_REQUIRED` / `E_MANIFEST_CONFLICT`。绝不可因为 Socket 不存在就判断 Node 没有未决副作用。
