@@ -1,5 +1,7 @@
 # OpenDesk Go / R17.1：`browser dev` 临时目录默认读写——授权契约与边界
 
+> **实施前历史快照**：以下保留 2026-10-10 决策时的状态与约束。默认读写、能力协商和单向权限失效的当前实现、兼容边界与本轮证据见 [R17 使用说明](local-directory-cli-r17.zh-CN.md)；下文“待实现/现有默认只读”不能作为当前操作步骤。真实 Mac 验收仍未完成。
+
 > 日期：2026-10-10  
 > 状态：**新的目标契约已确认，代码修改与用户 Mac 真机验收待完成**。截至本文件创建前检查的 `master`，`internal/browserbridge/dev_workspace_unix.go` 对新 CLI 临时目录仍设置 `Access: "read-only"`。本文件不能当作已实现读写的证据。  
 > 联动 Browser 文档：[WebCodex R3 × R17.1 决策](https://github.com/shopable-ai/opendesk-browser/blob/main/docs/architecture/browser-framework/webcodex-browser-dev-chat-bridge-r3-decisions.zh-CN.md)。

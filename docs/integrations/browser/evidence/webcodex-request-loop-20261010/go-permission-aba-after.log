@@ -1,0 +1,12 @@
+=== RUN   TestR17WorkspacePermissionABARejectsRetiredLease
+=== RUN   TestR17WorkspacePermissionABARejectsRetiredLease/permanent/observed
+=== RUN   TestR17WorkspacePermissionABARejectsRetiredLease/permanent/between-requests
+=== RUN   TestR17WorkspacePermissionABARejectsRetiredLease/temporary/observed
+=== RUN   TestR17WorkspacePermissionABARejectsRetiredLease/temporary/between-requests
+--- PASS: TestR17WorkspacePermissionABARejectsRetiredLease (0.02s)
+    --- PASS: TestR17WorkspacePermissionABARejectsRetiredLease/permanent/observed (0.01s)
+    --- PASS: TestR17WorkspacePermissionABARejectsRetiredLease/permanent/between-requests (0.01s)
+    --- PASS: TestR17WorkspacePermissionABARejectsRetiredLease/temporary/observed (0.00s)
+    --- PASS: TestR17WorkspacePermissionABARejectsRetiredLease/temporary/between-requests (0.00s)
+PASS
+ok  	opendesk/internal/browserbridge	0.026s

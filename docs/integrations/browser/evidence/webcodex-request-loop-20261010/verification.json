@@ -1,0 +1,217 @@
+{
+  "format": "opendesk.webcodex-request-loop-go.evidence.v1",
+  "recordedAt": "2026-10-10T14:43:39.184529+00:00",
+  "repository": "https://github.com/shopable-ai/opendesk",
+  "branch": "master",
+  "sourceCommit": "34649d24ee821298f586abba257e9e41b89a4cec",
+  "sourceCommitDeliveredToMaster": true,
+  "implementationBase": "f9e4bbfd6afc6c0cec00f145a6183ca2eea40b89",
+  "remoteIntegratedBeforeSourceCommit": "3feba12b86f19bd7543fb1353b9f5f8b057ffd50",
+  "browserSourceCommit": "c41102d7e2dd13510f718f69061f8194251eb767",
+  "environment": {
+    "os": "Linux",
+    "architecture": "x86_64",
+    "goVersion": "go1.25.13 linux/amd64",
+    "actualUserMac": false,
+    "actualChrome": false,
+    "unixSocketCreation": "EPERM"
+  },
+  "validation": [
+    {
+      "name": "targeted native files and CLI with race detector",
+      "status": "PASS",
+      "command": "go test -race -count=1 ./internal/browserbridge ./internal/browsercli -run 'TestR17Temporary|TestR17Permanent|TestR17Writable|TestR17Effective|TestR17Explicit|TestR17DevAttach|TestR17AccessCapability|TestR17Go|TestR17ReadOnly|TestNativeFiles|TestWorkspaceCLI|TestR17WorkspacePermissionABA|TestR17DevLeaseMetadata|TestR17UnchangedPermanent' -v",
+      "topLevelTests": 29,
+      "accessSubtests": 7,
+      "permissionABASubtests": 4,
+      "log": "go-permission-aba-race.log",
+      "scope": "production Native file service on real temporary files, independent disk reads, two rounds, read-only, path, conflict, replay, lease ownership and two independent CLI subprocess permission changes; no real Chrome or Unix socket transport"
+    },
+    {
+      "name": "permission ABA before fix",
+      "status": "FAIL",
+      "log": "go-permission-aba-before.log",
+      "scope": "all four prior-lease resurrection cases were reproduced; preserved original failure"
+    },
+    {
+      "name": "vet",
+      "status": "PASS",
+      "command": "go vet ./internal/browserbridge ./internal/browsercli",
+      "log": "go-vet-aba.log",
+      "exitCode": 0
+    },
+    {
+      "name": "real Unix socket and multiple Provider transport",
+      "status": "FAIL",
+      "command": "go test -count=1 ./internal/browserbridge -run '^TestR17HostConcurrentDirectoriesAndScopedResolver$' -v",
+      "log": "go-socket-required.log",
+      "reason": "Native Host stopped before hello: listen unix ... socket: operation not permitted",
+      "classification": "environment-blocked; rerun on actual Mac; not waived"
+    },
+    {
+      "name": "Linux component CLI build/help",
+      "status": "PASS",
+      "scope": "tests/browser-native-files/tools/native-host fixture using production CLI/Host packages; not a full OpenDesk.app build"
+    },
+    {
+      "name": "Darwin arm64 component executable and test binary cross-compilation",
+      "status": "PASS",
+      "scope": "Mach-O compile only; not executed or installed on Mac"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": ".runtime/tests/webcodex-access/opendesk-native-files-fixture-aba",
+      "sha256": "5b0ed468f7140a0fbfdb9523ae40706141087b128918dc7dd9ef731a2e5d029b",
+      "bytes": 5736817,
+      "installed": false,
+      "macRuntimeExecuted": false
+    },
+    {
+      "path": ".runtime/tests/webcodex-access/opendesk-native-files-fixture-aba-darwin-arm64",
+      "sha256": "6bf88a359e281c0a4a5176672ef62469b0d65c578821df6dc75b41513439f18e",
+      "bytes": 5555698,
+      "installed": false,
+      "macRuntimeExecuted": false
+    },
+    {
+      "path": ".runtime/tests/webcodex-access/browserbridge-aba-darwin-arm64.test",
+      "sha256": "b75714cf602a9e963febd938e505dfd3ea70aa5e3afe1840320d0bec3bed2cbb",
+      "bytes": 6653266,
+      "installed": false,
+      "macRuntimeExecuted": false
+    },
+    {
+      "path": ".runtime/tests/webcodex-access/browsercli-darwin-arm64.test",
+      "sha256": "d8b154ee7d0a2f4af1062d8ae62c157a18eaac605076e2598dab7b65f6b6619d",
+      "bytes": 6357906,
+      "installed": false,
+      "macRuntimeExecuted": false
+    }
+  ],
+  "compiledFixtureVCS": {
+    "reportedRevision": "f9e4bbfd6afc6c0cec00f145a6183ca2eea40b89",
+    "reportedModified": true,
+    "note": "Built from the final changed source before the source commit. Subsequent sync changed docs only; embedded build metadata remains pre-commit +dirty. These files are component fixtures, never claimed as the user installation."
+  },
+  "macAcceptance": {
+    "installation": "NOT_TESTED",
+    "nativeManifest": "NOT_TESTED",
+    "npmRegistration": "NOT_TESTED",
+    "chromeProfileAndExtensionLoad": "NOT_TESTED",
+    "p0UnknownMarkerSameConversation": "NOT_TESTED",
+    "twoRealChatGPTEditRounds": "NOT_TESTED",
+    "multiDirectoryChrome": "NOT_TESTED",
+    "readOnlyThroughInstalledNative": "NOT_TESTED"
+  },
+  "independentReview": "A separate read-only reviewer checked one-way invalidation, cache ordering, grant-store locking, cross-process ABA, scoped cleanup and old-schema fail-closed behavior; no further concrete issue found. Review is not runtime evidence.",
+  "resources": {
+    "otherSessionsModified": false,
+    "otherProcessesTerminated": false,
+    "userProfilesAccessed": false,
+    "temporaryTestResourcesReleased": true
+  },
+  "logs": [
+    {
+      "path": "go-permission-aba-before.log",
+      "sha256": "e5ecfea2cc4733a6dc0072be816c9b6648f980156c34701af2a99e50e134afb4",
+      "bytes": 2504
+    },
+    {
+      "path": "go-permission-aba-after.log",
+      "sha256": "f2e158c06500da9ddffd2c4b427f7c0143548751b6404f0fe3aa1711c9df476d",
+      "bytes": 879
+    },
+    {
+      "path": "go-permission-aba-race.log",
+      "sha256": "6b7cc68a04c5aa213c8b12601496515184ace66a518f05574591fded7c41702c",
+      "bytes": 5757
+    },
+    {
+      "path": "go-targeted-race.log",
+      "sha256": "6072ac228f98764fb89d126122fc50562060a267902d4ac1686665ec7c7777a9",
+      "bytes": 4575
+    },
+    {
+      "path": "go-socket-required.log",
+      "sha256": "810ddc0b66d4c4fd30dafdac854c6bbecfc22fdcc4fac4a53867234917a23621",
+      "bytes": 373
+    },
+    {
+      "path": "go-vet-aba.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "go-ci.json",
+      "sha256": "822fa5606f338cad628a6b2c385b77b8b49c02d69c04fd9ac204601a7c27693d",
+      "bytes": 5337
+    },
+    {
+      "path": "ci-baseline-review/job-114230590371-excerpts.log",
+      "sha256": "52be81187b1cc6cc450b60ad9b7ad0ff3d3a51eae68ecb63a14d4ab7d4189353",
+      "bytes": 4229
+    },
+    {
+      "path": "ci-baseline-review/job-114230590450-excerpts.log",
+      "sha256": "f3924c51edd061bc8f10692f517450e8f2220bbddb5b4b8a75a05e4c1253e1c8",
+      "bytes": 2701
+    },
+    {
+      "path": "ci-baseline-review/job-114230590511-excerpts.log",
+      "sha256": "8c18010c40e1e9de55947f0e710d02e0b37121f8ef9cfebbea1aead78cc1781b",
+      "bytes": 5409
+    },
+    {
+      "path": "ci-baseline-review/job-114230800064-excerpts.log",
+      "sha256": "54bb49c9c8386235dc7d9457c1eab5a709a7f03c741da055ec570775603c99b5",
+      "bytes": 5132
+    },
+    {
+      "path": "ci-baseline-review/job-114237687075-excerpts.log",
+      "sha256": "75a882e64d0bc96151b0ef1215610e0c682ee3f46c7abc3c3e3047df108a18b2",
+      "bytes": 4228
+    },
+    {
+      "path": "ci-baseline-review/job-114237687203-excerpts.log",
+      "sha256": "438990130e7dfdd256951e8a6b6ab4db9d374b067c7520d55e7d9d8c8a18337b",
+      "bytes": 2701
+    },
+    {
+      "path": "ci-baseline-review/job-114237687305-excerpts.log",
+      "sha256": "fbac3b1351c9ac86281c5e2ebd3824276c752cc5bd01ce57c733ff8961637142",
+      "bytes": 5409
+    },
+    {
+      "path": "ci-baseline-review/job-114237688124-excerpts.log",
+      "sha256": "e337529c8dd9d96592692eba530230f2470b82fd2cb597f00341c7392d3e4297",
+      "bytes": 5131
+    },
+    {
+      "path": "ci-baseline-review/review.json",
+      "sha256": "f39ba0ec8ad08f41750e1ab1059807c2ab202431f8b14e9e642a40ad2034914d",
+      "bytes": 4074
+    },
+    {
+      "path": "ci-baseline-review/source-comparison.json",
+      "sha256": "64fe8ce83774bc25da6220b382e375b58114128dc74b5c0ee8789c1c38970a09",
+      "bytes": 3538
+    }
+  ],
+  "ci": {
+    "nativeRunId": 38060523393,
+    "sourceCommit": "34649d24ee821298f586abba257e9e41b89a4cec",
+    "status": "PASS",
+    "jobs": [
+      "transport (ubuntu-latest)",
+      "transport (macos-latest)",
+      "Real OpenDesk executable against simulated Chrome"
+    ],
+    "scope": "full browserbridge/browsercli/browserai package tests including real Unix sockets, plus existing CI executable smoke; not user Mac or ChatGPT",
+    "details": "go-ci.json",
+    "otherWorkflowFailures": "API docs contract and Windows Core; same failures also observed on parent 3feba12b86f19bd7543fb1353b9f5f8b057ffd50; detailed baseline comparison retained separately",
+    "otherWorkflowBaselineReview": "ci-baseline-review/review.json",
+    "baselineCommit": "3feba12b86f19bd7543fb1353b9f5f8b057ffd50",
+    "introducedByThisChange": false
+  }
+}

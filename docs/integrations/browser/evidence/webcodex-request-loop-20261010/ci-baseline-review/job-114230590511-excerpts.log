@@ -1,0 +1,61 @@
+GitHub Actions original log excerpts
+Repository: shopable-ai/opendesk
+Job: 114230590511
+URL: https://github.com/shopable-ai/opendesk/actions/runs/38058099375/job/114230590511
+Retrieved read-only; no jobs were rerun. Timestamps and error text below are unchanged.
+
+[original log line 92] 2026-10-10T14:03:23.5315616Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=2 origin +3feba12b86f19bd7543fb1353b9f5f8b057ffd50:refs/remotes/origin/master
+[original log line 94] 2026-10-10T14:03:25.5941199Z  * [new ref]         3feba12b86f19bd7543fb1353b9f5f8b057ffd50 -> origin/master
+[original log line 106] 2026-10-10T14:03:25.8773272Z 3feba12b86f19bd7543fb1353b9f5f8b057ffd50
+[original log line 372] 2026-10-10T14:03:27.8258499Z     "CATALOG_DRIFT docs/api/agent/authoring.md"
+[original log line 464] 2026-10-10T14:03:34.0789445Z not ok 14 - generated catalogs, local links and independent inventories remain covered
+[original log line 475] 2026-10-10T14:03:34.0792442Z     +   'CATALOG_DRIFT docs/api/agent/authoring.md'
+[original log line 483] 2026-10-10T14:03:34.0793959Z     0: 'CATALOG_DRIFT docs/api/agent/authoring.md'
+[original log line 495] 2026-10-10T14:03:34.0798146Z not ok 15 - catalog check does not require the legacy runtime-api.ai.json file
+[original log line 506] 2026-10-10T14:03:34.0800964Z     +   'CATALOG_DRIFT docs/api/agent/authoring.md'
+[original log line 514] 2026-10-10T14:03:34.0802581Z     0: 'CATALOG_DRIFT docs/api/agent/authoring.md'
+[original log line 604] 2026-10-10T14:03:34.0886914Z # tests 28
+[original log line 606] 2026-10-10T14:03:34.0887449Z # pass 26
+[original log line 607] 2026-10-10T14:03:34.0887589Z # fail 2
+[original log line 620] 2026-10-10T14:03:34.2100073Z not ok 1 - ten catalogs and short entry are tracked regular repository files
+[original log line 625] 2026-10-10T14:03:34.2101431Z   failureType: 'testCodeFailure'
+[original log line 626] 2026-10-10T14:03:34.2101622Z   error: |-
+[original log line 627] 2026-10-10T14:03:34.2101876Z     Expected values to be strictly equal:
+[original log line 628] 2026-10-10T14:03:34.2102014Z     
+[original log line 629] 2026-10-10T14:03:34.2102107Z     11 !== 10
+[original log line 630] 2026-10-10T14:03:34.2102204Z     
+[original log line 631] 2026-10-10T14:03:34.2102546Z   code: 'ERR_ASSERTION'
+[original log line 632] 2026-10-10T14:03:34.2102666Z   name: 'AssertionError'
+[original log line 633] 2026-10-10T14:03:34.2102781Z   expected: 10
+[original log line 634] 2026-10-10T14:03:34.2102891Z   actual: 11
+[original log line 635] 2026-10-10T14:03:34.2102997Z   operator: 'strictEqual'
+[original log line 644] 2026-10-10T14:03:34.2105642Z not ok 2 - Agent-to-Recipe consumers use one short API entry with valid links
+[original log line 646] 2026-10-10T14:03:34.2106073Z   duration_ms: 0.888747
+[original log line 647] 2026-10-10T14:03:34.2106248Z   type: 'test'
+[original log line 648] 2026-10-10T14:03:34.2106569Z   location: '/home/runner/work/opendesk/opendesk/tests/api-docs/discovery.test.js:103:1'
+[original log line 649] 2026-10-10T14:03:34.2106848Z   failureType: 'testCodeFailure'
+[original log line 650] 2026-10-10T14:03:34.2107279Z   error: 'workflows/agent-to-recipe/WORKFLOW.md 未直接接入短入口'
+[original log line 651] 2026-10-10T14:03:34.2107445Z   code: 'ERR_ASSERTION'
+[original log line 652] 2026-10-10T14:03:34.2107561Z   name: 'AssertionError'
+[original log line 653] 2026-10-10T14:03:34.2107677Z   expected: true
+[original log line 654] 2026-10-10T14:03:34.2107783Z   actual: 0
+[original log line 655] 2026-10-10T14:03:34.2107885Z   operator: '=='
+[original log line 656] 2026-10-10T14:03:34.2107985Z   stack: |-
+[original log line 708] 2026-10-10T14:03:34.2191586Z # tests 9
+[original log line 710] 2026-10-10T14:03:34.2203307Z # pass 7
+[original log line 711] 2026-10-10T14:03:34.2203499Z # fail 2
+[original log line 726] 2026-10-10T14:03:34.3565896Z diff --git a/docs/api/agent/authoring.md b/docs/api/agent/authoring.md
+[original log line 727] 2026-10-10T14:03:34.3566150Z index 5785fff..d78d5a2 100644
+[original log line 728] 2026-10-10T14:03:34.3566296Z --- a/docs/api/agent/authoring.md
+[original log line 729] 2026-10-10T14:03:34.3566441Z +++ b/docs/api/agent/authoring.md
+[original log line 730] 2026-10-10T14:03:34.3566586Z @@ -62,7 +62,7 @@ docType: index
+[original log line 731] 2026-10-10T14:03:34.3567532Z  维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
+[original log line 732] 2026-10-10T14:03:34.3567964Z  
+[original log line 733] 2026-10-10T14:03:34.3568103Z  
+[original log line 734] 2026-10-10T14:03:34.3568437Z -- `docs/api/recorder-runtime.md` SHA-256 `6b2bf94fdd036745915bebeb3f9472ee2abecc29034b9a96ac70c2407a990354`
+[original log line 735] 2026-10-10T14:03:34.3568993Z +- `docs/api/recorder-runtime.md` SHA-256 `1423caebd670f14b4fd994edf88fe853fb308f87ceced422054a3ae91efdcac5`
+[original log line 736] 2026-10-10T14:03:34.3569392Z  
+[original log line 737] 2026-10-10T14:03:34.3569684Z  - `types/recorder.d.ts` SHA-256 `30a4958671a9baabd8c665ad3624e7d078e17c98394799e623d69a63d2575795`
+[original log line 738] 2026-10-10T14:03:34.3570054Z  
+[original log line 751] 2026-10-10T14:03:34.4583662Z 3feba12b86f19bd7543fb1353b9f5f8b057ffd50
+

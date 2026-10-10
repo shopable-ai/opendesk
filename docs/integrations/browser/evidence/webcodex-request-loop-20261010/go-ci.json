@@ -1,0 +1,183 @@
+{
+  "queriedAt": "2026-10-10 14:47:51 UTC",
+  "sourceCommit": "34649d24ee821298f586abba257e9e41b89a4cec",
+  "runs": [
+    {
+      "id": 38060523312,
+      "name": "API docs contract",
+      "path": ".github/workflows/api-doc-contract.yml",
+      "status": "completed",
+      "conclusion": "failure",
+      "headSha": "34649d24ee821298f586abba257e9e41b89a4cec",
+      "url": "https://github.com/shopable-ai/opendesk/actions/runs/38060523312",
+      "updatedAt": "2026-10-10T14:42:54Z"
+    },
+    {
+      "id": 38060523393,
+      "name": "Browser Native Messaging Go bridge",
+      "path": ".github/workflows/browser-native-bridge.yml",
+      "status": "completed",
+      "conclusion": "success",
+      "headSha": "34649d24ee821298f586abba257e9e41b89a4cec",
+      "url": "https://github.com/shopable-ai/opendesk/actions/runs/38060523393",
+      "updatedAt": "2026-10-10T14:43:18Z"
+    },
+    {
+      "id": 38060523501,
+      "name": "Windows Core",
+      "path": ".github/workflows/windows-core.yml",
+      "status": "completed",
+      "conclusion": "failure",
+      "headSha": "34649d24ee821298f586abba257e9e41b89a4cec",
+      "url": "https://github.com/shopable-ai/opendesk/actions/runs/38060523501",
+      "updatedAt": "2026-10-10T14:44:33Z"
+    }
+  ],
+  "nativeJobs": [
+    {
+      "id": 114237687408,
+      "name": "Real OpenDesk executable against simulated Chrome",
+      "status": "completed",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-go@v6",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Build the same distributable binary used by App Mode",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Chrome Native framing, installer and CLI process smoke",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-go@v6",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 114237687573,
+      "name": "transport (ubuntu-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-go@v6",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Native framing, authentication, socket and install tests",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-go@v6",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 114237687640,
+      "name": "transport (macos-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-go@v6",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Native framing, authentication, socket and install tests",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-go@v6",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "scope": "Full affected Go packages with real sockets on Ubuntu/macOS. The executable smoke uses the existing CI build with SKIP_CODESIGN=1 and a frozen historical Browser framing fixture; not the signed user App or the new Browser/Go pair with ChatGPT."
+}

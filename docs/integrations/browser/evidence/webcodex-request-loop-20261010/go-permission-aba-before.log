@@ -1,0 +1,17 @@
+=== RUN   TestR17WorkspacePermissionABARejectsRetiredLease
+=== RUN   TestR17WorkspacePermissionABARejectsRetiredLease/permanent/observed
+    dev_workspace_unix_test.go:417: want E_FILES_SESSION, got {V:1 Kind:files.response Protocol:opendesk.local-files.v1 RequestID:77af1710-db92-4005-a3bb-a027e008722a SessionID:9d31bb96-80a1-4387-8865-fef49b9a3764 Result:map[bytes:14 path:README.md saved:true sha256:08d9d7d30f818f212a81a73fe2577d0cb36c81912ec9c89ccb2ae8dd2f8d4632 workspaceId:workspace-84d38863-7e07-485e-854d-e4ae2b66ece7] Error:<nil>}
+=== RUN   TestR17WorkspacePermissionABARejectsRetiredLease/permanent/between-requests
+    dev_workspace_unix_test.go:417: want E_FILES_SESSION, got {V:1 Kind:files.response Protocol:opendesk.local-files.v1 RequestID:ebaf92c1-e518-42a3-b205-cc1b7d6ed5b3 SessionID:99fb1f7f-23c7-449b-b44d-8d50b563d7ce Result:map[bytes:14 path:README.md saved:true sha256:08d9d7d30f818f212a81a73fe2577d0cb36c81912ec9c89ccb2ae8dd2f8d4632 workspaceId:workspace-5f5cbb0b-17dc-4587-ab64-0eb2e6e38a57] Error:<nil>}
+=== RUN   TestR17WorkspacePermissionABARejectsRetiredLease/temporary/observed
+    dev_workspace_unix_test.go:417: want E_FILES_SESSION, got {V:1 Kind:files.response Protocol:opendesk.local-files.v1 RequestID:a55a3f6a-0d95-4381-b342-2949b408736a SessionID:66cceeee-71cf-47b4-b584-e4c2ac55ab41 Result:map[bytes:14 path:README.md saved:true sha256:08d9d7d30f818f212a81a73fe2577d0cb36c81912ec9c89ccb2ae8dd2f8d4632 workspaceId:workspace-6cd60aa5-6362-4c08-51e3-be10563b7228] Error:<nil>}
+=== RUN   TestR17WorkspacePermissionABARejectsRetiredLease/temporary/between-requests
+    dev_workspace_unix_test.go:417: want E_FILES_SESSION, got {V:1 Kind:files.response Protocol:opendesk.local-files.v1 RequestID:81acec7f-d46c-423f-8179-4d34c5a40a0b SessionID:62da5693-02d1-4187-9fb0-aaaa389ffa26 Result:map[bytes:14 path:README.md saved:true sha256:08d9d7d30f818f212a81a73fe2577d0cb36c81912ec9c89ccb2ae8dd2f8d4632 workspaceId:workspace-b9a11728-6f75-ebe8-7383-24bae241c755] Error:<nil>}
+--- FAIL: TestR17WorkspacePermissionABARejectsRetiredLease (0.01s)
+    --- FAIL: TestR17WorkspacePermissionABARejectsRetiredLease/permanent/observed (0.00s)
+    --- FAIL: TestR17WorkspacePermissionABARejectsRetiredLease/permanent/between-requests (0.00s)
+    --- FAIL: TestR17WorkspacePermissionABARejectsRetiredLease/temporary/observed (0.00s)
+    --- FAIL: TestR17WorkspacePermissionABARejectsRetiredLease/temporary/between-requests (0.00s)
+FAIL
+FAIL	opendesk/internal/browserbridge	0.009s
+FAIL

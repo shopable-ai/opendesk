@@ -1,0 +1,39 @@
+GitHub Actions original log excerpts
+Repository: shopable-ai/opendesk
+Job: 114237688124
+URL: https://github.com/shopable-ai/opendesk/actions/runs/38060523501/job/114237688124
+Retrieved read-only; no jobs were rerun. Timestamps and error text below are unchanged.
+
+[original log line 81] 2026-10-10T14:40:20.2871238Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +34649d24ee821298f586abba257e9e41b89a4cec:refs/remotes/origin/master
+[original log line 83] 2026-10-10T14:40:22.2620081Z  * [new ref]         34649d24ee821298f586abba257e9e41b89a4cec -> origin/master
+[original log line 95] 2026-10-10T14:40:23.1421341Z 34649d24ee821298f586abba257e9e41b89a4cec
+[original log line 209] 2026-10-10T14:42:55.1025673Z ##[error]internal\browsercli\command.go:150:24: host.Close undefined (type *browserbridge.Host has no field or method Close)
+[original log line 218] 2026-10-10T14:44:05.2778088Z ##[error]internal\browsercli\command.go:150:24: host.Close undefined (type *browserbridge.Host has no field or method Close)
+[original log line 231] 2026-10-10T14:44:29.0858137Z [TEST-ARCHITECTURE-AUDIT] FAILED -> .runtime/tests/test-architecture/audit.json
+[original log line 234] 2026-10-10T14:44:29.0864808Z     "head": "34649d24ee821298f586abba257e9e41b89a4cec",
+[original log line 296] 2026-10-10T14:44:29.0905256Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: automation/custom_ui_chrome_test.go
+[original log line 297] 2026-10-10T14:44:29.0906074Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: automation/file_write_new_test.go
+[original log line 298] 2026-10-10T14:44:29.0906745Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: cmd/opendesk/app_flow_invocation_test.go
+[original log line 299] 2026-10-10T14:44:29.0907442Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: cmd/opendesk/app_marketplace_development_test.go
+[original log line 300] 2026-10-10T14:44:29.0908123Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: cmd/opendesk/app_marketplace_product_test.go
+[original log line 301] 2026-10-10T14:44:29.0908811Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: cmd/opendesk/scheduler_cli_test.go
+[original log line 302] 2026-10-10T14:44:29.0909441Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: internal/browserbridge/client_unix_test.go
+[original log line 303] 2026-10-10T14:44:29.0910268Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: internal/browserbridge/host_shutdown_test.go
+[original log line 304] 2026-10-10T14:44:29.0910933Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: internal/browserbridge/host_unix_test.go
+[original log line 305] 2026-10-10T14:44:29.0911626Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: internal/browserbridge/install_unix_test.go
+[original log line 306] 2026-10-10T14:44:29.0912352Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: internal/browserbridge/project_notification_unix_test.go
+[original log line 307] 2026-10-10T14:44:29.0913067Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: internal/browserbridge/project_provider_unix_test.go
+[original log line 308] 2026-10-10T14:44:29.0913803Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: internal/browserbridge/project_store_unix_test.go
+[original log line 309] 2026-10-10T14:44:29.0914454Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: internal/browserbridge/wire_test.go
+[original log line 310] 2026-10-10T14:44:29.0915050Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: internal/browsercli/command_test.go
+[original log line 311] 2026-10-10T14:44:29.0915881Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: pkg/appshell/marketplace_protocol_contract_test.go
+[original log line 312] 2026-10-10T14:44:29.0916696Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: pkg/customui/window_chrome_contract_test.go
+[original log line 313] 2026-10-10T14:44:29.0918000Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: pkg/flowinstall/marketplace_revision_test.go
+[original log line 314] 2026-10-10T14:44:29.0918751Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: pkg/flowmarketplace/static_test.go
+[original log line 315] 2026-10-10T14:44:29.0919560Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: pkg/measurement/session_reference_selection_test.go
+[original log line 316] 2026-10-10T14:44:29.0920342Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: pkg/officialconfig/analytics_test.go
+[original log line 317] 2026-10-10T14:44:29.0921081Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: pkg/officialconfig/flow_distribution_test.go
+[original log line 318] 2026-10-10T14:44:29.0921889Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: pkg/scheduler/service_schedule_contract_test.go
+[original log line 319] 2026-10-10T14:44:29.0922619Z [TEST-ARCHITECTURE-AUDIT] unclassified current Go test: pkg/scheduler/trigger_type_test.go
+[original log line 320] 2026-10-10T14:44:29.0923289Z [TEST-ARCHITECTURE-AUDIT] current _test.go total=320, expected=296 from reviewed rows
+

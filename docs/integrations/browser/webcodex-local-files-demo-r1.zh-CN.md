@@ -1,22 +1,26 @@
 # WebCodex 本地文件工作区 Demo R1
 
+本轮源码提交：`34649d24ee821298f586abba257e9e41b89a4cec`（master）；配套 Browser：`c41102d7e2dd13510f718f69061f8194251eb767`（main）。[原始证据与机器索引](evidence/webcodex-request-loop-20261010/README.md)；实际 Mac 安装与同一对话 P0/两轮保存仍为 NOT_TESTED。
+
 日期：2026-10-10。范围：OpenDesk Go Native Host 与 OpenDesk Browser 的受限文本文件编辑。
 
 ## 当前实现与使用边界
 
-本轮在既有 `opendesk browser native-host` 内增加 `opendesk.local-files.v1` 子协议。浏览器扩展经过已有 Native 安装和配对后，可以从受信任工作区页面列出、读取、编辑用户已授予的目录，并取得真实磁盘保存回执。没有新增 HTTP 文件服务器、第二个 Native Host、shell 执行入口或模型账号转发。
+既有 `opendesk browser native-host` 提供 `opendesk.local-files.v1` 子协议，本轮继续复用。浏览器扩展经过已有 Native 安装和配对后，可以从受信任工作区页面列出、读取、编辑用户已授予的目录，并取得真实磁盘保存回执。没有新增 HTTP 文件服务器、第二个 Native Host、shell 执行入口或模型账号转发。
 
-**R17 增量说明：** 新的 `opendesk browser` / `opendesk-dev` 会在 CLI 前台存续期间注册当前目录的临时只读 Workspace；原 `workspace add --access read-write` 仍是另外一项明确长期授权。文件协议沿用本页，临时目录在会话退出时撤销，见 [R17 Native 目录直连](local-directory-cli-r17.zh-CN.md)。
+**R17 + WebCodex R2 本轮增量：** 新的 `opendesk browser` / `opendesk browser dev` / `opendesk-dev` 在 CLI 前台存续期间默认申请当前或指定目录的临时 `read-write` Workspace，不需要先执行 `workspace add`；`--read-only` 明确申请只读。已有长期只读授权仍保持只读；显式只读遇既有读写接入返回模式冲突。原 `workspace add --access read-write` 仍是另外一项可选的明确长期授权。文件协议沿用本页，临时目录在会话退出时撤销，见 [R17 Native 目录直连](local-directory-cli-r17.zh-CN.md)。
 
 普通网页与 ChatGPT 对话本身没有得到任意本机文件访问权。文件能力由扩展受信任 UI 持有；原页面中显示的内容、Markdown、HTML 与 AI 生成文本都只是输入资料。Browser 必须独立保护请求入口和预览隔离，不能把本子协议直接暴露给网页 `postMessage`、网页 SDK 或用户脚本。
 
 现有 R16 `internal/browserai` 仍是受限工作流规划器：不增加文件、shell 或外部 MCP 工具。当前 Demo 也不宣称 ChatGPT 网页的模型已经注册了本地 MCP 工具；页面内操作、官方模型工具调用和本地 Codex 编码会话是不同的集成层。
 
-## 一次目录授权与后续操作
+## CLI 临时接入与可选长期授权
 
 前提是已完成 [现有 Native Host 安装与配对](native-messaging-host.zh-CN.md)，且实际安装的 OpenDesk 包含本轮代码。旧程序不会因为只更新浏览器 UI 就自动具备文件接口。
 
-从任何终端工作目录，用户或已获授权的本机 Agent 执行一条明确目录授权命令。请将下面路径替换为已经存在、属于当前用户的具体项目目录：
+日常使用先进入需要操作的目录，执行 `opendesk browser`，或执行 `opendesk browser dev "/absolute/path/to/demo-workspace"`。参数目录即授权根；不向 Git 根或父目录扩大。该接入在 CLI 退出/失联后释放，权限不写成永久记录。
+
+如果用户需要 CLI 退出后仍保留访问，可以另行执行以下明确**长期**目录授权命令。它不是本轮默认读写验收的前置步骤。请将路径替换为已经存在、属于当前用户的具体项目目录：
 
 ```bash
 opendesk browser workspace add --path /absolute/path/to/demo-workspace --access read-write
@@ -67,7 +71,8 @@ Markdown 与 HTML 的渲染归 Browser。建议 Markdown 净化后显示，HTML 
   "protocol": "opendesk.local-files.v1",
   "connected": true,
   "sessionId": "<本次连接生成的随机 ID>",
-  "maxContentBytes": 32768
+  "maxContentBytes": 32768,
+  "devLeaseEpoch": 1
 }
 ```
 
@@ -83,7 +88,8 @@ Markdown 与 HTML 的渲染归 Browser。建议 Markdown 净化后显示，HTML 
   "method": "files.read",
   "params": {
     "workspaceId": "<已授权 workspaceId>",
-    "path": "README.md"
+    "path": "README.md",
+    "leaseEpoch": "<实时目录的公开代次；无 CLI 时为空字符串>"
   }
 }
 ```
@@ -92,12 +98,16 @@ Markdown 与 HTML 的渲染归 Browser。建议 Markdown 净化后显示，HTML 
 
 | 方法 | 参数 | 主要结果 |
 | --- | --- | --- |
-| `files.status` | `{}` | `supported:true`、`version:1`、正文/帧预算、支持的方法、`writePrecondition:"sha256-optimistic"` |
-| `workspaces.list` | `{}` | `workspaces:[{workspaceId,name,access}]` |
+| `files.status` | `{}` | `supported:true`、`version:1`、正文/帧预算、支持的方法、`writePrecondition:"sha256-optimistic"`、`devLeaseEpoch:1` |
+| `workspaces.list` | `{}` | `workspaces:[{workspaceId,name,access,sourceId,accessReason,leaseEpoch?,temporary?}]` |
 | `files.list` | `{workspaceId,path:""}`，或相对目录 | `{workspaceId,path,entries:[{name,path,kind,bytes?}],truncated}`；`kind` 为 `file` 或 `directory` |
 | `files.read` | `{workspaceId,path}` | `{workspaceId,path,content,sha256,bytes}` |
 | `files.write` | `{workspaceId,path,content,expectedSha256}` | `{workspaceId,path,saved:true,sha256,bytes}`；仅覆盖已有文本，旧 hash 必填 |
 | `files.create` | `{workspaceId,path,content}` | 同保存回执并含 `created:true`；已有路径返回 `E_FILES_EXISTS` |
+
+`files.list/read/write/create` 还允许可选的 `leaseEpoch` 参数。新 CLI 工作区从实时 `workspaces.list` 取得此代次并透传，Go 核对当前工作区确实仍属于该代次；旧代次/错误目录代次/已退出接入返回 `E_FILES_SESSION`，包括重复写请求回执。该代次与本机 Provider 的私有 `leaseId` 不同，不能授权路径，也不向网页提供凭据。新客户端对无 CLI 的长期授权显式发送 `leaseEpoch:""` 并沿用 Native `sessionId`；空串要求执行时仍没有 CLI 绑定，防止检查后接入造成身份竞态。旧文件客户端省略该字段仍保持 R1 语义。`files.state` 同时广告 `devLeaseEpoch:1`。
+
+明确长期授权改变或撤销会单向废弃该目录的旧 CLI 代次。随后改回读写或撤销新加的长期只读授权，都不能恢复旧请求/旧成功回执。该检查在原文件执行锁内读取持久失效标记，因此覆盖另一个 CLI 进程在两次 Native 请求之间完成权限往返的情况；仍由原 owner 退出后重新接入取得新代次。
 
 请求顶层与参数对象拒绝重复字段、未知字段与非法类型；方法不在 allowlist 中直接拒绝。Native 的普通 `request`、本机 Socket 客户端及 R16 `ai.request` 都不能调用这些方法。
 
@@ -113,11 +123,12 @@ Markdown 与 HTML 的渲染归 Browser。建议 Markdown 净化后显示，HTML 
 
 目标发布前明确拒绝的请求返回 `outcome:"NOT_DISPATCHED"`。真正尝试发布后出现无法确定的 I/O 错误，或发布后读回/同步失败，返回 `E_EFFECT_UNKNOWN`、`outcome:"OUTCOME_UNKNOWN"`。独占创建的明确 `E_FILES_EXISTS` 不算未知写入。
 
-一条 Native 连接保留最多 128 条 mutation 回执。重复相同 requestId 和相同请求只返回原回执，不再次写磁盘；同 ID 换内容直接冲突。该记录不是跨重连的持久事务日志。扩展断线、超时或收到未知写入状态时，应停止保存并让用户读取实际磁盘内容核实，不能自动换 requestId 或重连后重放。读取恢复必须确认当前内容，不能仅凭旧保存回执清除未知状态。
+一条 Native 连接保留最多 128 条 mutation 回执。只有当前 Native session、安装、授权 store 与租约代次检查仍通过时，重复相同 requestId 和相同请求才返回原回执，不再次写磁盘；此时同 ID 换内容直接冲突。旧 epoch 或已失效 CLI 授权视图会在查询回执前被拒绝，不能利用缓存绕过撤权。该记录不是跨重连的持久事务日志。扩展断线、超时或收到未知写入状态时，应停止保存并让用户读取实际磁盘内容核实，不能自动换 requestId 或重连后重放。读取恢复必须确认当前内容，不能仅凭旧保存回执清除未知状态。
 
 ## 目录边界与生命周期
 
-- 目录授权保存于当前用户私有 0600 文件，绑定安装 credential digest、精确扩展 ID、真实目录 device/inode；最多 8 个工作区。
+- 明确长期目录授权保存于当前用户私有 0600 文件，绑定安装 credential digest、精确扩展 ID、真实目录 device/inode；最多 8 个长期工作区。R17 CLI 临时目录仅保存在当前 Host 内存中，最多 4 个临时目录，owner Socket 退出仅释放所属接入，不能撤销其他目录或长期授权。
+- 同一份现有授权 store 可另含最多 12 条 `devLeaseFences` 失效元数据，只有公开标识与单向失效位，没有路径、权限或 owner 秘密；它们不在长期 `workspaces` 数组中，也不能恢复临时授权。记录建立失败就拒绝接入，owner 退出按归属清理，异常退出的无权限元数据由下一唯一 Host 明确接入清理。旧 Go 的 strict store schema 会拒绝该可选字段，需使用匹配版本，详见 [R17 存储兼容边界](local-directory-cli-r17.zh-CN.md)。
 - 浏览器只接收 opaque ID、名称和相对路径；没有请求能够新增目录授权或升级访问级别。
 - Go 使用 `os.Root` 及固定父目录句柄操作。每个相对路径组件、最终文件与授权目录都校验；拒绝 `..`、绝对路径、反斜线、控制字符、隐藏路径、`node_modules`、符号链接、硬链接、特殊文件以及跨 device 子路径。
 - 所选目录与可操作的子目录/文件必须属于当前用户，且不允许其他账号通过组或全局写权限修改它们；读取允许 owner 只读文件，保存还要求 owner 写位。
@@ -158,7 +169,7 @@ go build -o .runtime/tests/native-files/opendesk-native-files-fixture ./tests/br
 
 组件 executable 未改变生产 Host 的 Socket、身份、安装或文件检查要求。环境禁止 Unix Socket 时，它仍会失败；不得增加生产绕过开关来伪造 Chrome 全链路通过。运行日志与二进制归 `.runtime/tests/native-files/`。
 
-本次开发环境的 Go 1.25.13 结果：
+以下为 R1 开发阶段已记录的 Go 1.25.13 **历史组件结果**，保留当时范围，不代表本轮新提交已经完成 Mac 或两轮网页闭环验收：
 
 | 验证 | 结果及范围 |
 | --- | --- |
@@ -172,3 +183,12 @@ go build -o .runtime/tests/native-files/opendesk-native-files-fixture ./tests/br
 | macOS OpenDesk.app 安装、真实 Chrome Native 文件工作区与 ChatGPT 页内操作 | 本 Go 组件任务 NOT_TESTED；由相应环境与 Browser 验收分别提供证据 |
 
 原始日志、Darwin 编译物、组件 CLI 与架构基线核查位于 `.runtime/tests/native-files/`。这里只记录本轮实际运行结果，不能把组件测试写成桌面或网页端已通过。
+
+
+## 当前官方网页对话闭环的验收边界
+
+本轮 Browser R2 通过结构化请求/结果文本接续用户选定的同一官方 ChatGPT 对话。Go 仍只接受可信扩展 UI 经 Native 发起的既有文件方法，不接收网页直接 RPC，不注册模型 MCP 工具，也不调用 ChatGPT 内部接口。读取无写盘副作用，提出修改和采用草稿不写盘，只有用户显式保存才允许进入文件写入服务。
+
+P0 必须先写入模型未知的随机标记，由该对话发出读取请求，证明 Native 实读并自动回填到同一对话，用户通过网页发送后，模型能根据新收到的正文报告标记。然后同一对话执行两轮完整读取、结果回填、修改、审阅、保存与独立磁盘 SHA 核对。复制上下文、手工预先贴正文、另一个 Codex 会话和组件测试都不能替代这一证据。
+
+本轮源码对应的使用方式与权限矩阵见 [R17 目录直连](local-directory-cli-r17.zh-CN.md)；Browser 的 R2 架构、工作记录及本机验收提示词为对话适配和输入框回填的实现/验收入口。当前 Linux 网页执行器中 Mac 安装、真实 Chrome、P0 与两轮同一网页对话均为 `NOT_TESTED`。

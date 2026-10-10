@@ -1,0 +1,77 @@
+{
+  "sourceCommit": "34649d24ee821298f586abba257e9e41b89a4cec",
+  "parentCommit": "3feba12b86f19bd7543fb1353b9f5f8b057ffd50",
+  "method": "Read-only GitHub Actions jobs and original logs for current and direct parent, plus local git blob comparison. No source edits, ref updates, test runs or CI reruns.",
+  "workflows": [
+    {
+      "name": "API docs contract",
+      "run": 38060523312,
+      "parentRun": 38058099375,
+      "conclusion": "failure",
+      "parentConclusion": "failure",
+      "jobs": [
+        {
+          "name": "Canonical API docs contract",
+          "job": 114237687240,
+          "parentJob": 114230590428,
+          "conclusion": "success",
+          "parentConclusion": "success"
+        },
+        {
+          "name": "Agent-to-Recipe capability chain",
+          "job": 114237687075,
+          "parentJob": 114230590371,
+          "failedStep": "Test handoff and artifact-chain relationships",
+          "error": "15 tests fail with ENOENT for .runtime/tests/agent-to-recipe/revision-20260929/repeat-candidate/candidate.json; source tests/workflows/artifact-calculator-production.test.js:21,27.",
+          "sameInParent": true
+        },
+        {
+          "name": "OpenDesk Runtime contract and unit (macOS)",
+          "job": 114237687203,
+          "parentJob": 114230590450,
+          "failedStep": "Run formal Runtime contract gate",
+          "error": "Runtime API catalog drift: contract-only entry lacks risk reason for BrowserDOM.status/tabs/observe/locate/read/act/wait/verify/close (9 entries).",
+          "sameInParent": true,
+          "notes": "Runtime entry binary build succeeded; formal unit gate skipped, selected Runtime units succeeded. Compiler warnings do not explain the failed contract gate."
+        },
+        {
+          "name": "Layered Agent API reading",
+          "job": 114237687305,
+          "parentJob": 114230590511,
+          "failedSteps": [
+            "Validate checked-in catalogs without regenerating them",
+            "Test canonical reading dependencies",
+            "Test task-first discovery and local repair",
+            "Verify catalog regeneration is deterministic"
+          ],
+          "error": "CATALOG_DRIFT docs/api/agent/authoring.md: recorder-runtime.md recorded SHA 6b2bf94fdd036745915bebeb3f9472ee2abecc29034b9a96ac70c2407a990354 vs actual 1423caebd670f14b4fd994edf88fe853fb308f87ceced422054a3ae91efdcac5. Reader 2 failures. Discovery expected 10 catalogs but actual 11, and workflows/agent-to-recipe/WORKFLOW.md lacks direct short API entry (2 failures).",
+          "sameInParent": true
+        }
+      ]
+    },
+    {
+      "name": "Windows Core",
+      "run": 38060523501,
+      "parentRun": 38058099423,
+      "conclusion": "failure",
+      "parentConclusion": "failure",
+      "jobs": [
+        {
+          "name": "Windows Core Compatibility",
+          "job": 114237688124,
+          "parentJob": 114230800064,
+          "failedSteps": [
+            "Compile maintained Go source",
+            "Build portable Windows distribution",
+            "Audit test architecture"
+          ],
+          "error": "command.go:150:24 host.Close undefined; parent same error at line 149. Unsupported-platform Host defines Run but no Close. Compilation blocks later Windows tests and distribution checks. Audit has same 24 unclassified Go test files and current _test.go total=320 expected=296.",
+          "sameInParent": true,
+          "notes": "Only command.go change in source commit is added read-only dispatch line before the old failing call; unsupported.go unchanged."
+        }
+      ]
+    }
+  ],
+  "conclusion": "No new failure introduced by the R17/R2 source commit is evidenced. Both workflows already failed on direct parent with the same errors. These repository-wide failures still need separate maintenance for green CI; do not label the overall workflow suite green or claim real Mac acceptance.",
+  "sourceComparison": "source-comparison.json: all 15 selected workflow, failure-source, catalog and audit-ledger files have identical git blobs in source and parent."
+}
