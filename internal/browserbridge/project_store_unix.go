@@ -174,13 +174,15 @@ func ProjectAdd(p,kind,entry,siteOrigin string)(map[string]any,error){
  RuntimeKind:kind,EntryFormat:entry,SiteOrigin:siteOrigin,Device:dev,Inode:ino}
  for _,existing:=range state.Projects{
   if existing.BindingID!=id{continue}
-  if existing==grant{return map[string]any{"bindingId":id,"name":grant.Name,"unchanged":true},nil}
+  if existing==grant{return map[string]any{"bindingId":id,"name":grant.Name,
+    "unchanged":true,"providerNotified":notifyProjectChanged(cfg)},nil}
   return nil,projectErr("E_DEV_CONFLICT")
  }
  if len(state.Projects)>=maxProjectGrants{return nil,projectErr("E_LIMIT")}
  state.Projects=append(state.Projects,grant)
  if err=writeProjectStore(cfg,state);err!=nil{return nil,err}
- return map[string]any{"bindingId":id,"name":grant.Name,"authorized":true},nil
+ return map[string]any{"bindingId":id,"name":grant.Name,"authorized":true,
+ "providerNotified":notifyProjectChanged(cfg)},nil
 }
 func ProjectList()(map[string]any,error){
  cfg,err:=Load();if err!=nil{return nil,err}
@@ -206,7 +208,8 @@ func ProjectRevoke(id string)(map[string]any,error){
  if !found{return nil,projectErr("E_DEV_DETACHED")}
  state.Projects=next
  if err=writeProjectStore(cfg,state);err!=nil{return nil,err}
- return map[string]any{"bindingId":id,"revoked":true},nil
+ return map[string]any{"bindingId":id,"revoked":true,
+ "providerNotified":notifyProjectChanged(cfg)},nil
 }
 // ResolveProject returns ONLY source bytes and execution metadata, never
 // workspace paths. The grant is checked both before and after file snapshot.

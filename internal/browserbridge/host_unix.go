@@ -197,6 +197,35 @@ func (h *Host) serveLocal(c *localClient) {
 	if err!=nil{return}
 	f,err:=Decode(payload);if err!=nil{return}
 	if Int(f,"v")!=1{return}
+	if String(f,"kind")=="project.changed" {
+		// Internal, credential-authenticated local grant refresh. A file
+		// change is NEVER a Browser run request or an extra execution API.
+		listed,err:=ProjectList()
+		if err!=nil {
+			_ = h.sendLocal(c,MustEncode(map[string]any{"v":1,"kind":"project.changed",
+				"ok":false,"error":map[string]string{"code":"E_DEV_AUTH"}}))
+			return
+		}
+		rows,_:=listed["projects"].([]map[string]any)
+		epoch:=""
+		if len(rows)>0 {
+			epoch,err=NewID()
+			if err!=nil{return}
+		}
+		h.mu.Lock()
+		if !h.closed && h.ready && h.localDev {
+			// Rotate the builtin source epoch on every authorized change.
+			// A pending old-epoch read cannot become a new grant.
+			h.internalEpoch=epoch
+			ready=true
+		}else{ready=false}
+		h.mu.Unlock()
+		if !ready{return}
+		if err=h.sendLocal(c,MustEncode(map[string]any{"v":1,"kind":"project.changed",
+			"ok":true}));err!=nil{return}
+		h.providerState()
+		return
+	}
 	if String(f,"kind")=="provider.register"{
 		h.mu.Lock()
 		ready=h.ready;dev=h.localDev
