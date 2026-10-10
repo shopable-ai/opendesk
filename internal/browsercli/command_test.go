@@ -15,7 +15,9 @@ import (
 const cliTestExtensionID = "abcdefghijklmnopabcdefghijklmnop"
 
 func TestNoArgumentSetupReusesTrustedInstall(t *testing.T) {
-    home:=t.TempDir()
+    home,err:=os.MkdirTemp("/tmp","od-cli-")
+    if err!=nil{t.Fatal(err)}
+    t.Cleanup(func(){_ = os.RemoveAll(home)})
     if err:=os.Chmod(home,0700);err!=nil{t.Fatal(err)}
     t.Setenv("HOME",home)
     binary,err:=os.Executable()
@@ -47,15 +49,26 @@ func TestNoArgumentSetupReusesTrustedInstall(t *testing.T) {
     }
 }
 
-func TestFreshUnpublishedSetupReturnsHelpfulFailureWithoutWriting(t *testing.T) {
-    home:=t.TempDir()
+func TestFreshSetupNeedsPinnedOfficialIDOrFailsClosed(t *testing.T) {
+    home,err:=os.MkdirTemp("/tmp","od-cli-")
+    if err!=nil{t.Fatal(err)}
+    t.Cleanup(func(){_ = os.RemoveAll(home)})
     if err:=os.Chmod(home,0700);err!=nil{t.Fatal(err)}
     t.Setenv("HOME",home)
     var out,diagnostics bytes.Buffer
     code:=Execute([]string{"browser","setup"},&out,&diagnostics)
-    if code==0 {t.Fatal("an unregistered dev build must not guess a Chrome extension ID")}
+    if code==0 {
+        // Once a verified release ID is pinned, the no-argument install must
+        // be allowed. Test that it contains a precise, valid extension ID.
+        cfg,err:=browserbridge.Load()
+        if err!=nil{t.Fatal(err)}
+        if !browserbridge.ExtensionIDValid(cfg.ExtensionID) {
+            t.Fatalf("untrusted release extension identity: %q",cfg.ExtensionID)
+        }
+        return
+    }
     if !strings.Contains(diagnostics.String(),"E_OFFICIAL_ID_UNAVAILABLE") {
-        t.Fatalf("expected explicit release-identity diagnostic: %s",diagnostics.String())
+        t.Fatalf("an unpublished build must not guess an extension ID: %s",diagnostics.String())
     }
     if out.Len()!=0 {t.Fatalf("a failed setup returned success output: %s",out.String())}
 }
