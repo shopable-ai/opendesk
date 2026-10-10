@@ -117,6 +117,12 @@ apps/example-explorer/
 
 公开 Example 可以包含最小结果检查，但不能因此替代正式 Runtime API contract、真实原生 UI 验收或跨平台 evidence。
 
+### R16 Browser Codex Provider 测试归属
+
+`internal/browserai/manager_test.go`、`process_test.go` 和 `internal/browserbridge/host_ai_unix_test.go` 保留同包：它们测试私有 Native/App Server 协议、进程、并发和权限状态，不新增公开 Runtime API。逐文件分类已登记在 [Go 测试分类账本](go-test-file-classification.md) 的唯一增量登记段。
+
+默认测试使用明确的内存或真实 stdio fixture；实际 Codex Probe、合成连续推理、取消和工作流输出由 `OPENDESK_TEST_REAL_CODEX*` 显式启用，各自单列证据。macOS/Chrome/Browser RunHost 真机闭环仍由原 Browser 测试 owner 验证，不能以这些 Go 白盒替代。命令、已观察失败和 NOT_TESTED 项见 [R16 实施记录](../integrations/browser/workflow-codex-app-server-r16-implementation.zh-CN.md)。临时 schema、日志和合成输出归 `.runtime/tests/browserai/`，不进入 `examples/` 或发行 payload。
+
 ## 审计
 
 统一入口仍为：

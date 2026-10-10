@@ -1,0 +1,24 @@
+{"Time":"2026-10-10T17:07:21.635021322+08:00","Action":"start","Package":"opendesk/internal/browserbridge"}
+{"Time":"2026-10-10T17:07:21.647102744+08:00","Action":"run","Package":"opendesk/internal/browserbridge","Test":"TestWorkflowAIRequiresNativeWelcomeAndKeepsLegacyMethods"}
+{"Time":"2026-10-10T17:07:21.647149634+08:00","Action":"output","Package":"opendesk/internal/browserbridge","Test":"TestWorkflowAIRequiresNativeWelcomeAndKeepsLegacyMethods","Output":"=== RUN   TestWorkflowAIRequiresNativeWelcomeAndKeepsLegacyMethods\n"}
+{"Time":"2026-10-10T17:07:21.649510931+08:00","Action":"output","Package":"opendesk/internal/browserbridge","Test":"TestWorkflowAIRequiresNativeWelcomeAndKeepsLegacyMethods","Output":"--- PASS: TestWorkflowAIRequiresNativeWelcomeAndKeepsLegacyMethods (0.00s)\n"}
+{"Time":"2026-10-10T17:07:21.649532934+08:00","Action":"pass","Package":"opendesk/internal/browserbridge","Test":"TestWorkflowAIRequiresNativeWelcomeAndKeepsLegacyMethods","Elapsed":0}
+{"Time":"2026-10-10T17:07:21.649606014+08:00","Action":"run","Package":"opendesk/internal/browserbridge","Test":"TestWorkflowAICloseHasCapacityWhenPlanningSlotsAreFull"}
+{"Time":"2026-10-10T17:07:21.649612864+08:00","Action":"output","Package":"opendesk/internal/browserbridge","Test":"TestWorkflowAICloseHasCapacityWhenPlanningSlotsAreFull","Output":"=== RUN   TestWorkflowAICloseHasCapacityWhenPlanningSlotsAreFull\n"}
+{"Time":"2026-10-10T17:07:21.65058576+08:00","Action":"output","Package":"opendesk/internal/browserbridge","Test":"TestWorkflowAICloseHasCapacityWhenPlanningSlotsAreFull","Output":"--- PASS: TestWorkflowAICloseHasCapacityWhenPlanningSlotsAreFull (0.00s)\n"}
+{"Time":"2026-10-10T17:07:21.650596666+08:00","Action":"pass","Package":"opendesk/internal/browserbridge","Test":"TestWorkflowAICloseHasCapacityWhenPlanningSlotsAreFull","Elapsed":0}
+{"Time":"2026-10-10T17:07:21.650644468+08:00","Action":"run","Package":"opendesk/internal/browserbridge","Test":"TestWorkflowAIInvalidProtocolCannotEnterOtherNativeNamespaces"}
+{"Time":"2026-10-10T17:07:21.650649906+08:00","Action":"output","Package":"opendesk/internal/browserbridge","Test":"TestWorkflowAIInvalidProtocolCannotEnterOtherNativeNamespaces","Output":"=== RUN   TestWorkflowAIInvalidProtocolCannotEnterOtherNativeNamespaces\n"}
+{"Time":"2026-10-10T17:07:21.651236197+08:00","Action":"output","Package":"opendesk/internal/browserbridge","Test":"TestWorkflowAIInvalidProtocolCannotEnterOtherNativeNamespaces","Output":"--- PASS: TestWorkflowAIInvalidProtocolCannotEnterOtherNativeNamespaces (0.00s)\n"}
+{"Time":"2026-10-10T17:07:21.651325962+08:00","Action":"pass","Package":"opendesk/internal/browserbridge","Test":"TestWorkflowAIInvalidProtocolCannotEnterOtherNativeNamespaces","Elapsed":0}
+{"Time":"2026-10-10T17:07:21.652740496+08:00","Action":"run","Package":"opendesk/internal/browserbridge","Test":"TestFrameSplitUTF8AndByteLimit"}
+{"Time":"2026-10-10T17:07:21.652748689+08:00","Action":"output","Package":"opendesk/internal/browserbridge","Test":"TestFrameSplitUTF8AndByteLimit","Output":"=== RUN   TestFrameSplitUTF8AndByteLimit\n"}
+{"Time":"2026-10-10T17:07:21.652875069+08:00","Action":"output","Package":"opendesk/internal/browserbridge","Test":"TestFrameSplitUTF8AndByteLimit","Output":"--- PASS: TestFrameSplitUTF8AndByteLimit (0.00s)\n"}
+{"Time":"2026-10-10T17:07:21.652880867+08:00","Action":"pass","Package":"opendesk/internal/browserbridge","Test":"TestFrameSplitUTF8AndByteLimit","Elapsed":0}
+{"Time":"2026-10-10T17:07:21.653001739+08:00","Action":"run","Package":"opendesk/internal/browserbridge","Test":"TestBoundedLineAndRequestSchema"}
+{"Time":"2026-10-10T17:07:21.653004092+08:00","Action":"output","Package":"opendesk/internal/browserbridge","Test":"TestBoundedLineAndRequestSchema","Output":"=== RUN   TestBoundedLineAndRequestSchema\n"}
+{"Time":"2026-10-10T17:07:21.653429321+08:00","Action":"output","Package":"opendesk/internal/browserbridge","Test":"TestBoundedLineAndRequestSchema","Output":"--- PASS: TestBoundedLineAndRequestSchema (0.00s)\n"}
+{"Time":"2026-10-10T17:07:21.653433317+08:00","Action":"pass","Package":"opendesk/internal/browserbridge","Test":"TestBoundedLineAndRequestSchema","Elapsed":0}
+{"Time":"2026-10-10T17:07:21.653542251+08:00","Action":"output","Package":"opendesk/internal/browserbridge","Output":"PASS\n"}
+{"Time":"2026-10-10T17:07:22.656288277+08:00","Action":"output","Package":"opendesk/internal/browserbridge","Output":"ok  \topendesk/internal/browserbridge\t1.021s\n"}
+{"Time":"2026-10-10T17:07:22.658353649+08:00","Action":"pass","Package":"opendesk/internal/browserbridge","Elapsed":1.023}

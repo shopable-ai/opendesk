@@ -1,0 +1,38 @@
+{
+  "cross-browserai-darwin.log": {
+    "archivedAs": "cross-browserai-darwin.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "native-contract-tests.jsonl": {
+    "archivedAs": "native-contract-tests.jsonl",
+    "sha256": "f4ad7fc13586d979341b8a1f04fa2c3d90438a0233ce4971c5ea63ba87c774d5"
+  },
+  "real-codex.log": {
+    "archivedAs": "real-codex.log",
+    "sha256": "8e0ea1a608252d6bbe6f020d2ab3bf53e7aef2e2b0cef961d6e83204131370ec"
+  },
+  "cross-browserbridge-darwin.log": {
+    "archivedAs": "cross-browserbridge-darwin.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "component-tests.jsonl": {
+    "archivedAs": "component-tests.jsonl",
+    "sha256": "7ebba9ea617662ee5a3e4f1c9b48a4d1ca9a4723c3e053e676b718fca611cbdf"
+  },
+  "go-vet.log": {
+    "archivedAs": "go-vet.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "build-real-tests.log": {
+    "archivedAs": "build-real-tests.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "runtime-cwd/.runtime/tests/browserai/real-workflow-proposal.json": {
+    "archivedAs": "real-workflow-proposal.json",
+    "sha256": "ae2357e4ac927dd07ededdb1d422d94ab0c503384a39fba50a8ee641d809ea8c"
+  },
+  "runtime-cwd/.runtime/tests/browserai/workflow-input.json": {
+    "archivedAs": "workflow-input.json",
+    "sha256": "09190b7672512875a7e09c896882e5ffb4afb82c23153476a852a34ec1464372"
+  }
+}

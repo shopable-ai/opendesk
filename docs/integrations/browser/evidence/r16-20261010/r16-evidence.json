@@ -1,0 +1,175 @@
+{
+  "format": "opendesk.browserai-r16-evidence.v1",
+  "createdAt": "2026-10-10T08:58:00.512754+00:00",
+  "branch": "master",
+  "baseCommit": "a02fe4810393b334526e1692b9d1d872b0956888",
+  "candidateCommit": null,
+  "environment": {
+    "os": "linux",
+    "arch": "amd64",
+    "go": "go1.25.13",
+    "goExecutable": "/workspace/scratch/2644bd3f15e9/opendesk/.runtime/tools/go/bin/go",
+    "codexExecutable": "/opt/codex/bin/codex",
+    "codexVersion": "codex-cli 0.159.2",
+    "authModeTypeOnly": "chatgpt",
+    "credentialsReadOrCopied": false,
+    "nativeChromeVerified": false
+  },
+  "sourceSHA256": {
+    "internal/browserai/protocol.go": "b9e0a2997aa75a81e641760b38a6f665c7e0f00481f6b11416a28c2a37f2cdbb",
+    "internal/browserai/process.go": "b8d021e9ccd2cb67d1e281eeb529dafa5148bafd3d4be00deb520139839e9fb0",
+    "internal/browserai/process_unix.go": "1907c97c0a37f8fe23d267134e251dcefee44afb3bda3e091260d36e08ad8760",
+    "internal/browserai/process_other.go": "88c05ce9d59c3f992ddf9a90be2b459229b17058dcbb545da1224aa8f32f233f",
+    "internal/browserai/manager.go": "ee5de352a98dcf17c1362477b453af0887082b3730d698095cb6219b2e013f77",
+    "internal/browserai/manager_test.go": "bee76eff795b14873fe92f76abc9a8f1c6702999bb6da2905649a86dec0ad162",
+    "internal/browserai/process_test.go": "c21a0bfe1ea7a783f39323db28c580ffe00d10fb7fd2ea2012846d2d76f2e0a9",
+    "internal/browserbridge/host_ai_unix.go": "bf1271259979cdee513789a3cce8a1a28ca028752f8e064918d1c23f4463ea15",
+    "internal/browserbridge/host_ai_unix_test.go": "afee56470749e28e90f802aaf5913d51648b8da70e3f4552cb59e6ad56d903ef",
+    "internal/browserbridge/host_unix.go": "322711c8345de29efec5d7a06f463a3dfcddea9ae22967c147a05fda8990f225",
+    "internal/browsercli/command.go": "436c32bfba99cd45f2cff8fbbc4cae81b06a8a012bfc93b5e2d9ff9f690e7fdf",
+    "docs/integrations/browser/workflow-codex-app-server-r16.zh-CN.md": "48fa8ede5e56773172abbb4ef517c4e3ebddb2ef1e7f0b0a070ada9f4d44b876",
+    "docs/integrations/browser/workflow-codex-app-server-r16-implementation.zh-CN.md": "eb7f07abc7672a72ccaa006114f095690783fbba86ae8b152c15c8d17d7ecc72",
+    "docs/quality/example-test-layout.md": "44db890c13edf1249d88ac1d9892f536fd5a91958e71541c7c6855163afac144",
+    "docs/quality/go-test-file-classification.md": "90c655b7315f5818b4b29249cdbcc4e131ca137d23f26c831b9331f2b9d3b1fe"
+  },
+  "productionSourceSetSHA256": "b4e7620f5f0d88ccbaf4446400a84ad6e54229c7ca3fc6177f1430fce7422584",
+  "commands": [
+    {
+      "command": ".runtime/tools/go/bin/go test -race -json ./internal/browserai ./internal/browsercli",
+      "exitCode": 0,
+      "log": "component-tests.jsonl"
+    },
+    {
+      "command": ".runtime/tools/go/bin/go test -race -json ./internal/browserbridge -run 'TestWorkflowAI|TestFrameSplitUTF8AndByteLimit|TestBoundedLineAndRequestSchema'",
+      "exitCode": 0,
+      "log": "native-contract-tests.jsonl"
+    },
+    {
+      "command": "OPENDESK_TEST_REAL_CODEX=1 OPENDESK_TEST_REAL_CODEX_TURNS=1 OPENDESK_TEST_REAL_CODEX_WORKFLOW=1 .runtime/tools/go/bin/go test ./internal/browserai -run '^TestInstalledCodex' -v",
+      "exitCode": 0,
+      "log": "real-final-candidate.log",
+      "realInference": true,
+      "coldResume": "SKIP_UNSUPPORTED",
+      "syntheticOnly": true
+    },
+    {
+      "command": ".runtime/tools/go/bin/go vet ./internal/browserai ./internal/browserbridge ./internal/browsercli",
+      "exitCode": 0,
+      "log": "go-vet.log"
+    },
+    {
+      "command": "GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 .runtime/tools/go/bin/go test -c -o .runtime/tests/browserai/browserai-darwin-arm64.test ./internal/browserai",
+      "exitCode": 0,
+      "log": "cross-browserai-darwin.log",
+      "executed": false
+    },
+    {
+      "command": "GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 .runtime/tools/go/bin/go test -c -o .runtime/tests/browserai/browserbridge-darwin-arm64.test ./internal/browserbridge",
+      "exitCode": 0,
+      "log": "cross-browserbridge-darwin.log",
+      "executed": false
+    },
+    {
+      "command": "node scripts/audit_test_architecture.js",
+      "exitCode": 1,
+      "log": "test-architecture-audit.log",
+      "existingUnclassifiedTests": 24,
+      "allFailuresPresentInBaseCommit": true,
+      "r16NewTestsUnclassified": false
+    }
+  ],
+  "testCounts": {
+    "opendesk/internal/browserai": {
+      "pass": 42,
+      "fail": 0,
+      "skip": 5
+    },
+    "opendesk/internal/browsercli": {
+      "pass": 2,
+      "fail": 0,
+      "skip": 0
+    },
+    "opendesk/internal/browserbridge": {
+      "pass": 5,
+      "fail": 0,
+      "skip": 0
+    }
+  },
+  "artifacts": {
+    "real-final-candidate.log": {
+      "sha256": "1244f1e70303aaf4f38d66321749bf22d46cc740e5bc792b5162a446a2a8d643",
+      "bytes": 1680
+    },
+    "real-final.log": {
+      "sha256": "efbb7de2d00d77ecc2efc6dbfe9d52241180b0fc9e84f21feb6387bc3410b991",
+      "bytes": 1647
+    },
+    "real-mcp-canary-final.log": {
+      "sha256": "5079c3df452d67b1f1873caddf2a9dc3c36b263817b4a140b22c4d822929bdf8",
+      "bytes": 307
+    },
+    "component-tests.jsonl": {
+      "sha256": "077b3f82e620a494a144ba7abb6a62eac8d9cd089dbe34d2c0aab76246fcabf3",
+      "bytes": 42278
+    },
+    "native-contract-tests.jsonl": {
+      "sha256": "ef0f6ccda19c46cfe78831fdcbdcebcb893c54b8099d0b1d4153c2bf394eab2d",
+      "bytes": 4610
+    },
+    "test-architecture-audit.log": {
+      "sha256": "62bf9d171b38738f1023b4a480fa99f0dbaa91b95e6ff1b6015c2771e48b5962",
+      "bytes": 6702
+    },
+    "go-vet.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "cross-browserai-darwin.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "cross-browserbridge-darwin.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "workflow-input.json": {
+      "sha256": "09190b7672512875a7e09c896882e5ffb4afb82c23153476a852a34ec1464372",
+      "bytes": 2481
+    },
+    "real-workflow-proposal.json": {
+      "sha256": "ae2357e4ac927dd07ededdb1d422d94ab0c503384a39fba50a8ee641d809ea8c",
+      "bytes": 233
+    },
+    "real-continuous-proxy.log": {
+      "sha256": "f531db52a1d676abfe0ff0bdd8832708bccc0f8d075f84d879f304fc2f3c5f86",
+      "bytes": 383
+    },
+    "real-continuous-resume-diagnostic.log": {
+      "sha256": "b5a542eb5b86323be45c82baf7cd48df1176c25792529bf4322767689aef2f4b",
+      "bytes": 575
+    },
+    "real-cancel-workflow.log": {
+      "sha256": "3e288c4d8f25c0bef9ef6293cb5060fa5702141bb3fa79e1215360c9efb1ddfd",
+      "bytes": 439
+    },
+    "browserai-darwin-arm64.test": {
+      "sha256": "d93b8f1a8ba6d7a1ec47c6fd16bc682310d6723d81cfa797385435636a0c7c80",
+      "bytes": 5215170,
+      "executed": false,
+      "target": "darwin/arm64 CGO_ENABLED=0"
+    },
+    "browserbridge-darwin-arm64.test": {
+      "sha256": "4f7a0eb576d24ed59011ee0a05a660885dbe3a533f22e5b5ff5109eafe04e54d",
+      "bytes": 6081202,
+      "executed": false,
+      "target": "darwin/arm64 CGO_ENABLED=0"
+    }
+  },
+  "limitations": [
+    "Codex 0.159.2 cold resume unsupported: no public environments override; safe refusal verified.",
+    "Immediate interruption after turn/start acknowledgement failed in an earlier real attempt; owned child was stopped. Only interruption after actual streaming has terminal evidence.",
+    "Real Browser dynamic tool roundtrip, macOS native Chrome, Go/Node actual interoperability, RunHost/save/repeat with AI disabled NOT_TESTED by Go component evidence.",
+    "Full preexisting Unix socket tests cannot run in this environment: operation not permitted.",
+    "24 existing Go test classification entries remain unregistered at the base commit."
+  ]
+}

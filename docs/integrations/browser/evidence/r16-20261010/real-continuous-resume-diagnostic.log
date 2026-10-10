@@ -1,0 +1,9 @@
+=== RUN   TestInstalledCodexContinuousSession
+    process_test.go:269: actual turn completed; correlated events=8; synthetic value=17
+    process_test.go:269: actual turn completed; correlated events=8; synthetic value=21
+    process_test.go:328: actual resume policy: noEnvironments=false readOnly=true networkDenied=true approvalNever=true reviewerUser=true officialProvider=true rootsCount=0 instructionCount=0
+    process_test.go:280: ai.session.open: E_CODEX_POLICY
+--- FAIL: TestInstalledCodexContinuousSession (7.38s)
+FAIL
+FAIL	opendesk/internal/browserai	7.382s
+FAIL
