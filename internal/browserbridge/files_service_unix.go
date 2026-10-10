@@ -39,6 +39,7 @@ type nativeFiles struct {
 	done      chan struct{}
 	closeOnce sync.Once
 	receipts  map[string]filesReceipt
+	temporary map[string]workspaceGrant
 }
 
 func newNativeFiles(cfg Installation) (*nativeFiles, error) {
@@ -46,7 +47,7 @@ func newNativeFiles(cfg Installation) (*nativeFiles, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &nativeFiles{cfg: cfg, sessionID: id, done: make(chan struct{}), receipts: map[string]filesReceipt{}}, nil
+	return &nativeFiles{cfg: cfg, sessionID: id, done: make(chan struct{}), receipts: map[string]filesReceipt{}, temporary: map[string]workspaceGrant{}}, nil
 }
 
 func (f *nativeFiles) Close() { f.closeOnce.Do(func() { close(f.done) }) }
@@ -194,7 +195,7 @@ func (f *nativeFiles) call(req filesRequest) (any, error) {
 		return nil, err
 	}
 	if req.Method == "workspaces.list" {
-		return workspacesPublic(state), nil
+		return f.publicWorkspaces(state), nil
 	}
 	if !workspaceIDPattern.MatchString(location.WorkspaceID) {
 		return nil, filesFailure("E_FILES_ACCESS")
@@ -206,7 +207,10 @@ func (f *nativeFiles) call(req filesRequest) (any, error) {
 			break
 		}
 	}
-	if grant.WorkspaceID == "" ||
+	if grant.WorkspaceID == "" {
+        if candidate, ok := f.temporary[location.WorkspaceID]; ok { grant = candidate }
+    }
+    if grant.WorkspaceID == "" ||
 		((req.Method == "files.write" || req.Method == "files.create") && grant.Access != "read-write") {
 		return nil, filesFailure("E_FILES_ACCESS")
 	}
