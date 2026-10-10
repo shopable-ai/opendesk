@@ -153,8 +153,15 @@ var nvmNodeVersion = regexp.MustCompile(`^v([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,
 
 func nvmCodexCandidates(home string) []string {
 	root := filepath.Join(home, ".nvm", "versions", "node")
-	entries, err := os.ReadDir(root)
-	if err != nil || len(entries) > 64 {
+	directory, err := os.Open(root)
+	if err != nil {
+		return nil
+	}
+	defer directory.Close()
+	// Read at most 65 names, rather than loading an unbounded directory
+	// and only checking its size afterwards.
+	entries, err := directory.ReadDir(65)
+	if (err != nil && err != io.EOF) || len(entries) > 64 {
 		return nil
 	}
 	type installation struct {
