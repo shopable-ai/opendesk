@@ -55,6 +55,8 @@ opendesk browser setup --extension-id <实际扩展ID> --browser cft --user-data
 
 **日常使用：** 已有合法 Go Host 安装时，再次调用 `opendesk browser setup` 或 `opendesk browser update` 可以完全省略 ID、browser、profile 参数，安全复用已保存的精确绑定；正式用户不应需要运行这些命令，后续由 OpenDesk 安装器接管。未绑定官方 ID 的全新开发环境仍需高级显式 ID 或待实现的 GUI 配对，不能声称已零配置。Chrome 自己启动 `opendesk browser native-host`；用户无需单独运行 Node、本地代理 daemon、占用固定端口或打开桌面 App 主界面。若要进入 OpenDesk 桌面 GUI，照常启动原程序，二者是独立模式。
 
+**实例隔离：** 默认实例只在 `OPENDESK_NATIVE_INSTANCE` 未设置时使用既有 `~/.opendesk-browser/native-agent-r1`，不会迁移或覆盖现有 Node Host。设置为空字符串或不匹配 `^[a-z][a-z0-9-]{0,31}$` 会返回 `E_INSTALL_INSTANCE`，不会回退默认实例。合法命名实例写入 `~/.opendesk-browser/native-agent-instances/<name>`，并且必须使用 `--browser cft` 与显式 `--user-data-dir`，否则返回 `E_INSTANCE_PROFILE`。生成的 Chrome launcher 会固定安装时实例，默认实例会清空外部 selector，命名实例会显式导出该 selector，避免 Chrome 继承污染环境。
+
 ## 开发者与 AI 调用
 
 原始请求 API 完全沿用 Browser 原合同：`bridge.status`、`target.current`、`script.save`、`run.start`、`run.get`、`run.stop`、`page.preview`、`page.get`、`page.dispose`、`request.get`。请求可加 `--file <request.json> --request-id <id>`，CLI 返回浏览器原生 response JSON，不重新包一层 Go API。失败后 **不得盲目换新 requestId 自动重放**；效果未知则只按原 admission ID 做只读恢复。

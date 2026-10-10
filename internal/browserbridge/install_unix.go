@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
@@ -29,7 +30,31 @@ type Installation struct {
 	CreatedAt string
 	InstalledAt string
 }
-func installRoot() string {home,_:=os.UserHomeDir();return filepath.Join(home,".opendesk-browser","native-agent-r1")}
+var nativeInstancePattern=regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
+func nativeInstance() (string,bool,error) {
+	instance,set:=os.LookupEnv("OPENDESK_NATIVE_INSTANCE")
+	if !set{return "",false,nil}
+	if instance=="" || !nativeInstancePattern.MatchString(instance){return "",true,errors.New("E_INSTALL_INSTANCE")}
+	return instance,true,nil
+}
+func browserBaseDir() (string,error) {
+	home,err:=os.UserHomeDir();if err!=nil{return "",err}
+	return filepath.Join(home,".opendesk-browser"),nil
+}
+func ensureBrowserBaseDir() (string,error) {
+	base,err:=browserBaseDir();if err!=nil{return "",err}
+	if _,err=os.Lstat(base);err==nil{return base,requireDir(base)}
+	if !os.IsNotExist(err){return "",err}
+	if err=os.Mkdir(base,0700);err!=nil{return "",err}
+	return base,requireDir(base)
+}
+func installRootChecked() (string,error) {
+	base,err:=browserBaseDir();if err!=nil{return "",err}
+	instance,_,err:=nativeInstance();if err!=nil{return "",err}
+	if instance==""{return filepath.Join(base,"native-agent-r1"),nil}
+	return filepath.Join(base,"native-agent-instances",instance),nil
+}
+func installRoot() string {root,_:=installRootChecked();return root}
 func configPath() string {return filepath.Join(installRoot(),"install.json")}
 func userOwned(info os.FileInfo) bool {
 	s,ok:=info.Sys().(*syscall.Stat_t)
@@ -92,7 +117,9 @@ func ManifestFor(browser,userDataDir string) (string,error) {
 }
 func readConfig() (Installation,error) {
 	var cfg Installation
-	root:=installRoot()
+	root,err:=installRootChecked();if err!=nil{return cfg,err}
+	base,err:=browserBaseDir();if err!=nil{return cfg,err}
+	if err:=requireDir(base);err!=nil{return cfg,err}
 	if err:=requireDir(filepath.Dir(root));err!=nil{return cfg,err}
 	if err:=requireDir(root);err!=nil{return cfg,err}
 	if _,err:=requireRegular(configPath(),0600);err!=nil{return cfg,err}
@@ -112,7 +139,9 @@ func Load() (Installation,error) {
 	if cfg.Provider!="opendesk" || !filepath.IsAbs(cfg.Executable) {
 		return cfg,errors.New("E_MIGRATION_REQUIRED")
 	}
-	if _,err:=requireRegular(filepath.Join(cfg.InstallRoot,"native-host"),0700);err!=nil{return cfg,err}
+	wrapperFile:=filepath.Join(cfg.InstallRoot,"native-host")
+	if _,err:=requireRegular(wrapperFile,0700);err!=nil{return cfg,err}
+	if err:=validateWrapper(wrapperFile,cfg.Executable);err!=nil{return cfg,err}
 	return cfg,nil
 }
 func writeAtomic(file string,data []byte,mode os.FileMode) error {
@@ -131,6 +160,21 @@ func writeAtomic(file string,data []byte,mode os.FileMode) error {
 }
 func shellQuote(s string) string {
 	return "'"+strings.ReplaceAll(s,"'","'\\''")+"'"
+}
+func expectedWrapper(executable string) (string,string,error) {
+	instance,set,err:=nativeInstance();if err!=nil{return "","",err}
+	wrapperEnv:="unset OPENDESK_NATIVE_INSTANCE\n"
+	if set{wrapperEnv="OPENDESK_NATIVE_INSTANCE="+shellQuote(instance)+"\nexport OPENDESK_NATIVE_INSTANCE\n"}
+	expected:="#!/bin/sh\n"+wrapperEnv+"exec "+shellQuote(executable)+" browser native-host \"$@\"\n"
+	legacy:="#!/bin/sh\nexec "+shellQuote(executable)+" browser native-host \"$@\"\n"
+	return expected,legacy,nil
+}
+func validateWrapper(file,executable string) error {
+	current,err:=os.ReadFile(file);if err!=nil{return err}
+	expected,legacy,err:=expectedWrapper(executable);if err!=nil{return err}
+	_,set,_:=nativeInstance()
+	if string(current)==expected || (!set && string(current)==legacy){return nil}
+	return errors.New("E_MIGRATION_REQUIRED")
 }
 func expectedManifest(cfg Installation) map[string]any {
 	return map[string]any{"name":HostName,
@@ -169,6 +213,7 @@ const verifiedOfficialExtensionID = ""
 // allowed_origins permission boundary.
 func SetupAutomatic(extensionID,browser,userDataDir,executable string) (map[string]any,error) {
     if extensionID!="" && !ExtensionIDValid(extensionID) {return nil,errors.New("E_EXTENSION_ID")}
+	if _,err:=installRootChecked();err!=nil{return nil,err}
     var previous *Installation
     if _,err:=os.Lstat(configPath());err==nil {
         saved,err:=Load()
@@ -188,6 +233,7 @@ func SetupAutomatic(extensionID,browser,userDataDir,executable string) (map[stri
         if previous!=nil{browser=previous.Browser}else{browser="chrome"}
     }
     if userDataDir=="" && previous!=nil{userDataDir=previous.UserDataDir}
+	if _,set,_:=nativeInstance();set && (browser!="cft" || userDataDir==""){return nil,errors.New("E_INSTANCE_PROFILE")}
     // Setup enforces browser/profile/extension identity equality, socket
     // ownership, private permissions and Node→Go migration isolation.
     return Setup(extensionID,browser,userDataDir,executable)
@@ -199,13 +245,15 @@ func SetupAutomatic(extensionID,browser,userDataDir,executable string) (map[stri
 func Setup(extensionID,browser,userDataDir,executable string) (map[string]any,error) {
 	if !ExtensionIDValid(extensionID){return nil,errors.New("E_EXTENSION_ID")}
 	if browser!="chrome" && browser!="cft"{return nil,errors.New("E_BROWSER")}
+	root,err:=installRootChecked();if err!=nil{return nil,err}
+	if _,set,_:=nativeInstance();set && (browser!="cft" || userDataDir==""){return nil,errors.New("E_INSTANCE_PROFILE")}
 	if userDataDir!=""{
 		var err error
 		userDataDir,err=filepath.EvalSymlinks(userDataDir)
 		if err!=nil{return nil,err}
 	}
 	manifest,err:=ManifestFor(browser,userDataDir);if err!=nil{return nil,err}
-	if _,err=os.Lstat(filepath.Join(installRoot(),"agent.sock"));err==nil{
+	if _,err=os.Lstat(filepath.Join(root,"agent.sock"));err==nil{
 		return nil,errors.New("E_SOCKET_IN_USE")
 	}else if !os.IsNotExist(err){return nil,err}
 	if executable==""{executable,err=os.Executable();if err!=nil{return nil,err}}
@@ -214,14 +262,15 @@ func Setup(extensionID,browser,userDataDir,executable string) (map[string]any,er
 	if info,err:=os.Stat(executable);err!=nil || !info.Mode().IsRegular() || info.Mode().Perm()&0111==0 {
 		return nil,errors.New("E_EXECUTABLE")
 	}
-	root:=installRoot()
 	if len(filepath.Join(root,"agent.sock"))>=104{
 		return nil,errors.New("E_SOCKET_PATH")
 	}
+	if _,err=ensureBrowserBaseDir();err!=nil{return nil,err}
 	if err=ensureDir(filepath.Dir(root));err!=nil{return nil,err}
 	if err=ensureDir(root);err!=nil{return nil,err}
 	cfg:=Installation{Name:HostName,ExtensionID:extensionID,Browser:browser,UserDataDir:userDataDir,
 		InstallRoot:root,SocketPath:filepath.Join(root,"agent.sock"),Provider:"opendesk",Executable:executable}
+	wrapperExecutable:=executable
 	if _,err=os.Lstat(configPath());err==nil{
 		var prior Installation
 		prior,err=Load()
@@ -231,6 +280,7 @@ func Setup(extensionID,browser,userDataDir,executable string) (map[string]any,er
 		if prior.UserDataDir!=userDataDir{return nil,errors.New("E_PROFILE_CONFLICT")}
 		cfg.ClientCredential=prior.ClientCredential
 		cfg.CreatedAt=prior.CreatedAt
+		wrapperExecutable=prior.Executable
 	}else if !os.IsNotExist(err){return nil,err}
 	if cfg.ClientCredential==""{
 		var credential [32]byte
@@ -246,12 +296,10 @@ func Setup(extensionID,browser,userDataDir,executable string) (map[string]any,er
 	wrapperFile:=filepath.Join(root,"native-host")
 	if _,err=os.Lstat(wrapperFile);err==nil{
 		if _,err=requireRegular(wrapperFile,0700);err!=nil{return nil,err}
-		current,_:=os.ReadFile(wrapperFile)
-		// An unknown executable, even a user-owned one, must not be replaced.
-		if !strings.Contains(string(current)," browser native-host "){return nil,errors.New("E_MIGRATION_REQUIRED")}
+		if err=validateWrapper(wrapperFile,wrapperExecutable);err!=nil{return nil,err}
 	}else if !os.IsNotExist(err){return nil,err}
 	if err=ensureManifestDir(filepath.Dir(manifest));err!=nil{return nil,err}
-	wrapper:="#!/bin/sh\nexec "+shellQuote(executable)+" browser native-host \"$@\"\n"
+	wrapper,_,err:=expectedWrapper(executable);if err!=nil{return nil,err}
 	configMap:=map[string]any{
 		"name":cfg.Name,"extensionId":cfg.ExtensionID,"browser":cfg.Browser,
 		"userDataDir":func() any {if cfg.UserDataDir==""{return nil};return cfg.UserDataDir}(),

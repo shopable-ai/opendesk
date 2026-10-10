@@ -41,7 +41,7 @@ OpenDesk GUI 可通过 open /实际稳定路径/OpenDesk.app 启动以核验界�
 当前官方 Chrome Web Store 发布 ID 未经核验，故全新开发机器的无参 setup 返回 E_OFFICIAL_ID_UNAVAILABLE 属于安全拒绝，不能乱写常量、wildcard 或伪造所谓自动配对。采用真实测试扩展 ID 的高级显式入口：
     /实际安装App/Contents/MacOS/opendesk browser setup --extension-id 实际扩展ID --browser cft --user-data-dir 已存在的独立CFT Profile绝对路径
 
-确认该命令运行在与测试 CFT/Go 安装实例对应的真正隔离 HOME/环境里；Go 尚不等同 Node 的 OPENDESK_NATIVE_INSTANCE 机制。Node 安装冲突只可报告并另开隔离资源，不可直接覆盖。核对 manifest 名称 com.shopable.opendesk_browser.agent、type=stdio、path 为 Go launcher、allowed_origins 仅精确真实 extension ID；装载 Go 配置 owner=opendesk、私有权限与固定二进制路径。不要打印 clientCredential。
+使用 `OPENDESK_NATIVE_INSTANCE=r5-mac` 与独立 CFT Profile（例如 `~/.local/share/opendesk-browser-r5/codex-cft-profile`）隔离本轮安装，不更改用户 HOME；命名实例首次 setup 必须显式 `--browser cft --user-data-dir ...`，后续合法安装可继承已保存的绑定。Node 安装冲突只可报告并另开隔离资源，不可直接覆盖。核对 manifest 名称 com.shopable.opendesk_browser.agent、type=stdio、path 为 Go launcher、allowed_origins 仅精确真实 extension ID；装载 Go 配置 owner=opendesk、私有权限与固定二进制路径。不要打印 clientCredential。
 
 在扩展选项页面以真实用户可信手势点击「授权并连接 OpenDesk」，完成 Chrome 自身 nativeMessaging 许可。不得通过修改 chrome.storage 或假造 CDP/浏览器点击来绕过授权。权限需要用户本人确认时记录 WAITING_FOR_GENUINE_USER_APPROVAL；只能把真正通过的情形写 PASS。打开受控真实 HTTP Demo 和 Sidebar，单独授予该网站权限。Go doctor 的 connected=true、bridge.status nativeConnected=true、唯一 Host registrationId 三者必须真实取得。
 
