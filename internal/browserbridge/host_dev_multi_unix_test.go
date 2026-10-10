@@ -73,7 +73,9 @@ func r17Provider(t *testing.T, cfg Installation, lease Fields, letter string) (*
     return c,String(reply,"providerEpoch")
 }
 func TestR17HostConcurrentDirectoriesAndScopedResolver(t *testing.T) {
-    home,_:=projectFixture(t)
+    home,singleFile:=projectFixture(t)
+    goGrant,err:=ProjectAdd(singleFile,"controller","async-main","https://example.test")
+    if err!=nil{t.Fatal(err)}
     cfg,err:=Load()
     if err!=nil{t.Fatal(err)}
     // This test exercises real Unix sockets, authenticated Native framing,
@@ -183,14 +185,21 @@ func TestR17HostConcurrentDirectoriesAndScopedResolver(t *testing.T) {
         return rows.Projects
     }
     rows:=list(epoch,"r17-list-ab")
-    if len(rows)!=2||rows[0].BindingID==rows[1].BindingID{
-        t.Fatalf("sources not separately listed: %+v",rows)
+    if len(rows)!=3{
+        t.Fatalf("Go single-file grant was hidden when multi-source CLI attached: %+v",rows)
     }
     bySource:=map[string]string{}
+    goVisible:=false
     for _,row:=range rows{
+        if row.BindingID==goGrant["bindingId"]{
+            goVisible=true
+            continue // Go file label intentionally differs from directory names
+        }
+        if row.Name!="同名目录" {t.Fatalf("unexpected directory label: %+v",row)}
+        if bySource[row.SourceID]!=""{t.Fatal("duplicate source joined another folder")}
         bySource[row.SourceID]=row.BindingID
-        if row.Name!="同名目录" {t.Fatalf("unexpected name: %+v",row)}
     }
+    if !goVisible{t.Fatal("existing Go single-file authorization disappeared")}
     aid:=bySource[String(aLease,"sourceId")]
     bid:=bySource[String(bLease,"sourceId")]
     if aid==""||bid==""||aid==bid{t.Fatalf("cross-source identity: %+v",rows)}
@@ -239,8 +248,13 @@ func TestR17HostConcurrentDirectoriesAndScopedResolver(t *testing.T) {
         t.Fatalf("B disappeared or epoch was not fenced after A exit: %+v",after)
     }
     remaining:=list(laterEpoch,"r17-list-b")
-    if len(remaining)!=1||remaining[0].BindingID!=bid{
-        t.Fatalf("A exit stole B source: %+v",remaining)
+    bLive,goLive:=false,false
+    for _,row:=range remaining{
+        if row.BindingID==bid{bLive=true}
+        if row.BindingID==goGrant["bindingId"]{goLive=true}
+    }
+    if len(remaining)!=2||!bLive||!goLive{
+        t.Fatalf("A exit stole B or old Go authorization: %+v",remaining)
     }
     if err=WriteFrame(chromeWrite,MustEncode(map[string]any{"v":1,"kind":"dev.request",
         "requestId":"r17-resolve-b","providerEpoch":laterEpoch,"method":"project.resolve",
