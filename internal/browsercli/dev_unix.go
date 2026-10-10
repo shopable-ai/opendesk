@@ -18,8 +18,8 @@ import (
 )
 
 const devReceiptFormat = "opendesk.dev-cli.r17"
-const devHelp = "用法: opendesk browser [dev [目录] | dev -- <特殊目录> | help | --version]\\n" +
-    "省略 dev 时从当前目录接入；只读 Workspace，合法 OpenDesk 程序需明确点击运行。\\n"
+const devHelp = "用法: opendesk browser [dev [目录] | dev -- <特殊目录> | help | --version]\n" +
+    "省略 dev 时从当前目录接入；只读 Workspace，合法 OpenDesk 程序需明确点击运行。\n"
 
 type devReceipt struct {
     Format string `json:"format"`
