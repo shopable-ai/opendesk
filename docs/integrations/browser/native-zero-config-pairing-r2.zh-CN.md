@@ -39,3 +39,36 @@ Go 安装器负责注册应用自有 Host 路径/允许来源/文件权限；Bro
 - **当前仍需要管理员/AI 调用 setup 命令吗？** 未把系统安装器/首次启动绑定到该入口前，需要；`SetupAutomatic` 只是把参数推断逻辑放在 Go Owner，不能误称普通用户新安装已经做到零命令。
 
 **后续必须执行：** 实际签名的 Chrome Web Store ID 与发行元数据比对 → 在发布构建中固定 ID → OpenDesk 安装器调用 `SetupAutomatic` → Mac 实测“先 App 后扩展 / 先扩展后 App” → 原生确认的开发版配对 → 免 Node 项目 Provider。不得因单测通过抬升成产品 95 分。
+
+## 反方审计与直接实施规格（2026-10-10）
+
+跨仓库唯一完整 GOAL：<https://github.com/shopable-ai/opendesk-browser/blob/main/docs/framework/prompts/goal-native-zero-config-r2-mac-codex-20261010.zh-CN.md>。Browser 主决策和六专业立场独立核对表：<https://github.com/shopable-ai/opendesk-browser/blob/main/docs/architecture/browser-framework/native-zero-config-pairing-r2.zh-CN.md#9-六角色对抗式架构复审与专家评分口径2026-10-10>。
+
+### 硬性证据和产品边界
+
+1. **当前不属于完整桌面端一键可用。** Go 原生 Host/Socket/CLI + Mac/Linux 定向组件已经有代码；独立 OpenDesk GUI 安装器首次注册、Chrome Store 正式 ID、开发版 GUI 安全配对、Go 原生本地项目 Provider 和同发行构建的真实 Chrome E2E 仍缺证据。
+2. `browser setup` / `browser update` 新增无参数入口仅在**已经合法安装 Go Host**时自动继承 `extensionId`、`browser`、`userDataDir` 和原 `clientCredential`。官方 ID 常量 `verifiedOfficialExtensionID` 当前为空，故全新无参数安装报 `E_OFFICIAL_ID_UNAVAILABLE` 并保持文件不变，**禁止**自动退化成猜测临时 Chrome ID 或 `allowed_origins` wildcard。
+3. `internal/browsercli/command_test.go` 与 `internal/browserbridge/install_unix_test.go` 覆盖无参重复调用、旧 Node 文件 fail closed、错误 ID/browser、credentials 不轮换；测试目录使用短用户私有 `/tmp/od-cli-` 根目录，保留 macOS Unix Socket 路径长度安全限制，不为适应 CI 放宽生产合同。
+4. OpenDesk GUI 第一次启动自动注册的合法条件：真实可验的已发布 extension ID 在发行二进制中固定；程序确实安装在不会被清理的绝对路径；确认用户的 OS 账户可写私有 Chrome NativeMessagingHosts 目录；确保旧 Node/其他 Host 不被覆盖；对半途异常事务回滚。**不要**仅因用户双击 GUI 就猜测 Chrome Profile 或本地扩展 ID。
+5. Chrome 下 `connectNative` 才启动 Go Host；Go GUI **不要求常驻**。Native Host 连接成功仍只表示 transport 可用，不能假称当前 Sidebar Host 注册、网站权限或项目 Provider 已连接。
+6. 当前单安装根/单 `agent.sock`/单 `ExtensionID` 的实现对多个并发 Chrome Profiles、多个渠道扩展 ID 和多个 Host 实例存在已知限制。进行并行验收前制定明确的单用户实例仲裁与身份隔离模型；在此之前并发场景必须正确报错而不是竞态接管或删除他人 Socket。
+7. `project.resolve` 的 Go Provider 未实现，不得以 Go Host 已有 `provider.register` 转发功能冒充用户普通多文件项目无 Node。先推进受控单文件，再推进完整静态 ESM。外部 npm/HTTPS 必须保留锁定/缓存/供应链信任合同，不能让 Go 无限制运行 `npm install`。
+8. 用户授权不可合并：`nativeMessaging` ≠ 某个项目目录授权 ≠ Chrome 网站访问 ≠ 明确 Run 按钮。OS 深链是潜在不可信请求源，不能在后台收到后静默登记来源。Run/Stop、未知效果恢复始终由 Browser 原 ledger/RunHost 负责。
+9. `Windows` 原生 Host 仍返回 `E_PLATFORM`；Windows Core CI 的失败不能误报为 Native 连接成功。也不要因为整个 OpenDesk Windows CI 有历史问题而忽略本轮 Go 代码对应的 cross-build 和组件结果。
+
+### 真实 Mac 必须运行
+
+在实际拥有 OpenDesk Go 工作区和受控 Chrome/CFT 的 Mac 终端操作；云端 GitHub 修改不算用户机器安装。
+
+```sh
+go test -count=1 ./internal/browserbridge ./internal/browsercli
+go test ./cmd/opendesk
+# 只有确有同候选 macOS 可执行文件时，运行 Browser 驱动：
+OPENDESK_BROWSER_BINARY=/absolute/path/to/opendesk node --test /absolute/path/to/opendesk-browser/tests/environment/opendesk-native-provider.test.mjs
+```
+
+`OPENDESK_BROWSER_BINARY` 必须来自**本轮实际构建的发行可执行程序**，不是旧 dist、暂存 go run 或已退休 Node Host。模拟 Chrome 帧测试不得作为真实 Chrome 授权或项目执行证据；要另行采集真实 `runtime.id`、Chrome 扩展选项的用户点击、Native Welcome、原 Run/Result/Stop/retirement、Go 原生 GUI 配对和升级回滚。没有实际固定官方 ID 时，只能在受控 CFT 读取其运行时 ID，用高级显式参数做开发验收，正式无参数安装不得假报 PASS。
+
+### 专家评分判定
+
+现有六角色对抗式评审为**设计 86/100，完整产品 62/100（非独立真实专家认证）**。95+ 是未来验收门槛而不是主分支 commit 的结果。具体 20/15/20/15/15/10/5 权重、Fatal 否决项及执行 GOAL 在 Browser 规范中；任何越权项目读取、无确认配对、Native 未知效果重放、Node 安装覆盖、无原始真实 Chrome 证据，均不得通过验收。
