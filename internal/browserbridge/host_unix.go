@@ -25,7 +25,7 @@ const (
 )
 
 type pendingCall struct { answer chan []byte }
-type pendingDev struct { epoch string; timer *time.Timer; owner *localClient; aggregateEpoch string; scopedID string }
+type pendingDev struct { epoch string; timer *time.Timer; owner *localClient; aggregateEpoch string; scopedID string; rawID string }
 type localClient struct {
 	socket *net.UnixConn
 	writeMu sync.Mutex
@@ -102,9 +102,8 @@ func (h *Host) providerState() {
 	connected:=h.ready && (h.provider!=nil || h.internalEpoch!="" || len(h.modern)>0)
     epoch:=""
     if len(h.modern)>0 { epoch=h.aggregateEpoch
-    } else
-	if h.provider!=nil{epoch=h.provider.providerEpoch
-	}else if h.internalEpoch!=""{epoch=h.internalEpoch}
+    } else if h.provider!=nil{epoch=h.provider.providerEpoch
+    } else if h.internalEpoch!=""{epoch=h.internalEpoch}
 	h.mu.Unlock()
 	var current any
 	if connected{current=epoch}
@@ -184,6 +183,7 @@ func (h *Host) releaseProvider(c *localClient) {
 	if h.provider!=c{h.mu.Unlock();return}
 	epoch:=c.providerEpoch
 	h.provider=nil
+    if len(h.modern)>0{h.rotateAggregateLocked()}
 	var ids []string
 	for id,p:=range h.devPending{
 		if p.epoch==epoch{p.timer.Stop();delete(h.devPending,id);ids=append(ids,id)}
@@ -266,6 +266,7 @@ func (h *Host) serveLocal(c *localClient) {
 		if ready && dev && !conflict && RequestIDValid(String(f,"providerId")){
 			c.providerEpoch,_=NewID()
 			h.provider=c
+            if len(h.modern)>0{h.rotateAggregateLocked()}
 		}
 		h.mu.Unlock()
 		if c.providerEpoch==""{
