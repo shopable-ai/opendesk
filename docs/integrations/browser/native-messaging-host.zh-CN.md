@@ -6,6 +6,8 @@
 
 适用：`shopable-ai/opendesk` 的 `opendesk browser` 子命令及 `shopable-ai/opendesk-browser` 的现有 Chrome 扩展。架构前置审计见 Browser 仓库 `docs/architecture/browser-framework/opendesk-native-takeover-r1.zh-CN.md`。
 
+> **Mac 本地实施入口 R5（2026-10-10）**：重新编译完整 OpenDesk.app、安装到长期固定路径、让 Chrome 按需启动 Go Native Host，以及通过 Codex CLI 联调真实网页的操作说明见 [Mac 构建、安装与测试](native-mac-build-install-test-r5.zh-CN.md)。可直接复制的本地 Codex GOAL 见 [R5 提示词](../../../prompts/automation/native-messaging-host-mac-codex-r5.zh-CN.md)。该文档不会把模拟 Chrome 或旧 Node Host 的成功外推为真实 Go/Chrome 全链路验收。
+
 ## 范围冻结：只接管 OpenDesk Browser Native Messaging Host
 
 2026-10-10 用户澄清：**需要替换的是浏览器扩展 Native Messaging 的独立 Node.js 配套 Host，而非 OpenDesk 或 opendesk-browser 项目中的所有 Node.js 功能**。本实现负责 Native manifest、Chrome stdio 帧、用户私有 IPC、配套 CLI 和必要的设置/诊断兼容。它不得为了“去 Node”而改写/删除 WXT/Vite/webpack/npm 编译体系、浏览器 JavaScript、原 Desktop/MCP/Flow、用户脚本及其他独立服务。
