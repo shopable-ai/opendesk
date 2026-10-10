@@ -200,8 +200,23 @@ func TestR17HostConcurrentDirectoriesAndScopedResolver(t *testing.T) {
     if resolved.BindingID!=aid||resolved.SourceUtf8!="A" {t.Fatalf("forged response escaped: %+v",resolved)}
     // Closing A only retires A. B retains the exact provider and directory.
     _=a.conn.Close()
-    _=next("files.state")
-    after:=next("dev.state")
+    // The Native port sends file and provider state on independent
+    // goroutines. They may arrive in either order; assert both without
+    // consuming the other message while filtering by kind.
+    var after Fields
+    sawFiles:=false
+    fenceTimeout:=time.NewTimer(5*time.Second)
+    defer fenceTimeout.Stop()
+    for !sawFiles||after==nil {
+        select{
+        case frame:=<-frames:
+            if String(frame,"kind")=="files.state"{sawFiles=true}
+            if String(frame,"kind")=="dev.state"&&Bool(frame,"connected")&&
+                String(frame,"providerEpoch")!=epoch {after=frame}
+        case <-fenceTimeout.C:
+            t.Fatal("Host failed to publish both file and provider lifecycle changes")
+        }
+    }
     laterEpoch:=String(after,"providerEpoch")
     if !Bool(after,"connected")||laterEpoch==epoch{
         t.Fatalf("B disappeared or epoch was not fenced after A exit: %+v",after)
