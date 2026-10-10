@@ -33,6 +33,8 @@ func exitError(out io.Writer,err error) int {
 	v:=map[string]any{"code":errCode(err),"message":err.Error()}
 	var call *browserbridge.CallError
 	if errors.As(err,&call) && call.Outcome!=""{v["outcome"]=call.Outcome}
+	var invocation *invocationError
+	if errors.As(err,&invocation){v["requestId"]=invocation.requestID;if invocation.recovery!=nil{v["recovery"]=invocation.recovery}}
 	writeJSON(out,v)
 	return 1
 }
@@ -67,9 +69,11 @@ func doCall(method string,opts map[string]string,timeout time.Duration) (json.Ra
 	delete(params,"requestId")
 	if requestID==""{var err error;requestID,err=browserbridge.NewID();if err!=nil{return nil,err}}
 	if !browserbridge.RequestIDValid(requestID){return nil,browserbridge.ErrSchema}
+	recovery,err:=prepareAdmission(method,params,requestID)
+	if err!=nil{return nil,&invocationError{err,requestID,nil}}
 	payload,err:=json.Marshal(params);if err!=nil{return nil,err}
 	reply,err:=browserbridge.Call(context.Background(),method,payload,requestID,timeout)
-	if err!=nil{return nil,err}
+	if err!=nil{return nil,&invocationError{err,requestID,recovery}}
 	return json.RawMessage(reply),nil
 }
 func Execute(args []string,stdout,stderr io.Writer) int {

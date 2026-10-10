@@ -3,6 +3,7 @@
 package browserbridge
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -134,6 +135,13 @@ func readConfig() (Installation,error) {
 	return cfg,nil
 }
 func Load() (Installation,error) {
+	var cfg Installation
+	_,err:=withInstallLock(context.Background(),false,func()(map[string]any,error){var err error;cfg,err=loadInstallation();return nil,err})
+	return cfg,err
+}
+func loadInstallation() (Installation,error) {
+	dir,err:=installTransactionDir();if err!=nil{return Installation{},err}
+	if _,err=os.Lstat(filepath.Join(dir,"journal.json"));err==nil{return Installation{},errors.New("E_INSTALL_RECOVERY_REQUIRED")}else if !os.IsNotExist(err){return Installation{},err}
 	cfg,err:=readConfig()
 	if err!=nil{return cfg,err}
 	if cfg.Provider!="opendesk" || !filepath.IsAbs(cfg.Executable) {
@@ -142,6 +150,8 @@ func Load() (Installation,error) {
 	wrapperFile:=filepath.Join(cfg.InstallRoot,"native-host")
 	if _,err:=requireRegular(wrapperFile,0700);err!=nil{return cfg,err}
 	if err:=validateWrapper(wrapperFile,cfg.Executable);err!=nil{return cfg,err}
+	manifest,err:=ManifestFor(cfg.Browser,cfg.UserDataDir);if err!=nil{return cfg,err}
+	if err=validateManifest(manifest,cfg);err!=nil{return cfg,err}
 	return cfg,nil
 }
 func writeAtomic(file string,data []byte,mode os.FileMode) error {
@@ -150,13 +160,17 @@ func writeAtomic(file string,data []byte,mode os.FileMode) error {
 	}else if !os.IsNotExist(err){return err}
 	tmp:=file+".new"
 	if _,err:=os.Lstat(tmp);err==nil{return errors.New("E_INSTALL_CONFLICT")}else if !os.IsNotExist(err){return err}
-	f,err:=os.OpenFile(tmp,os.O_WRONLY|os.O_CREATE|os.O_EXCL,mode)
+	f,err:=os.CreateTemp(filepath.Dir(file),"."+filepath.Base(file)+".r2-*")
 	if err!=nil{return err}
+	tmp=f.Name()
+	defer os.Remove(tmp)
+	if err=f.Chmod(mode);err!=nil{f.Close();return err}
 	if _,err=f.Write(data);err!=nil{f.Close();return err}
 	if err=f.Sync();err!=nil{f.Close();return err}
 	if err=f.Close();err!=nil{return err}
 	if err=os.Chmod(tmp,mode);err!=nil{return err}
-	return os.Rename(tmp,file)
+	if err=os.Rename(tmp,file);err!=nil{return err}
+	return syncDirectory(filepath.Dir(file))
 }
 func shellQuote(s string) string {
 	return "'"+strings.ReplaceAll(s,"'","'\\''")+"'"
@@ -186,6 +200,9 @@ func expectedManifest(cfg Installation) map[string]any {
 func validateManifest(file string,cfg Installation) error {
 	if _,err:=requireRegular(file,0);err!=nil{return err}
 	b,err:=os.ReadFile(file);if err!=nil{return err}
+	return validateManifestBytes(b,cfg)
+}
+func validateManifestBytes(b []byte,cfg Installation) error {
 	var m map[string]json.RawMessage
 	if json.Unmarshal(b,&m)!=nil{return errors.New("E_MANIFEST_CONFLICT")}
 	expected:=expectedManifest(cfg)
@@ -212,11 +229,17 @@ const verifiedOfficialExtensionID = ""
 // This is a CLI/installer convenience, not a substitute for Chrome's precise
 // allowed_origins permission boundary.
 func SetupAutomatic(extensionID,browser,userDataDir,executable string) (map[string]any,error) {
+	return SetupAutomaticContext(context.Background(),extensionID,browser,userDataDir,executable)
+}
+func SetupAutomaticContext(ctx context.Context,extensionID,browser,userDataDir,executable string) (map[string]any,error) {
+	return withInstallationLock(ctx,func() (map[string]any,error) { return setupAutomatic(ctx,extensionID,browser,userDataDir,executable) })
+}
+func setupAutomatic(ctx context.Context,extensionID,browser,userDataDir,executable string) (map[string]any,error) {
     if extensionID!="" && !ExtensionIDValid(extensionID) {return nil,errors.New("E_EXTENSION_ID")}
 	if _,err:=installRootChecked();err!=nil{return nil,err}
     var previous *Installation
     if _,err:=os.Lstat(configPath());err==nil {
-        saved,err:=Load()
+        saved,err:=loadInstallation()
         if err!=nil{return nil,err} // Includes legacy Node and unsafe installation paths.
         previous=&saved
     } else if !os.IsNotExist(err){return nil,err}
@@ -236,13 +259,19 @@ func SetupAutomatic(extensionID,browser,userDataDir,executable string) (map[stri
 	if _,set,_:=nativeInstance();set && (browser!="cft" || userDataDir==""){return nil,errors.New("E_INSTANCE_PROFILE")}
     // Setup enforces browser/profile/extension identity equality, socket
     // ownership, private permissions and Node→Go migration isolation.
-    return Setup(extensionID,browser,userDataDir,executable)
+	return setupContext(ctx,extensionID,browser,userDataDir,executable)
 }
 
 // Setup never replaces the legacy Node provider. Existing installations
 // require an explicitly reviewed migration with a reversible byte-for-byte
 // backup, not an implicit setup/update side effect.
 func Setup(extensionID,browser,userDataDir,executable string) (map[string]any,error) {
+	return SetupContext(context.Background(),extensionID,browser,userDataDir,executable)
+}
+func SetupContext(ctx context.Context,extensionID,browser,userDataDir,executable string) (map[string]any,error) {
+	return withInstallationLock(ctx,func() (map[string]any,error) {return setupContext(ctx,extensionID,browser,userDataDir,executable)})
+}
+func setupContext(ctx context.Context,extensionID,browser,userDataDir,executable string) (map[string]any,error) {
 	if !ExtensionIDValid(extensionID){return nil,errors.New("E_EXTENSION_ID")}
 	if browser!="chrome" && browser!="cft"{return nil,errors.New("E_BROWSER")}
 	root,err:=installRootChecked();if err!=nil{return nil,err}
@@ -273,7 +302,7 @@ func Setup(extensionID,browser,userDataDir,executable string) (map[string]any,er
 	wrapperExecutable:=executable
 	if _,err=os.Lstat(configPath());err==nil{
 		var prior Installation
-		prior,err=Load()
+		prior,err=loadInstallation()
 		if err!=nil{return nil,err}
 		if prior.ExtensionID!=extensionID{return nil,errors.New("E_EXTENSION_ID_CONFLICT")}
 		if prior.Browser!=browser{return nil,errors.New("E_BROWSER_CONFLICT")}
@@ -309,9 +338,7 @@ func Setup(extensionID,browser,userDataDir,executable string) (map[string]any,er
 	}
 	infoBytes,_:=json.MarshalIndent(configMap,"","  ")
 	manifestBytes,_:=json.MarshalIndent(expectedManifest(cfg),"","  ")
-	if err=writeAtomic(wrapperFile,[]byte(wrapper),0700);err!=nil{return nil,err}
-	if err=writeAtomic(configPath(),append(infoBytes,'\n'),0600);err!=nil{return nil,err}
-	if err=writeAtomic(manifest,append(manifestBytes,'\n'),0600);err!=nil{return nil,err}
+	if err=commitInstallation(ctx,cfg,[]installMutation{{Path:wrapperFile,Data:[]byte(wrapper),Mode:0700},{Path:configPath(),Data:append(infoBytes,'\n'),Mode:0600},{Path:manifest,Data:append(manifestBytes,'\n'),Mode:0600}});err!=nil{return nil,err}
 	return map[string]any{"installed":true,"extensionId":cfg.ExtensionID,"browser":browser,
 		"manifest":manifest,"nativeHost":wrapperFile,"provider":"opendesk"},nil
 }
@@ -335,7 +362,10 @@ func Doctor() map[string]any {
 	return out
 }
 func Cleanup() (map[string]any,error) {
-	cfg,err:=Load();if err!=nil{return nil,err}
+	return withInstallationLock(context.Background(),cleanupInstallation)
+}
+func cleanupInstallation() (map[string]any,error) {
+	cfg,err:=loadInstallation();if err!=nil{return nil,err}
 	if _,err=os.Lstat(cfg.SocketPath);err==nil{return nil,errors.New("E_SOCKET_IN_USE")}else if !os.IsNotExist(err){return nil,err}
 	manifest,err:=ManifestFor(cfg.Browser,cfg.UserDataDir);if err!=nil{return nil,err}
 	if err=validateManifest(manifest,cfg);err!=nil{return nil,err}

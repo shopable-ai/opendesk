@@ -439,12 +439,18 @@ func executeAppMode(config *Config) error {
 			}()
 		})
 	}
+	if appshell.IsOpenDeskProduct(appPackage.Manifest) { prepareAppBrowser(appContext) }
+	browserPair := configureAppBrowser(appContext, shell, nativeHost, appshell.IsOpenDeskProduct(appPackage.Manifest))
 	if urlHost, ok := nativeHost.(appshell.OpenURLHost); ok {
 		urlHost.SetOpenURLHandler(func(rawURL string) {
 			// AppKit delivers the opaque OS activation on its own event loop. The
 			// handler parses only identifier-only intent and never turns raw URL
 			// data into a path, command, Runtime argument, or download URL.
 			go func() {
+				if isBrowserPairingIntent(rawURL) {
+					if browserPair != nil { browserPair(rawURL) }
+					return
+				}
 				ref, parseErr := flowmarketplace.ParseInstallURL(rawURL)
 				if parseErr != nil {
 					// Do not log the opaque raw URL: an untrusted caller may include

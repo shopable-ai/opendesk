@@ -137,6 +137,11 @@ func (h *localizedNativeHost) OpenFlowFiles(ctx context.Context) ([]string, erro
 	return nil, fmt.Errorf("native Flow file picker is unavailable")
 }
 
+func (h *localizedNativeHost) BrowserPrompt(ctx context.Context, prompt BrowserPrompt) (BrowserChoice, error) {
+	if host, ok := h.inner.(BrowserPromptHost); ok { return host.BrowserPrompt(ctx, prompt) }
+	return BrowserChoice{}, fmt.Errorf("native Browser dialog is unavailable on this platform")
+}
+
 func (h *localizedNativeHost) ConfirmFlowTrust(ctx context.Context, prompt FlowTrustPrompt) (FlowTrustDecision, error) {
 	if host, ok := h.inner.(FlowInstallHost); ok {
 		return host.ConfirmFlowTrust(ctx, prompt)

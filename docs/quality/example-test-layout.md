@@ -153,3 +153,13 @@ node --test tests/test-architecture/example-explorer-catalog.test.js
 - `.runtime/` 中正在使用的运行证据。
 
 不确定用途的历史脚本应先分类，再决定迁移到 canonical example、tests/tool、archive 或删除；不要重新用 root wrapper 作为拖延分类的方式。
+
+## R2 Mac 安全配对增量登记（2026-10-10）
+
+- `internal/browserbridge/pairing_test.go`：不可信 URL 字段、期限与格式。
+- `internal/browserbridge/pairing_unix_test.go`：原生确认回调、拒绝、重放、冲突与过期；组件测试，不等于真实 GUI。
+- `internal/browserbridge/project_origin_test.go`：与 Chrome URL.origin 一致的精确网站身份。
+- `internal/browserbridge/install_transaction_unix_test.go`：安装取消回滚、中断恢复、外来修改保留、安装锁和写入失败。
+- `internal/browserbridge/admission_digest_test.go` 与 `testdata/admission-digest.json`：实际 Browser canonical/digest 生成的十条跨语言恢复身份向量。
+- `internal/browsercli/admission_unix_test.go`：真实 Go CLI 本地 IPC EOF 路径、自动 ID、恢复身份输出与禁止重放；不是 Chrome 模拟验收。
+- `cmd/opendesk/app_browser_test.go`：产品启动保留已认证 executable/credential。

@@ -106,6 +106,11 @@ func openDeskProductMenu(manifest Manifest) []nativeMenuItem {
 	items := []nativeMenuItem{
 		{ID: ActionOpen, Label: translatedProductLabel("menu.open", "显示主窗口")},
 		{ID: ActionProductInstallFlow, Label: translatedProductLabel("menu.installFlow", "安装 Flow…")},
+		{ID: "opendesk.menu.browser", Label: translatedProductLabel("menu.browser", "浏览器连接"), Children: []nativeMenuItem{
+			{ID: ActionBrowserStatus, Label: translatedProductLabel("menu.browserStatus", "连接状态…")},
+			{ID: ActionBrowserProjectAdd, Label: translatedProductLabel("menu.browserProjectAdd", "授权浏览器 JS 文件…")},
+			{ID: ActionBrowserProjectRevoke, Label: translatedProductLabel("menu.browserProjectRevoke", "撤销浏览器文件授权…")},
+		}},
 		{Type: "separator"},
 	}
 	items = append(items, nativeMenuItems(manifest.Tray.Menu)...)

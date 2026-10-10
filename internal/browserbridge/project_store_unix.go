@@ -12,7 +12,6 @@ import (
  "errors"
  "fmt"
  "io"
- "net/url"
  "os"
  "path/filepath"
  "regexp"
@@ -73,12 +72,7 @@ func inodeIdentity(info os.FileInfo)(uint64,uint64,error){
  return uint64(stat.Dev),uint64(stat.Ino),nil
 }
 func validateSiteOrigin(raw string)bool{
- if raw==""||len(raw)>1024{return false}
- u,err:=url.Parse(raw)
- return err==nil&&(u.Scheme=="http"||u.Scheme=="https")&&
- u.Host!=""&&u.Hostname()!=""&&u.User==nil&&
- u.Path==""&&u.RawPath==""&&u.RawQuery==""&&u.Fragment==""&&
- !u.ForceQuery&&u.String()==raw
+ return canonicalProjectOrigin(raw)
 }
 func validateProjectKind(kind,entry string)bool{
  return (kind=="controller"&&entry=="async-main")||

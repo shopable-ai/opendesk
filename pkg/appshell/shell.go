@@ -102,6 +102,7 @@ type Shell struct {
 	recorder    ActionSink
 	measurement ActionSink
 	flowInstall ActionSink
+	browser     ActionSink
 	pending     []ActionEvent
 	menuState   map[string]MenuItemPatch
 	started     bool
@@ -397,6 +398,9 @@ func (s *Shell) DispatchAction(id, source string) error {
 	}
 	if id == ActionProductInstallFlow {
 		return s.dispatchFlowInstall(ActionEvent{ID: id, Source: source})
+	}
+	if id == ActionBrowserStatus || id == ActionBrowserProjectAdd || id == ActionBrowserProjectRevoke {
+		return s.dispatchBrowser(ActionEvent{ID: id, Source: source})
 	}
 	return s.enqueue(ActionEvent{ID: id, Source: source})
 }

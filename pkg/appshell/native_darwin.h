@@ -4,6 +4,8 @@
 int ODAppShellStart(const char *iconPath, int iconTemplate, const char *tooltip, const char *primaryAction, const char *menuJSON, char **errorMessage);
 int ODAppShellUpdateMenuItem(const char *itemID, const char *label, int hasLabel, int enabled, int hasEnabled, int visible, int hasVisible, char **errorMessage);
 void ODAppShellActivate(void);
+int ODAppShellBrowserPrompt(const char *requestJSON, char **responseJSON, char **errorMessage);
+void ODAppShellCancelBrowserPrompt(unsigned long long token);
 int ODAppShellPickFlowFiles(char **pathsJSON, char **errorMessage);
 int ODAppShellConfirmFlowTrust(const char *flowID, const char *name, const char *publisherID, const char *keyID, const char *fingerprint, int *decision, char **errorMessage);
 int ODAppShellConfirmMarketplaceInstall(const char *flowID, const char *releaseID, const char *name, const char *version, const char *publisherID, const char *keyID, const char *fingerprint, int verifiedPublisher, int signatureVerified, int trustRequired, int *decision, char **errorMessage);

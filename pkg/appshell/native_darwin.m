@@ -249,6 +249,118 @@ void ODAppShellActivate(void) {
     else dispatch_async(dispatch_get_main_queue(), activate);
 }
 
+// Main-thread-only token prevents a delayed cancel from closing a later dialog.
+static unsigned long long ODBrowserDialogToken = 0;
+static NSWindow *ODBrowserDialogWindow = nil;
+static NSMutableSet<NSNumber *> *ODBrowserCancelledTokens;
+void ODAppShellCancelBrowserPrompt(unsigned long long token) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (!ODBrowserCancelledTokens) ODBrowserCancelledTokens = [NSMutableSet set];
+        // Cancellation can reach the main queue before the prompt is presented.
+        // Bound stale markers; tokens are unique and never reused.
+        if (ODBrowserCancelledTokens.count >= 128) [ODBrowserCancelledTokens removeAllObjects];
+        [ODBrowserCancelledTokens addObject:@(token)];
+        if (ODBrowserDialogToken == token && ODBrowserDialogWindow) [NSApp abortModal];
+    });
+}
+
+int ODAppShellBrowserPrompt(const char *requestJSON, char **responseJSON, char **errorMessage) {
+    __block BOOL success = NO;
+    ODOnMainThread(^{
+        @autoreleasepool {
+            NSData *data = [[NSString stringWithUTF8String:requestJSON ?: ""] dataUsingEncoding:NSUTF8StringEncoding];
+            NSDictionary *request = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+            if (![request isKindOfClass:NSDictionary.class]) { ODSetError(errorMessage, @"invalid Browser dialog"); return; }
+            NSString *kind = request[@"kind"];
+            ODBrowserDialogToken = [request[@"token"] unsignedLongLongValue];
+            unsigned long long token = ODBrowserDialogToken;
+        if ([ODBrowserCancelledTokens containsObject:@(token)]) {
+            [ODBrowserCancelledTokens removeObject:@(token)];
+            ODBrowserDialogToken = 0;
+            NSData *cancelled = [NSJSONSerialization dataWithJSONObject:@{@"approved": @NO} options:0 error:nil];
+            if (responseJSON) *responseJSON = strdup([[[NSString alloc] initWithData:cancelled encoding:NSUTF8StringEncoding] UTF8String]);
+            success = responseJSON && *responseJSON;
+            return;
+        }
+            NSNumber *deadline = request[@"deadlineMillis"];
+            if (deadline && deadline.longLongValue > 0) {
+                double seconds = deadline.doubleValue / 1000.0 - NSDate.date.timeIntervalSince1970;
+                if (seconds <= 0) {
+                    ODBrowserDialogToken = 0;
+                    NSData *cancelled = [NSJSONSerialization dataWithJSONObject:@{@"approved": @NO} options:0 error:nil];
+                    if (responseJSON) *responseJSON = strdup([[[NSString alloc] initWithData:cancelled encoding:NSUTF8StringEncoding] UTF8String]);
+                    success = responseJSON && *responseJSON;
+                    return;
+                }
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    if (ODBrowserDialogToken == token && ODBrowserDialogWindow) [NSApp abortModal];
+                });
+            }
+            NSMutableDictionary *choice = [@{@"approved": @NO} mutableCopy];
+            [NSApp activateIgnoringOtherApps:YES];
+            NSAlert *alert = [[NSAlert alloc] init];
+            alert.messageText = @"OpenDesk 浏览器连接";
+            if ([kind isEqualToString:@"pair"]) {
+                alert.alertStyle = NSAlertStyleWarning;
+                alert.informativeText = [NSString stringWithFormat:@"开发版申请与本机配对。\n\n扩展 ID：%@\n渠道：开发版（来源未经签名验证）\n\n请核对浏览器设置中显示的 ID，仅在你刚刚点击配对时确认。任意网站也能发出此申请。确认只登记这个 ID，不授予文件、网站或运行权限；已有其他 Host 安装不会被覆盖。", request[@"extensionId"] ?: @""];
+                [alert addButtonWithTitle:@"取消"]; [alert addButtonWithTitle:@"确认开发版配对"];
+                ODBrowserDialogWindow = alert.window;
+                choice[@"approved"] = @([alert runModal] == NSAlertSecondButtonReturn);
+            } else if ([kind isEqualToString:@"add-project"]) {
+                NSOpenPanel *panel = [NSOpenPanel openPanel];
+                panel.title = @"选择要授权给浏览器的 JS 单文件";
+                panel.canChooseFiles = YES; panel.canChooseDirectories = NO;
+                panel.allowsMultipleSelection = NO; panel.allowedFileTypes = @[@"js", @"mjs"];
+                ODBrowserDialogWindow = panel;
+                if ([panel runModal] == NSModalResponseOK && panel.URL.isFileURL) {
+                    alert.messageText = @"授权浏览器单文件";
+                    alert.informativeText = [NSString stringWithFormat:@"%@\n\n仅授权此文件的读取。文件变化不会自动运行。网站权限和明确点击运行仍由浏览器分别确认。多文件/npm 项目继续使用高级 MCP。", panel.URL.path];
+                    NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 390, 90)];
+                    NSPopUpButton *runtime = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(0, 57, 390, 27) pullsDown:NO];
+                    [runtime addItemsWithTitles:@[@"Controller · async main", @"Page · async main", @"Page · classic userscript"]];
+                    NSTextField *label = [NSTextField labelWithString:@"网站 Origin（例如 http://127.0.0.1:43111）"];
+                    label.frame = NSMakeRect(0, 32, 390, 20);
+                    NSTextField *origin = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 2, 390, 25)];
+                    origin.placeholderString = @"https://example.com";
+                    [view addSubview:runtime]; [view addSubview:label]; [view addSubview:origin];
+                    alert.accessoryView = view;
+                    [alert addButtonWithTitle:@"取消"]; [alert addButtonWithTitle:@"授权此文件"];
+                    ODBrowserDialogWindow = alert.window;
+                    if ([alert runModal] == NSAlertSecondButtonReturn) {
+                        choice[@"approved"] = @YES; choice[@"path"] = panel.URL.path;
+                        choice[@"runtimeKind"] = runtime.indexOfSelectedItem == 0 ? @"controller" : @"page-userscript";
+                        choice[@"entryFormat"] = runtime.indexOfSelectedItem == 2 ? @"classic-userscript" : @"async-main";
+                        choice[@"siteOrigin"] = origin.stringValue;
+                    }
+                }
+            } else if ([kind isEqualToString:@"revoke-project"]) {
+                NSArray *projects = request[@"projects"] ?: @[];
+                alert.messageText = @"撤销浏览器文件授权";
+                alert.informativeText = projects.count ? @"选中的授权将立即移除。已有运行保留冻结源码，不会自动重放或停止。" : @"尚未授权任何文件。";
+                NSPopUpButton *select = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(0, 0, 390, 28) pullsDown:NO];
+                for (NSDictionary *project in projects) [select addItemWithTitle:[NSString stringWithFormat:@"%@ · %@", project[@"name"], project[@"bindingId"]]];
+                if (projects.count) alert.accessoryView = select;
+                [alert addButtonWithTitle:@"取消"];
+                if (projects.count) [alert addButtonWithTitle:@"撤销选中文件"];
+                ODBrowserDialogWindow = alert.window;
+                if ([alert runModal] == NSAlertSecondButtonReturn && select.indexOfSelectedItem >= 0 && select.indexOfSelectedItem < projects.count) {
+                    choice[@"approved"] = @YES; choice[@"bindingId"] = projects[select.indexOfSelectedItem][@"bindingId"];
+                }
+            } else if ([kind isEqualToString:@"status"]) {
+                alert.informativeText = request[@"message"] ?: @"状态不可用";
+                [alert addButtonWithTitle:@"好"]; ODBrowserDialogWindow = alert.window; [alert runModal];
+            } else { ODSetError(errorMessage, @"unknown Browser dialog"); return; }
+            NSData *response = [NSJSONSerialization dataWithJSONObject:choice options:0 error:nil];
+            ODBrowserDialogWindow = nil; ODBrowserDialogToken = 0;
+        [ODBrowserCancelledTokens removeObject:@(token)];
+            NSString *json = [[NSString alloc] initWithData:response encoding:NSUTF8StringEncoding];
+            if (responseJSON) *responseJSON = strdup(json.UTF8String ?: "{\"approved\":false}");
+            success = responseJSON && *responseJSON;
+        }
+    });
+    return success ? 1 : 0;
+}
+
 int ODAppShellPickFlowFiles(char **pathsJSON, char **errorMessage) {
     __block BOOL success = NO;
     ODOnMainThread(^{
