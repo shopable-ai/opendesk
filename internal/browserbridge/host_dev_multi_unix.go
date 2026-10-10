@@ -8,7 +8,6 @@ import (
     "encoding/hex"
     "encoding/json"
     "errors"
-    "fmt"
     "strings"
     "time"
     "unicode/utf8"
@@ -115,28 +114,23 @@ func (h *Host) serveDevAttach(c *localClient, f Fields, reader *bufio.Reader) {
 }
 func (h *Host) releaseDevLease(c *localClient) {
     h.mu.Lock()
-    ids:=[]string{}
-    owners:=[]*localClient{}
+    temporary:=[]string{}
+    providers:=[]*localClient{}
     for id,lease:=range h.leases {
         if lease.owner!=c{continue}
-        ids=append(ids,id)
-        if lease.temporary { /* released outside Host mutex */ }
+        if lease.temporary{temporary=append(temporary,lease.workspaceID)}
         delete(h.leases,id)
         for provider,row:=range h.modern {
-            if row.leaseID==id {owners=append(owners,provider)}
+            if row.leaseID==id{providers=append(providers,provider)}
         }
     }
     h.mu.Unlock()
-    for _,provider:=range owners { _=provider.socket.Close() }
-    removed:=false
-    for _,id:=range ids {
-        // The owning workspace is recorded by this socket; only temp grants
-        // are retired. Long-term WorkspaceAdd grants are never revoked.
-        // The specific record has already been removed from the map.
-        // release by owned lease is handled using captured grants below.
-        _=id
+    for _,provider:=range providers { _=provider.socket.Close() }
+    changed:=false
+    for _,id:=range temporary {
+        if h.files.detachDevWorkspace(id){changed=true}
     }
-    if removed {_=h.sendChrome(MustEncode(h.files.state()))}
+    if changed {_=h.sendChrome(MustEncode(h.files.state()))}
 }
 func (h *Host) readCatalog(raw json.RawMessage, lease devLease) (map[string]modernEntry,error) {
     var projects []modernProject
@@ -297,7 +291,8 @@ func (h *Host) legacyCatalog() ([]map[string]any,error) {
         for _,row:=range result.Projects{
             if !RequestIDValid(row.BindingID)||row.Name==""||len(row.Name)>160{return nil,ErrSchema}
             rows=append(rows,map[string]any{"bindingId":legacyBinding(epoch,row.BindingID),
-                "name":row.Name,"source":"legacy-mcp","sourceId":"legacy-"+epoch})
+                "name":row.Name,"source":"legacy-mcp","sourceId":"legacy-"+epoch,
+                "_rawId":row.BindingID})
         }
         return rows,nil
     case <-time.After(3*time.Second):
@@ -322,8 +317,6 @@ func (h *Host) handleModernDevRequest(f Fields) error {
         }
     }
     old:=h.provider
-    legacyEpoch:=""
-    if old!=nil{legacyEpoch=old.providerEpoch}
     epoch:=h.aggregateEpoch
     h.mu.Unlock()
     if method=="projects.list"{
@@ -338,6 +331,7 @@ func (h *Host) handleModernDevRequest(f Fields) error {
             }
             others,err:=h.legacyCatalog()
             if err!=nil {h.devError(id,epoch,"E_DEV_DISCONNECTED");return}
+            for _,row:=range others{delete(row,"_rawId")}
             rows=append(rows,others...)
             if len(rows)>32 {h.devError(id,epoch,"E_LIMIT");return}
             h.mu.Lock();live:=!h.closed&&h.aggregateEpoch==epoch;h.mu.Unlock()
@@ -359,22 +353,22 @@ func (h *Host) handleModernDevRequest(f Fields) error {
         owner=target.client;ownerEpoch=target.epoch
         rawID=target.entry.rawID;scopedID=bindingID
     }else if strings.HasPrefix(bindingID,"local-v1-")&&old!=nil {
-        // The historic MCP binding is scoped to this legacy provider session;
-        // only an actual catalog member can select a source. Never infer rawID
-        // by guessing its hash or by matching the displayed name.
         catalog,err:=h.legacyCatalog()
         if err!=nil{h.devError(id,epoch,"E_DEV_DISCONNECTED");return nil}
-        _=catalog
-        // A legacy v1 session cannot authoritatively map opaque IDs without
-        // retaining the raw returned catalog; do not open a guessed source.
-        h.devError(id,epoch,"E_DEV_UNSUPPORTED")
-        return nil
+        for _,row:=range catalog{
+            if row["bindingId"]==bindingID{
+                rawID,_=row["_rawId"].(string)
+                break
+            }
+        }
+        if rawID==""{h.devError(id,epoch,"E_DEV_DETACHED");return nil}
+        owner=old;ownerEpoch=old.providerEpoch;scopedID=bindingID
     }else if projectBindingRE.MatchString(bindingID){
         go h.serveAggregatedGoProject(id,epoch,bindingID)
         return nil
     }else{h.devError(id,epoch,"E_DEV_DETACHED");return nil}
     h.mu.Lock()
-    if h.closed||h.aggregateEpoch!=epoch||h.modern[owner]==nil{
+    if h.closed||h.aggregateEpoch!=epoch||h.modern[owner]==nil&&h.provider!=owner{
         h.mu.Unlock();h.devError(id,epoch,"E_DEV_DISCONNECTED");return nil
     }
     if len(h.devPending)>=4||len(h.pending)+len(h.devPending)+h.internalPending>=MaxInflight{
@@ -395,7 +389,6 @@ func (h *Host) handleModernDevRequest(f Fields) error {
         "providerEpoch":ownerEpoch,"method":"project.resolve",
         "params":map[string]any{"bindingId":rawID}})
     if err:=h.sendLocal(owner,request);err!=nil{_ = owner.socket.Close()}
-    _=legacyEpoch
     return nil
 }
 func (h *Host) serveAggregatedGoProject(id,epoch,bindingID string) {
@@ -408,4 +401,3 @@ func (h *Host) serveAggregatedGoProject(id,epoch,bindingID string) {
     if err!=nil{h.devError(id,epoch,"E_LIMIT");return}
     _=h.sendChrome(payload)
 }
-var _=fmt.Sprint
