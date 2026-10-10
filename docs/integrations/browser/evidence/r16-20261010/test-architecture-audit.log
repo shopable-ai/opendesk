@@ -1,0 +1,112 @@
+[TEST-ARCHITECTURE-AUDIT] FAILED -> .runtime/tests/test-architecture/audit.json
+{
+  "sourceSnapshot": {
+    "head": "a02fe4810393b334526e1692b9d1d872b0956888",
+    "branch": "master",
+    "dirty": true,
+    "fileCount": 2814,
+    "closureSha256": "deb6fefe1f8386c3436e22ecd7110151434a73c5c40281ef6542ff9ae0cb5083"
+  },
+  "goTests": {
+    "migrationBaseline": 151,
+    "classifiedTotal": 294,
+    "incremental": 143,
+    "current": 315,
+    "dispositionCounts": {
+      "KEEP_PACKAGE": 217,
+      "MOVE_GO_BLACKBOX": 30,
+      "SPLIT_JS_CONTRACT": 30,
+      "MOVE_TOOL": 3,
+      "OPT_IN_LIVE": 2,
+      "VENDOR_ONLY": 4,
+      "ARCHIVE_ONLY": 8
+    },
+    "classificationDocument": "docs/quality/go-test-file-classification.md",
+    "classificationSha256": "90c655b7315f5818b4b29249cdbcc4e131ca137d23f26c831b9331f2b9d3b1fe",
+    "movedSources": [
+      "automation/image_layout_validation_test.go",
+      "automation/image_layout_visualize_test.go",
+      "automation/wechat_visualization_test.go"
+    ],
+    "movedTargets": [
+      "tests/automation/tools/image-layout-lab/main.go",
+      "tests/wechat/tools/visualize-layout/main.go"
+    ],
+    "externalGoMoves": {
+      "automation/browser_lifecycle_test.go": "tests/automation/browser_lifecycle_test.go",
+      "pkg/container/container_test.go": "tests/container/container_test.go",
+      "pkg/customui/toolbar/model_test.go": "tests/custom-ui/toolbar_model_test.go",
+      "pkg/desktopvision/coordinates_test.go": "tests/desktopvision/coordinates_test.go",
+      "pkg/desktopvision/types_test.go": "tests/desktopvision/types_test.go",
+      "pkg/scheduler/schedule_test.go": "tests/scheduler/schedule_test.go",
+      "pkg/semanticexec/mock_runtime_test.go": "tests/semantic-exec/mock_runtime_test.go",
+      "pkg/semanticexec/status_test.go": "tests/semantic-exec/status_test.go",
+      "pkg/semanticexec/verify_test.go": "tests/semantic-exec/verify_test.go",
+      "pkg/benchmark/semantic_smoke_test.go": "tests/semantic-exec/benchmark_smoke_test.go",
+      "pkg/operator/semantic_maintenance_test.go": "tests/semantic-exec/operator_maintenance_test.go",
+      "pkg/runtime/pool_test.go": "tests/runtime/execution_gate_test.go",
+      "pkg/runtimeconfig/config_test.go": "tests/runtimeconfig/config_test.go",
+      "pkg/customui/icons_test.go": "tests/custom-ui/core/icons_test.go",
+      "pkg/customui/queue_test.go": "tests/custom-ui/core/queue_test.go",
+      "pkg/execution/desktop_events_test.go": "tests/execution/desktop_events_test.go",
+      "pkg/execution/global_shortcut_test.go": "tests/execution/global_shortcut_test.go",
+      "pkg/execution/manager_test.go": "tests/execution/manager_test.go",
+      "pkg/execution/runtime_ownership_test.go": "tests/runtime/runtime_ownership_test.go",
+      "pkg/desktopvision/annotate_test.go": "tests/desktopvision/annotate_test.go",
+      "pkg/desktopvision/gates_test.go": "tests/desktopvision/gates_test.go",
+      "pkg/desktopvision/script_test.go": "tests/desktopvision/script_test.go",
+      "pkg/desktopvision/trace_test.go": "tests/desktopvision/trace_test.go",
+      "pkg/customui/session_concurrency_test.go": "tests/custom-ui/core/session_concurrency_test.go",
+      "pkg/execution/runner_lifecycle_test.go": "tests/execution/runner_lifecycle_test.go",
+      "pkg/execution/runner_test.go": "tests/execution/runner_test.go",
+      "pkg/recorder/recorder_test.go": "tests/recorder/recorder_test.go",
+      "pkg/scheduler/service_test.go": "tests/scheduler/service_test.go",
+      "automation/vision_layout_test.go": "tests/automation/vision_layout_test.go"
+    }
+  },
+  "inventory": {
+    "javascriptFilesExcludingGitRuntimeDist": 839,
+    "runtimeApiJavaScript": 315,
+    "testJavaScript": 516,
+    "examplesJavaScript": 182,
+    "archiveFileCount": 316,
+    "toolRootCount": 59,
+    "fixtureRootCount": 17
+  },
+  "invariants": {
+    "reviewedExampleTestLayoutValid": true,
+    "rootTempAbsent": true,
+    "movedPseudoTestsAbsent": true,
+    "externalGoTestsMovedAndExternal": true,
+    "allCurrentGoTestsClassified": false,
+    "allClassificationsHaveReviewFields": true,
+    "splitContractsCiteExistingJavaScript": true,
+    "catalogDocsAndTypesExist": true,
+    "forbiddenPublicJavaScriptCallsAbsent": true
+  }
+}
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: automation/custom_ui_chrome_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: automation/file_write_new_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: cmd/opendesk/app_flow_invocation_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: cmd/opendesk/app_marketplace_development_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: cmd/opendesk/app_marketplace_product_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: cmd/opendesk/scheduler_cli_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: internal/browserbridge/client_unix_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: internal/browserbridge/host_shutdown_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: internal/browserbridge/host_unix_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: internal/browserbridge/install_unix_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: internal/browserbridge/project_notification_unix_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: internal/browserbridge/project_provider_unix_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: internal/browserbridge/project_store_unix_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: internal/browserbridge/wire_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: internal/browsercli/command_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: pkg/appshell/marketplace_protocol_contract_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: pkg/customui/window_chrome_contract_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: pkg/flowinstall/marketplace_revision_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: pkg/flowmarketplace/static_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: pkg/measurement/session_reference_selection_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: pkg/officialconfig/analytics_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: pkg/officialconfig/flow_distribution_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: pkg/scheduler/service_schedule_contract_test.go
+[TEST-ARCHITECTURE-AUDIT] unclassified current Go test: pkg/scheduler/trigger_type_test.go
+[TEST-ARCHITECTURE-AUDIT] current _test.go total=315, expected=291 from reviewed rows

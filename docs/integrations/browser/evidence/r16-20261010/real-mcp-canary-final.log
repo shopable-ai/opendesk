@@ -1,0 +1,5 @@
+=== RUN   TestInstalledCodexAmbientMCPIsNotStarted
+    process_test.go:413: actual app-server accepted no-environment thread; synthetic ambient MCP canary did not start during the live 1s startup window
+--- PASS: TestInstalledCodexAmbientMCPIsNotStarted (1.14s)
+PASS
+ok  	opendesk/internal/browserai	1.148s

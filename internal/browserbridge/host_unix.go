@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"opendesk/internal/browserai"
 )
 
 const (
@@ -50,6 +52,9 @@ type Host struct {
 	internalEpoch string
 	internalPending int
 	internalIDs map[string]bool
+	ai *browserai.Manager
+	aiPending int
+	aiControlPending int
 	done chan struct{}
 	closeOnce sync.Once
 }
@@ -62,7 +67,7 @@ func NewHost(cfg Installation,origin string,input io.Reader,output io.Writer) (*
 	if input==nil || output==nil{return nil,ErrSchema}
 	return &Host{cfg:cfg,origin:origin,input:input,output:output,clients:make(map[*localClient]bool),
 		pending:make(map[string]*pendingCall),devPending:make(map[string]*pendingDev),
-		internalIDs:make(map[string]bool),done:make(chan struct{})},nil
+		internalIDs:make(map[string]bool),ai:browserai.NewManager(browserai.Options{}),done:make(chan struct{})},nil
 }
 func (h *Host) sendChrome(raw []byte) error {
 	h.writeMu.Lock();defer h.writeMu.Unlock()
@@ -103,7 +108,9 @@ func (h *Host) Close() {
 		clients:=make([]*localClient,0,len(h.clients))
 		for client:=range h.clients{clients=append(clients,client)}
 		for _,p:=range h.devPending{p.timer.Stop()}
+		ai:=h.ai
 		h.mu.Unlock()
+		if ai!=nil{ai.Close()}
 		if listener!=nil{_ = listener.Close()}
 		for _,c:=range clients{_ = c.socket.Close()}
 		if closer,ok:=h.input.(io.Closer);ok{_ = closer.Close()}
@@ -317,6 +324,8 @@ func (h *Host) handleChrome(raw []byte) error {
 	}
 	if Int(f,"v")!=1{return ErrSchema}
 	switch String(f,"kind"){
+	case "ai.request":
+		return h.handleAI(raw)
 	case "response":
 		if err=ValidateResponse(f);err!=nil{return err}
 		id:=String(f,"requestId")
@@ -409,7 +418,7 @@ func (h *Host) Run() error {
 	if h.cfg.Provider!="opendesk" {return errors.New("E_MIGRATION_REQUIRED")}
 	defer h.Close()
 	if err:=h.startSocket();err!=nil{return err}
-	if err:=h.sendChrome(MustEncode(map[string]any{"v":1,"kind":"hello"}));err!=nil{return err}
+	if err:=h.sendChrome(MustEncode(map[string]any{"v":1,"kind":"hello","workflowAiVersion":1}));err!=nil{return err}
 	timer:=time.AfterFunc(handshakeTimeout,func(){
 		h.mu.Lock();ready:=h.ready;h.mu.Unlock()
 		if !ready{h.Close()}

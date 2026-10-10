@@ -1,0 +1,21 @@
+=== RUN   TestInstalledCodexProbe
+    process_test.go:253: {"sourceKey":"local_codex","state":"READY_FOR_TURN","cliInstalled":true,"cliVersion":"codex-cli 0.159.2","authState":"chatgpt","appServerCompatible":true,"readyForTurn":true,"inferenceVerified":false,"resumeSupported":false,"supportedTools":["browser.observe"],"onlineInference":true}
+--- PASS: TestInstalledCodexProbe (0.95s)
+=== RUN   TestInstalledCodexContinuousSession
+    process_test.go:308: actual turn completed; correlated events=8; synthetic value=17
+    process_test.go:308: actual turn completed; correlated events=8; synthetic value=21
+=== RUN   TestInstalledCodexContinuousSession/cold_resume
+    process_test.go:328: installed CLI has no environments override on thread/resume; safe refusal verified, cold recovery NOT_TESTED
+--- PASS: TestInstalledCodexContinuousSession (6.76s)
+    --- SKIP: TestInstalledCodexContinuousSession/cold_resume (0.00s)
+=== RUN   TestInstalledCodexAmbientMCPIsNotStarted
+    process_test.go:430: actual app-server accepted no-environment thread; synthetic ambient MCP canary did not start during the live 1s startup window
+--- PASS: TestInstalledCodexAmbientMCPIsNotStarted (1.17s)
+=== RUN   TestInstalledCodexCancellation
+    process_test.go:468: actual turn/interrupt followed by interrupted terminal receipt; inference not claimed
+--- PASS: TestInstalledCodexCancellation (7.57s)
+=== RUN   TestInstalledCodexWorkflowProposal
+    process_test.go:520: actual workflow proposal completed; correlated events=51; synthetic JSON bytes=232; Browser compiler validation is separate
+--- PASS: TestInstalledCodexWorkflowProposal (4.08s)
+PASS
+ok  	opendesk/internal/browserai	20.542s

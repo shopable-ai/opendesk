@@ -1,6 +1,8 @@
-# OpenDesk R16：本机 Codex App Server 作为 Browser 工作流 AI Provider 的实施准备
+# OpenDesk R16：本机 Codex App Server 作为 Browser 工作流 AI Provider
 
-> 日期 2026-10-10。状态：DESIGN_ONLY。本文件补充 Browser main 的 docs/architecture/browser-framework/workflow-ai-provider-routing-r16.zh-CN.md。未实现或验证本机 Codex 真正连接，不改变 OpenDesk Go Native Host 默认安装、既有 MCP、Desktop、Browser Authority。
+> 更新 2026-10-10。状态：SOURCE_IMPLEMENTED / COMPONENT_VERIFIED / REAL_CODEX_PARTIAL；macOS Native Chrome 闭环为 NOT_TESTED。Go 已接入真实 Codex 0.159.2 App Server，实际核验 ChatGPT 登录类型、同线程两轮推理、流式事件、活动推理取消与合成工作流提议。此版本安全冷恢复不可用，不能据此宣布完整 R16 验收通过。当前实现、精确协议、证据、版本限制与本机命令见 [R16 实施与验证记录](workflow-codex-app-server-r16-implementation.zh-CN.md)。
+
+本文件保留已提交正式设计；以下分阶段要求是设计基线，具体源码状态以实施记录为准。Browser 对应设计为 `docs/architecture/browser-framework/workflow-ai-provider-routing-r16.zh-CN.md`。没有新增 Browser executor、Authority、Result Store、Task 系统或本地 HTTP listener。
 
 ## 目标和职责边界
 

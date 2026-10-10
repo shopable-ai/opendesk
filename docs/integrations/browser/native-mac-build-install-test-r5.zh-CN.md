@@ -8,6 +8,12 @@ OpenDesk Desktop GUI 和 Chrome Native Host 是同一个 OpenDesk.app 内**不�
 
 本轮范围只有 Chrome Native Messaging 宿主接管与相关 CLI/IPC/浏览器连接。禁止删除 Browser JavaScript、Vite/WXT/npm、Desktop/MCP/Flow、Codex 的独立高级 Node 解析功能。保留旧 Node Host 迁移回滚，直到全部安全门槛实测通过。
 
+## 当前增量诊断与下一步 Gate（2026-10-10）
+
+已核验的 Browser `main` 候选 `e1d10b241ef77e5328abf917781b48d336db1042` 的 Native Agent CI [#38038526216](https://github.com/shopable-ai/opendesk-browser/actions/runs/38038526216) 和依赖 CI [#38038526380](https://github.com/shopable-ai/opendesk-browser/actions/runs/38038526380) 存在三个前置问题：固定入口数预期 14、实际 15；打包的内置 page-core 触发未授权动态 `Function`；部分用户脚本预览 `E_BUILTIN_RESOURCE`。macOS Native Chrome 诊断被**包验证阶段**拦下，本候选真正 Chrome connectNative 的结果应为 `NOT_TESTED`，而不是“实测连接失败”。
+
+完整前置问题、各 Agent 模块 Owner 与 Gate A（CI 绿灯）→ B（Go App）→ C（真 Chrome）→ D（Codex CLI 执行）→ E（首装零配置）→ F（迁移回滚）→ G（独立 R16 Codex Agent）见 [Browser Native Go R5.1 交付清单](https://github.com/shopable-ai/opendesk-browser/blob/main/docs/framework/workstreams/native-go-host-r5-1-delivery-gates-20261010.zh-CN.md)。本页以下运行命令仍有效，但必须在 Gate A 的**当前同候选有效扩展包**修复后用于真实端到端验收。
+
 ## Mac 最短操作路径
 
 在真实 OpenDesk 源码仓库、无冲突时运行：

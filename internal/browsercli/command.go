@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"opendesk/internal/browserbridge"
+	"opendesk/internal/browserai"
 )
 
 func IsCommand(args []string) bool {return len(args)>0 && args[0]=="browser"}
@@ -81,6 +82,14 @@ func Execute(args []string,stdout,stderr io.Writer) int {
 		return exitError(stderr,errors.New("E_CAPABILITY: browser [setup|update|doctor|cleanup|native-host|bridge.status|target.current|script.save|run.start|run.get|run.stop|page.preview|page.get|page.dispose|request.get]"))
 	}
 	command,rest:=args[1],args[2:]
+	if command=="ai" {
+		if len(rest)!=1||rest[0]!="doctor"{return exitError(stderr,errors.New("E_CAPABILITY: browser ai doctor"))}
+		manager:=browserai.NewManager(browserai.Options{});defer manager.Close()
+		result,err:=manager.Probe(context.Background())
+		if err!=nil{return exitError(stderr,err)}
+		writeJSON(stdout,result)
+		if !result.ReadyForTurn{return 1};return 0
+	}
 	if command=="native-host"{
 		// Chrome passes the caller origin as the first argv element. On Windows
 		// it may also append --parent-window; Windows is not yet enabled.

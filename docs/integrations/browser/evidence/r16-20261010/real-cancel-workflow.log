@@ -1,0 +1,9 @@
+=== RUN   TestInstalledCodexCancellation
+    process_test.go:379: ai.plan.cancel: E_PROVIDER
+--- FAIL: TestInstalledCodexCancellation (0.27s)
+=== RUN   TestInstalledCodexWorkflowProposal
+    process_test.go:438: actual workflow proposal completed; correlated events=51; synthetic JSON bytes=232; Browser compiler validation is separate
+--- PASS: TestInstalledCodexWorkflowProposal (4.09s)
+FAIL
+FAIL	opendesk/internal/browserai	4.359s
+FAIL

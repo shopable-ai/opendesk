@@ -1,0 +1,1 @@
+{"title":"Synthetic observation","description":"Public synthetic protocol fixture only.","paramsSchema":{"type":"object","additionalProperties":false,"properties":{},"required":[]},"steps":[{"stepId":"observe_page","op":"observe"}]}
