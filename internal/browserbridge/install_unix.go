@@ -295,7 +295,7 @@ func Cleanup() (map[string]any,error) {
 	// part of the same owner-scoped deletion. Otherwise a subsequent install
 	// could accidentally regain a previous user's file authorization.
 	files:=[]string{manifest,filepath.Join(cfg.InstallRoot,"native-host"),configPath()}
-	for _,name:=range []string{projectStoreName,"project-grants.lock"}{
+	for _,name:=range []string{projectStoreName,"project-grants.lock",workspaceStoreName,workspaceLockName}{
 		p:=filepath.Join(cfg.InstallRoot,name)
 		if _,err:=os.Lstat(p);os.IsNotExist(err){continue
 		}else if err!=nil{return nil,err}
@@ -303,6 +303,7 @@ func Cleanup() (map[string]any,error) {
 		files=append(files,p)
 	}
 	if _,err:=readProjectStore(cfg);err!=nil{return nil,err}
+	if _,err:=readWorkspaceStore(cfg);err!=nil{return nil,err}
 	for _,file:=range files{
 		if _,err:=requireRegular(file,0);err!=nil{return nil,err}
 	}

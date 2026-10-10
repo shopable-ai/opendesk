@@ -55,6 +55,9 @@ type Host struct {
 	ai *browserai.Manager
 	aiPending int
 	aiControlPending int
+	localFiles bool
+	files *nativeFiles
+	filesPending int
 	done chan struct{}
 	closeOnce sync.Once
 }
@@ -65,9 +68,11 @@ func NewHost(cfg Installation,origin string,input io.Reader,output io.Writer) (*
 		return nil,errors.New("E_EXTENSION_ID")
 	}
 	if input==nil || output==nil{return nil,ErrSchema}
+	files,err:=newNativeFiles(cfg)
+	if err!=nil{return nil,err}
 	return &Host{cfg:cfg,origin:origin,input:input,output:output,clients:make(map[*localClient]bool),
 		pending:make(map[string]*pendingCall),devPending:make(map[string]*pendingDev),
-		internalIDs:make(map[string]bool),ai:browserai.NewManager(browserai.Options{}),done:make(chan struct{})},nil
+		internalIDs:make(map[string]bool),ai:browserai.NewManager(browserai.Options{}),files:files,done:make(chan struct{})},nil
 }
 func (h *Host) sendChrome(raw []byte) error {
 	h.writeMu.Lock();defer h.writeMu.Unlock()
@@ -109,7 +114,9 @@ func (h *Host) Close() {
 		for client:=range h.clients{clients=append(clients,client)}
 		for _,p:=range h.devPending{p.timer.Stop()}
 		ai:=h.ai
+		files:=h.files
 		h.mu.Unlock()
+		if files!=nil{files.Close()}
 		if ai!=nil{ai.Close()}
 		if listener!=nil{_ = listener.Close()}
 		for _,c:=range clients{_ = c.socket.Close()}
@@ -307,7 +314,7 @@ func (h *Host) handleChrome(raw []byte) error {
 		if Int(f,"v")!=1 || String(f,"kind")!="welcome" ||
 			String(f,"extensionId")!=h.cfg.ExtensionID ||
 			String(f,"extensionVersion")==""{return errors.New("E_NATIVE_HANDSHAKE")}
-		h.mu.Lock();h.ready=true;h.localDev=Int(f,"localDevVersion")==1;h.mu.Unlock()
+		h.mu.Lock();h.ready=true;h.localDev=Int(f,"localDevVersion")==1;h.localFiles=Int(f,"localFilesVersion")==FilesVersion;h.mu.Unlock()
 		// The built-in Go provider never touches the disk before the browser
 		// has authorized Native and completed the exact welcome handshake.
 		// With no user file grants, keep Node's original disconnected state.
@@ -320,10 +327,13 @@ func (h *Host) handleChrome(raw []byte) error {
 				}
 			}
 		}
+		if Int(f,"localFilesVersion")==FilesVersion{return h.sendChrome(MustEncode(h.files.state()))}
 		return nil
 	}
 	if Int(f,"v")!=1{return ErrSchema}
 	switch String(f,"kind"){
+	case "files.request":
+		return h.handleFiles(raw)
 	case "ai.request":
 		return h.handleAI(raw)
 	case "response":
@@ -418,7 +428,7 @@ func (h *Host) Run() error {
 	if h.cfg.Provider!="opendesk" {return errors.New("E_MIGRATION_REQUIRED")}
 	defer h.Close()
 	if err:=h.startSocket();err!=nil{return err}
-	if err:=h.sendChrome(MustEncode(map[string]any{"v":1,"kind":"hello","workflowAiVersion":1}));err!=nil{return err}
+	if err:=h.sendChrome(MustEncode(map[string]any{"v":1,"kind":"hello","workflowAiVersion":1,"localFilesVersion":FilesVersion}));err!=nil{return err}
 	timer:=time.AfterFunc(handshakeTimeout,func(){
 		h.mu.Lock();ready:=h.ready;h.mu.Unlock()
 		if !ready{h.Close()}
