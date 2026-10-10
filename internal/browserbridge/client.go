@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"net"
 	"time"
 )
@@ -73,7 +72,9 @@ func Call(ctx context.Context,method string,params json.RawMessage,requestID str
 	f,err:=Decode(reply)
 	if err!=nil{return nil,callError(sent)}
 	if err=ValidateResponse(f);err!=nil || String(f,"requestId")!=requestID {
-		return nil,errors.New("E_SCHEMA")
+		// Request may have reached the browser and executed a mutation; never
+		// downgrade an invalid or mismatched reply to retryable schema failure.
+		return nil,callError(sent)
 	}
 	return reply,nil
 }
