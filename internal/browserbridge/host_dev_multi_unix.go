@@ -169,10 +169,16 @@ func (h *Host) serveModernProvider(c *localClient, request Fields, reader *bufio
     lease,ok:=h.leases[leaseID]
     ready:=h.ready&&h.localDevMulti&&!h.closed
     already:=len(h.modern)>=4
+    duplicate:=false
+    for _,active:=range h.modern{
+        if active.leaseID==leaseID{duplicate=true;break}
+    }
     h.mu.Unlock()
-    if !ok||!ready||already||!RequestIDValid(String(request,"providerId")) {
+    if !ok||!ready||already||!RequestIDValid(String(request,"providerId"))||duplicate {
+        code:="E_DEV_AUTH"
+        if duplicate{code="E_DEV_PROVIDER_CONFLICT"}
         _=h.sendLocal(c,MustEncode(map[string]any{"v":1,"kind":"provider.rejected",
-            "error":map[string]string{"code":"E_DEV_AUTH"}}))
+            "error":map[string]string{"code":code}}))
         return
     }
     entries,err:=h.readCatalog(request["projects"],lease)
@@ -188,6 +194,17 @@ func (h *Host) serveModernProvider(c *localClient, request Fields, reader *bufio
     if !ok||still.owner!=lease.owner||still.workspaceID!=lease.workspaceID||h.closed {
         h.mu.Unlock();return
     }
+    // Recheck under the same lock as registration: simultaneous contenders
+    // for one lease must not introduce two ambiguous source owners.
+    for _,active:=range h.modern {
+        if active.leaseID==leaseID {
+            h.mu.Unlock()
+            _=h.sendLocal(c,MustEncode(map[string]any{"v":1,"kind":"provider.rejected",
+                "error":map[string]string{"code":"E_DEV_PROVIDER_CONFLICT"}}))
+            return
+        }
+    }
+    if len(h.modern)>=4{h.mu.Unlock();return}
     c.providerEpoch=epoch
     h.modern[c]=&modernProvider{leaseID:leaseID,sourceID:lease.sourceID,
         workspaceID:lease.workspaceID,entries:entries}
