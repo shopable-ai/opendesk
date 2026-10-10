@@ -10,7 +10,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -142,6 +144,54 @@ func safeProxyURL(value string) bool {
 	}
 }
 
+// nvm installations live outside the PATH inherited when Chrome starts the
+// Native Host. Inspect only the current user's conventional Node version
+// directory, without sourcing shell rc files, reading credentials or scanning
+// arbitrary projects. A large directory fails closed rather than consuming an
+// unbounded amount of filesystem metadata.
+var nvmNodeVersion = regexp.MustCompile(`^v([0-9]{1,3})\\.([0-9]{1,3})\\.([0-9]{1,3})$`)
+
+func nvmCodexCandidates(home string) []string {
+	root := filepath.Join(home, ".nvm", "versions", "node")
+	entries, err := os.ReadDir(root)
+	if err != nil || len(entries) > 64 {
+		return nil
+	}
+	type installation struct {
+		path string
+		version [3]int
+	}
+	var versions []installation
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		match := nvmNodeVersion.FindStringSubmatch(entry.Name())
+		if match == nil {
+			continue
+		}
+		item := installation{path:filepath.Join(root, entry.Name(), "bin", "codex")}
+		for i := range item.version {
+			item.version[i], _ = strconv.Atoi(match[i+1])
+		}
+		versions = append(versions, item)
+	}
+	// Prefer the latest semver rather than lexicographic v9 > v22 sorting.
+	sort.Slice(versions, func(i, j int) bool {
+		for part := 0; part < 3; part++ {
+			if versions[i].version[part] != versions[j].version[part] {
+				return versions[i].version[part] > versions[j].version[part]
+			}
+		}
+		return versions[i].path > versions[j].path
+	})
+	candidates := make([]string, 0, len(versions))
+	for _, item := range versions {
+		candidates = append(candidates, item.path)
+	}
+	return candidates
+}
+
 func discoverCodex() (string, error) {
 	if file, err := exec.LookPath("codex"); err == nil && filepath.IsAbs(file) {
 		return file, nil
@@ -153,6 +203,7 @@ func discoverCodex() (string, error) {
 		for _, rel := range []string{".local/bin/codex", ".npm-global/bin/codex", ".bun/bin/codex", ".volta/bin/codex"} {
 			candidates = append(candidates, filepath.Join(home, rel))
 		}
+		candidates = append(candidates, nvmCodexCandidates(home)...)
 	}
 	for _, file := range candidates {
 		if s, err := os.Stat(file); err == nil && s.Mode().IsRegular() && s.Mode().Perm()&0111 != 0 {
@@ -179,10 +230,32 @@ func (w *limitedOutput) Write(p []byte) (int, error) {
 	return n, nil
 }
 
+// The audited Codex npm launcher uses /usr/bin/env node. When codex came
+// from nvm and Chrome did not inherit the interactive shell PATH, its matching
+// Node binary must still be resolvable. Add only the already selected CLI's
+// executable directory; do not execute shell initialization or inherit new
+// secret-bearing environment variables.
+func prependExecutableDir(env []string, executable string) []string {
+	if !filepath.IsAbs(executable) {
+		return env
+	}
+	dir := filepath.Dir(executable)
+	if strings.ContainsAny(dir, "\\r\\n\\x00"+string(os.PathListSeparator)) {
+		return env
+	}
+	for i, value := range env {
+		if strings.HasPrefix(value, "PATH=") {
+			env[i] = "PATH=" + dir + string(os.PathListSeparator) + strings.TrimPrefix(value, "PATH=")
+			return env
+		}
+	}
+	return append(env, "PATH="+dir)
+}
+
 func ownedCommand(ctx context.Context, path, workspace string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Dir = workspace
-	cmd.Env = minimalEnvironment()
+	cmd.Env = prependExecutableDir(minimalEnvironment(), path)
 	cmd.Stderr = io.Discard
 	configureProcess(cmd)
 	cmd.Cancel = func() error {

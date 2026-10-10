@@ -77,6 +77,13 @@ Go 核对固定 schema、hash 形状、节点对象数组不超过 24 项及 ori
 
 ## 进程与隐私边界
 
+### Chrome 启动的 Codex CLI 路径（R16 R2）
+
+Chrome Native Host 不一定继承用户终端 shell 的 `PATH`。Go 先按已有受控位置查找 Codex；新增只读、最多 64 项的 `~/.nvm/versions/node/vMAJOR.MINOR.PATCH/bin/codex` 检查，按语义版本由新到旧选择可执行文件。对于使用 `#!/usr/bin/env node` 的 npm 启动器，自有受限 Codex 子进程仅在 `PATH` 前增加已选 CLI 所在目录，使同目录的 Node 可见；不加载 shell 初始化脚本、不复制认证、不增开目录读写授权、不回传完整本机路径。版本和 App Server 策略仍须通过实际 allowlist、Schema、登录及隔离检查，路径发现绝不等于 READY。
+
+不扫描任意 npm/NVM 用户目录，过量安装条目安全拒绝。其它 Node 管理器/自定义安装仍依赖系统已配置的 Native Host `PATH`；macOS 真实本机发现、登录和 Chrome 接入仍是 **NOT_TESTED**，不得用跨平台组件测试冒充。
+
+
 隔离策略参考已审核的官方 0.159.2 `temporary_structured_request.rs`：线程及每一轮固定 `environments:[]`、空 runtime roots、空 selected capability roots，并禁用 shell/unified exec、desktop/browser 扩展入口、apps、plugins、hooks、skills、memories、web search 等。通过 `config/read` 在 Go 内枚举已有 MCP 名称，逐名设置 `enabled:false`；空表会 merge，不能假定它清除了原 MCP。
 
 `readOnly` 本身不表示 HOME 不可读。本集成依靠**没有执行环境**、固定工具注册和启动配置，配合实际回包核验。启动前还仅 `Lstat` 当前 Codex home 中 `environments.toml` 的存在性：此配置可能在 initialize 前启动 stdio 命令或远端连接，因此存在或无法判定时拒绝启动，不读取内容、不改配置，也不复制凭据去另一个 home。
