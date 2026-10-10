@@ -11,6 +11,16 @@
 
 唯一验收主链：当前 Go 源码 → 重建含真实 App Mode 的 OpenDesk.app → 安装到稳定的 Mac 路径 → 原生 Go Native Host 精确注册 → 真实 Chrome/CFT 扩展授权并 connectNative → 已打开的真实 Sidebar/网页授权 → Codex 通过 opendesk browser CLI 查询状态/目标、运行一次安全示例并读取原结果。
 
+## 最新先决门槛：2026-10-10 R5.1（必须核对最新 CI）
+
+Browser `main` 的原生实测不能直接从旧 Go 协议 PASS 升级为产品 PASS。最新已核验的 Browser CI（候选 `e1d10b241ef77e5328abf917781b48d336db1042`）在真正进入 Chrome 握手之前先遭到两类共用包失败：固定入口断言 expected 14/actual 15；新内置类库 `runtime/builtin-libraries/page-core.js` 被包安全校验判定出现动态 `Function`。相关 Page 预览单测还存在 `E_BUILTIN_RESOURCE`。完整证据/修复所有权与 Gate A→G 顺序：
+
+https://github.com/shopable-ai/opendesk-browser/blob/main/docs/framework/workstreams/native-go-host-r5-1-delivery-gates-20261010.zh-CN.md
+
+**先由实际 R15 内置类库模块 Owner 串行修复打包与依赖，Native Owner 审查原生入口测试；不能偷改校验器取消 CSP/动态执行防线。只有当前候选包验证绿灯，才进行 Go App + CFT 同候选真实联调；macOS 诊断在包验证提前失败时，只能标 NOT_TESTED 而不是说 Chrome Native 连接失败。** 保留两仓库其他并行 Agent 修改，若另有 Owner 正在处理，则只检查最新 SHA 和复用已取得的证据。
+
+**Codex 两条方向不可混同**：本 R5 是 Codex shell→Go CLI→Native→Browser 的工程验收；`Sidebar→本机 Codex App Server→AI 工作流` 属于 Browser R16 专项，截至已审设计仍未有真机全链可用证据，不能算 R5 完成后已自动交付，也不应为了 R16 推迟修复 Native 的 P0 红灯。
+
 1. 本机现场与并发隔离
 
 识别两个真实本地仓库，不猜测 Go 仓库所在路径。Browser 可先检查 /Users/shopme/Documents/workspace/opendesk-browser 是否真实存在和 Git remote。核对 git status -sb、当前 HEAD、remote、当前其他 Codex/Chrome/CFT、正在执行的任务、Chrome profile、Native 安装 owner、Socket、现有 /Applications/OpenDesk.app、~/Applications、command -v opendesk。只在保护未提交改动时 fast-forward 原 master/main；不建分支/Worktree，不 reset --hard、不 git clean、不 force push，不覆盖其他对话或活跃任务。不得泄露安装凭据或把 install.json 原始秘密保存至 Git。真实用户安装可能存在 Node Host：先只读探测，绝不能自动 cleanup、覆盖 Manifest、抢 Socket 或清空不确定结果 Ledger。
