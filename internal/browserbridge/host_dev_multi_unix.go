@@ -360,15 +360,25 @@ func (h *Host) handleModernDevRequest(f Fields) error {
                     "runtimeKind":entry.entry.runtimeKind,"source":"local-files",
                     "sourceId":entry.entry.sourceID,"workspaceId":entry.entry.workspaceID})
             }
-            others,err:=h.legacyCatalog()
-            if err!=nil {h.devError(id,epoch,"E_DEV_DISCONNECTED");return}
-            for _,row:=range others{delete(row,"_rawId")}
-            rows=append(rows,others...)
+            others,legacyErr:=h.legacyCatalog()
+            unavailable:=[]map[string]string{}
+            if legacyErr!=nil {
+                // A stale legacy MCP read cannot hide healthy CLI/Go entries.
+                // Keep the failure observable instead of claiming MCP online.
+                code:=legacyErr.Error()
+                if !strings.HasPrefix(code,"E_"){code="E_DEV_DISCONNECTED"}
+                unavailable=append(unavailable,map[string]string{
+                    "source":"legacy-mcp","code":code})
+            }else{
+                for _,row:=range others{delete(row,"_rawId")}
+                rows=append(rows,others...)
+            }
             if len(rows)>32 {h.devError(id,epoch,"E_LIMIT");return}
             h.mu.Lock();live:=!h.closed&&h.aggregateEpoch==epoch;h.mu.Unlock()
             if !live{return}
             data,err:=Encode(map[string]any{"v":1,"kind":"dev.response","requestId":id,
-                "providerEpoch":epoch,"result":map[string]any{"projects":rows}})
+                "providerEpoch":epoch,"result":map[string]any{"projects":rows,
+                    "unavailableSources":unavailable}})
             if err!=nil{h.devError(id,epoch,"E_LIMIT");return}
             _=h.sendChrome(data)
         }()
