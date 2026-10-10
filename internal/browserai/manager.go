@@ -502,7 +502,9 @@ func (s *session) appendLocked(e Event) {
 			p.timer.Stop()
 		}
 		s.pending = map[string]*approval{}
-		e = Event{Sequence: s.sequence, SessionID: s.id, ThreadID: s.threadID, TurnID: s.turnID, Type: "turn.completed", Status: "failed", Error: failure("E_LIMIT")}
+		localFailure := failure("E_LIMIT")
+		localFailure.Outcome = "OUTCOME_UNKNOWN"
+		e = Event{Sequence: s.sequence, SessionID: s.id, ThreadID: s.threadID, TurnID: s.turnID, Type: "turn.completed", Status: "failed", Error: localFailure}
 		raw, _ = json.Marshal(e)
 		s.cancel()
 		if s.agent != nil {
@@ -724,7 +726,9 @@ func (m *Manager) failSession(s *session, err *Error) {
 		return
 	}
 	s.state = "FAILED"
-	s.appendLocked(Event{Type: "turn.completed", Status: "failed", Error: err})
+	localFailure := *err
+	localFailure.Outcome = "OUTCOME_UNKNOWN"
+	s.appendLocked(Event{Type: "turn.completed", Status: "failed", Error: &localFailure})
 	if s.turnTimer != nil {
 		s.turnTimer.Stop()
 	}

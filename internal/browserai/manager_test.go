@@ -443,6 +443,23 @@ func TestCancelWaitsForTerminalAndNeverReplaysTurn(t *testing.T) {
 	if s.state != "CANCELLED" || s.verified || (*fake).turns != 1 {
 		t.Fatal("cancel did not end exact turn")
 	}
+	t.Run("local-timeout-is-not-model-terminal", func(t *testing.T) {
+		m, _ := setupManager(t)
+		s := openSession(t, m, false)
+		startSession(t, m, s, false)
+		original := failure("E_TIMEOUT")
+		m.failSession(s, original)
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		last := s.events[len(s.events)-1]
+		if last.Error == nil || last.Error.Outcome != "OUTCOME_UNKNOWN" || last.Error.Code != "E_TIMEOUT" {
+			t.Fatal("local failure lacks unknown outcome")
+		}
+		if original.Outcome != "" {
+			t.Fatal("shared error was mutated")
+		}
+	})
+
 }
 
 func TestPrivilegedServerRequestAndExecutionAreBlocked(t *testing.T) {
