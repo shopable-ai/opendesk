@@ -7,8 +7,8 @@ import (
     "crypto/sha256"
     "encoding/hex"
     "fmt"
-    "os"
     "path/filepath"
+    "sort"
     "strings"
     "unicode/utf8"
 )
@@ -96,6 +96,7 @@ func (f *nativeFiles) publicWorkspaces(state workspaceStore) map[string]any {
         row["temporary"] = true
         rows = append(rows, row)
     }
+    sort.Slice(rows, func(i, j int) bool { return rows[i]["workspaceId"].(string) < rows[j]["workspaceId"].(string) })
     return map[string]any{"workspaces": rows}
 }
 
@@ -110,4 +111,3 @@ func (f *nativeFiles) verifyInstall() error {
     return nil
 }
 
-var _ os.FileInfo
