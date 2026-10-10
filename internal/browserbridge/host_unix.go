@@ -290,21 +290,47 @@ func (h *Host) handleChrome(raw []byte) error {
 }
 // Run is entered only from the explicit Chrome-launched browser native-host
 // command. No Desktop, MCP, Scheduler, HTTP or script initialization occurs here.
+//
+// A blocked os.Stdin read may not be interruptible by Close on some platforms.
+// The reader therefore owns frame processing in one bounded goroutine while
+// Run itself listens for the Host's closed signal. When SIGTERM/Chrome EOF
+// closes the Host, Run can reliably terminate without leaking the Socket.
 func (h *Host) Run() error {
 	if h.cfg.Provider!="opendesk" {return errors.New("E_MIGRATION_REQUIRED")}
-	if err:=h.startSocket();err!=nil{return err}
 	defer h.Close()
+	if err:=h.startSocket();err!=nil{return err}
 	if err:=h.sendChrome(MustEncode(map[string]any{"v":1,"kind":"hello"}));err!=nil{return err}
-	timer:=time.AfterFunc(handshakeTimeout,func(){h.mu.Lock();ready:=h.ready;h.mu.Unlock();if !ready{h.Close()}})
+	timer:=time.AfterFunc(handshakeTimeout,func(){
+		h.mu.Lock();ready:=h.ready;h.mu.Unlock()
+		if !ready{h.Close()}
+	})
 	defer timer.Stop()
-	for {
-		raw,err:=ReadFrame(h.input)
-		if err!=nil{
-			if errors.Is(err,io.EOF) || errors.Is(err,io.ErrClosedPipe){
-				return nil
+	readerResult:=make(chan error,1)
+	go func(){
+		for {
+			raw,err:=ReadFrame(h.input)
+			if err!=nil {
+				if errors.Is(err,io.EOF) || errors.Is(err,io.ErrClosedPipe) {
+					readerResult<-nil
+				}else {
+					select {
+					case <-h.done:readerResult<-nil
+					default:readerResult<-fmt.Errorf("E_NATIVE_PROTOCOL: %w",err)
+					}
+				}
+				return
 			}
-			select{case <-h.done:return nil;default:return fmt.Errorf("E_NATIVE_PROTOCOL: %w",err)}
+			if err=h.handleChrome(raw);err!=nil{
+				readerResult<-err
+				return
+			}
 		}
-		if err=h.handleChrome(raw);err!=nil{return err}
+	}()
+	select {
+	case err:=<-readerResult:return err
+	case <-h.done:
+		// Closing the Native Port must release the CLI process even if a
+		// platform leaves a read on stdin blocked until process exit.
+		return nil
 	}
 }
