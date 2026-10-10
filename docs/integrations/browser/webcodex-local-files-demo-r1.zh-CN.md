@@ -6,6 +6,8 @@
 
 本轮在既有 `opendesk browser native-host` 内增加 `opendesk.local-files.v1` 子协议。浏览器扩展经过已有 Native 安装和配对后，可以从受信任工作区页面列出、读取、编辑用户已授予的目录，并取得真实磁盘保存回执。没有新增 HTTP 文件服务器、第二个 Native Host、shell 执行入口或模型账号转发。
 
+**R17 增量说明：** 新的 `opendesk browser` / `opendesk-dev` 会在 CLI 前台存续期间注册当前目录的临时只读 Workspace；原 `workspace add --access read-write` 仍是另外一项明确长期授权。文件协议沿用本页，临时目录在会话退出时撤销，见 [R17 Native 目录直连](local-directory-cli-r17.zh-CN.md)。
+
 普通网页与 ChatGPT 对话本身没有得到任意本机文件访问权。文件能力由扩展受信任 UI 持有；原页面中显示的内容、Markdown、HTML 与 AI 生成文本都只是输入资料。Browser 必须独立保护请求入口和预览隔离，不能把本子协议直接暴露给网页 `postMessage`、网页 SDK 或用户脚本。
 
 现有 R16 `internal/browserai` 仍是受限工作流规划器：不增加文件、shell 或外部 MCP 工具。当前 Demo 也不宣称 ChatGPT 网页的模型已经注册了本地 MCP 工具；页面内操作、官方模型工具调用和本地 Codex 编码会话是不同的集成层。
