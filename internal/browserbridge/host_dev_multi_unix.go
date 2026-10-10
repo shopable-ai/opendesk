@@ -71,26 +71,41 @@ func (h *Host) serveDevAttach(c *localClient, f Fields, reader *bufio.Reader) {
             "error":map[string]string{"code":"E_FILES_ACCESS"}}))
         return
     }
+    // The directory grant and its owning lease must be one atomic Host
+    // transaction. Releasing A cannot erase a newly attached B, and two
+    // commands for the same source must not install duplicate providers.
+    h.mu.Lock()
+    if h.closed {h.mu.Unlock();return}
     result,owned,err:=h.files.attachDevWorkspace(String(f,"path"))
     if err!=nil {
+        h.mu.Unlock()
         code:=err.Error()
         if !strings.HasPrefix(code,"E_") {code="E_FILES_ACCESS"}
         _=h.sendLocal(c,MustEncode(map[string]any{"v":1,"kind":"dev.rejected",
             "error":map[string]string{"code":code}}))
         return
     }
-    leaseID,err:=NewID()
-    if err!=nil {if owned{h.files.detachDevWorkspace(result["workspaceId"].(string))};return}
-    record:=devLease{owner:c,workspaceID:result["workspaceId"].(string),
-        sourceID:result["sourceId"].(string),temporary:owned}
-    // Even existing long-term read/write workspace grants only acquire a temporary
-    // provider lease here. Their persistent grant remains unchanged.
-    h.mu.Lock()
-    if h.closed {
+    sourceID:=result["sourceId"].(string)
+    for _,active:=range h.leases {
+        if active.sourceID!=sourceID{continue}
         h.mu.Unlock()
-        if owned{h.files.detachDevWorkspace(record.workspaceID)}
+        result["v"]=1
+        result["kind"]="dev.attached"
+        result["leaseId"]="" // Display-only response, no authority transferred.
+        result["alreadyActive"]=true
+        _=h.sendLocal(c,MustEncode(result))
         return
     }
+    leaseID,err:=NewID()
+    if err!=nil {
+        if owned{h.files.detachDevWorkspace(result["workspaceId"].(string))}
+        h.mu.Unlock()
+        return
+    }
+    record:=devLease{owner:c,workspaceID:result["workspaceId"].(string),
+        sourceID:sourceID,temporary:owned||result["temporary"]==true}
+    // Existing read/write grants remain independent of the temporary CLI
+    // provider lease. The CLI cannot grant itself write privileges.
     h.leases[leaseID]=record
     h.mu.Unlock()
     result["v"]=1
@@ -114,24 +129,23 @@ func (h *Host) serveDevAttach(c *localClient, f Fields, reader *bufio.Reader) {
 }
 func (h *Host) releaseDevLease(c *localClient) {
     h.mu.Lock()
-    temporary:=[]string{}
+    changed:=false
     providers:=[]*localClient{}
     for id,lease:=range h.leases {
-        if lease.owner!=c{continue}
-        if lease.temporary{temporary=append(temporary,lease.workspaceID)}
+        if lease.owner!=c {continue}
+        // Only this CLI's temporary grant is retired. A persistent grant
+        // cannot be revoked by a session close or second launch.
+        if lease.temporary&&h.files.detachDevWorkspace(lease.workspaceID){changed=true}
         delete(h.leases,id)
         for provider,row:=range h.modern {
-            if row.leaseID==id{providers=append(providers,provider)}
+            if row.leaseID==id {providers=append(providers,provider)}
         }
     }
     h.mu.Unlock()
-    for _,provider:=range providers { _=provider.socket.Close() }
-    changed:=false
-    for _,id:=range temporary {
-        if h.files.detachDevWorkspace(id){changed=true}
-    }
+    for _,provider:=range providers {_=provider.socket.Close()}
     if changed {_=h.sendChrome(MustEncode(h.files.state()))}
 }
+
 func (h *Host) readCatalog(raw json.RawMessage, lease devLease) (map[string]modernEntry,error) {
     var projects []modernProject
     if len(raw)==0||json.Unmarshal(raw,&projects)!=nil||len(projects)>4{return nil,ErrSchema}
