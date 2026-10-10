@@ -74,10 +74,22 @@ func doCall(method string,opts map[string]string,timeout time.Duration) (json.Ra
 	return json.RawMessage(reply),nil
 }
 func Execute(args []string,stdout,stderr io.Writer) int {
-	if !IsCommand(args) || len(args)<2{
-		return exitError(stderr,errors.New("E_CAPABILITY: browser [setup|update|doctor|cleanup|native-host|workspace|bridge.status|target.current|script.save|run.start|run.get|run.stop|page.preview|page.get|page.dispose|request.get]"))
-	}
-	command,rest:=args[1],args[2:]
+    if !IsCommand(args) {
+        return exitError(stderr,errors.New("E_CAPABILITY: browser [dev|setup|update|doctor|cleanup|native-host|workspace|project|ai|bridge.status|target.current|run.start|run.get|run.stop]"))
+    }
+    if len(args)==1 {return runBrowserDev(nil,stdout,stderr)}
+    command,rest:=args[1],args[2:]
+    if command=="help"||command=="--help"||command=="-h" {
+        if len(rest)!=0{return exitError(stderr,browserbridge.ErrSchema)}
+        _,_=io.WriteString(stdout,devHelp)
+        return 0
+    }
+    if command=="--version"||command=="-V"||command=="version" {
+        if len(rest)!=0{return exitError(stderr,browserbridge.ErrSchema)}
+        _,_=io.WriteString(stdout,"OpenDesk Browser CLI R17\\n")
+        return 0
+    }
+    if command=="dev" {return runBrowserDev(rest,stdout,stderr)}
 	if command=="workspace" {
 		if len(rest)==0 || rest[0]=="help" || rest[0]=="--help" {
 			writeJSON(stdout,map[string]any{"commands":[]string{
