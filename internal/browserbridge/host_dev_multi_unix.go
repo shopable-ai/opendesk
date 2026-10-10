@@ -14,9 +14,8 @@ import (
 )
 
 type devLease struct {
-    owner *localClient
-    workspaceID, sourceID string
-    temporary bool
+	owner                             *localClient
+	workspaceID, sourceID, leaseEpoch string
 }
 type modernProject struct {
     BindingID string `json:"bindingId"`
@@ -52,98 +51,142 @@ func (h *Host) rotateAggregateLocked() {
     }
     h.aggregateEpoch,_=NewID()
 }
+func decodeDevAttach(raw []byte) (Fields, error) {
+    var request struct {
+        V int `json:"v"`
+        Kind string `json:"kind"`
+        Path string `json:"path"`
+        Access *string `json:"access"`
+    }
+    if decodeFilesObject(raw,&request)!=nil||request.V!=1||request.Kind!="dev.attach"||request.Path==""||
+        request.Access!=nil&&!validWorkspaceAccess(*request.Access) {
+        return nil,ErrSchema
+    }
+    return Decode(raw)
+}
 func (h *Host) serveDevAttach(c *localClient, f Fields, reader *bufio.Reader) {
-    h.mu.Lock()
-    ready:=h.ready&&h.localDevMulti&&h.localFiles&&!h.closed
-    h.mu.Unlock()
-    if !ready {
-        _=h.sendLocal(c,MustEncode(map[string]any{"v":1,"kind":"dev.rejected",
-            "error":map[string]string{"code":"E_NATIVE_UPDATE_REQUIRED"}}))
-        return
-    }
-    if len(f)!=3 || !Has(f,"path") || String(f,"path")=="" {
-        _=h.sendLocal(c,MustEncode(map[string]any{"v":1,"kind":"dev.rejected",
-            "error":map[string]string{"code":"E_SCHEMA"}}))
-        return
-    }
-    if err:=h.files.verifyInstall();err!=nil {
-        _=h.sendLocal(c,MustEncode(map[string]any{"v":1,"kind":"dev.rejected",
-            "error":map[string]string{"code":"E_FILES_ACCESS"}}))
-        return
-    }
-    // The directory grant and its owning lease must be one atomic Host
-    // transaction. Releasing A cannot erase a newly attached B, and two
-    // commands for the same source must not install duplicate providers.
-    h.mu.Lock()
-    if h.closed {h.mu.Unlock();return}
-    result,owned,err:=h.files.attachDevWorkspace(String(f,"path"))
-    if err!=nil {
-        h.mu.Unlock()
-        code:=err.Error()
-        if !strings.HasPrefix(code,"E_") {code="E_FILES_ACCESS"}
-        _=h.sendLocal(c,MustEncode(map[string]any{"v":1,"kind":"dev.rejected",
-            "error":map[string]string{"code":code}}))
-        return
-    }
-    sourceID:=result["sourceId"].(string)
-    for _,active:=range h.leases {
-        if active.sourceID!=sourceID{continue}
-        h.mu.Unlock()
-        result["v"]=1
-        result["kind"]="dev.attached"
-        result["leaseId"]="" // Display-only response, no authority transferred.
-        result["alreadyActive"]=true
-        _=h.sendLocal(c,MustEncode(result))
-        return
-    }
-    leaseID,err:=NewID()
-    if err!=nil {
-        if owned{h.files.detachDevWorkspace(result["workspaceId"].(string))}
-        h.mu.Unlock()
-        return
-    }
-    record:=devLease{owner:c,workspaceID:result["workspaceId"].(string),
-        sourceID:sourceID,temporary:owned||result["temporary"]==true}
-    // Existing read/write grants remain independent of the temporary CLI
-    // provider lease. The CLI cannot grant itself write privileges.
-    h.leases[leaseID]=record
-    h.mu.Unlock()
-    result["v"]=1
-    result["kind"]="dev.attached"
-    result["leaseId"]=leaseID
-    if err=h.sendLocal(c,MustEncode(result));err!=nil {
-        h.releaseDevLease(c)
-        return
-    }
-    if owned { _=h.sendChrome(MustEncode(h.files.state())) }
-    _=c.socket.SetReadDeadline(time.Time{})
-    // This socket owns one read-only lease. A second launch never steals it.
-    // No execution, grants or file RPC are accepted through this socket.
-    for {
-        bytes,err:=ReadLine(reader)
-        if err!=nil {return}
-        frame,err:=Decode(bytes)
-        if err!=nil||String(frame,"kind")!="dev.ping"||len(frame)!=2||Int(frame,"v")!=1{return}
-        if err=h.sendLocal(c,MustEncode(map[string]any{"v":1,"kind":"dev.pong"}));err!=nil{return}
-    }
+	h.mu.Lock()
+	ready := h.ready && h.localDevMulti && h.localFiles && !h.closed
+	accessReady := h.localDevAccess
+	h.mu.Unlock()
+	if !ready {
+		_ = h.sendLocal(c, MustEncode(map[string]any{"v": 1, "kind": "dev.rejected",
+			"error": map[string]string{"code": "E_NATIVE_UPDATE_REQUIRED"}}))
+		return
+	}
+	if (len(f) != 3 && !Has(f, "access")) || (Has(f, "access") && len(f) != 4) ||
+		!Has(f, "path") || String(f, "path") == "" ||
+		(Has(f, "access") && !validWorkspaceAccess(String(f, "access"))) {
+		_ = h.sendLocal(c, MustEncode(map[string]any{"v": 1, "kind": "dev.rejected",
+			"error": map[string]string{"code": "E_SCHEMA"}}))
+		return
+	}
+	if Has(f, "access") && !accessReady {
+		_ = h.sendLocal(c, MustEncode(map[string]any{"v": 1, "kind": "dev.rejected",
+			"error": map[string]string{"code": "E_NATIVE_UPDATE_REQUIRED"}}))
+		return
+	}
+	if err := h.files.verifyInstall(); err != nil {
+		_ = h.sendLocal(c, MustEncode(map[string]any{"v": 1, "kind": "dev.rejected",
+			"error": map[string]string{"code": "E_FILES_ACCESS"}}))
+		return
+	}
+	// The directory grant and its owning lease must be one atomic Host
+	// transaction. Releasing A cannot erase a newly attached B, and two
+	// commands for the same source must not install duplicate providers.
+	h.mu.Lock()
+	if h.closed {
+		h.mu.Unlock()
+		return
+	}
+	result, _, err := h.files.attachDevWorkspace(String(f, "path"), String(f, "access"))
+	if err != nil {
+		h.mu.Unlock()
+		code := err.Error()
+		if !strings.HasPrefix(code, "E_") {
+			code = "E_FILES_ACCESS"
+		}
+		_ = h.sendLocal(c, MustEncode(map[string]any{"v": 1, "kind": "dev.rejected",
+			"error": map[string]string{"code": code}}))
+		return
+	}
+	sourceID := result["sourceId"].(string)
+	for _, active := range h.leases {
+		if active.sourceID != sourceID {
+			continue
+		}
+		h.mu.Unlock()
+		result["v"] = 1
+		result["kind"] = "dev.attached"
+		result["leaseId"] = "" // Display-only response, no authority transferred.
+		result["alreadyActive"] = true
+		_ = h.sendLocal(c, MustEncode(result))
+		return
+	}
+	leaseID, err := NewID()
+	if err != nil {
+		h.files.releaseDevWorkspace(result["workspaceId"].(string), result["leaseEpoch"].(string))
+		h.mu.Unlock()
+		return
+	}
+	record := devLease{owner: c, workspaceID: result["workspaceId"].(string),
+		sourceID: sourceID, leaseEpoch: result["leaseEpoch"].(string)}
+	// Permanent authority stays in the original grant store. Only the
+	// explicitly authenticated local directory CLI owns a temporary lease.
+	h.leases[leaseID] = record
+	h.mu.Unlock()
+	result["v"] = 1
+	result["kind"] = "dev.attached"
+	result["leaseId"] = leaseID
+	if err = h.sendLocal(c, MustEncode(result)); err != nil {
+		h.releaseDevLease(c)
+		return
+	}
+	_ = h.sendChrome(MustEncode(h.files.state()))
+	_ = c.socket.SetReadDeadline(time.Time{})
+	// This socket owns one scoped directory lease. A second launch never steals it.
+	// No execution, grants or file RPC are accepted through this socket.
+	for {
+		bytes, err := ReadLine(reader)
+		if err != nil {
+			return
+		}
+		frame, err := Decode(bytes)
+		if err != nil || String(frame, "kind") != "dev.ping" || len(frame) != 2 || Int(frame, "v") != 1 {
+			return
+		}
+		if err = h.sendLocal(c, MustEncode(map[string]any{"v": 1, "kind": "dev.pong"})); err != nil {
+			return
+		}
+	}
 }
 func (h *Host) releaseDevLease(c *localClient) {
-    h.mu.Lock()
-    changed:=false
-    providers:=[]*localClient{}
-    for id,lease:=range h.leases {
-        if lease.owner!=c {continue}
-        // Only this CLI's temporary grant is retired. A persistent grant
-        // cannot be revoked by a session close or second launch.
-        if lease.temporary&&h.files.detachDevWorkspace(lease.workspaceID){changed=true}
-        delete(h.leases,id)
-        for provider,row:=range h.modern {
-            if row.leaseID==id {providers=append(providers,provider)}
-        }
-    }
-    h.mu.Unlock()
-    for _,provider:=range providers {_=provider.socket.Close()}
-    if changed {_=h.sendChrome(MustEncode(h.files.state()))}
+	h.mu.Lock()
+	changed := false
+	providers := []*localClient{}
+	for id, lease := range h.leases {
+		if lease.owner != c {
+			continue
+		}
+		// Only this CLI's temporary grant is retired. A persistent grant
+		// cannot be revoked by a session close or second launch.
+		if h.files.releaseDevWorkspace(lease.workspaceID, lease.leaseEpoch) {
+			changed = true
+		}
+		delete(h.leases, id)
+		for provider, row := range h.modern {
+			if row.leaseID == id {
+				providers = append(providers, provider)
+			}
+		}
+	}
+	h.mu.Unlock()
+	for _, provider := range providers {
+		_ = provider.socket.Close()
+	}
+	if changed {
+		_ = h.sendChrome(MustEncode(h.files.state()))
+	}
 }
 
 func (h *Host) readCatalog(raw json.RawMessage, lease devLease) (map[string]modernEntry,error) {

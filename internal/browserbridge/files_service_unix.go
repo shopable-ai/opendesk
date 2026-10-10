@@ -33,13 +33,14 @@ type filesReceipt struct {
 }
 
 type nativeFiles struct {
-	cfg       Installation
-	sessionID string
-	mu        sync.Mutex
-	done      chan struct{}
-	closeOnce sync.Once
-	receipts  map[string]filesReceipt
-	temporary map[string]workspaceGrant
+	cfg         Installation
+	sessionID   string
+	mu          sync.Mutex
+	done        chan struct{}
+	closeOnce   sync.Once
+	receipts    map[string]filesReceipt
+	temporary   map[string]workspaceGrant
+	devBindings map[string]devWorkspaceBinding
 }
 
 func newNativeFiles(cfg Installation) (*nativeFiles, error) {
@@ -47,7 +48,7 @@ func newNativeFiles(cfg Installation) (*nativeFiles, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &nativeFiles{cfg: cfg, sessionID: id, done: make(chan struct{}), receipts: map[string]filesReceipt{}, temporary: map[string]workspaceGrant{}}, nil
+	return &nativeFiles{cfg: cfg, sessionID: id, done: make(chan struct{}), receipts: map[string]filesReceipt{}, temporary: map[string]workspaceGrant{}, devBindings: map[string]devWorkspaceBinding{}}, nil
 }
 
 func (f *nativeFiles) Close() { f.closeOnce.Do(func() { close(f.done) }) }
@@ -63,12 +64,12 @@ func (f *nativeFiles) live() error {
 
 func (f *nativeFiles) state() map[string]any {
 	return map[string]any{"v": 1, "kind": "files.state", "protocol": FilesProtocol,
-		"connected": true, "sessionId": f.sessionID, "maxContentBytes": FilesMaxContentBytes}
+		"connected": true, "sessionId": f.sessionID, "maxContentBytes": FilesMaxContentBytes, "devLeaseEpoch": 1}
 }
 
 func filesCapabilities() map[string]any {
 	return map[string]any{"supported": true, "version": FilesVersion, "maxContentBytes": FilesMaxContentBytes,
-		"maxFrameBytes": MaxBytes, "writePrecondition": "sha256-optimistic", "createExclusive": true,
+		"maxFrameBytes": MaxBytes, "writePrecondition": "sha256-optimistic", "createExclusive": true, "devLeaseEpoch": 1,
 		"methods": []string{"files.status", "workspaces.list", "files.list", "files.read", "files.write", "files.create"}}
 }
 
@@ -78,6 +79,35 @@ func (f *nativeFiles) Handle(req filesRequest) filesResponse {
 	defer f.mu.Unlock()
 	if err := f.live(); err != nil || req.SessionID != f.sessionID {
 		response.Error = filesFailure("E_FILES_SESSION")
+		return response
+	}
+	var state workspaceStore
+	if req.Method != "files.status" {
+		// Read durable invalidation under the same OS lock that guards actual
+		// file operations. WorkspaceAdd/Revoke can run in another process;
+		// changing access away and back must not revive an earlier CLI epoch.
+		if err := f.verifyInstall(); err != nil {
+			response.Error = filesAsError(err)
+			return response
+		}
+		release, err := lockWorkspaceStore(f.cfg)
+		if err != nil {
+			response.Error = filesAsError(err)
+			return response
+		}
+		defer release()
+		state, err = readWorkspaceStore(f.cfg)
+		if err != nil {
+			response.Error = filesAsError(err)
+			return response
+		}
+		f.refreshDevLeaseFences(state)
+	}
+	// Check public lease generation before returning a saved receipt. Reusing a
+	// receipt never writes twice, but a retired binding must not report a new
+	// operation as successful after its owner has exited or reattached.
+	if err := f.checkRequestLease(req.Params); err != nil {
+		response.Error = filesAsError(err)
 		return response
 	}
 	mutation := req.Method == "files.write" || req.Method == "files.create"
@@ -100,7 +130,7 @@ func (f *nativeFiles) Handle(req filesRequest) filesResponse {
 		// write after a disconnect or with a new request/session ID.
 		defer func() { f.receipts[req.RequestID] = filesReceipt{digest, response} }()
 	}
-	result, err := f.call(req)
+	result, err := f.call(req, state)
 	if err != nil {
 		response.Error = filesAsError(err)
 	} else {
@@ -120,6 +150,7 @@ func (f *nativeFiles) Handle(req filesRequest) filesResponse {
 type filesLocation struct {
 	WorkspaceID string `json:"workspaceId"`
 	Path        string `json:"path"`
+	LeaseEpoch  string `json:"leaseEpoch,omitempty"`
 }
 
 type filesWriteParams struct {
@@ -127,15 +158,48 @@ type filesWriteParams struct {
 	Path           string  `json:"path"`
 	Content        *string `json:"content"`
 	ExpectedSHA256 *string `json:"expectedSha256"`
+	LeaseEpoch     string  `json:"leaseEpoch,omitempty"`
 }
 
 type filesCreateParams struct {
 	WorkspaceID string  `json:"workspaceId"`
 	Path        string  `json:"path"`
 	Content     *string `json:"content"`
+	LeaseEpoch  string  `json:"leaseEpoch,omitempty"`
 }
 
-func (f *nativeFiles) call(req filesRequest) (any, error) {
+// An omitted epoch retains R1 compatibility. New clients send the value from
+// workspaces.list, or an explicit empty string when there was no CLI binding.
+// The latter prevents a late attach between the UI check and the actual save.
+// It is a freshness precondition, never an authority token.
+func (f *nativeFiles) checkRequestLease(raw json.RawMessage) error {
+	var params map[string]json.RawMessage
+	if decodeFilesObject(raw, &params) != nil {
+		return filesFailure("E_SCHEMA")
+	}
+	encoded, present := params["leaseEpoch"]
+	if !present {
+		return nil
+	}
+	var epoch, id string
+	if json.Unmarshal(encoded, &epoch) != nil || (epoch != "" && !RequestIDValid(epoch)) ||
+		json.Unmarshal(params["workspaceId"], &id) != nil {
+		return filesFailure("E_SCHEMA")
+	}
+	binding, active := f.devBindings[id]
+	if epoch == "" {
+		if active {
+			return filesFailure("E_FILES_SESSION")
+		}
+		return nil
+	}
+	if !active || binding.retired || binding.leaseEpoch != epoch {
+		return filesFailure("E_FILES_SESSION")
+	}
+	return nil
+}
+
+func (f *nativeFiles) call(req filesRequest, state workspaceStore) (any, error) {
 	var location filesLocation
 	var content, expected string
 	switch req.Method {
@@ -155,7 +219,7 @@ func (f *nativeFiles) call(req filesRequest) (any, error) {
 		if decodeFilesObject(req.Params, &params) != nil || params.Content == nil || params.ExpectedSHA256 == nil {
 			return nil, filesFailure("E_SCHEMA")
 		}
-		location = filesLocation{params.WorkspaceID, params.Path}
+		location = filesLocation{WorkspaceID: params.WorkspaceID, Path: params.Path, LeaseEpoch: params.LeaseEpoch}
 		content, expected = *params.Content, *params.ExpectedSHA256
 		if len(expected) != 64 || strings.ToLower(expected) != expected {
 			return nil, filesFailure("E_SCHEMA")
@@ -168,7 +232,7 @@ func (f *nativeFiles) call(req filesRequest) (any, error) {
 		if decodeFilesObject(req.Params, &params) != nil || params.Content == nil {
 			return nil, filesFailure("E_SCHEMA")
 		}
-		location = filesLocation{params.WorkspaceID, params.Path}
+		location = filesLocation{WorkspaceID: params.WorkspaceID, Path: params.Path, LeaseEpoch: params.LeaseEpoch}
 		content = *params.Content
 	default:
 		return nil, filesFailure("E_SCHEMA")
@@ -177,22 +241,6 @@ func (f *nativeFiles) call(req filesRequest) (any, error) {
 		if err := validFileText([]byte(content)); err != nil {
 			return nil, err
 		}
-	}
-	// A Host retaining an old cfg must not retain authority after the current
-	// installation identity or credential is replaced.
-	current, err := Load()
-	if err != nil || current.ExtensionID != f.cfg.ExtensionID ||
-		current.ClientCredential != f.cfg.ClientCredential || current.InstallRoot != f.cfg.InstallRoot {
-		return nil, filesFailure("E_FILES_ACCESS")
-	}
-	release, err := lockWorkspaceStore(f.cfg)
-	if err != nil {
-		return nil, err
-	}
-	defer release()
-	state, err := readWorkspaceStore(f.cfg)
-	if err != nil {
-		return nil, err
 	}
 	if req.Method == "workspaces.list" {
 		return f.publicWorkspaces(state), nil
@@ -208,11 +256,25 @@ func (f *nativeFiles) call(req filesRequest) (any, error) {
 		}
 	}
 	if grant.WorkspaceID == "" {
-        if candidate, ok := f.temporary[location.WorkspaceID]; ok { grant = candidate }
-    }
-    if grant.WorkspaceID == "" ||
+		if candidate, ok := f.temporary[location.WorkspaceID]; ok {
+			// A newly created permanent authorization is authoritative. Do
+			// not retain a parallel temporary identity/access over this root.
+			for _, permanent := range state.Workspaces {
+				if permanent.Path == candidate.Path {
+					return nil, filesFailure("E_FILES_ACCESS")
+				}
+			}
+			grant = candidate
+		}
+	}
+	if grant.WorkspaceID == "" ||
 		((req.Method == "files.write" || req.Method == "files.create") && grant.Access != "read-write") {
 		return nil, filesFailure("E_FILES_ACCESS")
+	}
+	if location.LeaseEpoch != "" && f.devBindings[location.WorkspaceID].access != grant.Access {
+		// An explicit permanent permission change retires the CLI view. This
+		// does not create a second access overlay or silently upgrade the lease.
+		return nil, filesFailure("E_FILES_SESSION")
 	}
 	if err := validFilesPath(location.Path, req.Method == "files.list", req.Method != "files.list"); err != nil {
 		return nil, err

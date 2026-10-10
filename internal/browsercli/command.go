@@ -90,6 +90,7 @@ func Execute(args []string,stdout,stderr io.Writer) int {
         return 0
     }
     if command=="dev" {return runBrowserDev(rest,stdout,stderr)}
+    if command=="--read-only" {return runBrowserDev(args[1:],stdout,stderr)}
 	if command=="workspace" {
 		if len(rest)==0 || rest[0]=="help" || rest[0]=="--help" {
 			writeJSON(stdout,map[string]any{"commands":[]string{

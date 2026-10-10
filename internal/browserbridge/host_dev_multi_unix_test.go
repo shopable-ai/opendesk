@@ -4,6 +4,7 @@ package browserbridge
 
 import (
     "bufio"
+    "bytes"
     "encoding/json"
     "io"
     "net"
@@ -31,7 +32,7 @@ func r17Local(t *testing.T, cfg Installation) *r17Wire {
     if err!=nil{t.Fatal(err)}
     reply,_:=Decode(raw)
     if String(reply,"kind")!="authenticated"||!Bool(reply,"browserReady")||
-        Int(reply,"localDevMultiVersion")!=1||Int(reply,"localFilesVersion")!=FilesVersion{
+        Int(reply,"localDevMultiVersion")!=1||Int(reply,"localDevAccessVersion")!=1||Int(reply,"localFilesVersion")!=FilesVersion{
         t.Fatalf("Host did not negotiate R17: %+v",reply)
     }
     return &r17Wire{conn,reader}
@@ -48,13 +49,16 @@ func (w *r17Wire) next(t *testing.T) Fields {
     if err!=nil{t.Fatal(err)}
     return fields
 }
-func r17Attach(t *testing.T, cfg Installation, dir string) (*r17Wire,Fields) {
+func r17Attach(t *testing.T, cfg Installation, dir string, access ...string) (*r17Wire,Fields) {
     t.Helper()
     c:=r17Local(t,cfg)
-    c.send(t,map[string]any{"v":1,"kind":"dev.attach","path":dir})
+    request:=map[string]any{"v":1,"kind":"dev.attach","path":dir}
+    if len(access)>0{request["access"]=access[0]}
+    c.send(t,request)
     row:=c.next(t)
     if String(row,"kind")!="dev.attached"||String(row,"workspaceId")==""||
-        String(row,"sourceId")==""{
+        String(row,"sourceId")==""||!RequestIDValid(String(row,"leaseEpoch"))||
+        String(row,"leaseEpoch")==String(row,"leaseId"){
         t.Fatalf("directory attach failed: %+v",row)
     }
     return c,row
@@ -110,17 +114,21 @@ func TestR17HostConcurrentDirectoriesAndScopedResolver(t *testing.T) {
                 if String(frame,"kind")==kind{return frame}
             case err:=<-ioErrors:
                 t.Fatalf("Chrome Native framing terminated while waiting for %s: %v",kind,err)
+            case err:=<-finished:
+                finished<-err // Cleanup still observes the completed Host.
+                t.Fatalf("Native Host stopped before %s: %v",kind,err)
             case <-timer.C:
                 t.Fatalf("Chrome Native %s timed out",kind)
             }
         }
     }
-    if Int(next("hello"),"localDevMultiVersion")!=1{
+    hello:=next("hello")
+    if Int(hello,"localDevMultiVersion")!=1||Int(hello,"localDevAccessVersion")!=1{
         t.Fatal("Host did not advertise R17 capability")
     }
     if err=WriteFrame(chromeWrite,MustEncode(map[string]any{"v":1,"kind":"welcome",
         "extensionId":cfg.ExtensionID,"extensionVersion":"0.1.0",
-        "localDevVersion":1,"localDevMultiVersion":1,"localFilesVersion":FilesVersion}));err!=nil{
+        "localDevVersion":1,"localDevMultiVersion":1,"localDevAccessVersion":1,"localFilesVersion":FilesVersion}));err!=nil{
         t.Fatal(err)
     }
     _=next("files.state")
@@ -131,13 +139,38 @@ func TestR17HostConcurrentDirectoriesAndScopedResolver(t *testing.T) {
     }
     aPath:=filepath.Join(home,"one","同名目录")
     bPath:=filepath.Join(home,"two","同名目录")
-    a,aLease:=r17Attach(t,cfg,aPath)
+    a,aLease:=r17Attach(t,cfg,aPath,"read-write")
     _=next("files.state")
-    b,bLease:=r17Attach(t,cfg,bPath)
+    b,bLease:=r17Attach(t,cfg,bPath,"read-write")
     _=next("files.state")
     if String(aLease,"sourceId")==String(bLease,"sourceId")||
-        String(aLease,"workspaceId")==String(bLease,"workspaceId"){
+        String(aLease,"workspaceId")==String(bLease,"workspaceId")||
+        String(aLease,"access")!="read-write"||String(bLease,"access")!="read-write"{
         t.Fatal("same-name folders received identical authority")
+    }
+    nativeFilesCall:=func(method string,params map[string]any) Fields {
+        t.Helper()
+        id,err:=NewID();if err!=nil{t.Fatal(err)}
+        if err=WriteFrame(chromeWrite,MustEncode(map[string]any{"v":1,"kind":"files.request",
+            "protocol":FilesProtocol,"requestId":id,"sessionId":host.files.sessionID,
+            "method":method,"params":params}));err!=nil{t.Fatal(err)}
+        reply:=next("files.response")
+        if String(reply,"requestId")!=id||Has(reply,"error"){t.Fatalf("Native files dispatch: %+v",reply)}
+        result,err:=Decode(reply["result"]);if err!=nil{t.Fatal(err)}
+        return result
+    }
+    for i,lease:=range []Fields{aLease,bLease} {
+        read:=nativeFilesCall("files.read",map[string]any{"workspaceId":String(lease,"workspaceId"),
+            "leaseEpoch":String(lease,"leaseEpoch"),"path":"README.md"})
+        expected:="# "+[]string{"one","two"}[i]
+        if String(read,"content")!=expected{t.Fatal("Native read crossed directories")}
+        content:=expected+"\nwritten-through-native"
+        saved:=nativeFilesCall("files.write",map[string]any{"workspaceId":String(lease,"workspaceId"),
+            "leaseEpoch":String(lease,"leaseEpoch"),"path":"README.md","content":content,"expectedSha256":String(read,"sha256")})
+        disk,err:=os.ReadFile(filepath.Join([]string{aPath,bPath}[i],"README.md"))
+        if err!=nil||string(disk)!=content||String(saved,"sha256")!=textHash(string(disk))||!Bool(saved,"saved") {
+            t.Fatalf("Native save receipt was not proved by independent disk read: %v %v",saved,err)
+        }
     }
     ap,apEpoch:=r17Provider(t,cfg,aLease,"a")
     first:=next("dev.state")
@@ -166,11 +199,20 @@ func TestR17HostConcurrentDirectoriesAndScopedResolver(t *testing.T) {
         t.Fatalf("aggregate epoch was not rotated on B: %+v",second)
     }
     // Second CLI from same directory does not acquire a second lease.
-    duplicate,repeat:=r17Attach(t,cfg,aPath)
-    if !Bool(repeat,"alreadyActive")||String(repeat,"leaseId")!=""{
+    duplicate,repeat:=r17Attach(t,cfg,aPath,"read-write")
+    if !Bool(repeat,"alreadyActive")||String(repeat,"leaseId")!=""||
+        String(repeat,"leaseEpoch")!=String(aLease,"leaseEpoch"){
         t.Fatalf("repeat launch acquired source ownership: %+v",repeat)
     }
     _=duplicate.conn.Close()
+    readonly:=r17Local(t,cfg)
+    readonly.send(t,map[string]any{"v":1,"kind":"dev.attach","path":aPath,"access":"read-only"})
+    readonlyReply:=readonly.next(t)
+    denied,_:=Decode(readonlyReply["error"])
+    if String(readonlyReply,"kind")!="dev.rejected"||String(denied,"code")!="E_DEV_ACCESS_CONFLICT" {
+        t.Fatalf("live read/write lease incorrectly downgraded: %+v",readonlyReply)
+    }
+    _=readonly.conn.Close()
     list:=func(whichEpoch,requestID string) []struct{BindingID,Name,SourceID,WorkspaceID string}{
         t.Helper()
         if err=WriteFrame(chromeWrite,MustEncode(map[string]any{"v":1,"kind":"dev.request",
@@ -269,4 +311,44 @@ func TestR17HostConcurrentDirectoriesAndScopedResolver(t *testing.T) {
     reply=next("dev.response")
     if !Has(reply,"result"){t.Fatalf("B stopped responding: %+v",reply)}
     _=b.conn.Close()
+}
+
+func TestR17DevAttachStrictSchemaAndLegacyAccess(t *testing.T) {
+    for _,raw:=range []string{
+        `{"v":1,"kind":"dev.attach","path":"/exact/directory"}`,
+        `{"v":1,"kind":"dev.attach","path":"/exact/directory","access":"read-only"}`,
+        `{"v":1,"kind":"dev.attach","path":"/exact/directory","access":"read-write"}`,
+    } {
+        if _,err:=decodeDevAttach([]byte(raw));err!=nil{t.Fatalf("valid attach rejected: %s %v",raw,err)}
+    }
+    for _,raw:=range []string{
+        `{"v":1,"kind":"dev.attach","path":"/exact/directory","access":"read"}`,
+        `{"v":1,"kind":"dev.attach","path":"/exact/directory","access":""}`,
+        `{"v":1,"kind":"dev.attach","path":"/exact/directory","access":null}`,
+        `{"v":1,"kind":"dev.attach","path":"/exact/directory","access":true}`,
+        `{"v":1,"kind":"dev.attach","path":"/exact/directory","access":"read-only","access":"read-write"}`,
+        `{"v":1,"kind":"dev.attach","path":"/one","path":"/two"}`,
+        `{"v":1,"kind":"dev.attach","path":"/exact/directory","extra":true}`,
+        `{"v":1,"kind":"dev.attach","path":1}`,
+        `{"v":1,"kind":"dev.attach"}`,
+        `{"v":2,"kind":"dev.attach","path":"/exact/directory"}`,
+    } {
+        if _,err:=decodeDevAttach([]byte(raw));err==nil{t.Fatalf("ambiguous/invalid authorization accepted: %s",raw)}
+    }
+}
+
+func TestR17AccessCapabilityMustBeNegotiated(t *testing.T) {
+    for _,advertised:=range []bool{false,true} {
+        home,_:=projectFixture(t)
+        _=home
+        cfg,err:=Load();if err!=nil{t.Fatal(err)}
+        var output bytes.Buffer
+        host,err:=NewHost(cfg,"chrome-extension://"+cfg.ExtensionID+"/",strings.NewReader(""),&output)
+        if err!=nil{t.Fatal(err)}
+        message:=map[string]any{"v":1,"kind":"welcome","extensionId":cfg.ExtensionID,"extensionVersion":"r17-access-test","localFilesVersion":1,"localDevMultiVersion":1}
+        if advertised{message["localDevAccessVersion"]=1}
+        if err=host.handleChrome(MustEncode(message));err!=nil{host.Close();t.Fatal(err)}
+        if host.localDevAccess!=advertised{host.Close();t.Fatal("new CLI access silently enabled for old extension")}
+        host.Close()
+    }
 }

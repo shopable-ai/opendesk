@@ -17,8 +17,10 @@ const workspaceStoreName = "workspace-grants.v1.json"
 const workspaceLockName = "workspace-grants.lock"
 const workspaceStoreFormat = "opendesk.browser-native-workspaces.v1"
 const maxWorkspaceGrants = 8
+const maxWorkspaceDevLeaseFences = maxWorkspaceGrants + 4
 
 var workspaceIDPattern = regexp.MustCompile(`^workspace-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$`)
+var workspaceSourcePattern = regexp.MustCompile(`^source-[a-f0-9]{24}$`)
 
 type workspaceGrant struct {
 	WorkspaceID string `json:"workspaceId"`
@@ -30,10 +32,32 @@ type workspaceGrant struct {
 }
 
 type workspaceStore struct {
-	Format           string           `json:"format"`
-	ExtensionID      string           `json:"extensionId"`
-	CredentialDigest string           `json:"credentialDigest"`
-	Workspaces       []workspaceGrant `json:"workspaces"`
+	Format           string                   `json:"format"`
+	ExtensionID      string                   `json:"extensionId"`
+	CredentialDigest string                   `json:"credentialDigest"`
+	Workspaces       []workspaceGrant         `json:"workspaces"`
+	DevLeaseFences   []workspaceDevLeaseFence `json:"devLeaseFences,omitempty"`
+}
+
+// These bounded records only invalidate an in-memory CLI epoch. They contain
+// no path, access level, owner secret or grant, and cannot reconstruct a
+// temporary workspace after Host exit. Keeping the revocation bit in the same
+// locked store lets a different CLI process retire an epoch even if access
+// changes away and back between two Native requests.
+type workspaceDevLeaseFence struct {
+	SessionID   string `json:"sessionId"`
+	WorkspaceID string `json:"workspaceId"`
+	SourceID    string `json:"sourceId"`
+	LeaseEpoch  string `json:"leaseEpoch"`
+	Retired     bool   `json:"retired,omitempty"`
+}
+
+func retireWorkspaceDevLeases(state *workspaceStore, sourceID string) {
+	for i := range state.DevLeaseFences {
+		if state.DevLeaseFences[i].SourceID == sourceID {
+			state.DevLeaseFences[i].Retired = true
+		}
+	}
 }
 
 func emptyWorkspaceStore(cfg Installation) workspaceStore {
@@ -107,6 +131,19 @@ func readWorkspaceStore(cfg Installation) (workspaceStore, error) {
 			return emptyWorkspaceStore(cfg), filesFailure("E_FILES_ACCESS")
 		}
 		seen[grant.WorkspaceID] = true
+	}
+	if len(state.DevLeaseFences) > maxWorkspaceDevLeaseFences {
+		return emptyWorkspaceStore(cfg), filesFailure("E_FILES_ACCESS")
+	}
+	fences := map[string]bool{}
+	for _, fence := range state.DevLeaseFences {
+		key := fence.SessionID + "/" + fence.WorkspaceID
+		if !RequestIDValid(fence.SessionID) || !RequestIDValid(fence.LeaseEpoch) ||
+			!workspaceIDPattern.MatchString(fence.WorkspaceID) ||
+			!workspaceSourcePattern.MatchString(fence.SourceID) || fences[key] {
+			return emptyWorkspaceStore(cfg), filesFailure("E_FILES_ACCESS")
+		}
+		fences[key] = true
 	}
 	return state, nil
 }
@@ -220,6 +257,9 @@ func WorkspaceAdd(p, access string) (map[string]any, error) {
 			return nil, filesFailure("E_FILES_CONFLICT")
 		}
 		grant.WorkspaceID = old.WorkspaceID
+		if old != grant {
+			retireWorkspaceDevLeases(&state, directorySourceID(cfg, grant))
+		}
 		state.Workspaces[i] = grant
 		if err := writeWorkspaceStore(cfg, state); err != nil {
 			return nil, err
@@ -237,6 +277,7 @@ func WorkspaceAdd(p, access string) (map[string]any, error) {
 		return nil, filesFailure("E_FILES_IO")
 	}
 	grant.WorkspaceID = "workspace-" + id
+	retireWorkspaceDevLeases(&state, directorySourceID(cfg, grant))
 	state.Workspaces = append(state.Workspaces, grant)
 	if err := writeWorkspaceStore(cfg, state); err != nil {
 		return nil, err
@@ -292,6 +333,7 @@ func WorkspaceRevoke(id string) (map[string]any, error) {
 		if grant.WorkspaceID != id {
 			continue
 		}
+		retireWorkspaceDevLeases(&state, directorySourceID(cfg, grant))
 		state.Workspaces = append(state.Workspaces[:i], state.Workspaces[i+1:]...)
 		if err := writeWorkspaceStore(cfg, state); err != nil {
 			return nil, err

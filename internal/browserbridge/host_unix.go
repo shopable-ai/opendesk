@@ -43,6 +43,7 @@ type Host struct {
 	ready bool
 	localDev bool
 	localDevMulti bool
+	localDevAccess bool
 	closed bool
 	clients map[*localClient]bool
 	pending map[string]*pendingCall
@@ -210,11 +211,12 @@ func (h *Host) serveLocal(c *localClient) {
 		subtle.ConstantTimeCompare([]byte(String(auth,"credential")),[]byte(h.cfg.ClientCredential))!=1{
 		return
 	}
-	h.mu.Lock();ready:=h.ready;dev:=h.localDev;multi:=h.localDevMulti;filesReady:=h.localFiles;h.mu.Unlock()
+	h.mu.Lock();ready:=h.ready;dev:=h.localDev;multi:=h.localDevMulti;devAccess:=h.localDevAccess;filesReady:=h.localFiles;h.mu.Unlock()
 	if err=h.sendLocal(c,MustEncode(map[string]any{
 		"v":1,"kind":"authenticated","browserReady":ready,
 		"localDevVersion":func()int{if dev{return 1};return 0}(),
         "localDevMultiVersion":func()int{if multi{return 1};return 0}(),
+        "localDevAccessVersion":func()int{if devAccess{return 1};return 0}(),
         "localFilesVersion":func()int{if filesReady{return FilesVersion};return 0}(),
 	}));err!=nil{return}
 	_ = c.socket.SetReadDeadline(time.Now().Add(10*time.Second))
@@ -252,7 +254,15 @@ func (h *Host) serveLocal(c *localClient) {
 		return
 	}
     if String(f,"kind")=="dev.attach"{
-        h.serveDevAttach(c, f, reader)
+        // This local authorization message rejects duplicate keys and nulls
+        // before the handler validates its exact field allowlist.
+        strict,decodeErr:=decodeDevAttach(payload)
+        if decodeErr!=nil {
+            _=h.sendLocal(c,MustEncode(map[string]any{"v":1,"kind":"dev.rejected",
+                "error":map[string]string{"code":"E_SCHEMA"}}))
+            return
+        }
+        h.serveDevAttach(c, strict, reader)
         return
     }
     if String(f,"kind")=="provider.register" && Int(f,"catalogVersion")==2{
@@ -326,7 +336,7 @@ func (h *Host) handleChrome(raw []byte) error {
 		if Int(f,"v")!=1 || String(f,"kind")!="welcome" ||
 			String(f,"extensionId")!=h.cfg.ExtensionID ||
 			String(f,"extensionVersion")==""{return errors.New("E_NATIVE_HANDSHAKE")}
-		h.mu.Lock();h.ready=true;h.localDev=Int(f,"localDevVersion")==1;h.localDevMulti=Int(f,"localDevMultiVersion")==1;h.localFiles=Int(f,"localFilesVersion")==FilesVersion;h.mu.Unlock()
+		h.mu.Lock();h.ready=true;h.localDev=Int(f,"localDevVersion")==1;h.localDevMulti=Int(f,"localDevMultiVersion")==1;h.localDevAccess=Int(f,"localDevAccessVersion")==1;h.localFiles=Int(f,"localFilesVersion")==FilesVersion;h.mu.Unlock()
 		// The built-in Go provider never touches the disk before the browser
 		// has authorized Native and completed the exact welcome handshake.
 		// With no user file grants, keep Node's original disconnected state.
@@ -442,7 +452,7 @@ func (h *Host) Run() error {
 	if h.cfg.Provider!="opendesk" {return errors.New("E_MIGRATION_REQUIRED")}
 	defer h.Close()
 	if err:=h.startSocket();err!=nil{return err}
-	if err:=h.sendChrome(MustEncode(map[string]any{"v":1,"kind":"hello","workflowAiVersion":1,"localFilesVersion":FilesVersion,"localDevMultiVersion":1}));err!=nil{return err}
+	if err:=h.sendChrome(MustEncode(map[string]any{"v":1,"kind":"hello","workflowAiVersion":1,"localFilesVersion":FilesVersion,"localDevMultiVersion":1,"localDevAccessVersion":1}));err!=nil{return err}
 	timer:=time.AfterFunc(handshakeTimeout,func(){
 		h.mu.Lock();ready:=h.ready;h.mu.Unlock()
 		if !ready{h.Close()}
