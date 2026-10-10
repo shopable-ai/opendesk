@@ -56,3 +56,22 @@ func TestCloseReleasesHostEvenWithBlockedNativeStdin(t *testing.T){
         t.Fatalf("owned socket remains after Close: %v",err)
     }
 }
+
+func TestClosedHostNeverRecreatesSocketOnDelayedStart(t *testing.T) {
+    root,err:=os.MkdirTemp("/tmp","od-early-")
+    if err!=nil{t.Fatal(err)}
+    t.Cleanup(func(){_ = os.RemoveAll(root)})
+    if err=os.Chmod(root,0700);err!=nil{t.Fatal(err)}
+    cfg:=Installation{Name:HostName,ExtensionID:testExtensionID,
+        ClientCredential:strings.Repeat("a",64),InstallRoot:root,
+        SocketPath:filepath.Join(root,"agent.sock"),Provider:"opendesk"}
+    host,err:=NewHost(cfg,"chrome-extension://"+testExtensionID+"/",strings.NewReader(""),io.Discard)
+    if err!=nil{t.Fatal(err)}
+    host.Close() // SIGTERM before Chrome Host has reached ListenUnix.
+    if err=host.Run();!errors.Is(err,ErrClosed){
+        t.Fatalf("closed native Host must not re-open a socket: %v",err)
+    }
+    if _,err=os.Lstat(cfg.SocketPath);!os.IsNotExist(err){
+        t.Fatalf("closed Host recreated a private socket: %v",err)
+    }
+}

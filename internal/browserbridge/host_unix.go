@@ -109,18 +109,33 @@ func (h *Host) Close() {
 	})
 }
 func (h *Host) startSocket() error {
+	// Keep host creation and Close in the same mutex-protected lifecycle
+	// transaction. A SIGTERM arriving before ListenUnix must never let Run
+	// recreate a Socket AFTER Close has already completed.
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closed{return ErrClosed}
 	if err:=requireDir(filepath.Dir(h.cfg.SocketPath));err!=nil{return err}
 	if _,err:=os.Lstat(h.cfg.SocketPath);err==nil{return errors.New("E_SOCKET_IN_USE")}else if !os.IsNotExist(err){return err}
 	listener,err:=net.ListenUnix("unix",&net.UnixAddr{Name:h.cfg.SocketPath,Net:"unix"})
 	if err!=nil{return err}
 	listener.SetUnlinkOnClose(false)
-	if err=os.Chmod(h.cfg.SocketPath,0600);err!=nil{listener.Close();return err}
+	// Register the exact inode as soon as it is available. On all subsequent
+	// failure paths, Run's deferred Close can release only this owned Socket.
 	stat,err:=os.Lstat(h.cfg.SocketPath)
-	if err!=nil{listener.Close();return err}
-	if stat.Mode()&os.ModeSocket==0 || !userOwned(stat) || stat.Mode().Perm()!=0600 {
-		listener.Close();return errors.New("E_SOCKET_INVALID")
+	if err!=nil{_ = listener.Close();return err}
+	h.socketInfo=stat
+	h.listener=listener
+	if stat.Mode()&os.ModeSocket==0 || !userOwned(stat){
+		return errors.New("E_SOCKET_INVALID")
 	}
-	h.mu.Lock();h.socketInfo=stat;h.listener=listener;h.mu.Unlock()
+	if err=os.Chmod(h.cfg.SocketPath,0600);err!=nil{return err}
+	now,err:=os.Lstat(h.cfg.SocketPath)
+	if err!=nil{return err}
+	if now.Mode()&os.ModeSocket==0 || !os.SameFile(now,stat) ||
+		now.Mode().Perm()!=0600 || !userOwned(now) {
+		return errors.New("E_SOCKET_INVALID")
+	}
 	go h.accept()
 	return nil
 }
