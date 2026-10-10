@@ -114,6 +114,33 @@ func Execute(args []string,stdout,stderr io.Writer) int {
 		if err!=nil{return exitError(stderr,err)}
 		writeJSON(stdout,result);return 0
 	}
+	if command=="project" {
+		if len(rest)==0{return exitError(stderr,errors.New("E_CAPABILITY: project [add|list|revoke]"))}
+		action,fields:=rest[0],rest[1:]
+		switch action {
+		case "list":
+			if len(fields)!=0{return exitError(stderr,browserbridge.ErrSchema)}
+			result,err:=browserbridge.ProjectList()
+			if err!=nil{return exitError(stderr,err)}
+			writeJSON(stdout,result);return 0
+		case "add":
+			opts,err:=parseOptions(fields,map[string]bool{
+				"--path":true,"--runtime-kind":true,"--entry-format":true,"--site-origin":true})
+			if err!=nil{return exitError(stderr,err)}
+			entry:=opts["--entry-format"]
+			if entry==""{entry="async-main"}
+			result,err:=browserbridge.ProjectAdd(opts["--path"],opts["--runtime-kind"],entry,opts["--site-origin"])
+			if err!=nil{return exitError(stderr,err)}
+			writeJSON(stdout,result);return 0
+		case "revoke":
+			opts,err:=parseOptions(fields,map[string]bool{"--binding-id":true})
+			if err!=nil{return exitError(stderr,err)}
+			result,err:=browserbridge.ProjectRevoke(opts["--binding-id"])
+			if err!=nil{return exitError(stderr,err)}
+			writeJSON(stdout,result);return 0
+		default:return exitError(stderr,errors.New("E_CAPABILITY: project [add|list|revoke]"))
+		}
+	}
 	if command=="cleanup" || command=="uninstall"{
 		if len(rest)!=0{return exitError(stderr,browserbridge.ErrSchema)}
 		result,err:=browserbridge.Cleanup()

@@ -30,3 +30,9 @@ func ManifestFor(string,string) (string,error) {return "",errPlatform}
 type Host struct{}
 func NewHost(Installation,string,io.Reader,io.Writer) (*Host,error) {return nil,errPlatform}
 func (*Host) Run() error {return errPlatform}
+
+// The Windows Native Messaging provider has not been implemented.
+func ProjectAdd(string,string,string,string) (map[string]any,error) {return nil,errPlatform}
+func ProjectList() (map[string]any,error) {return nil,errPlatform}
+func ProjectRevoke(string) (map[string]any,error) {return nil,errPlatform}
+func ResolveProject(string) (map[string]any,error) {return nil,errPlatform}

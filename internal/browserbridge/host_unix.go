@@ -45,6 +45,11 @@ type Host struct {
 	pending map[string]*pendingCall
 	devPending map[string]*pendingDev
 	provider *localClient
+	// The bundled Go single-file provider is active only for explicit
+	// user-owned grants. An external Node MCP provider takes precedence.
+	internalEpoch string
+	internalPending int
+	internalIDs map[string]bool
 	done chan struct{}
 	closeOnce sync.Once
 }
@@ -56,7 +61,8 @@ func NewHost(cfg Installation,origin string,input io.Reader,output io.Writer) (*
 	}
 	if input==nil || output==nil{return nil,ErrSchema}
 	return &Host{cfg:cfg,origin:origin,input:input,output:output,clients:make(map[*localClient]bool),
-		pending:make(map[string]*pendingCall),devPending:make(map[string]*pendingDev),done:make(chan struct{})},nil
+		pending:make(map[string]*pendingCall),devPending:make(map[string]*pendingDev),
+		internalIDs:make(map[string]bool),done:make(chan struct{})},nil
 }
 func (h *Host) sendChrome(raw []byte) error {
 	h.writeMu.Lock();defer h.writeMu.Unlock()
@@ -78,9 +84,10 @@ func (h *Host) devError(id,epoch,code string) {
 }
 func (h *Host) providerState() {
 	h.mu.Lock()
-	connected:=h.provider!=nil
+	connected:=h.ready && (h.provider!=nil || h.internalEpoch!="")
 	epoch:=""
-	if connected{epoch=h.provider.providerEpoch}
+	if h.provider!=nil{epoch=h.provider.providerEpoch
+	}else if h.internalEpoch!=""{epoch=h.internalEpoch}
 	h.mu.Unlock()
 	var current any
 	if connected{current=epoch}
@@ -234,7 +241,7 @@ func (h *Host) serveLocal(c *localClient) {
 	id:=String(f,"requestId")
 	h.mu.Lock()
 	if !h.ready{h.mu.Unlock();h.localError(c,id,"E_NATIVE_NOT_READY","NOT_DISPATCHED");return}
-	if len(h.pending)+len(h.devPending)>=MaxInflight{h.mu.Unlock();h.localError(c,id,"E_LIMIT","NOT_DISPATCHED");return}
+	if len(h.pending)+len(h.devPending)+h.internalPending>=MaxInflight{h.mu.Unlock();h.localError(c,id,"E_LIMIT","NOT_DISPATCHED");return}
 	if _,exists:=h.pending[id];exists{h.mu.Unlock();h.localError(c,id,"E_REQUEST_CONFLICT","NOT_DISPATCHED");return}
 	entry:=&pendingCall{answer:make(chan []byte,1)}
 	h.pending[id]=entry
@@ -265,6 +272,18 @@ func (h *Host) handleChrome(raw []byte) error {
 			String(f,"extensionId")!=h.cfg.ExtensionID ||
 			String(f,"extensionVersion")==""{return errors.New("E_NATIVE_HANDSHAKE")}
 		h.mu.Lock();h.ready=true;h.localDev=Int(f,"localDevVersion")==1;h.mu.Unlock()
+		// The built-in Go provider never touches the disk before the browser
+		// has authorized Native and completed the exact welcome handshake.
+		// With no user file grants, keep Node's original disconnected state.
+		if Int(f,"localDevVersion")==1 {
+			if listed,err:=ProjectList();err==nil {
+				if rows,ok:=listed["projects"].([]map[string]any);ok&&len(rows)>0{
+					epoch,_:=NewID()
+					h.mu.Lock();h.internalEpoch=epoch;h.mu.Unlock()
+					h.providerState()
+				}
+			}
+		}
 		return nil
 	}
 	if Int(f,"v")!=1{return ErrSchema}
@@ -278,12 +297,24 @@ func (h *Host) handleChrome(raw []byte) error {
 	case "dev.request":
 		if err=ValidateDevRequest(f);err!=nil{return err}
 		id:=String(f,"requestId");epoch:=String(f,"providerEpoch")
+		params,_:=Decode(f["params"])
+		bindingId:=String(params,"bindingId")
 		h.mu.Lock()
 		provider:=h.provider
+		if provider==nil&&h.internalEpoch!=""&&epoch==h.internalEpoch {
+			if h.internalPending>=4||len(h.pending)+len(h.devPending)+h.internalPending>=MaxInflight||
+				h.internalIDs[id] {
+				h.mu.Unlock();h.devError(id,epoch,"E_LIMIT");return nil
+			}
+			h.internalPending++;h.internalIDs[id]=true
+			h.mu.Unlock()
+			go h.serveInternalProject(id,epoch,String(f,"method"),bindingId)
+			return nil
+		}
 		if provider==nil || provider.providerEpoch!=epoch{
 			h.mu.Unlock();h.devError(id,epoch,"E_DEV_DISCONNECTED");return nil
 		}
-		if len(h.devPending)>=4 || len(h.pending)+len(h.devPending)>=MaxInflight{
+		if len(h.devPending)>=4 || len(h.pending)+len(h.devPending)+h.internalPending>=MaxInflight{
 			h.mu.Unlock();h.devError(id,epoch,"E_LIMIT");return nil
 		}
 		if _,exists:=h.devPending[id];exists{
@@ -302,6 +333,41 @@ func (h *Host) handleChrome(raw []byte) error {
 		return nil
 	default:return ErrSchema
 	}
+}
+// serveInternalProject is the bounded, Node-free, READ-ONLY alternative to
+// an external local-dev Provider. Only a file explicitly granted to OpenDesk
+// can be resolved. Browser's original website/RunHost/Controller authorization
+// remains mandatory for all eventual execution.
+func (h *Host) serveInternalProject(id,epoch,method,bindingId string) {
+	var result map[string]any
+	var err error
+	switch method{
+	case "projects.list":result,err=ProjectList()
+	case "project.resolve":result,err=ResolveProject(bindingId)
+	default:err=ErrSchema
+	}
+	h.mu.Lock()
+	delete(h.internalIDs,id)
+	if h.internalPending>0{h.internalPending--}
+	live:=!h.closed&&h.ready&&h.provider==nil&&h.internalEpoch==epoch
+	h.mu.Unlock()
+	// A Node Provider may replace the Go source epoch while a file is read.
+	// Never deliver stale source after a provider/owner change.
+	if !live{return}
+	response:=map[string]any{"v":1,"kind":"dev.response",
+		"requestId":id,"providerEpoch":epoch}
+	if err!=nil{
+		code:=err.Error()
+		if len(code)<2||code[:2]!="E_"{code="E_DEV_SOURCE"}
+		response["error"]=map[string]string{"code":code,"message":code}
+	}else{response["result"]=result}
+	data,encodeErr:=Encode(response)
+	if encodeErr!=nil{
+		data=MustEncode(map[string]any{"v":1,"kind":"dev.response",
+			"requestId":id,"providerEpoch":epoch,
+			"error":map[string]string{"code":"E_LIMIT","message":"E_LIMIT"}})
+	}
+	_ = h.sendChrome(data)
 }
 // Run is entered only from the explicit Chrome-launched browser native-host
 // command. No Desktop, MCP, Scheduler, HTTP or script initialization occurs here.

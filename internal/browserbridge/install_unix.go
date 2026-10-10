@@ -291,10 +291,22 @@ func Cleanup() (map[string]any,error) {
 	if _,err=os.Lstat(cfg.SocketPath);err==nil{return nil,errors.New("E_SOCKET_IN_USE")}else if !os.IsNotExist(err){return nil,err}
 	manifest,err:=ManifestFor(cfg.Browser,cfg.UserDataDir);if err!=nil{return nil,err}
 	if err=validateManifest(manifest,cfg);err!=nil{return nil,err}
-	for _,file:=range []string{manifest,filepath.Join(cfg.InstallRoot,"native-host"),configPath()}{
-		if _,err=requireRegular(file,0);err!=nil{return nil,err}
+	// Cleanup is an explicit uninstall: revoke all Go-owned project grants as
+	// part of the same owner-scoped deletion. Otherwise a subsequent install
+	// could accidentally regain a previous user's file authorization.
+	files:=[]string{manifest,filepath.Join(cfg.InstallRoot,"native-host"),configPath()}
+	for _,name:=range []string{projectStoreName,"project-grants.lock"}{
+		p:=filepath.Join(cfg.InstallRoot,name)
+		if _,err:=os.Lstat(p);os.IsNotExist(err){continue
+		}else if err!=nil{return nil,err}
+		if _,err:=requireRegular(p,0600);err!=nil{return nil,err}
+		files=append(files,p)
 	}
-	for _,file:=range []string{manifest,filepath.Join(cfg.InstallRoot,"native-host"),configPath()}{
+	if _,err:=readProjectStore(cfg);err!=nil{return nil,err}
+	for _,file:=range files{
+		if _,err:=requireRegular(file,0);err!=nil{return nil,err}
+	}
+	for _,file:=range files{
 		if err=os.Remove(file);err!=nil{return nil,err}
 	}
 	// Preserve any old provider files and every unrelated Native host.
