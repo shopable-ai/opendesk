@@ -19,19 +19,21 @@ import (
 )
 
 type Installation struct {
-	Name string
-	ExtensionID string
-	Browser string
-	UserDataDir string
-	SocketPath string
+	Name             string
+	ExtensionID      string
+	Browser          string
+	UserDataDir      string
+	SocketPath       string
 	ClientCredential string
-	InstallRoot string
-	Provider string
-	Executable string
-	CreatedAt string
-	InstalledAt string
+	InstallRoot      string
+	Provider         string
+	Executable       string
+	CreatedAt        string
+	InstalledAt      string
 }
-var nativeInstancePattern=regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
+
+var nativeInstancePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
+
 func nativeInstance() (string,bool,error) {
 	instance,set:=os.LookupEnv("OPENDESK_NATIVE_INSTANCE")
 	if !set{return "",false,nil}
@@ -42,12 +44,24 @@ func browserBaseDir() (string,error) {
 	home,err:=os.UserHomeDir();if err!=nil{return "",err}
 	return filepath.Join(home,".opendesk-browser"),nil
 }
-func ensureBrowserBaseDir() (string,error) {
-	base,err:=browserBaseDir();if err!=nil{return "",err}
-	if _,err=os.Lstat(base);err==nil{return base,requireDir(base)}
-	if !os.IsNotExist(err){return "",err}
-	if err=os.Mkdir(base,0700);err!=nil{return "",err}
-	return base,requireDir(base)
+func ensureBrowserBaseDir() (string, error) {
+	base, err := browserBaseDir()
+	if err != nil {
+		return "", err
+	}
+	if _, err = os.Lstat(base); err == nil {
+		if err = requireDir(base); err != nil {
+			return "", err
+		}
+		return base, mkdirDurable(base, 0700)
+	}
+	if !os.IsNotExist(err) {
+		return "", err
+	}
+	if err = mkdirDurable(base, 0700); err != nil {
+		return "", err
+	}
+	return base, requireDir(base)
 }
 func installRootChecked() (string,error) {
 	base,err:=browserBaseDir();if err!=nil{return "",err}
@@ -79,17 +93,24 @@ func requireDir(path string) error {
 	return nil
 }
 func ensureDir(path string) error {
-	if err:=os.MkdirAll(path,0700);err!=nil{return err}
+	if err := mkdirDurable(path, 0700); err != nil {
+		return err
+	}
 	return requireDir(path)
 }
+
 // Chrome owns its NativeMessagingHosts directory. An existing safe 0755
 // directory is valid; we must not chmod a shared Chrome profile directory.
 func ensureManifestDir(path string) error {
-	if err:=os.MkdirAll(path,0755);err!=nil{return err}
-	info,err:=os.Lstat(path)
-	if err!=nil{return err}
-	if !info.IsDir() || info.Mode()&os.ModeSymlink!=0 || !userOwned(info) ||
-		info.Mode().Perm()&0022!=0 {
+	if err := mkdirDurable(path, 0755); err != nil {
+		return err
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || !userOwned(info) ||
+		info.Mode().Perm()&0022 != 0 {
 		return errors.New("E_INSTALL_PERMISSIONS")
 	}
 	return nil

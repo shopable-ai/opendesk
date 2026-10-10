@@ -3,7 +3,6 @@ package browsercli
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"time"
 
 	"opendesk/internal/browserbridge"
@@ -43,7 +42,7 @@ func prepareAdmission(method string, params map[string]json.RawMessage, requestI
 		}
 		reply, err := browserbridge.Call(context.Background(), "bridge.status", json.RawMessage(`{}`), id, 3*time.Second)
 		if err != nil {
-			return nil, err
+			return nil, &browserbridge.CallError{Code: "E_NATIVE_NOT_READY", Outcome: "NOT_DISPATCHED"}
 		}
 		var state struct {
 			Result struct {
@@ -51,8 +50,15 @@ func prepareAdmission(method string, params map[string]json.RawMessage, requestI
 			} `json:"result"`
 			Error json.RawMessage `json:"error"`
 		}
-		if json.Unmarshal(reply, &state) != nil || len(state.Error) > 0 || len(state.Result.Registrations) != 1 {
-			return nil, errors.New("E_NATIVE_NOT_READY: one explicit Sidebar registration required")
+		if json.Unmarshal(reply, &state) != nil || len(state.Error) > 0 {
+			return nil, &browserbridge.CallError{Code: "E_NATIVE_NOT_READY", Outcome: "NOT_DISPATCHED"}
+		}
+		if len(state.Result.Registrations) != 1 {
+			code := "E_HOST_NOT_READY"
+			if len(state.Result.Registrations) > 1 {
+				code = "E_HOST_AMBIGUOUS"
+			}
+			return nil, &browserbridge.CallError{Code: code, Outcome: "NOT_DISPATCHED"}
 		}
 		registration = state.Result.Registrations[0]
 		if !browserbridge.RequestIDValid(registration) {

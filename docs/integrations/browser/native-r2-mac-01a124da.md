@@ -1,32 +1,48 @@
 # R2 Mac 安全配对与项目 GUI：01a124da
 
-2026-10-10。在 master 串行集成；不创建分支，不上传或发布，不覆盖旧 Node 或其他任务现场。
+2026-10-10。OpenDesk master 单写入交接；不创建分支、不推送、不发布。初始提交 a9899757，R5 安装器保护 512e9495，R2 实现 e97e4d54299d1590daacfe72154dc4efafc891ea，后续上游集成 7518e3e30975934a941df3f03c73ae7e937fc3fa。本次闭环提交的实际 SHA、文件哈希与构建身份保存于 `.runtime/tests/browser-r2-01a124da/candidate-final.json`。
 
-## 实施与消费者
+## 已实施
 
-- `install_unix.go` 的 Setup / SetupAutomatic：供官方 Go CLI、新装 App 自动准备和开发配对使用；已有认证登记在普通启动或同 ID 配对时沿用，禁止隐式 executable 迁移。精确扩展身份与现有 Node 冲突保护保留。
-- `install_transaction_unix.go`：全实例共享 flock（包括读取屏障）、新旧两代全部文件预检、0600 私有 journal、目录 fsync、完整原字节恢复。耐久性收尾无法确认时明确 E_INSTALL_COMMIT_UNKNOWN / OUTCOME_UNKNOWN，不谎称已回滚。混合状态 Load 拒绝；恢复不覆盖未知修改。启动遗留恢复与自动更新共用锁。
-- `pairing*.go`：仅接受两分钟开发申请；URL 不携带权限、路径或 browser/profile；nonce 私有持久消费，取消后也禁止重放；原生独立确认后才调用 SetupContext，提交期间过期/取消触发回滚。
-- `pkg/appshell/browser*` 与 `native_darwin.*`：产品菜单诊断、JS 单文件选择、运行类型与精确 Origin 确认、撤权；默认取消。配对模态窗口到期/上下文取消后关闭，非法或重放 URL 不抢前台。
-- `cmd/opendesk/app_browser.go` / `app_mode.go`：产品 App 启动自动准备、系统 URL 收件、菜单到 Go Provider；授权本身不执行脚本。继续使用现有 Browser Controller/运行所有权。
-- `project_origin.go`：拒绝 Go/Chrome 解释不一致的 Origin（大小写、默认端口、旧式 IPv4、非标准 IPv6、Unicode 等）。
+- SetupAutomatic / 无参数 setup、update 沿用经过认证的登记；普通 App 启动和同 ID 开发配对禁止隐式更换已登记 executable。固定官方 ID 未核验时返回 E_OFFICIAL_ID_UNAVAILABLE，不猜 ID、不扩大 allowed_origins、不改旧 Node 安装。
+- 开发配对严格校验 URL、128 bit nonce 和两分钟期限；私有持久 replay ledger、独立原生确认、取消与过期默认拒绝。原生确认前不写 Host，不授权项目，不运行脚本。
+- 所有安装实例和读取共用 flock；完整新旧两代预检、0600 journal、原字节回滚和目录 fsync。失败后的重试也同步已存在目录及稳定父目录，读取拒绝未恢复事务；未知修改不覆盖。提交耐久性不能确认时报告 E_INSTALL_COMMIT_UNKNOWN / OUTCOME_UNKNOWN。
+- Go 产品菜单提供状态、单个 JS 文件选择、Controller/Page 类型及精确 Origin 授权和撤销。拒绝非标准 IPv4/IPv6（包括 mapped IPv6）、大小写或默认端口等非规范 Origin。原生模态确认支持提前取消、过期和迟到回执；已有 Controller 保留运行所有权和明确 Run。
+- CLI 在派发前解析唯一 Sidebar；status 失败、零或多个 Sidebar 明确 NOT_DISPATCHED。EOF 和合法 OUTCOME_UNKNOWN 回复均保留原 requestId、registrationId、admissionMethod 和 requestDigest，不重派发。Go 摘要与实际 Browser canonical digest 的十个 Unicode/数字边界 oracle 一致。
 
-- `internal/browsercli/admission.go` / `command.go` / `browserbridge/admission_digest.go`：UNKNOWN 输出保留自动生成的原 requestId 与 registrationId/admissionMethod/requestDigest；省略 registration 时只读查询一次 Sidebar 并绑定精确登记，不重放。十条真实 Browser digest 向量及 Go IPC EOF 错误路径回归通过。
+## 本轮验证与证据等级
 
-## 本轮证据
+原始日志 `.runtime/tests/browser-r2-01a124da/`，失败文件不覆盖、不删除。
 
-原始日志：`.runtime/tests/browser-r2-01a124da/`。未删除初次共享工作区 FAIL、错误命令与构建 FAIL。
+- `go-integrated-closure-final.log`：browserai、browserbridge、appshell、cmd/opendesk PASS；CLI 最初新测试调用了错误函数名，编译 FAIL 保留。
+- `go-cli-closure-corrected.log`：保留新测试夹具错误字段造成的 FAIL。
+- `go-cli-preflight-schema-corrected.log`：CLI PASS，包含真实本地 IPC 的六项预检失败与四项 EOF/合法 UNKNOWN 回复，无额外 mutation/replay。IPC 夹具不是 Chrome 验收。
+- 较早 `go-final-short-canonical-tmp.log`、`go-provider.log`、App 构建等只代表各自旧输入；Go Provider 的模拟 Chrome 不提升为原生证据。
+- 新 ARM64 App 的源提交、构建日志和二进制哈希见 candidate-final.json；本轮不安装、不替换系统 CLI、不启动 App/Chrome。
 
-- `go-final-short-canonical-tmp.log`：最终 browserbridge / browsercli / appshell / cmd 四包 PASS；含独立反方修复和 CLI 恢复回归。短规范 TMPDIR=/private/tmp/od-r2-01a124da，满足 Unix socket 路径长度并规避 /var 符号链接身份差异。
-- `go-cmd-final-normalized.log`：cmd/opendesk PASS；TMPDIR 显式设置为仓库私有测试目录，规避 macOS /var 与 /private/var 身份差异。
-- `app-final-build.log`：较早 R2 源码快照完整 x86_64 Mac App 构建 PASS，后续安全修复未绑定此旧构建；快照排除 foreign floating-toolbar 未提交修改；只构建，不替代系统安装验收。
-- `go-provider.log` 位于 Browser 本轮 evidence：真实 Go 可执行文件 + 模拟 Chrome 的组件回归 PASS，明确不是 Chrome 原生验收。
-- 真实 Chrome、系统安装、真实 Native 提示、Run/Stop/Result/重连由 R5 唯一资源负责人在本轮提交后归档源码并 ARM64 重建执行；旧候选证据不能升级为本候选证据。
+## 独立反方审计
 
-## 限制与最终验收门槛
+只读审计 Agent Kepler 与实现者分离。完整原文保存在 independent-audit-*.md；旧发现与失败均保留。最后两个目录耐久性和预检错误分类缺口在限定静态复核中关闭，未发现新的安全关键 FAIL。早期86/82缺少分项账本，已由审计者修正为下表，不能使用早期分数。
 
-官方稳定 CWS Extension ID 尚无可核验发布证据，常量继续为空。新安装自动准备返回 E_OFFICIAL_ID_UNAVAILABLE；没有账号授权，不预留或上传草稿，不猜 ID。
+| 类别 | 满分 | 设计 | 实现 |
+|---|---:|---:|---:|
+| 零命令行与可理解性 | 20 | 19 | 18 |
+| Chrome 平台遵循 | 15 | 15 | 14 |
+| 发行 ID、安全与迁移 | 20 | 18 | 17 |
+| Go 原生 Host 与安装器 | 15 | 14 | 14 |
+| 原生本地项目功能 | 15 | 9 | 6 |
+| 失败与生命周期恢复 | 10 | 9 | 9 |
+| 独立真实交付证据 | 5 | 0 | 0 |
+| 合计 | 100 | 84 | 78 |
 
-GUI Provider 当前明确支持 JS 单文件；多文件 ESM/npm/HTTPS 仍为高级 MCP 能力。默认用户 Native 安装为 Node 在用时不自动迁移。受控 CFT 使用已审查的命名实例与显式 Profile，开发 URL 无权改变这些参数。
+最终同候选真实 Mac 交付 NOT_TESTED，已核验同候选原始证据覆盖0/100；不评价或抹除历史证据，不判95+。
 
-独立反方复审、同提交真实 GUI/Chrome、安全矩阵、App 先安装/扩展先安装与多 Profile 等必须逐项记录；没有原始证据则 NOT_TESTED，不判 95+。最终分数与源码 SHA 在后续验收记录绑定。
+## 尚未关闭
+
+可信 Chrome Web Store 官方稳定 ID 没有核验证据，也没有账号上传授权；不上传或预留草稿。正常发行版自动准备 Host 因此不可交付。原生 GUI 当前仅支持 JS 单文件；完整多文件/npm/HTTPS 项目继续保留高级 MCP 路线，不声称 GUI 已闭环。最终同候选 App-first/Extension-first、双 Profile、重启、原生授权、Controller/Page/Stop/Result、源码变化、释放及真实断电恢复均未完成。未执行远端 GitHub CI/发布。
+
+R5 按用户要求暂停安装并准备交接；其 App、CFT profile、CDP60189、r5-mac实例由R5保管，本轮无GUI/CDP操作。用户默认Node、dev Node43120、其他GUI进程、padding会话的未提交文件及用户PNG保留。
+
+## 用户流程
+
+发行目标仍为：安装 OpenDesk → 安装扩展 → 真实点击授权连接 → 原生授权本地项目 → Sidebar 刷新后明确 Run。官方 ID 未核验，不能称此流程已交付。开发版可通过扩展开发配对按钮提交短期申请，在 OpenDesk 独立确认，然后单独授权 Native Messaging、网站、JS 文件及运行类型；项目授权不自动运行。人工网页唯一入口 http://127.0.0.1:43111/demo-form.html。63825 专用 fixture 仅是历史证据，不作为普通用户入口。

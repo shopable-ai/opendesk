@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"opendesk/internal/browserbridge"
 	"opendesk/internal/browserai"
+	"opendesk/internal/browserbridge"
 )
 
 func IsCommand(args []string) bool {return len(args)>0 && args[0]=="browser"}
@@ -55,27 +55,60 @@ func asJSON(raw []byte) (map[string]json.RawMessage,error) {
 	if err:=json.Unmarshal(raw,&m);err!=nil || m==nil{return nil,browserbridge.ErrSchema}
 	return m,nil
 }
-func doCall(method string,opts map[string]string,timeout time.Duration) (json.RawMessage,error) {
-	params:=map[string]json.RawMessage{}
-	if file:=opts["--file"];file!=""{
-		body,err:=os.ReadFile(file);if err!=nil{return nil,err}
-		if len(body)>browserbridge.MaxBytes{return nil,browserbridge.ErrLimit}
-		params,err=asJSON(body)
-		if err!=nil{return nil,err}
+func doCall(method string, opts map[string]string, timeout time.Duration) (json.RawMessage, error) {
+	params := map[string]json.RawMessage{}
+	if file := opts["--file"]; file != "" {
+		body, err := os.ReadFile(file)
+		if err != nil {
+			return nil, err
+		}
+		if len(body) > browserbridge.MaxBytes {
+			return nil, browserbridge.ErrLimit
+		}
+		params, err = asJSON(body)
+		if err != nil {
+			return nil, err
+		}
 	}
-	requestID:=opts["--request-id"]
-	if requestID=="" && len(params["requestId"])>0{
-		if err:=json.Unmarshal(params["requestId"],&requestID);err!=nil{return nil,browserbridge.ErrSchema}
+	requestID := opts["--request-id"]
+	if requestID == "" && len(params["requestId"]) > 0 {
+		if err := json.Unmarshal(params["requestId"], &requestID); err != nil {
+			return nil, browserbridge.ErrSchema
+		}
 	}
-	delete(params,"requestId")
-	if requestID==""{var err error;requestID,err=browserbridge.NewID();if err!=nil{return nil,err}}
-	if !browserbridge.RequestIDValid(requestID){return nil,browserbridge.ErrSchema}
-	recovery,err:=prepareAdmission(method,params,requestID)
-	if err!=nil{return nil,&invocationError{err,requestID,nil}}
-	payload,err:=json.Marshal(params);if err!=nil{return nil,err}
-	reply,err:=browserbridge.Call(context.Background(),method,payload,requestID,timeout)
-	if err!=nil{return nil,&invocationError{err,requestID,recovery}}
-	return json.RawMessage(reply),nil
+	delete(params, "requestId")
+	if requestID == "" {
+		var err error
+		requestID, err = browserbridge.NewID()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if !browserbridge.RequestIDValid(requestID) {
+		return nil, browserbridge.ErrSchema
+	}
+	recovery, err := prepareAdmission(method, params, requestID)
+	if err != nil {
+		return nil, &invocationError{err, requestID, nil}
+	}
+	payload, err := json.Marshal(params)
+	if err != nil {
+		return nil, err
+	}
+	reply, err := browserbridge.Call(context.Background(), method, payload, requestID, timeout)
+	if err != nil {
+		return nil, &invocationError{err, requestID, recovery}
+	}
+	var response struct {
+		Error *struct {
+			Code    string
+			Outcome string
+		} `json:"error"`
+	}
+	if json.Unmarshal(reply, &response) == nil && response.Error != nil && response.Error.Outcome == "OUTCOME_UNKNOWN" {
+		return nil, &invocationError{&browserbridge.CallError{Code: response.Error.Code, Outcome: response.Error.Outcome}, requestID, recovery}
+	}
+	return json.RawMessage(reply), nil
 }
 func Execute(args []string,stdout,stderr io.Writer) int {
 	if !IsCommand(args) || len(args)<2{

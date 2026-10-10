@@ -52,6 +52,39 @@ func syncDirectory(path string) error {
 	return f.Sync()
 }
 
+// Persist every newly created directory entry before publishing a journal or
+// installation target. Syncing only the leaf cannot survive loss of its parent.
+func mkdirDurable(path string, mode os.FileMode) error {
+	for p := path; ; p = filepath.Dir(p) {
+		if _, err := os.Lstat(p); err == nil {
+			break
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+		if parent := filepath.Dir(p); parent == p {
+			return errors.New("E_INSTALL_PATH")
+		}
+	}
+	if err := os.MkdirAll(path, mode); err != nil {
+		return err
+	}
+	// A failed previous attempt can leave existing directory entries that were
+	// never persisted. Fence those entries again before publishing a journal.
+	for p := path; ; p = filepath.Dir(p) {
+		if err := syncDirectory(p); err != nil {
+			return err
+		}
+		info, err := os.Stat(p)
+		if err != nil {
+			return err
+		}
+		if !userOwned(info) || filepath.Dir(p) == p {
+			break
+		}
+	}
+	return nil
+}
+
 // Every install/update/recovery shares one process-independent lock. The
 // transaction lives outside the legacy installation, which remains untouched.
 func withInstallationLock(ctx context.Context, fn func() (map[string]any, error)) (map[string]any, error) {
