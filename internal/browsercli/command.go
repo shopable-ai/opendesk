@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"opendesk/internal/browserbridge"
@@ -83,7 +85,22 @@ func Execute(args []string,stdout,stderr io.Writer) int {
 		if err!=nil{return exitError(stderr,err)}
 		host,err:=browserbridge.NewHost(cfg,rest[0],os.Stdin,stdout)
 		if err!=nil{return exitError(stderr,err)}
-		if err=host.Run();err!=nil{return exitError(stderr,err)}
+		// Chrome normally closes stdin when its Port is destroyed. OS shutdown
+		// and an explicit SIGTERM instead require an owned socket cleanup;
+		// Go's default signal disposition would skip Host.Run's defer.
+		signals:=make(chan os.Signal,1)
+		signal.Notify(signals,os.Interrupt,syscall.SIGTERM)
+		finished:=make(chan struct{})
+		defer signal.Stop(signals)
+		go func(){
+			select {
+			case <-signals:host.Close()
+			case <-finished:
+			}
+		}()
+		err=host.Run()
+		close(finished)
+		if err!=nil{return exitError(stderr,err)}
 		return 0
 	}
 	if command=="setup" || command=="update"{
