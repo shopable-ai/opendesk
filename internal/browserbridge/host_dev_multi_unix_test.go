@@ -140,6 +140,23 @@ func TestR17HostConcurrentDirectoriesAndScopedResolver(t *testing.T) {
     ap,apEpoch:=r17Provider(t,cfg,aLease,"a")
     first:=next("dev.state")
     if !Bool(first,"connected"){t.Fatalf("provider A is offline: %+v",first)}
+    // An authenticated second process still may not take over the lease
+    // belonging to A. Its provider ID and catalog cannot override A's data.
+    attacker:=r17Local(t,cfg)
+    attacker.send(t,map[string]any{"v":1,"kind":"provider.register",
+        "providerId":"forged-second-a","catalogVersion":2,
+        "leaseId":String(aLease,"leaseId"),
+        "projects":[]map[string]any{{"bindingId":"local-"+strings.Repeat("f",20),
+            "name":"伪造目录","runtimeKind":"controller"}}})
+    blocked:=attacker.next(t)
+    if String(blocked,"kind")!="provider.rejected" {
+        t.Fatalf("duplicate provider acquired same directory lease: %+v",blocked)
+    }
+    rejected,_:=Decode(blocked["error"])
+    if String(rejected,"code")!="E_DEV_PROVIDER_CONFLICT"{
+        t.Fatalf("wrong duplicate-provider diagnostic: %+v",blocked)
+    }
+    _=attacker.conn.Close()
     bp,bpEpoch:=r17Provider(t,cfg,bLease,"b")
     second:=next("dev.state")
     epoch:=String(second,"providerEpoch")
