@@ -1,5 +1,8 @@
 # OpenDesk Go · 本地目录直连 R17
 
+> **R17.1 后续读写决策（代码仍待实施）**：用户已要求 `opendesk browser dev` / `opendesk browser` 将新启动目录作为本次受信 CLI 会话的**临时可读写 Workspace**，无需先 `workspace add`。现有代码和本文下方“默认只读”是 R17 旧行为；不得把新决策误报为已安装或 Mac 验收通过。必须保留旧客户端不传访问级别时的只读兼容语义、长期显式只读授权、租约 owner 和文件安全检查。正式契约见 [R17.1 新决策](browser-dev-session-rw-r17-1-decisions.zh-CN.md)，跨仓完整任务见 [Browser WebCodex R3 / R17.1 GOAL](https://github.com/shopable-ai/opendesk-browser/blob/main/docs/framework/prompts/goal-webcodex-browser-dev-chat-bridge-r3-main.zh-CN.md)。
+
+
 日期：2026-10-10。OpenDesk 仅在 `master`，Browser 仅在 `main`。日常入口、实际 npm 包安装和 Chrome 验收见 [Browser R17 使用指南](https://github.com/shopable-ai/opendesk-browser/blob/main/docs/framework/local-directory-cli-r17.zh-CN.md)。
 
 ## 双入口和原命令
