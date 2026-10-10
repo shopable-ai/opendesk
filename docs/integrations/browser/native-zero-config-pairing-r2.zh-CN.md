@@ -2,6 +2,8 @@
 
 日期：2026-10-10。状态：**实施合同/尚未实现自动注册**。跨仓库完整架构：[OpenDesk Browser R2 自动发现与配对](https://github.com/shopable-ai/opendesk-browser/blob/main/docs/architecture/browser-framework/native-zero-config-pairing-r2.zh-CN.md)。现有 Go R1 [Native Host 实施文档](native-messaging-host.zh-CN.md) 的“需明确输入扩展 ID”在代码交付前仍成立。
 
+> **实现兼容差异入口**：[Browser / OpenDesk 双实现 R3 台账](https://github.com/shopable-ai/opendesk-browser/blob/main/docs/architecture/browser-framework/native-convergence-compatibility-r3.zh-CN.md)：Node/Go 安装所有权双向保护、Node 项目 Provider 对 Go 的兼容、未知效果、SIGTERM、Desktop/Browser owner 与仍未验收的门槛。它不是宣称两个执行引擎已合并。
+
 ## 产品目标
 
 普通用户只需安装/启动 OpenDesk，再安装浏览器扩展；不复制 32 位 ID，不安装 Node Host，不手动执行 setup，最少一次浏览器真实权限确认。Chrome 仍通过 `connectNative` 主动启动纯 Go Host；不设计所谓 Go 主动给未知扩展推消息，不新建 HTTP/WebSocket 执行端口。
