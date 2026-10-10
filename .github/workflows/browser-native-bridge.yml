@@ -52,7 +52,7 @@ jobs:
         with:
           repository: shopable-ai/opendesk-browser
           # Immutable Browser fixture: Go hello asserts R16 + local-files capabilities.
-          ref: 8a50fa03e64ed6e5cc3d331e0cc4673a5111fa71
+          ref: 7f87dc2a08b70419e7e2a37d7f53da31bdabdd6c
           path: opendesk-browser-fixture
       - name: Chrome Native framing, installer and CLI process smoke
         shell: bash
