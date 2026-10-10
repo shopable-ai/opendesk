@@ -86,7 +86,7 @@ func Execute(args []string,stdout,stderr io.Writer) int {
     }
     if command=="--version"||command=="-V"||command=="version" {
         if len(rest)!=0{return exitError(stderr,browserbridge.ErrSchema)}
-        _,_=io.WriteString(stdout,"OpenDesk Browser CLI R17\\n")
+        _,_=io.WriteString(stdout,"OpenDesk Browser CLI R17\n")
         return 0
     }
     if command=="dev" {return runBrowserDev(rest,stdout,stderr)}
