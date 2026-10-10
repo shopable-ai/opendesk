@@ -6,6 +6,12 @@
 
 适用：`shopable-ai/opendesk` 的 `opendesk browser` 子命令及 `shopable-ai/opendesk-browser` 的现有 Chrome 扩展。架构前置审计见 Browser 仓库 `docs/architecture/browser-framework/opendesk-native-takeover-r1.zh-CN.md`。
 
+## 范围冻结：只接管 OpenDesk Browser Native Messaging Host
+
+2026-10-10 用户澄清：**需要替换的是浏览器扩展 Native Messaging 的独立 Node.js 配套 Host，而非 OpenDesk 或 opendesk-browser 项目中的所有 Node.js 功能**。本实现负责 Native manifest、Chrome stdio 帧、用户私有 IPC、配套 CLI 和必要的设置/诊断兼容。它不得为了“去 Node”而改写/删除 WXT/Vite/webpack/npm 编译体系、浏览器 JavaScript、原 Desktop/MCP/Flow、用户脚本及其他独立服务。
+
+旧 Node Host/安装器是迁移期的兼容与回滚对象；`native-agent/local-dev/` 的 Node MCP、Resolver 与多文件 ESM/npm/HTTPS 开发工作流具有真实消费者。Go 单文件 Provider 可作为 Native 链路的增强，但**不构成对这些独立功能的删除授权**。只有同候选的完整功能等价、真实 Chrome / 本机安装回滚、安全权限与历史消费者验收通过后，才考虑精确退役已被 Go 完全接管的 **Native Host 专属运行路径**；不可删除整套 Node 源码目录。
+
 ## 一句话决策
 
 **生产端不再让最终用户为了 Chrome Native Messaging 安装 Node.js。** Chrome 直接启动现有 OpenDesk 原生可执行程序的 **`browser native-host` 纯传输模式**，由程序本身承担 Native 帧、独立权限校验与进程生命周期。当前扩展中的 Sidebar RunHost / Controller / Worker / 存储、网页授权、documentId、结果和 Stop 全部保持原权威。
