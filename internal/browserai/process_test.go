@@ -71,10 +71,10 @@ func TestOwnedNvmCodexLauncherResolvesItsNodeWithoutShellPATH(t *testing.T) {
 	root := t.TempDir()
 	node := filepath.Join(root, "node")
 	codex := filepath.Join(root, "codex")
-	if err := os.WriteFile(node, []byte("#!/bin/sh\\nprintf synthetic-node-ok"), 0700); err != nil {
+	if err := os.WriteFile(node, []byte("#!/bin/sh\nprintf synthetic-node-ok"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(codex, []byte("#!/usr/bin/env node\\n"), 0700); err != nil {
+	if err := os.WriteFile(codex, []byte("#!/usr/bin/env node\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", "/usr/bin:/bin")
