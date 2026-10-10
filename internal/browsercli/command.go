@@ -89,9 +89,11 @@ func Execute(args []string,stdout,stderr io.Writer) int {
 	if command=="setup" || command=="update"{
 		opts,err:=parseOptions(rest,map[string]bool{"--extension-id":true,"--browser":true,"--user-data-dir":true})
 		if err!=nil{return exitError(stderr,err)}
-		browser:=opts["--browser"]
-		if browser==""{browser="chrome"}
-		result,err:=browserbridge.Setup(opts["--extension-id"],browser,opts["--user-data-dir"],"")
+		// Ordinary repeat setup/update needs no ID/profile arguments: use the
+		// existing verified binding. Fresh official installs require a
+		// release-pinned ID; unpublished builds fail closed with an explicit
+		// diagnostic instead of inventing one.
+		result,err:=browserbridge.SetupAutomatic(opts["--extension-id"],opts["--browser"],opts["--user-data-dir"],"")
 		if err!=nil{return exitError(stderr,err)}
 		writeJSON(stdout,result);return 0
 	}

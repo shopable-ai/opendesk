@@ -156,6 +156,43 @@ func validateManifest(file string,cfg Installation) error {
 	}
 	return nil
 }
+// Release maintainers must replace this EMPTY constant only after verifying
+// the actual Chrome Web Store extension ID and signed distribution. Never
+// default to a randomly generated unpacked/CFT ID or accept a wildcard.
+// Its empty value is intentional: unpublished builds must fail closed.
+const verifiedOfficialExtensionID = ""
+
+// Resolve the omitted command-line parameters from an ALREADY authenticated
+// OpenDesk installation or a release-pinned official ID. The absence of a
+// verified release identity on a fresh machine cannot be repaired by guessing.
+// This is a CLI/installer convenience, not a substitute for Chrome's precise
+// allowed_origins permission boundary.
+func SetupAutomatic(extensionID,browser,userDataDir,executable string) (map[string]any,error) {
+    if extensionID!="" && !ExtensionIDValid(extensionID) {return nil,errors.New("E_EXTENSION_ID")}
+    var previous *Installation
+    if _,err:=os.Lstat(configPath());err==nil {
+        saved,err:=Load()
+        if err!=nil{return nil,err} // Includes legacy Node and unsafe installation paths.
+        previous=&saved
+    } else if !os.IsNotExist(err){return nil,err}
+    if extensionID=="" {
+        if previous!=nil {
+            extensionID=previous.ExtensionID
+        }else{
+            if verifiedOfficialExtensionID==""{return nil,errors.New("E_OFFICIAL_ID_UNAVAILABLE")}
+            if !ExtensionIDValid(verifiedOfficialExtensionID){return nil,errors.New("E_OFFICIAL_ID_INVALID")}
+            extensionID=verifiedOfficialExtensionID
+        }
+    }
+    if browser=="" {
+        if previous!=nil{browser=previous.Browser}else{browser="chrome"}
+    }
+    if userDataDir=="" && previous!=nil{userDataDir=previous.UserDataDir}
+    // Setup enforces browser/profile/extension identity equality, socket
+    // ownership, private permissions and Node→Go migration isolation.
+    return Setup(extensionID,browser,userDataDir,executable)
+}
+
 // Setup never replaces the legacy Node provider. Existing installations
 // require an explicitly reviewed migration with a reversible byte-for-byte
 // backup, not an implicit setup/update side effect.

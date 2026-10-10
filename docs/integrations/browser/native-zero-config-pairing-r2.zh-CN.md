@@ -27,3 +27,15 @@ Go 安装器负责注册应用自有 Host 路径/允许来源/文件权限；Bro
 安全测试包括恶意站点伪造协议链接、伪造 extensionId、过期/重放请求、非本用户目录、profile 混用、symlink、manifest 路径劫持、credential 泄漏与未知效果重放；任意失败均不得静默扩大 allowed_origins 或重新执行脚本。
 
 **当前状态**：Go R1 Host/CLI 已存在，但 `Setup(extensionID,...)` 仍拒绝空 ID，正式扩展可信 ID 未在仓库经核验确定；没有实际免 ID 安装、开发配对或 Go 文件 Provider 交付。R2.0 先核验发行 ID，再实施安装器；在此之前保留现有命令行作为开发者 fallback。
+
+## R2.0 安全默认参数的已实现切片（2026-10-10）
+
+已实现 `browserbridge.SetupAutomatic`，供 `opendesk browser setup` / `opendesk browser update` 使用：
+
+- **已经有 Go Host 合法绑定**：命令可以不带 `--extension-id`、`--browser` 和 `--user-data-dir`；仅复用已验证的 `install.json` 身份、浏览器和 Profile，原 IPC credential 不轮换。
+- **新安装且有已验证的正式发行 ID**：允许从 Go 源码中的 `verifiedOfficialExtensionID` 常量取精确 ID，浏览器默认 `chrome`。该常量在当前未发布开发源码中刻意为空，只有实际 Web Store 分配的真实 ID 经过签名发布校验后才能设置。
+- **新安装但没有已验证官方 ID**：无参数命令返回 `E_OFFICIAL_ID_UNAVAILABLE`，不能凭空猜测，也不会注册宽泛的 `allowed_origins`。开发者临时版仍可使用高级显式 `--extension-id`，或待 R2 安全 GUI 配对能力实现。
+- **旧 Node Host、不正确文件权限、冲突渠道/浏览器/Profile、无效显式 ID**：不自动升级、不覆盖、不跳过安全校验。相应回归测试位于 `internal/browserbridge/install_unix_test.go`。
+- **当前仍需要管理员/AI 调用 setup 命令吗？** 未把系统安装器/首次启动绑定到该入口前，需要；`SetupAutomatic` 只是把参数推断逻辑放在 Go Owner，不能误称普通用户新安装已经做到零命令。
+
+**后续必须执行：** 实际签名的 Chrome Web Store ID 与发行元数据比对 → 在发布构建中固定 ID → OpenDesk 安装器调用 `SetupAutomatic` → Mac 实测“先 App 后扩展 / 先扩展后 App” → 原生确认的开发版配对 → 免 Node 项目 Provider。不得因单测通过抬升成产品 95 分。

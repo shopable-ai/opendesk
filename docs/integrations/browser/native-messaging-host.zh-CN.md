@@ -26,8 +26,8 @@ Extension SW → 既有权限/Admission Ledger → Sidebar RunHost → Controlle
 ## 首次安装（新的独立安装，无 Node Host）
 
 1. 将 **同一 OpenDesk 程序**安装在持久的绝对路径上（不要依赖容易被清理的临时 `go run` 路径）。
-2. 在 `chrome://extensions` 打开开发者模式，复制所安装 OpenDesk Browser 的真实 32 字符扩展 ID。
-3. 在终端执行一次：
+2. 当前开发包尚未固化真实的 Chrome Web Store 发行 ID，因此在首次本机开发测试中，从 `chrome://extensions` 读取实际的 32 字符扩展 ID；正式发行版将由安装器自动提供该身份。
+3. 首次开发测试时在终端执行一次：
 
    ```sh
    # 使用已安装且放在 PATH 的 opendesk；不需要 node。
@@ -35,7 +35,7 @@ Extension SW → 既有权限/Admission Ledger → Sidebar RunHost → Controlle
    opendesk browser doctor
    ```
 
-4. 打开扩展的 **Native Agent 设置**，从真实 Chrome 页面点击「授权并启用」，然后打开 Sidebar 工作台；再次 `opendesk browser doctor` 观察 `connected:true`。**doctor 连接成功不代表已经运行任意脚本或授权某个网站。** 真实执行仍需要对应站点权限和用户主动发起。
+4. 打开扩展的 **Native Agent 设置**，从真实 Chrome 页面点击「授权并连接 OpenDesk」，然后打开 Sidebar 工作台；再次 `opendesk browser doctor` 观察 `connected:true`。**doctor 连接成功不代表已经运行任意脚本或授权某个网站。** 真实执行仍需要对应站点权限和用户主动发起。
 
 Chrome for Testing 可以在一个明确测试 Profile 内安装（不影响普通 Chrome）：
 
@@ -45,7 +45,7 @@ opendesk browser setup --extension-id <实际扩展ID> --browser cft --user-data
 
 `--user-data-dir` 必须是**已经存在且能解析的绝对目录**。目标 CFT 的 Profile/扩展 ID/manifest 必须匹配。不要把 `--browser cft` 当成浏览器实际正在使用该目录的证据。
 
-**日常使用：** 安装后 Chrome 自己启动 `opendesk browser native-host`；用户无需单独运行 Node、本地代理 daemon、占用固定端口或打开桌面 App 主界面。若要进入 OpenDesk 桌面 GUI，照常启动原程序，二者是独立模式。
+**日常使用：** 已有合法 Go Host 安装时，再次调用 `opendesk browser setup` 或 `opendesk browser update` 可以完全省略 ID、browser、profile 参数，安全复用已保存的精确绑定；正式用户不应需要运行这些命令，后续由 OpenDesk 安装器接管。未绑定官方 ID 的全新开发环境仍需高级显式 ID 或待实现的 GUI 配对，不能声称已零配置。Chrome 自己启动 `opendesk browser native-host`；用户无需单独运行 Node、本地代理 daemon、占用固定端口或打开桌面 App 主界面。若要进入 OpenDesk 桌面 GUI，照常启动原程序，二者是独立模式。
 
 ## 开发者与 AI 调用
 
