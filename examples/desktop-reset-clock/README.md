@@ -1,28 +1,41 @@
-# Desktop Reset Clock
 
-**状态：PROPOSED（设计阶段）；当前无可运行程序。**
+# Desktop Reset Clock — Demo 入口
 
-这是拟放在 OpenDesk 的独立 Go demo：macOS / Windows 桌面时钟、时区换算、Codex 重置公告显示与提醒。**默认不负责采集 X**，只从外部经过授权的数据提供方用 HTTP/HTTPS 取得版本化 JSON Feed，做轻量本地缓存、健康诊断和提醒。
+> **状态：PROPOSED，仅文档；尚无可运行的 Go 程序。**
 
-## 文档入口
+## 从哪份文件开始？
 
-- [唯一整体方案：外部来源、HTTP 契约、新鲜度与阶段](../../docs/plans/desktop-reset-clock.md)
-- [设计审查、质量门槛及未验证事项](../../docs/quality/desktop-reset-clock/design-review.md)
+- **[阅读产品架构与功能树](../../docs/plans/desktop-reset-clock.md)**
+  - F01–F03：外部数据源、HTTP 获取、事件协议。
+  - F04–F06：当前时间、时区、提醒引擎。
+  - F07–F09：最近检查时间、健康状态、本地缓存。
+  - F10–F11：macOS / Windows 桌面卡片、托盘和设置。
+  - F12–F14：可选外部转换、个人额度与商业授权。
+  - F15–F16：测试和正式发行。
+- **[阅读审计与 95 分门槛](../../docs/quality/desktop-reset-clock/design-review.md)**
+  - 文档静态评分与软件真实验收是两回事。
+  - 每项功能都有验收项；未运行不得写成通过。
 
-## 开发门槛（按顺序）
+## 一句话原则
 
-1. **先确认数据源**：是否已有合法 HTTPS JSON、接口格式、请求认证与更新频率。支持 200+有效 JSON，及有缓存时的 304；401/403 停止而不是绕过。
-2. **直连成功便停**：无需 Go 云采集服务 / SQLite / LLM / Cookie 池 / 审核后台；直接进入 Go 客户端。
-3. **数据格式不合格才外部转换**：生产侧将已有 JSON/RSS/其他允许内容生成统一事件文件；不让桌面端解析任意 X HTML。
-4. **没有可靠源就先 fixture**：测试时间、桌面、请求与健康提示；不宣称真实同步。
-5. **把检查时间说明白**：上次客户端请求、上次有效内容验证、上游来源最近检查、上次公告变化分别显示；后两者不存在时标为未知。
-6. **真实平台验收**：Mac / Windows 桌面层级、点击穿透、多屏、通知、休眠；标明测试环境和结果。
-7. **Beta 才核定商业化**：至少 30 天来源成本、响应可靠性和用户价值记录，币种与 30 天免费期待确认。
+**先获得可信的外部 HTTPS JSON，再做 Go 桌面时钟。**如果来源能直接返回有效 JSON，不再开发采集器、Cookie 池、数据库或后台框架。没有真源时先用明确标注的合成事件完成客户端 Demo。
 
-## 预定源码归属（目前尚未创建）
+## 后续落地顺序
 
-在本目录建立独立 Go module；入口 cmd/desktop-reset-clock/，内部模块 feed/、health/、events/、clock/、reminder/、desktop/、settings/。仅在有实际缺口、且另获授权时考虑外部生产侧 adapter；不默认建立 cmd/reset-clock-server。
+- **阶段 0：**确认来源、协议和范围。
+- **阶段 1：**HTTP 200/304/拒绝/超时验证。
+- **阶段 2：**Go 时间、健康状态、缓存与提醒测试。
+- **阶段 3：**Mac / Windows 桌面真机验证。
+- **阶段 4：**最小 Demo 和可靠性 Beta。
+- **阶段 5：**有实际用户价值后才讨论试用、价格和发行。
 
-正式 Demo 必须补齐一条可直接复制的运行命令和本地真实运行证据；临时结果存仓库根 .runtime/tests/desktop-reset-clock/。本目录不是现有 JavaScript App Mode package，不能用 opendesk -script 运行。
+## 约定目录（目前未创建）
 
-**本次只更新方案，没有编写代码、部署 HTTP 数据源、收集 Cookie、打包安装或完成 95 分的运行验收。**
+- `cmd/desktop-reset-clock/`：Go 桌面程序入口。
+- `internal/feed/`、`internal/events/`：HTTP 协议与事件。
+- `internal/health/`：不同来源的检查时间与异常状态。
+- `internal/clock/`、`internal/reminder/`：时间与通知。
+- `internal/desktop/`、`internal/settings/`：平台行为与配置。
+- `fixtures/`：HTTP、事件改期与过期测试样本。
+
+这个 Demo 是独立 Go module 的计划，不是当前 OpenDesk 的 JavaScript App Mode package；尚无启动命令、签名包、真实数据源或运行验收。运行日志与截图在开发后存入仓库根目录的 `.runtime/tests/desktop-reset-clock/`，不提交密钥和生产内容。
