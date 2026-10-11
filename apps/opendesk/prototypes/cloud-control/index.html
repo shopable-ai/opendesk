@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>OpenDesk · Execution Control R0.2 多端架构原型</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:#182238;background:#f6f8fc;font-size:14px;line-height:1.55}
+*{box-sizing:border-box}body{margin:0}button,input{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible{outline:3px solid #94b6ff;outline-offset:2px}
+.layout{min-height:100vh;display:grid;grid-template-columns:238px minmax(0,1fr)}
+aside{background:#102344;color:#ecf2ff;padding:27px 17px 22px;display:flex;flex-direction:column;gap:28px}
+.brand{font-size:20px;font-weight:750;letter-spacing:-.6px;padding:2px 13px}.brand small{display:block;color:#a8b8d6;font-size:11px;font-weight:450;letter-spacing:.5px;margin-top:5px}
+.nav{display:flex;flex-direction:column;gap:6px}.nav button{color:#cad7ed;background:transparent;border:0;text-align:left;border-radius:9px;padding:11px 14px;font-weight:570}.nav button:hover,.nav button.active{color:#fff;background:#26446f}.nav button span{display:inline-block;min-width:25px;color:#91a9cf}
+.side-note{margin-top:auto;color:#aabbd5;background:#192f54;padding:15px;border-radius:12px;font-size:12px}.side-note strong{display:block;color:#dce8ff;font-size:13px;margin-bottom:5px}
+main{padding:31px clamp(18px,4vw,57px) 65px;max-width:1440px;width:100%;margin:auto}.topline{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:26px}.eyebrow{color:#5475ad;font-size:12px;font-weight:750;text-transform:uppercase;letter-spacing:.12em}h1{font-size:clamp(25px,3vw,33px);letter-spacing:-1px;line-height:1.2;margin:7px 0 10px}.lead{color:#5a6980;margin:0;max-width:820px}.pill{border:1px solid #d2dae8;background:#fff;border-radius:999px;font-size:12px;color:#617089;padding:6px 12px;white-space:nowrap}
+.card{border:1px solid #e1e7f0;background:#fff;border-radius:14px;box-shadow:0 5px 20px rgba(22,44,77,.03);padding:21px}
+.columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.metric{padding:20px}.metric .name{color:#71809a;font-size:12px}.metric .big{font-size:21px;font-weight:750;margin:5px 0}.metric small{color:#78879d}
+.section-label{font-weight:750;font-size:16px;margin:29px 0 14px;display:flex;justify-content:space-between;gap:8px}.small{font-size:12px;color:#7788a1}
+.surface{min-height:195px;display:flex;flex-direction:column;gap:10px}.surface .header{display:flex;justify-content:space-between;align-items:center;gap:8px}.surface .header h3{margin:0;font-size:16px}.sub{color:#667890;font-size:12px}.surface p{color:#56677f;margin:0;font-size:13px}.surface .foot{margin-top:auto;border-top:1px solid #edf0f5;padding-top:12px;color:#607089;font-size:12px}.tag{font-size:11px;color:#566578;background:#f0f3f8;border-radius:6px;padding:3px 8px;white-space:nowrap}.tag.blue{background:#e9f1ff;color:#2458a4}.tag.gold{background:#fff5dc;color:#916300}
+.flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}.step{background:#f7f9fc;border:1px solid #e6ecf4;border-radius:11px;padding:14px 12px;font-size:12px;min-height:115px}.step strong{display:block;font-size:13px;color:#263951;margin-bottom:6px}.step .num{color:#567fbb;font-weight:750;margin-bottom:7px}
+.split{display:grid;grid-template-columns:1.45fr 1fr;gap:16px}.keyline{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:12px 0;border-bottom:1px solid #eef0f4}.keyline:last-child{border:0}.muted{color:#697b95}.title-row{display:flex;justify-content:space-between;align-items:center;gap:9px;margin-bottom:17px}.title-row h2{font-size:17px;margin:0}.button{border-radius:8px;padding:9px 14px;border:1px solid #c9d5e6;background:#fff;color:#2b4d7e;font-weight:650}.button.primary{background:#315d9c;border-color:#315d9c;color:#fff}.button:disabled{opacity:.5;cursor:not-allowed}
+.switch{position:relative;width:43px;height:24px;border:0;background:#c9d1df;border-radius:15px;transition:background .16s}.switch:after{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;border-radius:50%;background:#fff;transition:transform .16s}.switch.on{background:#356bb8}.switch.on:after{transform:translateX(19px)}
+.option{display:flex;gap:10px;align-items:flex-start;padding:13px 0;border-bottom:1px solid #edf0f4}.option:last-child{border:0}.option input{margin-top:5px;accent-color:#3364b1}.option strong{display:block}.option small{display:block;color:#71819a}
+.field{display:block;color:#53647d;font-weight:650;margin:12px 0 7px}.textbox{border:1px solid #cad4e2;border-radius:9px;width:100%;padding:11px 12px;background:#fbfcff;color:#263952}.note{background:#f0f5fc;border:1px solid #dce7f8;padding:13px;border-radius:9px;color:#3b628d;font-size:12px;margin-top:14px}.info{background:#fff8eb;border-color:#f4e5c1;color:#796137}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#d4a440;margin-right:7px}.status-dot.gray{background:#9caabf}
+[data-screen]{display:none}[data-screen].shown{display:block}.detail-list{padding-left:20px;color:#576a83}.detail-list li{margin:9px 0}
+footer{font-size:12px;color:#8590a2;margin-top:27px;border-top:1px solid #e0e5ed;padding-top:17px}
+@media(max-width:1060px){.columns{grid-template-columns:1fr}.flow{grid-template-columns:repeat(3,minmax(0,1fr))}.split{grid-template-columns:1fr}}
+@media(max-width:700px){.layout{display:block}aside{padding:15px;gap:10px}.brand{font-size:18px}.side-note{display:none}.nav{display:flex;flex-direction:row;overflow-x:auto}.nav button{white-space:nowrap;padding:8px 10px}main{padding:22px 15px 45px}.topline{align-items:flex-start}.flow{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+  <div class="brand">OpenDesk <small>EXECUTION CONTROL · R0.2</small></div>
+  <nav class="nav" aria-label="产品原型导航">
+    <button type="button" class="active" data-route="overview" aria-current="page"><span>◫</span>统一总览</button>
+    <button type="button" data-route="browser"><span>◎</span>Browser</button>
+    <button type="button" data-route="desktop"><span>▣</span>Desktop</button>
+    <button type="button" data-route="mobile"><span>▤</span>Mobile</button>
+    <button type="button" data-route="settings"><span>⚙</span>托管设置</button>
+  </nav>
+  <div class="side-note"><strong>设计原型 · 不接入真实服务</strong>界面切换和按钮只展示未来体验，不保存凭据、不连接 Socket、不创建任务。</div>
+</aside>
+<main>
+  <div class="topline"><div><div class="eyebrow">Cross-surface orchestration</div><h1 id="screen-title">多端任务执行框架</h1><p class="lead" id="screen-lead">统一任务接入、授权、领取、结果回执与恢复；Browser、Desktop、Mobile 分别保留自己的运行器。</p></div><span class="pill">设计归档 · 未实施</span></div>
+  <section data-screen="overview" class="shown">
+    <div class="columns">
+      <article class="card metric"><div class="name">首期真正实施范围</div><div class="big">Browser R1</div><small>原 Task v1、Authority、RunHost 基础可复用</small></article>
+      <article class="card metric"><div class="name">未来统一执行端</div><div class="big">3 类</div><small>Browser · Desktop · Mobile</small></article>
+      <article class="card metric"><div class="name">正式云控闭环</div><div class="big">待验收</div><small>不以 WebSocket 在线冒充实际执行</small></article>
+    </div>
+    <div class="section-label">执行端与平台边界 <span class="small">各端权限、运行事实独立</span></div>
+    <div class="columns">
+      <article class="card surface"><div class="header"><h3>Browser Executor</h3><span class="tag blue">优先实施</span></div><div class="sub">Chrome MV3 · Task v1</div><p>使用原 Authority → RunHost / Worker / ChromePage，保持本地 Run、Result、执行槽和权限模型。</p><div class="foot">云配对、claim、许可、回执、对账：待开发</div></article>
+      <article class="card surface"><div class="header"><h3>Desktop Executor</h3><span class="tag">后续接入</span></div><div class="sub">OpenDesk · Recipe / Flow</div><p>复用既有 Desktop Runtime、Execution、原 Scheduler 和权限；不可套用 Browser Task 包格式。</p><div class="foot">云适配及真实桌面验收：未实施</div></article>
+      <article class="card surface"><div class="header"><h3>Mobile Executor</h3><span class="tag gold">架构预留</span></div><div class="sub">Android / iOS · OS 限制</div><p>保留手机 App 作为一等执行端，前后台能力、授权、任务类型按具体平台另行定义。</p><div class="foot">运行器、App 接入、真机证据：未实施</div></article>
+    </div>
+    <div class="section-label">持久任务执行链 <span class="small">WebSocket 仅通知；HTTPS 持久操作</span></div>
+    <div class="flow">
+      <div class="step"><div class="num">01</div><strong>认证与配对</strong>稳定 Executor 身份，明确用户托管授权。</div>
+      <div class="step"><div class="num">02</div><strong>通知与领取</strong>WSS 通知，HTTPS claim 幂等领取。</div>
+      <div class="step"><div class="num">03</div><strong>原生 Run + 许可</strong>持久绑定原 Run；先取得服务端许可。</div>
+      <div class="step"><div class="num">04</div><strong>本机执行</strong>各端 Authority 复核后使用原运行器。</div>
+      <div class="step"><div class="num">05</div><strong>结果与对账</strong>原 Result、回执、资源退休分别持久记录。</div>
+    </div>
+    <div class="section-label">不可突破的边界</div>
+    <div class="card"><div class="keyline"><span>远程动态代码 / Shell / 任意 CDP</span><strong>禁止执行</strong></div><div class="keyline"><span>未知副作用后的自动重跑</span><strong>禁止</strong></div><div class="keyline"><span>Socket 在线 = Host 就绪 / 执行权</span><strong>不成立</strong></div><div class="keyline"><span>Browser R1 = Desktop / Mobile 通用 Runtime</span><strong>不成立</strong></div></div>
+  </section>
+  <section data-screen="browser">
+    <div class="card"><div class="title-row"><h2>Browser Cloud Control R1</h2><span class="tag blue">当前优先目标</span></div><p class="muted">保留“我的任务”作为普通用户入口；本原型是整体架构说明，不应被复制成独立的大型云控工作台。</p><ul class="detail-list"><li>已有底座：Task v1 固定安装、用户授权、Authority、RunHost、Worker、ChromePage、Run/Result、IndexedDB。</li><li>待接入：唯一 SW 连接 owner、WSS 通知、HTTPS claim、持久请求、准入 Run 绑定、startPermit、租约与取消栅栏。</li><li>待接入：Authority 结果受限投影、服务器持久回执、断线对账、最小托管设置。</li><li>R1 有合法 Host、精确目标与空闲槽才执行；不得因为 SW 在线而声称支持后台无人值守。</li><li>真实正向验收必须运行 sample.form-fill@1.0.0，留存真实页面效果及 runId/resultId。</li></ul><div class="note info">当前云控能力均为待实现项目；这里不能调用真实 RunHost。</div></div>
+  </section>
+  <section data-screen="desktop">
+    <div class="card"><div class="title-row"><h2>Desktop 云适配（规划）</h2><span class="tag">独立阶段</span></div><p class="muted">Desktop 使用 OpenDesk 原 Runtime/Execution、Recipe/Flow、系统权限与原有单活调度机制。</p><ul class="detail-list"><li>固定产物类型由 Desktop 适配选择，不能被替换为 Browser 的 opendesk.task-package.v1。</li><li>云端只提供任务来源、许可、租约与回执语义；原桌面 Execution 和 Scheduler 继续决定动作归属与恢复。</li><li>需要对窗口/应用可达性、UIA/AX 授权、取消和不可回滚副作用单独验收。</li><li>后台持续运行必须按正式 Desktop App lifecycle 与明确用户授权设计。</li></ul><div class="note info">不等于当前 OpenDesk Scheduler 已具备云端 claim/receipt。</div></div>
+  </section>
+  <section data-screen="mobile">
+    <div class="card"><div class="title-row"><h2>Mobile 一等执行端（规划）</h2><span class="tag gold">Android / iOS 待定义</span></div><p class="muted">这是跨平台架构预留，不是已存在的完整手机自动化应用或无限制后台执行能力。</p><ul class="detail-list"><li>各平台 TaskRef、可执行动作、设备身份、系统权限、前台/后台约束必须由具体端实现。</li><li>移动操作系统对后台任务、无障碍和自动操作存在差异，不能直接移植桌面守护运行逻辑。</li><li>断网、App 被系统挂起、用户退出和权限被撤销必须返回明确等待/未知/取消事实。</li><li>真机完成配对、原生运行结果、撤权与恢复测试前，只能标记 PLANNED。</li></ul></div>
+  </section>
+  <section data-screen="settings">
+    <div class="split">
+      <div class="card">
+        <div class="title-row"><h2>托管设置 · 交互预览</h2><span class="tag">仅页面内状态</span></div>
+        <div class="keyline"><div><strong>启用云端托管</strong><div class="sub">真正产品首次启用还需配对及授权</div></div><button type="button" id="toggle-hosting" class="switch" role="switch" aria-label="预览：启用云端托管" aria-checked="false"></button></div>
+        <div class="option"><input type="radio" name="provider" id="provider-default" value="default" checked><label for="provider-default"><strong>OpenDesk 默认服务</strong><small>发行版内置受信任配置；当前尚未公布正式地址</small></label></div>
+        <div class="option"><input type="radio" name="provider" id="provider-custom" value="custom"><label for="provider-custom"><strong>自定义服务器（高级）</strong><small>切换提供者时，正式产品必须停止旧领取并重新配对</small></label></div>
+        <div id="custom-settings" hidden><label class="field" for="endpoint">服务基础地址 · 仅演示</label><input id="endpoint" class="textbox" type="url" value="https://provider.example" placeholder="https://provider.example" autocomplete="off"><div class="note">远端使用 HTTPS/WSS；显式测试模式才允许固定回环 HTTP/WS。这里不会连接。</div></div>
+        <div class="note info">此页面没有配对凭据，不会真正认证、领取、上传或停止远端任务。真实功能必须由各端独立实现并通过安全验收。</div>
+      </div>
+      <div class="card"><div class="title-row"><h2>状态与授权边界</h2><span class="tag">演示</span></div>
+        <div class="keyline"><span class="muted">当前预览托管开关</span><strong id="hosting-status">未启用</strong></div>
+        <div class="keyline"><span class="muted">真实服务器连接</span><span><i class="status-dot gray"></i><strong>未连接</strong></span></div>
+        <div class="keyline"><span class="muted">配对与授权</span><strong>未建立</strong></div>
+        <div class="keyline"><span class="muted">Browser 执行 Host</span><strong>未检查</strong></div>
+        <div class="keyline"><span class="muted">Desktop / Mobile</span><strong>未接入</strong></div>
+        <div class="section-label">首次批准范围（未来功能）</div><ul class="detail-list"><li>哪些固定任务可领取？</li><li>哪些网站 / 应用 / 设备目标可操作？</li><li>哪些结果字段可以回传？</li><li>授权到期、撤销、暂停与解除配对如何处理？</li></ul>
+      </div>
+    </div>
+  </section>
+  <footer>OpenDesk Execution Control R0.2 · 静态设计原型。实际云控连接/执行、正式 API 与各端验收以对应代码和证据为准。</footer>
+</main>
+</div>
+<script>
+(function(){
+  "use strict";
+  const views={
+    overview:["多端任务执行框架","统一任务接入、授权、领取、结果回执与恢复；Browser、Desktop、Mobile 分别保留自己的运行器。"],
+    browser:["Browser Executor","首期任务接入：只允许已安装、授权的 Browser Task v1 经过原 Authority / RunHost 运行。"],
+    desktop:["Desktop Executor","后续使用 OpenDesk 原生 Runtime / Recipe / Flow 和 Scheduler ownership；不移植浏览器执行器。"],
+    mobile:["Mobile Executor","手机 App 是架构预留的一等执行端，权限、前后台与运行能力需要逐平台实现。"],
+    settings:["托管与服务器设置","正式产品应内置可信默认服务，并为高级用户提供自定义地址与重新配对。"]
+  };
+  for(const button of document.querySelectorAll("[data-route]"))button.addEventListener("click",function(){
+    const route=button.getAttribute("data-route");
+    for(const item of document.querySelectorAll("[data-route]")){
+      const active=item===button;item.classList.toggle("active",active);
+      if(active)item.setAttribute("aria-current","page");else item.removeAttribute("aria-current");
+    }
+    for(const section of document.querySelectorAll("[data-screen]"))section.classList.toggle("shown",section.getAttribute("data-screen")===route);
+    document.getElementById("screen-title").textContent=views[route][0];
+    document.getElementById("screen-lead").textContent=views[route][1];
+  });
+  for(const radio of document.querySelectorAll('input[name="provider"]'))radio.addEventListener("change",function(){
+    document.getElementById("custom-settings").hidden=!document.getElementById("provider-custom").checked;
+  });
+  document.getElementById("toggle-hosting").addEventListener("click",function(){
+    const on=this.getAttribute("aria-checked")!=="true";
+    this.setAttribute("aria-checked",on?"true":"false");this.classList.toggle("on",on);
+    document.getElementById("hosting-status").textContent=on?"已启用（仅预览）":"未启用";
+  });
+})();
+</script>
+</body>
+</html>

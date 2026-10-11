@@ -1,5 +1,8 @@
 # Browser Extension Runtime Bridge
 
+> **多端云控总纲（2026-10-11 新增）：** [Execution Control R0.2：Browser / Desktop / Mobile](../execution-control-r02.zh-CN.md)。本文是 Browser↔Desktop 本地执行 surface / runtime bridge 的既有合同，**不是**统一云任务的 claim/permit/receipt 协议。其 Mobile 与远端提供者扩展须从多端总纲进入。
+
+
 状态：Architecture contract / Planned，2026-10-02。本文冻结目标、职责与交接边界；不表示 Browser Extension、Browser Broker、Browser MCP tool、DOM Runtime 或 Browser Human Capture 已实现。当前能力事实仍以 [Browser Automation Capability Matrix](capabilities.md) 为准。
 
 ## 1. 目标需求
