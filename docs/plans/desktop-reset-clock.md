@@ -175,7 +175,7 @@ X 官方开发者政策约束 API 访问、认证信息、内容再分发、数�
 
 | 字段组 | 规则 |
 |---|---|
-| source_account_id / post_id / post_url | 稳定来源与原文定位；ID 为字符串 |
+| source_id / source_url；可选 post_id、source_account_id | 首选外部提供方给出的稳定事件来源 ID/URL；仅 X 类型的来源才需要 Post 与账号 ID，所有大 ID 以字符串保存 |
 | source_version / evidence_post_ids | 编辑链、原帖和相关上下文证据 |
 | source_published_at / fetched_at | 分开发帖时间与本次采集时间 |
 | event_id / event_group_id / revision | 稳定语义事件、公告组、递增修订 |
@@ -187,12 +187,12 @@ X 官方开发者政策约束 API 访问、认证信息、内容再分发、数�
 | effective_at / effective_window | UTC 明确时刻或时间窗口；不能确定时为空 |
 | time_expression / time_basis | 原始时间表达、解释依据、时区和歧义 |
 | evidence_status / evidence_spans | 关键字段的依据与缺失；不使用模型自评分冒充事实概率 |
-| last_poll_success_at | 频道时间线最后成功检查；空结果也可成功，但不能替代旧帖复查 |
+| last_poll_success_at | 可选：外部提供者报告其最后一次检查来源成功时间；未提供不得由客户端 HTTP 200/304 伪造 |
 | evidence_checked_at | 该事件关键证据最后成功复查；与频道抓取及 feed 重签分别计算 |
 | notify_until / revalidate_before | 允许首次通知的截止点、自动行动前需再次核查的截止点 |
 | supersedes / tombstone | 更正、替换和撤销关联；使客户端取消旧计划 |
-| extractor_version / reviewer / reviewed_at | 可追踪提取器与审核记录；不在公开 feed 暴露个人审核信息 |
-| approved_evidence_hash / approved_revision | 批准绑定确切证据与事件版本；关键证据变化使旧批准失效 |
+| producer_version / extractor_version / reviewer / reviewed_at | 若生产者进行提取或人工审核则保留对应版本和可追溯信息；已有可信结构化 feed 可不实现本地提取器或审核后台 |
+| approved_evidence_hash / approved_revision | 可选的上游核查证据；来源不具备这类证明时不能由桌面端自称已审核。关键证据改变需撤销旧自动提醒 |
 
 严格区分事件事实、来源声明和系统审核。“审核通过”表示证据满足本产品的发布规则，不表示代替 OpenAI 对每个账户作保证。
 
