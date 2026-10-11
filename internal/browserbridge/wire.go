@@ -99,10 +99,16 @@ func ValidateDevRequest(f Fields) error {
 	return nil
 }
 func Encode(value any) ([]byte,error) {
+	data,_,err:=encodeMeasured(value)
+	return data,err
+}
+// Keep the rejected final JSON byte count available without returning an
+// oversized payload to a transport writer. Encoding and limits stay identical.
+func encodeMeasured(value any) ([]byte,int,error) {
 	data,err:=json.Marshal(value)
-	if err!=nil{return nil,err}
-	if len(data)>MaxBytes{return nil,ErrLimit}
-	return data,nil
+	if err!=nil{return nil,0,err}
+	if len(data)>MaxBytes{return nil,len(data),ErrLimit}
+	return data,len(data),nil
 }
 func writeAll(w io.Writer,data []byte) error {
 	for len(data)>0 {

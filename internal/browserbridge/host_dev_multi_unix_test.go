@@ -352,3 +352,66 @@ func TestR17AccessCapabilityMustBeNegotiated(t *testing.T) {
         host.Close()
     }
 }
+
+// JS transport verifies the public response. This seam also inspects the
+// pending timer/owner fences, which are not observable through Native IPC.
+func TestModernReplyLimitRetiresPendingWithoutReleasingProvider(t *testing.T) {
+	const epoch = "aggregate-epoch"
+	const ownerEpoch = "provider-epoch"
+	rawID := "local-" + strings.Repeat("a", 20)
+	scopedID := modernBinding("source-a", rawID)
+	client := &localClient{providerEpoch: ownerEpoch}
+	var output bytes.Buffer
+	host := &Host{output: &output, done: make(chan struct{}), aggregateEpoch: epoch,
+		devPending: make(map[string]*pendingDev), modern: map[*localClient]*modernProvider{client: {}}}
+	result := map[string]any{"bindingId": scopedID, "sourceUtf8": ""}
+	final := map[string]any{"v": 1, "kind": "dev.response", "requestId": "limit-1", "providerEpoch": epoch, "result": result}
+	base, err := json.Marshal(final)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result["sourceUtf8"] = strings.Repeat("x", MaxBytes+1-len(base))
+	finalBytes, _ := json.Marshal(final)
+	if len(finalBytes) != MaxBytes+1 {
+		t.Fatal("fixture did not reach final +1")
+	}
+
+	deliver := func(id string) (Fields, *time.Timer) {
+		t.Helper()
+		timer := time.NewTimer(time.Hour)
+		t.Cleanup(func() { timer.Stop() })
+		host.devPending[id] = &pendingDev{epoch: ownerEpoch, owner: client, timer: timer,
+			aggregateEpoch: epoch, rawID: rawID, scopedID: scopedID}
+		result["bindingId"] = rawID
+		raw := MustEncode(map[string]any{"v": 1, "kind": "dev.response", "requestId": id,
+			"providerEpoch": ownerEpoch, "result": result})
+		fields, _ := Decode(raw)
+		if !host.deliverDevReply(client, fields, raw) {
+			t.Fatal("live provider was rejected")
+		}
+		body, err := ReadFrame(&output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reply, _ := Decode(body)
+		return reply, timer
+	}
+	reply, timer := deliver("limit-1")
+	if len(host.devPending) != 0 || timer.Stop() {
+		t.Fatal("overflow retained pending call or timer")
+	}
+	if host.aggregateEpoch != epoch || host.modern[client] == nil {
+		t.Fatal("overflow released provider identity")
+	}
+	failure, _ := Decode(reply["error"])
+	if String(failure, "code") != "E_LIMIT" || Int(failure, "jsonBytes") != MaxBytes+1 ||
+		Int(failure, "limitBytes") != MaxBytes || String(failure, "outcome") != "NOT_DISPATCHED" ||
+		!strings.Contains(String(failure, "message"), "jsonBytes=61441, limitBytes=61440") || Has(reply, "result") {
+		t.Fatalf("final JSON diagnostic missing: %s", reply["error"])
+	}
+	result["sourceUtf8"] = "small"
+	recovered, nextTimer := deliver("limit-2")
+	if Has(recovered, "error") || !Has(recovered, "result") || len(host.devPending) != 0 || nextTimer.Stop() {
+		t.Fatal("next explicit request did not complete with clean pending state")
+	}
+}

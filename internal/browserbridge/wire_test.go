@@ -41,3 +41,24 @@ func TestBoundedLineAndRequestSchema(t *testing.T) {
 		if err==nil && ValidateRequest(fields)==nil{t.Fatalf("bad request accepted: %s",bad)}
 	}
 }
+
+func TestMeasuredEncodingKeepsRejectedByteCountWithoutPayload(t *testing.T) {
+	for _, size := range []int{MaxBytes - 1, MaxBytes, MaxBytes + 1} {
+		// JSON quotes add two bytes to this ASCII string.
+		data, bytes, err := encodeMeasured(strings.Repeat("x", size-2))
+		if bytes != size {
+			t.Fatalf("measured %d, want %d", bytes, size)
+		}
+		if size > MaxBytes {
+			if !errors.Is(err, ErrLimit) || data != nil {
+				t.Fatal("overflow exposed payload or lost E_LIMIT")
+			}
+		} else if err != nil || len(data) != size {
+			t.Fatalf("allowed encoding: %v", err)
+		}
+	}
+	data, bytes, err := encodeMeasured(make(chan int))
+	if data != nil || bytes != 0 || err == nil || errors.Is(err, ErrLimit) {
+		t.Fatal("marshal error was misreported as overflow")
+	}
+}

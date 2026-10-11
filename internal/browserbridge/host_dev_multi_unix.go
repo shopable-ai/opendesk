@@ -8,6 +8,7 @@ import (
     "encoding/hex"
     "encoding/json"
     "errors"
+    "fmt"
     "strings"
     "time"
     "unicode/utf8"
@@ -336,8 +337,17 @@ func (h *Host) deliverDevReply(c *localClient, frame Fields, raw []byte) bool {
             reply["result"]=result
         }
     }
-    data,err:=Encode(reply)
-    if err!=nil {h.devError(id,entry.aggregateEpoch,"E_LIMIT");return true}
+    data,jsonBytes,err:=encodeMeasured(reply)
+    if err!=nil {
+        if errors.Is(err,ErrLimit) {
+            _=h.sendChrome(MustEncode(map[string]any{"v":1,"kind":"dev.response",
+                "requestId":id,"providerEpoch":entry.aggregateEpoch,
+                "error":map[string]any{"code":"E_LIMIT","jsonBytes":jsonBytes,
+                    "limitBytes":MaxBytes,"outcome":"NOT_DISPATCHED",
+                    "message":fmt.Sprintf("Native dev.response exceeds limit: jsonBytes=%d, limitBytes=%d, dispatch=NOT_DISPATCHED",jsonBytes,MaxBytes)}}))
+        }else{h.devError(id,entry.aggregateEpoch,"E_LIMIT")}
+        return true
+    }
     _=h.sendChrome(data)
     return true
 }
