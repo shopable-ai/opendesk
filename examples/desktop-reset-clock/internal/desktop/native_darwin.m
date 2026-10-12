@@ -688,6 +688,14 @@ static RCController *controller;
     NSRect frame=self.card.frame;
     NSPoint origin=NSMakePoint([data[@"x"] doubleValue],
                [data[@"y"] doubleValue]-(desiredHeight-RCScreenCardHeight));
+    // An expanded widget close to the screen edge must remain fully visible.
+    // This clamp affects presentation only; persisted collapsed X/Y are stable.
+    NSScreen *screen=self.card.screen ?: NSScreen.mainScreen;
+    if (screen) {
+      NSRect visible=screen.visibleFrame;
+      origin.x=MAX(NSMinX(visible),MIN(origin.x,NSMaxX(visible)-RCScreenCardWidth));
+      origin.y=MAX(NSMinY(visible),MIN(origin.y,NSMaxY(visible)-desiredHeight));
+    }
     if (fabs(frame.size.height-desiredHeight)>1 || fabs(frame.origin.x-origin.x)>1 ||
         fabs(frame.origin.y-origin.y)>1) {
       [self.card setFrame:NSMakeRect(origin.x,origin.y,RCScreenCardWidth,desiredHeight) display:YES];
