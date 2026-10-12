@@ -49,7 +49,7 @@ func(s *State) IsMockPro(now time.Time,demo bool)bool{
  o,ok:=s.Mock.Orders[s.Mock.CurrentOrder]
  return ok && (o.Status=="active" || o.Status=="canceled") && now.Before(o.PaidThrough)
 }
-func(s *State) Remaining()int {
+func(s State) Remaining()int {
  n:=TrialLimit-len(s.PremiumFired)
  if n<0{return 0}
  return n

@@ -3,6 +3,7 @@ package settings
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -14,7 +15,8 @@ func TestAtomicAndDamagedCache(t *testing.T) {
 		t.Fatal(err)
 	}
 	mode, e := os.Stat(p)
-	if e != nil || mode.Mode().Perm()&0077 != 0 {
+	// Go FileMode.Perm is not a Windows ACL; validate POSIX permissions only on Unix.
+	if e != nil || (runtime.GOOS != "windows" && mode.Mode().Perm()&0077 != 0) {
 		t.Fatal("state is world accessible")
 	}
 	other, e := Load(p)
