@@ -34,6 +34,9 @@ type App struct {
 	failures   int
 	DemoSwitch func(int)
 	wakeup     chan struct{}
+	tickerIndex int
+	tickerPaused bool
+	tickerLast time.Time
 }
 
 func New(file string, c feed.Client, now func() time.Time) (*App, error) {
@@ -45,7 +48,7 @@ func New(file string, c feed.Client, now func() time.Time) (*App, error) {
 		log.Printf("state cache unavailable: %v; using clean state", err)
 		s = settings.Default()
 	}
-	a := &App{file: file, s: s, client: c, now: now, reminders: reminder.New(s.Fired), wakeup: make(chan struct{}, 1)}
+	a := &App{file: file, s: s, client: c, now: now, reminders: reminder.New(s.Fired), wakeup: make(chan struct{}, 1), tickerLast: now()}
 	a.reminders.SetEvents(eventsOrEmpty(s.Snapshot), now(), s.Config.Advance10)
 	for _, p := range s.Manual {
 		if p.At.After(now()) && !a.reminders.Fired[p.Key] {
@@ -74,6 +77,8 @@ func (a *App) ConfigureFeed(raw string, allowLocal bool) error {
 		a.s.ArchiveSource = ""
 		a.s.ArchiveError = ""
 		a.s.Health = health.Status{}
+		a.tickerIndex = 0
+		a.s.Config.TickerExpanded = false
 		a.reminders.SetEvents(events.Snapshot{}, a.now(), a.s.Config.Advance10)
 	}
 	a.s.Config.FeedURL = raw
@@ -242,9 +247,35 @@ func min(a, b int) int {
 	return b
 }
 
+// Rotating curated headlines is local-only and does not poll the network.
+func (a *App) advanceTickerLocked(now time.Time) {
+ count:=0
+ if a.s.Snapshot!=nil {count=len(news.Top(a.s.Snapshot.News,3))}
+ if count<2 {a.tickerIndex=0;a.tickerLast=now;return}
+ if a.tickerLast.IsZero()||now.Before(a.tickerLast) {a.tickerLast=now;return}
+ if a.tickerPaused||a.s.Config.TickerExpanded {a.tickerLast=now;return}
+ if now.Sub(a.tickerLast)>=6*time.Second {
+   a.tickerIndex=(a.tickerIndex+1)%count
+   a.tickerLast=now
+ }
+}
+// Display-only precision. Scheduling still uses exact source instants.
+func formatCardRemaining(now,target time.Time) string {
+ left:=target.Sub(now)
+ if left<=0{return "预计时间已到"}
+ minutes:=int64(left/time.Minute)
+ if left%time.Minute>0 {minutes++}
+ days:=minutes/(24*60)
+ hours:=(minutes%(24*60))/60
+ mins:=minutes%60
+ if days>0{return fmt.Sprintf("%d 天 %d 小时 %d 分",days,hours,mins)}
+ if hours>0{return fmt.Sprintf("%d 小时 %d 分",hours,mins)}
+ return fmt.Sprintf("%d 分",minutes)
+}
 func (a *App) Tick() {
-	a.mu.Lock()
-	now := a.now()
+ a.mu.Lock()
+ now := a.now()
+ a.advanceTickerLocked(now)
 	// Staleness and time changes are checked at delivery, not only at schedule creation.
 	oldPlans := make(map[string]reminder.Plan, len(a.reminders.Plans))
 	for k, v := range a.reminders.Plans {
@@ -357,6 +388,7 @@ func (a *App) displayLocked() desktop.Display {
 		d.Badge = "【模拟数据】暂无确定公告"
 	}
 	d.MemberStatus=s.Membership.Status(now,demo)
+	d.TickerExpanded=s.Config.TickerExpanded
 	for i,item:=range catalog.Default() {
 		if i>=len(d.ResourceURLs){break}
 		d.ResourceURLs[i]=item.URL
@@ -450,9 +482,9 @@ func (a *App) displayLocked() desktop.Display {
 		d.Effective = timeLabel(e.EffectiveAt)
 		d.Countdown = clock.Countdown(now, *e.EffectiveAt)
 		d.HasUpcoming, d.HasSourceURL = true, true
-		d.CardHint, d.CardValue = "距离公告预计重置", d.Countdown
+		d.CardHint, d.CardValue = "距离下一次预计重置", formatCardRemaining(now, *e.EffectiveAt)
 		d.CardSummary = cardText(e.Summary, demo)
-		d.CardMeta = "发布 " + shortDate(e.SourcePublishedAt, s.Config.Zone) + "  ·  预计 " + shortDate(e.EffectiveAt, s.Config.Zone)
+		d.CardMeta = "预计 " + shortDate(e.EffectiveAt, s.Config.Zone) + " · 本地时间"
 		d.StatusKind, d.Badge = "active", "来源预告重置"
 		if e.Revision > 1 {
 			d.StatusKind, d.Badge = "revised", fmt.Sprintf("时间已更正 · 修订 %d", e.Revision)
@@ -464,7 +496,7 @@ func (a *App) displayLocked() desktop.Display {
 			d.Published, d.HasSourceURL = timeLabel(withdrawn.SourcePublishedAt), true
 			d.StatusKind, d.Badge = "withdrawn", "公告已撤回"
 			d.CardValue, d.CardSummary = "公告已撤回", cardText(withdrawn.Summary, demo)
-			d.CardMeta = "发布 " + shortDate(withdrawn.SourcePublishedAt, s.Config.Zone)
+			d.CardMeta = "原预计时间已取消 · 不再倒计时"
 		} else if fallback != nil {
 			d.Summary, d.SourceURL = fallback.Summary, fallback.SourceURL
 			d.Published, d.HasSourceURL = timeLabel(fallback.SourcePublishedAt), true
@@ -482,6 +514,18 @@ func (a *App) displayLocked() desktop.Display {
 			d.Badge = "连接异常 · 缓存数据"
 		}
 	}
+    // Keep withdrawn and unavailable stories in the full audit list, but
+    // never promote them (or stale cached headlines) to the active ticker.
+    if s.Health.Grade(now)=="已检查，无新公告或缓存有效" {
+      for _,item:=range news.Top(s.Snapshot.News,3) {
+        source:=map[string]string{"official":"来源标注官方","third_party":"第三方","editorial":"编辑分析"}[item.SourceType]
+        d.TickerItems=append(d.TickerItems,desktop.TickerItem{
+          ID:item.ID,Title:cardText(item.Title,demo),
+          Source:source,Updated:shortDate(&item.UpdatedAt,s.Config.Zone),URL:item.SourceURL,
+        })
+      }
+    }
+    if len(d.TickerItems)>0 {d.TickerIndex=a.tickerIndex%len(d.TickerItems)}else {d.TickerExpanded=false}
 	if demo {
 		d.Badge = "【模拟】" + d.Badge
 	}
@@ -524,6 +568,31 @@ func (a *App) Action(ctx context.Context, action desktop.Action) {
 		}
 		a.mu.Unlock()
 		a.Tick()
+    case "ticker_pause","ticker_resume","ticker_prev","ticker_next","ticker_toggle":
+        a.mu.Lock()
+        now:=a.now()
+        switch action.Name {
+        case "ticker_pause": a.tickerPaused=true
+        case "ticker_resume": a.tickerPaused=false;a.tickerLast=now
+        case "ticker_toggle":
+            a.s.Config.TickerExpanded=!a.s.Config.TickerExpanded
+            if err:=a.saveLocked();err!=nil {
+                a.s.Config.TickerExpanded=!a.s.Config.TickerExpanded
+                log.Printf("ticker expansion save failed: %v",err)
+            }
+            a.tickerLast=now
+        case "ticker_prev","ticker_next":
+            count:=0
+            if a.s.Snapshot!=nil {count=len(news.Top(a.s.Snapshot.News,3))}
+            if count>0 {
+                step:=-1
+                if action.Name=="ticker_next" {step=1}
+                a.tickerIndex=(a.tickerIndex+count+step)%count
+            }
+            a.tickerLast=now
+        }
+        a.mu.Unlock()
+        a.Tick()
 	case "quit":
 		if a.cancel != nil {
 			a.cancel()
