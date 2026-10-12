@@ -10,6 +10,7 @@ import (
 
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/events"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/health"
+	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/history"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/reminder"
 )
 
@@ -29,6 +30,9 @@ type Config struct {
 type State struct {
 	Config         Config           `json:"config"`
 	Snapshot       *events.Snapshot `json:"snapshot,omitempty"`
+	Archive        *history.Archive `json:"archive,omitempty"`
+	ArchiveSource  string           `json:"archive_source,omitempty"`
+	ArchiveError   string           `json:"archive_error,omitempty"`
 	ETag           string           `json:"etag,omitempty"`
 	SourceIdentity string           `json:"source_identity,omitempty"`
 	Health         health.Status    `json:"health"`
@@ -76,7 +80,15 @@ func Load(path string) (State, error) {
 			s.Snapshot = nil
 			s.ETag = ""
 			s.SourceIdentity = ""
+			s.Archive = nil
+			s.ArchiveSource = ""
+			s.ArchiveError = ""
 		}
+	}
+	if s.Snapshot==nil || s.Snapshot.HistoryURL=="" || s.ArchiveSource!=s.Snapshot.HistoryURL ||
+	   (s.Archive!=nil && (s.Archive.ChannelID!=s.Snapshot.ChannelID || s.Archive.ArchiveVersion!=s.Snapshot.HistoryVersion)) {
+		s.Archive=nil
+		s.ArchiveSource=""
 	}
 	return s, nil
 }

@@ -11,6 +11,8 @@ import (
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/news"
 )
 
 type SourceHealth struct {
@@ -37,6 +39,9 @@ type Snapshot struct {
 	GeneratedAt   time.Time    `json:"generated_at"`
 	SourceHealth  SourceHealth `json:"source_health"`
 	Events        []Event      `json:"events"`
+	HistoryURL    string       `json:"history_url,omitempty"`
+	HistoryVersion int64       `json:"history_version,omitempty"`
+	News          []news.Item  `json:"news,omitempty"`
 }
 
 func Decode(data []byte) (Snapshot, error) {
@@ -69,6 +74,17 @@ func Validate(s Snapshot) error {
 	if s.SourceHealth.LastCheckedAt != nil && s.SourceHealth.LastCheckedAt.After(now.Add(24*time.Hour)) {
 		return errors.New("upstream check timestamp in the future")
 	}
+	if (s.HistoryURL=="") != (s.HistoryVersion==0) || s.HistoryVersion<0 {
+		return errors.New("history_url and positive history_version must appear together")
+	}
+	if s.HistoryURL!="" {
+		u,err:=url.Parse(s.HistoryURL)
+		if err!=nil || u==nil || u.Host=="" || u.User!=nil || u.Fragment!="" || u.Opaque!="" ||
+			(u.Scheme!="https" && !(u.Scheme=="http" && (u.Hostname()=="localhost" || u.Hostname()=="127.0.0.1" || u.Hostname()=="::1"))) {
+			return errors.New("invalid archive URL")
+		}
+	}
+	if err:=news.Validate(s.News);err!=nil{return fmt.Errorf("invalid news: %w",err)}
 	ids := map[string]bool{}
 	for _, e := range s.Events {
 		if e.ID == "" || len(e.ID) > 160 || e.Revision < 1 || ids[e.ID] {
@@ -138,6 +154,14 @@ func Reconcile(old *Snapshot, next Snapshot) (changed bool, err error) {
 	}
 	if len(previous) > 0 {
 		return false, errors.New("event disappeared without withdrawn tombstone")
+	}
+	if next.HistoryVersion<old.HistoryVersion && next.HistoryURL==old.HistoryURL {
+		return false,errors.New("archive version regression")
+	}
+	newsChanged,err:=news.Reconcile(old.News,next.News)
+	if err!=nil{return false,err}
+	if newsChanged || next.HistoryURL!=old.HistoryURL || next.HistoryVersion!=old.HistoryVersion {
+		changed=true
 	}
 	if next.FeedVersion == old.FeedVersion && changed {
 		return false, errors.New("same feed_version with different events")

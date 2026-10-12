@@ -14,6 +14,7 @@ import (
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/events"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/feed"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/health"
+	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/history"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/reminder"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/settings"
 )
@@ -67,6 +68,9 @@ func (a *App) ConfigureFeed(raw string, allowLocal bool) error {
 		a.s.Snapshot = nil
 		a.s.ETag = ""
 		a.s.SourceIdentity = ""
+		a.s.Archive = nil
+		a.s.ArchiveSource = ""
+		a.s.ArchiveError = ""
 		a.s.Health = health.Status{}
 		a.reminders.SetEvents(events.Snapshot{}, a.now(), a.s.Config.Advance10)
 	}
@@ -105,6 +109,9 @@ func (a *App) Refresh(ctx context.Context) error {
 	etag := a.s.ETag
 	cached := a.s.Snapshot != nil && a.s.SourceIdentity == raw
 	allowLocal := a.s.Config.AllowLocalHTTP
+	previousArchive := a.s.Archive
+	previousArchiveSource := a.s.ArchiveSource
+	previousSnapshot := a.s.Snapshot
 	a.mu.Unlock()
 	if raw == "" {
 		return errors.New("feed URL not configured")
@@ -116,6 +123,25 @@ func (a *App) Refresh(ctx context.Context) error {
 	c := a.client
 	c.AllowLocalHTTP = allowLocal
 	res, err := c.Fetch(ctx, raw, etag, cached)
+	var archive *history.Archive
+	var archiveErr error
+	var archiveSource string
+	if err==nil {
+		accepted:=res.Snapshot
+		if res.NotModified && previousSnapshot!=nil {accepted=*previousSnapshot}
+		archiveSource=accepted.HistoryURL
+		if archiveSource!="" {
+			if previousArchive!=nil && previousArchiveSource==archiveSource &&
+			  previousArchive.ArchiveVersion==accepted.HistoryVersion &&
+			  previousArchive.ChannelID==accepted.ChannelID {
+				archive=previousArchive
+			} else {
+				var loaded history.Archive
+				loaded,archiveErr=c.FetchArchive(ctx,raw,archiveSource,accepted.ChannelID,accepted.HistoryVersion)
+				if archiveErr==nil {archive=&loaded}
+			}
+		}
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if raw != a.s.Config.FeedURL {
@@ -154,6 +180,10 @@ func (a *App) Refresh(ctx context.Context) error {
 	future.Health.NextRetryAt = nil
 	future.Health.PausedUnauthorized = false
 	changed := false
+	future.Archive=archive
+	future.ArchiveSource=archiveSource
+	future.ArchiveError=""
+	if archiveErr!=nil {future.ArchiveError="外部历史归档暂不可用"}
 	if !res.NotModified {
 		changed, err = events.Reconcile(a.s.Snapshot, res.Snapshot)
 		if err != nil {
