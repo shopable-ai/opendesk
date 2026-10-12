@@ -53,3 +53,27 @@ jobs:
         run: GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o ../../.runtime-reset-clock-windows.exe ./cmd/desktop-reset-clock
       - name: macOS arm64 non-CGO fallback build
         run: GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o ../../.runtime-reset-clock-mac-fallback ./cmd/desktop-reset-clock
+
+  preview-browser:
+    name: R2.2 Chromium visual oracle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Playwright Chromium
+        run: |
+          python -m pip install --disable-pip-version-check playwright
+          python -m playwright install --with-deps chromium
+      - name: Render and check R2.2 source prototype
+        run: python examples/desktop-reset-clock/tests/r22_browser_test.py
+      - name: Preserve visual evidence without committing runtime data
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reset-clock-r22-browser-evidence
+          path: .runtime/tests/desktop-reset-clock/r22
+          if-no-files-found: ignore
+          retention-days: 7
