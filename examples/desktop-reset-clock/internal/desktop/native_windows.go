@@ -162,6 +162,11 @@ type windowsUI struct {
 	handler                                                           func(Action)
 	card, settings, feedEdit, diagnostics                             uintptr
 	details, detailsHistory, detailsNews, detailsResources, detailsMember uintptr
+ detailsTabs [3]uintptr
+ detailsPages [3][]uintptr
+ detailsPeriodButtons [2]uintptr
+ detailsPeriodIndex, detailsTabIndex int
+ detailsStats, detailsOverviewNews, detailsOverviewStatus uintptr
 	detailsHistoryLink, detailsFont, detailsHistoryPicker uintptr
 	lastEvidence []SourceEvidence
 	detailsNewsPicker, detailsNewsLink uintptr
@@ -314,10 +319,9 @@ func windowProc(hwnd uintptr, id uint32, wparam, lparam uintptr) uintptr {
 			command:=uint16(wparam&0xffff)
 			switch {
 			case command==2210: w.openHistoryLink()
-			case command==2201: w.openNewsLink()
-			case command>=2221 && command<=2222: w.openResourceLink(int(command-2221))
-			case command==2301: w.mu.Lock();demo:=w.display.Demo;w.mu.Unlock();if demo{w.emit("mock_pay","")}
-			case command==2302: w.mu.Lock();demo:=w.display.Demo;w.mu.Unlock();if demo{w.emit("mock_refund","")}
+            case command==2201: w.openNewsLink()
+            case command>=2401&&command<=2403: w.setDetailsTab(int(command-2401))
+            case command>=2410&&command<=2411: w.setDetailsPeriod(int(command-2410))
 			}
 			return 0
 		}
@@ -589,6 +593,8 @@ func (w *windowsUI) menu() {
         {name: "ticker_toggle", title: "展开 / 收起动态", checked: d.TickerExpanded},
 		{name: "refresh", title: "立即检查来源"},
 		{name: "source", title: "打开原始公告"},
+        {name:"resource_0",title:"Codex 官方资料"},
+        {name:"resource_1",title:"API 使用指南"},
 		{separator: true},
 		{name: "show", title: "显示桌面卡片", checked: d.Show},
 		{name: "lock", title: "锁定位置（点击穿透）", checked: d.Locked},
@@ -601,7 +607,9 @@ func (w *windowsUI) menu() {
 	if d.Demo {
 		opts = append(opts, menuOption{name: "demo_v1", title: "模拟公告 V1"},
 			menuOption{name: "demo_v2", title: "模拟公告 V2"},
-			menuOption{name: "demo_v3", title: "模拟公告 V3"}, menuOption{separator: true})
+			menuOption{name: "demo_v3", title: "模拟公告 V3"},
+            menuOption{name:"mock_pay",title:"模拟 Pro（不收费）"},
+            menuOption{name:"mock_refund",title:"模拟退款 / 撤权"},menuOption{separator:true})
 	}
 	opts = append(opts, menuOption{name: "quit", title: "退出"})
 	for i, option := range opts {
@@ -633,6 +641,10 @@ func (w *windowsUI) menu() {
 		w.detailsWindow()
 	case "source":
 		w.openSource()
+    case "resource_0":
+        w.openResourceLink(0)
+    case "resource_1":
+        w.openResourceLink(1)
 	case "quit":
 		w.emit("quit", "")
 		call(postMsg, w.card, wmClose, 0, 0)
@@ -695,44 +707,78 @@ func (w *windowsUI) settingsWindow() {
 	call(setForeground, w.settings)
 }
 // Details stay separate from the 386x260 desktop widget and use the SAME native Win32 host.
+// Three native detail pages share the original Win32 window. No WebView.
 func (w *windowsUI) detailsWindow(){
- if w.details==0{
+ if w.details==0 {
   class:=ptr("OpenDesk.ResetClock.Native.R1")
-  w.details=call(createWin,0,uintptr(unsafe.Pointer(class)),utf("Reset Clock · 历史与资讯（来源声明）"),
-    wsOverlapped,200,155,594,645,0,0,call(kernel32.NewProc("GetModuleHandleW"),0),0)
+  w.details=call(createWin,0,uintptr(unsafe.Pointer(class)),utf("Reset Clock · 记录与动态"),
+    wsOverlapped,200,155,594,660,0,0,call(kernel32.NewProc("GetModuleHandleW"),0),0)
   if w.details==0{return}
-  negativeFontHeight:=int32(-16)
-  w.detailsFont=call(createFont,uintptr(uint32(negativeFontHeight)),0,0,0,400,0,0,0,1,0,0,0,0,utf("Segoe UI"))
-  child:=func(class,name string,style uintptr,x,y,width,height int,id uintptr)uintptr{
-   hwnd:=call(createWin,0,utf(class),utf(name),wsChild|wsVisible|style,
+  w.detailsFont=call(createFont,uintptr(uint32(int32(-16))),0,0,0,400,0,0,0,1,0,0,0,0,utf("Segoe UI"))
+  child:=func(page int,class,name string,style uintptr,x,y,width,height int,id uintptr)uintptr{
+    handle:=call(createWin,0,utf(class),utf(name),wsChild|wsVisible|style,
       uintptr(x),uintptr(y),uintptr(width),uintptr(height),w.details,id,0,0)
-   if hwnd!=0 && w.detailsFont!=0{call(sendMsg,hwnd,wmSetFont,w.detailsFont,1)}
-   return hwnd
+    if handle!=0&&w.detailsFont!=0{call(sendMsg,handle,wmSetFont,w.detailsFont,1)}
+    if page>=0&&page<3 {w.detailsPages[page]=append(w.detailsPages[page],handle)}
+    return handle
   }
-  child("STATIC","最近 30 天 / 当前自然月 · 历史统计",0,19,16,544,25,0)
-  w.detailsHistory=child("EDIT","",0x0800|0x0004|0x00200000|0x00800000,19,47,538,124,0)
-  w.detailsHistoryPicker=child("COMBOBOX","",0x0003|0x00200000,19,178,317,230,0)
-  w.detailsHistoryLink=child("BUTTON","打开选中来源 ↗",0,352,178,204,28,2210)
-  child("STATIC","精选动态 · 来源标注不等于官方核验",0,19,222,545,24,0)
-  w.detailsNews=child("EDIT","",0x0800|0x0004|0x00200000|0x00800000,19,250,538,122,0)
-  w.detailsNewsPicker=child("COMBOBOX","",0x0003|0x00200000,19,380,317,230,0)
-  w.detailsNewsLink=child("BUTTON","打开选中动态 ↗",0,352,380,204,28,2201)
-  w.detailsResources=child("STATIC","",0,19,428,538,23,0)
-  for i:=0;i<2;i++{
-   name:="Codex 官方资源 ↗"
-   if i==1{name="API 开发指南 ↗"}
-   w.detailsResourceLinks[i]=child("BUTTON",name,0,19+i*225,455,215,28,uintptr(2221+i))
+  child(-1,"STATIC","记录与动态",0,19,14,540,25,0)
+  for i,name:=range []string{"概览","历史记录","资讯"} {
+    w.detailsTabs[i]=child(-1,"BUTTON",name,0x00010000,19+i*179,48,166,32,2401+i)
   }
-  w.detailsMember=child("EDIT","",0x0800|0x0004|0x00800000,19,509,538,41,0)
-  w.detailsMockPay=child("BUTTON","启用模拟 Pro · 不收费",0,19,564,231,29,2301)
-  w.detailsMockRefund=child("BUTTON","模拟退款 / 撤权",0,265,564,157,29,2302)
+  child(0,"STATIC","重置事件统计",0,19,105,273,25,0)
+  for i,name:=range []string{"最近 30 天","本月"}{
+    w.detailsPeriodButtons[i]=child(0,"BUTTON",name,0x00010000,305+i*125,100,119,32,2410+i)
+  }
+  w.detailsStats=child(0,"EDIT","数据不足",0x0800|0x0004|0x00200000|0x00800000,19,148,538,197,0)
+  child(0,"STATIC","最近三条有效动态",0,19,369,538,25,0)
+  w.detailsOverviewNews=child(0,"EDIT","暂无有效资讯",0x0800|0x0004|0x00200000|0x00800000,19,405,538,126,0)
+  w.detailsOverviewStatus=child(0,"STATIC","来源类别由提供方标注，不代表账户额度已恢复",0,19,555,538,35,0)
+
+  child(1,"STATIC","历史时间线 · 含修订、确认及撤回",0,19,106,538,25,0)
+  w.detailsHistory=child(1,"EDIT","数据不足",0x0800|0x0004|0x00200000|0x00800000,19,144,538,369,0)
+  w.detailsHistoryPicker=child(1,"COMBOBOX","",0x0003|0x00200000|0x00010000,19,536,317,230,0)
+  w.detailsHistoryLink=child(1,"BUTTON","查看证据 ↗",0x00010000,353,536,204,29,2210)
+  child(1,"STATIC","未覆盖完整时段时不推断零次，修订不重复计数。",0,19,578,538,20,0)
+
+  child(2,"STATIC","全部资讯 · 来源 / 时间 / 修订状态",0,19,106,538,25,0)
+  w.detailsNews=child(2,"EDIT","暂无资讯记录",0x0800|0x0004|0x00200000|0x00800000,19,144,538,369,0)
+  w.detailsNewsPicker=child(2,"COMBOBOX","",0x0003|0x00200000|0x00010000,19,536,317,230,0)
+  w.detailsNewsLink=child(2,"BUTTON","打开 HTTPS 来源 ↗",0x00010000,353,536,204,29,2201)
+  child(2,"STATIC","已撤回与来源失效保留供追溯，但不参与有效轮播。",0,19,578,538,20,0)
+  w.setDetailsTab(0)
+  w.detailsPeriodIndex=0
  }
- w.mu.Lock()
- d:=w.display
- w.mu.Unlock()
+ w.mu.Lock();d:=w.display;w.mu.Unlock()
  w.syncDetails(d)
  call(showWin,w.details,swShow)
  call(setForeground,w.details)
+}
+func (w *windowsUI) setDetailsTab(index int){
+ if index<0||index>2{return}
+ w.detailsTabIndex=index
+ for i,page:=range w.detailsPages{
+  for _,handle:=range page{
+   if handle==0{continue}
+   if i==index{call(showWin,handle,swShow)}else{call(showWin,handle,swHide)}
+  }
+ }
+ for i,handle:=range w.detailsTabs{
+  name:=[]string{"概览","历史记录","资讯"}[i]
+  if i==index{name="● "+name}
+  if handle!=0{call(setText,handle,utf(name))}
+ }
+}
+func (w *windowsUI) setDetailsPeriod(index int){
+ if index<0||index>1{return}
+ w.detailsPeriodIndex=index
+ for i,handle:=range w.detailsPeriodButtons {
+  title:=[]string{"最近 30 天","本月"}[i]
+  if i==index{title="● "+title}
+  if handle!=0{call(setText,handle,utf(title))}
+ }
+ w.mu.Lock();d:=w.display;w.mu.Unlock()
+ w.syncDetails(d)
 }
 func (w *windowsUI) openDetailsURL(raw string){
  parsed,err:=url.Parse(raw)
@@ -765,52 +811,66 @@ func (w *windowsUI) openResourceLink(i int){
 }
 func (w *windowsUI) syncDetails(d Display){
  if w.details==0{return}
- if d.DetailsHistory!=w.lastHistory {
-  call(setText,w.detailsHistory,utf(strings.ReplaceAll(d.DetailsHistory,"\n","\r\n")))
-  w.lastHistory=d.DetailsHistory
+ statRows:=d.Stats30
+ if w.detailsPeriodIndex==1{statRows=d.StatsMonth}
+ var stats strings.Builder
+ for _,row:=range statRows{
+   stats.WriteString(row.Name+"    "+row.Value+"\r\n")
+   stats.WriteString("    "+row.Detail+"\r\n\r\n")
  }
- if d.DetailsNews!=w.lastNews {
-  call(setText,w.detailsNews,utf(strings.ReplaceAll(d.DetailsNews,"\n","\r\n")))
-  w.lastNews=d.DetailsNews
+ if stats.Len()==0{stats.WriteString("数据不足")}
+ call(setText,w.detailsStats,utf(stats.String()))
+ if d.DetailsOverviewNews!=w.lastResources {
+   call(setText,w.detailsOverviewNews,utf(strings.ReplaceAll(d.DetailsOverviewNews,"\n","\r\n")))
+   w.lastResources=d.DetailsOverviewNews
  }
- if d.DetailsResources!=w.lastResources{
-  call(setText,w.detailsResources,utf(d.DetailsResources));w.lastResources=d.DetailsResources
+ call(setText,w.detailsOverviewStatus,utf(d.Health+" · 来源类别未独立核验"))
+ var timeline strings.Builder
+ for _,entry:=range d.HistoryRows{
+   timeline.WriteString(fmt.Sprintf("%s  %s · 修订 %d\r\n",entry.When,entry.Title,entry.Revision))
+   timeline.WriteString(entry.Summary+"\r\n\r\n")
  }
- if d.MemberStatus!=w.lastMember{
-  call(setText,w.detailsMember,utf(d.MemberStatus));w.lastMember=d.MemberStatus
+ timelineText:=timeline.String()
+ if timelineText==""{timelineText="数据不足 · 暂无可核验历史归档"}
+ if timelineText!=w.lastHistory {
+   call(setText,w.detailsHistory,utf(timelineText))
+   w.lastHistory=timelineText
+ }
+ if d.DetailsFullNews!=w.lastNews{
+   call(setText,w.detailsNews,utf(strings.ReplaceAll(d.DetailsFullNews,"\n","\r\n")))
+   w.lastNews=d.DetailsFullNews
  }
  if !reflect.DeepEqual(w.lastEvidence,d.HistoryEvidence) {
   selection:=int(call(sendMsg,w.detailsHistoryPicker,0x0147,0,0))
-  call(sendMsg,w.detailsHistoryPicker,0x014B,0,0) // CB_RESETCONTENT
-  for _,e:=range d.HistoryEvidence{call(sendMsg,w.detailsHistoryPicker,0x0143,0,utf(e.Label))} // CB_ADDSTRING
+  call(sendMsg,w.detailsHistoryPicker,0x014B,0,0)
+  for _,e:=range d.HistoryEvidence{call(sendMsg,w.detailsHistoryPicker,0x0143,0,utf(e.Label))}
   w.lastEvidence=append([]SourceEvidence(nil),d.HistoryEvidence...)
-  if len(d.HistoryEvidence)>0 {
-   if selection<0||selection>=len(d.HistoryEvidence){selection=0}
-   call(sendMsg,w.detailsHistoryPicker,0x014E,uintptr(selection),0) // CB_SETCURSEL
+  if len(d.HistoryEvidence)>0{
+    if selection<0||selection>=len(d.HistoryEvidence){selection=0}
+    call(sendMsg,w.detailsHistoryPicker,0x014E,uintptr(selection),0)
   }
  }
- call(enableWindow,w.detailsHistoryPicker,uintptr(boolInt(len(d.HistoryEvidence)>0)))
- call(enableWindow,w.detailsHistoryLink,uintptr(boolInt(len(d.HistoryEvidence)>0)))
  if !reflect.DeepEqual(w.lastNewsOptions,d.AllNews){
-  selection:=int(call(sendMsg,w.detailsNewsPicker,0x0147,0,0))
+  selected:=int(call(sendMsg,w.detailsNewsPicker,0x0147,0,0))
   call(sendMsg,w.detailsNewsPicker,0x014B,0,0)
   for _,e:=range d.AllNews{call(sendMsg,w.detailsNewsPicker,0x0143,0,utf(e.Label))}
   w.lastNewsOptions=append([]SourceEvidence(nil),d.AllNews...)
   if len(d.AllNews)>0{
-   if selection<0||selection>=len(d.AllNews){selection=0}
-   call(sendMsg,w.detailsNewsPicker,0x014E,uintptr(selection),0)
+    if selected<0||selected>=len(d.AllNews){selected=0}
+    call(sendMsg,w.detailsNewsPicker,0x014E,uintptr(selected),0)
   }
  }
+ call(enableWindow,w.detailsHistoryPicker,uintptr(boolInt(len(d.HistoryEvidence)>0)))
  call(enableWindow,w.detailsNewsPicker,uintptr(boolInt(len(d.AllNews)>0)))
- call(enableWindow,w.detailsNewsLink,uintptr(boolInt(len(d.AllNews)>0)))
- for i:=0;i<2;i++{call(enableWindow,w.detailsResourceLinks[i],uintptr(boolInt(strings.HasPrefix(d.ResourceURLs[i],"https://"))))}
- if d.Demo {
-  call(showWin,w.detailsMockPay,swShow);call(showWin,w.detailsMockRefund,swShow)
- }else{
-  call(showWin,w.detailsMockPay,swHide);call(showWin,w.detailsMockRefund,swHide)
- }
+ selectedH:=int(call(sendMsg,w.detailsHistoryPicker,0x0147,0,0))
+ selectedN:=int(call(sendMsg,w.detailsNewsPicker,0x0147,0,0))
+ historyOK:=selectedH>=0&&selectedH<len(d.HistoryEvidence)&&
+    strings.HasPrefix(d.HistoryEvidence[selectedH].URL,"https://")
+ newsOK:=selectedN>=0&&selectedN<len(d.AllNews)&&
+    strings.HasPrefix(d.AllNews[selectedN].URL,"https://")
+ call(enableWindow,w.detailsHistoryLink,uintptr(boolInt(historyOK)))
+ call(enableWindow,w.detailsNewsLink,uintptr(boolInt(newsOK)))
 }
-
 func (w *windowsUI) toggleDiagnostics() {
 	w.advancedShown = !w.advancedShown
 	if w.advancedShown {
