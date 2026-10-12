@@ -81,3 +81,21 @@ func TestR22LocalTickerPausePersistAndRetraction(t *testing.T) {
    t.Fatalf("stale source promoted actionable information: %+v",stale)
  }
 }
+
+func TestR22SourceLagSuppressesFutureCountdown(t *testing.T) {
+ instant:=time.Date(2026,10,12,8,30,0,0,time.UTC)
+ clock:=func()time.Time{return instant}
+ server:=httptest.NewServer(mock.New(clock).Handler())
+ defer server.Close()
+ app,err:=New(filepath.Join(t.TempDir(),"state.json"),feed.Client{AllowLocalHTTP:true},clock)
+ if err!=nil{t.Fatal(err)}
+ if err=app.ConfigureFeed(server.URL+"/feed",true);err!=nil{t.Fatal(err)}
+ if err=app.Refresh(context.Background());err!=nil{t.Fatal(err)}
+ if d:=app.Display();!d.HasUpcoming{t.Fatalf("expected healthy future forecast: %+v",d)}
+ instant=instant.Add(16*time.Minute)
+ after:=app.Display()
+ if after.HasUpcoming||after.Countdown!=""||after.StatusKind!="stale"||
+  after.CardValue!="预计时间待核验"||len(after.TickerItems)!=0{
+  t.Fatalf("source lag must suppress actionable countdown and live news: %+v",after)
+ }
+}
