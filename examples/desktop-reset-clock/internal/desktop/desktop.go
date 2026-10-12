@@ -46,6 +46,7 @@ type Display struct {
 	HistorySourceURL string `json:"history_source_url"`
 	HistoryEvidence []SourceEvidence `json:"history_evidence,omitempty"`
 	NewsURLs [3]string `json:"news_urls"`
+	AllNews []SourceEvidence `json:"all_news,omitempty"`
 
 	Show      bool `json:"show"`
 	Locked    bool `json:"locked"`

@@ -90,7 +90,9 @@ static NSButton *RCSettingsCheckbox(NSView *parent, CGFloat top, CGFloat x, CGFl
 @property (strong) NSButton *detailsSourceButton;
 @property (strong) NSPopUpButton *historyPicker;
 @property (copy) NSArray *lastEvidenceOptions;
-@property (strong) NSArray<NSButton *> *newsButtons;
+@property (strong) NSPopUpButton *newsPicker;
+@property (strong) NSButton *newsSourceButton;
+@property (copy) NSArray *lastNewsOptions;
 @property (strong) NSArray<NSButton *> *resourceButtons;
 @property (strong) NSButton *mockPayButton;
 @property (strong) NSButton *mockRefundButton;
@@ -335,18 +337,15 @@ static RCController *controller;
                                   NSFontWeightRegular,NSColor.labelColor,YES,NSTextAlignmentLeft);
         self.detailsNews.maximumNumberOfLines = 8;
         self.detailsNews.selectable = YES;
-        NSMutableArray *news = [NSMutableArray array];
-        for (NSInteger i=0; i<3; i++) {
-            NSButton *button = [[NSButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,18+i*169,364,158,28)];
-            button.title = [NSString stringWithFormat:@"打开动态 %ld ↗",(long)i+1];
-            button.tag = i;
-            button.bezelStyle = NSBezelStyleRounded;
-            button.target = self;
-            button.action = @selector(openNewsClick:);
-            [content addSubview:button];
-            [news addObject:button];
-        }
-        self.newsButtons = news;
+        self.newsPicker = [[NSPopUpButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,18,364,316,28) pullsDown:NO];
+        self.newsPicker.toolTip = @"完整资讯（包括已撤回及来源失效项）";
+        [content addSubview:self.newsPicker];
+        self.newsSourceButton = [[NSButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,351,364,186,28)];
+        self.newsSourceButton.title = @"打开选中动态 ↗";
+        self.newsSourceButton.bezelStyle = NSBezelStyleRounded;
+        self.newsSourceButton.target = self;
+        self.newsSourceButton.action = @selector(openNewsClick:);
+        [content addSubview:self.newsSourceButton];
         self.detailsResources = RCText(content,RCTopRect(RCDetailsHeight,18,410,520,20),12,
                                       NSFontWeightMedium,NSColor.secondaryLabelColor,NO,NSTextAlignmentLeft);
         NSMutableArray *resources = [NSMutableArray array];
@@ -393,11 +392,12 @@ static RCController *controller;
     NSDictionary *entry = [list[selected] isKindOfClass:NSDictionary.class] ? list[selected] : nil;
     [self openSafeDetailsURL:RCString(entry,@"url")];
 }
-- (void)openNewsClick:(NSButton *)sender {
-    NSArray *urls = self.lastPayload[@"news_urls"];
-    if ([urls isKindOfClass:NSArray.class] && sender.tag < urls.count &&
-        [urls[sender.tag] isKindOfClass:NSString.class])
-        [self openSafeDetailsURL:urls[sender.tag]];
+- (void)openNewsClick:(id)sender {
+    NSArray *items = self.lastPayload[@"all_news"];
+    NSInteger selected = self.newsPicker.indexOfSelectedItem;
+    if (![items isKindOfClass:NSArray.class] || selected<0 || selected>=items.count) return;
+    NSDictionary *entry = [items[selected] isKindOfClass:NSDictionary.class] ? items[selected] : nil;
+    [self openSafeDetailsURL:RCString(entry,@"url")];
 }
 - (void)openResourceClick:(NSButton *)sender {
     NSArray *urls = self.lastPayload[@"resource_urls"];
@@ -427,10 +427,20 @@ static RCController *controller;
     }
     self.historyPicker.enabled = links.count>0;
     self.detailsSourceButton.enabled = links.count>0;
-    NSArray *news = [data[@"news_urls"] isKindOfClass:NSArray.class] ? data[@"news_urls"] : @[];
-    for (NSInteger i=0; i<self.newsButtons.count; i++)
-        self.newsButtons[i].enabled = i<news.count && [news[i] isKindOfClass:NSString.class] &&
-                                      [news[i] hasPrefix:@"https://"];
+    NSArray *news = [data[@"all_news"] isKindOfClass:NSArray.class] ? data[@"all_news"] : @[];
+    if (![self.lastNewsOptions isEqualToArray:news]) {
+        NSInteger selected = self.newsPicker.indexOfSelectedItem;
+        [self.newsPicker removeAllItems];
+        for (NSDictionary *entry in news) {
+            if (![entry isKindOfClass:NSDictionary.class]) continue;
+            [self.newsPicker addItemWithTitle:RCString(entry,@"label")];
+        }
+        self.lastNewsOptions = [news copy];
+        if (news.count>0) [self.newsPicker selectItemAtIndex:MAX(0,MIN(selected,(NSInteger)news.count-1))];
+        else [self.newsPicker addItemWithTitle:@"暂无资讯"];
+    }
+    self.newsPicker.enabled = news.count>0;
+    self.newsSourceButton.enabled = news.count>0;
     NSArray *resources = [data[@"resource_urls"] isKindOfClass:NSArray.class] ? data[@"resource_urls"] : @[];
     for (NSInteger i=0; i<self.resourceButtons.count; i++)
         self.resourceButtons[i].enabled = i<resources.count && [resources[i] isKindOfClass:NSString.class] &&

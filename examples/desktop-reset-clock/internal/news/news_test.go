@@ -15,6 +15,9 @@ func TestRevisionWithdrawalSortingAndUntrustedURL(t *testing.T){
  next[0].Revision=2;next[0].State="withdrawn"
  if changed,e:=Reconcile(old,next);e!=nil||!changed{t.Fatalf("withdrawn: %v %t",e,changed)}
  if len(Top(next,3))!=2{t.Fatal("withdrawn shown")}
+ if ordered:=Ordered(next);len(ordered)!=3 || ordered[0].ID!="a" || ordered[0].State!="withdrawn"{
+   t.Fatal("full news listing did not keep latest withdrawal")
+ }
  if _,e:=Reconcile(old,next[1:]);e==nil{t.Fatal("missing tombstone allowed")}
  next[0].SourceURL="http://invalid.example"
  if Validate(next)==nil{t.Fatal("unsafe link allowed")}

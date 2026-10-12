@@ -158,7 +158,8 @@ type windowsUI struct {
 	details, detailsHistory, detailsNews, detailsResources, detailsMember uintptr
 	detailsHistoryLink, detailsFont, detailsHistoryPicker uintptr
 	lastEvidence []SourceEvidence
-	detailsNewsLinks [3]uintptr
+	detailsNewsPicker, detailsNewsLink uintptr
+	lastNewsOptions []SourceEvidence
 	detailsResourceLinks [2]uintptr
 	detailsMockPay, detailsMockRefund uintptr
 	lastHistory, lastNews, lastResources, lastMember string
@@ -306,7 +307,7 @@ func windowProc(hwnd uintptr, id uint32, wparam, lparam uintptr) uintptr {
 			command:=uint16(wparam&0xffff)
 			switch {
 			case command==2210: w.openHistoryLink()
-			case command>=2201 && command<=2203: w.openNewsLink(int(command-2201))
+			case command==2201: w.openNewsLink()
 			case command>=2221 && command<=2222: w.openResourceLink(int(command-2221))
 			case command==2301: w.mu.Lock();demo:=w.display.Demo;w.mu.Unlock();if demo{w.emit("mock_pay","")}
 			case command==2302: w.mu.Lock();demo:=w.display.Demo;w.mu.Unlock();if demo{w.emit("mock_refund","")}
@@ -662,9 +663,8 @@ func (w *windowsUI) detailsWindow(){
   w.detailsHistoryLink=child("BUTTON","打开选中来源 ↗",0,352,178,204,28,2210)
   child("STATIC","精选动态 · 来源标注不等于官方核验",0,19,222,545,24,0)
   w.detailsNews=child("EDIT","",0x0800|0x0004|0x00200000|0x00800000,19,250,538,122,0)
-  for i:=0;i<3;i++{
-   w.detailsNewsLinks[i]=child("BUTTON",fmt.Sprintf("打开动态 %d ↗",i+1),0,19+i*181,380,174,28,uintptr(2201+i))
-  }
+  w.detailsNewsPicker=child("COMBOBOX","",0x0003|0x00200000,19,380,317,230,0)
+  w.detailsNewsLink=child("BUTTON","打开选中动态 ↗",0,352,380,204,28,2201)
   w.detailsResources=child("STATIC","",0,19,428,538,23,0)
   for i:=0;i<2;i++{
    name:="Codex 官方资源 ↗"
@@ -697,9 +697,13 @@ func (w *windowsUI) openHistoryLink(){
  w.mu.Unlock()
  w.openDetailsURL(link)
 }
-func (w *windowsUI) openNewsLink(i int){
- if i<0||i>=3{return}
- w.mu.Lock();link:=w.display.NewsURLs[i];w.mu.Unlock()
+func (w *windowsUI) openNewsLink(){
+ index:=int(call(sendMsg,w.detailsNewsPicker,0x0147,0,0))
+ w.mu.Lock()
+ sources:=w.display.AllNews
+ link:=""
+ if index>=0&&index<len(sources){link=sources[index].URL}
+ w.mu.Unlock()
  w.openDetailsURL(link)
 }
 func (w *windowsUI) openResourceLink(i int){
@@ -735,7 +739,18 @@ func (w *windowsUI) syncDetails(d Display){
  }
  call(enableWindow,w.detailsHistoryPicker,uintptr(boolInt(len(d.HistoryEvidence)>0)))
  call(enableWindow,w.detailsHistoryLink,uintptr(boolInt(len(d.HistoryEvidence)>0)))
- for i:=0;i<3;i++{call(enableWindow,w.detailsNewsLinks[i],uintptr(boolInt(strings.HasPrefix(d.NewsURLs[i],"https://"))))}
+ if !reflect.DeepEqual(w.lastNewsOptions,d.AllNews){
+  selection:=int(call(sendMsg,w.detailsNewsPicker,0x0147,0,0))
+  call(sendMsg,w.detailsNewsPicker,0x014B,0,0)
+  for _,e:=range d.AllNews{call(sendMsg,w.detailsNewsPicker,0x0143,0,utf(e.Label))}
+  w.lastNewsOptions=append([]SourceEvidence(nil),d.AllNews...)
+  if len(d.AllNews)>0{
+   if selection<0||selection>=len(d.AllNews){selection=0}
+   call(sendMsg,w.detailsNewsPicker,0x014E,uintptr(selection),0)
+  }
+ }
+ call(enableWindow,w.detailsNewsPicker,uintptr(boolInt(len(d.AllNews)>0)))
+ call(enableWindow,w.detailsNewsLink,uintptr(boolInt(len(d.AllNews)>0)))
  for i:=0;i<2;i++{call(enableWindow,w.detailsResourceLinks[i],uintptr(boolInt(strings.HasPrefix(d.ResourceURLs[i],"https://"))))}
  if d.Demo {
   call(showWin,w.detailsMockPay,swShow);call(showWin,w.detailsMockRefund,swShow)

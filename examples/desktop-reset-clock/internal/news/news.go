@@ -73,3 +73,14 @@ func Top(items []Item,limit int)[]Item{
  if len(c)>limit {c=c[:limit]}
  return c
 }
+
+// Ordered returns the complete curated feed including withdrawn and unavailable tombstones.
+// Each entry retains its source/type/revision for an auditable full list.
+func Ordered(items []Item) []Item {
+ out:=append([]Item(nil),items...)
+ sort.Slice(out,func(i,j int)bool{
+  if out[i].UpdatedAt.Equal(out[j].UpdatedAt){return out[i].ID<out[j].ID}
+  return out[i].UpdatedAt.After(out[j].UpdatedAt)
+ })
+ return out
+}

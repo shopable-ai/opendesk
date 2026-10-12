@@ -398,6 +398,14 @@ func (a *App) displayLocked() desktop.Display {
 	}
 	if s.ArchiveError!="" {d.DetailsHistory+="\n"+s.ArchiveError+"；统计显示数据不足。"}
 	if s.Snapshot!=nil {
+		for _,n:=range news.Ordered(s.Snapshot.News) {
+			state:=map[string]string{"active":"有效","withdrawn":"已撤回","source_unavailable":"来源失效"}[n.State]
+			source:=map[string]string{"official":"来源标注官方","third_party":"第三方","editorial":"编辑分析"}[n.SourceType]
+			label:=fmt.Sprintf("%s · %s · %s · 修订 %d",state,source,n.Title,n.Revision)
+			link:=n.SourceURL
+			if n.State=="source_unavailable"{link=""}
+			d.AllNews=append(d.AllNews,desktop.SourceEvidence{Label:cardText(label,demo),URL:link})
+		}
 		top:=news.Top(s.Snapshot.News,3)
 		if len(top)>0 {d.DetailsNews=""}
 		for i,n:=range top {

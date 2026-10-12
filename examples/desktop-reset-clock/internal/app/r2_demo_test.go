@@ -24,7 +24,7 @@ func TestR2DemoHistoryNewsAndCorrection(t *testing.T){
  if e=a.ConfigureFeed(server.URL+"/feed",true);e!=nil{t.Fatal(e)}
  if e=a.Refresh(context.Background());e!=nil{t.Fatal(e)}
  s:=a.State()
- if s.Archive==nil || !s.Archive.Complete || len(s.Archive.Records)<7 || len(s.Snapshot.News)!=3{
+ if s.Archive==nil || !s.Archive.Complete || len(s.Archive.Records)<7 || len(s.Snapshot.News)!=3 || len(a.Display().AllNews)!=3{
   t.Fatalf("incomplete R2 mock state: %+v",s)
  }
  view:=a.Display()
@@ -45,6 +45,9 @@ func TestR2DemoHistoryNewsAndCorrection(t *testing.T){
   t.Fatal("V3 retraction absent")
  }
  if strings.Contains(a.Display().DetailsNews,"编辑分析"){t.Fatal("withdrawn news displayed")}
+ if len(a.Display().AllNews)!=3 || !strings.Contains(a.Display().AllNews[0].Label,"已撤回") {
+  t.Fatal("full news list must retain withdrawn records for audit")
+ }
  a.Action(context.Background(),desktop.Action{Name:"mock_pay"})
  if !strings.Contains(a.Display().MemberStatus,"模拟 Pro"){t.Fatal("mock Pro not displayed")}
  if !strings.Contains(a.Display().DetailsHistory,"个人观察"){t.Fatal("Pro history missing observation")}
