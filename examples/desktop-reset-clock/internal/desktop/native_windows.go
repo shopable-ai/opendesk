@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"runtime"
 	"strings"
 	"sync"
@@ -153,6 +154,12 @@ type windowsUI struct {
 	display                                                           Display
 	handler                                                           func(Action)
 	card, settings, feedEdit, diagnostics                             uintptr
+	details, detailsHistory, detailsNews, detailsResources, detailsMember uintptr
+	detailsHistoryLink, detailsFont uintptr
+	detailsNewsLinks [3]uintptr
+	detailsResourceLinks [2]uintptr
+	detailsMockPay, detailsMockRefund uintptr
+	lastHistory, lastNews, lastResources, lastMember string
 	sourceButton, lastRequest, lastChecked, lastChanged, sourceStatus uintptr
 	advanceCheck, quietCheck, showCheck, lockCheck, clockCheck        uintptr
 	advancedButton, uiFont                                            uintptr
@@ -288,6 +295,23 @@ func windowProc(hwnd uintptr, id uint32, wparam, lparam uintptr) uintptr {
 		call(shellIcon, nimAdd, uintptr(unsafe.Pointer(&w.tray)))
 		return 0
 	}
+	if hwnd == w.details {
+		switch id {
+		case wmClose:
+			call(showWin,hwnd,swHide)
+			return 0
+		case wmCommand:
+			command:=uint16(wparam&0xffff)
+			switch {
+			case command==2210: w.openHistoryLink()
+			case command>=2201 && command<=2203: w.openNewsLink(int(command-2201))
+			case command>=2221 && command<=2222: w.openResourceLink(int(command-2221))
+			case command==2301: w.mu.Lock();demo:=w.display.Demo;w.mu.Unlock();if demo{w.emit("mock_pay","")}
+			case command==2302: w.mu.Lock();demo:=w.display.Demo;w.mu.Unlock();if demo{w.emit("mock_refund","")}
+			}
+			return 0
+		}
+	}
 	if hwnd == w.settings {
 		switch id {
 		case wmClose:
@@ -327,6 +351,8 @@ func windowProc(hwnd uintptr, id uint32, wparam, lparam uintptr) uintptr {
 			if w.settings != 0 {
 				call(destroyWin, w.settings)
 			}
+			if w.details != 0 {call(destroyWin,w.details)}
+			if w.detailsFont != 0 {call(deleteObject,w.detailsFont)}
 			call(destroyWin, w.card)
 			return 0
 		case wmDestroy:
@@ -410,6 +436,7 @@ func (w *windowsUI) render() {
 	if w.settings != 0 {
 		w.syncSettings(d)
 	}
+	if w.details != 0 {w.syncDetails(d)}
 }
 
 // Win32 card: independent bounded labels, not a DT_SINGLELINE/DT_WORDBREAK
@@ -504,6 +531,7 @@ func (w *windowsUI) menu() {
 	}
 	opts := []menuOption{
 		{name: "settings", title: "查看公告与设置"},
+		{name: "details", title: "历史统计与三条动态"},
 		{name: "refresh", title: "立即检查来源"},
 		{name: "source", title: "打开原始公告"},
 		{separator: true},
@@ -546,6 +574,8 @@ func (w *windowsUI) menu() {
 	switch command {
 	case "settings":
 		w.settingsWindow()
+	case "details":
+		w.detailsWindow()
 	case "source":
 		w.openSource()
 	case "quit":
@@ -609,6 +639,92 @@ func (w *windowsUI) settingsWindow() {
 	call(showWin, w.settings, swShow)
 	call(setForeground, w.settings)
 }
+// Details stay separate from the 386x260 desktop widget and use the SAME native Win32 host.
+func (w *windowsUI) detailsWindow(){
+ if w.details==0{
+  class:=ptr("OpenDesk.ResetClock.Native.R1")
+  w.details=call(createWin,0,uintptr(unsafe.Pointer(class)),utf("Reset Clock · 历史与资讯（来源声明）"),
+    wsOverlapped,200,155,594,645,0,0,call(kernel32.NewProc("GetModuleHandleW"),0),0)
+  if w.details==0{return}
+  negativeFontHeight:=int32(-16)
+  w.detailsFont=call(createFont,uintptr(uint32(negativeFontHeight)),0,0,0,400,0,0,0,1,0,0,0,0,utf("Segoe UI"))
+  child:=func(class,name string,style uintptr,x,y,width,height int,id uintptr)uintptr{
+   hwnd:=call(createWin,0,utf(class),utf(name),wsChild|wsVisible|style,
+      uintptr(x),uintptr(y),uintptr(width),uintptr(height),w.details,id,0,0)
+   if hwnd!=0 && w.detailsFont!=0{call(sendMsg,hwnd,wmSetFont,w.detailsFont,1)}
+   return hwnd
+  }
+  child("STATIC","最近 30 天 / 当前自然月 · 历史统计",0,19,16,544,25,0)
+  w.detailsHistory=child("EDIT","",0x0800|0x0004|0x00200000|0x00800000,19,47,538,124,0)
+  w.detailsHistoryLink=child("BUTTON","打开统计来源 ↗",0,19,178,180,28,2210)
+  child("STATIC","精选动态 · 来源标注不等于官方核验",0,19,222,545,24,0)
+  w.detailsNews=child("EDIT","",0x0800|0x0004|0x00200000|0x00800000,19,250,538,122,0)
+  for i:=0;i<3;i++{
+   w.detailsNewsLinks[i]=child("BUTTON",fmt.Sprintf("打开动态 %d ↗",i+1),0,19+i*181,380,174,28,2201+i)
+  }
+  w.detailsResources=child("STATIC","",0,19,428,538,23,0)
+  for i:=0;i<2;i++{
+   name:="Codex 官方资源 ↗"
+   if i==1{name="API 开发指南 ↗"}
+   w.detailsResourceLinks[i]=child("BUTTON",name,0,19+i*225,455,215,28,2221+i)
+  }
+  w.detailsMember=child("EDIT","",0x0800|0x0004|0x00800000,19,509,538,41,0)
+  w.detailsMockPay=child("BUTTON","启用模拟 Pro · 不收费",0,19,564,231,29,2301)
+  w.detailsMockRefund=child("BUTTON","模拟退款 / 撤权",0,265,564,157,29,2302)
+ }
+ w.mu.Lock()
+ d:=w.display
+ w.mu.Unlock()
+ w.syncDetails(d)
+ call(showWin,w.details,swShow)
+ call(setForeground,w.details)
+}
+func (w *windowsUI) openDetailsURL(raw string){
+ parsed,err:=url.Parse(raw)
+ if err!=nil || parsed.Scheme!="https" || parsed.Host=="" || parsed.User!=nil ||
+    parsed.Fragment!="" || parsed.Opaque!="" {return}
+ call(shell32.NewProc("ShellExecuteW"),0,utf("open"),utf(raw),0,0,1)
+}
+func (w *windowsUI) openHistoryLink(){
+ w.mu.Lock();link:=w.display.HistorySourceURL;w.mu.Unlock()
+ w.openDetailsURL(link)
+}
+func (w *windowsUI) openNewsLink(i int){
+ if i<0||i>=3{return}
+ w.mu.Lock();link:=w.display.NewsURLs[i];w.mu.Unlock()
+ w.openDetailsURL(link)
+}
+func (w *windowsUI) openResourceLink(i int){
+ if i<0||i>=2{return}
+ w.mu.Lock();link:=w.display.ResourceURLs[i];w.mu.Unlock()
+ w.openDetailsURL(link)
+}
+func (w *windowsUI) syncDetails(d Display){
+ if w.details==0{return}
+ if d.DetailsHistory!=w.lastHistory {
+  call(setText,w.detailsHistory,utf(strings.ReplaceAll(d.DetailsHistory,"\n","\r\n")))
+  w.lastHistory=d.DetailsHistory
+ }
+ if d.DetailsNews!=w.lastNews {
+  call(setText,w.detailsNews,utf(strings.ReplaceAll(d.DetailsNews,"\n","\r\n")))
+  w.lastNews=d.DetailsNews
+ }
+ if d.DetailsResources!=w.lastResources{
+  call(setText,w.detailsResources,utf(d.DetailsResources));w.lastResources=d.DetailsResources
+ }
+ if d.MemberStatus!=w.lastMember{
+  call(setText,w.detailsMember,utf(d.MemberStatus));w.lastMember=d.MemberStatus
+ }
+ call(enableWindow,w.detailsHistoryLink,uintptr(boolInt(strings.HasPrefix(d.HistorySourceURL,"https://"))))
+ for i:=0;i<3;i++{call(enableWindow,w.detailsNewsLinks[i],uintptr(boolInt(strings.HasPrefix(d.NewsURLs[i],"https://"))))}
+ for i:=0;i<2;i++{call(enableWindow,w.detailsResourceLinks[i],uintptr(boolInt(strings.HasPrefix(d.ResourceURLs[i],"https://"))))}
+ if d.Demo {
+  call(showWin,w.detailsMockPay,swShow);call(showWin,w.detailsMockRefund,swShow)
+ }else{
+  call(showWin,w.detailsMockPay,swHide);call(showWin,w.detailsMockRefund,swHide)
+ }
+}
+
 func (w *windowsUI) toggleDiagnostics() {
 	w.advancedShown = !w.advancedShown
 	if w.advancedShown {
