@@ -501,6 +501,7 @@ func (a *App) displayLocked() desktop.Display {
         if len(top)>0 {d.DetailsOverviewNews=d.DetailsNews}
 	}
 	if s.Snapshot == nil {
+        d.TickerExpanded=false
 		if s.Health.LastError != "" {
 			d.StatusKind = "error"
 			d.Badge = "连接异常 · 未读取有效数据"
@@ -555,6 +556,16 @@ func (a *App) displayLocked() desktop.Display {
 			d.CardMeta = "发布 " + shortDate(fallback.SourcePublishedAt, s.Config.Zone)
 		}
 	}
+    // Source lag/error invalidates a live actionable forecast, even when an
+    // event's original effective_at remains in the future. Audit metadata
+    // and HTTPS evidence stay visible in the detail window.
+    if chosen!=nil && state!="已检查，无新公告或缓存有效" {
+        d.HasUpcoming=false
+        d.Countdown=""
+        d.CardHint="当前来源状态"
+        d.CardValue="预计时间待核验"
+        d.CardMeta="上游信息异常，暂不展示可行动的倒计时"
+    }
 	if state == "来源可能过期（停止自动公告提醒）" || state == "来源严重异常（缓存）" || state == "来源更新延迟" {
 		if d.StatusKind != "withdrawn" {
 			d.StatusKind, d.Badge = "stale", state
