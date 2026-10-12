@@ -75,3 +75,19 @@ func TestHistoryRevisionCannotSwitchEvidenceType(t *testing.T) {
  p.Records[1]=changed
  if _,err:=Merge([]Page{p});err==nil{t.Fatal("a revision switched official to user observation")}
 }
+
+func TestCorrectedHistoricalAnnouncementPreservesOriginalPublication(t *testing.T) {
+ when:=time.Date(2026,9,30,23,0,0,0,time.UTC)
+ correction:=when.Add(5*24*time.Hour)
+ first:=Record{ID:"one",Revision:1,Kind:"reset_announcement",State:"active",SourceType:"official",
+   SourcePublishedAt:&when,VerifiedAt:&when,Audience:"public",SourceURL:"https://example.org/a"}
+ second:=first
+ second.Revision=2
+ second.SourceUpdatedAt=&correction
+ a:=Archive{ChannelID:"channel",ArchiveVersion:2,CoverageStart:when.Add(-40*24*time.Hour),
+   CoverageEnd:correction.Add(time.Hour),Complete:true,Records:[]Record{first,second}}
+ if err:=ValidateArchive(a);err!=nil{t.Fatal(err)}
+ second.SourcePublishedAt=&correction
+ a.Records[1]=second
+ if err:=ValidateArchive(a);err==nil{t.Fatal("revision silently moved official publication to another month")}
+}

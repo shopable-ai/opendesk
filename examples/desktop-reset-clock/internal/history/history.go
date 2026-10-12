@@ -156,6 +156,12 @@ func ValidateArchive(a Archive) error {
   if earlier,ok:=identities[r.ID];ok && (earlier.Kind!=r.Kind || earlier.SourceType!=r.SourceType) {
     return fmt.Errorf("history %s changed type or provenance across revisions",r.ID)
   }
+  if previous,ok:=identities[r.ID];ok {
+    prior, next:=previous.SourcePublishedAt,r.SourcePublishedAt
+    if (prior==nil)!=(next==nil) || (prior!=nil && next!=nil && !prior.Equal(*next)) {
+      return fmt.Errorf("history %s changed original publication time",r.ID)
+    }
+  }
   identities[r.ID]=r
   if err:=ValidateRecord(r);err!=nil{return fmt.Errorf("invalid cached archive %s: %w",r.ID,err)}
   key:=fmt.Sprintf("%s:%d",r.ID,r.Revision)
