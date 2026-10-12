@@ -225,7 +225,7 @@ button:focus-visible,a:focus-visible,select:focus-visible,[tabindex]:focus-visib
 "use strict";
 var root=document.getElementById("reset-r22");
 if(!root)return;
-var state={scenario:"v1",tier:"free",period:"30",tab:"overview",expanded:false,index:0,hover:false};
+var state={scenario:"v1",tier:"free",period:"30",tab:"overview",expanded:false,index:0,hover:false,focus:false};
 var $=function(id){return root.querySelector("#"+id);};
 var sample=[
   {id:"notice",type:"来源预告",source:"提供方标注官方",title:"重置预告：预计时间已发布，请核对原文",summary:"这是一条合成来源预告。预计时刻不代表确认完成，也不代表个人额度恢复。",updated:"10-12 14:20",revision:1,url:"https://example.org/reset-clock-demo/notice"},
@@ -243,7 +243,7 @@ function selectedData(n) {
  var copy=Object.assign({},n);
  if(copy.id==="notice"&&state.scenario==="v2"){copy.title="重置预告更正：预计时间已调整，请查看原文";copy.revision=2;copy.updated="10-12 15:00";}
  if(copy.id==="notice"&&state.scenario==="v3"){copy.title="重置预告已撤回";copy.revision=3;copy.updated="10-12 15:40";copy.withdrawn=true;}
- if(copy.id==="notice"&&state.scenario==="stale"){copy.title="来源无法确认：原预告暂不可作为有效消息";copy.unavailable=true;}
+ if(state.scenario==="stale"){copy.unavailable=true;if(copy.id==="notice")copy.title="来源无法确认：原预告暂不可作为有效消息";}
  if(copy.id==="notice"&&state.scenario==="long"){copy.title="重置预告更正与适用范围说明：这是一条故意超长的中文资讯标题，用来检查不同缩放比例与窄窗口下的截断和展开表现，实际阅读请进入记录与动态窗口查看完整信息";}
  return copy;
 }
@@ -387,10 +387,10 @@ $("next").addEventListener("click",function(){var arr=currentNews();if(!arr.leng
 $("expand").addEventListener("click",function(){state.expanded=!state.expanded;renderTicker();$("ticker-announcement").textContent=state.expanded?"已展开全部有效动态":"已收起，单行轮播";});
 $("card").addEventListener("mouseenter",function(){state.hover=true;});
 $("card").addEventListener("mouseleave",function(){state.hover=false;});
-$("card").addEventListener("focusin",function(){state.hover=true;});
-$("card").addEventListener("focusout",function(e){if(!$("card").contains(e.relatedTarget))state.hover=false;});
+$("card").addEventListener("focusin",function(){state.focus=true;});
+$("card").addEventListener("focusout",function(e){if(!$("card").contains(e.relatedTarget))state.focus=false;});
 var reduced=window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-if(!reduced){window.setInterval(function(){if(state.hover||state.expanded||document.hidden)return;var a=currentNews();if(a.length>1){state.index=(state.index+1)%a.length;renderTicker();}},6000);}
+if(!reduced){window.setInterval(function(){if(state.hover||state.focus||state.expanded||document.hidden)return;var a=currentNews();if(a.length>1){state.index=(state.index+1)%a.length;renderTicker();}},6000);}
 render();
 })();
 </script>
