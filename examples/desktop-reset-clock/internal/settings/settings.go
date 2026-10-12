@@ -24,6 +24,7 @@ type Config struct {
 	Zone           string `json:"zone,omitempty"`
 	Show           bool   `json:"show"`
 	Locked         bool   `json:"locked"`
+	TickerExpanded bool `json:"ticker_expanded,omitempty"`
 	X              int    `json:"x"`
 	Y              int    `json:"y"`
 	PollSeconds    int    `json:"poll_seconds"`
