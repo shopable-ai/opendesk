@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -398,6 +399,13 @@ func (a *App) displayLocked() desktop.Display {
 
 	d.DetailsHistory="最近 30 天：数据不足；当前自然月：数据不足。\n未提供可信完整归档，不等于 0 次。"
 	d.DetailsNews="暂无精选资讯。请检查来源 Feed。"
+ d.DetailsOverviewNews="暂无有效资讯。"
+ d.DetailsFullNews="暂无资讯记录。"
+ for _,name:=range []string{"来源预告","确认完成","赠送机会","用户观察"} {
+   row:=desktop.MetricRow{Name:name,Value:"数据不足",Detail:"归档未完整覆盖统计窗口"}
+   d.Stats30=append(d.Stats30,row)
+   d.StatsMonth=append(d.StatsMonth,row)
+ }
 	var loc *time.Location=time.Local
 	if s.Config.Zone!="" {if chosen,err:=time.LoadLocation(s.Config.Zone);err==nil{loc=chosen}}
 	if s.Archive!=nil && s.Snapshot!=nil && s.Archive.ChannelID==s.Snapshot.ChannelID &&
@@ -415,6 +423,23 @@ func (a *App) displayLocked() desktop.Display {
         // Every displayed count retains clickable record-level evidence.
         // Free shows forecast and completion; mock Pro also shows extra and observation.
         pro:=s.Membership.IsMockPro(now,demo)
+        makeMetrics:=func(w history.Window)[]desktop.MetricRow{
+          data:=[]struct{name,desc string;m history.Metric}{
+            {"来源预告","来源发布，不等于实际完成",w.Announcements},
+            {"确认完成","独立完成声明",w.Confirmations},
+            {"赠送机会","不能推断所有账号适用",w.Gifts},
+            {"用户观察","不等于官方确认",w.Observations},
+          }
+          rows:=make([]desktop.MetricRow,0,len(data))
+          for i,x:=range data {
+             value:=x.m.Label()
+             if !pro && i>1 {value="未开放"}
+             rows=append(rows,desktop.MetricRow{Name:x.name,Value:value,Detail:x.desc})
+          }
+          return rows
+        }
+        d.Stats30=makeMetrics(stats.Last30Days)
+        d.StatsMonth=makeMetrics(stats.CurrentMonth)
         type namedMetric struct{name string; metric history.Metric}
         add:=func(period string,w history.Window){
           metrics:=[]namedMetric{{"来源标注官方预告",w.Announcements},{"来源标注确认完成",w.Confirmations}}
@@ -430,9 +455,31 @@ func (a *App) displayLocked() desktop.Display {
         }
         add("最近30天",stats.Last30Days)
         add("当前月",stats.CurrentMonth)
+        // Show revisions and tombstones chronologically, even if no longer counted.
+        records:=append([]history.Record(nil),s.Archive.Records...)
+        recordAt:=func(r history.Record)time.Time{
+           if r.SourceUpdatedAt!=nil{return *r.SourceUpdatedAt}
+           if r.SourcePublishedAt!=nil{return *r.SourcePublishedAt}
+           if r.ObservedAt!=nil{return *r.ObservedAt}
+           return time.Time{}
+        }
+        sort.SliceStable(records,func(i,j int)bool{return recordAt(records[i]).After(recordAt(records[j]))})
+        for _,r:=range records{
+           if !pro && r.SourceType!="official" {continue}
+           if len(d.HistoryRows)>=64 {break}
+           kind:=map[string]string{"reset_announcement":"来源预告","reset_completed":"确认完成","extra_opportunity":"赠送机会","observed_reset":"用户观察"}[r.Kind]
+           state:=map[string]string{"active":"有效","withdrawn":"已撤回","superseded":"已更正"}[r.State]
+           at:=recordAt(r)
+           row:=desktop.HistoryRow{When:shortDate(&at,s.Config.Zone),Kind:kind,State:state,
+               Title:kind+" · "+state,Summary:cardText(r.Summary,demo),Revision:r.Revision,URL:r.SourceURL}
+           d.HistoryRows=append(d.HistoryRows,row)
+           d.HistoryEvidence=append(d.HistoryEvidence,desktop.SourceEvidence{
+               Label:fmt.Sprintf("%s · %s · 修订 %d",row.When,row.Title,row.Revision),URL:row.URL})
+        }
 	}
 	if s.ArchiveError!="" {d.DetailsHistory+="\n"+s.ArchiveError+"；统计显示数据不足。"}
 	if s.Snapshot!=nil {
+        var full strings.Builder
 		for _,n:=range news.Ordered(s.Snapshot.News) {
 			state:=map[string]string{"active":"有效","withdrawn":"已撤回","source_unavailable":"来源失效"}[n.State]
 			source:=map[string]string{"official":"来源标注官方","third_party":"第三方","editorial":"编辑分析"}[n.SourceType]
@@ -440,7 +487,10 @@ func (a *App) displayLocked() desktop.Display {
 			link:=n.SourceURL
 			if n.State=="source_unavailable"{link=""}
 			d.AllNews=append(d.AllNews,desktop.SourceEvidence{Label:cardText(label,demo),URL:link})
+            full.WriteString(fmt.Sprintf("%s · %s · 修订 %d · 更新 %s\n%s\n%s\n\n",
+             state,source,n.Revision,shortDate(&n.UpdatedAt,s.Config.Zone),n.Title,n.Summary))
 		}
+        if full.Len()>0 {d.DetailsFullNews=strings.TrimSpace(full.String())}
 		top:=news.Top(s.Snapshot.News,3)
 		if len(top)>0 {d.DetailsNews=""}
 		for i,n:=range top {
@@ -448,6 +498,7 @@ func (a *App) displayLocked() desktop.Display {
 			d.DetailsNews+=fmt.Sprintf("%d. %s｜%s\n   %s\n",i+1,typ,cardText(n.Title,demo),shortDate(&n.UpdatedAt,s.Config.Zone))
 			d.NewsURLs[i]=n.SourceURL
 		}
+        if len(top)>0 {d.DetailsOverviewNews=d.DetailsNews}
 	}
 	if s.Snapshot == nil {
 		if s.Health.LastError != "" {
