@@ -8,7 +8,7 @@
 <style>
 :root {
   color-scheme:light;
-  --page:#eef2ef; --paper:#fcfdfa; --surface:#fff; --ink:#183430; --muted:#627871;
+  --page:#eef2ef; --paper:#fcfdfa; --surface:#fff; --ink:#183430; --muted:#536c62;
   --line:#dbe5df; --soft:#f3f7f4; --teal:#087e6e; --teal-deep:#056c5f;
   --green-soft:#e7f4ed; --amber:#92621d; --amber-soft:#fff2d9;
   --red:#a4484f; --red-soft:#ffedf0;
@@ -23,11 +23,11 @@ button:focus-visible,a:focus-visible,select:focus-visible,[tabindex]:focus-visib
 .head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
 .head h1{margin:0;font-size:22px;letter-spacing:-.65px;line-height:1.25}
 .head p{margin:8px 0 0;color:var(--muted);font-size:12px;line-height:1.6}
-.prototype-label{font-size:10px;color:#53786c;border:1px solid #bdd5c9;background:#e3f0e8;padding:6px 9px;border-radius:7px;font-weight:700;letter-spacing:.3px}
+.prototype-label{font-size:11px;color:#3a6555;border:1px solid #bdd5c9;background:#e3f0e8;padding:6px 9px;border-radius:7px;font-weight:700;letter-spacing:.3px}
 .controls{display:flex;flex-wrap:wrap;gap:15px;margin-bottom:20px}
 .control-group>span{display:block;color:var(--muted);font-size:11px;margin-bottom:7px}
 .segment{display:inline-flex;align-items:center;background:#e1eae4;border:1px solid #d5e2d9;border-radius:11px;padding:3px;gap:2px}
-.segment button{border:0;background:transparent;padding:8px 12px;border-radius:8px;font-size:12px;color:#60736c}
+.segment button{border:0;background:transparent;padding:8px 12px;border-radius:8px;font-size:12px;color:#495d55}
 .segment button.active{background:#fff;color:#17483e;box-shadow:0 1px 5px #132b1b18;font-weight:730}
 .workarea{display:grid;grid-template-columns:386px minmax(0,1fr);align-items:start;gap:22px}
 .region-title{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#596e67;font-size:11px;font-weight:650;margin-bottom:9px}
@@ -37,7 +37,7 @@ button:focus-visible,a:focus-visible,select:focus-visible,[tabindex]:focus-visib
 .compact-header{display:flex;justify-content:space-between;align-items:center;gap:9px;min-height:23px}
 .compact-brand{font-size:13px;font-weight:730;letter-spacing:-.25px;white-space:nowrap}
 .brand-mark{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:#2e7167;margin-right:5px;color:#dcfff2;font-weight:800;font-size:14px}
-.compact-status{border:1px solid #468171;background:#235347;color:#d5f3e4;font-size:10px;border-radius:999px;padding:5px 8px;white-space:nowrap}
+.compact-status{border:1px solid #468171;background:#235347;color:#d5f3e4;font-size:11px;border-radius:999px;padding:5px 8px;white-space:nowrap}
 .compact-status.warn{background:#58482e;color:#ffe5b4;border-color:#826a43}
 .compact-status.alert{background:#5c353c;color:#ffe0e4;border-color:#87545d}
 .count-label{font-size:12px;color:#b7d0c9;margin:19px 0 7px}
@@ -49,7 +49,7 @@ button:focus-visible,a:focus-visible,select:focus-visible,[tabindex]:focus-visib
 .ticker-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:10px;min-height:29px}
 .ticker-heading{font-size:11px;font-weight:730;color:#a7d3c5;letter-spacing:.2px}
 .ticker-actions{display:flex;align-items:center;gap:5px}
-.ticker-count{font-size:10px;color:#bed6cf;font-variant-numeric:tabular-nums;padding-right:4px}
+.ticker-count{font-size:11px;color:#bed6cf;font-variant-numeric:tabular-nums;padding-right:4px}
 .tiny-control{border:1px solid #557f75;background:#264c4c;color:#f3fff8;border-radius:6px;height:26px;min-width:27px;padding:0 7px;display:inline-grid;place-items:center;font-size:14px;line-height:1}
 .tiny-control.expand{font-size:11px;min-width:54px;margin-left:3px}
 .tiny-control:disabled{opacity:.45;cursor:default}
@@ -58,17 +58,17 @@ button:focus-visible,a:focus-visible,select:focus-visible,[tabindex]:focus-visib
 .ticker-single .one-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .ticker-expanded{padding:5px 0 13px}
 .ticker-expanded-item{padding:8px 0;border-top:1px solid #355c57;display:flex;align-items:flex-start;gap:9px;font-size:12px;line-height:1.55}
-.ticker-tag{flex:none;color:#a8d8c6;font-size:10px;margin-top:2px}
+.ticker-tag{flex:none;color:#a8d8c6;font-size:11px;margin-top:2px}
 .ticker-expanded-item p{margin:0;min-width:0;overflow-wrap:anywhere}
-.ticker-expanded-item .source{display:block;color:#91b5ad;font-size:10px;margin-top:3px}
+.ticker-expanded-item .source{display:block;color:#91b5ad;font-size:11px;margin-top:3px}
 .ticker-empty{font-size:11px;color:#bdd1ca;padding:14px 0 18px}
-.card-caption{font-size:11px;color:#6b8076;line-height:1.65;margin:11px 1px 0}
+.card-caption{font-size:11px;color:#516a5e;line-height:1.65;margin:11px 1px 0}
 .card-caption strong{color:#36584d}
 .detail{background:var(--paper);border:1px solid var(--line);border-radius:17px;overflow:hidden;box-shadow:0 8px 30px #34584b0d;min-width:0}
 .window-header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:17px 20px 14px;border-bottom:1px solid var(--line);background:#fff}
 .window-title{font-size:15px;font-weight:760;letter-spacing:-.35px}
 .window-subtitle{font-size:11px;color:var(--muted);margin-top:3px}
-.window-status{white-space:nowrap;border-radius:999px;background:var(--green-soft);color:#166f5f;padding:6px 9px;font-size:10px;font-weight:680}
+.window-status{white-space:nowrap;border-radius:999px;background:var(--green-soft);color:#166f5f;padding:6px 9px;font-size:11px;font-weight:680}
 .window-status.warn{background:var(--amber-soft);color:var(--amber)}
 .window-tabs{display:flex;gap:5px;padding:10px 16px 0;background:#fff;border-bottom:1px solid var(--line)}
 .window-tabs button{background:transparent;border:0;color:#687970;font-size:12px;padding:10px 14px 11px;border-radius:8px 8px 0 0;font-weight:600;border-bottom:2px solid transparent}
@@ -83,12 +83,12 @@ button:focus-visible,a:focus-visible,select:focus-visible,[tabindex]:focus-visib
 .metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:15px}
 .metric{padding:12px 13px;border-radius:10px;border:1px solid #dfe9e3;background:#fff}
 .metric .name{font-size:11px;color:#5d746a}.metric .value{font-size:24px;font-weight:780;line-height:1.15;margin-top:7px;font-variant-numeric:tabular-nums}
-.metric .suffix{font-weight:450;font-size:12px;color:#698075}.metric .description{font-size:10px;color:#778b80;margin-top:6px;line-height:1.5}
+.metric .suffix{font-weight:450;font-size:12px;color:#698075}.metric .description{font-size:11px;color:#5b7165;margin-top:6px;line-height:1.5}
 .section-divider{height:1px;background:var(--line);margin:18px 0}
 .news-preview-item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:9px;border-bottom:1px solid #e8eee9;padding:11px 0}
 .news-preview-item:last-child{border-bottom:0}.news-preview-title{font-size:12px;line-height:1.5;font-weight:650;overflow-wrap:anywhere}
-.news-preview-sub{font-size:10px;color:var(--muted);margin-top:3px}
-.chip{display:inline-block;font-size:10px;border-radius:5px;padding:3px 6px;font-weight:620;color:#426d60;background:#eaf4ed;margin-right:5px}
+.news-preview-sub{font-size:11px;color:var(--muted);margin-top:3px}
+.chip{display:inline-block;font-size:11px;border-radius:5px;padding:3px 6px;font-weight:620;color:#426d60;background:#eaf4ed;margin-right:5px}
 .chip.editorial{color:#6e6979;background:#f0edf4}.chip.observed{color:#89672b;background:#fbf1dc}.chip.withdrawn{color:var(--red);background:var(--red-soft)}
 .ghost-link{border:0;background:transparent;color:var(--teal-deep);font-size:11px;padding:6px 2px;white-space:nowrap}
 .ghost-link:hover{text-decoration:underline}
@@ -99,20 +99,21 @@ button:focus-visible,a:focus-visible,select:focus-visible,[tabindex]:focus-visib
 .timeline-row::before{content:"";position:absolute;left:-26px;top:5px;width:11px;height:11px;border-radius:50%;background:#6aac98;border:2px solid #fcfdfa}
 .timeline-row.uncertain::before{background:#d0aa69}
 .timeline-row.void::before{background:#d09198}
-.timeline-date{font-size:10px;color:var(--muted);margin-bottom:4px}
+.timeline-date{font-size:11px;color:var(--muted);margin-bottom:4px}
 .timeline-title{font-size:12px;font-weight:710}
 .timeline-info{font-size:11px;color:var(--muted);line-height:1.55;margin-top:4px}
-.timeline-source{font-size:10px;color:var(--teal-deep);margin-top:6px;border:0;background:transparent;padding:0}
+.timeline-source{font-size:11px;color:var(--teal-deep);margin-top:6px;border:0;background:transparent;padding:0}
 .story{border:1px solid var(--line);background:#fff;border-radius:11px;padding:13px 14px;margin-top:10px}
 .story-head{display:flex;justify-content:space-between;gap:7px;align-items:center}
 .story-title{font-size:13px;font-weight:730;margin:9px 0 5px;line-height:1.45}
 .story-desc{font-size:11px;color:var(--muted);line-height:1.6;margin:0}
-.story-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;font-size:10px;color:var(--muted)}
+.story-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;font-size:11px;color:var(--muted)}
 .member-status{margin-top:16px;display:flex;align-items:center;justify-content:space-between;gap:9px;border-top:1px solid var(--line);padding-top:12px;font-size:11px;color:var(--muted)}
 .member-status strong{color:var(--ink);font-weight:700}
 .notice-box{margin-top:10px;padding:9px 11px;border-radius:8px;font-size:11px;color:#7c683d;background:#fff7e7;line-height:1.6}
 .preview-footer{font-size:11px;color:#6b8076;margin-top:20px;line-height:1.7}
-.toast{margin-top:9px;min-height:14px;color:#527466;font-size:10px;overflow-wrap:anywhere}
+.toast{margin-top:9px;min-height:14px;color:#527466;font-size:11px;overflow-wrap:anywhere}
+.visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 @media(max-width:980px){.workarea{grid-template-columns:1fr}.detail{width:min(100%,680px)}}
 @media(max-width:460px){.shell{padding:17px 12px 35px}.compact{width:100%}.compact-inner{padding:15px}.count{font-size:32px}.window-header{padding:15px}.panel{padding:15px}.metrics{gap:7px}.metric{padding:10px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;scroll-behavior:auto!important;transition:none!important}}
@@ -123,7 +124,7 @@ button:focus-visible,a:focus-visible,select:focus-visible,[tabindex]:focus-visib
 <main class="shell" id="reset-r22">
   <header class="head">
     <div><h1>Reset Clock <span style="font-weight:480;color:#57766a">/ R2.2 设计预览</span></h1>
-    <p>核心时间优先 · 三条动态单行轮播 / 原位展开 · 历史与资讯清晰分层</p></div>
+    <p>核心时间优先 · 三条动态单行轮播 / 原位展开 · 历史与资讯清晰分层 · 示例参考时刻 10 月 13 日 04:30（不读取系统时间）</p></div>
     <span class="prototype-label">离线合成 · 非真实官方公告</span>
   </header>
   <section class="controls" aria-label="原型测试控制">
@@ -162,6 +163,7 @@ button:focus-visible,a:focus-visible,select:focus-visible,[tabindex]:focus-visib
               </div>
             </div>
             <div class="ticker-single" id="ticker-single"><span class="dot" aria-hidden="true"></span><span class="one-line" id="ticker-text">来源公告：预计重置窗口已发布</span></div>
+            <span id="ticker-announcement" class="visually-hidden" aria-live="polite" aria-atomic="true"></span>
             <div class="ticker-expanded" id="expanded-news" hidden></div>
             <div class="ticker-empty" id="ticker-empty" hidden>暂无可展示的动态</div>
           </section>
@@ -305,6 +307,7 @@ function renderOverview(){
  var values=metricsData(),names=["来源预告","确认完成","赠送机会","用户观察"],subs=["来源发布次数","独立完成声明","明确赠送事件","不代表官方确认"];
  $("metrics").replaceChildren();
  names.forEach(function(name,i){
+  if(state.tier==="free" && i>1)return; // Free only shows public historical summary.
   var card=el("div","metric"),val=el("div","value"),number=values[i];
   card.append(el("div","name",name));
   val.append(el("span","",number===null?"数据不足":String(number)));
@@ -334,6 +337,7 @@ function renderHistory(){
  ];
  if(state.scenario==="v3"){rows[0].date="10-12 · 修订 3";rows[0].kind="已撤回";rows[0].title="原重置预告已撤回";rows[0].detail="撤回的预告不继续计入有效预告。";rows[0].type="void";}
  if(state.scenario==="empty")rows=[];
+ if(state.tier==="free" && rows.length)rows=[rows[0],rows[3]];
  $("history-timeline").replaceChildren();
  if(rows.length===0)$("history-timeline").append(el("p","note","历史归档不完整，暂无可核验的统计记录。"));
  rows.forEach(function(item){
@@ -374,9 +378,9 @@ root.querySelectorAll("[data-tab]").forEach(function(button){
  });
 });
 $("all-news-link").addEventListener("click",function(){setTab("news",true);});
-$("prev").addEventListener("click",function(){var arr=currentNews();if(!arr.length)return;state.index=(state.index+arr.length-1)%arr.length;renderTicker();});
-$("next").addEventListener("click",function(){var arr=currentNews();if(!arr.length)return;state.index=(state.index+1)%arr.length;renderTicker();});
-$("expand").addEventListener("click",function(){state.expanded=!state.expanded;renderTicker();});
+$("prev").addEventListener("click",function(){var arr=currentNews();if(!arr.length)return;state.index=(state.index+arr.length-1)%arr.length;renderTicker();$("ticker-announcement").textContent="上一条动态："+arr[state.index].title;});
+$("next").addEventListener("click",function(){var arr=currentNews();if(!arr.length)return;state.index=(state.index+1)%arr.length;renderTicker();$("ticker-announcement").textContent="下一条动态："+arr[state.index].title;});
+$("expand").addEventListener("click",function(){state.expanded=!state.expanded;renderTicker();$("ticker-announcement").textContent=state.expanded?"已展开全部有效动态":"已收起，单行轮播";});
 $("card").addEventListener("mouseenter",function(){state.hover=true;});
 $("card").addEventListener("mouseleave",function(){state.hover=false;});
 $("card").addEventListener("focusin",function(){state.hover=true;});
