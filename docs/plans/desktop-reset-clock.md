@@ -1,9 +1,9 @@
 
 # Desktop Reset Clock — 产品架构、功能树与开发方案
 
-> **状态：方案待确认（PROPOSED）｜日期：2026-10-11｜目标：macOS、Windows｜语言：Go**
+> **状态：R1 客户端已实现（平台真机未验收）｜日期：2026-10-11｜目标：macOS、Windows｜语言：Go**
 >
-> 这是**计划**，不是已实现的产品。当前只有方案和示例目录说明；真实 HTTP 数据源、两平台桌面运行、收费和安装包均未验收。
+> 这是**计划**，不是已实现的产品。现已在 `examples/desktop-reset-clock/` 实现独立 Go 客户端、合成 HTTP Mock、事件修订/撤回、缓存、提醒与平台适配源码。真实 HTTP 数据源、macOS/Windows 桌面真机行为、收费和安装包仍未验收。
 
 **读者从这里开始：**
 
@@ -300,7 +300,7 @@
   - `docs/plans/desktop-reset-clock.md`：唯一当前产品方案与需求功能树。
   - `docs/quality/desktop-reset-clock/design-review.md`：审查、评分依据和待验收清单，不再复制另一份产品规格。
   - `examples/desktop-reset-clock/README.md`：对使用者的简短入口，不作为第二版需求书。
-- **源码阶段的预定目录**（现在**尚未创建**）
+- **源码阶段的预定目录**（R1 已创建；见示例 README）
   - `examples/desktop-reset-clock/go.mod`：独立 Go module。
   - `cmd/desktop-reset-clock/`：唯一桌面程序入口。
   - `internal/feed/`：HTTP、ETag、Schema 与版本校验。
@@ -333,7 +333,7 @@
   - macOS 与 Windows 桌面背景模式仍无本应用真机验收。
   - 0.99 币种、试用和收款路径待确认。
   - 尚无运行程序、HTTP 联调、30 天真实成本或正式发行。
-- **当前结论**：本轮是文档重组。无论静态文档自评多少，都不能直接声称产品或独立专家验收达到 95 分。
+- **当前结论**：现有 R1 独立 Go module 与测试；但静态文档自评不证明真实桌面产品达到 95 分。
 
 ## 9. 参考资料
 
@@ -342,3 +342,13 @@
 - [Go：time 与时区](https://pkg.go.dev/time)、[Go：time/tzdata](https://pkg.go.dev/time/tzdata)。
 - [X Developer Policy](https://docs.x.com/developer-terms/policy)（只有未来数据提供方涉及 X 时按实际许可核验）。
 - [OpenDesk 文档目录治理](../maintenance/repository-documentation-map.md)。
+
+
+## 10. R1 客户端实现交接（2026-10-12）
+
+- **F01–F03（IMPLEMENTED）**：独立 Go HTTPS/回环 HTTP Feed 读取；ETag、304、授权拒绝、429、版本回退、撤回墓碑、JSON 校验（参见 `internal/feed/`、`internal/events/`）。真实外部官方 Feed **BLOCKED**（尚无合法提供者 URL）。
+- **F04–F06（IMPLEMENTED）**：Go IANA 时区、绝对倒计时、按 revision 重排、到时/提前10分钟/手动提醒、睡眠后的有限补偿（`internal/clock/`、`internal/reminder/`）。系统级通知 **NOT_TESTED**。
+- **F07–F09（IMPLEMENTED）**：区分请求/HTTP 成功/有效 Feed/上游来源检查/公告变化；失败保留 JSON 原子缓存并阻止过期自动提醒（`internal/health/`、`internal/settings/`、`internal/app/`）。
+- **F10–F11（IMPLEMENTED_UNVERIFIED）**：macOS AppKit/CGO、Windows Win32 卡片/通知区菜单/设置窗/单实例代码已添加（`internal/desktop/`、`internal/instance/`）；Mac/Windows 实窗点击穿透、多屏、休眠、通知权限、Explorer/Spaces 和安装包均 **NOT_TESTED**。不将 WorkerW 适配/跨编译宣称真机通过。
+- **F15（VERIFIED，限单测/构建）**：独立 module `go test ./... -count=1`、`go test -race ./... -count=1` 和 Windows amd64 交叉编译在 Linux 隔离开发环境通过；真机专项证据尚待后续本地 Codex 验收。确切命令和 Demo 一条命令见 [示例 README](../../examples/desktop-reset-clock/README.md)。
+- **本轮排除**：F12–F14、F16、爬虫、Cookie、数据库、Codex 用户个人额度与收费发行。R1 不改变 OpenDesk Runtime 依赖树。

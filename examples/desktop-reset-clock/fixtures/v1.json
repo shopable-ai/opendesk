@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "channel_id": "synthetic-fixture",
+  "feed_version": 1,
+  "generated_at": "2026-10-12T07:00:00Z",
+  "source_health": {
+    "status": "ok",
+    "last_checked_at": "2026-10-12T07:00:00Z"
+  },
+  "events": [
+    {
+      "id": "synthetic-history-001",
+      "revision": 1,
+      "type": "reset_announcement",
+      "state": "active",
+      "audience": "all_users",
+      "source_published_at": "2026-10-09T07:00:00Z",
+      "verified_at": "2026-10-12T07:00:00Z",
+      "effective_at": "2026-10-12T07:40:00Z",
+      "source_url": "https://example.org/only-a-synthetic-source",
+      "summary": "【模拟数据】历史公告"
+    }
+  ]
+}

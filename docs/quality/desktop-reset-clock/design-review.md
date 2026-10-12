@@ -104,3 +104,12 @@
 - 至少 30 天的真实请求、外部费用、用户体验与持续付费意愿。
 
 **本次只重组文档，尚未开发、接入、测试或发行。**
+
+
+## R1 客户端实施后的动态验收状态（2026-10-12）
+
+- **VERIFIED（仅独立模块确定性测试）**：Go 事件/HTTP Mock/健康/缓存/时区/提醒测试、Linux `go test`、`go test -race`、Linux 控制台 Demo 和 Windows amd64 交叉编译；本结论不含实窗或通知权限。
+- **IMPLEMENTED_UNVERIFIED**：AppKit 与 Win32 原生桌面卡片、通知区、原生设置、点击穿透、锁定拖动、Windows WorkerW 桌面整合。需要分别在目标真机观察截图与窗口焦点行为。
+- **NOT_TESTED**：macOS AppKit 真机编译运行、Windows 实机通知/Explorer 重启、两平台多屏/休眠/系统改时/长期资源用量、签名发行包。
+- **BLOCKED**：真实可信来源的 Feed URL/许可/上游心跳尚未提供，不能声称官方实时同步成功。
+- **评分约束不变**：静态设计 96/100 不是客户端真实产品得分；相关 G0–G4 未通过时不能报告产品达到 95 分。测试与入口见 [README](../../../examples/desktop-reset-clock/README.md)。
