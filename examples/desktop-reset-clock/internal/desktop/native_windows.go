@@ -174,6 +174,7 @@ type windowsUI struct {
 	detailsResourceLinks [2]uintptr
 	detailsMockPay, detailsMockRefund uintptr
 	lastHistory, lastNews, lastResources, lastMember string
+	lastStats, lastDetailHealth string
 	sourceButton, lastRequest, lastChecked, lastChanged, sourceStatus uintptr
 	advanceCheck, quietCheck, showCheck, lockCheck, clockCheck        uintptr
 	advancedButton, uiFont                                            uintptr
@@ -829,12 +830,19 @@ func (w *windowsUI) syncDetails(d Display){
    stats.WriteString("    "+row.Detail+"\r\n\r\n")
  }
  if stats.Len()==0{stats.WriteString("数据不足")}
- call(setText,w.detailsStats,utf(stats.String()))
+ if stats.String()!=w.lastStats {
+   call(setText,w.detailsStats,utf(stats.String()))
+   w.lastStats=stats.String()
+ }
  if d.DetailsOverviewNews!=w.lastResources {
    call(setText,w.detailsOverviewNews,utf(strings.ReplaceAll(d.DetailsOverviewNews,"\n","\r\n")))
    w.lastResources=d.DetailsOverviewNews
  }
- call(setText,w.detailsOverviewStatus,utf(d.Health+" · 来源类别未独立核验"))
+ statusText:=d.Health+" · 来源类别未独立核验"
+ if statusText!=w.lastDetailHealth {
+   call(setText,w.detailsOverviewStatus,utf(statusText))
+   w.lastDetailHealth=statusText
+ }
  var timeline strings.Builder
  for _,entry:=range d.HistoryRows{
    timeline.WriteString(fmt.Sprintf("%s  %s · 修订 %d\r\n",entry.When,entry.Title,entry.Revision))
