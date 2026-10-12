@@ -440,21 +440,6 @@ func (a *App) displayLocked() desktop.Display {
         }
         d.Stats30=makeMetrics(stats.Last30Days)
         d.StatsMonth=makeMetrics(stats.CurrentMonth)
-        type namedMetric struct{name string; metric history.Metric}
-        add:=func(period string,w history.Window){
-          metrics:=[]namedMetric{{"来源标注官方预告",w.Announcements},{"来源标注确认完成",w.Confirmations}}
-          if pro {metrics=append(metrics,namedMetric{"赠送机会",w.Gifts},namedMetric{"用户观察",w.Observations})}
-          for _,item:=range metrics{
-            if !item.metric.Known {continue}
-            for _,ev:=range item.metric.Evidence{
-              entry:=desktop.SourceEvidence{Label:fmt.Sprintf("%s · %s · %s · 修订 %d",period,item.name,ev.ID,ev.Revision),URL:ev.SourceURL}
-              d.HistoryEvidence=append(d.HistoryEvidence,entry)
-              if d.HistorySourceURL=="" {d.HistorySourceURL=entry.URL}
-            }
-          }
-        }
-        add("最近30天",stats.Last30Days)
-        add("当前月",stats.CurrentMonth)
         // Show revisions and tombstones chronologically, even if no longer counted.
         records:=append([]history.Record(nil),s.Archive.Records...)
         recordAt:=func(r history.Record)time.Time{
@@ -475,6 +460,7 @@ func (a *App) displayLocked() desktop.Display {
            d.HistoryRows=append(d.HistoryRows,row)
            d.HistoryEvidence=append(d.HistoryEvidence,desktop.SourceEvidence{
                Label:fmt.Sprintf("%s · %s · 修订 %d",row.When,row.Title,row.Revision),URL:row.URL})
+           if d.HistorySourceURL=="" && row.URL!=""{d.HistorySourceURL=row.URL}
         }
 	}
 	if s.ArchiveError!="" {d.DetailsHistory+="\n"+s.ArchiveError+"；统计显示数据不足。"}
