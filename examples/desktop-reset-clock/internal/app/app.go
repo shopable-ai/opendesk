@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/clock"
+	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/catalog"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/desktop"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/events"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/feed"
@@ -353,6 +354,13 @@ func (a *App) displayLocked() desktop.Display {
 		d.Badge = "【模拟数据】暂无确定公告"
 	}
 	d.MemberStatus=s.Membership.Status(now,demo)
+	for i,item:=range catalog.Default() {
+		if i>=len(d.ResourceURLs){break}
+		d.ResourceURLs[i]=item.URL
+		if d.DetailsResources!=""{d.DetailsResources+=" · "}
+		d.DetailsResources+=item.Title
+	}
+
 	d.DetailsHistory="最近 30 天：数据不足；当前自然月：数据不足。\n未提供可信完整归档，不等于 0 次。"
 	d.DetailsNews="暂无精选资讯。请检查来源 Feed。"
 	var loc *time.Location=time.Local

@@ -36,6 +36,8 @@ type Display struct {
 	DetailsHistory string `json:"details_history"`
 	DetailsNews    string `json:"details_news"`
 	MemberStatus   string `json:"member_status"`
+	DetailsResources string `json:"details_resources"`
+	ResourceURLs [2]string `json:"resource_urls"`
 	HistorySourceURL string `json:"history_source_url"`
 	NewsURLs [3]string `json:"news_urls"`
 
