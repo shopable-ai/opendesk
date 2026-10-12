@@ -193,3 +193,12 @@
 - **macOS 原生窗口：NOT_TESTED**（包括鼠标/键盘焦点、Spaces 多屏、系统通知、睡眠恢复、CGO 真机构建）；**Windows 原生交互：NOT_TESTED**（包括 100/150/200% DPI、WorkerW 重启、拖拽点击穿透、托盘菜单、辅助技术）。CI 中 macOS Runner 上的编译结果单独列为构建，不代替这些测试。
 - 真截图、命令、日志记录仅写入仓库根 `.runtime/tests/desktop-reset-clock/r22/`，不进 Git。每张图必须绑定 HEAD 和系统缩放档位。
 - **达到目标的退出门槛**：八项逐项至少 95 且真浏览器和两平台 UI 相关项目有可审查证据后，才能将其标记产品级 PASSED。
+
+
+### Chromium 首次真实渲染与修复记录（2026-10-12，R2.2）
+
+- [真实 Chromium 首轮 CI 运行](https://github.com/shopable-ai/opendesk/actions/runs/38272922452)：`preview-browser` 实际启动 Playwright Chromium，已渲染多个卡片状态、三页详情、模拟 Pro、长标题等场景，上传 [15 个图像/证据文件](https://github.com/shopable-ai/opendesk/actions/runs/38272922452/artifacts/11757777004)（7 天过期）。这**不是原生窗口截图**。
+- 首轮结果：**FAIL**。在 460px 响应式视口，`.compact{width:100%}` 会让卡片超过 386px 设计上限；由随后提交 `704086e38a48ba9ceed7f5a50096bfbdddfec11d` 改为 `width:min(100%,386px)`。旧 Artifact 截图是修复前的回归证据，不能标作最终发布效果。
+- 新 `tests/r22_browser_test.py` 自动验证浏览器脚本错误、尺寸界限、真实 DOM 交互、模拟权限分级、来源状态、键盘切页和焦点暂停、色彩对比度，并生成可审查 PNG。100/150/200 **CSS zoom** 测试不等同于 macOS/Windows 原生 DPI 或浏览器页面缩放的所有语义。
+- **新版浏览器回归状态**：本记录落库时最新提交的 CI 仍在队列或运行中，不能标记 PASSED；截图虽已生成但尚无人工逐张审阅记录，因此原文评分矩阵中的独立视觉95分目标继续为 `NOT_PASSED`。
+- 独立原生视窗状态仍为 `NOT_TESTED`：GitHub macOS Runner 编译和 Windows Runner 编译测试不能代替 Mac 实窗、Win32 WorkerW、多屏、DPI 和辅助技术测试。
