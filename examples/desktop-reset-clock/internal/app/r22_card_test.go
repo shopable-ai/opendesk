@@ -4,6 +4,7 @@ import (
  "context"
  "net/http/httptest"
  "path/filepath"
+ "strings"
  "testing"
  "time"
 
@@ -73,8 +74,10 @@ func TestR22LocalTickerPausePersistAndRetraction(t *testing.T) {
  now=now.Add(36*time.Minute)
  app.Tick()
  stale:=app.Display()
+ // Withdrawal remains the primary event state; source staleness is
+ // independently visible in Health and must suppress all live ticker items.
  if len(stale.TickerItems)!=0 || stale.HasUpcoming ||
-  (stale.StatusKind!="stale"&&stale.StatusKind!="error") {
+  !strings.Contains(stale.Health,"过期") || stale.StatusKind!="withdrawn" {
    t.Fatalf("stale source promoted actionable information: %+v",stale)
  }
 }
