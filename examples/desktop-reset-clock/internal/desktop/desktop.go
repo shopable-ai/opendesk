@@ -11,6 +11,29 @@ type SourceEvidence struct {
  Label string `json:"label"`
  URL string `json:"url"`
 }
+// TickerItem is a validated, active news headline; tombstones stay in AllNews.
+type TickerItem struct {
+ ID string `json:"id"`
+ Title string `json:"title"`
+ Source string `json:"source"`
+ Updated string `json:"updated"`
+ URL string `json:"url"`
+}
+// HistoryRow is a versioned source event, including corrections and withdrawals.
+type HistoryRow struct {
+ When string `json:"when"`
+ Kind string `json:"kind"`
+ State string `json:"state"`
+ Title string `json:"title"`
+ Summary string `json:"summary"`
+ Revision int64 `json:"revision"`
+ URL string `json:"url"`
+}
+type MetricRow struct {
+ Name string `json:"name"`
+ Value string `json:"value"`
+ Detail string `json:"detail"`
+}
 type Display struct {
 	Demo        bool   `json:"demo"`
 	Clock       string `json:"clock"`
@@ -33,6 +56,14 @@ type Display struct {
 	CardSummary  string `json:"card_summary"`
 	CardMeta     string `json:"card_meta"`
 	CardFoot     string `json:"card_foot"`
+ TickerItems []TickerItem `json:"ticker_items"`
+ TickerIndex int `json:"ticker_index"`
+ TickerExpanded bool `json:"ticker_expanded"`
+ HistoryRows []HistoryRow `json:"history_rows,omitempty"`
+ Stats30 []MetricRow `json:"stats_30,omitempty"`
+ StatsMonth []MetricRow `json:"stats_month,omitempty"`
+ DetailsOverviewNews string `json:"details_overview_news"`
+ DetailsFullNews string `json:"details_full_news"`
 	HasUpcoming  bool   `json:"has_upcoming"`
 	HasSourceURL bool   `json:"has_source_url"`
 	LastRequest  string `json:"last_request"`
