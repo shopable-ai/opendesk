@@ -468,12 +468,21 @@ func (w *windowsUI) render() {
  height:=cardHeight
  if d.TickerExpanded&&len(d.TickerItems)>0{height=cardExpandedHeight}
  x,y:=d.X,d.Y
- // Keep the expanded card within the primary desktop work area where possible.
- screenHeight:=int(call(getSystemMetrics,1))
- screenWidth:=int(call(getSystemMetrics,0))
- if screenHeight>0&&y+height>screenHeight{y=screenHeight-height}
- if screenWidth>0&&x+cardWidth>screenWidth{x=screenWidth-cardWidth}
- if x<0{x=0};if y<0{y=0}
+ // Clamp inside the virtual desktop, retaining negative coordinates for
+ // secondary monitors placed left/above the primary. DPI/mixed-monitor
+ // behavior still requires genuine Win32 inspection.
+ vx,vy:=int(call(getSystemMetrics,76)),int(call(getSystemMetrics,77))
+ vw,vh:=int(call(getSystemMetrics,78)),int(call(getSystemMetrics,79))
+ if vw<=0 {vx=0;vw=int(call(getSystemMetrics,0))}
+ if vh<=0 {vy=0;vh=int(call(getSystemMetrics,1))}
+ if vw>0 {
+   if x+cardWidth>vx+vw {x=vx+vw-cardWidth}
+   if x<vx {x=vx}
+ }
+ if vh>0 {
+   if y+height>vy+vh {y=vy+vh-height}
+   if y<vy {y=vy}
+ }
  flags:=uintptr(0x0010)
  if w.desktopAttached{flags|=0x0004}
  target:=uintptr(1) // HWND_BOTTOM, non-topmost fallback.
