@@ -88,6 +88,8 @@ static NSButton *RCSettingsCheckbox(NSView *parent, CGFloat top, CGFloat x, CGFl
 @property (strong) NSTextField *detailsResources;
 @property (strong) NSTextField *detailsMembership;
 @property (strong) NSButton *detailsSourceButton;
+@property (strong) NSPopUpButton *historyPicker;
+@property (copy) NSArray *lastEvidenceOptions;
 @property (strong) NSArray<NSButton *> *newsButtons;
 @property (strong) NSArray<NSButton *> *resourceButtons;
 @property (strong) NSButton *mockPayButton;
@@ -317,7 +319,10 @@ static RCController *controller;
                                     NSFontWeightRegular,NSColor.labelColor,YES,NSTextAlignmentLeft);
         self.detailsHistory.maximumNumberOfLines = 7;
         self.detailsHistory.selectable = YES;
-        self.detailsSourceButton = [[NSButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,18,171,163,28)];
+        self.historyPicker = [[NSPopUpButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,18,171,316,28) pullsDown:NO];
+        self.historyPicker.toolTip = @"选择预告、确认、赠送或观察的具体证据";
+        [content addSubview:self.historyPicker];
+        self.detailsSourceButton = [[NSButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,351,171,186,28)];
         self.detailsSourceButton.title = @"打开统计来源 ↗";
         self.detailsSourceButton.bezelStyle = NSBezelStyleRounded;
         self.detailsSourceButton.target = self;
@@ -382,7 +387,11 @@ static RCController *controller;
     }
 }
 - (void)openHistoryClick:(id)sender {
-    [self openSafeDetailsURL:RCString(self.lastPayload,@"history_source_url")];
+    NSArray *list = self.lastPayload[@"history_evidence"];
+    NSInteger selected = self.historyPicker.indexOfSelectedItem;
+    if (![list isKindOfClass:NSArray.class] || selected<0 || selected>=list.count) return;
+    NSDictionary *entry = [list[selected] isKindOfClass:NSDictionary.class] ? list[selected] : nil;
+    [self openSafeDetailsURL:RCString(entry,@"url")];
 }
 - (void)openNewsClick:(NSButton *)sender {
     NSArray *urls = self.lastPayload[@"news_urls"];
@@ -404,15 +413,28 @@ static RCController *controller;
     RCSetString(self.detailsNews,RCString(data,@"details_news"));
     RCSetString(self.detailsResources,RCString(data,@"details_resources"));
     RCSetString(self.detailsMembership,RCString(data,@"member_status"));
-    self.detailsSourceButton.enabled = [RCString(data,@"history_source_url") hasPrefix:@"https://"];
+    NSArray *links = [data[@"history_evidence"] isKindOfClass:NSArray.class] ? data[@"history_evidence"] : @[];
+    if (![self.lastEvidenceOptions isEqualToArray:links]) {
+        NSInteger selected = self.historyPicker.indexOfSelectedItem;
+        [self.historyPicker removeAllItems];
+        for (NSDictionary *entry in links) {
+            if (![entry isKindOfClass:NSDictionary.class]) continue;
+            [self.historyPicker addItemWithTitle:RCString(entry,@"label")];
+        }
+        self.lastEvidenceOptions = [links copy];
+        if (links.count > 0) [self.historyPicker selectItemAtIndex:MAX(0,MIN(selected,(NSInteger)links.count-1))];
+        else [self.historyPicker addItemWithTitle:@"无可核验历史证据"];
+    }
+    self.historyPicker.enabled = links.count>0;
+    self.detailsSourceButton.enabled = links.count>0;
     NSArray *news = [data[@"news_urls"] isKindOfClass:NSArray.class] ? data[@"news_urls"] : @[];
     for (NSInteger i=0; i<self.newsButtons.count; i++)
         self.newsButtons[i].enabled = i<news.count && [news[i] isKindOfClass:NSString.class] &&
                                       [news[i] hasPrefix:@"https://"];
-    NSArray *links = [data[@"resource_urls"] isKindOfClass:NSArray.class] ? data[@"resource_urls"] : @[];
+    NSArray *resources = [data[@"resource_urls"] isKindOfClass:NSArray.class] ? data[@"resource_urls"] : @[];
     for (NSInteger i=0; i<self.resourceButtons.count; i++)
-        self.resourceButtons[i].enabled = i<links.count && [links[i] isKindOfClass:NSString.class] &&
-                                           [links[i] hasPrefix:@"https://"];
+        self.resourceButtons[i].enabled = i<resources.count && [resources[i] isKindOfClass:NSString.class] &&
+                                           [resources[i] hasPrefix:@"https://"];
     self.mockPayButton.hidden = !self.demo;
     self.mockRefundButton.hidden = !self.demo;
 }

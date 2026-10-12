@@ -6,6 +6,11 @@ import "context"
 
 // Display is intentionally flattened: AppKit/Win32 render it and must not
 // reinterpret feed validity, event type, revision or account eligibility.
+// SourceEvidence lets the user inspect the specific evidence behind a statistic.
+type SourceEvidence struct {
+ Label string `json:"label"`
+ URL string `json:"url"`
+}
 type Display struct {
 	Demo        bool   `json:"demo"`
 	Clock       string `json:"clock"`
@@ -39,6 +44,7 @@ type Display struct {
 	DetailsResources string `json:"details_resources"`
 	ResourceURLs [2]string `json:"resource_urls"`
 	HistorySourceURL string `json:"history_source_url"`
+	HistoryEvidence []SourceEvidence `json:"history_evidence,omitempty"`
 	NewsURLs [3]string `json:"news_urls"`
 
 	Show      bool `json:"show"`

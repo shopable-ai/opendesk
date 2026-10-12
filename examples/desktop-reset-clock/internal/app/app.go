@@ -377,15 +377,24 @@ func (a *App) displayLocked() desktop.Display {
 		}
 		d.DetailsHistory="最近 30 天："+format(stats.Last30Days)+"\n当前自然月："+format(stats.CurrentMonth)+
 			"\n基于提供方完整归档；观察数据并非官方确认，不代表个人额度已恢复。"
-		if s.Membership.IsMockPro(now,demo) {
-			for _,metric:=range []history.Metric{stats.Last30Days.Announcements,stats.Last30Days.Confirmations,
-				stats.Last30Days.Gifts,stats.Last30Days.Observations} {
-				if len(metric.Evidence)>0 {
-					d.HistorySourceURL=metric.Evidence[0].SourceURL
-					break
-				}
-			}
-		}
+        // Every displayed count retains clickable record-level evidence.
+        // Free shows forecast and completion; mock Pro also shows extra and observation.
+        pro:=s.Membership.IsMockPro(now,demo)
+        type namedMetric struct{name string; metric history.Metric}
+        add:=func(period string,w history.Window){
+          metrics:=[]namedMetric{{"官方预告",w.Announcements},{"确认完成",w.Confirmations}}
+          if pro {metrics=append(metrics,namedMetric{"赠送机会",w.Gifts},namedMetric{"用户观察",w.Observations})}
+          for _,item:=range metrics{
+            if !item.metric.Known {continue}
+            for _,ev:=range item.metric.Evidence{
+              entry:=desktop.SourceEvidence{Label:fmt.Sprintf("%s · %s · %s · 修订 %d",period,item.name,ev.ID,ev.Revision),URL:ev.SourceURL}
+              d.HistoryEvidence=append(d.HistoryEvidence,entry)
+              if d.HistorySourceURL=="" {d.HistorySourceURL=entry.URL}
+            }
+          }
+        }
+        add("最近30天",stats.Last30Days)
+        add("当前月",stats.CurrentMonth)
 	}
 	if s.ArchiveError!="" {d.DetailsHistory+="\n"+s.ArchiveError+"；统计显示数据不足。"}
 	if s.Snapshot!=nil {

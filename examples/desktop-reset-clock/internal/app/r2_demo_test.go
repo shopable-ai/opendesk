@@ -28,7 +28,8 @@ func TestR2DemoHistoryNewsAndCorrection(t *testing.T){
   t.Fatalf("incomplete R2 mock state: %+v",s)
  }
  view:=a.Display()
- if !strings.Contains(view.DetailsHistory,"最近 30 天") || view.NewsURLs[0]=="" ||
+ if !strings.Contains(view.DetailsHistory,"最近 30 天") || len(view.HistoryEvidence)==0 || view.HistoryEvidence[0].URL=="" ||
+  view.NewsURLs[0]=="" ||
   !strings.Contains(view.DetailsNews,"来源标注官方") || !strings.Contains(view.MemberStatus,"Free") {
   t.Fatalf("incomplete R2 display: %+v",view)
  }
@@ -47,6 +48,9 @@ func TestR2DemoHistoryNewsAndCorrection(t *testing.T){
  a.Action(context.Background(),desktop.Action{Name:"mock_pay"})
  if !strings.Contains(a.Display().MemberStatus,"模拟 Pro"){t.Fatal("mock Pro not displayed")}
  if !strings.Contains(a.Display().DetailsHistory,"个人观察"){t.Fatal("Pro history missing observation")}
+ var seenObservation bool
+ for _,ev:=range a.Display().HistoryEvidence {if strings.Contains(ev.Label,"用户观察"){seenObservation=true}}
+ if !seenObservation{t.Fatal("Pro per-observation source inaccessible")}
  a.Action(context.Background(),desktop.Action{Name:"mock_refund"})
  if strings.Contains(a.Display().MemberStatus,"模拟 Pro"){t.Fatal("mock refund didn't revoke Pro")}
 }

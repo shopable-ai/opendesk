@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"net/url"
 	"runtime"
 	"strings"
@@ -155,7 +156,8 @@ type windowsUI struct {
 	handler                                                           func(Action)
 	card, settings, feedEdit, diagnostics                             uintptr
 	details, detailsHistory, detailsNews, detailsResources, detailsMember uintptr
-	detailsHistoryLink, detailsFont uintptr
+	detailsHistoryLink, detailsFont, detailsHistoryPicker uintptr
+	lastEvidence []SourceEvidence
 	detailsNewsLinks [3]uintptr
 	detailsResourceLinks [2]uintptr
 	detailsMockPay, detailsMockRefund uintptr
@@ -656,7 +658,8 @@ func (w *windowsUI) detailsWindow(){
   }
   child("STATIC","最近 30 天 / 当前自然月 · 历史统计",0,19,16,544,25,0)
   w.detailsHistory=child("EDIT","",0x0800|0x0004|0x00200000|0x00800000,19,47,538,124,0)
-  w.detailsHistoryLink=child("BUTTON","打开统计来源 ↗",0,19,178,180,28,2210)
+  w.detailsHistoryPicker=child("COMBOBOX","",0x0003|0x00200000,19,178,317,230,0)
+  w.detailsHistoryLink=child("BUTTON","打开选中来源 ↗",0,352,178,204,28,2210)
   child("STATIC","精选动态 · 来源标注不等于官方核验",0,19,222,545,24,0)
   w.detailsNews=child("EDIT","",0x0800|0x0004|0x00200000|0x00800000,19,250,538,122,0)
   for i:=0;i<3;i++{
@@ -686,7 +689,12 @@ func (w *windowsUI) openDetailsURL(raw string){
  call(shell32.NewProc("ShellExecuteW"),0,utf("open"),utf(raw),0,0,1)
 }
 func (w *windowsUI) openHistoryLink(){
- w.mu.Lock();link:=w.display.HistorySourceURL;w.mu.Unlock()
+ index:=int(call(sendMsg,w.detailsHistoryPicker,0x0147,0,0)) // CB_GETCURSEL
+ w.mu.Lock()
+ sources:=w.display.HistoryEvidence
+ link:=""
+ if index>=0 && index<len(sources){link=sources[index].URL}
+ w.mu.Unlock()
  w.openDetailsURL(link)
 }
 func (w *windowsUI) openNewsLink(i int){
@@ -715,7 +723,18 @@ func (w *windowsUI) syncDetails(d Display){
  if d.MemberStatus!=w.lastMember{
   call(setText,w.detailsMember,utf(d.MemberStatus));w.lastMember=d.MemberStatus
  }
- call(enableWindow,w.detailsHistoryLink,uintptr(boolInt(strings.HasPrefix(d.HistorySourceURL,"https://"))))
+ if !reflect.DeepEqual(w.lastEvidence,d.HistoryEvidence) {
+  selection:=int(call(sendMsg,w.detailsHistoryPicker,0x0147,0,0))
+  call(sendMsg,w.detailsHistoryPicker,0x014B,0,0) // CB_RESETCONTENT
+  for _,e:=range d.HistoryEvidence{call(sendMsg,w.detailsHistoryPicker,0x0143,0,utf(e.Label))} // CB_ADDSTRING
+  w.lastEvidence=append([]SourceEvidence(nil),d.HistoryEvidence...)
+  if len(d.HistoryEvidence)>0 {
+   if selection<0||selection>=len(d.HistoryEvidence){selection=0}
+   call(sendMsg,w.detailsHistoryPicker,0x014E,uintptr(selection),0) // CB_SETCURSEL
+  }
+ }
+ call(enableWindow,w.detailsHistoryPicker,uintptr(boolInt(len(d.HistoryEvidence)>0)))
+ call(enableWindow,w.detailsHistoryLink,uintptr(boolInt(len(d.HistoryEvidence)>0)))
  for i:=0;i<3;i++{call(enableWindow,w.detailsNewsLinks[i],uintptr(boolInt(strings.HasPrefix(d.NewsURLs[i],"https://"))))}
  for i:=0;i<2;i++{call(enableWindow,w.detailsResourceLinks[i],uintptr(boolInt(strings.HasPrefix(d.ResourceURLs[i],"https://"))))}
  if d.Demo {
