@@ -33,6 +33,11 @@ type Display struct {
 	LastRequest  string `json:"last_request"`
 	LastChecked  string `json:"last_checked"`
 	LastChanged  string `json:"last_changed"`
+	DetailsHistory string `json:"details_history"`
+	DetailsNews    string `json:"details_news"`
+	MemberStatus   string `json:"member_status"`
+	HistorySourceURL string `json:"history_source_url"`
+	NewsURLs [3]string `json:"news_urls"`
 
 	Show      bool `json:"show"`
 	Locked    bool `json:"locked"`

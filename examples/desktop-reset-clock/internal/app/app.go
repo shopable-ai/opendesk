@@ -15,6 +15,7 @@ import (
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/feed"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/health"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/history"
+	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/news"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/reminder"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/settings"
 )
@@ -350,6 +351,43 @@ func (a *App) displayLocked() desktop.Display {
 		timeLabel(s.Health.LastFailureAt), s.Health.LastError)
 	if demo {
 		d.Badge = "【模拟数据】暂无确定公告"
+	}
+	d.MemberStatus=s.Membership.Status(now,demo)
+	d.DetailsHistory="最近 30 天：数据不足；当前自然月：数据不足。\n未提供可信完整归档，不等于 0 次。"
+	d.DetailsNews="暂无精选资讯。请检查来源 Feed。"
+	var loc *time.Location=time.Local
+	if s.Config.Zone!="" {if chosen,err:=time.LoadLocation(s.Config.Zone);err==nil{loc=chosen}}
+	if s.Archive!=nil && s.Snapshot!=nil && s.Archive.ChannelID==s.Snapshot.ChannelID &&
+	   s.Archive.ArchiveVersion==s.Snapshot.HistoryVersion {
+		stats:=history.Analyze(s.Archive,now,loc)
+		format:=func(w history.Window)string{
+			if !s.Membership.IsMockPro(now,demo) {
+				return fmt.Sprintf("预告 %s · 确认 %s（Free 摘要）",w.Announcements.Label(),w.Confirmations.Label())
+			}
+			return fmt.Sprintf("预告 %s · 确认 %s · 赠送 %s · 个人观察 %s",
+				w.Announcements.Label(),w.Confirmations.Label(),w.Gifts.Label(),w.Observations.Label())
+		}
+		d.DetailsHistory="最近 30 天："+format(stats.Last30Days)+"\n当前自然月："+format(stats.CurrentMonth)+
+			"\n基于提供方完整归档；观察数据并非官方确认，不代表个人额度已恢复。"
+		if s.Membership.IsMockPro(now,demo) {
+			for _,metric:=range []history.Metric{stats.Last30Days.Announcements,stats.Last30Days.Confirmations,
+				stats.Last30Days.Gifts,stats.Last30Days.Observations} {
+				if len(metric.Evidence)>0 {
+					d.HistorySourceURL=metric.Evidence[0].SourceURL
+					break
+				}
+			}
+		}
+	}
+	if s.ArchiveError!="" {d.DetailsHistory+="\n"+s.ArchiveError+"；统计显示数据不足。"}
+	if s.Snapshot!=nil {
+		top:=news.Top(s.Snapshot.News,3)
+		if len(top)>0 {d.DetailsNews=""}
+		for i,n:=range top {
+			typ:=map[string]string{"official":"来源标注官方","third_party":"第三方","editorial":"编辑分析"}[n.SourceType]
+			d.DetailsNews+=fmt.Sprintf("%d. %s｜%s\n   %s\n",i+1,typ,cardText(n.Title,demo),shortDate(&n.UpdatedAt,s.Config.Zone))
+			d.NewsURLs[i]=n.SourceURL
+		}
 	}
 	if s.Snapshot == nil {
 		if s.Health.LastError != "" {

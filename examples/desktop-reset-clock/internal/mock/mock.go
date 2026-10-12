@@ -100,7 +100,19 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		_ = json.NewEncoder(w).Encode(s.snapshot(v))
+		snap:=s.snapshot(v)
+		snap.HistoryURL="http://"+r.Host+"/archive"
+		snap.HistoryVersion=int64(v)
+		snap.News=s.curated(v)
+		_ = json.NewEncoder(w).Encode(snap)
+	case "/archive":
+		if r.Method!=http.MethodGet {http.Error(w,"method",405);return}
+		cursor:=r.URL.Query().Get("cursor")
+		if cursor!="" && cursor!="more"{http.Error(w,"unknown cursor",400);return}
+		s.mu.Lock();v:=s.version;s.mu.Unlock()
+		w.Header().Set("Content-Type","application/json; charset=utf-8")
+		w.Header().Set("Cache-Control","no-store")
+		_ = json.NewEncoder(w).Encode(s.archivePage(v,cursor))
 	case "/control":
 		if r.Method != "POST" || !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
 			http.Error(w, "require POST JSON", 405)
