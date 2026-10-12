@@ -725,11 +725,11 @@ func (w *windowsUI) detailsWindow(){
   }
   child(-1,"STATIC","记录与动态",0,19,14,540,25,0)
   for i,name:=range []string{"概览","历史记录","资讯"} {
-    w.detailsTabs[i]=child(-1,"BUTTON",name,0x00010000,19+i*179,48,166,32,2401+i)
+    w.detailsTabs[i]=child(-1,"BUTTON",name,0x00010000,19+i*179,48,166,32,uintptr(2401+i))
   }
   child(0,"STATIC","重置事件统计",0,19,105,273,25,0)
   for i,name:=range []string{"最近 30 天","本月"}{
-    w.detailsPeriodButtons[i]=child(0,"BUTTON",name,0x00010000,305+i*125,100,119,32,2410+i)
+    w.detailsPeriodButtons[i]=child(0,"BUTTON",name,0x00010000,305+i*125,100,119,32,uintptr(2410+i))
   }
   w.detailsStats=child(0,"EDIT","数据不足",0x0800|0x0004|0x00200000|0x00800000,19,148,538,197,0)
   child(0,"STATIC","最近三条有效动态",0,19,369,538,25,0)
