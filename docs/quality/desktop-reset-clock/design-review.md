@@ -146,3 +146,12 @@
 **测试用例位置**：`internal/history/history_test.go`、`internal/news/news_test.go`、`internal/feed/archive_test.go`、`internal/membership/membership_test.go`、`internal/app/membership_test.go`、`internal/app/r2_demo_test.go`、`internal/catalog/catalog_test.go`（相对 `examples/desktop-reset-clock/`）。
 
 **R2 代码路径**：`internal/history`（历史）、`internal/news`（资讯）、`internal/feed/archive.go`（合法 HTTP 归档）、`internal/app`（统一视图和提醒消费）、`internal/membership`（本地试用与 Mock 订单）、`internal/catalog`（资源推广标记）、`internal/desktop/native_darwin.m` 与 `native_windows.go`（原生详情）。真机证据的唯一临时输出目录为仓库根 `.runtime/tests/desktop-reset-clock/r2/`。
+
+
+## R2 CI 可核验运行记录（Go 合成测试，不是真机画面）
+
+- **受测 R2 代码提交**：`e4ee31a22398c556fb3e3cea2f318a395cfc170f`。
+- **GitHub Actions**：[Reset Clock Standalone R2 · run 38238616386](https://github.com/shopable-ai/opendesk/actions/runs/38238616386)。Linux：独立模块 `go test ./... -count=1` / `go vet ./...` / 原生入口构建均 **SUCCESS**；Windows runner：同三项均 **SUCCESS**，但没有启动可见桌面窗口；Linux Race、Windows amd64 交叉编译和 macOS arm64 `CGO_ENABLED=0` 降级构建均 **SUCCESS**。
+- **macOS AppKit 真原生编译**：该 run 的 `macos-latest` 仍处于 **QUEUED/NOT_TESTED**，不可声称原生 CGO AppKit 已经通过。
+- **原生可视交互**：macOS/Windows 各自的窗口位置、菜单操作、200% 缩放、屏幕阅读器、桌面锁定点击穿透、系统通知、安装发行均 **NOT_TESTED**。
+- **R2 后增变化**：后续如只更新本文档不修改应用源码，可引用上述 `e4ee31a` 的测试结论，但不得把它说成对尚未执行的后续 SHA 重新测试。

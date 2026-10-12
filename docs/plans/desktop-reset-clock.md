@@ -404,8 +404,8 @@
 ### 13.1 R2 功能树：现有代码与剩余条件
 
 - **F17｜历史归档：IMPLEMENTED_UNVERIFIED** — `internal/history/history.go` 的稳定 ID、修订、撤回、来源字段；`internal/feed/archive.go` 在既有 HTTP Feed 旁读取同源版本化分页归档并原子缓存。真实来源/商业数据使用许可 **BLOCKED**。
-- **F18｜30 天 / 自然月统计：IMPLEMENTED_UNVERIFIED** — `history.Analyze` 使用绝对时刻滚动 720 小时和用户 IANA 时区月界；各类事件单独统计、撤回不计数、保留可点击证据 URL。缺少完整时间窗声明显示“数据不足”，不能把未知变为 0；源本身的“complete”仍需独立核验。
-- **F19｜最多三条资讯：IMPLEMENTED_UNVERIFIED** — Feed `news` 字段、`internal/news` 按更新时间排序、Revision 更正和撤回，`internal/desktop` 和 `internal/app` 分出原生资讯详情及 HTTPS 链接；未提供真实官方资讯源。
+- **F18｜30 天 / 自然月统计：IMPLEMENTED_UNVERIFIED** — `history.Analyze` 使用绝对时刻滚动 720 小时和用户 IANA 时区月界；各类事件单独统计、撤回不计数、保留可点击证据 URL，并在 macOS/Windows 原生详情页通过证据下拉框选择记录级来源。缺少完整时间窗声明显示“数据不足”，不能把未知变为 0；源本身的“complete”仍需独立核验。
+- **F19｜最多三条资讯：IMPLEMENTED_UNVERIFIED** — Feed `news` 字段、`internal/news` 按更新时间排序、Revision 更正和撤回，`internal/desktop` 和 `internal/app` 分出原生资讯详情及 HTTPS 链接；详情原生选择器保留`完整资讯列表`（含撤回、来源失效）、主内容仍只显示三条；未提供真实官方资讯源。
 - **F20｜外部资料：IMPLEMENTED_UNVERIFIED** — `internal/catalog` 内含带来源标识的 HTTPS 官方开发文档示例，第三方赞助内容必须有显著披露；不储存账号、Cookie 或凭据。
 - **F21｜Free 与测试权益：PARTIAL / IMPLEMENTED_UNVERIFIED** — 永久基础时间、状态、到时提醒；两次“提前 10 分钟”高级通知试用按稳定 ID 去重并在通知分发前持久化，消费失败回滚。`internal/membership` 提供 Mock 订单、退款、撤权、取消、恢复与重放测试；模拟 Pro 仅在 Demo 时启用，不等于真实付费权限。多提醒时机/自定义规则及正式云签发 Pro **未实现**；生产支付 **BLOCKED**。
 - **F22｜企业/服务目录：PARTIAL** — 只有安全结构和公开技术资料入口，企业缓存咨询及其他推广合作无实际商家授权故未上线；共享账号、账号转售、代充值和密钥收集不予实现。

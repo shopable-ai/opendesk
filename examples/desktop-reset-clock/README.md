@@ -107,7 +107,9 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o ../../.runtime/tests/desktop
 (cd examples/desktop-reset-clock && go run ./cmd/demo)
 ```
 
-Demo 启动后：打开终端给出的回环控制页面，切换 V1 → V2 → V3，返回应用菜单点 **立即检查来源**，最后打开 **历史统计与三条动态**。本地 HTTP `/feed` 含模拟事件 + 3 条资讯，`/archive` 含约 65 天覆盖声明、两页历史（包括更正和撤回），不是实际官方消息，不能推断个人账户额度。V2 模拟新闻修订，V3 撤回一条编辑分析；你可点击每条 HTTPS 原文（均为虚构 `example.org` 演示链接）。
+Demo 启动后：打开终端给出的回环控制页面，切换 V1 → V2 → V3，返回应用菜单点 **立即检查来源**，最后打开 **历史统计与三条动态**。
+
+**详情选择器**：历史统计区有“选择具体证据 → 打开选中来源”，Free 可以查看官方预告/完成记录的原文，模拟 Pro 还可查看赠送与用户观察来源；资讯区的三条正文下方提供完整资讯下拉列表，包含已撤回、来源失效项（状态明确标注），不会把墓碑当成有效三条资讯。选择后通过 HTTPS 原文按钮打开来源。本地 HTTP `/feed` 含模拟事件 + 3 条资讯，`/archive` 含约 65 天覆盖声明、两页历史（包括更正和撤回），不是实际官方消息，不能推断个人账户额度。V2 模拟新闻修订，V3 撤回一条编辑分析；你可点击每条 HTTPS 原文（均为虚构 `example.org` 演示链接）。
 
 详细页在 Demo 模式可点 **启用模拟 Pro · 不收费** 和 **模拟退款 / 撤权**；真实客户端无这两个模拟按钮，更不会因本地模拟订单获得生产会员。Free 永久显示桌面时间与来源状态，并保留**到时提醒**；每个不同的**提前 10 分钟高级提醒**只在应触发且允许提醒时消耗一次试用额度（共 2 次）。刷新/重启同一 ID 不重复扣除；试用耗尽不关闭基础时间或基本提示。演示的 Mock 订单可在 Go 单测中覆盖取消、到期、恢复、退款及重复回调。正式收费/签发尚未开发。
 
@@ -174,3 +176,6 @@ go build ./cmd/desktop-reset-clock
 跨平台构建交由 GitHub Actions 工作流 [Reset Clock Standalone R2](../../.github/workflows/reset-clock-ci.yml) 在 Linux/macOS/Windows 分别执行；`macos-latest` 用带 CGO 的 AppKit 构建，仅证明可编译，不等于 WindowServer 中成功绘制。可操作本机需要手动运行 Demo 并查看真实窗口，特别核对 100/150/200% 缩放、字体截断、无权限通知、锁定点击穿透、菜单 HTTPS 来源点击、后台进程继续运行。必要截图与诊断存放**仓库根** `.runtime/tests/desktop-reset-clock/r2/`，不提交这些临时文件。
 
 **生产支付：BLOCKED**（0.99 币种未定；商户、合规、服务端签名权益均不存在）。**外部官方实时数据：BLOCKED**（未提供授权 Feed）。**系统级 Mac/Win 实窗与安装包：NOT_TESTED**。不得用上述 synthetic Demo 或 HTML 视觉原型冒充这些验证。 
+
+
+**R2 CI 验收证据**：应用代码提交 [`e4ee31a`](https://github.com/shopable-ai/opendesk/commit/e4ee31a22398c556fb3e3cea2f318a395cfc170f) 的 [GitHub Actions Run 38238616386](https://github.com/shopable-ai/opendesk/actions/runs/38238616386)：Linux/Windows Go 测试、Vet、构建和 Linux Race / Windows amd64 交叉编译 / macOS arm64 无 CGO 降级构建已成功；**原生 macOS AppKit 工作仍等待 Runner，不能把无 CGO 构建当作 AppKit 编译成功**。两平台原生真机行为、通知和安装包仍 NOT_TESTED。
