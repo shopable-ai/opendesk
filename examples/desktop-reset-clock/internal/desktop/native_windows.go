@@ -660,13 +660,13 @@ func (w *windowsUI) detailsWindow(){
   child("STATIC","精选动态 · 来源标注不等于官方核验",0,19,222,545,24,0)
   w.detailsNews=child("EDIT","",0x0800|0x0004|0x00200000|0x00800000,19,250,538,122,0)
   for i:=0;i<3;i++{
-   w.detailsNewsLinks[i]=child("BUTTON",fmt.Sprintf("打开动态 %d ↗",i+1),0,19+i*181,380,174,28,2201+i)
+   w.detailsNewsLinks[i]=child("BUTTON",fmt.Sprintf("打开动态 %d ↗",i+1),0,19+i*181,380,174,28,uintptr(2201+i))
   }
   w.detailsResources=child("STATIC","",0,19,428,538,23,0)
   for i:=0;i<2;i++{
    name:="Codex 官方资源 ↗"
    if i==1{name="API 开发指南 ↗"}
-   w.detailsResourceLinks[i]=child("BUTTON",name,0,19+i*225,455,215,28,2221+i)
+   w.detailsResourceLinks[i]=child("BUTTON",name,0,19+i*225,455,215,28,uintptr(2221+i))
   }
   w.detailsMember=child("EDIT","",0x0800|0x0004|0x00800000,19,509,538,41,0)
   w.detailsMockPay=child("BUTTON","启用模拟 Pro · 不收费",0,19,564,231,29,2301)
