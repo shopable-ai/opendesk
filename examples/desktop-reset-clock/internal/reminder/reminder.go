@@ -36,7 +36,7 @@ func (e *Engine) SetEvents(s events.Snapshot, now time.Time, advance bool) {
 			continue
 		}
 		key := fmt.Sprintf("auto:%s:%d:%d", ev.ID, ev.Revision, ev.EffectiveAt.Unix())
-		item := Plan{Key: key + ":at", At: ev.EffectiveAt.UTC(), Text: "官方公告预计重置时间已到（未验证个人额度）", Automatic: true}
+		item := Plan{Key: key + ":at", At: ev.EffectiveAt.UTC(), Text: "来源公告预计重置时间已到（未验证个人额度）", Automatic: true}
 		if item.At.After(now) && !e.Fired[item.Key] {
 			next[item.Key] = item
 		}
@@ -44,7 +44,7 @@ func (e *Engine) SetEvents(s events.Snapshot, now time.Time, advance bool) {
 			item.Key = key + ":early"
 			item.Premium = true
 			item.At = ev.EffectiveAt.Add(-10 * time.Minute).UTC()
-			item.Text = "官方公告预计时间还有 10 分钟"
+			item.Text = "来源公告预计时间还有 10 分钟"
 			if item.At.After(now) && !e.Fired[item.Key] {
 				next[item.Key] = item
 			}

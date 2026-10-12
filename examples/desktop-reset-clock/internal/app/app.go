@@ -252,12 +252,14 @@ func (a *App) Tick() {
 	}
 	oldMembership := a.s.Membership.Clone()
 	oldManual := append([]reminder.Plan(nil),a.s.Manual...)
+	oldSavedAt := a.s.SavedAt
 	oldFired := make(map[string]bool, len(a.reminders.Fired))
 	for k, v := range a.reminders.Fired {
 		oldFired[k] = v
 	}
 	due := a.reminders.Due(now, a.s.Health.AllowAuto(now), a.s.Config.Quiet)
-	if len(due) > 0 {
+	// Suppressed and stale plans are terminal decisions too: persist their IDs.
+	if len(a.reminders.Plans)!=len(oldPlans) || len(due)>0 {
 		filtered := make([]reminder.Plan,0,len(due))
 		for _,p := range due {
 			if p.Premium {
@@ -273,6 +275,7 @@ func (a *App) Tick() {
 			a.s.Fired=oldFired
 			a.s.Manual=oldManual
 			a.s.Membership=oldMembership
+			a.s.SavedAt=oldSavedAt
 			due=nil
 		} else {
 			due=filtered
@@ -335,9 +338,9 @@ func (a *App) displayLocked() desktop.Display {
 	d := desktop.Display{
 		Demo: demo, LocalTime: parts.Time, LocalDate: parts.Date + " · " + parts.Zone,
 		Clock: parts.Date + " " + parts.Time + " " + parts.Zone,
-		Title: "暂无确定的下一次重置", Summary: "尚无有效官方公告",
+		Title: "暂无确定的下一次重置", Summary: "尚无有效来源公告",
 		Badge: "暂无确定公告", StatusKind: "empty", CardHint: "当前公告状态",
-		CardValue: "暂无确定的下一次重置", CardSummary: "尚无有效官方公告",
+		CardValue: "暂无确定的下一次重置", CardSummary: "尚无有效来源公告",
 		CardFoot: state, Health: state, FeedURL: s.Config.FeedURL,
 		Show: s.Config.Show, Locked: s.Config.Locked, Quiet: s.Config.Quiet,
 		Advance10: s.Config.Advance10, Clock24: s.Config.Clock24,
@@ -376,13 +379,13 @@ func (a *App) displayLocked() desktop.Display {
 				w.Announcements.Label(),w.Confirmations.Label(),w.Gifts.Label(),w.Observations.Label())
 		}
 		d.DetailsHistory="最近 30 天："+format(stats.Last30Days)+"\n当前自然月："+format(stats.CurrentMonth)+
-			"\n基于提供方完整归档；观察数据并非官方确认，不代表个人额度已恢复。"
+			"\n基于提供方声明的完整归档；尚未独立证明官方身份，个人观察不代表个人额度恢复。"
         // Every displayed count retains clickable record-level evidence.
         // Free shows forecast and completion; mock Pro also shows extra and observation.
         pro:=s.Membership.IsMockPro(now,demo)
         type namedMetric struct{name string; metric history.Metric}
         add:=func(period string,w history.Window){
-          metrics:=[]namedMetric{{"官方预告",w.Announcements},{"确认完成",w.Confirmations}}
+          metrics:=[]namedMetric{{"来源标注官方预告",w.Announcements},{"来源标注确认完成",w.Confirmations}}
           if pro {metrics=append(metrics,namedMetric{"赠送机会",w.Gifts},namedMetric{"用户观察",w.Observations})}
           for _,item:=range metrics{
             if !item.metric.Known {continue}
@@ -442,7 +445,7 @@ func (a *App) displayLocked() desktop.Display {
 			continue
 		}
 		chosen = e.EffectiveAt
-		d.Title, d.Summary, d.SourceURL = "官方公告 · 预计重置", e.Summary, e.SourceURL
+		d.Title, d.Summary, d.SourceURL = "来源预告 · 预计重置", e.Summary, e.SourceURL
 		d.Published = timeLabel(e.SourcePublishedAt)
 		d.Effective = timeLabel(e.EffectiveAt)
 		d.Countdown = clock.Countdown(now, *e.EffectiveAt)
@@ -450,7 +453,7 @@ func (a *App) displayLocked() desktop.Display {
 		d.CardHint, d.CardValue = "距离公告预计重置", d.Countdown
 		d.CardSummary = cardText(e.Summary, demo)
 		d.CardMeta = "发布 " + shortDate(e.SourcePublishedAt, s.Config.Zone) + "  ·  预计 " + shortDate(e.EffectiveAt, s.Config.Zone)
-		d.StatusKind, d.Badge = "active", "公告预计重置"
+		d.StatusKind, d.Badge = "active", "来源预告重置"
 		if e.Revision > 1 {
 			d.StatusKind, d.Badge = "revised", fmt.Sprintf("时间已更正 · 修订 %d", e.Revision)
 		}

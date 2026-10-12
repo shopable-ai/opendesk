@@ -10,6 +10,7 @@ import(
  "github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/feed"
  "github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/health"
  "github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/reminder"
+ "github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/settings"
 )
 func TestPremiumTrialPersistsWithoutStoppingFreeClock(t *testing.T){
  now:=time.Now().UTC()
@@ -53,4 +54,37 @@ func TestPlanPremiumAndAudienceIsolation(t *testing.T){
  for _,p:=range r.Plans {if p.Premium {premium++}else {base++}}
  if premium!=1 || base!=1 {t.Fatal("premium/base flags incorrect")}
  _=context.Background()
+}
+
+func TestQuietDecisionPersistedAndWriteFailureRollback(t *testing.T) {
+ now:=time.Now().UTC()
+ file:=filepath.Join(t.TempDir(),"state.json")
+ a,err:=New(file,feed.Client{},func()time.Time{return now})
+ if err!=nil{t.Fatal(err)}
+ key:="quiet-premium"
+ a.mu.Lock()
+ a.s.Config.Quiet=true
+ a.reminders.Plans[key]=reminder.Plan{Key:key,At:now.Add(-time.Second),Premium:true,Automatic:false}
+ a.mu.Unlock()
+ a.Tick()
+ state,err:=settings.Load(file)
+ if err!=nil{t.Fatal(err)}
+ if !state.Fired[key] || state.Membership.Remaining()!=2 {
+   t.Fatalf("quiet suppression must be durable without charging: %+v",state)
+ }
+ reopened,err:=New(file,feed.Client{},func()time.Time{return now})
+ if err!=nil || reopened.reminders.Pending()!=0 || !reopened.reminders.Fired[key] {
+   t.Fatalf("quiet plan replayed on restart: %v",err)
+ }
+ reopened.file=filepath.Dir(file) // os.Rename(temp, directory) fails.
+ reopened.mu.Lock()
+ reopened.s.Config.Quiet=false
+ failKey:="failed-persist-premium"
+ reopened.reminders.Plans[failKey]=reminder.Plan{Key:failKey,At:now.Add(-time.Second),Premium:true}
+ reopened.mu.Unlock()
+ reopened.Tick()
+ if reopened.reminders.Fired[failKey] || reopened.reminders.Plans[failKey].Key!=failKey ||
+   reopened.s.Membership.Remaining()!=2 {
+    t.Fatal("failed persistent save consumed or lost a premium reminder")
+ }
 }
