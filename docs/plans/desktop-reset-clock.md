@@ -3,7 +3,7 @@
 
 > **状态：R1 客户端已实现（平台真机未验收）｜日期：2026-10-11｜目标：macOS、Windows｜语言：Go**
 >
-> 这是**计划**，不是已实现的产品。现已在 `examples/desktop-reset-clock/` 实现独立 Go 客户端、合成 HTTP Mock、事件修订/撤回、缓存、提醒与平台适配源码。真实 HTTP 数据源、macOS/Windows 桌面真机行为、收费和安装包仍未验收。
+> 本文件继续保留 F01–F16 产品计划；当前 R1 已有独立 Go 客户端源码和可运行的合成 Demo，并非已经完成真机验收的正式产品。已在 `examples/desktop-reset-clock/` 实现独立 Go 客户端、合成 HTTP Mock、事件修订/撤回、缓存、提醒与平台适配源码。真实 HTTP 数据源、macOS/Windows 桌面真机行为、收费和安装包仍未验收。
 
 **读者从这里开始：**
 

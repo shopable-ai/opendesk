@@ -400,7 +400,10 @@ OPENDESK_LIVE_CLIPBOARD_TEST=1 go test ./automation -run '^TestDarwinRichClipboa
 | `internal/browsercli/dev_unix_test.go` | `KEEP_PACKAGE` | 是：Go Browser CLI 的私有命令分派、可信 Node 入口查找 | 裸 browser/dev 等价、help/version 不接入目录、未知子命令报错和缺组件安全诊断 | 临时 HOME 和 in-memory 输出；不启动 Node/Chrome | 防止未知参数成为授权、help 产生安装副作用或裸入口错误路由 | R17 命令合同定向测试；真实打包二进制及 Mac 安装路径另行验收。 |
 
 
-<!-- Reset Clock R1：独立 Go module，测试登记在同一份既有账本 -->
+### Desktop Reset Clock R1（独立 Go module 增量登记）
+
+| 路径 | 处置 | 是否需要私有 seam | 主要测试职责 | 验收命令 | 回归保护点 | 证据边界 |
+| --- | --- | --- | --- | --- | --- | --- |
 | `examples/desktop-reset-clock/internal/app/app_test.go` | `KEEP_PACKAGE`（独立模块） | 是：HTTP/时间/协议/提醒或持久化领域实现的确定性 seam | 覆盖 app 层的正向与错误恢复场景 | `(cd examples/desktop-reset-clock && go test ./... -count=1)` | 防止历史公告误报、版本倒退、过期提醒、缓存损坏及 HTTP 语义混淆 | 不替代 macOS/Windows 真实窗口、系统通知、休眠或发行资格测试。 |
 | `examples/desktop-reset-clock/internal/clock/clock_test.go` | `KEEP_PACKAGE`（独立模块） | 是：HTTP/时间/协议/提醒或持久化领域实现的确定性 seam | 覆盖 clock 层的正向与错误恢复场景 | `(cd examples/desktop-reset-clock && go test ./... -count=1)` | 防止历史公告误报、版本倒退、过期提醒、缓存损坏及 HTTP 语义混淆 | 不替代 macOS/Windows 真实窗口、系统通知、休眠或发行资格测试。 |
 | `examples/desktop-reset-clock/internal/events/events_test.go` | `KEEP_PACKAGE`（独立模块） | 是：HTTP/时间/协议/提醒或持久化领域实现的确定性 seam | 覆盖 events 层的正向与错误恢复场景 | `(cd examples/desktop-reset-clock && go test ./... -count=1)` | 防止历史公告误报、版本倒退、过期提醒、缓存损坏及 HTTP 语义混淆 | 不替代 macOS/Windows 真实窗口、系统通知、休眠或发行资格测试。 |
