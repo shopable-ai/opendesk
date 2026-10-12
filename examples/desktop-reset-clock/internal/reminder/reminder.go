@@ -13,6 +13,7 @@ type Plan struct {
 	At        time.Time `json:"at"`
 	Text      string    `json:"text"`
 	Automatic bool      `json:"automatic"`
+	Premium   bool      `json:"premium,omitempty"`
 }
 
 // Engine derives cancellable plans from the newest complete snapshot.
@@ -31,7 +32,7 @@ func New(fired map[string]bool) *Engine {
 func (e *Engine) SetEvents(s events.Snapshot, now time.Time, advance bool) {
 	next := map[string]Plan{}
 	for _, ev := range s.Events {
-		if ev.Type != "reset_announcement" || ev.State != "active" || ev.EffectiveAt == nil || ev.VerifiedAt == nil || ev.Audience == "unknown" {
+		if ev.Type != "reset_announcement" || ev.State != "active" || ev.EffectiveAt == nil || ev.VerifiedAt == nil || (ev.Audience != "public" && ev.Audience != "all_users") {
 			continue
 		}
 		key := fmt.Sprintf("auto:%s:%d:%d", ev.ID, ev.Revision, ev.EffectiveAt.Unix())
@@ -41,6 +42,7 @@ func (e *Engine) SetEvents(s events.Snapshot, now time.Time, advance bool) {
 		}
 		if advance {
 			item.Key = key + ":early"
+			item.Premium = true
 			item.At = ev.EffectiveAt.Add(-10 * time.Minute).UTC()
 			item.Text = "官方公告预计时间还有 10 分钟"
 			if item.At.After(now) && !e.Fired[item.Key] {

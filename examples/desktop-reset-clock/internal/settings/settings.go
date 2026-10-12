@@ -11,6 +11,7 @@ import (
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/events"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/health"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/history"
+	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/membership"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/reminder"
 )
 
@@ -33,6 +34,7 @@ type State struct {
 	Archive        *history.Archive `json:"archive,omitempty"`
 	ArchiveSource  string           `json:"archive_source,omitempty"`
 	ArchiveError   string           `json:"archive_error,omitempty"`
+	Membership     membership.State `json:"membership,omitempty"`
 	ETag           string           `json:"etag,omitempty"`
 	SourceIdentity string           `json:"source_identity,omitempty"`
 	Health         health.Status    `json:"health"`

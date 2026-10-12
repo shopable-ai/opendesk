@@ -15,6 +15,7 @@ import (
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/feed"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/health"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/history"
+	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/membership"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/reminder"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/settings"
 )
@@ -248,15 +249,32 @@ func (a *App) Tick() {
 	for k, v := range a.reminders.Plans {
 		oldPlans[k] = v
 	}
+	oldMembership := a.s.Membership.Clone()
+	oldManual := append([]reminder.Plan(nil),a.s.Manual...)
 	oldFired := make(map[string]bool, len(a.reminders.Fired))
 	for k, v := range a.reminders.Fired {
 		oldFired[k] = v
 	}
 	due := a.reminders.Due(now, a.s.Health.AllowAuto(now), a.s.Config.Quiet)
 	if len(due) > 0 {
+		filtered := make([]reminder.Plan,0,len(due))
+		for _,p := range due {
+			if p.Premium {
+				allowed,_ := a.s.Membership.Consume(p.Key,now,a.DemoSwitch!=nil)
+				if !allowed {continue}
+			}
+			filtered=append(filtered,p)
+		}
 		if err := a.saveLocked(); err != nil {
 			log.Printf("reminder persistence failed: %v; notifications suppressed", err)
-			due = nil
+			a.reminders.Plans=oldPlans
+			a.reminders.Fired=oldFired
+			a.s.Fired=oldFired
+			a.s.Manual=oldManual
+			a.s.Membership=oldMembership
+			due=nil
+		} else {
+			due=filtered
 		}
 	}
 	ui := a.ui
@@ -422,6 +440,25 @@ func (a *App) Action(ctx context.Context, action desktop.Action) {
 			}
 			a.Tick()
 		}()
+	case "mock_pay", "mock_cancel", "mock_refund", "mock_restore":
+		// Explicitly limited to the synthetic Demo. A local flag never grants production Pro.
+		if a.DemoSwitch==nil{return}
+		a.mu.Lock()
+		now:=a.now()
+		order:=a.s.Membership.Mock.CurrentOrder
+		kind:="restore"
+		switch action.Name {
+		case "mock_pay":kind="checkout_completed";order=fmt.Sprintf("demo-order-%d",now.UnixNano())
+		case "mock_cancel":kind="subscription_canceled"
+		case "mock_refund":kind="refunded"
+		}
+		if order!="" {
+			id:=fmt.Sprintf("demo-event-%s-%d",kind,now.UnixNano())
+			e:=a.s.Membership.ApplyMockEvent(id,order,kind,now.Add(30*24*time.Hour))
+			if e!=nil{log.Printf("mock checkout: %v",e)}else if e=a.saveLocked();e!=nil{log.Printf("mock checkout state save: %v",e)}
+		}
+		a.mu.Unlock()
+		a.Tick()
 	case "quit":
 		if a.cancel != nil {
 			a.cancel()
