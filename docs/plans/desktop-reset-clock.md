@@ -450,3 +450,16 @@
 - **测试层级**：逻辑正确性以 GitHub Actions 对应应用 SHA 的 Test/Vet/Race/Build 为证；`macos-latest` 尚在排队时标记为 QUEUED/NOT_TESTED。实际 WindowServer AppKit 窗口、Win32 真实窗口、通知到达和 100%/150%/200% DPI 需单独保存真机截图和行为记录。
 
 **商业合规核对**（2026-10-12）：已核对 [OpenAI Terms of Use](https://openai.com/policies/terms-of-use/) 与 [OpenAI Services Agreement](https://openai.com/policies/services-agreement/) 的当前公开页面。个人凭据不得与他人共享；企业合同也约束账户转售、共享登录以及 API Key 买卖。未经明确许可，本产品仅提供阅读、经过授权的技术维护咨询与官方文档入口，不提供账号转售、代登录或 API Key 转让功能。
+
+
+## R2.2 交付增补（2026-10-12，仅 `master`）
+
+**目标**：单一 Go 原生代码底座，常驻卡片由旧 386×260 双时钟/长摘要调整为 386×202 紧凑倒计时+一行资讯，展开最多约 386×334。旧 R1.1/R2 原型供对照；`prototypes/r22-client-preview.html` 是唯一 R2.2 前端验收原型，不另起架构。
+
+- **F26 · 有效预告**：分钟显示，注明「来源预告」「预计本地时间」；更正单独状态，撤回立即移除未来倒计时，来源过期不生成可行动时间。展示层用 `formatCardRemaining`，通知仍依赖原有毫秒精度。
+- **F27 · 精选动态**：Feed 已验证新闻最多三条，保留 ID/修订与 HTTPS 来源。6s 本地轮播、手动前后页、鼠标停留暂停、原位展开不弹窗；源失效或资讯墓碑只在详情留历史。展开状态与现有设置 JSON 同步；默认点击穿透时状态栏/托盘提供等价命令。
+- **F28 · 记录与动态**：独立原生窗口三个入口：概览（30 天/本月四种指标 + 最新有效资讯）、历史（事件版本时间线 + 证据链接）、资讯（完整修订列表 + 来源状态 + HTTPS 原文）。Free/Mock Pro 显示边界明确，不在资讯首屏卖服务。
+- **F29 · 跨系统实施**：Go `internal/app` 负责来源真实性、新闻过滤、统计和状态；`internal/desktop` 只渲染平台原生控件。AppKit/Win32 只依赖原有 SDK，拒绝 Electron/WebView/第二套数据层；现有 Feed、History、News、Reminder、Membership 均复用。
+- **F30 · 不可跳过的验收**：独立记录内容准确性、信息价值、视觉、色彩、密度、资讯交互、详情 IA、无障碍八项，任何一项未到 95 或未在对应环境测试，**不能**宣称产品级通过。真实浏览器截图和 macOS/Windows 的屏幕缩放、菜单操作、焦点、多屏、恢复等必须分别实测，合成 Go CI 不计入原生视觉分数。
+
+R2.2 原生设计是阶段性实现，不包含实际 OpenAI 认证、官方额度推断、正式支付和线上来源授权。参考具体当前验收记录：`docs/quality/desktop-reset-clock/design-review.md`。
