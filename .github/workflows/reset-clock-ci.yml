@@ -1,0 +1,53 @@
+name: Reset Clock Standalone R2
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'examples/desktop-reset-clock/**'
+      - '.github/workflows/reset-clock-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  go-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: examples/desktop-reset-clock
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - name: Test independent Go module
+        run: go test ./... -count=1
+      - name: Vet independent Go module
+        run: go vet ./...
+      - name: Build native client
+        run: go build ./cmd/desktop-reset-clock
+
+  race-and-cross:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: examples/desktop-reset-clock
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - name: Race detector
+        run: go test -race ./... -count=1
+      - name: Windows amd64 cross-build
+        run: GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o ../../.runtime-reset-clock-windows.exe ./cmd/desktop-reset-clock
+      - name: macOS arm64 non-CGO fallback build
+        run: GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o ../../.runtime-reset-clock-mac-fallback ./cmd/desktop-reset-clock
