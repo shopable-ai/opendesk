@@ -10,6 +10,7 @@ static const CGFloat RCScreenCardHeight = 260;
 static const CGFloat RCSettingsWidth = 520;
 static const CGFloat RCSettingsBaseHeight = 534;
 static const CGFloat RCSettingsExpandedHeight = 660;
+static const CGFloat RCDetailsHeight = 588;
 
 static NSColor *RCColor(CGFloat red, CGFloat green, CGFloat blue) {
     return [NSColor colorWithCalibratedRed:red green:green blue:blue alpha:1.0];
@@ -81,6 +82,17 @@ static NSButton *RCSettingsCheckbox(NSView *parent, CGFloat top, CGFloat x, CGFl
 @interface RCController : NSObject <NSApplicationDelegate, NSWindowDelegate>
 @property (strong) NSPanel *card;
 @property (strong) NSWindow *settings;
+@property (strong) NSWindow *details;
+@property (strong) NSTextField *detailsHistory;
+@property (strong) NSTextField *detailsNews;
+@property (strong) NSTextField *detailsResources;
+@property (strong) NSTextField *detailsMembership;
+@property (strong) NSButton *detailsSourceButton;
+@property (strong) NSArray<NSButton *> *newsButtons;
+@property (strong) NSArray<NSButton *> *resourceButtons;
+@property (strong) NSButton *mockPayButton;
+@property (strong) NSButton *mockRefundButton;
+@property (copy) NSDictionary *lastPayload;
 @property (strong) NSStatusItem *tray;
 @property (strong) NSView *badgeBackground;
 @property (strong) NSTextField *badgeLabel;
@@ -182,6 +194,7 @@ static RCController *controller;
 - (void)makeMenu {
     NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Reset Clock"];
     [menu addItem:[self menuItem:@"查看公告与设置" action:@"settings"]];
+    [menu addItem:[self menuItem:@"历史统计与三条动态" action:@"details"]];
     [menu addItem:[self menuItem:@"立即检查来源" action:@"refresh"]];
     [menu addItem:[self menuItem:@"打开原始公告" action:@"source"]];
     [menu addItem:[NSMenuItem separatorItem]];
@@ -225,6 +238,7 @@ static RCController *controller;
 - (void)menuAction:(NSMenuItem *)sender {
     NSString *command = sender.representedObject;
     if ([command isEqualToString:@"settings"]) { [self showSettings]; return; }
+    if ([command isEqualToString:@"details"]) { [self showDetails]; return; }
     if ([command isEqualToString:@"source"]) { [self openSource]; return; }
     if ([command isEqualToString:@"permission"]) {
         [[UNUserNotificationCenter currentNotificationCenter]
@@ -287,6 +301,122 @@ static RCController *controller;
     [self.settings makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
 }
+- (void)showDetails {
+    if (!self.details) {
+        self.details = [[NSWindow alloc] initWithContentRect:NSMakeRect(0,0,560,RCDetailsHeight)
+            styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable)
+            backing:NSBackingStoreBuffered defer:NO];
+        self.details.title = @"Reset Clock · 历史与资讯（来源声明）";
+        self.details.releasedWhenClosed = NO;
+        self.details.delegate = self;
+        NSView *content = self.details.contentView;
+        NSTextField *heading = RCText(content,RCTopRect(RCDetailsHeight,18,18,515,24),15,
+                                     NSFontWeightSemibold,NSColor.labelColor,NO,NSTextAlignmentLeft);
+        heading.stringValue = @"最近 30 天 / 自然月 · 历史统计";
+        self.detailsHistory = RCText(content,RCTopRect(RCDetailsHeight,18,49,520,115),12,
+                                    NSFontWeightRegular,NSColor.labelColor,YES,NSTextAlignmentLeft);
+        self.detailsHistory.maximumNumberOfLines = 7;
+        self.detailsHistory.selectable = YES;
+        self.detailsSourceButton = [[NSButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,18,171,163,28)];
+        self.detailsSourceButton.title = @"打开统计来源 ↗";
+        self.detailsSourceButton.bezelStyle = NSBezelStyleRounded;
+        self.detailsSourceButton.target = self;
+        self.detailsSourceButton.action = @selector(openHistoryClick:);
+        [content addSubview:self.detailsSourceButton];
+        NSTextField *newsLabel = RCText(content,RCTopRect(RCDetailsHeight,18,213,520,23),15,
+                                        NSFontWeightSemibold,NSColor.labelColor,NO,NSTextAlignmentLeft);
+        newsLabel.stringValue = @"精选动态 · 来源标注不等于官方核验";
+        self.detailsNews = RCText(content,RCTopRect(RCDetailsHeight,18,245,520,109),12,
+                                  NSFontWeightRegular,NSColor.labelColor,YES,NSTextAlignmentLeft);
+        self.detailsNews.maximumNumberOfLines = 8;
+        self.detailsNews.selectable = YES;
+        NSMutableArray *news = [NSMutableArray array];
+        for (NSInteger i=0; i<3; i++) {
+            NSButton *button = [[NSButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,18+i*169,364,158,28)];
+            button.title = [NSString stringWithFormat:@"打开动态 %ld ↗",(long)i+1];
+            button.tag = i;
+            button.bezelStyle = NSBezelStyleRounded;
+            button.target = self;
+            button.action = @selector(openNewsClick:);
+            [content addSubview:button];
+            [news addObject:button];
+        }
+        self.newsButtons = news;
+        self.detailsResources = RCText(content,RCTopRect(RCDetailsHeight,18,410,520,20),12,
+                                      NSFontWeightMedium,NSColor.secondaryLabelColor,NO,NSTextAlignmentLeft);
+        NSMutableArray *resources = [NSMutableArray array];
+        for (NSInteger i=0; i<2; i++) {
+            NSButton *button = [[NSButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,18+i*215,436,204,27)];
+            button.title = i==0 ? @"Codex 官方资源 ↗" : @"API 开发指南 ↗";
+            button.tag = i;
+            button.target = self;
+            button.action = @selector(openResourceClick:);
+            button.bezelStyle = NSBezelStyleRounded;
+            [content addSubview:button];
+            [resources addObject:button];
+        }
+        self.resourceButtons = resources;
+        self.detailsMembership = RCText(content,RCTopRect(RCDetailsHeight,18,485,520,22),12,
+                                       NSFontWeightSemibold,NSColor.labelColor,NO,NSTextAlignmentLeft);
+        self.mockPayButton = [[NSButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,18,527,220,29)];
+        self.mockPayButton.title = @"启用模拟 Pro · 不收费";
+        self.mockPayButton.target = self;
+        self.mockPayButton.action = @selector(mockPayClick:);
+        [content addSubview:self.mockPayButton];
+        self.mockRefundButton = [[NSButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,245,527,138,29)];
+        self.mockRefundButton.title = @"模拟退款 / 撤权";
+        self.mockRefundButton.target = self;
+        self.mockRefundButton.action = @selector(mockRefundClick:);
+        [content addSubview:self.mockRefundButton];
+        [self.details center];
+    }
+    [self syncDetails:self.lastPayload];
+    [self.details makeKeyAndOrderFront:nil];
+    [NSApp activateIgnoringOtherApps:YES];
+}
+- (void)openSafeDetailsURL:(NSString *)value {
+    NSURL *url = [NSURL URLWithString:value ?: @""];
+    if ([[url.scheme lowercaseString] isEqualToString:@"https"] && url.host.length>0 &&
+        !url.user && !url.password && !url.fragment) {
+        [[NSWorkspace sharedWorkspace] openURL:url];
+    }
+}
+- (void)openHistoryClick:(id)sender {
+    [self openSafeDetailsURL:RCString(self.lastPayload,@"history_source_url")];
+}
+- (void)openNewsClick:(NSButton *)sender {
+    NSArray *urls = self.lastPayload[@"news_urls"];
+    if ([urls isKindOfClass:NSArray.class] && sender.tag < urls.count &&
+        [urls[sender.tag] isKindOfClass:NSString.class])
+        [self openSafeDetailsURL:urls[sender.tag]];
+}
+- (void)openResourceClick:(NSButton *)sender {
+    NSArray *urls = self.lastPayload[@"resource_urls"];
+    if ([urls isKindOfClass:NSArray.class] && sender.tag < urls.count &&
+        [urls[sender.tag] isKindOfClass:NSString.class])
+        [self openSafeDetailsURL:urls[sender.tag]];
+}
+- (void)mockPayClick:(id)sender { if (self.demo) [self emit:@"mock_pay" value:@""]; }
+- (void)mockRefundClick:(id)sender { if (self.demo) [self emit:@"mock_refund" value:@""]; }
+- (void)syncDetails:(NSDictionary *)data {
+    if (!self.details || !data) return;
+    RCSetString(self.detailsHistory,RCString(data,@"details_history"));
+    RCSetString(self.detailsNews,RCString(data,@"details_news"));
+    RCSetString(self.detailsResources,RCString(data,@"details_resources"));
+    RCSetString(self.detailsMembership,RCString(data,@"member_status"));
+    self.detailsSourceButton.enabled = [RCString(data,@"history_source_url") hasPrefix:@"https://"];
+    NSArray *news = [data[@"news_urls"] isKindOfClass:NSArray.class] ? data[@"news_urls"] : @[];
+    for (NSInteger i=0; i<self.newsButtons.count; i++)
+        self.newsButtons[i].enabled = i<news.count && [news[i] isKindOfClass:NSString.class] &&
+                                      [news[i] hasPrefix:@"https://"];
+    NSArray *links = [data[@"resource_urls"] isKindOfClass:NSArray.class] ? data[@"resource_urls"] : @[];
+    for (NSInteger i=0; i<self.resourceButtons.count; i++)
+        self.resourceButtons[i].enabled = i<links.count && [links[i] isKindOfClass:NSString.class] &&
+                                           [links[i] hasPrefix:@"https://"];
+    self.mockPayButton.hidden = !self.demo;
+    self.mockRefundButton.hidden = !self.demo;
+}
+
 - (void)saveFeed:(id)sender { [self emit:@"url" value:self.feedField.stringValue]; }
 - (void)refresh:(id)sender { [self emit:@"refresh" value:@""]; }
 - (void)manual:(id)sender { [self emit:@"manual" value:@""]; }
@@ -301,6 +431,7 @@ static RCController *controller;
 }
 - (BOOL)windowShouldClose:(NSWindow *)window {
     if (window == self.settings) { [self.settings orderOut:nil]; return NO; }
+    if (window == self.details) { [self.details orderOut:nil]; return NO; }
     return YES;
 }
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender { return NO; }
@@ -321,6 +452,7 @@ static RCController *controller;
     NSDictionary *data = [NSJSONSerialization JSONObjectWithData:bytes options:0 error:nil];
     if (![data isKindOfClass:NSDictionary.class]) return;
     self.sourceURL = RCString(data,@"source_url");
+    self.lastPayload = data;
     BOOL demo = RCBool(data,@"demo");
     if (demo != self.demo) { self.demo = demo; [self makeMenu]; }
     self.shown = RCBool(data,@"show");
@@ -368,6 +500,7 @@ static RCController *controller;
         self.sourceButton.enabled = [self.sourceURL hasPrefix:@"https://"];
         [self syncCheckboxes:data];
     }
+    [self syncDetails:data];
     NSRect frame = self.card.frame;
     NSPoint origin = NSMakePoint([data[@"x"] doubleValue],[data[@"y"] doubleValue]);
     if (fabs(frame.origin.x-origin.x) > 1 || fabs(frame.origin.y-origin.y) > 1)
