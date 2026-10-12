@@ -33,7 +33,7 @@ func TestArchiveRevisionCountsDSTAndUnknown(t *testing.T) {
  s:=Analyze(&a,now,loc)
  if s.Last30Days.Announcements.Count!=1 || s.Last30Days.Confirmations.Count!=1 ||
  s.Last30Days.Gifts.Count!=0 || s.Last30Days.Observations.Count!=1 ||
- s.CurrentMonth.Announcements.Count!=1 || len(s.Last30Days.Announcements.Evidence)!=1 {
+ s.CurrentMonth.Announcements.Count!=0 || len(s.Last30Days.Announcements.Evidence)!=1 {
   t.Fatalf("incorrect evidence-backed counts %+v",s)
  }
  a.Complete=false

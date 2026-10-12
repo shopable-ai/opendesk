@@ -15,7 +15,6 @@ import (
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/feed"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/health"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/history"
-	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/membership"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/reminder"
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/settings"
 )
