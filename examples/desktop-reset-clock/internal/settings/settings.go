@@ -92,6 +92,14 @@ func Load(path string) (State, error) {
 		s.Archive=nil
 		s.ArchiveSource=""
 	}
+	if s.Archive!=nil {
+		if err:=history.ValidateArchive(*s.Archive);err!=nil {
+			// A corrupt optional archive must not erase the basic clock or trial ledger.
+			s.Archive=nil
+			s.ArchiveSource=""
+			s.ArchiveError="本地历史归档缓存无效，已忽略"
+		}
+	}
 	return s, nil
 }
 func Save(path string, s State) error {

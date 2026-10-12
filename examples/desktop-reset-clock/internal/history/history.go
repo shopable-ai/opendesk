@@ -139,7 +139,25 @@ func Merge(pages []Page) (Archive,error) {
    a.Records=append(a.Records,r)
   }
  }
+ if err:=ValidateArchive(a);err!=nil{return Archive{},err}
  return a,nil
+}
+// ValidateArchive checks flattened persisted history separately from individual
+// HTTP pages. Locally cached data does not become authenticated official data.
+func ValidateArchive(a Archive) error {
+ if a.ArchiveVersion<1 || strings.TrimSpace(a.ChannelID)=="" || len(a.ChannelID)>128 ||
+  a.CoverageStart.IsZero() || !a.CoverageEnd.After(a.CoverageStart) ||
+  len(a.Records)>MaxPageRecords*12 {
+  return errors.New("invalid cached archive metadata or record count")
+ }
+ seen:=map[string]bool{}
+ for _,r:=range a.Records {
+  if err:=ValidateRecord(r);err!=nil{return fmt.Errorf("invalid cached archive %s: %w",r.ID,err)}
+  key:=fmt.Sprintf("%s:%d",r.ID,r.Revision)
+  if seen[key]{return fmt.Errorf("duplicate cached archive revision: %s",key)}
+  seen[key]=true
+ }
+ return nil
 }
 // Analyze uses exact instants for rolling days, and the chosen IANA location for calendar months.
 // Counts are unknown until the provider explicitly covers the WHOLE window.
