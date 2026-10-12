@@ -1,6 +1,6 @@
 # OpenDesk Reset Clock · Go 桌面客户端演示
 
-> 状态（2026-10-12）：**R1.1 原生分层卡片、设置页与本地 HTTP 合成演示源码已实现；真机视觉待验收**。这不是官方实时公告源，也不是已发行、已签名的 macOS / Windows 产品。桌面实窗、托盘系统权限、多屏、休眠与 Explorer / Spaces 稳定性尚待对应真机验收。
+> 状态（2026-10-12）：**R2 已新增历史归档、三条动态、Free 高级提醒试用与模拟会员/订单、macOS/Win32 独立详情窗口源码；真机视觉仍待验收**。这不是官方实时公告源，也不是已发行、已签名的 macOS / Windows 产品。桌面实窗、托盘系统权限、多屏、休眠与 Explorer / Spaces 稳定性尚待对应真机验收。
 
 ## 一条命令运行 V1 → V2 → V3 演示
 
@@ -21,7 +21,7 @@
 
 ## R1.1 原生界面与交互（2026-10-12）
 
-- **桌面卡片（386 × 260 逻辑尺寸）**：本地时间与时区、公告状态、主要倒计时或撤回文案、公告摘要、发布时间和预计重置时间、来源健康状态。无有效事件时显示“暂无确定的下一次重置”；撤回后移除倒计时。模拟源一直明确标记为模拟数据。**历史记录、三条动态与会员支付尚未实现**。
+- **桌面卡片（386 × 260 逻辑尺寸）**：本地时间与时区、公告状态、主要倒计时或撤回文案、公告摘要、发布时间和预计重置时间、来源健康状态。无有效事件时显示“暂无确定的下一次重置”；撤回后移除倒计时。模拟源一直明确标记为模拟数据。**截至 R1.1，历史记录、三条动态与会员支付尚未实现；R2 新增部分见本文件末尾**。
 - **macOS**：AppKit 原生无焦点桌面卡片与状态栏菜单；设置页集中提供 Feed URL、立即刷新、原始公告链接、提前 10 分钟提醒、免打扰、手动提醒、显示/锁定、24 小时制；默认折叠高级诊断。
 - **Windows**：Win32/GDI 独立字号绘制而非同一个多行文字区；原生通知区菜单、设置页同样提供开关及来源链接。保留 WorkerW 尝试与非置顶回退；来源链接严格使用受验证的 HTTPS 事件 URL。
 - **准确性约束**：来源最近检查、客户端最近检查和公告内容变化独立显示；`withdrawn`、无确定时间或来源过期不得伪造未来倒计时；锁定状态保持点击穿透。卡片不承诺能够点击“详情”，请从托盘/设置页选择“打开原始公告”。
@@ -96,3 +96,81 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o ../../.runtime/tests/desktop
 - **BLOCKED**：真实官方 Feed 的 URL/授权证明尚未提供，无法声称真实官方公告已接通；两平台签名安装包未制作。
 
 本轮测试产物统一放在仓库根 `.runtime/tests/desktop-reset-clock/`。正式视觉与行为验收须记录命令、VCS HEAD、进程来源、OS 版本、权限、截图/录像、通知权限及失败复现；不得把模拟 HTTP 单测当作真机验收。
+
+## R2 新增：本地真实代码使用方式
+
+**用户目标**：基础 386×260 桌面时钟永远存在；在 macOS 状态栏或 Windows 通知区菜单中选择 **「历史统计与三条动态」** 打开独立的原生详情窗口，不需要挤入时间卡片。状态页展示滚动 30 天、当前自然月、三条最新且未撤回的精选简讯、原始 HTTPS 来源及 Free/Pro 权益；资源资料是外部官方文档链接，不是外部账户购买。两系统此 UI 已实现源码，尚无本机原生截图/通知实测证据。
+
+在 **仓库根目录**执行唯一演示入口：
+
+```bash
+(cd examples/desktop-reset-clock && go run ./cmd/demo)
+```
+
+Demo 启动后：打开终端给出的回环控制页面，切换 V1 → V2 → V3，返回应用菜单点 **立即检查来源**，最后打开 **历史统计与三条动态**。本地 HTTP `/feed` 含模拟事件 + 3 条资讯，`/archive` 含约 65 天覆盖声明、两页历史（包括更正和撤回），不是实际官方消息，不能推断个人账户额度。V2 模拟新闻修订，V3 撤回一条编辑分析；你可点击每条 HTTPS 原文（均为虚构 `example.org` 演示链接）。
+
+详细页在 Demo 模式可点 **启用模拟 Pro · 不收费** 和 **模拟退款 / 撤权**；真实客户端无这两个模拟按钮，更不会因本地模拟订单获得生产会员。Free 永久显示桌面时间与来源状态，并保留**到时提醒**；每个不同的**提前 10 分钟高级提醒**只在应触发且允许提醒时消耗一次试用额度（共 2 次）。刷新/重启同一 ID 不重复扣除；试用耗尽不关闭基础时间或基本提示。演示的 Mock 订单可在 Go 单测中覆盖取消、到期、恢复、退款及重复回调。正式收费/签发尚未开发。
+
+### 自有可信历史归档接口（向后兼容）
+
+R1 完整 `events.json` 仍兼容。可选在主 Feed 的一级对象追加：
+
+```json
+{
+  "history_url": "https://YOUR-OWN-TRUSTED-SERVER.example/archive",
+  "history_version": 2,
+  "news": [
+    {
+      "id": "update-001", "revision": 1,
+      "title": "演示用标题", "summary": "演示用说明",
+      "published_at": "2026-10-12T01:00:00Z",
+      "updated_at": "2026-10-12T02:00:00Z",
+      "source_url": "https://example.org/demo",
+      "category": "information", "source_type": "third_party",
+      "state": "active", "verified_at": "2026-10-12T02:05:00Z"
+    }
+  ]
+}
+```
+
+注意：该对象**仅是追加字段示意**，正式请求仍需要原有 `schema_version/channel_id/feed_version/generated_at/source_health/events`。`history_url` 与 Feed URL 必须完全同源（协议、主机、端口），且随 `history_version` 一同提供；每次主 Feed 公告/资讯/历史版本变化时都必须按旧协议增加 `feed_version`。
+
+归档 `GET /archive` 返回 JSON，`?cursor=<上页 next_cursor>` 获取后续页：
+
+```json
+{
+  "schema_version": 1,
+  "channel_id": "example-public-channel",
+  "archive_version": 2,
+  "coverage_start": "2026-08-01T00:00:00Z",
+  "coverage_end": "2026-10-13T00:00:00Z",
+  "complete": true,
+  "records": [{
+    "id": "record-001", "revision": 1,
+    "kind": "reset_completed", "state": "active",
+    "source_type": "official", "audience": "public",
+    "source_published_at": "2026-09-27T00:00:00Z",
+    "confirmed_at": "2026-09-28T08:00:00Z",
+    "verified_at": "2026-09-28T08:10:00Z",
+    "source_url": "https://example.org/demo-evidence"
+  }],
+  "next_cursor": ""
+}
+```
+
+归档需供应方明确提供至少涵盖请求窗口的 `complete=true` 时段声明，不能把客户端历史缓存当权威归档；修订同一 ID 保留不同 revision，最终撤回事件从当期统计排除。第三方或用户观察不可伪称官方。完整字段与安全约束见 `docs/plans/desktop-reset-clock.md` 第 13 节。
+
+### R2 自动化与真机验收
+
+在 **`examples/desktop-reset-clock/`** 工作目录执行：
+
+```bash
+go test ./... -count=1
+go test -race ./... -count=1
+go vet ./...
+go build ./cmd/desktop-reset-clock
+```
+
+跨平台构建交由 GitHub Actions 工作流 [Reset Clock Standalone R2](../../.github/workflows/reset-clock-ci.yml) 在 Linux/macOS/Windows 分别执行；`macos-latest` 用带 CGO 的 AppKit 构建，仅证明可编译，不等于 WindowServer 中成功绘制。可操作本机需要手动运行 Demo 并查看真实窗口，特别核对 100/150/200% 缩放、字体截断、无权限通知、锁定点击穿透、菜单 HTTPS 来源点击、后台进程继续运行。必要截图与诊断存放**仓库根** `.runtime/tests/desktop-reset-clock/r2/`，不提交这些临时文件。
+
+**生产支付：BLOCKED**（0.99 币种未定；商户、合规、服务端签名权益均不存在）。**外部官方实时数据：BLOCKED**（未提供授权 Feed）。**系统级 Mac/Win 实窗与安装包：NOT_TESTED**。不得用上述 synthetic Demo 或 HTML 视觉原型冒充这些验证。 

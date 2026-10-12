@@ -363,9 +363,9 @@
 - **证据状态**：Go 单测（含 R1.1 V1→V2→V3/过期/摘要截断）、Race Detector、Go Vet、Windows amd64 交叉编译和 macOS arm64 无 CGO 降级构建已在 Linux 验证。Mac AppKit CGO、Windows 真窗口、点击穿透、多显示器、系统通知和签名安装包 **NOT_TESTED**，不宣称真实视觉达标。
 - **使用**：唯一用户入口仍是 [示例 README](../../examples/desktop-reset-clock/README.md)。本阶段没有加入历史分析、三条新闻或收费生产代码。
 
-## 12. R2 候选产品功能树（PROPOSED，未实施）
+## 12. R2 需求功能树（R1.1 候选基线；实际状态见第 13 节）
 
-这部分是下一阶段的产品边界和待核证任务，**不表示已实现**；只增量扩展 F01–F16，不替换单一客户端与外部 Feed 架构。
+本节保留 R1.1 时提出的产品范围作为设计基线；哪些代码已实现、尚缺何种验证，以第 13 节为准。只增量扩展 F01–F16，不替换单一客户端与外部 Feed 架构。
 
 - **F17｜权威历史与修订时间线**
   - 来源提供方应提供合法的历史事件归档/分页读取，保留稳定 event_id、revision、withdrawn、事件/抓取时间；本地可维护有限索引与可靠缓存，不将单次完整快照当作无损历史库。
@@ -395,3 +395,46 @@
   - 静态自评应独立对可靠性、数据来源、视觉、付费体验、隐私/合规及跨平台可用性评分；任何硬门槛不过时不宣称 95 分产品达标。
 
 **外部约束参考**：OpenAI [个人使用条款](https://openai.com/policies/terms-of-use/)、[企业服务协议](https://openai.com/policies/services-agreement/) 禁止未经授权的账户/凭据共享及部分转售；商业服务目录必须先做合法性核查，不能默认拥有授权。支付价格、法律和平台政策在开发当时再次核查。
+
+
+## 13. Reset Clock R2 — 实际模块与逐项验收（2026-10-12）
+
+**本轮最先做可信历史与资讯，再做本地 Free/Mock Pro；不建立采集器、用户云控服务器、真实收费后端。** 以下“实现”仅指远端 `master` 中已有具体源码，不等于具有正式数据来源或平台真机验收合格。
+
+### 13.1 R2 功能树：现有代码与剩余条件
+
+- **F17｜历史归档：IMPLEMENTED_UNVERIFIED** — `internal/history/history.go` 的稳定 ID、修订、撤回、来源字段；`internal/feed/archive.go` 在既有 HTTP Feed 旁读取同源版本化分页归档并原子缓存。真实来源/商业数据使用许可 **BLOCKED**。
+- **F18｜30 天 / 自然月统计：IMPLEMENTED_UNVERIFIED** — `history.Analyze` 使用绝对时刻滚动 720 小时和用户 IANA 时区月界；各类事件单独统计、撤回不计数、保留可点击证据 URL。缺少完整时间窗声明显示“数据不足”，不能把未知变为 0；源本身的“complete”仍需独立核验。
+- **F19｜最多三条资讯：IMPLEMENTED_UNVERIFIED** — Feed `news` 字段、`internal/news` 按更新时间排序、Revision 更正和撤回，`internal/desktop` 和 `internal/app` 分出原生资讯详情及 HTTPS 链接；未提供真实官方资讯源。
+- **F20｜外部资料：IMPLEMENTED_UNVERIFIED** — `internal/catalog` 内含带来源标识的 HTTPS 官方开发文档示例，第三方赞助内容必须有显著披露；不储存账号、Cookie 或凭据。
+- **F21｜Free 与测试权益：PARTIAL / IMPLEMENTED_UNVERIFIED** — 永久基础时间、状态、到时提醒；两次“提前 10 分钟”高级通知试用按稳定 ID 去重并在通知分发前持久化，消费失败回滚。`internal/membership` 提供 Mock 订单、退款、撤权、取消、恢复与重放测试；模拟 Pro 仅在 Demo 时启用，不等于真实付费权限。多提醒时机/自定义规则及正式云签发 Pro **未实现**；生产支付 **BLOCKED**。
+- **F22｜企业/服务目录：PARTIAL** — 只有安全结构和公开技术资料入口，企业缓存咨询及其他推广合作无实际商家授权故未上线；共享账号、账号转售、代充值和密钥收集不予实现。
+- **F23｜身份与证据隔离：PARTIAL** — 新闻注明来源类别，用户观察和官方确认分别存取；统计数据是外部提供方声明，**未建立独立的官方源数字签名或真实性证明**；不能把来源填写为 `official` 当作官方授权证据。
+- **F24｜原生详情：IMPLEMENTED_UNVERIFIED** — macOS `native_darwin.m` 与 Win32 `native_windows.go` 新增按需开启的历史/资讯/会员窗口，常驻 386×260 卡片不膨胀；可通过托盘进入；DPI/键盘无障碍/真实窗口截图 **NOT_TESTED**。
+- **F25｜分阶段验收：PARTIAL** — `.github/workflows/reset-clock-ci.yml` 专门覆盖 Go Test/Vet/Build、Linux Race、Windows 与 macOS 构建（实际运行结果以 GitHub Actions 对应 SHA 为准）。macOS 实际 CGO / Win32 真机可见性、原生通知、200% DPI 与安装发行仍 **NOT_TESTED**。
+
+**完整历史边界**：旧 `events.json` 不包含历史归档字段时继续使用 R1.1 时钟；绝不累计本地缓存冒充完整月历史。`Complete=true` 是数据提供者的声明，客户端只能核对结构、时间覆盖和修订，无法凭 JSON 自证“官方发布”。
+
+### 13.2 版本兼容与证据协议
+
+- 主 Feed `schema_version: 1` **保持不变**；可选加入 `history_url`（与 Feed 同 origin 的 HTTPS 绝对地址）和正整数 `history_version`，两者必须同时存在；`news` 为最多 64 个结构化资讯项。
+- 客户端最多读取 12 页归档，每页最多 200 条，最大 2 MiB/响应；从 `history_url` GET，首批参数为空，后续 `?cursor=<next_cursor>`。各页保持相同 `channel_id`、`archive_version`、`coverage_start`、`coverage_end`、`complete`，最后一页 `next_cursor` 为空；拒绝跨 origin 跳转、重复游标、重复 `id+revision`、版本回退或与主 Feed 版本不一致。
+- 归档：`{"schema_version":1,"channel_id":"demo-synthetic-announcements","archive_version":1,"coverage_start":"2026-08-08T09:00:00Z","coverage_end":"2026-10-12T11:00:00Z","complete":true,"records":[],"next_cursor":""}`；这只是 **合成示例**。
+- 历史单条可包含 `kind`（`reset_announcement` / `reset_completed` / `extra_opportunity` / `observed_reset`）、`source_type`（`official` / `user_observation`）、`source_published_at`、`source_updated_at`、`effective_at`、`confirmed_at`、`observed_at`、`verified_at`、`state`、`source_url`（HTTPS）、`revision`、`audience`。
+- 资讯单条包含 `id`、`revision`、`title`、`summary`、`published_at`、`updated_at`、`source_url`、`category`、`source_type`（`official` / `third_party` / `editorial`）、`state`（`active` / `withdrawn` / `source_unavailable`）、`verified_at`。
+- 时间口径：重置“预告”按原始**发布时刻**、官方“已完成”按独立**官方确认时刻**、赠送按发布时刻、用户观察按**观察时刻**计数。预计生效时刻仅用于倒计时，不可替代“已经完成”。
+- 仅显示 Demo 虚构 `example.org` 证据链接；来源可用性由上游提供方维护，HTTP 成功不证明来源没有失效或冒充。
+
+### 13.3 订阅与单价预审（PRODUCTION_PAYMENT=BLOCKED）
+
+- `0.99 / month` 只是产品候选；**币种、销售国家、销售实体、税务、退款法律义务与实际订阅服务条款均未确定**。不要在正式 UI 渲染“立即购买 0.99”。
+- 本轮仅提供 `membership.State` 与 `MockCheckout` 测试机制。模拟订单 `checkout_completed` / `subscription_canceled` / `subscription_expired` / `refunded` / `chargeback` / `restore`，按事件 ID 去重；退款/拒付撤权，取消可继续到已付截止日。
+- 将来真正收款应由正规支付服务商托管 checkout + **可信服务器验证 Webhook 签名和事件 ID** + 签发短期可校验 entitlement/许可证；采用适合 macOS、Windows 发行方式的支付政策；必须明确关闭续费、退款、隐私和客服渠道；跨设备恢复须以商户账户权益来源为准。
+- 严禁通过本地 `mock_pay` 事件、复选框、回拨电脑时钟或修改 JSON 文件授予生产 Pro；离线正版可加签名权益与有限宽限，但本轮没有云签名密钥或可验证服务。
+- **单位经济性公式**：每个活跃付费用户月净贡献 ≈ 含税收款 − 间接税 − 通道固定费 − 通道百分比费 − 退款损失 − 数据/服务/客服成本。因定价单位和费率均未知，当前不填写假测的利润数值。
+- 初始 Free 试用以稳定通知 ID / 永久本地记录消费，客户端时间不能重建已记账通知；本地文件被主动删除或篡改仍无法做到防作弊，正式资格须以服务器签发与反重放为准。
+- 法务/服务边界以 OpenAI [服务条款](https://openai.com/policies/terms-of-use/) 与 [服务协议](https://openai.com/policies/services-agreement/) 及销售商户条款的最终适用版本为准；无账户分销授权不得提供代充值、账户交易或凭据托管。
+
+### 13.4 当前可执行操作
+
+参照 [唯一公开示例 README](../../examples/desktop-reset-clock/README.md)。原型 `prototypes/r11-card-settings.html` 新增 R2 合成信息层，非原生屏幕实录。真实 UI 的“代码已写、真实进程已加载、视觉截图已检查、用户交互已验证”必须分别登记，不允许 CI 编译通过直接替代视觉证据。

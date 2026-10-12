@@ -122,3 +122,27 @@
 - **NOT_TESTED**：macOS `CGO_ENABLED=1` AppKit 原生构建和运行、Windows 实机窗口、DPI 100/150/200%、多显示器、通知授权、24h 常驻以及用户视觉反馈。
 - **BLOCKED**：外部真实官方 Feed 与商业权利、价格币种、签名发行及正式付费通道。R2 F17–F25 均为候选未实现，不计入 R1.1 通过项。
 - **静态自评 96** 是先前设计文档分数，不作为本轮新增代码的视觉质量或商业资格凭证。
+
+
+## R2 独立质量评分 / 证据边界（2026-10-12）
+
+注意：这是按代码审查现状作出的**保守风险评估，非外部专家认证**。旧 `96/100` 仅是 R1 文档设计自评，不能延用为 R2 功能验收或真实平台得分。
+
+| 单独评分维度 | 当前保守评分 | 未得分/硬门槛 |
+| --- | ---: | --- |
+| 数据与来源真实性 | 45/100 | 尚无真实合法历史提供方、官方来源授权或认证链（G0 BLOCKED） |
+| 事件及统计准确性 | 75/100 | 有版本/撤回/跨时区逻辑和固定测试，尚待 CI 及真实归档一致性抽样 |
+| 时钟与提醒可靠性 | 70/100 | 有通知 ID 持久化/时间回拨约束，系统级通知是否送达、休眠/DPI 未实测 |
+| 信息架构 | 84/100 | 紧凑卡片+详情分离，但实际可用性、来源明细交互和无障碍尚未验收 |
+| macOS 视觉及行为 | 30/100（NOT_TESTED） | AppKit 实窗截图、通知、点击穿透、200% 及多显示器未执行 |
+| Windows 视觉及行为 | 30/100（NOT_TESTED） | Win32 实窗截图、Explorer 重启及高 DPI 未执行 |
+| 免费与 Pro 体验 | 68/100 | 两次本地高级提醒、Mock 状态可测；正式权益签名、个性化与完整业务规则未完成 |
+| 支付安全及权限 | 25/100（BLOCKED） | 仅 Mock，未接入商户、Webhook 签名、服务端授权、续费/退款生产服务 |
+| 合规与隐私 | 65/100（BLOCKED） | 不收凭据，不开展违规业务；地区销售、实际源授权、隐私/退款法律文本待审 |
+| 测试与可维护性 | 72/100（待 CI） | 有独立 Go 测试与 GitHub CI，但还需按最终 SHA 核对所有矩阵，并完成两平台真机 |
+
+**未达 95 的维度不得用平均分冲抵。** 本轮仍然不能声称“已正式商用”“实时官方资讯源就绪”“Mac/Win 真机已验收”；R2 的测试状态只认对应仓库提交 SHA 与 GitHub Actions 原始记录。
+
+**测试用例位置**：`internal/history/history_test.go`、`internal/news/news_test.go`、`internal/feed/archive_test.go`、`internal/membership/membership_test.go`、`internal/app/membership_test.go`、`internal/app/r2_demo_test.go`、`internal/catalog/catalog_test.go`（相对 `examples/desktop-reset-clock/`）。
+
+**R2 代码路径**：`internal/history`（历史）、`internal/news`（资讯）、`internal/feed/archive.go`（合法 HTTP 归档）、`internal/app`（统一视图和提醒消费）、`internal/membership`（本地试用与 Mock 订单）、`internal/catalog`（资源推广标记）、`internal/desktop/native_darwin.m` 与 `native_windows.go`（原生详情）。真机证据的唯一临时输出目录为仓库根 `.runtime/tests/desktop-reset-clock/r2/`。

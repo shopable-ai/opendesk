@@ -413,3 +413,18 @@ OPENDESK_LIVE_CLIPBOARD_TEST=1 go test ./automation -run '^TestDarwinRichClipboa
 | `examples/desktop-reset-clock/internal/settings/settings_test.go` | `KEEP_PACKAGE`（独立模块） | 是：HTTP/时间/协议/提醒或持久化领域实现的确定性 seam | 覆盖 settings 层的正向与错误恢复场景 | `(cd examples/desktop-reset-clock && go test ./... -count=1)` | 防止历史公告误报、版本倒退、过期提醒、缓存损坏及 HTTP 语义混淆 | 不替代 macOS/Windows 真实窗口、系统通知、休眠或发行资格测试。 |
 
 | `examples/desktop-reset-clock/internal/app/display_test.go` | `KEEP_PACKAGE`（独立 Go module） | 是：Go 展示数据与事件状态的私有 seam | V1→V2→V3 / 来源过期/无公告/模拟标记/安全摘要/原始链接语义 | `(cd examples/desktop-reset-clock && go test ./... -count=1)` | 防止 V3 旧倒计时、来源过期误报和 UI 平台各自判断业务真相 | 仅逻辑白盒；无法代替 Mac/Windows 实窗、辅助功能、通知与 DPI 验收。 |
+
+
+### Desktop Reset Clock R2（独立 Go module；2026-10-12）
+
+| 路径 | 主处置 | 需要内部 seam | 覆盖目标 | 边界 |
+| --- | --- | --- | --- | --- |
+| `examples/desktop-reset-clock/internal/history/history_test.go` | `KEEP_PACKAGE` | 是（内部归档/窗口模型） | 65 天覆盖、修订撤回、30 天与自然月、夏令时、不完整源拒绝 | 不证明官方来源真实 |
+| `examples/desktop-reset-clock/internal/news/news_test.go` | `KEEP_PACKAGE` | 是（内部新闻修订） | HTTPS 证据、三条排序、更正和撤回 | 不进行外网爬取 |
+| `examples/desktop-reset-clock/internal/feed/archive_test.go` | `KEEP_PACKAGE` | 是（HTTP 客户端 seam） | 同源分页、版本匹配、禁止跨源读取 | 仅 `httptest` |
+| `examples/desktop-reset-clock/internal/membership/membership_test.go` | `KEEP_PACKAGE` | 是（Mock 生命周期） | 两次试用、时钟回拨、跨重启持久化、取消/退款/重放/恢复 | 不能伪造真实 Pro |
+| `examples/desktop-reset-clock/internal/app/membership_test.go` | `KEEP_PACKAGE` | 是（私有 app/reminder seam） | 高级到期消费、基本提醒不禁用、受众隔离 | 不代替 OS 通知 |
+| `examples/desktop-reset-clock/internal/app/r2_demo_test.go` | `KEEP_PACKAGE` | 是（本地 HTTP Mock） | R2 历史+三新闻+V2/V3+Mock 付费撤回在统一应用视图闭环 | 不代替原生窗口 |
+| `examples/desktop-reset-clock/internal/catalog/catalog_test.go` | `KEEP_PACKAGE` | 是（安全目录模型） | HTTPS 拒绝危险 URL、推广声明必填 | 不审核真实商家授权 |
+
+统一模块命令为 `(cd examples/desktop-reset-clock && go test ./... -count=1)`；跨平台 CI 文件 `.github/workflows/reset-clock-ci.yml`。这是**独立 Go module 内部白盒测试**，不为 Runtime JS API 建立第二套接口测试体系。
