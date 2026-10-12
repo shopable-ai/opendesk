@@ -165,3 +165,31 @@
 - **已修复：损坏历史缓存干扰基础权益**。已缓存归档额外验证，单独忽略失效归档，统计保持“数据不足”，不清除基础时钟和已消费试用 ID。
 - **来源可信度纠偏**。远端 JSON 的 `official` 类型不是 OpenAI 签名，卡片显示“来源预告”；即使真实统计逻辑通过，也仍需要确认数据提供方授权与证据真实性。真实付费与商家签约仍 BLOCKED。
 - **评分不作抬高**：上述是有确定复现目标的源码修复；必须等待匹配 SHA 的 CI 结果和实际原生窗口验证，再调整对应独立评分。当前 R2 暂无合法权威线上 Feed，也没有正式签名许可证服务。
+
+
+## R2.2 独立验收日志（2026-10-12）
+
+**评审对象**：`examples/desktop-reset-clock/prototypes/r22-client-preview.html`，Go `internal/app/`、`internal/desktop/native_darwin.m`、`native_windows.go`。本节只审计当次改动；历史 R1 的「96/100」或 R2 的 CI 不能继承作 R2.2 结果。
+
+### 各维度不得互相补分
+
+| 质量维度 | 设计代码初审 / 100（非实窗） | 源码静态证据 | 浏览器渲染 / macOS 实窗 / Windows 实窗 |
+| --- | ---: | --- | --- |
+| 内容准确性 | 93 | 预计/确认分离；分钟取整；撤回和来源健康独立 | NOT_TESTED / NOT_TESTED / NOT_TESTED |
+| 信息价值 | 91 | 有效新闻三条、来源类别、历史证据、四类统计；真实上游仍缺 | NOT_TESTED / NOT_TESTED / NOT_TESTED |
+| 视觉排版 | 91 | 紧凑卡片，详情三页分区，仍需长中文与字体测量 | NOT_TESTED / NOT_TESTED / NOT_TESTED |
+| 色彩 | 92 | 收敛为深青主卡片、非渐变、状态区分，缺亮度/对比仪实测 | NOT_TESTED / NOT_TESTED / NOT_TESTED |
+| 空间密度 | 93 | 收起约 202 高、展开约 334 高、单行摘要、详情无会员推广 | NOT_TESTED / NOT_TESTED / NOT_TESTED |
+| 资讯交互 | 90 | 6 秒本地轮播、前后切换、展开持久化、暂停、托盘退路 | NOT_TESTED / NOT_TESTED / NOT_TESTED |
+| 详情信息架构 | 91 | 概览/历史/资讯分开、月份切换、链接选择，仍待可用性观察 | NOT_TESTED / NOT_TESTED / NOT_TESTED |
+| 无障碍 | 82 | HTML 包含 role/tab/焦点；Win32 卡片绘制控件的键盘操作须借托盘；缺读屏/DPI 验收 | NOT_TESTED / NOT_TESTED / NOT_TESTED |
+
+**结论**：这是初步保守的作者代码设计评分，八项**均未达 95**，且真实 UI 验收 `NOT_TESTED`；不应用平均分抵消缺陷，也不能将它写成已完成「专家认证」。真实数据/官方来源授权 `BLOCKED`。每次迭代按独立维度调整，不允许虚构截图和测试通过。
+
+### 自动化与原生证据边界
+
+- Go 模块在 `examples/desktop-reset-clock` 中由 `.github/workflows/reset-clock-ci.yml` 分 Linux、macOS、Windows、Race Detector/跨编译验收；新 `internal/app/r22_card_test.go` 覆盖分钟精度、6s 定时、人工切换、暂停、展开状态重启保留、撤回、上游过期。不以仅能编译替代原生实窗验收。
+- **浏览器截图：NOT_TESTED**。浏览器需要实际打开上述原型并截取六状态、各详情页、Free/模拟 Pro、长文及缩放，不允许把 HTML 静态审阅冒充视觉截图。
+- **macOS 原生窗口：NOT_TESTED**（包括鼠标/键盘焦点、Spaces 多屏、系统通知、睡眠恢复、CGO 真机构建）；**Windows 原生交互：NOT_TESTED**（包括 100/150/200% DPI、WorkerW 重启、拖拽点击穿透、托盘菜单、辅助技术）。CI 中 macOS Runner 上的编译结果单独列为构建，不代替这些测试。
+- 真截图、命令、日志记录仅写入仓库根 `.runtime/tests/desktop-reset-clock/r22/`，不进 Git。每张图必须绑定 HEAD 和系统缩放档位。
+- **达到目标的退出门槛**：八项逐项至少 95 且真浏览器和两平台 UI 相关项目有可审查证据后，才能将其标记产品级 PASSED。
