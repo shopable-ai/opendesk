@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OpenDesk Reset Clock R2 · 独立交互式原型</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:#233044;background:#f4f7fa}
+*{box-sizing:border-box}body{margin:0}.frame{max-width:1080px;margin:0 auto;padding:24px 18px 46px}
+h1{font-size:21px;letter-spacing:-.5px;margin:0 0 7px}.intro{color:#64748b;font-size:12px;line-height:1.65;margin:0 0 20px}
+.toolbar{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;margin-bottom:17px}.label{font-size:11px;color:#64748b;margin-bottom:6px}
+.switches{display:inline-flex;padding:3px;gap:3px;background:#e8edf2;border-radius:10px}
+button,select{font:inherit}button{cursor:pointer}.switches button{font-size:12px;border:0;border-radius:7px;padding:8px 13px;background:transparent;color:#64748b}
+.switches button.on{background:white;box-shadow:0 1px 4px #0002;color:#233044;font-weight:700}button:focus-visible,select:focus-visible{outline:2px solid #168777;outline-offset:2px}
+.windows{display:grid;grid-template-columns:minmax(280px,386px) minmax(310px,1fr);gap:17px;align-items:start}
+.window-label{font-size:12px;font-weight:600;color:#64748b;margin:0 0 8px}
+.clock{width:100%;height:260px;background:#1b293b;color:white;border-radius:16px;padding:16px 18px 12px;box-shadow:0 8px 24px #14263f1a;display:flex;flex-direction:column}
+.clock-header{display:flex;align-items:start;justify-content:space-between;gap:8px}.brand{font-size:14px;font-weight:700}
+.local-time{text-align:right;font-weight:750;font-size:20px;font-variant-numeric:tabular-nums}.local-date{color:#b0bfcd;text-align:right;font-size:10px;margin-top:3px}
+.clock-badge{display:inline-block;align-self:start;background:#32584e;color:#b1e9c6;padding:5px 8px;border-radius:7px;font-size:10px;font-weight:650;margin-top:12px}
+.clock-badge.revised{background:#624c30;color:#ffe0b2}.clock-badge.withdrawn{background:#64404a;color:#ffd0d5}
+.clock-hint{color:#aebccb;font-size:11px;margin-top:13px}.clock-count{font-size:38px;letter-spacing:-1px;font-weight:760;margin-top:4px;line-height:1.14;font-variant-numeric:tabular-nums}
+.clock-count.withdrawn{font-size:23px;letter-spacing:0;margin-top:9px}.clock-summary{font-size:12px;color:#e5ebf1;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clock-meta{font-size:10px;color:#b2bfcd;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clock-footer{border-top:1px solid #405066;margin-top:auto;padding-top:8px;font-size:10px;color:#addfc8}
+.note{font-size:11px;color:#718096;line-height:1.6;margin-top:10px}
+.detail{border-radius:14px;background:white;border:1px solid #dbe3ec;overflow:hidden;box-shadow:0 3px 15px #1220330a}
+.detail-head{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid #e2e8f0;background:#f9fafc}
+.dots{display:flex;gap:4px}.dots i{background:#c6ced7;border-radius:100%;width:9px;height:9px}
+.detail-title{font-size:13px;font-weight:650}.meta-small{font-size:10px;color:#64748b;margin-left:auto}
+.detail-body{padding:17px}h2{font-size:14px;margin:0 0 10px;font-weight:750}
+.subtitle{color:#64748b;font-size:11px;margin-top:-4px;margin-bottom:12px}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.metric{border:1px solid #e0e7f0;border-radius:9px;padding:10px}.metric-title{color:#69778b;font-size:11px}.metric-value{font-size:22px;font-weight:750;margin-top:3px}.metric-value small{font-size:11px;color:#69778b;font-weight:400}
+.month{font-size:11px;color:#69778b;margin:12px 0}.divider{border:0;border-top:1px solid #e3e8ef;margin:17px 0}
+.source-control{display:flex;flex-wrap:wrap;gap:8px}.source-control select{min-width:0;flex:1;border:1px solid #dbe3ec;border-radius:7px;padding:7px 8px;font-size:11px;background:white}
+.action{border:1px solid #cadad7;color:#176c60;background:#ebf7f3;padding:7px 11px;border-radius:7px;font-size:11px}
+.evidence-detail{font-size:10px;color:#526679;overflow-wrap:anywhere;margin-top:7px}
+.news-item{display:flex;gap:9px;border-bottom:1px solid #edf0f5;padding:10px 0}.news-item:last-child{border:0}
+.kind{flex-shrink:0;font-size:10px;color:#64748b;padding:4px 6px;border:1px solid #e2e8f0;background:#f7f9fb;border-radius:6px;height:max-content}
+.news-title{font-size:12px;font-weight:600}.news-sub{font-size:10px;color:#718096;margin-top:4px}
+details{font-size:11px;color:#64748b;margin-top:8px}summary{cursor:pointer}
+.member{display:flex;justify-content:space-between;gap:12px;align-items:center}.member strong{font-size:12px}
+.callout{font-size:11px;color:#916b2c;line-height:1.55;margin-top:10px}
+footer{margin-top:20px;font-size:11px;color:#64748b;line-height:1.6}
+@media(max-width:700px){.windows{grid-template-columns:1fr}.clock{max-width:386px}.detail{max-width:570px}}
+</style>
+</head>
+<body>
+<main class="frame">
+<h1>OpenDesk Reset Clock R2 · 功能原型</h1>
+<p class="intro"><strong>这是离线合成 HTML，不是实际 AppKit/Win32 截图。</strong>依据 R2 已实现的共享 Display、历史统计与资讯字段模拟展示。常驻时钟保持 386×260；历史、资讯、会员在独立窗口按需打开。此原型不会访问互联网、采集凭据、发通知或收费。</p>
+<div class="toolbar">
+<div><div class="label">合成事件状态</div><div class="switches" id="versions">
+<button type="button" class="on" data-version="1">V1 预告</button>
+<button type="button" data-version="2">V2 更正</button>
+<button type="button" data-version="3">V3 撤回</button></div></div>
+<div><div class="label">模拟权益</div><div class="switches" id="tiers">
+<button type="button" class="on" data-tier="free">Free</button>
+<button type="button" data-tier="pro">模拟 Pro</button></div></div>
+</div>
+<div class="windows">
+<section aria-label="桌面常驻时钟">
+<p class="window-label">桌面常驻卡片 · 386 × 260</p>
+<div class="clock">
+<div class="clock-header"><div class="brand">◷ &nbsp;Reset Clock</div><div><div class="local-time">14:30:00</div><div class="local-date">10月12日 · 示例时间</div></div></div>
+<div id="badge" class="clock-badge">【模拟】来源预告重置</div>
+<div id="clock-hint" class="clock-hint">距离来源预计重置</div>
+<div id="clock-count" class="clock-count">00:40:00</div>
+<div id="clock-summary" class="clock-summary">历史公告：预计下一次统一重置</div>
+<div id="clock-meta" class="clock-meta">发布 10-09 · 预计 10-12 15:10</div>
+<div class="clock-footer">● 来源已检查 · 不代表个人额度已恢复</div>
+</div>
+<p class="note">真实程序通过 macOS 状态栏 / Windows 通知区菜单进入「历史统计与三条动态」。</p>
+</section>
+<section aria-label="历史、资讯和会员独立详情">
+<p class="window-label">独立原生详情窗口 · 信息结构示例</p>
+<div class="detail">
+<div class="detail-head"><div class="dots"><i></i><i></i><i></i></div><div class="detail-title">Reset Clock · 历史与资讯</div><div class="meta-small">本地合成数据</div></div>
+<div class="detail-body">
+<h2>历史统计</h2><div class="subtitle">最近 30 天 · 以完整来源覆盖声明为前提</div>
+<div class="cards">
+<div class="metric"><div class="metric-title">来源标注官方预告</div><div class="metric-value"><span id="announce">2</span> <small>次</small></div></div>
+<div class="metric"><div class="metric-title">确认完成声明</div><div class="metric-value">1 <small>次</small></div></div>
+<div class="metric" id="gift"><div class="metric-title">赠送机会</div><div class="metric-value">1 <small>次</small></div></div>
+<div class="metric" id="observation"><div class="metric-title">用户观察重置</div><div class="metric-value">1 <small>次</small></div></div>
+</div>
+<div class="month" id="month">当前自然月：预告 1 次 · 确认 0 次</div>
+<div class="source-control"><select aria-label="选择历史证据" id="evidence"></select><button type="button" class="action" id="source-button">查看证据</button></div>
+<div id="evidence-output" class="evidence-detail" role="status"></div>
+<hr class="divider">
+<h2>精选动态 <span class="subtitle" style="font-weight:400">最多三条</span></h2>
+<div id="news"></div>
+<details><summary>查看完整资讯及撤回记录</summary><div id="all-news" style="padding:9px 0;line-height:1.9"></div></details>
+<hr class="divider">
+<div class="member"><div><h2 style="margin-bottom:4px">会员权益</h2><strong id="member">Free · 高级提醒试用剩余 2 次</strong></div><button type="button" class="action" id="mock-checkout">模拟开通 Pro</button></div>
+<div class="note">资料服务：Codex 官方资源 · API 开发指南</div>
+<div class="callout">0.99/月尚未确认币种；无真实支付。来源“官方”标签不等于经过 OpenAI 授权核验。</div>
+</div></div>
+</section>
+</div>
+<footer>原型仅用于对照产品信息架构。真实功能由 <code>internal/app</code>、<code>internal/desktop</code>、<code>internal/history</code>、<code>internal/news</code>、<code>internal/membership</code> 实现；请勿将本页的数字或示例链接用于实际判断。</footer>
+</main>
+<script>
+(function(){
+"use strict";
+var version=1,pro=false;
+var el=function(id){return document.getElementById(id)};
+var news=[
+{type:"来源标注官方",title:"模拟公告：重置时间说明",id:"official"},
+{type:"第三方",title:"第三方资讯：客户端使用技巧",id:"third"},
+{type:"编辑分析",title:"编辑分析：不代表官方或个人额度",id:"editorial"}
+];
+function choose(className,attr,value) {
+  Array.prototype.forEach.call(document.querySelectorAll(className),function(button){
+    var selected=button.getAttribute(attr)===String(value);
+    button.classList.toggle("on",selected);
+    button.setAttribute("aria-pressed",String(selected));
+  });
+}
+function refresh(){
+ choose("#versions button","data-version",version);
+ choose("#tiers button","data-tier",pro?"pro":"free");
+ var badge=el("badge"),count=el("clock-count");
+ badge.className="clock-badge"+(version===3?" withdrawn":version===2?" revised":"");
+ badge.textContent=version===3?"【模拟】公告已撤回":version===2?"【模拟】时间已更正 · 修订 2":"【模拟】来源预告重置";
+ el("clock-hint").textContent=version===3?"当前公告状态":"距离来源预计重置";
+ count.className="clock-count"+(version===3?" withdrawn":"");
+ count.textContent=version===3?"公告已撤回":version===2?"01:30:00":"00:40:00";
+ el("clock-summary").textContent=version===3?"撤回旧预计时间，不再显示倒计时":version===2?"来源更正：预计重置时间已推迟":"历史公告：预计下一次统一重置";
+ el("clock-meta").textContent=version===3?"发布 10-09 · 修订 3":version===2?"发布 10-09 · 更新预计 16:00":"发布 10-09 · 预计 15:10";
+ el("announce").textContent=version===3?"1":"2";
+ el("gift").hidden=!pro;
+ el("observation").hidden=!pro;
+ el("month").textContent="当前自然月：预告 "+(version===3?"0":"1")+" 次 · 确认 0 次"+(pro?" · 赠送 1 次 · 观察 1 次":" · Free 摘要");
+ var candidates=[
+ {value:"announcement",label:"来源预告 · 主公告",url:"https://example.org/reset-clock-demo-not-an-official-feed"},
+ {value:"completion",label:"确认完成 · completed-18d",url:"https://example.org/reset-clock-demo/history/completed-18d"},
+ {value:"gift",label:"赠送机会 · gift-8d",url:"https://example.org/reset-clock-demo/history/gift-8d"},
+ {value:"observation",label:"用户观察 · observed-3d",url:"https://example.org/reset-clock-demo/history/observed-3d"}
+ ].filter(function(item){return pro || (item.value!=="gift" && item.value!=="observation")});
+ var selector=el("evidence"),prior=selector.value;
+ selector.replaceChildren();
+ candidates.forEach(function(item){
+ var opt=document.createElement("option");opt.value=item.value;opt.textContent=item.label;opt.dataset.url=item.url;selector.appendChild(opt);
+ });
+ if(candidates.some(function(item){return item.value===prior}))selector.value=prior;
+ el("evidence-output").textContent="";
+ var visible=news.filter(function(item){return version!==3 || item.id!=="editorial"});
+ el("news").replaceChildren();
+ visible.forEach(function(item){
+ var row=document.createElement("div");row.className="news-item";
+ var flag=document.createElement("span");flag.className="kind";flag.textContent=item.type;
+ var data=document.createElement("div"),title=document.createElement("div");title.className="news-title";
+ title.textContent=item.id==="official"&&version>=2?"模拟公告更正：请核对原文":item.title;
+ var sub=document.createElement("div");sub.className="news-sub";sub.textContent="合成资讯 · HTTPS 原文入口";
+ data.append(title,sub);row.append(flag,data);el("news").appendChild(row);
+ });
+ el("all-news").textContent="来源标注官方：有效（修订 "+(version>=2?version:1)+"） ／ 第三方：有效 ／ 编辑分析："+(version===3?"已撤回":"有效");
+ el("member").textContent=pro?"模拟 Pro · 非真实付费会员":"Free · 高级提醒试用剩余 2 次";
+ el("mock-checkout").textContent=pro?"模拟退款 / 撤权":"模拟开通 Pro";
+}
+Array.prototype.forEach.call(document.querySelectorAll("#versions button"),function(button){
+ button.addEventListener("click",function(){version=Number(button.dataset.version);refresh()});
+});
+Array.prototype.forEach.call(document.querySelectorAll("#tiers button"),function(button){
+ button.addEventListener("click",function(){pro=button.dataset.tier==="pro";refresh()});
+});
+el("mock-checkout").addEventListener("click",function(){pro=!pro;refresh()});
+el("source-button").addEventListener("click",function(){
+ var selected=el("evidence").selectedOptions[0];
+ el("evidence-output").textContent="合成证据 HTTPS URL（仅展示，不请求网络）："+(selected?selected.dataset.url:"未知");
+});
+refresh();
+})();
+</script>
+</body></html>

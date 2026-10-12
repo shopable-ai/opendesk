@@ -179,3 +179,8 @@ go build ./cmd/desktop-reset-clock
 
 
 **R2 CI 验收证据**：应用代码提交 [`e4ee31a`](https://github.com/shopable-ai/opendesk/commit/e4ee31a22398c556fb3e3cea2f318a395cfc170f) 的 [GitHub Actions Run 38238616386](https://github.com/shopable-ai/opendesk/actions/runs/38238616386)：Linux/Windows Go 测试、Vet、构建和 Linux Race / Windows amd64 交叉编译 / macOS arm64 无 CGO 降级构建已成功；**原生 macOS AppKit 工作仍等待 Runner，不能把无 CGO 构建当作 AppKit 编译成功**。两平台原生真机行为、通知和安装包仍 NOT_TESTED。
+
+
+### R2 独立可交互 HTML 视觉预览
+
+打开 `prototypes/r2-client-preview.html`，不需要编译或连接任何服务器。该文件以真实 R2 共享展示字段及 386×260 桌面卡片尺寸为依据，离线切换 V1/V2/V3 与 Free/模拟 Pro，呈现「常驻时钟 + 历史统计/三条动态独立详情窗口」的信息架构。**这是合成的 HTML 设计审阅工具，不是 AppKit/Win32 实际渲染或真机验收证据**；真机依然运行上面的 `go run ./cmd/demo`。
