@@ -714,7 +714,8 @@ func (w *windowsUI) detailsWindow(){
   w.details=call(createWin,0,uintptr(unsafe.Pointer(class)),utf("Reset Clock · 记录与动态"),
     wsOverlapped,200,155,594,660,0,0,call(kernel32.NewProc("GetModuleHandleW"),0),0)
   if w.details==0{return}
-  w.detailsFont=call(createFont,uintptr(uint32(int32(-16))),0,0,0,400,0,0,0,1,0,0,0,0,utf("Segoe UI"))
+  fontHeight:=int32(-16)
+  w.detailsFont=call(createFont,uintptr(uint32(fontHeight)),0,0,0,400,0,0,0,1,0,0,0,0,utf("Segoe UI"))
   child:=func(page int,class,name string,style uintptr,x,y,width,height int,id uintptr)uintptr{
     handle:=call(createWin,0,utf(class),utf(name),wsChild|wsVisible|style,
       uintptr(x),uintptr(y),uintptr(width),uintptr(height),w.details,id,0,0)
