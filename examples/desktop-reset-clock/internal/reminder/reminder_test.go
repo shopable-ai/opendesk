@@ -72,3 +72,21 @@ func TestStaleQuietAndNoCatchUp(t *testing.T) {
 		t.Fatal("long sleep replayed")
 	}
 }
+
+func TestAutomaticKeysAreScopedByChannel(t *testing.T) {
+ now:=time.Now().UTC()
+ future:=now.Add(time.Hour)
+ ev:=events.Event{ID:"same-id",Revision:1,Type:"reset_announcement",State:"active",
+   Audience:"public",EffectiveAt:&future,VerifiedAt:&now,SourceURL:"https://example.org/a"}
+ one:=events.Snapshot{ChannelID:"channel-one",Events:[]events.Event{ev}}
+ two:=events.Snapshot{ChannelID:"channel-two",Events:[]events.Event{ev}}
+ engine:=New(nil)
+ engine.SetEvents(one,now,false)
+ var original string
+ for key:=range engine.Plans{original=key}
+ if original==""{t.Fatal("missing original plan")}
+ engine.Fired[original]=true
+ engine.SetEvents(two,now,false)
+ if len(engine.Plans)!=1{t.Fatal("same event ID from different channels was deduplicated")}
+ for key:=range engine.Plans{if key==original{t.Fatal("notification key collided across channels")}}
+}

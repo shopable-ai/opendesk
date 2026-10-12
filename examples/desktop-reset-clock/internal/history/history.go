@@ -151,7 +151,12 @@ func ValidateArchive(a Archive) error {
   return errors.New("invalid cached archive metadata or record count")
  }
  seen:=map[string]bool{}
+ identities:=map[string]Record{}
  for _,r:=range a.Records {
+  if earlier,ok:=identities[r.ID];ok && (earlier.Kind!=r.Kind || earlier.SourceType!=r.SourceType) {
+    return fmt.Errorf("history %s changed type or provenance across revisions",r.ID)
+  }
+  identities[r.ID]=r
   if err:=ValidateRecord(r);err!=nil{return fmt.Errorf("invalid cached archive %s: %w",r.ID,err)}
   key:=fmt.Sprintf("%s:%d",r.ID,r.Revision)
   if seen[key]{return fmt.Errorf("duplicate cached archive revision: %s",key)}

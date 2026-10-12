@@ -55,3 +55,23 @@ func TestArchiveUntrustedAndPaging(t *testing.T) {
  p.Records[0].SourceURL="javascript:alert(1)"
  if e:=ValidatePage(p);e==nil{t.Fatal("unsafe source URL accepted")}
 }
+
+func TestHistoryRevisionCannotSwitchEvidenceType(t *testing.T) {
+ now:=time.Date(2026,10,12,9,0,0,0,time.UTC)
+ rec:=Record{ID:"stable",Revision:1,Kind:"reset_announcement",State:"active",
+   SourceType:"official",Audience:"public",SourcePublishedAt:&now,VerifiedAt:&now,
+   SourceURL:"https://example.org/source"}
+ changed:=rec
+ changed.Revision=2
+ changed.Kind="reset_completed"
+ changed.ConfirmedAt=&now
+ p:=Page{SchemaVersion:1,ChannelID:"demo",ArchiveVersion:2,
+   CoverageStart:now.Add(-40*24*time.Hour),CoverageEnd:now.Add(time.Hour),
+   Complete:true,Records:[]Record{rec,changed}}
+ if _,err:=Merge([]Page{p});err==nil{t.Fatal("a revision switched an announcement into completion")}
+ changed.Kind="reset_announcement"
+ changed.SourceType="user_observation"
+ changed.ObservedAt=&now
+ p.Records[1]=changed
+ if _,err:=Merge([]Page{p});err==nil{t.Fatal("a revision switched official to user observation")}
+}

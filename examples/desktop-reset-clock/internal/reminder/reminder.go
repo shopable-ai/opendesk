@@ -35,7 +35,8 @@ func (e *Engine) SetEvents(s events.Snapshot, now time.Time, advance bool) {
 		if ev.Type != "reset_announcement" || ev.State != "active" || ev.EffectiveAt == nil || ev.VerifiedAt == nil || (ev.Audience != "public" && ev.Audience != "all_users") {
 			continue
 		}
-		key := fmt.Sprintf("auto:%s:%d:%d", ev.ID, ev.Revision, ev.EffectiveAt.Unix())
+		// Stable IDs are scoped to the channel, avoiding cross-feed collisions.
+		key := fmt.Sprintf("auto:%s:%s:%d:%d", s.ChannelID, ev.ID, ev.Revision, ev.EffectiveAt.Unix())
 		item := Plan{Key: key + ":at", At: ev.EffectiveAt.UTC(), Text: "来源公告预计重置时间已到（未验证个人额度）", Automatic: true}
 		if item.At.After(now) && !e.Fired[item.Key] {
 			next[item.Key] = item
