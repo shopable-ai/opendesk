@@ -113,3 +113,12 @@
 - **NOT_TESTED**：macOS AppKit 真机编译运行、Windows 实机通知/Explorer 重启、两平台多屏/休眠/系统改时/长期资源用量、签名发行包。
 - **BLOCKED**：真实可信来源的 Feed URL/许可/上游心跳尚未提供，不能声称官方实时同步成功。
 - **评分约束不变**：静态设计 96/100 不是客户端真实产品得分；相关 G0–G4 未通过时不能报告产品达到 95 分。测试与入口见 [README](../../../examples/desktop-reset-clock/README.md)。
+
+
+## R1.1 原生界面代码检查补充（2026-10-12）
+
+- **IMPLEMENTED / 确定性 Go 测试通过**：两平台共用结构化 `Display`；新增 `display_test.go` 对 V1、V2 更正、V3 撤回、来源过期、模拟标识、原文链接和长摘要进行了逻辑校验；Go Race、Vet、Windows amd64 与 macOS arm64 `CGO_ENABLED=0` 编译在 Linux 环境通过。
+- **IMPLEMENTED_UNVERIFIED**：AppKit 386×260 卡片/设置、Win32/GDI 386×260 卡片/设置、原文 HTTPS 按钮、同步复选框、展开诊断、托盘选中态、桌面附着与点击穿透代码；实际显示是否与 HTML 相同尚未被真实窗口证据证明。
+- **NOT_TESTED**：macOS `CGO_ENABLED=1` AppKit 原生构建和运行、Windows 实机窗口、DPI 100/150/200%、多显示器、通知授权、24h 常驻以及用户视觉反馈。
+- **BLOCKED**：外部真实官方 Feed 与商业权利、价格币种、签名发行及正式付费通道。R2 F17–F25 均为候选未实现，不计入 R1.1 通过项。
+- **静态自评 96** 是先前设计文档分数，不作为本轮新增代码的视觉质量或商业资格凭证。

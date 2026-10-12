@@ -1,6 +1,6 @@
 # OpenDesk Reset Clock · Go 桌面客户端演示
 
-> 状态（2026-10-12）：**独立 Go 模块及本地 HTTP 合成演示已实现**。这不是官方实时公告源，也不是已发行、已签名的 macOS / Windows 产品。桌面实窗、托盘系统权限、多屏、休眠与 Explorer / Spaces 稳定性尚待对应真机验收。
+> 状态（2026-10-12）：**R1.1 原生分层卡片、设置页与本地 HTTP 合成演示源码已实现；真机视觉待验收**。这不是官方实时公告源，也不是已发行、已签名的 macOS / Windows 产品。桌面实窗、托盘系统权限、多屏、休眠与 Explorer / Spaces 稳定性尚待对应真机验收。
 
 ## 一条命令运行 V1 → V2 → V3 演示
 
@@ -18,6 +18,14 @@
 - 可切换控制页「模拟无变化（304）」和「启用正常上游检查（200）」：304 只更新客户端有效检查时间；200 无公告变化但可更新**上游检查时间**。
 - V4 用于已过期历史事件；版本号有意单调，**从 V3/V4 倒回 V1/V2 会因版本倒退被拒绝**。重跑 Demo 即重置 Mock 版本（随机端口产生独立 Feed 身份），无需清理生产缓存。
 - Demo 状态文件：仓库根 `.runtime/tests/desktop-reset-clock/demo-state.json`，不应提交。Linux 控制台仅打印状态变化；真实交互窗口须在 Mac/Windows 运行。
+
+## R1.1 原生界面与交互（2026-10-12）
+
+- **桌面卡片（386 × 260 逻辑尺寸）**：本地时间与时区、公告状态、主要倒计时或撤回文案、公告摘要、发布时间和预计重置时间、来源健康状态。无有效事件时显示“暂无确定的下一次重置”；撤回后移除倒计时。模拟源一直明确标记为模拟数据。**历史记录、三条动态与会员支付尚未实现**。
+- **macOS**：AppKit 原生无焦点桌面卡片与状态栏菜单；设置页集中提供 Feed URL、立即刷新、原始公告链接、提前 10 分钟提醒、免打扰、手动提醒、显示/锁定、24 小时制；默认折叠高级诊断。
+- **Windows**：Win32/GDI 独立字号绘制而非同一个多行文字区；原生通知区菜单、设置页同样提供开关及来源链接。保留 WorkerW 尝试与非置顶回退；来源链接严格使用受验证的 HTTPS 事件 URL。
+- **准确性约束**：来源最近检查、客户端最近检查和公告内容变化独立显示；`withdrawn`、无确定时间或来源过期不得伪造未来倒计时；锁定状态保持点击穿透。卡片不承诺能够点击“详情”，请从托盘/设置页选择“打开原始公告”。
+- **设计对照**：`prototypes/r11-card-settings.html` 可直接用浏览器打开，切换 R1 与 R1.1、macOS/Windows、V1/V2/V3/过期/无事件。它是视觉基线，不是软件真实实窗截图，也不连接数据源。R1.1 原生窗口的 100%/150%/200% 缩放、多屏与辅助功能必须在各平台继续测试。
 
 ## 使用自己的 HTTPS Feed
 
@@ -68,7 +76,7 @@ go run ./cmd/desktop-reset-clock -feed 'https://YOUR-OWN-TRUSTED-SERVER.example/
 - `internal/reminder/`：可撤销计划、跨重启去重、手动提醒与过期跳过。
 - `internal/clock/`：UTC、IANA 时区、DST、基于绝对时刻计算倒计时。
 - `internal/app/`：后台 5 分钟轮询、持久化优先、动作响应与 UI 状态。
-- `internal/desktop/`：macOS AppKit CGO / Windows Win32 系统窗口与通知区；按 Go build tags 隔离。已查看 `pkg/appshell`，因其绑定 OpenDesk App Mode/Runtime 而未直接引入。
+- `internal/desktop/`：共享 `Display` 结构化卡片状态、macOS AppKit CGO / Windows Win32 分区绘制、通知区与设置；按 Go build tags 隔离。不引入其他 GUI 框架或 OpenDesk App Mode/Runtime。
 
 在 **`examples/desktop-reset-clock/`** 工作目录执行：
 
@@ -83,8 +91,8 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o ../../.runtime/tests/desktop
 ## 产品质量现状及后续 Codex 真机验收
 
 - **VERIFIED（当前环境）**：Go 单测/HTTP Mock、Linux 构建/控制台 Demo、Windows amd64 交叉编译（见当次交付报告，不能替代用户电脑复验）。
-- **IMPLEMENTED_UNVERIFIED**：AppKit 桌面卡片、Mac 通知中心、Windows WorkerW/Explorer 桌面附着、托盘/设置原生点击、系统级单实例与位置恢复。
-- **NOT_TESTED**：Mac 真机 CGO 编译、Mac/Windows UI 截图、通知授权拒绝、锁定穿透、多显示器、时区切换、系统休眠 24h、Explorer 重启、安装升级卸载及资源占用。
+- **IMPLEMENTED_UNVERIFIED**：R1.1 AppKit 与 Windows Win32 独立分区排版、来源 HTTPS 直达、托盘菜单选中态、设置页可操作开关和诊断折叠；Mac 通知中心、Windows WorkerW/Explorer、系统级单实例与位置恢复仍需实机交互验证。
+- **NOT_TESTED**：Mac 真机 CGO 编译、Mac/Windows UI 截图、实际 100%/150%/200% DPI 排版、系统通知拒绝、锁定点击穿透、多显示器、时区切换、系统休眠 24h、Explorer 重启、安装升级卸载及资源占用。
 - **BLOCKED**：真实官方 Feed 的 URL/授权证明尚未提供，无法声称真实官方公告已接通；两平台签名安装包未制作。
 
 本轮测试产物统一放在仓库根 `.runtime/tests/desktop-reset-clock/`。正式视觉与行为验收须记录命令、VCS HEAD、进程来源、OS 版本、权限、截图/录像、通知权限及失败复现；不得把模拟 HTTP 单测当作真机验收。

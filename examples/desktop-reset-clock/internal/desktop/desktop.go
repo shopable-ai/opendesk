@@ -1,11 +1,16 @@
-// Package desktop owns platform presentation; no event or HTTP logic runs here.
+// Package desktop owns platform presentation; HTTP, source truth and reminder
+// eligibility remain in the Go app. Both native backends consume the same view.
 package desktop
 
 import "context"
 
+// Display is intentionally flattened: AppKit/Win32 render it and must not
+// reinterpret feed validity, event type, revision or account eligibility.
 type Display struct {
 	Demo        bool   `json:"demo"`
 	Clock       string `json:"clock"`
+	LocalTime   string `json:"local_time"`
+	LocalDate   string `json:"local_date"`
 	Title       string `json:"title"`
 	Summary     string `json:"summary"`
 	SourceURL   string `json:"source_url"`
@@ -15,12 +20,27 @@ type Display struct {
 	Health      string `json:"health"`
 	Diagnostics string `json:"diagnostics"`
 	FeedURL     string `json:"feed_url"`
-	Show        bool   `json:"show"`
-	Locked      bool   `json:"locked"`
-	Quiet       bool   `json:"quiet"`
-	Advance10   bool   `json:"advance_10"`
-	X           int    `json:"x"`
-	Y           int    `json:"y"`
+
+	Badge        string `json:"badge"`
+	StatusKind   string `json:"status_kind"` // active, revised, withdrawn, stale, error, empty
+	CardHint     string `json:"card_hint"`
+	CardValue    string `json:"card_value"`
+	CardSummary  string `json:"card_summary"`
+	CardMeta     string `json:"card_meta"`
+	CardFoot     string `json:"card_foot"`
+	HasUpcoming  bool   `json:"has_upcoming"`
+	HasSourceURL bool   `json:"has_source_url"`
+	LastRequest  string `json:"last_request"`
+	LastChecked  string `json:"last_checked"`
+	LastChanged  string `json:"last_changed"`
+
+	Show      bool `json:"show"`
+	Locked    bool `json:"locked"`
+	Quiet     bool `json:"quiet"`
+	Advance10 bool `json:"advance_10"`
+	Clock24   bool `json:"clock_24"`
+	X         int  `json:"x"`
+	Y         int  `json:"y"`
 }
 type Action struct {
 	Name  string

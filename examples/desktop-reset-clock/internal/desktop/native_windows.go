@@ -23,6 +23,7 @@ const (
 	wmNCHitTest      = 0x0084
 	wmLButtonDown    = 0x0201
 	wmRButtonUp      = 0x0205
+	wmSetFont        = 0x0030
 	wmApp            = 0x8000
 	wmTray           = wmApp + 41
 	wmUpdate         = wmApp + 42
@@ -44,6 +45,10 @@ const (
 	swHide           = 0
 	swShow           = 5
 	swShowNoActivate = 4
+	cardWidth        = 386
+	cardHeight       = 260
+	settingsWidth    = 554
+	settingsHeight   = 590
 )
 
 var (
@@ -74,12 +79,14 @@ var (
 	endPaint        = user32.NewProc("EndPaint")
 	fillRect        = user32.NewProc("FillRect")
 	drawText        = user32.NewProc("DrawTextW")
-	setBk           = user32.NewProc("SetBkMode")
+	setBk           = gdi32.NewProc("SetBkMode")
 	setColor        = gdi32.NewProc("SetTextColor")
 	createFont      = gdi32.NewProc("CreateFontW")
 	selectObject    = gdi32.NewProc("SelectObject")
 	deleteObject    = gdi32.NewProc("DeleteObject")
 	createBrush     = gdi32.NewProc("CreateSolidBrush")
+	moveWindow      = user32.NewProc("MoveWindow")
+	enableWindow    = user32.NewProc("EnableWindow")
 	shellIcon       = shell32.NewProc("Shell_NotifyIconW")
 	popup           = user32.NewProc("CreatePopupMenu")
 	appendMenu      = user32.NewProc("AppendMenuW")
@@ -142,14 +149,18 @@ type notifyData struct {
 }
 
 type windowsUI struct {
-	mu                                    sync.Mutex
-	display                               Display
-	handler                               func(Action)
-	card, settings, feedEdit, diagnostics uintptr
-	tray                                  notifyData
-	taskbar                               uint32
-	instance                              uintptr
-	desktopAttached                       bool
+	mu                                                                sync.Mutex
+	display                                                           Display
+	handler                                                           func(Action)
+	card, settings, feedEdit, diagnostics                             uintptr
+	sourceButton, lastRequest, lastChecked, lastChanged, sourceStatus uintptr
+	advanceCheck, quietCheck, showCheck, lockCheck, clockCheck        uintptr
+	advancedButton, uiFont                                            uintptr
+	advancedShown                                                     bool
+	tray                                                              notifyData
+	taskbar                                                           uint32
+	instance                                                          uintptr
+	desktopAttached                                                   bool
 }
 
 var current *windowsUI
@@ -184,7 +195,7 @@ func (w *windowsUI) Run(ctx context.Context, handler func(Action)) error {
 	if call(regClass, uintptr(unsafe.Pointer(&wc))) == 0 {
 		return errors.New("RegisterClassExW failed")
 	}
-	w.card = call(createWin, exNoActivate|exToolWindow|exLayered, uintptr(unsafe.Pointer(class)), utf("OpenDesk Reset Clock"), wsPopup, 70, 70, 360, 225, 0, 0, wc.Instance, 0)
+	w.card = call(createWin, exNoActivate|exToolWindow|exLayered, uintptr(unsafe.Pointer(class)), utf("OpenDesk Reset Clock"), wsPopup, 70, 70, cardWidth, cardHeight, 0, 0, wc.Instance, 0)
 	if w.card == 0 {
 		return errors.New("CreateWindowExW card failed")
 	}
@@ -198,6 +209,11 @@ func (w *windowsUI) Run(ctx context.Context, handler func(Action)) error {
 		return errors.New("Shell_NotifyIconW failed")
 	}
 	defer call(shellIcon, nimDelete, uintptr(unsafe.Pointer(&w.tray)))
+	defer func() {
+		if w.uiFont != 0 {
+			call(deleteObject, w.uiFont)
+		}
+	}()
 	go func() { <-ctx.Done(); call(postMsg, w.card, wmClose, 0, 0) }()
 	var mmsg msg
 	for {
@@ -278,12 +294,31 @@ func windowProc(hwnd uintptr, id uint32, wparam, lparam uintptr) uintptr {
 			call(showWin, hwnd, swHide)
 			return 0
 		case wmCommand:
-			if uint16(wparam&0xffff) == 1001 {
+			switch uint16(wparam & 0xffff) {
+			case 1001:
 				b := make([]uint16, 2048)
 				call(getText, w.feedEdit, uintptr(unsafe.Pointer(&b[0])), uintptr(len(b)))
 				w.emit("url", syscall.UTF16ToString(b))
-				return 0
+			case 1002:
+				w.emit("refresh", "")
+			case 1003:
+				w.openSource()
+			case 1004:
+				w.emit("manual", "")
+			case 1010:
+				w.emit("advance", "")
+			case 1011:
+				w.emit("quiet", "")
+			case 1012:
+				w.emit("show", "")
+			case 1013:
+				w.emit("lock", "")
+			case 1014:
+				w.emit("clock", "")
+			case 1200:
+				w.toggleDiagnostics()
 			}
+			return 0
 		}
 	}
 	if hwnd == w.card {
@@ -361,10 +396,10 @@ func (w *windowsUI) render() {
 	}
 	// If WorkerW integration failed, preserve HWND_BOTTOM rather than topmost.
 	if !w.desktopAttached {
-		call(setWindowPos, w.card, 1, uintptr(d.X), uintptr(d.Y), 360, 225, 0x0010)
+		call(setWindowPos, w.card, 1, uintptr(d.X), uintptr(d.Y), cardWidth, cardHeight, 0x0010)
 	}
 	if w.desktopAttached {
-		call(setWindowPos, w.card, 0, uintptr(d.X), uintptr(d.Y), 360, 225, 0x0010|0x0004)
+		call(setWindowPos, w.card, 0, uintptr(d.X), uintptr(d.Y), cardWidth, cardHeight, 0x0010|0x0004)
 	}
 	if d.Locked {
 		call(user32.NewProc("SetWindowLongPtrW"), w.card, -20&0xffffffff, exNoActivate|exToolWindow|exLayered|exTransparent)
@@ -373,90 +408,250 @@ func (w *windowsUI) render() {
 	}
 	call(invalidate, w.card, 0, 1)
 	if w.settings != 0 {
-		call(setText, w.diagnostics, utf(d.Diagnostics))
-		if call(user32.NewProc("GetFocus")) != w.feedEdit {
-			call(setText, w.feedEdit, utf(d.FeedURL))
-		}
+		w.syncSettings(d)
 	}
 }
-func (w *windowsUI) paint() {
-	var p paint
-	hdc := call(beginPaint, w.card, uintptr(unsafe.Pointer(&p)))
-	if hdc == 0 {
+
+// Win32 card: independent bounded labels, not a DT_SINGLELINE/DT_WORDBREAK
+// combined block. COLORREF bytes are BGR, hence the explicit converter.
+func rgb(r, g, b uint8) uintptr { return uintptr(r) | uintptr(g)<<8 | uintptr(b)<<16 }
+func (w *windowsUI) paintFill(dc uintptr, area rect, color uintptr) {
+	brush := call(createBrush, color)
+	call(fillRect, dc, uintptr(unsafe.Pointer(&area)), brush)
+	call(deleteObject, brush)
+}
+func (w *windowsUI) paintText(dc uintptr, str string, area rect, size, weight int32, color uintptr, flags uintptr) {
+	if str == "" {
 		return
 	}
-	area := rect{0, 0, 360, 225}
-	brush := call(createBrush, 0x00291E16)
-	call(fillRect, hdc, uintptr(unsafe.Pointer(&area)), brush)
-	call(deleteObject, brush)
-	call(setBk, hdc, 1)
-	call(setColor, hdc, 0x00F3F3F3)
-	negHeight := int32(-17)
-	font := call(createFont, uintptr(negHeight), 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 0, 0, utf("Segoe UI"))
-	old := call(selectObject, hdc, font)
-	w.mu.Lock()
-	d := w.display
-	w.mu.Unlock()
-	summary := strings.Join([]string{d.Clock, "", d.Title, d.Summary, d.Published, d.Effective, d.Countdown, d.Health}, "\r\n")
-	area = rect{16, 12, 344, 210}
-	call(drawText, hdc, utf(summary), ^uintptr(0), uintptr(unsafe.Pointer(&area)), 0x10|0x20|0x0000)
-	call(selectObject, hdc, old)
+	font := call(createFont, uintptr(int32(-size)), 0, 0, 0, uintptr(weight), 0, 0, 0, 1, 0, 0, 0, 0, utf("Segoe UI"))
+	if font == 0 {
+		return
+	}
+	previous := call(selectObject, dc, font)
+	call(setColor, dc, color)
+	call(drawText, dc, utf(str), ^uintptr(0), uintptr(unsafe.Pointer(&area)), flags|0x0800)
+	call(selectObject, dc, previous)
 	call(deleteObject, font)
-	call(endPaint, w.card, uintptr(unsafe.Pointer(&p)))
+}
+func (w *windowsUI) paint() {
+	var state paint
+	dc := call(beginPaint, w.card, uintptr(unsafe.Pointer(&state)))
+	if dc == 0 {
+		return
+	}
+	defer call(endPaint, w.card, uintptr(unsafe.Pointer(&state)))
+	w.mu.Lock()
+	display := w.display
+	w.mu.Unlock()
+	bg := rgb(27, 39, 54)
+	w.paintFill(dc, rect{0, 0, cardWidth, cardHeight}, bg)
+	call(setBk, dc, 1) // TRANSPARENT
+
+	white := rgb(246, 248, 251)
+	subtle := rgb(179, 193, 210)
+	w.paintText(dc, "◷  Reset Clock", rect{18, 15, 192, 39}, 16, 600, white, 0x20|0x8000)
+	w.paintText(dc, display.LocalTime, rect{210, 11, 366, 40}, 21, 700, white, 0x20|0x0002|0x8000)
+	w.paintText(dc, display.LocalDate, rect{184, 42, 366, 56}, 11, 400, subtle, 0x20|0x0002|0x8000)
+
+	badgeBg, badgeInk := rgb(39, 84, 73), rgb(175, 237, 207)
+	if display.StatusKind == "revised" || display.StatusKind == "stale" || display.StatusKind == "error" {
+		badgeBg, badgeInk = rgb(96, 74, 43), rgb(255, 215, 152)
+	} else if display.StatusKind == "withdrawn" {
+		badgeBg, badgeInk = rgb(99, 53, 65), rgb(255, 190, 199)
+	} else if display.StatusKind == "empty" {
+		badgeBg, badgeInk = rgb(58, 74, 96), rgb(221, 233, 246)
+	}
+	w.paintFill(dc, rect{18, 65, 365, 87}, badgeBg)
+	w.paintText(dc, display.Badge, rect{27, 65, 355, 87}, 11, 600, badgeInk, 0x20|0x8000)
+	w.paintText(dc, display.CardHint, rect{18, 100, 368, 118}, 12, 400, subtle, 0x20|0x8000)
+	if display.HasUpcoming {
+		w.paintText(dc, display.CardValue, rect{18, 119, 369, 166}, 38, 700, white, 0x20|0x8000)
+	} else {
+		w.paintText(dc, display.CardValue, rect{18, 124, 369, 166}, 21, 700, white, 0x20|0x8000)
+	}
+	w.paintText(dc, display.CardSummary, rect{18, 176, 369, 206}, 13, 500, white, 0x10|0x8000)
+	w.paintText(dc, display.CardMeta, rect{18, 210, 369, 227}, 11, 400, subtle, 0x20|0x8000)
+	w.paintFill(dc, rect{18, 233, 369, 234}, rgb(64, 77, 93))
+	footer := rgb(169, 225, 201)
+	if display.StatusKind == "stale" || display.StatusKind == "error" {
+		footer = rgb(255, 210, 141)
+	}
+	w.paintText(dc, display.CardFoot, rect{18, 240, 369, 257}, 11, 400, footer, 0x20|0x8000)
+}
+
+func (w *windowsUI) openSource() {
+	w.mu.Lock()
+	value := w.display.SourceURL
+	w.mu.Unlock()
+	if strings.HasPrefix(value, "https://") {
+		call(shell32.NewProc("ShellExecuteW"), 0, utf("open"), utf(value), 0, 0, 1)
+	}
 }
 func (w *windowsUI) menu() {
 	m := call(popup)
+	if m == 0 {
+		return
+	}
 	defer call(destroyMenu, m)
 	w.mu.Lock()
 	d := w.display
 	w.mu.Unlock()
-	options := []struct{ name, title string }{{"settings", "查看公告 / 设置"}, {"refresh", "立即刷新"}, {"source", "打开原始公告"}, {"show", "显示 / 隐藏"}, {"lock", "编辑 / 锁定位置"}, {"clock", "12 / 24 小时制"}, {"quiet", "免打扰开关"}, {"advance", "提前10分钟提醒"}, {"manual", "10分钟后手动提醒"}}
+	type menuOption struct {
+		name, title string
+		checked     bool
+		separator   bool
+	}
+	opts := []menuOption{
+		{name: "settings", title: "查看公告与设置"},
+		{name: "refresh", title: "立即检查来源"},
+		{name: "source", title: "打开原始公告"},
+		{separator: true},
+		{name: "show", title: "显示桌面卡片", checked: d.Show},
+		{name: "lock", title: "锁定位置（点击穿透）", checked: d.Locked},
+		{name: "quiet", title: "免打扰", checked: d.Quiet},
+		{name: "advance", title: "提前 10 分钟提醒", checked: d.Advance10},
+		{name: "clock", title: "24 小时制", checked: d.Clock24},
+		{name: "manual", title: "10 分钟后手动提醒"},
+		{separator: true},
+	}
 	if d.Demo {
-		options = append(options, struct{ name, title string }{"demo_v1", "模拟 V1"}, struct{ name, title string }{"demo_v2", "模拟 V2"}, struct{ name, title string }{"demo_v3", "模拟 V3"})
+		opts = append(opts, menuOption{name: "demo_v1", title: "模拟公告 V1"},
+			menuOption{name: "demo_v2", title: "模拟公告 V2"},
+			menuOption{name: "demo_v3", title: "模拟公告 V3"}, menuOption{separator: true})
 	}
-	options = append(options, struct{ name, title string }{"quit", "退出"})
-	for i, o := range options {
-		call(appendMenu, m, 0, uintptr(i+1), utf(o.title))
+	opts = append(opts, menuOption{name: "quit", title: "退出"})
+	for i, option := range opts {
+		if option.separator {
+			call(appendMenu, m, 0x0800, 0, 0)
+			continue
+		}
+		flags := uintptr(0)
+		if option.checked {
+			flags |= 0x0008
+		}
+		if option.name == "source" && !d.HasSourceURL {
+			flags |= 0x0001
+		}
+		call(appendMenu, m, flags, uintptr(i+1), utf(option.title))
 	}
-	var p point
-	call(getCursor, uintptr(unsafe.Pointer(&p)))
+	var position point
+	call(getCursor, uintptr(unsafe.Pointer(&position)))
 	call(setForeground, w.card)
-	id := int(call(trackPopup, m, 0x0100|0x0002, uintptr(p.X), uintptr(p.Y), 0, w.card, 0))
-	if id < 1 || id > len(options) {
+	index := int(call(trackPopup, m, 0x0100|0x0002, uintptr(position.X), uintptr(position.Y), 0, w.card, 0)) - 1
+	if index < 0 || index >= len(opts) || opts[index].separator {
 		return
 	}
-	name := options[id-1].name
-	if name == "settings" {
+	command := opts[index].name
+	switch command {
+	case "settings":
 		w.settingsWindow()
-	} else if name == "source" {
-		if strings.HasPrefix(d.SourceURL, "https://") {
-			call(shell32.NewProc("ShellExecuteW"), 0, utf("open"), utf(d.SourceURL), 0, 0, 1)
-		}
-	} else if name == "quit" {
+	case "source":
+		w.openSource()
+	case "quit":
 		w.emit("quit", "")
 		call(postMsg, w.card, wmClose, 0, 0)
-	} else {
-		w.emit(name, "")
+	default:
+		w.emit(command, "")
 	}
 }
 func (w *windowsUI) settingsWindow() {
 	if w.settings == 0 {
 		class := ptr("OpenDesk.ResetClock.Native.R1")
-		w.settings = call(createWin, 0, uintptr(unsafe.Pointer(class)), utf("Reset Clock · 设置"), wsOverlapped, 180, 180, 540, 345, 0, 0, call(kernel32.NewProc("GetModuleHandleW"), 0), 0)
-		child := func(class, txt string, style uintptr, x, y, width, height int, id uintptr) uintptr {
-			return call(createWin, 0, utf(class), utf(txt), wsChild|wsVisible|style, uintptr(x), uintptr(y), uintptr(width), uintptr(height), w.settings, id, 0, 0)
+		w.settings = call(createWin, 0, uintptr(unsafe.Pointer(class)), utf("Reset Clock · 设置"),
+			wsOverlapped, 180, 150, settingsWidth, settingsHeight, 0, 0,
+			call(kernel32.NewProc("GetModuleHandleW"), 0), 0)
+		if w.settings == 0 {
+			return
 		}
-		child("STATIC", "公告来源（HTTPS JSON Feed）", 0, 18, 16, 490, 22, 0)
-		w.feedEdit = child("EDIT", "", 0x0080|0x00800000, 18, 44, 485, 28, 0)
-		child("BUTTON", "保存并刷新", 0, 18, 82, 126, 29, 1001)
-		child("STATIC", "来源状态 / 诊断", 0, 18, 132, 485, 22, 0)
-		w.diagnostics = child("EDIT", "", 0x0800|0x0004|0x00200000|0x00800000, 18, 160, 485, 115, 0)
+		// One UI font kept for all settings controls, released with the window.
+		negativeFontHeight := int32(-16)
+		w.uiFont = call(createFont, uintptr(uint32(negativeFontHeight)), 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 0, 0, utf("Segoe UI"))
+		child := func(class, name string, style uintptr, x, y, width, height int, id uintptr) uintptr {
+			hwnd := call(createWin, 0, utf(class), utf(name), wsChild|wsVisible|style,
+				uintptr(x), uintptr(y), uintptr(width), uintptr(height), w.settings, id, 0, 0)
+			if hwnd != 0 && w.uiFont != 0 {
+				call(sendMsg, hwnd, wmSetFont, w.uiFont, 1)
+			}
+			return hwnd
+		}
+		child("STATIC", "公告来源", 0, 18, 16, 500, 24, 0)
+		w.feedEdit = child("EDIT", "", 0x0080|0x00800000, 18, 44, 507, 27, 0)
+		child("BUTTON", "保存并刷新", 0, 18, 81, 118, 28, 1001)
+		child("BUTTON", "立即刷新", 0, 147, 81, 98, 28, 1002)
+		w.sourceButton = child("BUTTON", "打开原始公告", 0, 256, 81, 143, 28, 1003)
+		child("STATIC", "提醒设置", 0, 18, 128, 500, 24, 0)
+		w.advanceCheck = child("BUTTON", "提前 10 分钟提醒", 0x0003, 18, 159, 237, 25, 1010)
+		w.quietCheck = child("BUTTON", "免打扰", 0x0003, 272, 159, 235, 25, 1011)
+		child("BUTTON", "10 分钟后手动提醒", 0, 18, 193, 189, 28, 1004)
+		child("STATIC", "桌面显示", 0, 18, 240, 500, 24, 0)
+		w.showCheck = child("BUTTON", "显示桌面卡片", 0x0003, 18, 271, 235, 25, 1012)
+		w.lockCheck = child("BUTTON", "锁定位置（点击穿透）", 0x0003, 272, 271, 249, 25, 1013)
+		w.clockCheck = child("BUTTON", "24 小时制", 0x0003, 18, 305, 210, 25, 1014)
+		child("STATIC", "来源状态", 0, 18, 349, 500, 24, 0)
+		child("STATIC", "本机最近检查", 0, 18, 379, 230, 19, 0)
+		child("STATIC", "上游最近检查", 0, 271, 379, 240, 19, 0)
+		w.lastRequest = child("STATIC", "未知", 0, 18, 399, 233, 23, 0)
+		w.lastChecked = child("STATIC", "未知", 0, 271, 399, 240, 23, 0)
+		child("STATIC", "公告内容最近变化", 0, 18, 432, 232, 19, 0)
+		child("STATIC", "当前来源状态", 0, 271, 432, 240, 19, 0)
+		w.lastChanged = child("STATIC", "未知", 0, 18, 452, 235, 23, 0)
+		w.sourceStatus = child("STATIC", "未知", 0, 271, 452, 248, 24, 0)
+		w.advancedButton = child("BUTTON", "高级诊断 ▸", 0, 18, 489, 138, 27, 1200)
+		w.diagnostics = child("EDIT", "", 0x0800|0x0004|0x00200000|0x00800000,
+			18, 532, 506, 110, 0)
+		call(showWin, w.diagnostics, swHide)
 	}
 	w.mu.Lock()
 	d := w.display
 	w.mu.Unlock()
-	call(setText, w.feedEdit, utf(d.FeedURL))
-	call(setText, w.diagnostics, utf(d.Diagnostics))
+	w.syncSettings(d)
 	call(showWin, w.settings, swShow)
 	call(setForeground, w.settings)
+}
+func (w *windowsUI) toggleDiagnostics() {
+	w.advancedShown = !w.advancedShown
+	if w.advancedShown {
+		call(setText, w.advancedButton, utf("高级诊断 ▾"))
+		call(moveWindow, w.settings, 180, 150, settingsWidth, settingsHeight+145, 1)
+		call(showWin, w.diagnostics, swShow)
+	} else {
+		call(setText, w.advancedButton, utf("高级诊断 ▸"))
+		call(showWin, w.diagnostics, swHide)
+		call(moveWindow, w.settings, 180, 150, settingsWidth, settingsHeight, 1)
+	}
+}
+func (w *windowsUI) syncSettings(d Display) {
+	if w.settings == 0 {
+		return
+	}
+	// Do not replace an in-progress URL edit when the once-per-second clock redraws.
+	if call(user32.NewProc("GetFocus")) != w.feedEdit {
+		call(setText, w.feedEdit, utf(d.FeedURL))
+	}
+	if w.sourceButton != 0 {
+		call(enableWindow, w.sourceButton, uintptr(boolInt(d.HasSourceURL)))
+	}
+	for _, toggle := range []struct {
+		button  uintptr
+		enabled bool
+	}{
+		{w.advanceCheck, d.Advance10}, {w.quietCheck, d.Quiet},
+		{w.showCheck, d.Show}, {w.lockCheck, d.Locked}, {w.clockCheck, d.Clock24},
+	} {
+		if toggle.button != 0 {
+			call(sendMsg, toggle.button, 0x00F1, uintptr(boolInt(toggle.enabled)), 0)
+		}
+	}
+	call(setText, w.lastRequest, utf(d.LastRequest))
+	call(setText, w.lastChecked, utf(d.LastChecked))
+	call(setText, w.lastChanged, utf(d.LastChanged))
+	call(setText, w.sourceStatus, utf(d.Health))
+	call(setText, w.diagnostics, utf(d.Diagnostics))
+}
+func boolInt(v bool) int {
+	if v {
+		return 1
+	}
+	return 0
 }

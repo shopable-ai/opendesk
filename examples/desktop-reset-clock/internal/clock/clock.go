@@ -6,20 +6,38 @@ import (
 	_ "time/tzdata"
 )
 
-func Display(t time.Time, zone string, h24 bool) (string, error) {
+// Parts is presentation-only; timestamps remain UTC in the persisted feed.
+type Parts struct {
+	Time string
+	Date string
+	Zone string
+}
+
+func LocalParts(t time.Time, zone string, h24 bool) (Parts, error) {
 	loc := time.Local
 	if zone != "" {
 		var err error
 		loc, err = time.LoadLocation(zone)
 		if err != nil {
-			return "", err
+			return Parts{}, err
 		}
 	}
-	if h24 {
-		return t.In(loc).Format("2006-01-02 15:04:05 MST"), nil
+	local := t.In(loc)
+	clockFormat := "15:04:05"
+	if !h24 {
+		clockFormat = "03:04:05 PM"
 	}
-	return t.In(loc).Format("2006-01-02 03:04:05 PM MST"), nil
+	return Parts{Time: local.Format(clockFormat), Date: local.Format("2006-01-02"), Zone: local.Format("MST")}, nil
 }
+
+func Display(t time.Time, zone string, h24 bool) (string, error) {
+	p, err := LocalParts(t, zone, h24)
+	if err != nil {
+		return "", err
+	}
+	return p.Date + " " + p.Time + " " + p.Zone, nil
+}
+
 func Countdown(now, target time.Time) string {
 	delta := target.Sub(now)
 	if delta <= 0 {

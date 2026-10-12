@@ -31,3 +31,18 @@ func TestTZAndCountdown(t *testing.T) {
 		t.Fatal("expired")
 	}
 }
+
+func TestLocalPartsTimezoneAndFormats(t *testing.T) {
+	instant := time.Date(2026, 10, 12, 7, 4, 8, 0, time.UTC)
+	japan, err := LocalParts(instant, "Asia/Tokyo", true)
+	if err != nil || japan.Time != "16:04:08" || japan.Date != "2026-10-12" || japan.Zone != "JST" {
+		t.Fatalf("Tokyo parts = %#v, %v", japan, err)
+	}
+	american, err := LocalParts(instant, "America/New_York", false)
+	if err != nil || american.Time != "03:04:08 AM" || american.Zone != "EDT" {
+		t.Fatalf("New York parts = %#v, %v", american, err)
+	}
+	if _, err := LocalParts(instant, "Unknown/Invalid", true); err == nil {
+		t.Fatal("invalid IANA zone accepted")
+	}
+}

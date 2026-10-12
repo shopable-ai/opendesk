@@ -245,41 +245,132 @@ func timeLabel(t *time.Time) string {
 	}
 	return t.Local().Format("2006-01-02 15:04:05 MST")
 }
+
+// shortDate follows the same user-selected clock zone, never the feed server's.
+func shortDate(t *time.Time, zone string) string {
+	if t == nil {
+		return "未知"
+	}
+	loc := time.Local
+	if zone != "" {
+		if v, err := time.LoadLocation(zone); err == nil {
+			loc = v
+		}
+	}
+	return t.In(loc).Format("01-02 15:04")
+}
+
+// cardText limits untrusted feed summaries in compact native surfaces. The
+// complete summary is retained in the validated snapshot and diagnostic view.
+func cardText(s string, demo bool) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if demo {
+		s = strings.TrimPrefix(s, "【模拟数据】")
+	}
+	r := []rune(strings.TrimSpace(s))
+	if len(r) > 64 {
+		return string(r[:63]) + "…"
+	}
+	return string(r)
+}
+
 func (a *App) displayLocked() desktop.Display {
 	s := a.s
 	now := a.now()
-	d := desktop.Display{Demo: a.DemoSwitch != nil, Title: "暂无确定的下一次重置", Summary: "尚无有效官方公告", Health: s.Health.Grade(now), FeedURL: s.Config.FeedURL, Show: s.Config.Show, Locked: s.Config.Locked, Quiet: s.Config.Quiet, Advance10: s.Config.Advance10, X: s.Config.X, Y: s.Config.Y}
-	d.Clock, _ = clock.Display(now, s.Config.Zone, s.Config.Clock24)
-	d.Diagnostics = fmt.Sprintf("本机请求: %s | 有效数据: %s\n上游检查: %s | 本地发现公告变化: %s\n最后失败: %s (%s)", timeLabel(s.Health.LastAttemptAt), timeLabel(s.Health.LastValidFeedAt), timeLabel(s.Health.LastSourceCheckedAt), timeLabel(s.Health.LastEventChangedAt), timeLabel(s.Health.LastFailureAt), s.Health.LastError)
+	parts, err := clock.LocalParts(now, s.Config.Zone, s.Config.Clock24)
+	if err != nil {
+		parts, _ = clock.LocalParts(now, "", s.Config.Clock24)
+	}
+	state := s.Health.Grade(now)
+	demo := a.DemoSwitch != nil
+	d := desktop.Display{
+		Demo: demo, LocalTime: parts.Time, LocalDate: parts.Date + " · " + parts.Zone,
+		Clock: parts.Date + " " + parts.Time + " " + parts.Zone,
+		Title: "暂无确定的下一次重置", Summary: "尚无有效官方公告",
+		Badge: "暂无确定公告", StatusKind: "empty", CardHint: "当前公告状态",
+		CardValue: "暂无确定的下一次重置", CardSummary: "尚无有效官方公告",
+		CardFoot: state, Health: state, FeedURL: s.Config.FeedURL,
+		Show: s.Config.Show, Locked: s.Config.Locked, Quiet: s.Config.Quiet,
+		Advance10: s.Config.Advance10, Clock24: s.Config.Clock24,
+		X: s.Config.X, Y: s.Config.Y,
+		LastRequest: shortDate(s.Health.LastAttemptAt, s.Config.Zone),
+		LastChecked: shortDate(s.Health.LastSourceCheckedAt, s.Config.Zone),
+		LastChanged: shortDate(s.Health.LastEventChangedAt, s.Config.Zone),
+	}
+	d.Diagnostics = fmt.Sprintf("本机请求: %s | 有效数据: %s\n上游检查: %s | 本地发现公告变化: %s\n最后失败: %s (%s)",
+		timeLabel(s.Health.LastAttemptAt), timeLabel(s.Health.LastValidFeedAt),
+		timeLabel(s.Health.LastSourceCheckedAt), timeLabel(s.Health.LastEventChangedAt),
+		timeLabel(s.Health.LastFailureAt), s.Health.LastError)
+	if demo {
+		d.Badge = "【模拟数据】暂无确定公告"
+	}
 	if s.Snapshot == nil {
+		if s.Health.LastError != "" {
+			d.StatusKind = "error"
+			d.Badge = "连接异常 · 未读取有效数据"
+		}
 		return d
 	}
 	var chosen *time.Time
-	for _, e := range s.Snapshot.Events {
+	var fallback *events.Event
+	var withdrawn *events.Event
+	for i := range s.Snapshot.Events {
+		e := &s.Snapshot.Events[i]
 		if e.State == "withdrawn" {
-			if d.Summary == "尚无有效官方公告" {
-				d.Summary = "已撤回公告：" + e.Summary
+			if withdrawn == nil || e.Revision > withdrawn.Revision {
+				withdrawn = e
 			}
 			continue
 		}
-		if d.Summary == "尚无有效官方公告" {
-			d.Summary = e.Summary
-			d.SourceURL = e.SourceURL
-			d.Published = timeLabel(e.SourcePublishedAt)
+		if fallback == nil {
+			fallback = e
 		}
-		if !events.Eligible(e, now, s.Health.LastSourceCheckedAt) {
+		if !events.Eligible(*e, now, s.Health.LastSourceCheckedAt) {
 			continue
 		}
 		if chosen != nil && !e.EffectiveAt.Before(*chosen) {
 			continue
 		}
-		d.Title = "官方公告 · 预计重置"
-		d.Summary = e.Summary
-		d.SourceURL = e.SourceURL
+		chosen = e.EffectiveAt
+		d.Title, d.Summary, d.SourceURL = "官方公告 · 预计重置", e.Summary, e.SourceURL
 		d.Published = timeLabel(e.SourcePublishedAt)
 		d.Effective = timeLabel(e.EffectiveAt)
 		d.Countdown = clock.Countdown(now, *e.EffectiveAt)
-		chosen = e.EffectiveAt
+		d.HasUpcoming, d.HasSourceURL = true, true
+		d.CardHint, d.CardValue = "距离公告预计重置", d.Countdown
+		d.CardSummary = cardText(e.Summary, demo)
+		d.CardMeta = "发布 " + shortDate(e.SourcePublishedAt, s.Config.Zone) + "  ·  预计 " + shortDate(e.EffectiveAt, s.Config.Zone)
+		d.StatusKind, d.Badge = "active", "公告预计重置"
+		if e.Revision > 1 {
+			d.StatusKind, d.Badge = "revised", fmt.Sprintf("时间已更正 · 修订 %d", e.Revision)
+		}
+	}
+	if chosen == nil {
+		if withdrawn != nil {
+			d.Summary, d.SourceURL = withdrawn.Summary, withdrawn.SourceURL
+			d.Published, d.HasSourceURL = timeLabel(withdrawn.SourcePublishedAt), true
+			d.StatusKind, d.Badge = "withdrawn", "公告已撤回"
+			d.CardValue, d.CardSummary = "公告已撤回", cardText(withdrawn.Summary, demo)
+			d.CardMeta = "发布 " + shortDate(withdrawn.SourcePublishedAt, s.Config.Zone)
+		} else if fallback != nil {
+			d.Summary, d.SourceURL = fallback.Summary, fallback.SourceURL
+			d.Published, d.HasSourceURL = timeLabel(fallback.SourcePublishedAt), true
+			d.CardSummary = cardText(fallback.Summary, demo)
+			d.CardMeta = "发布 " + shortDate(fallback.SourcePublishedAt, s.Config.Zone)
+		}
+	}
+	if state == "来源可能过期（停止自动公告提醒）" || state == "来源严重异常（缓存）" || state == "来源更新延迟" {
+		if d.StatusKind != "withdrawn" {
+			d.StatusKind, d.Badge = "stale", state
+		}
+	} else if s.Health.LastError != "" && d.StatusKind != "withdrawn" {
+		d.StatusKind = "error"
+		if chosen == nil {
+			d.Badge = "连接异常 · 缓存数据"
+		}
+	}
+	if demo {
+		d.Badge = "【模拟】" + d.Badge
 	}
 	return d
 }
