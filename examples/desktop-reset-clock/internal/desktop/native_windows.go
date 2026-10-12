@@ -228,11 +228,15 @@ func (w *windowsUI) attachDesktop() {
 		return 1
 	})
 	call(enumWindows, callback, 0)
-	if worker != 0 && call(setParent, w.card, worker) != 0 {
-		style := call(getLong, w.card, -16&0xffffffff)
-		call(setLong, w.card, -16&0xffffffff, (style&^wsPopup)|wsChild)
-		w.desktopAttached = true
-	} else {
+	if worker != 0 {
+		call(setParent, w.card, worker)
+		if call(user32.NewProc("GetParent"), w.card) == worker {
+			style := call(getLong, w.card, -16&0xffffffff)
+			call(setLong, w.card, -16&0xffffffff, (style&^wsPopup)|wsChild)
+			w.desktopAttached = true
+		}
+	}
+	if !w.desktopAttached {
 		w.desktopAttached = false
 		call(setWindowPos, w.card, 1, 0, 0, 0, 0, 0x0013)
 	}
@@ -406,7 +410,7 @@ func (w *windowsUI) menu() {
 	w.mu.Lock()
 	d := w.display
 	w.mu.Unlock()
-	options := []struct{ name, title string }{{"settings", "查看公告 / 设置"}, {"refresh", "立即刷新"}, {"show", "显示 / 隐藏"}, {"lock", "编辑 / 锁定位置"}, {"clock", "12 / 24 小时制"}, {"quiet", "免打扰开关"}, {"advance", "提前10分钟提醒"}, {"manual", "10分钟后手动提醒"}}
+	options := []struct{ name, title string }{{"settings", "查看公告 / 设置"}, {"refresh", "立即刷新"}, {"source", "打开原始公告"}, {"show", "显示 / 隐藏"}, {"lock", "编辑 / 锁定位置"}, {"clock", "12 / 24 小时制"}, {"quiet", "免打扰开关"}, {"advance", "提前10分钟提醒"}, {"manual", "10分钟后手动提醒"}}
 	if d.Demo {
 		options = append(options, struct{ name, title string }{"demo_v1", "模拟 V1"}, struct{ name, title string }{"demo_v2", "模拟 V2"}, struct{ name, title string }{"demo_v3", "模拟 V3"})
 	}
@@ -424,6 +428,10 @@ func (w *windowsUI) menu() {
 	name := options[id-1].name
 	if name == "settings" {
 		w.settingsWindow()
+	} else if name == "source" {
+		if strings.HasPrefix(d.SourceURL, "https://") {
+			call(shell32.NewProc("ShellExecuteW"), 0, utf("open"), utf(d.SourceURL), 0, 0, 1)
+		}
 	} else if name == "quit" {
 		w.emit("quit", "")
 		call(postMsg, w.card, wmClose, 0, 0)
