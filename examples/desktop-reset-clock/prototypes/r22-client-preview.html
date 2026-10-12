@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Reset Clock R2.2 — 紧凑倒计时 · 三条动态 · 记录与动态</title>
+<style>
+:root {
+  color-scheme:light;
+  --page:#eef2ef; --paper:#fcfdfa; --surface:#fff; --ink:#183430; --muted:#627871;
+  --line:#dbe5df; --soft:#f3f7f4; --teal:#087e6e; --teal-deep:#056c5f;
+  --green-soft:#e7f4ed; --amber:#92621d; --amber-soft:#fff2d9;
+  --red:#a4484f; --red-soft:#ffedf0;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{background:var(--page)}body{margin:0;color:var(--ink);font-size:13px}
+button,select{font:inherit}button{cursor:pointer}
+button:focus-visible,a:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:3px solid #78cbb8;outline-offset:3px}
+[hidden]{display:none!important}
+.shell{max-width:1160px;margin:auto;padding:26px 23px 56px}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.head h1{margin:0;font-size:22px;letter-spacing:-.65px;line-height:1.25}
+.head p{margin:8px 0 0;color:var(--muted);font-size:12px;line-height:1.6}
+.prototype-label{font-size:10px;color:#53786c;border:1px solid #bdd5c9;background:#e3f0e8;padding:6px 9px;border-radius:7px;font-weight:700;letter-spacing:.3px}
+.controls{display:flex;flex-wrap:wrap;gap:15px;margin-bottom:20px}
+.control-group>span{display:block;color:var(--muted);font-size:11px;margin-bottom:7px}
+.segment{display:inline-flex;align-items:center;background:#e1eae4;border:1px solid #d5e2d9;border-radius:11px;padding:3px;gap:2px}
+.segment button{border:0;background:transparent;padding:8px 12px;border-radius:8px;font-size:12px;color:#60736c}
+.segment button.active{background:#fff;color:#17483e;box-shadow:0 1px 5px #132b1b18;font-weight:730}
+.workarea{display:grid;grid-template-columns:386px minmax(0,1fr);align-items:start;gap:22px}
+.region-title{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#596e67;font-size:11px;font-weight:650;margin-bottom:9px}
+.region-title .size{font-weight:500;font-variant-numeric:tabular-nums}
+.compact{width:386px;max-width:100%;border-radius:18px;overflow:hidden;color:#f5fbf7;background:linear-gradient(155deg,#133d3d 0%,#112e33 57%,#10262f 100%);box-shadow:0 16px 34px #16382a25;border:1px solid #244947}
+.compact-inner{padding:17px 18px 0}
+.compact-header{display:flex;justify-content:space-between;align-items:center;gap:9px;min-height:23px}
+.compact-brand{font-size:13px;font-weight:730;letter-spacing:-.25px;white-space:nowrap}
+.brand-mark{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:#2e7167;margin-right:5px;color:#dcfff2;font-weight:800;font-size:14px}
+.compact-status{border:1px solid #468171;background:#235347;color:#d5f3e4;font-size:10px;border-radius:999px;padding:5px 8px;white-space:nowrap}
+.compact-status.warn{background:#58482e;color:#ffe5b4;border-color:#826a43}
+.compact-status.alert{background:#5c353c;color:#ffe0e4;border-color:#87545d}
+.count-label{font-size:12px;color:#b7d0c9;margin:19px 0 7px}
+.count{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;font-variant-numeric:tabular-nums;line-height:1.12;letter-spacing:-1.1px;font-size:36px;font-weight:750;min-height:42px}
+.count small{font-size:15px;font-weight:580;color:#c4ded5;letter-spacing:0}
+.count.text-status{font-size:26px;letter-spacing:-.6px;align-items:center;line-height:1.35}
+.expected{margin-top:5px;color:#c2d7d0;font-size:11px;line-height:1.5}
+.ticker{margin-top:20px;border-top:1px solid #47706a}
+.ticker-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:10px;min-height:29px}
+.ticker-heading{font-size:11px;font-weight:730;color:#a7d3c5;letter-spacing:.2px}
+.ticker-actions{display:flex;align-items:center;gap:5px}
+.ticker-count{font-size:10px;color:#bed6cf;font-variant-numeric:tabular-nums;padding-right:4px}
+.tiny-control{border:1px solid #557f75;background:#264c4c;color:#f3fff8;border-radius:6px;height:26px;min-width:27px;padding:0 7px;display:inline-grid;place-items:center;font-size:14px;line-height:1}
+.tiny-control.expand{font-size:11px;min-width:54px;margin-left:3px}
+.tiny-control:disabled{opacity:.45;cursor:default}
+.ticker-single{min-height:51px;display:flex;align-items:center;gap:7px;padding:8px 0 14px;font-size:12px;line-height:1.4}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#77e3c1;flex-shrink:0}
+.ticker-single .one-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ticker-expanded{padding:5px 0 13px}
+.ticker-expanded-item{padding:8px 0;border-top:1px solid #355c57;display:flex;align-items:flex-start;gap:9px;font-size:12px;line-height:1.55}
+.ticker-tag{flex:none;color:#a8d8c6;font-size:10px;margin-top:2px}
+.ticker-expanded-item p{margin:0;min-width:0;overflow-wrap:anywhere}
+.ticker-expanded-item .source{display:block;color:#91b5ad;font-size:10px;margin-top:3px}
+.ticker-empty{font-size:11px;color:#bdd1ca;padding:14px 0 18px}
+.card-caption{font-size:11px;color:#6b8076;line-height:1.65;margin:11px 1px 0}
+.card-caption strong{color:#36584d}
+.detail{background:var(--paper);border:1px solid var(--line);border-radius:17px;overflow:hidden;box-shadow:0 8px 30px #34584b0d;min-width:0}
+.window-header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:17px 20px 14px;border-bottom:1px solid var(--line);background:#fff}
+.window-title{font-size:15px;font-weight:760;letter-spacing:-.35px}
+.window-subtitle{font-size:11px;color:var(--muted);margin-top:3px}
+.window-status{white-space:nowrap;border-radius:999px;background:var(--green-soft);color:#166f5f;padding:6px 9px;font-size:10px;font-weight:680}
+.window-status.warn{background:var(--amber-soft);color:var(--amber)}
+.window-tabs{display:flex;gap:5px;padding:10px 16px 0;background:#fff;border-bottom:1px solid var(--line)}
+.window-tabs button{background:transparent;border:0;color:#687970;font-size:12px;padding:10px 14px 11px;border-radius:8px 8px 0 0;font-weight:600;border-bottom:2px solid transparent}
+.window-tabs button[aria-selected="true"]{color:var(--teal-deep);border-bottom-color:var(--teal);background:#f1f9f5}
+.panel{padding:18px 20px 20px;min-height:340px}
+.sec-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.sec-title{font-size:14px;font-weight:760;margin:0;letter-spacing:-.3px}
+.note{font-size:11px;color:var(--muted);line-height:1.6;margin:6px 0 0}
+.period{background:var(--soft);padding:3px;display:inline-flex;border-radius:8px;gap:2px}
+.period button{border:0;padding:6px 9px;background:transparent;color:var(--muted);font-size:11px;border-radius:6px}
+.period button.active{background:#fff;color:var(--teal-deep);box-shadow:0 1px 3px #203c2117}
+.metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:15px}
+.metric{padding:12px 13px;border-radius:10px;border:1px solid #dfe9e3;background:#fff}
+.metric .name{font-size:11px;color:#5d746a}.metric .value{font-size:24px;font-weight:780;line-height:1.15;margin-top:7px;font-variant-numeric:tabular-nums}
+.metric .suffix{font-weight:450;font-size:12px;color:#698075}.metric .description{font-size:10px;color:#778b80;margin-top:6px;line-height:1.5}
+.section-divider{height:1px;background:var(--line);margin:18px 0}
+.news-preview-item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:9px;border-bottom:1px solid #e8eee9;padding:11px 0}
+.news-preview-item:last-child{border-bottom:0}.news-preview-title{font-size:12px;line-height:1.5;font-weight:650;overflow-wrap:anywhere}
+.news-preview-sub{font-size:10px;color:var(--muted);margin-top:3px}
+.chip{display:inline-block;font-size:10px;border-radius:5px;padding:3px 6px;font-weight:620;color:#426d60;background:#eaf4ed;margin-right:5px}
+.chip.editorial{color:#6e6979;background:#f0edf4}.chip.observed{color:#89672b;background:#fbf1dc}.chip.withdrawn{color:var(--red);background:var(--red-soft)}
+.ghost-link{border:0;background:transparent;color:var(--teal-deep);font-size:11px;padding:6px 2px;white-space:nowrap}
+.ghost-link:hover{text-decoration:underline}
+.source-summary{background:#f0f6f1;border-radius:9px;padding:10px 12px;line-height:1.6;color:#60786e;font-size:11px;margin-top:14px}
+.detail-section-heading{font-size:15px;font-weight:770;margin:0 0 5px}
+.timeline{border-left:2px solid #d5e7df;margin:16px 0 0 7px;padding-left:19px}
+.timeline-row{position:relative;padding:0 0 19px}
+.timeline-row::before{content:"";position:absolute;left:-26px;top:5px;width:11px;height:11px;border-radius:50%;background:#6aac98;border:2px solid #fcfdfa}
+.timeline-row.uncertain::before{background:#d0aa69}
+.timeline-row.void::before{background:#d09198}
+.timeline-date{font-size:10px;color:var(--muted);margin-bottom:4px}
+.timeline-title{font-size:12px;font-weight:710}
+.timeline-info{font-size:11px;color:var(--muted);line-height:1.55;margin-top:4px}
+.timeline-source{font-size:10px;color:var(--teal-deep);margin-top:6px;border:0;background:transparent;padding:0}
+.story{border:1px solid var(--line);background:#fff;border-radius:11px;padding:13px 14px;margin-top:10px}
+.story-head{display:flex;justify-content:space-between;gap:7px;align-items:center}
+.story-title{font-size:13px;font-weight:730;margin:9px 0 5px;line-height:1.45}
+.story-desc{font-size:11px;color:var(--muted);line-height:1.6;margin:0}
+.story-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;font-size:10px;color:var(--muted)}
+.member-status{margin-top:16px;display:flex;align-items:center;justify-content:space-between;gap:9px;border-top:1px solid var(--line);padding-top:12px;font-size:11px;color:var(--muted)}
+.member-status strong{color:var(--ink);font-weight:700}
+.notice-box{margin-top:10px;padding:9px 11px;border-radius:8px;font-size:11px;color:#7c683d;background:#fff7e7;line-height:1.6}
+.preview-footer{font-size:11px;color:#6b8076;margin-top:20px;line-height:1.7}
+.toast{margin-top:9px;min-height:14px;color:#527466;font-size:10px;overflow-wrap:anywhere}
+@media(max-width:980px){.workarea{grid-template-columns:1fr}.detail{width:min(100%,680px)}}
+@media(max-width:460px){.shell{padding:17px 12px 35px}.compact{width:100%}.compact-inner{padding:15px}.count{font-size:32px}.window-header{padding:15px}.panel{padding:15px}.metrics{gap:7px}.metric{padding:10px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;scroll-behavior:auto!important;transition:none!important}}
+@media(forced-colors:active){.compact,.detail,.metric,.story{forced-color-adjust:auto;border:1px solid CanvasText}.tiny-control,.chip,.period button{border:1px solid ButtonText}}
+</style>
+</head>
+<body>
+<main class="shell" id="reset-r22">
+  <header class="head">
+    <div><h1>Reset Clock <span style="font-weight:480;color:#57766a">/ R2.2 设计预览</span></h1>
+    <p>核心时间优先 · 三条动态单行轮播 / 原位展开 · 历史与资讯清晰分层</p></div>
+    <span class="prototype-label">离线合成 · 非真实官方公告</span>
+  </header>
+  <section class="controls" aria-label="原型测试控制">
+    <div class="control-group"><span>事件状态</span><div class="segment" id="scenario">
+      <button type="button" class="active" data-scenario="v1" aria-pressed="true">预告</button>
+      <button type="button" data-scenario="v2" aria-pressed="false">更正</button>
+      <button type="button" data-scenario="v3" aria-pressed="false">撤回</button>
+      <button type="button" data-scenario="stale" aria-pressed="false">来源异常</button>
+      <button type="button" data-scenario="empty" aria-pressed="false">无数据</button>
+    </div></div>
+    <div class="control-group"><span>会员状态（仅模拟）</span><div class="segment" id="tier">
+      <button type="button" class="active" data-tier="free" aria-pressed="true">Free</button>
+      <button type="button" data-tier="pro" aria-pressed="false">模拟 Pro</button>
+    </div></div>
+  </section>
+  <div class="workarea">
+    <section aria-label="常驻桌面卡片">
+      <div class="region-title"><span>桌面常驻卡片</span><span class="size">386 px · 紧凑自适应</span></div>
+      <article class="compact" id="card">
+        <div class="compact-inner">
+          <div class="compact-header">
+            <div class="compact-brand"><span class="brand-mark" aria-hidden="true">↻</span>Reset Clock</div>
+            <div id="card-status" class="compact-status">来源预告 · 未确认完成</div>
+          </div>
+          <div class="count-label" id="count-label">距离下一次预计重置</div>
+          <div class="count" id="count" aria-live="off"><span>1</span><small>小时</small><span>30</span><small>分</small></div>
+          <div class="expected" id="expected">预计 10 月 13 日 06:00 · 本地时间</div>
+          <section class="ticker" aria-label="精选动态">
+            <div class="ticker-top">
+              <span class="ticker-heading" id="ticker-title">精选动态</span>
+              <div class="ticker-actions">
+                <span id="ticker-index" class="ticker-count">1 / 3</span>
+                <button type="button" class="tiny-control" id="prev" aria-label="上一条动态" title="上一条动态">‹</button>
+                <button type="button" class="tiny-control" id="next" aria-label="下一条动态" title="下一条动态">›</button>
+                <button type="button" class="tiny-control expand" id="expand" aria-expanded="false" aria-controls="expanded-news">展开</button>
+              </div>
+            </div>
+            <div class="ticker-single" id="ticker-single"><span class="dot" aria-hidden="true"></span><span class="one-line" id="ticker-text">来源公告：预计重置窗口已发布</span></div>
+            <div class="ticker-expanded" id="expanded-news" hidden></div>
+            <div class="ticker-empty" id="ticker-empty" hidden>暂无可展示的动态</div>
+          </section>
+        </div>
+      </article>
+      <p class="card-caption">默认只占一行展示动态；<strong>6 秒一条</strong>，鼠标停留、键盘聚焦或展开时暂停。锁定点击穿透时，应从托盘切换展开状态，不依赖卡片按钮。</p>
+    </section>
+    <section aria-label="按需打开的详情窗口">
+      <div class="region-title"><span>记录与动态 · 独立详情窗口</span><span class="size">内容分区 · 不承载付费广告</span></div>
+      <div class="detail">
+        <header class="window-header">
+          <div><div class="window-title">Reset Clock · 记录与动态</div><div class="window-subtitle">重置事件、来源证据与精选资讯</div></div>
+          <div id="window-status" class="window-status">演示数据 · 来源未独立核验</div>
+        </header>
+        <nav class="window-tabs" role="tablist" aria-label="详情内容">
+          <button type="button" role="tab" id="tab-overview" data-tab="overview" aria-selected="true" aria-controls="panel-overview" tabindex="0">概览</button>
+          <button type="button" role="tab" id="tab-history" data-tab="history" aria-selected="false" aria-controls="panel-history" tabindex="-1">历史记录</button>
+          <button type="button" role="tab" id="tab-news" data-tab="news" aria-selected="false" aria-controls="panel-news" tabindex="-1">资讯</button>
+        </nav>
+        <section role="tabpanel" class="panel" id="panel-overview" aria-labelledby="tab-overview">
+          <div class="sec-heading">
+            <h2 class="sec-title">重置统计</h2>
+            <div class="period" aria-label="统计时间范围" id="period">
+              <button type="button" class="active" data-period="30">最近 30 天</button>
+              <button type="button" data-period="month">本月</button>
+            </div>
+          </div>
+          <p class="note" id="period-note">预告、确认、赠送与个人观察分开计数；仅统计完整覆盖的窗口。</p>
+          <div class="metrics" id="metrics"></div>
+          <div class="section-divider"></div>
+          <div class="sec-heading"><h2 class="sec-title">最新动态</h2><button type="button" class="ghost-link" id="all-news-link">查看全部 <span aria-hidden="true">↗</span></button></div>
+          <div id="overview-news"></div>
+          <div class="source-summary" id="source-summary">来源分类由数据提供方标注，尚不能作为 OpenAI 官方身份认证；历史记录可查看逐条来源。</div>
+          <div class="member-status"><span>当前权益</span><strong id="member-status">Free · 高级提醒试用剩余 2 次</strong></div>
+        </section>
+        <section role="tabpanel" class="panel" id="panel-history" aria-labelledby="tab-history" hidden>
+          <h2 class="detail-section-heading">历史事件</h2>
+          <p class="note">按事件性质分开记录；修订不重复计数，撤回后不保留有效重置声明。</p>
+          <div class="timeline" id="history-timeline"></div>
+          <div class="notice-box" id="history-notice">模拟数据用于检查时间边界与证据呈现，不证明个人额度已恢复。</div>
+        </section>
+        <section role="tabpanel" class="panel" id="panel-news" aria-labelledby="tab-news" hidden>
+          <h2 class="detail-section-heading">精选资讯</h2>
+          <p class="note">最新三条优先；完整列表保留更正和撤回的状态。每条标明来源类型和修订。</p>
+          <div id="news-stories"></div>
+          <div class="source-summary">真实产品将通过已校验的 HTTPS 链接打开原始页面；这里仅演示合成链接结构。</div>
+        </section>
+      </div>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </section>
+  </div>
+  <footer class="preview-footer">
+    <strong>预览范围：</strong>本 HTML 是 R2.2 视觉和交互提案；不是 R2 原生 AppKit/Win32 的已运行截图，也未修改真实提醒、Feed 或支付系统。真实接口和数据真实性须另行验收。
+  </footer>
+</main>
+<script>
+(function(){
+"use strict";
+var root=document.getElementById("reset-r22");
+if(!root)return;
+var state={scenario:"v1",tier:"free",period:"30",tab:"overview",expanded:false,index:0,hover:false};
+var $=function(id){return root.querySelector("#"+id);};
+var sample=[
+  {id:"notice",type:"来源预告",source:"提供方标注官方",title:"重置预告：预计时间已发布，请核对原文",summary:"这是一条合成来源预告。预计时刻不代表确认完成，也不代表个人额度恢复。",updated:"10-12 14:20",revision:1,url:"https://example.org/reset-clock-demo/notice"},
+  {id:"guide",type:"使用指南",source:"第三方资料",title:"如何查看 Codex 的额度与重置状态",summary:"使用指南由第三方整理，不用于推断公共重置时间。",updated:"10-11 09:30",revision:1,url:"https://example.org/reset-clock-demo/guide"},
+  {id:"analysis",type:"编辑分析",source:"编辑内容 · 非官方",title:"额外使用机会：区分公告与用户观察",summary:"零散观察不能成为全体用户获得赠送次数的证据。",updated:"10-10 18:00",revision:1,url:"https://example.org/reset-clock-demo/analysis"}
+];
+function el(tag,cls,txt){var n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n;}
+function button(text,cls,fn){var b=el("button",cls,text);b.type="button";b.addEventListener("click",fn);return b;}
+function emit(msg){$("toast").textContent=msg;}
+function activeNews(){
+ if(state.scenario==="empty")return [];
+ return sample.filter(function(a){return !(state.scenario==="v3"&&a.id==="notice");});
+}
+function selectedData(n) {
+ var copy=Object.assign({},n);
+ if(copy.id==="notice"&&state.scenario==="v2"){copy.title="重置预告更正：预计时间已调整，请查看原文";copy.revision=2;copy.updated="10-12 15:00";}
+ if(copy.id==="notice"&&state.scenario==="v3"){copy.title="重置预告已撤回";copy.revision=3;copy.updated="10-12 15:40";copy.withdrawn=true;}
+ return copy;
+}
+function currentNews(){return activeNews().map(selectedData);}
+function selectButtons(selector,key,v){root.querySelectorAll(selector).forEach(function(b){var on=b.dataset[key]===v;b.classList.toggle("active",on);b.setAttribute("aria-pressed",String(on));});}
+function setTab(tab,focus){
+ state.tab=tab;
+ root.querySelectorAll("[role=tab]").forEach(function(b){
+  var selected=b.dataset.tab===tab;b.setAttribute("aria-selected",String(selected));b.tabIndex=selected?0:-1;if(selected&&focus)b.focus();
+ });
+ ["overview","history","news"].forEach(function(name){$("panel-"+name).hidden=name!==tab;});
+}
+function renderCard(){
+ selectButtons("#scenario button","scenario",state.scenario);
+ selectButtons("#tier button","tier",state.tier);
+ var count=$("count"),status=$("card-status"),label=$("count-label"),date=$("expected");
+ count.replaceChildren();count.className="count";status.className="compact-status";
+ if(state.scenario==="v1"||state.scenario==="v2"){
+  label.textContent="距离下一次预计重置";
+  var amount=state.scenario==="v1"?["1","30"]:["2","10"];
+  count.append(el("span","",amount[0]),el("small","","小时"),el("span","",amount[1]),el("small","","分"));
+  date.textContent=state.scenario==="v1"?"预计 10 月 13 日 06:00 · 本地时间":"预计调整为 10 月 13 日 06:40 · 本地时间";
+  status.textContent=state.scenario==="v2"?"来源更正 · 修订 2":"来源预告 · 未确认完成";
+  if(state.scenario==="v2")status.classList.add("warn");
+ }else{
+  count.classList.add("text-status");
+  if(state.scenario==="v3"){label.textContent="当前重置状态";count.append(el("span","","公告已撤回"));date.textContent="原预计时间已取消 · 不再倒计时";status.textContent="来源撤回 · 修订 3";status.classList.add("alert");}
+  if(state.scenario==="stale"){label.textContent="当前来源状态";count.append(el("span","","来源检查延迟"));date.textContent="暂不提供可行动的预计倒计时";status.textContent="来源异常 · 自动提醒暂停";status.classList.add("warn");}
+  if(state.scenario==="empty"){label.textContent="当前重置状态";count.append(el("span","","暂无确定时间"));date.textContent="等待新的有效预告";status.textContent="没有可用数据";status.classList.add("warn");}
+ }
+ renderTicker();
+}
+function renderTicker(){
+ var entries=currentNews();
+ if(state.index>=entries.length)state.index=0;
+ $("ticker-index").textContent=entries.length?(state.index+1)+" / "+entries.length:"0 / 0";
+ $("ticker-title").textContent="精选动态";
+ $("prev").disabled=entries.length<2||state.expanded;
+ $("next").disabled=entries.length<2||state.expanded;
+ $("expand").disabled=entries.length===0;
+ $("expand").textContent=state.expanded?"收起":"展开";
+ $("expand").setAttribute("aria-expanded",String(state.expanded));
+ $("ticker-single").hidden=state.expanded||entries.length===0;
+ $("ticker-empty").hidden=entries.length!==0;
+ $("expanded-news").hidden=!state.expanded||entries.length===0;
+ if(entries.length===0){$("expanded-news").replaceChildren();return;}
+ $("ticker-text").textContent=entries[state.index].title;
+ var list=$("expanded-news");list.replaceChildren();
+ if(state.expanded){entries.forEach(function(item){
+  var row=el("div","ticker-expanded-item");
+  var tag=el("span","ticker-tag",item.type);
+  var body=el("div");
+  body.append(el("p","",item.title),el("span","source",item.updated+" · "+item.source));
+  row.append(tag,body);list.append(row);
+ });}
+}
+function metricsData(){
+ if(state.scenario==="empty")return [null,null,null,null];
+ if(state.period==="month")return [state.scenario==="v3"?0:1,0,1,1];
+ return [state.scenario==="v3"?1:2,1,1,1];
+}
+function renderOverview(){
+ selectButtons("#period button","period",state.period);
+ var values=metricsData(),names=["来源预告","确认完成","赠送机会","用户观察"],subs=["来源发布次数","独立完成声明","明确赠送事件","不代表官方确认"];
+ $("metrics").replaceChildren();
+ names.forEach(function(name,i){
+  var card=el("div","metric"),val=el("div","value"),number=values[i];
+  card.append(el("div","name",name));
+  val.append(el("span","",number===null?"数据不足":String(number)));
+  if(number!==null)val.append(el("span","suffix"," 次"));
+  card.append(val,el("div","description",subs[i]));
+  $("metrics").append(card);
+ });
+ $("period-note").textContent=(state.period==="30"?"最近 30 天":"本月")+" · "+
+  (state.scenario==="empty"?"归档未覆盖，显示数据不足":"合成归档覆盖此时间窗；修订与撤回去重");
+ $("overview-news").replaceChildren();
+ var news=currentNews().slice(0,3);
+ if(!news.length)$("overview-news").append(el("p","note","暂无有效精选动态"));
+ news.forEach(function(item){
+  var row=el("div","news-preview-item"),left=el("div"),line=el("div","news-preview-title"),right=button("详情 ↗","ghost-link",function(){setTab("news",true)});
+  line.append(el("span","chip"+(item.type==="编辑分析"?" editorial":""),item.type),document.createTextNode(item.title));
+  left.append(line,el("div","news-preview-sub",item.updated+" · "+item.source));
+  row.append(left,right);$("overview-news").append(row);
+ });
+ $("member-status").textContent=state.tier==="pro"?"模拟 Pro（测试环境）":"Free · 高级提醒试用剩余 2 次";
+}
+function renderHistory(){
+ var rows=[
+  {date:"10-12 · 最新修订",kind:"来源预告",title:"下一次重置预告",detail:"仅是预计时刻，未收到独立的完成确认。",type:""},
+  {date:"10-04 · 来源说明",kind:"赠送机会",title:"赠送机会事件",detail:"提供方明确的机会记录，不代表所有账号都适用。",type:""},
+  {date:"10-09 · 个人观察",kind:"用户观察",title:"用户报告的恢复记录",detail:"仅限观察样本，不能作为官方重置次数。",type:"uncertain"},
+  {date:"09-24 · 完成声明",kind:"确认完成",title:"一次历史重置已确认",detail:"与预告是不同事件 ID，按独立确认时间计数。",type:""}
+ ];
+ if(state.scenario==="v3"){rows[0].date="10-12 · 修订 3";rows[0].kind="已撤回";rows[0].title="原重置预告已撤回";rows[0].detail="撤回的预告不继续计入有效预告。";rows[0].type="void";}
+ if(state.scenario==="empty")rows=[];
+ $("history-timeline").replaceChildren();
+ if(rows.length===0)$("history-timeline").append(el("p","note","历史归档不完整，暂无可核验的统计记录。"));
+ rows.forEach(function(item){
+  var row=el("div","timeline-row"+(item.type?" "+item.type:""));
+  row.append(el("div","timeline-date",item.date),el("div","timeline-title",item.kind+" · "+item.title),el("div","timeline-info",item.detail));
+  var link=button("查看证据链接 ↗","timeline-source",function(){emit("这是合成数据，未打开虚构的来源网页。真实版本会检查并打开 HTTPS 原文。");});
+  row.append(link);$("history-timeline").append(row);
+ });
+}
+function renderStories(){
+ var items=sample.map(selectedData);
+ $("news-stories").replaceChildren();
+ if(state.scenario==="empty"){$("news-stories").append(el("p","note","当前没有可展示的资讯。"));return;}
+ items.forEach(function(item){
+  var story=el("article","story"),top=el("div","story-head"),tag=el("span","chip"+(item.withdrawn?" withdrawn":item.type==="编辑分析"?" editorial":""),item.withdrawn?"已撤回":item.type);
+  var stamp=el("span","news-preview-sub","修订 "+item.revision+" · "+item.updated);
+  top.append(tag,stamp);story.append(top,el("div","story-title",item.title),el("p","story-desc",item.summary));
+  var foot=el("div","story-foot"),source=el("span","",item.source);
+  var btn=button("查看来源 ↗","ghost-link",function(){emit("演示来源（不自动导航）："+item.url);});
+  foot.append(source,btn);story.append(foot);$("news-stories").append(story);
+ });
+}
+function render(){renderCard();renderOverview();renderHistory();renderStories();setTab(state.tab,false);
+ $("window-status").className="window-status"+(state.scenario==="stale"||state.scenario==="empty"?" warn":"");
+ $("window-status").textContent=state.scenario==="stale"?"上游检查延迟":state.scenario==="empty"?"无有效来源":"合成数据 · 未独立核验";
+ $("source-summary").textContent=state.scenario==="empty"?"无可信归档时不把未知计作 0。基础计时和来源状态仍可使用。":"来源类别是提供方的标注，不能替代官方认证；个人额度恢复须独立核对。";
+}
+root.querySelectorAll("[data-scenario]").forEach(function(button){button.addEventListener("click",function(){state.scenario=button.dataset.scenario;state.index=0;state.expanded=false;render();});});
+root.querySelectorAll("[data-tier]").forEach(function(button){button.addEventListener("click",function(){state.tier=button.dataset.tier;render();});});
+root.querySelectorAll("[data-period]").forEach(function(button){button.addEventListener("click",function(){state.period=button.dataset.period;renderOverview();});});
+root.querySelectorAll("[data-tab]").forEach(function(button){
+ button.addEventListener("click",function(){setTab(button.dataset.tab,false);});
+ button.addEventListener("keydown",function(event){
+  var keys=["ArrowRight","ArrowLeft","Home","End"];if(keys.indexOf(event.key)===-1)return;
+  event.preventDefault();var tabs=["overview","history","news"],i=tabs.indexOf(state.tab);
+  if(event.key==="Home")i=0;else if(event.key==="End")i=tabs.length-1;else i=(i+(event.key==="ArrowRight"?1:-1)+tabs.length)%tabs.length;
+  setTab(tabs[i],true);
+ });
+});
+$("all-news-link").addEventListener("click",function(){setTab("news",true);});
+$("prev").addEventListener("click",function(){var arr=currentNews();if(!arr.length)return;state.index=(state.index+arr.length-1)%arr.length;renderTicker();});
+$("next").addEventListener("click",function(){var arr=currentNews();if(!arr.length)return;state.index=(state.index+1)%arr.length;renderTicker();});
+$("expand").addEventListener("click",function(){state.expanded=!state.expanded;renderTicker();});
+$("card").addEventListener("mouseenter",function(){state.hover=true;});
+$("card").addEventListener("mouseleave",function(){state.hover=false;});
+$("card").addEventListener("focusin",function(){state.hover=true;});
+$("card").addEventListener("focusout",function(e){if(!$("card").contains(e.relatedTarget))state.hover=false;});
+var reduced=window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+if(!reduced){window.setInterval(function(){if(state.hover||state.expanded||document.hidden)return;var a=currentNews();if(a.length>1){state.index=(state.index+1)%a.length;renderTicker();}},6000);}
+render();
+})();
+</script>
+</body>
+</html>
