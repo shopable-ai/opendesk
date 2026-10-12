@@ -74,6 +74,26 @@ static NSButton *RCSettingsCheckbox(NSView *parent, CGFloat top, CGFloat x, CGFl
     return button;
 }
 
+
+static NSTextView *RCScrollableText(NSView *parent,NSRect frame) {
+ NSScrollView *scroll=[[NSScrollView alloc] initWithFrame:frame];
+ scroll.hasVerticalScroller=YES;
+ scroll.borderType=NSNoBorder;
+ scroll.drawsBackground=NO;
+ NSTextView *view=[[NSTextView alloc] initWithFrame:NSMakeRect(0,0,frame.size.width,frame.size.height)];
+ view.editable=NO;view.selectable=YES;
+ view.drawsBackground=NO;view.font=[NSFont systemFontOfSize:12];
+ view.textColor=NSColor.labelColor;
+ view.textContainerInset=NSMakeSize(5,8);
+ view.minSize=NSMakeSize(0,frame.size.height);
+ view.maxSize=NSMakeSize(CGFLOAT_MAX,CGFLOAT_MAX);
+ view.verticallyResizable=YES;view.horizontallyResizable=NO;
+ view.textContainer.widthTracksTextView=YES;
+ scroll.documentView=view;
+ [parent addSubview:scroll];
+ return view;
+}
+
 @interface RCCardView : NSView
 @property (strong) NSTrackingArea *hoverArea;
 @end
@@ -95,6 +115,14 @@ static NSButton *RCSettingsCheckbox(NSView *parent, CGFloat top, CGFloat x, CGFl
 @property (strong) NSPanel *card;
 @property (strong) NSWindow *settings;
 @property (strong) NSWindow *details;
+@property (strong) NSSegmentedControl *detailTabs;
+@property (strong) NSSegmentedControl *detailPeriod;
+@property (strong) NSArray<NSView *> *detailPages;
+@property (strong) NSArray<NSTextField *> *statValues;
+@property (strong) NSTextField *overviewNews;
+@property (strong) NSTextField *detailHealth;
+@property (strong) NSTextView *timelineText;
+@property (strong) NSTextView *fullNewsText;
 @property (strong) NSTextField *detailsHistory;
 @property (strong) NSTextField *detailsNews;
 @property (strong) NSTextField *detailsResources;
@@ -245,6 +273,8 @@ static RCController *controller;
     [menu addItem:[self menuItem:@"查看公告与设置" action:@"settings"]];
     [menu addItem:[self menuItem:@"记录与动态" action:@"details"]];
     [menu addItem:[self menuItem:@"立即检查来源" action:@"refresh"]];
+    [menu addItem:[self menuItem:@"Codex 官方资料" action:@"resource_0"]];
+    [menu addItem:[self menuItem:@"API 使用指南" action:@"resource_1"]];
     [menu addItem:[self menuItem:@"打开原始公告" action:@"source"]];
     [menu addItem:[self menuItem:@"上一条动态" action:@"ticker_prev"]];
     [menu addItem:[self menuItem:@"下一条动态" action:@"ticker_next"]];
@@ -262,6 +292,8 @@ static RCController *controller;
             [menu addItem:[self menuItem:[NSString stringWithFormat:@"模拟公告 V%d",revision]
                                    action:[NSString stringWithFormat:@"demo_v%d",revision]]];
         }
+        [menu addItem:[self menuItem:@"模拟 Pro（不收费）" action:@"mock_pay"]];
+        [menu addItem:[self menuItem:@"模拟退款 / 撤权" action:@"mock_refund"]];
         [menu addItem:[NSMenuItem separatorItem]];
     }
     [menu addItem:[self menuItem:@"启用系统通知权限" action:@"permission"]];
@@ -296,6 +328,12 @@ static RCController *controller;
     if ([command isEqualToString:@"settings"]) { [self showSettings]; return; }
     if ([command isEqualToString:@"details"]) { [self showDetails]; return; }
     if ([command isEqualToString:@"source"]) { [self openSource]; return; }
+    if ([command hasPrefix:@"resource_"]) {
+      NSInteger idx=[[command substringFromIndex:9] integerValue];
+      NSArray *urls=self.lastPayload[@"resource_urls"];
+      if ([urls isKindOfClass:NSArray.class] && idx>=0 && idx<urls.count) [self openSafeDetailsURL:urls[idx]];
+      return;
+    }
     if ([command isEqualToString:@"permission"]) {
         [[UNUserNotificationCenter currentNotificationCenter]
           requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound)
@@ -357,78 +395,124 @@ static RCController *controller;
     [self.settings makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
 }
+
 - (void)showDetails {
-    if (!self.details) {
-        self.details = [[NSWindow alloc] initWithContentRect:NSMakeRect(0,0,560,RCDetailsHeight)
-            styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable)
-            backing:NSBackingStoreBuffered defer:NO];
-        self.details.title = @"Reset Clock · 历史与资讯（来源声明）";
-        self.details.releasedWhenClosed = NO;
-        self.details.delegate = self;
-        NSView *content = self.details.contentView;
-        NSTextField *heading = RCText(content,RCTopRect(RCDetailsHeight,18,18,515,24),15,
-                                     NSFontWeightSemibold,NSColor.labelColor,NO,NSTextAlignmentLeft);
-        heading.stringValue = @"最近 30 天 / 自然月 · 历史统计";
-        self.detailsHistory = RCText(content,RCTopRect(RCDetailsHeight,18,49,520,115),12,
-                                    NSFontWeightRegular,NSColor.labelColor,YES,NSTextAlignmentLeft);
-        self.detailsHistory.maximumNumberOfLines = 7;
-        self.detailsHistory.selectable = YES;
-        self.historyPicker = [[NSPopUpButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,18,171,316,28) pullsDown:NO];
-        self.historyPicker.toolTip = @"选择预告、确认、赠送或观察的具体证据";
-        [content addSubview:self.historyPicker];
-        self.detailsSourceButton = [[NSButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,351,171,186,28)];
-        self.detailsSourceButton.title = @"打开统计来源 ↗";
-        self.detailsSourceButton.bezelStyle = NSBezelStyleRounded;
-        self.detailsSourceButton.target = self;
-        self.detailsSourceButton.action = @selector(openHistoryClick:);
-        [content addSubview:self.detailsSourceButton];
-        NSTextField *newsLabel = RCText(content,RCTopRect(RCDetailsHeight,18,213,520,23),15,
-                                        NSFontWeightSemibold,NSColor.labelColor,NO,NSTextAlignmentLeft);
-        newsLabel.stringValue = @"精选动态 · 来源标注不等于官方核验";
-        self.detailsNews = RCText(content,RCTopRect(RCDetailsHeight,18,245,520,109),12,
-                                  NSFontWeightRegular,NSColor.labelColor,YES,NSTextAlignmentLeft);
-        self.detailsNews.maximumNumberOfLines = 8;
-        self.detailsNews.selectable = YES;
-        self.newsPicker = [[NSPopUpButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,18,364,316,28) pullsDown:NO];
-        self.newsPicker.toolTip = @"完整资讯（包括已撤回及来源失效项）";
-        [content addSubview:self.newsPicker];
-        self.newsSourceButton = [[NSButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,351,364,186,28)];
-        self.newsSourceButton.title = @"打开选中动态 ↗";
-        self.newsSourceButton.bezelStyle = NSBezelStyleRounded;
-        self.newsSourceButton.target = self;
-        self.newsSourceButton.action = @selector(openNewsClick:);
-        [content addSubview:self.newsSourceButton];
-        self.detailsResources = RCText(content,RCTopRect(RCDetailsHeight,18,410,520,20),12,
-                                      NSFontWeightMedium,NSColor.secondaryLabelColor,NO,NSTextAlignmentLeft);
-        NSMutableArray *resources = [NSMutableArray array];
-        for (NSInteger i=0; i<2; i++) {
-            NSButton *button = [[NSButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,18+i*215,436,204,27)];
-            button.title = i==0 ? @"Codex 官方资源 ↗" : @"API 开发指南 ↗";
-            button.tag = i;
-            button.target = self;
-            button.action = @selector(openResourceClick:);
-            button.bezelStyle = NSBezelStyleRounded;
-            [content addSubview:button];
-            [resources addObject:button];
-        }
-        self.resourceButtons = resources;
-        self.detailsMembership = RCText(content,RCTopRect(RCDetailsHeight,18,485,520,22),12,
-                                       NSFontWeightSemibold,NSColor.labelColor,NO,NSTextAlignmentLeft);
-        self.mockPayButton = [[NSButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,18,527,220,29)];
-        self.mockPayButton.title = @"启用模拟 Pro · 不收费";
-        self.mockPayButton.target = self;
-        self.mockPayButton.action = @selector(mockPayClick:);
-        [content addSubview:self.mockPayButton];
-        self.mockRefundButton = [[NSButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,245,527,138,29)];
-        self.mockRefundButton.title = @"模拟退款 / 撤权";
-        self.mockRefundButton.target = self;
-        self.mockRefundButton.action = @selector(mockRefundClick:);
-        [content addSubview:self.mockRefundButton];
-        [self.details center];
-    }
-    [self syncDetails:self.lastPayload];
-    [self.details makeKeyAndOrderFront:nil];
-    [NSApp activateIgnoringOtherApps:YES];
+ if (!self.details) {
+  self.details=[[NSWindow alloc] initWithContentRect:NSMakeRect(0,0,560,RCDetailsHeight)
+     styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskClosable|NSWindowStyleMaskMiniaturizable|NSWindowStyleMaskResizable
+     backing:NSBackingStoreBuffered defer:NO];
+  self.details.title=@"Reset Clock · 记录与动态";
+  self.details.releasedWhenClosed=NO;
+  self.details.delegate=self;
+  self.details.minSize=NSMakeSize(560,RCDetailsHeight+40);
+  NSView *content=self.details.contentView;
+  NSTextField *heading=RCText(content,RCTopRect(RCDetailsHeight,18,15,520,24),16,
+                         NSFontWeightSemibold,NSColor.labelColor,NO,NSTextAlignmentLeft);
+  heading.stringValue=@"记录与动态";
+  self.detailTabs=[[NSSegmentedControl alloc] initWithFrame:RCTopRect(RCDetailsHeight,18,48,524,31)];
+  self.detailTabs.segmentCount=3;
+  for (NSInteger i=0;i<3;i++) [self.detailTabs setLabel:@[@"概览",@"历史记录",@"资讯"][i] forSegment:i];
+  self.detailTabs.selectedSegment=0;
+  self.detailTabs.target=self;self.detailTabs.action=@selector(switchDetailsTab:);
+  [content addSubview:self.detailTabs];
+  CGFloat height=RCDetailsHeight-87;
+  NSMutableArray<NSView *> *pages=[NSMutableArray array];
+  for (NSInteger i=0;i<3;i++) {
+    NSView *page=[[NSView alloc] initWithFrame:NSMakeRect(0,0,560,height)];
+    page.autoresizingMask=NSViewWidthSizable|NSViewHeightSizable;
+    page.hidden=i!=0;
+    [content addSubview:page];
+    [pages addObject:page];
+  }
+  self.detailPages=pages;
+  NSView *overview=pages[0],*history=pages[1],*news=pages[2];
+  NSTextField *overviewTitle=RCText(overview,RCTopRect(height,18,13,290,22),14,
+       NSFontWeightSemibold,NSColor.labelColor,NO,NSTextAlignmentLeft);
+  overviewTitle.stringValue=@"来源事件统计";
+  self.detailPeriod=[[NSSegmentedControl alloc] initWithFrame:RCTopRect(height,309,10,232,28)];
+  self.detailPeriod.segmentCount=2;
+  [self.detailPeriod setLabel:@"最近 30 天" forSegment:0];
+  [self.detailPeriod setLabel:@"本月" forSegment:1];
+  self.detailPeriod.selectedSegment=0;
+  self.detailPeriod.target=self;self.detailPeriod.action=@selector(changeDetailsPeriod:);
+  [overview addSubview:self.detailPeriod];
+  NSArray<NSString *> *names=@[@"来源预告",@"确认完成",@"赠送机会",@"用户观察"];
+  NSMutableArray<NSTextField *> *values=[NSMutableArray array];
+  for (NSInteger i=0;i<4;i++) {
+    CGFloat x=18+(i%2)*270,top=57+(i/2)*82;
+    NSTextField *label=RCText(overview,RCTopRect(height,x,top,240,18),12,
+      NSFontWeightRegular,NSColor.secondaryLabelColor,NO,NSTextAlignmentLeft);
+    label.stringValue=names[i];
+    NSTextField *value=RCText(overview,RCTopRect(height,x,top+24,245,33),23,
+      NSFontWeightSemibold,NSColor.labelColor,NO,NSTextAlignmentLeft);
+    [values addObject:value];
+  }
+  self.statValues=values;
+  NSTextField *newsTitle=RCText(overview,RCTopRect(height,18,237,520,23),14,
+     NSFontWeightSemibold,NSColor.labelColor,NO,NSTextAlignmentLeft);
+  newsTitle.stringValue=@"最新三条有效动态";
+  self.overviewNews=RCText(overview,RCTopRect(height,18,270,520,132),12,
+     NSFontWeightRegular,NSColor.labelColor,YES,NSTextAlignmentLeft);
+  self.overviewNews.maximumNumberOfLines=9;
+  self.overviewNews.selectable=YES;
+  self.detailHealth=RCText(overview,RCTopRect(height,18,423,520,51),11,
+     NSFontWeightRegular,NSColor.secondaryLabelColor,YES,NSTextAlignmentLeft);
+  self.detailHealth.maximumNumberOfLines=3;
+
+  NSTextField *historyTitle=RCText(history,RCTopRect(height,18,14,520,23),14,
+     NSFontWeightSemibold,NSColor.labelColor,NO,NSTextAlignmentLeft);
+  historyTitle.stringValue=@"事件时间线 · 含更正与撤回";
+  self.timelineText=RCScrollableText(history,RCTopRect(height,18,47,522,347));
+  self.historyPicker=[[NSPopUpButton alloc] initWithFrame:RCTopRect(height,18,412,320,29) pullsDown:NO];
+  self.historyPicker.target=self;self.historyPicker.action=@selector(syncSelectedLinks:);
+  self.historyPicker.toolTip=@"选择历史事件的 HTTPS 证据";
+  [history addSubview:self.historyPicker];
+  self.detailsSourceButton=[[NSButton alloc] initWithFrame:RCTopRect(height,349,412,190,29)];
+  self.detailsSourceButton.title=@"查看证据 ↗";
+  self.detailsSourceButton.bezelStyle=NSBezelStyleRounded;
+  self.detailsSourceButton.target=self;
+  self.detailsSourceButton.action=@selector(openHistoryClick:);
+  [history addSubview:self.detailsSourceButton];
+  NSTextField *historyNotice=RCText(history,RCTopRect(height,18,454,520,32),11,
+     NSFontWeightRegular,NSColor.secondaryLabelColor,YES,NSTextAlignmentLeft);
+  historyNotice.stringValue=@"仅呈现已取得证据的修订；记录不完整时统计为「数据不足」。";
+
+  NSTextField *newsTitle2=RCText(news,RCTopRect(height,18,14,520,23),14,
+     NSFontWeightSemibold,NSColor.labelColor,NO,NSTextAlignmentLeft);
+  newsTitle2.stringValue=@"全部资讯 · 标注来源及修订状态";
+  self.fullNewsText=RCScrollableText(news,RCTopRect(height,18,47,522,347));
+  self.newsPicker=[[NSPopUpButton alloc] initWithFrame:RCTopRect(height,18,412,320,29) pullsDown:NO];
+  self.newsPicker.target=self;self.newsPicker.action=@selector(syncSelectedLinks:);
+  self.newsPicker.toolTip=@"完整资讯包含撤回与来源失效记录";
+  [news addSubview:self.newsPicker];
+  self.newsSourceButton=[[NSButton alloc] initWithFrame:RCTopRect(height,349,412,190,29)];
+  self.newsSourceButton.title=@"打开 HTTPS 原文 ↗";
+  self.newsSourceButton.bezelStyle=NSBezelStyleRounded;
+  self.newsSourceButton.target=self;
+  self.newsSourceButton.action=@selector(openNewsClick:);
+  [news addSubview:self.newsSourceButton];
+  NSTextField *newsNotice=RCText(news,RCTopRect(height,18,454,520,34),11,
+     NSFontWeightRegular,NSColor.secondaryLabelColor,YES,NSTextAlignmentLeft);
+  newsNotice.stringValue=@"来源类别为提供方声明；已撤回或不可访问的来源不作为有效动态。";
+  [self.details center];
+ }
+ [self syncDetails:self.lastPayload];
+ [self.details makeKeyAndOrderFront:nil];
+ [NSApp activateIgnoringOtherApps:YES];
+}
+- (void)switchDetailsTab:(id)sender {
+ NSInteger selected=self.detailTabs.selectedSegment;
+ for (NSInteger i=0;i<self.detailPages.count;i++) self.detailPages[i].hidden=i!=selected;
+}
+- (void)changeDetailsPeriod:(id)sender { [self syncDetails:self.lastPayload]; }
+- (void)syncSelectedLinks:(id)sender {
+ NSArray *records=[self.lastPayload[@"history_evidence"] isKindOfClass:NSArray.class]?self.lastPayload[@"history_evidence"]:@[];
+ NSArray *news=[self.lastPayload[@"all_news"] isKindOfClass:NSArray.class]?self.lastPayload[@"all_news"]:@[];
+ NSInteger h=self.historyPicker.indexOfSelectedItem,n=self.newsPicker.indexOfSelectedItem;
+ self.detailsSourceButton.enabled=h>=0&&h<records.count &&
+     [RCString(records[h],@"url") hasPrefix:@"https://"];
+ self.newsSourceButton.enabled=n>=0&&n<news.count &&
+     [RCString(news[n],@"url") hasPrefix:@"https://"];
 }
 - (void)openSafeDetailsURL:(NSString *)value {
     NSURL *url = [NSURL URLWithString:value ?: @""];
@@ -459,48 +543,52 @@ static RCController *controller;
 }
 - (void)mockPayClick:(id)sender { if (self.demo) [self emit:@"mock_pay" value:@""]; }
 - (void)mockRefundClick:(id)sender { if (self.demo) [self emit:@"mock_refund" value:@""]; }
-- (void)syncDetails:(NSDictionary *)data {
-    if (!self.details || !data) return;
-    RCSetString(self.detailsHistory,RCString(data,@"details_history"));
-    RCSetString(self.detailsNews,RCString(data,@"details_news"));
-    RCSetString(self.detailsResources,RCString(data,@"details_resources"));
-    RCSetString(self.detailsMembership,RCString(data,@"member_status"));
-    NSArray *links = [data[@"history_evidence"] isKindOfClass:NSArray.class] ? data[@"history_evidence"] : @[];
-    if (![self.lastEvidenceOptions isEqualToArray:links]) {
-        NSInteger selected = self.historyPicker.indexOfSelectedItem;
-        [self.historyPicker removeAllItems];
-        for (NSDictionary *entry in links) {
-            if (![entry isKindOfClass:NSDictionary.class]) continue;
-            [self.historyPicker addItemWithTitle:RCString(entry,@"label")];
-        }
-        self.lastEvidenceOptions = [links copy];
-        if (links.count > 0) [self.historyPicker selectItemAtIndex:MAX(0,MIN(selected,(NSInteger)links.count-1))];
-        else [self.historyPicker addItemWithTitle:@"无可核验历史证据"];
-    }
-    self.historyPicker.enabled = links.count>0;
-    self.detailsSourceButton.enabled = links.count>0;
-    NSArray *news = [data[@"all_news"] isKindOfClass:NSArray.class] ? data[@"all_news"] : @[];
-    if (![self.lastNewsOptions isEqualToArray:news]) {
-        NSInteger selected = self.newsPicker.indexOfSelectedItem;
-        [self.newsPicker removeAllItems];
-        for (NSDictionary *entry in news) {
-            if (![entry isKindOfClass:NSDictionary.class]) continue;
-            [self.newsPicker addItemWithTitle:RCString(entry,@"label")];
-        }
-        self.lastNewsOptions = [news copy];
-        if (news.count>0) [self.newsPicker selectItemAtIndex:MAX(0,MIN(selected,(NSInteger)news.count-1))];
-        else [self.newsPicker addItemWithTitle:@"暂无资讯"];
-    }
-    self.newsPicker.enabled = news.count>0;
-    self.newsSourceButton.enabled = news.count>0;
-    NSArray *resources = [data[@"resource_urls"] isKindOfClass:NSArray.class] ? data[@"resource_urls"] : @[];
-    for (NSInteger i=0; i<self.resourceButtons.count; i++)
-        self.resourceButtons[i].enabled = i<resources.count && [resources[i] isKindOfClass:NSString.class] &&
-                                           [resources[i] hasPrefix:@"https://"];
-    self.mockPayButton.hidden = !self.demo;
-    self.mockRefundButton.hidden = !self.demo;
-}
 
+- (void)syncDetails:(NSDictionary *)data {
+ if (!self.details || !data) return;
+ NSString *period=self.detailPeriod.selectedSegment==1?@"stats_month":@"stats_30";
+ NSArray *metrics=[data[period] isKindOfClass:NSArray.class]?data[period]:@[];
+ for (NSUInteger i=0;i<self.statValues.count;i++){
+   NSDictionary *row=i<metrics.count&&[metrics[i] isKindOfClass:NSDictionary.class]?metrics[i]:nil;
+   RCSetString(self.statValues[i],row?RCString(row,@"value"):@"数据不足");
+ }
+ RCSetString(self.overviewNews,RCString(data,@"details_overview_news"));
+ RCSetString(self.detailHealth,[NSString stringWithFormat:@"%@\n来源类别为提供方标注；不能推断个人额度已恢复。",RCString(data,@"health")]);
+ NSMutableString *timeline=[NSMutableString string];
+ NSArray *rows=[data[@"history_rows"] isKindOfClass:NSArray.class]?data[@"history_rows"]:@[];
+ for (NSDictionary *row in rows) {
+   if (![row isKindOfClass:NSDictionary.class])continue;
+   [timeline appendFormat:@"%@  %@ · 修订 %@\n%@\n\n",RCString(row,@"when"),
+    RCString(row,@"title"),row[@"revision"]?:@0,RCString(row,@"summary")];
+ }
+ NSString *historyText=timeline.length?timeline:@"数据不足 · 暂无完整可核验历史归档。";
+ if (![self.timelineText.string isEqualToString:historyText]) self.timelineText.string=historyText;
+ NSString *newsText=RCString(data,@"details_full_news");
+ if (![self.fullNewsText.string isEqualToString:newsText]) self.fullNewsText.string=newsText;
+ NSArray *links=[data[@"history_evidence"] isKindOfClass:NSArray.class]?data[@"history_evidence"]:@[];
+ if (![self.lastEvidenceOptions isEqualToArray:links]) {
+   NSInteger selected=self.historyPicker.indexOfSelectedItem;
+   [self.historyPicker removeAllItems];
+   for (NSDictionary *row in links) if ([row isKindOfClass:NSDictionary.class])
+     [self.historyPicker addItemWithTitle:RCString(row,@"label")];
+   self.lastEvidenceOptions=[links copy];
+   if (links.count>0)[self.historyPicker selectItemAtIndex:MAX(0,MIN(selected,(NSInteger)links.count-1))];
+   else [self.historyPicker addItemWithTitle:@"暂无证据"];
+ }
+ self.historyPicker.enabled=links.count>0;
+ NSArray *news=[data[@"all_news"] isKindOfClass:NSArray.class]?data[@"all_news"]:@[];
+ if (![self.lastNewsOptions isEqualToArray:news]) {
+   NSInteger selected=self.newsPicker.indexOfSelectedItem;
+   [self.newsPicker removeAllItems];
+   for (NSDictionary *row in news) if ([row isKindOfClass:NSDictionary.class])
+     [self.newsPicker addItemWithTitle:RCString(row,@"label")];
+   self.lastNewsOptions=[news copy];
+   if(news.count>0)[self.newsPicker selectItemAtIndex:MAX(0,MIN(selected,(NSInteger)news.count-1))];
+   else [self.newsPicker addItemWithTitle:@"暂无资讯"];
+ }
+ self.newsPicker.enabled=news.count>0;
+ [self syncSelectedLinks:nil];
+}
 - (void)tickerAction:(NSButton *)sender { [self emit:sender.identifier value:@""]; }
 - (void)saveFeed:(id)sender { [self emit:@"url" value:self.feedField.stringValue]; }
 - (void)refresh:(id)sender { [self emit:@"refresh" value:@""]; }
