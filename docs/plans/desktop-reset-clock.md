@@ -438,3 +438,15 @@
 ### 13.4 当前可执行操作
 
 参照 [唯一公开示例 README](../../examples/desktop-reset-clock/README.md)。原型 `prototypes/r11-card-settings.html` 新增 R2 合成信息层，非原生屏幕实录。真实 UI 的“代码已写、真实进程已加载、视觉截图已检查、用户交互已验证”必须分别登记，不允许 CI 编译通过直接替代视觉证据。
+
+
+### 13.5 R2 可靠性增量修复与测试入口（2026-10-12）
+
+- **免打扰与失效通知持久化**：`internal/app/app.go` 将“零条实际可发通知”的终结处理 ID 同样原子保存；失败后恢复原计划、去重集合、会员试用与时间戳，避免休眠或重启重新触发。测试：`internal/app/membership_test.go` 的 `TestQuietDecisionPersistedAndWriteFailureRollback`。
+- **跨来源去重**：`internal/reminder/reminder.go` 的自动通知键包含可信 Feed 的 `channel_id`、事件 ID、修订版本和绝对生效时刻。不同频道同名事件不能互相消耗/阻挡额度。测试：`TestAutomaticKeysAreScopedByChannel`。
+- **修订统计不可变事实**：`internal/history/history.go` 同一事件 ID 的 revision 保留 `kind`、`source_type`、原始 `source_published_at`；如果提供方想表达“预告之后确认完成”，须使用新的确认完成事件 ID，而不是把旧预告改写为完成。测试：`TestHistoryRevisionCannotSwitchEvidenceType`、`TestCorrectedHistoricalAnnouncementPreservesOriginalPublication`。
+- **独立缓存验证**：`internal/settings/settings.go` 在读取已持久化归档后进行结构/修订/HTTPS 证据检查。历史记录不合法就只丢弃该可选归档，保留当前公告、时钟和会员试用账本。测试：`TestInvalidHistoryCacheIsIsolatedFromClockAndTrial`。
+- **尚未独立核验的来源**：由于 `source_type=official` 只是数据提供方填入的分类，正式客户端不得依靠它称自己已经取得 OpenAI 官方证明；界面/通知采用“来源预告”，逐条资讯使用“来源标注官方/第三方/编辑分析”，数据来源真实性仍是 G0/BLOCKED。
+- **测试层级**：逻辑正确性以 GitHub Actions 对应应用 SHA 的 Test/Vet/Race/Build 为证；`macos-latest` 尚在排队时标记为 QUEUED/NOT_TESTED。实际 WindowServer AppKit 窗口、Win32 真实窗口、通知到达和 100%/150%/200% DPI 需单独保存真机截图和行为记录。
+
+**商业合规核对**（2026-10-12）：已核对 [OpenAI Terms of Use](https://openai.com/policies/terms-of-use/) 与 [OpenAI Services Agreement](https://openai.com/policies/services-agreement/) 的当前公开页面。个人凭据不得与他人共享；企业合同也约束账户转售、共享登录以及 API Key 买卖。未经明确许可，本产品仅提供阅读、经过授权的技术维护咨询与官方文档入口，不提供账号转售、代登录或 API Key 转让功能。
