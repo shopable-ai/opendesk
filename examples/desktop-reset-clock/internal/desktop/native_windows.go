@@ -24,6 +24,8 @@ const (
 	wmMouseActivate  = 0x0021
 	wmNCHitTest      = 0x0084
 	wmLButtonDown    = 0x0201
+	wmMouseMove      = 0x0200
+	wmMouseLeave     = 0x02A3
 	wmRButtonUp      = 0x0205
 	wmSetFont        = 0x0030
 	wmApp            = 0x8000
@@ -48,7 +50,8 @@ const (
 	swShow           = 5
 	swShowNoActivate = 4
 	cardWidth        = 386
-	cardHeight       = 260
+	cardHeight       = 202
+	cardExpandedHeight = 334
 	settingsWidth    = 554
 	settingsHeight   = 590
 )
@@ -96,6 +99,8 @@ var (
 	destroyMenu     = user32.NewProc("DestroyMenu")
 	getCursor       = user32.NewProc("GetCursorPos")
 	setForeground   = user32.NewProc("SetForegroundWindow")
+	trackMouseEvent = user32.NewProc("TrackMouseEvent")
+	getSystemMetrics = user32.NewProc("GetSystemMetrics")
 	registerMessage = user32.NewProc("RegisterWindowMessageW")
 	createMutex     = kernel32.NewProc("CreateMutexW")
 	closeHandle     = kernel32.NewProc("CloseHandle")
@@ -109,6 +114,7 @@ var (
 	sendTimeout     = user32.NewProc("SendMessageTimeoutW")
 )
 
+type trackMouse struct{ Size, Flags uint32; Hwnd uintptr; HoverTime uint32 }
 type point struct{ X, Y int32 }
 type rect struct{ Left, Top, Right, Bottom int32 }
 type wndClass struct {
@@ -171,6 +177,7 @@ type windowsUI struct {
 	taskbar                                                           uint32
 	instance                                                          uintptr
 	desktopAttached                                                   bool
+	hovered, placing                                                 bool
 }
 
 var current *windowsUI
@@ -370,11 +377,44 @@ func windowProc(hwnd uintptr, id uint32, wparam, lparam uintptr) uintptr {
 			if locked {
 				return ^uintptr(0)
 			} // HTTRANSPARENT = -1
+        case wmMouseMove:
+            w.mu.Lock()
+            locked:=w.display.Locked
+            first:=!w.hovered && !locked
+            if first {w.hovered=true}
+            w.mu.Unlock()
+            if first {
+                t:=trackMouse{Size:uint32(unsafe.Sizeof(trackMouse{})),Flags:2,Hwnd:hwnd}
+                call(trackMouseEvent,uintptr(unsafe.Pointer(&t)))
+                w.emit("ticker_pause","")
+            }
+            return 0
+        case wmMouseLeave:
+            w.mu.Lock()
+            active:=w.hovered
+            w.hovered=false
+            w.mu.Unlock()
+            if active {w.emit("ticker_resume","")}
+            return 0
 		case wmLButtonDown:
 			w.mu.Lock()
 			locked := w.display.Locked
+            count:=len(w.display.TickerItems)
 			w.mu.Unlock()
 			if !locked {
+                x,y:=int(uint16(lparam&0xffff)),int(uint16((lparam>>16)&0xffff))
+                if y>=157&&y<=200 {
+                    if count>0 {
+                        switch {
+                        case x>=303: w.emit("ticker_toggle","")
+                        case x>=274: w.emit("ticker_next","")
+                        case x>=245: w.emit("ticker_prev","")
+                        default: w.detailsWindow()
+                        }
+                    }
+                    return 0
+                }
+                if y>=205&&y<=cardExpandedHeight&&count>0 {w.detailsWindow();return 0}
 				call(releaseCapture)
 				call(sendMsg, hwnd, 0x00A1, 2, 0)
 			}
@@ -382,9 +422,10 @@ func windowProc(hwnd uintptr, id uint32, wparam, lparam uintptr) uintptr {
 		case wmMove:
 			w.mu.Lock()
 			locked := w.display.Locked
+			placing:=w.placing
 			oldX, oldY := w.display.X, w.display.Y
 			w.mu.Unlock()
-			if !locked {
+			if !locked && !placing {
 				var r rect
 				call(getWindowRect, hwnd, uintptr(unsafe.Pointer(&r)))
 				if int(r.Left) != oldX || int(r.Top) != oldY {
@@ -412,34 +453,36 @@ func windowProc(hwnd uintptr, id uint32, wparam, lparam uintptr) uintptr {
 	return call(defProc, hwnd, uintptr(id), wparam, lparam)
 }
 func (w *windowsUI) render() {
-	w.mu.Lock()
-	d := w.display
-	w.mu.Unlock()
-	if w.card == 0 {
-		return
-	}
-	if d.Show {
-		call(showWin, w.card, swShowNoActivate)
-	} else {
-		call(showWin, w.card, swHide)
-	}
-	// If WorkerW integration failed, preserve HWND_BOTTOM rather than topmost.
-	if !w.desktopAttached {
-		call(setWindowPos, w.card, 1, uintptr(d.X), uintptr(d.Y), cardWidth, cardHeight, 0x0010)
-	}
-	if w.desktopAttached {
-		call(setWindowPos, w.card, 0, uintptr(d.X), uintptr(d.Y), cardWidth, cardHeight, 0x0010|0x0004)
-	}
-	if d.Locked {
-		call(user32.NewProc("SetWindowLongPtrW"), w.card, -20&0xffffffff, exNoActivate|exToolWindow|exLayered|exTransparent)
-	} else {
-		call(setLong, w.card, -20&0xffffffff, exNoActivate|exToolWindow|exLayered)
-	}
-	call(invalidate, w.card, 0, 1)
-	if w.settings != 0 {
-		w.syncSettings(d)
-	}
-	if w.details != 0 {w.syncDetails(d)}
+ w.mu.Lock()
+ d:=w.display
+ w.placing=true
+ if d.Locked && w.hovered {w.hovered=false;go w.emit("ticker_resume","")}
+ w.mu.Unlock()
+ defer func(){w.mu.Lock();w.placing=false;w.mu.Unlock()}()
+ if w.card==0{return}
+ if d.Show {call(showWin,w.card,swShowNoActivate)}else{call(showWin,w.card,swHide)}
+ height:=cardHeight
+ if d.TickerExpanded&&len(d.TickerItems)>0{height=cardExpandedHeight}
+ x,y:=d.X,d.Y
+ // Keep the expanded card within the primary desktop work area where possible.
+ screenHeight:=int(call(getSystemMetrics,1))
+ screenWidth:=int(call(getSystemMetrics,0))
+ if screenHeight>0&&y+height>screenHeight{y=screenHeight-height}
+ if screenWidth>0&&x+cardWidth>screenWidth{x=screenWidth-cardWidth}
+ if x<0{x=0};if y<0{y=0}
+ flags:=uintptr(0x0010)
+ if w.desktopAttached{flags|=0x0004}
+ target:=uintptr(1) // HWND_BOTTOM, non-topmost fallback.
+ if w.desktopAttached{target=0}
+ call(setWindowPos,w.card,target,uintptr(x),uintptr(y),cardWidth,uintptr(height),flags)
+ if d.Locked {
+   call(setLong,w.card,-20&0xffffffff,exNoActivate|exToolWindow|exLayered|exTransparent)
+ }else{
+   call(setLong,w.card,-20&0xffffffff,exNoActivate|exToolWindow|exLayered)
+ }
+ call(invalidate,w.card,0,1)
+ if w.settings!=0{w.syncSettings(d)}
+ if w.details!=0{w.syncDetails(d)}
 }
 
 // Win32 card: independent bounded labels, not a DT_SINGLELINE/DT_WORDBREAK
@@ -465,49 +508,55 @@ func (w *windowsUI) paintText(dc uintptr, str string, area rect, size, weight in
 	call(deleteObject, font)
 }
 func (w *windowsUI) paint() {
-	var state paint
-	dc := call(beginPaint, w.card, uintptr(unsafe.Pointer(&state)))
-	if dc == 0 {
-		return
-	}
-	defer call(endPaint, w.card, uintptr(unsafe.Pointer(&state)))
-	w.mu.Lock()
-	display := w.display
-	w.mu.Unlock()
-	bg := rgb(27, 39, 54)
-	w.paintFill(dc, rect{0, 0, cardWidth, cardHeight}, bg)
-	call(setBk, dc, 1) // TRANSPARENT
-
-	white := rgb(246, 248, 251)
-	subtle := rgb(179, 193, 210)
-	w.paintText(dc, "◷  Reset Clock", rect{18, 15, 192, 39}, 16, 600, white, 0x20|0x8000)
-	w.paintText(dc, display.LocalTime, rect{210, 11, 366, 40}, 21, 700, white, 0x20|0x0002|0x8000)
-	w.paintText(dc, display.LocalDate, rect{184, 42, 366, 56}, 11, 400, subtle, 0x20|0x0002|0x8000)
-
-	badgeBg, badgeInk := rgb(39, 84, 73), rgb(175, 237, 207)
-	if display.StatusKind == "revised" || display.StatusKind == "stale" || display.StatusKind == "error" {
-		badgeBg, badgeInk = rgb(96, 74, 43), rgb(255, 215, 152)
-	} else if display.StatusKind == "withdrawn" {
-		badgeBg, badgeInk = rgb(99, 53, 65), rgb(255, 190, 199)
-	} else if display.StatusKind == "empty" {
-		badgeBg, badgeInk = rgb(58, 74, 96), rgb(221, 233, 246)
-	}
-	w.paintFill(dc, rect{18, 65, 365, 87}, badgeBg)
-	w.paintText(dc, display.Badge, rect{27, 65, 355, 87}, 11, 600, badgeInk, 0x20|0x8000)
-	w.paintText(dc, display.CardHint, rect{18, 100, 368, 118}, 12, 400, subtle, 0x20|0x8000)
-	if display.HasUpcoming {
-		w.paintText(dc, display.CardValue, rect{18, 119, 369, 166}, 38, 700, white, 0x20|0x8000)
-	} else {
-		w.paintText(dc, display.CardValue, rect{18, 124, 369, 166}, 21, 700, white, 0x20|0x8000)
-	}
-	w.paintText(dc, display.CardSummary, rect{18, 176, 369, 206}, 13, 500, white, 0x10|0x8000)
-	w.paintText(dc, display.CardMeta, rect{18, 210, 369, 227}, 11, 400, subtle, 0x20|0x8000)
-	w.paintFill(dc, rect{18, 233, 369, 234}, rgb(64, 77, 93))
-	footer := rgb(169, 225, 201)
-	if display.StatusKind == "stale" || display.StatusKind == "error" {
-		footer = rgb(255, 210, 141)
-	}
-	w.paintText(dc, display.CardFoot, rect{18, 240, 369, 257}, 11, 400, footer, 0x20|0x8000)
+ var state paint
+ dc:=call(beginPaint,w.card,uintptr(unsafe.Pointer(&state)))
+ if dc==0{return}
+ defer call(endPaint,w.card,uintptr(unsafe.Pointer(&state)))
+ w.mu.Lock();d:=w.display;w.mu.Unlock()
+ height:=cardHeight
+ if d.TickerExpanded&&len(d.TickerItems)>0{height=cardExpandedHeight}
+ w.paintFill(dc,rect{0,0,cardWidth,int32(height)},rgb(21,59,57))
+ call(setBk,dc,1)
+ white,subtle,green:=rgb(247,251,249),rgb(190,216,207),rgb(166,225,203)
+ w.paintText(dc,"↻  Reset Clock",rect{18,14,148,38},15,650,white,0x20|0x8000)
+ badgeBg,badgeInk:=rgb(35,83,71),rgb(209,243,228)
+ if d.StatusKind=="revised"||d.StatusKind=="stale"||d.StatusKind=="error"{
+  badgeBg,badgeInk=rgb(88,72,47),rgb(255,231,194)
+ }else if d.StatusKind=="withdrawn"{
+  badgeBg,badgeInk=rgb(92,53,60),rgb(255,214,221)
+ }
+ w.paintFill(dc,rect{154,14,368,40},badgeBg)
+ w.paintText(dc,d.Badge,rect{162,14,362,39},11,600,badgeInk,0x20|0x8000)
+ w.paintText(dc,d.CardHint,rect{18,53,367,74},12,400,subtle,0x20|0x8000)
+ size:=int32(35)
+ if !d.HasUpcoming{size=23}
+ w.paintText(dc,d.CardValue,rect{18,77,369,122},size,700,white,0x20|0x8000)
+ w.paintText(dc,d.CardMeta,rect{18,126,367,148},12,400,subtle,0x20|0x8000)
+ w.paintFill(dc,rect{18,154,368,155},rgb(66,112,99))
+ w.paintText(dc,"动态",rect{18,163,54,189},11,650,green,0x20|0x8000)
+ count:=len(d.TickerItems);index:=0
+ if count>0{index=d.TickerIndex%count;if index<0{index=0}}
+ if !d.TickerExpanded{
+  title:="暂无有效动态"
+  if count>0{title=d.TickerItems[index].Title}
+  w.paintText(dc,title,rect{58,162,204,192},12,500,white,0x20|0x8000)
+ }
+ w.paintText(dc,fmt.Sprintf("%d / %d",func()int{if count==0{return 0};return index+1}(),count),
+  rect{206,163,241,189},10,400,subtle,0x20|0x0002|0x8000)
+ w.paintText(dc,"‹",rect{245,163,269,190},16,600,white,0x20|0x0001|0x8000)
+ w.paintText(dc,"›",rect{274,163,298,190},16,600,white,0x20|0x0001|0x8000)
+ toggle:="展开"
+ if d.TickerExpanded{toggle="收起"}
+ w.paintText(dc,toggle,rect{303,163,369,190},11,600,green,0x20|0x0001|0x8000)
+ if d.TickerExpanded {
+  for i,item:=range d.TickerItems {
+   if i>=3{break}
+   top:=int32(207+i*41)
+   w.paintFill(dc,rect{18,top-3,368,top-2},rgb(58,93,84))
+   w.paintText(dc,item.Title,rect{18,top,368,top+21},12,550,white,0x20|0x8000)
+   w.paintText(dc,item.Source+" · "+item.Updated,rect{18,top+20,368,top+38},10,400,subtle,0x20|0x8000)
+  }
+ }
 }
 
 func (w *windowsUI) openSource() {
@@ -534,7 +583,10 @@ func (w *windowsUI) menu() {
 	}
 	opts := []menuOption{
 		{name: "settings", title: "查看公告与设置"},
-		{name: "details", title: "历史统计与三条动态"},
+		{name: "details", title: "记录与动态"},
+        {name: "ticker_prev", title: "上一条动态"},
+        {name: "ticker_next", title: "下一条动态"},
+        {name: "ticker_toggle", title: "展开 / 收起动态", checked: d.TickerExpanded},
 		{name: "refresh", title: "立即检查来源"},
 		{name: "source", title: "打开原始公告"},
 		{separator: true},
@@ -561,7 +613,7 @@ func (w *windowsUI) menu() {
 		if option.checked {
 			flags |= 0x0008
 		}
-		if option.name == "source" && !d.HasSourceURL {
+		if (option.name == "source" && !d.HasSourceURL) || (strings.HasPrefix(option.name,"ticker_") && len(d.TickerItems)==0) {
 			flags |= 0x0001
 		}
 		call(appendMenu, m, flags, uintptr(i+1), utf(option.title))
