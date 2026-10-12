@@ -566,15 +566,14 @@ func (a *App) displayLocked() desktop.Display {
         d.CardValue="预计时间待核验"
         d.CardMeta="上游信息异常，暂不展示可行动的倒计时"
     }
-	if state == "来源可能过期（停止自动公告提醒）" || state == "来源严重异常（缓存）" || state == "来源更新延迟" {
+	if state == "来源可能过期（停止自动公告提醒）" || state == "来源严重异常（缓存）" ||
+        state == "来源更新延迟" || state == "上游状态未知" || state == "无权限：已暂停自动请求" {
 		if d.StatusKind != "withdrawn" {
 			d.StatusKind, d.Badge = "stale", state
 		}
 	} else if s.Health.LastError != "" && d.StatusKind != "withdrawn" {
 		d.StatusKind = "error"
-		if chosen == nil {
-			d.Badge = "连接异常 · 缓存数据"
-		}
+        d.Badge = "连接异常 · 时间待核验"
 	}
     // Keep withdrawn and unavailable stories in the full audit list, but
     // never promote them (or stale cached headlines) to the active ticker.
