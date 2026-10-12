@@ -465,7 +465,7 @@ func (a *App) displayLocked() desktop.Display {
         }
         sort.SliceStable(records,func(i,j int)bool{return recordAt(records[i]).After(recordAt(records[j]))})
         for _,r:=range records{
-           if !pro && r.SourceType!="official" {continue}
+           if !pro && r.Kind!="reset_announcement" && r.Kind!="reset_completed" {continue}
            if len(d.HistoryRows)>=64 {break}
            kind:=map[string]string{"reset_announcement":"来源预告","reset_completed":"确认完成","extra_opportunity":"赠送机会","observed_reset":"用户观察"}[r.Kind]
            state:=map[string]string{"active":"有效","withdrawn":"已撤回","superseded":"已更正"}[r.State]
@@ -487,8 +487,8 @@ func (a *App) displayLocked() desktop.Display {
 			link:=n.SourceURL
 			if n.State=="source_unavailable"{link=""}
 			d.AllNews=append(d.AllNews,desktop.SourceEvidence{Label:cardText(label,demo),URL:link})
-            full.WriteString(fmt.Sprintf("%s · %s · 修订 %d · 更新 %s\n%s\n%s\n\n",
-             state,source,n.Revision,shortDate(&n.UpdatedAt,s.Config.Zone),n.Title,n.Summary))
+            full.WriteString(fmt.Sprintf("%s · %s · 修订 %d · 更新 %s\n%s\n%s\n原始来源：%s\n\n",
+             state,source,n.Revision,shortDate(&n.UpdatedAt,s.Config.Zone),n.Title,n.Summary,link))
 		}
         if full.Len()>0 {d.DetailsFullNews=strings.TrimSpace(full.String())}
 		top:=news.Top(s.Snapshot.News,3)
