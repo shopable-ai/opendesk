@@ -8,6 +8,10 @@ on:
       - '.github/workflows/reset-clock-ci.yml'
   workflow_dispatch:
 
+concurrency:
+  group: reset-clock-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -36,6 +40,9 @@ jobs:
         run: go build ./cmd/desktop-reset-clock
       - name: Build Go Feed Bridge
         run: go build ./cmd/reset-clock-bridge
+      - name: Package unsigned AppKit development bundle
+        if: runner.os == 'macOS'
+        run: bash scripts/build-macos-app.sh
 
   race-and-cross:
     runs-on: ubuntu-latest
