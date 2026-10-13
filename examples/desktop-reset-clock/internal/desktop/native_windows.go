@@ -167,6 +167,7 @@ type windowsUI struct {
 	card, settings, feedEdit, diagnostics                             uintptr
 	details, detailsHistory, detailsNews, detailsResources, detailsMember uintptr
  detailsTabs [3]uintptr
+ detailsCredit uintptr
  detailsPages [3][]uintptr
  detailsPeriodButtons [2]uintptr
  detailsPeriodIndex, detailsTabIndex int
@@ -324,6 +325,9 @@ func windowProc(hwnd uintptr, id uint32, wparam, lparam uintptr) uintptr {
 			command:=uint16(wparam&0xffff)
 			switch {
 			case command==2210: w.openHistoryLink()
+            case command==2225:
+                w.mu.Lock();source:=w.display.DataSourceURL;w.mu.Unlock()
+                w.openDetailsURL(source)
             case command==2201: w.openNewsLink()
             case command>=2401&&command<=2403: w.setDetailsTab(int(command-2401))
             case command>=2410&&command<=2411: w.setDetailsPeriod(int(command-2410))
@@ -731,7 +735,8 @@ func (w *windowsUI) detailsWindow(){
     if page>=0&&page<3 {w.detailsPages[page]=append(w.detailsPages[page],handle)}
     return handle
   }
-  child(-1,"STATIC","记录与动态",0,19,14,540,25,0)
+  child(-1,"STATIC","记录与动态",0,19,14,285,25,0)
+  w.detailsCredit=child(-1,"BUTTON","Data: codex-reset.com ↗",0,326,12,230,28,2225)
   for i,name:=range []string{"概览","历史记录","资讯"} {
     w.detailsTabs[i]=child(-1,"BUTTON",name,0x00010000,19+i*179,48,166,32,uintptr(2401+i))
   }
@@ -820,6 +825,12 @@ func (w *windowsUI) openResourceLink(i int){
 }
 func (w *windowsUI) syncDetails(d Display){
  if w.details==0{return}
+ if w.detailsCredit!=0 {
+   if d.DataSourceURL=="" {call(setText,w.detailsCredit,utf("模拟数据"))} else {
+     call(setText,w.detailsCredit,utf("Data: codex-reset.com ↗"))
+   }
+   call(enableWindow,w.detailsCredit,uintptr(boolInt(d.DataSourceURL!="")))
+ }
  statRows:=d.Stats30
  if w.detailsPeriodIndex==1{statRows=d.StatsMonth}
  var stats strings.Builder
@@ -836,7 +847,7 @@ func (w *windowsUI) syncDetails(d Display){
    call(setText,w.detailsOverviewNews,utf(strings.ReplaceAll(d.DetailsOverviewNews,"\n","\r\n")))
    w.lastResources=d.DetailsOverviewNews
  }
- statusText:=d.Health+" · 来源类别未独立核验"
+ statusText:=d.CardMeta+" · "+d.Health
  if statusText!=w.lastDetailHealth {
    call(setText,w.detailsOverviewStatus,utf(statusText))
    w.lastDetailHealth=statusText
