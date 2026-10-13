@@ -227,3 +227,21 @@ go run ./cmd/demo
 ```
 
 验证时必须记录对应 HEAD、OS、显示缩放、收起/展开、三条轮播、菜单操作、来源失效、Free/Mock Pro、长中文和 100%/150%/200% 的实窗图、焦点/无障碍、WorkerW/Spaces/多屏/休眠，并将截图、终端输出仅放到 **仓库根** `.runtime/tests/desktop-reset-clock/r22/`，不要提交。GitHub Actions 的 Go 编译通过不能替代实窗截图，也不能称为 Mac/Windows 真机可用性验收。真实可信 Feed 与权益签发仍为 `BLOCKED`。
+
+
+### R2.3 C 用户确认的渐变 Hero 视觉基线（2026-10-13）
+
+**重要：下述是已确认的 HTML 视觉原型，不代表原生客户端已经同步改版。** 原 R1.1、R2、R2.2、R2.3 A/B/B2 原型与既有 Go 代码继续保留。
+
+- 最新获用户确认的可交互预览：prototypes/r23-c-approved-hero.html。
+- 图片资源唯一来源：internal/desktop/assets/r23-reset-clock-wallet-promo.jpg（从批准的效果图提取的小尺寸、离线可读 JPEG，未来可用 Go embed）。
+- 卡片宽 386 逻辑像素基线、深青绿渐变和自然融合的右侧 Banner、近白主数字和薄荷色单位、顶部「记录与动态 ›」胶囊入口、日期在左的三条常显资讯；普通预告隐藏多余状态角标。
+- 支持 HTML 中的模拟预告、修订、撤回、来源异常、无数据、超长标题、Free/模拟 Pro、Banner/纯渐变两种视觉模式及独立详情三页。卡片的动态数据是合成示例，不能被当成真实官方下一次重置时间。
+- Banner 中「账号充值 / 安全稳定 / 快速到账」为演示广告内容，带「推广 · 示意」标识；不代表存在正式支付或充值交易服务。
+- 真实实现 GOAL：docs/plans/desktop-reset-clock-r23-approved-hero-native-goal.zh-CN.md（从仓库根目录引用）。下一轮才修改 AppKit/Win32；不要再重新设计未经确认的 UI。
+
+从 OpenDesk **仓库根目录**执行以下一条命令，仅在浏览器预览静态 HTML，不需要 Node/Go 构建：
+
+    open examples/desktop-reset-clock/prototypes/r23-c-approved-hero.html
+
+macOS/Windows 原生视觉仍需要独立实窗截图、键盘/读屏与 100/150/200% 缩放验收。截图日志仅保存在仓库根 .runtime/tests/desktop-reset-clock/r23/，不要提交。
