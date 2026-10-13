@@ -53,7 +53,7 @@ func TestR11CardViewModelTransitionAndStatusTruth(t *testing.T) {
 	}
 	v3 := a.Display()
 	if v3.StatusKind != "withdrawn" || v3.HasUpcoming || v3.Countdown != "" ||
-		v3.CardValue != "公告已撤回" || !v3.HasSourceURL || !strings.Contains(v3.Badge, "已撤回") {
+		v3.CardValue != "下一次时间待公布" || !v3.HasSourceURL || !strings.Contains(v3.Badge, "已撤回") {
 		t.Fatalf("V3 cannot keep a live countdown: %+v", v3)
 	}
 }
@@ -66,7 +66,7 @@ func TestR11EmptyStaleAndSafeCardSummary(t *testing.T) {
 		t.Fatal(err)
 	}
 	empty := a.Display()
-	if empty.HasUpcoming || empty.HasSourceURL || empty.LastChecked != "未知" || empty.CardValue != "暂无确定的下一次重置" {
+	if empty.HasUpcoming || empty.HasSourceURL || empty.LastChecked != "未知" || empty.CardValue != "下一次时间待公布" {
 		t.Fatalf("empty: %+v", empty)
 	}
 	m := mock.New(now)
@@ -80,7 +80,7 @@ func TestR11EmptyStaleAndSafeCardSummary(t *testing.T) {
 	}
 	instant = instant.Add(35 * time.Minute)
 	v := a.Display()
-	if v.HasUpcoming || v.Countdown != "" || v.StatusKind != "stale" || !strings.Contains(v.Badge, "过期") || v.CardValue != "暂无确定的下一次重置" {
+	if v.HasUpcoming || v.Countdown != "" || v.StatusKind != "stale" || !strings.Contains(v.Badge, "过期") || v.CardValue != "下一次时间待公布" {
 		t.Fatalf("stale upstream must not show an actionable countdown: %+v", v)
 	}
 	long := "【模拟数据】" + strings.Repeat("这是一条很长的公告", 25)
