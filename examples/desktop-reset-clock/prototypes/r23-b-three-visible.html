@@ -1,0 +1,447 @@
+<!-- Reset Clock R2.3 B: separate design prototype; no runtime, payments or live feed. Three always-visible stories, optional small illustration / labeled promotion placeholder. -->
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Reset Clock R2.3 B — 三条动态常显 · 精简状态 · 轻图形／推广示意</title>
+<style>
+:root {
+  color-scheme:light;
+  --page:#eef2ef; --paper:#fcfdfa; --surface:#fff; --ink:#183430; --muted:#536c62;
+  --line:#dbe5df; --soft:#f3f7f4; --teal:#087e6e; --teal-deep:#056c5f;
+  --green-soft:#e7f4ed; --amber:#92621d; --amber-soft:#fff2d9;
+  --red:#a4484f; --red-soft:#ffedf0;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{background:var(--page)}body{margin:0;color:var(--ink);font-size:13px}
+button,select{font:inherit}button{cursor:pointer}
+button:focus-visible,a:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:3px solid #78cbb8;outline-offset:3px}
+[hidden]{display:none!important}
+.shell{max-width:1160px;margin:auto;padding:26px 23px 56px}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.head h1{margin:0;font-size:22px;letter-spacing:-.65px;line-height:1.25}
+.head p{margin:8px 0 0;color:var(--muted);font-size:12px;line-height:1.6}
+.prototype-label{font-size:11px;color:#3a6555;border:1px solid #bdd5c9;background:#e3f0e8;padding:6px 9px;border-radius:7px;font-weight:700;letter-spacing:.3px}
+.controls{display:flex;flex-wrap:wrap;gap:15px;margin-bottom:20px}
+.control-group>span{display:block;color:var(--muted);font-size:11px;margin-bottom:7px}
+.segment{display:inline-flex;align-items:center;background:#e1eae4;border:1px solid #d5e2d9;border-radius:11px;padding:3px;gap:2px}
+.segment button{border:0;background:transparent;padding:8px 12px;border-radius:8px;font-size:12px;color:#495d55}
+.segment button.active{background:#fff;color:#17483e;box-shadow:0 1px 5px #132b1b18;font-weight:730}
+.workarea{display:grid;grid-template-columns:386px minmax(0,1fr);align-items:start;gap:22px}
+.region-title{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#596e67;font-size:11px;font-weight:650;margin-bottom:9px}
+.region-title .size{font-weight:500;font-variant-numeric:tabular-nums}
+.compact{width:386px;max-width:100%;border-radius:18px;overflow:hidden;color:#f5fbf7;background:#153b39;box-shadow:0 16px 34px #16382a25;border:1px solid #244947}
+.compact-inner{padding:17px 18px 0}
+.compact-header{display:flex;justify-content:space-between;align-items:center;gap:9px;min-height:23px}
+.compact-brand{font-size:13px;font-weight:730;letter-spacing:-.25px;white-space:nowrap}
+.brand-mark{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:#2e7167;margin-right:5px;color:#dcfff2;font-weight:800;font-size:14px}
+.compact-status{border:1px solid #468171;background:#235347;color:#d5f3e4;font-size:11px;border-radius:999px;padding:5px 8px;white-space:nowrap}
+.compact-status.warn{background:#58482e;color:#ffe5b4;border-color:#826a43}
+.compact-status.alert{background:#5c353c;color:#ffe0e4;border-color:#87545d}
+.count-label{font-size:12px;color:#b7d0c9;margin:13px 0 6px}
+.count{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;font-variant-numeric:tabular-nums;line-height:1.12;letter-spacing:-1.1px;font-size:36px;font-weight:750;min-height:42px}
+.count small{font-size:15px;font-weight:580;color:#c4ded5;letter-spacing:0}
+.count.text-status{font-size:26px;letter-spacing:-.6px;align-items:center;line-height:1.35}
+.expected{margin-top:5px;color:#c2d7d0;font-size:11px;line-height:1.5}
+.ticker{margin-top:15px;border-top:1px solid #47706a}
+.ticker-top{display:flex;align-items:center;gap:8px;padding:11px 0;min-height:45px}
+.ticker-heading{font-size:11px;font-weight:730;color:#a7d3c5;letter-spacing:.2px;flex:none}
+.ticker-actions{display:flex;align-items:center;gap:4px;flex:none}
+.ticker-count{font-size:11px;color:#bed6cf;font-variant-numeric:tabular-nums;padding-right:4px}
+.tiny-control{border:1px solid #557f75;background:#264c4c;color:#f3fff8;border-radius:6px;height:26px;min-width:27px;padding:0 7px;display:inline-grid;place-items:center;font-size:14px;line-height:1}
+.tiny-control.expand{font-size:11px;min-width:54px;margin-left:3px}
+.tiny-control:disabled{opacity:.45;cursor:default}
+.tiny-control:focus-visible{outline-color:#c5f9e3}
+.metric.locked{background:#f6f8f6}.metric.locked .value{font-size:18px;color:var(--muted)}
+.ticker-single{min-width:0;flex:1;display:flex;align-items:center;gap:6px;font-size:12px;line-height:1.4}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#77e3c1;flex-shrink:0}
+.ticker-single .one-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;display:block}
+.ticker-expanded{padding:1px 0 10px;max-height:202px;overflow-y:auto;overscroll-behavior:contain}
+.ticker-expanded-item{padding:8px 0;border-top:1px solid #355c57;display:flex;align-items:flex-start;gap:9px;font-size:12px;line-height:1.55}
+.ticker-tag{flex:none;color:#a8d8c6;font-size:11px;margin-top:2px}
+.ticker-expanded-item p{margin:0;min-width:0;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ticker-expanded-item .source{display:block;color:#91b5ad;font-size:11px;margin-top:3px}
+.ticker-empty{font-size:11px;color:#bdd1ca;padding:0 0 12px}
+.card-caption{font-size:11px;color:#516a5e;line-height:1.65;margin:11px 1px 0}
+.card-caption strong{color:#36584d}
+.detail{background:var(--paper);border:1px solid var(--line);border-radius:17px;overflow:hidden;box-shadow:0 8px 30px #34584b0d;min-width:0}
+.window-header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:17px 20px 14px;border-bottom:1px solid var(--line);background:#fff}
+.window-title{font-size:15px;font-weight:760;letter-spacing:-.35px}
+.window-subtitle{font-size:11px;color:var(--muted);margin-top:3px}
+.window-status{white-space:nowrap;border-radius:999px;background:var(--green-soft);color:#166f5f;padding:6px 9px;font-size:11px;font-weight:680}
+.window-status.warn{background:var(--amber-soft);color:var(--amber)}
+.window-tabs{display:flex;gap:5px;padding:10px 16px 0;background:#fff;border-bottom:1px solid var(--line)}
+.window-tabs button{background:transparent;border:0;color:#687970;font-size:12px;padding:10px 14px 11px;border-radius:8px 8px 0 0;font-weight:600;border-bottom:2px solid transparent}
+.window-tabs button[aria-selected="true"]{color:var(--teal-deep);border-bottom-color:var(--teal);background:#f1f9f5}
+.panel{padding:18px 20px 20px;min-height:310px}
+.sec-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.sec-title{font-size:14px;font-weight:760;margin:0;letter-spacing:-.3px}
+.note{font-size:11px;color:var(--muted);line-height:1.6;margin:6px 0 0}
+.period{background:var(--soft);padding:3px;display:inline-flex;border-radius:8px;gap:2px}
+.period button{border:0;padding:6px 9px;background:transparent;color:var(--muted);font-size:11px;border-radius:6px}
+.period button.active{background:#fff;color:var(--teal-deep);box-shadow:0 1px 3px #203c2117}
+.metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:15px}
+.metric{padding:12px 13px;border-radius:10px;border:1px solid #dfe9e3;background:#fff}
+.metric .name{font-size:11px;color:#5d746a}.metric .value{font-size:24px;font-weight:780;line-height:1.15;margin-top:7px;font-variant-numeric:tabular-nums}
+.metric .suffix{font-weight:450;font-size:12px;color:#698075}.metric .description{font-size:11px;color:#5b7165;margin-top:6px;line-height:1.5}
+.section-divider{height:1px;background:var(--line);margin:18px 0}
+.news-preview-item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:9px;border-bottom:1px solid #e8eee9;padding:11px 0}
+.news-preview-item:last-child{border-bottom:0}.news-preview-title{font-size:12px;line-height:1.5;font-weight:650;overflow-wrap:anywhere}
+.news-preview-sub{font-size:11px;color:var(--muted);margin-top:3px}
+.chip{display:inline-block;font-size:11px;border-radius:5px;padding:3px 6px;font-weight:620;color:#426d60;background:#eaf4ed;margin-right:5px}
+.chip.editorial{color:#6e6979;background:#f0edf4}.chip.observed{color:#89672b;background:#fbf1dc}.chip.withdrawn{color:var(--red);background:var(--red-soft)}
+.ghost-link{border:0;background:transparent;color:var(--teal-deep);font-size:11px;padding:6px 2px;white-space:nowrap}
+.ghost-link:hover{text-decoration:underline}
+.source-summary{background:#f0f6f1;border-radius:9px;padding:10px 12px;line-height:1.6;color:#60786e;font-size:11px;margin-top:14px}
+.detail-section-heading{font-size:15px;font-weight:770;margin:0 0 5px}
+.timeline{border-left:2px solid #d5e7df;margin:16px 0 0 7px;padding-left:19px}
+.timeline-row{position:relative;padding:0 0 19px}
+.timeline-row::before{content:"";position:absolute;left:-26px;top:5px;width:11px;height:11px;border-radius:50%;background:#6aac98;border:2px solid #fcfdfa}
+.timeline-row.uncertain::before{background:#d0aa69}
+.timeline-row.void::before{background:#d09198}
+.timeline-date{font-size:11px;color:var(--muted);margin-bottom:4px}
+.timeline-title{font-size:12px;font-weight:710}
+.timeline-info{font-size:11px;color:var(--muted);line-height:1.55;margin-top:4px}
+.timeline-source{font-size:11px;color:var(--teal-deep);margin-top:6px;border:0;background:transparent;padding:0}
+.story{border:1px solid var(--line);background:#fff;border-radius:11px;padding:13px 14px;margin-top:10px}
+.story-head{display:flex;justify-content:space-between;gap:7px;align-items:center}
+.story-title{font-size:13px;font-weight:730;margin:9px 0 5px;line-height:1.45}
+.story-desc{font-size:11px;color:var(--muted);line-height:1.6;margin:0}
+.story-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:9px;font-size:11px;color:var(--muted)}
+
+.notice-box{margin-top:10px;padding:9px 11px;border-radius:8px;font-size:11px;color:#7c683d;background:#fff7e7;line-height:1.6}
+.preview-footer{font-size:11px;color:#6b8076;margin-top:20px;line-height:1.7}
+.toast{margin-top:9px;min-height:14px;color:#527466;font-size:11px;overflow-wrap:anywhere}
+.visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:980px){.workarea{grid-template-columns:1fr}.detail{width:min(100%,680px)}}
+@media(max-width:460px){.shell{padding:17px 12px 35px}.compact{width:min(100%,386px)}.compact-inner{padding:15px}.count{font-size:32px}.window-header{padding:15px}.window-status{white-space:normal;text-align:right}.panel{padding:15px}.metrics{gap:7px}.metric{padding:10px}.ticker-actions{gap:3px}.tiny-control{min-width:25px;padding:0 5px}.tiny-control.expand{min-width:44px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;scroll-behavior:auto!important;transition:none!important}}
+@media(forced-colors:active){.compact,.detail,.metric,.story{forced-color-adjust:auto;border:1px solid CanvasText}.tiny-control,.chip,.period button{border:1px solid ButtonText}}
+
+/* R2.3 B visual variant: all three headlines live inside the card. */
+.compact{background:#173a37;border-color:#31594e;box-shadow:0 14px 28px #1b3f3320}
+.compact-inner{position:relative;padding-bottom:4px}
+.compact-header{min-height:25px}
+.compact-status{border-radius:7px}
+.compact-status[hidden]{display:none}
+.count-label{margin-top:19px;margin-bottom:8px;max-width:246px}
+.count{font-size:35px;gap:6px;max-width:244px;flex-wrap:nowrap;letter-spacing:-.7px}
+.count small{font-size:14px;white-space:nowrap}
+.count.text-status{font-size:24px;max-width:245px;flex-wrap:wrap}
+.count.text-status span{white-space:normal}
+.expected{margin-top:9px;max-width:340px;font-size:11px}
+.right-visual{position:absolute;right:15px;top:45px;width:102px;height:87px;border-radius:14px;display:grid;place-items:center;overflow:hidden}
+.right-visual[hidden],.right-visual [hidden]{display:none!important}
+.decor-visual{width:100%;height:100%;display:grid;place-items:center;background:linear-gradient(140deg,#204c46 0%,#24574a 100%);border:1px solid #3a7062;border-radius:13px}
+.decor-visual svg{width:100%;height:100%}
+.promo-visual{width:100%;height:100%;display:flex;flex-direction:column;justify-content:space-around;align-items:flex-start;padding:7px 9px;border:1px solid #819cb3;background:#eaf0f5;color:#173d50;border-radius:12px}
+.promo-visual .promo-label{font-size:9px;font-weight:750;color:#44647c}
+.promo-visual .promo-symbol{font-size:20px;line-height:1;color:#167d9a}
+.promo-visual strong{font-size:10.5px;white-space:nowrap}
+.ticker{margin-top:18px;border-color:#416a5c}
+.ticker-top{min-height:36px;padding:10px 0 4px;justify-content:space-between}
+.ticker-heading{font-size:11.5px;color:#cae8d9}
+.ticker-all{border:0;background:transparent;padding:4px 0;color:#b9e6d1;font-size:11px;font-weight:550}
+.ticker-all:hover{text-decoration:underline}
+.ticker-expanded{display:block;padding:0 0 6px;max-height:none;overflow:visible}
+.ticker-expanded-item{min-width:0;display:flex;gap:7px;align-items:center;border-top:1px solid #325950;padding:7px 0;line-height:1.35;font-size:12px}
+.ticker-expanded-item:first-child{border-top:0}
+.ticker-tag{flex:none;width:46px;white-space:nowrap;font-size:10px;color:#9bd2b8;margin:0}
+.ticker-expanded-item p{display:block;flex:1;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;margin:0;font-size:11.5px}
+.ticker-expanded-item .source{flex:none;color:#90bbae;font-size:10px;white-space:nowrap}
+.ticker-empty{padding:8px 0 15px}
+@media(max-width:460px){.count{font-size:31px;max-width:218px}.count.text-status{font-size:22px}.right-visual{width:91px;right:13px}.ticker-expanded-item .source{font-size:9.5px}.ticker-tag{width:43px}}
+body.rc-card-only .head,body.rc-card-only .controls,body.rc-card-only .card-caption,body.rc-card-only .preview-footer,body.rc-card-only .region-title,body.rc-card-only .workarea>section:nth-child(2){display:none!important}
+body.rc-card-only .shell{padding:4px;max-width:394px}
+body.rc-card-only .workarea{display:block}
+body.rc-card-only .compact{width:386px;max-width:100%;box-shadow:none}
+</style>
+</head>
+<body>
+<main class="shell" id="reset-r22">
+  <header class="head">
+    <div><h1>Reset Clock <span style="font-weight:480;color:#57766a">/ R2.3 B · 三条动态常显版</span></h1>
+    <p>三条动态直接常显 · 去除普通预告状态角标 · 右侧可切换装饰/推广示意 · 时间与动态为界面模拟，非官方下一次重置日程</p></div>
+    <span class="prototype-label">设计数据 · 下一次时间纯模拟</span>
+  </header>
+  <section class="controls" aria-label="原型测试控制">
+    <div class="control-group"><span>事件状态</span><div class="segment" id="scenario">
+      <button type="button" class="active" data-scenario="v1" aria-pressed="true">预告</button>
+      <button type="button" data-scenario="v2" aria-pressed="false">更正</button>
+      <button type="button" data-scenario="v3" aria-pressed="false">撤回</button>
+      <button type="button" data-scenario="stale" aria-pressed="false">来源异常</button>
+      <button type="button" data-scenario="empty" aria-pressed="false">无数据</button>
+      <button type="button" data-scenario="long" aria-pressed="false">长标题</button>
+    </div></div>
+    <div class="control-group"><span>右侧图形</span><div class="segment" id="visual-switch">
+      <button type="button" class="active" data-visual="decor" aria-pressed="true">轻图形</button>
+      <button type="button" data-visual="promo" aria-pressed="false">推广示意</button>
+      <button type="button" data-visual="off" aria-pressed="false">无图形</button>
+    </div></div>
+    <div class="control-group"><span>会员状态（仅模拟）</span><div class="segment" id="tier">
+      <button type="button" class="active" data-tier="free" aria-pressed="true">Free</button>
+      <button type="button" data-tier="pro" aria-pressed="false">模拟 Pro</button>
+    </div></div>
+  </section>
+  <div class="workarea">
+    <section aria-label="常驻桌面卡片">
+      <div class="region-title"><span>桌面常驻卡片</span><span class="size">386 px · 紧凑自适应</span></div>
+      <article class="compact" id="card">
+        <div class="compact-inner">
+          <div class="compact-header">
+            <div class="compact-brand"><span class="brand-mark" aria-hidden="true">↻</span>Reset Clock</div>
+            <div id="card-status" class="compact-status" hidden>来源预告</div>
+          </div>
+          <div id="right-visual" class="right-visual" aria-label="装饰图形（无统计含义）">
+            <div id="decor-visual" class="decor-visual" aria-hidden="true">
+              <svg viewBox="0 0 96 80" role="img" aria-label="装饰性轨道图形">
+                <circle cx="48" cy="40" r="29" fill="none" stroke="#639789" stroke-opacity=".47" stroke-width="1.4"/>
+                <circle cx="48" cy="40" r="19" fill="none" stroke="#b0d9c7" stroke-opacity=".38" stroke-width="1.5" stroke-dasharray="20 9"/>
+                <circle cx="48" cy="40" r="6" fill="#88d5b7" fill-opacity=".85"/>
+                <path d="M13 42 A35 35 0 0 1 77 19" fill="none" stroke="#8dd8b8" stroke-width="2.5" stroke-linecap="round"/>
+                <circle cx="76" cy="20" r="4" fill="#b5f1cf"/>
+                <path d="M21 60 l12 -12 M65 60 l10 -8" stroke="#86b8a8" stroke-opacity=".55" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div id="promo-visual" class="promo-visual" hidden>
+              <span class="promo-label">推广 · 示例</span>
+              <div class="promo-symbol" aria-hidden="true">◈</div>
+              <strong>开发者工具</strong>
+            </div>
+          </div>
+          <div class="count-label" id="count-label">距离下一次预计重置</div>
+          <div class="count" id="count" aria-live="off"><span>1</span><small>小时</small><span>30</span><small>分</small></div>
+          <div class="expected" id="expected">预计 10 月 13 日 06:00 · 本地时间</div>
+          <section class="ticker ticker-three" aria-label="三条常显的精选动态">
+            <div class="ticker-top">
+              <span class="ticker-heading" id="ticker-title">精选动态</span>
+              <button type="button" id="ticker-all" class="ticker-all" aria-label="在详情窗口查看全部资讯">查看全部 <span aria-hidden="true">↗</span></button>
+            </div>
+            <div class="ticker-expanded" id="expanded-news"></div>
+            <div class="ticker-empty" id="ticker-empty" hidden>暂无可展示的有效动态</div>
+          </section>
+        </div>
+      </article>
+      <p class="card-caption">B 版默认完整呈现最多 3 条有效摘要；不轮播，也不要求展开。无真实上游确认时不能将倒计时视作官方承诺；右侧“推广”是明确标注的占位演示。</p>
+    </section>
+    <section aria-label="按需打开的详情窗口">
+      <div class="region-title"><span>记录与动态 · 独立详情窗口</span><span class="size">内容分区 · 不承载付费广告</span></div>
+      <div class="detail">
+        <header class="window-header">
+          <div><div class="window-title">Reset Clock · 记录与动态</div><div class="window-subtitle">重置事件、来源证据与精选资讯</div></div>
+          <div id="window-status" class="window-status">演示数据 · 来源未独立核验</div>
+        </header>
+        <nav class="window-tabs" role="tablist" aria-label="详情内容">
+          <button type="button" role="tab" id="tab-overview" data-tab="overview" aria-selected="true" aria-controls="panel-overview" tabindex="0">概览</button>
+          <button type="button" role="tab" id="tab-history" data-tab="history" aria-selected="false" aria-controls="panel-history" tabindex="-1">历史记录</button>
+          <button type="button" role="tab" id="tab-news" data-tab="news" aria-selected="false" aria-controls="panel-news" tabindex="-1">资讯</button>
+        </nav>
+        <section role="tabpanel" class="panel" id="panel-overview" aria-labelledby="tab-overview">
+          <div class="sec-heading">
+            <h2 class="sec-title">重置统计</h2>
+            <div class="period" aria-label="统计时间范围" id="period">
+              <button type="button" class="active" data-period="30">最近 30 天</button>
+              <button type="button" data-period="month">本月</button>
+            </div>
+          </div>
+          <p class="note" id="period-note">预告、确认、赠送与个人观察分开计数；仅统计完整覆盖的窗口。</p>
+          <div class="metrics" id="metrics"></div>
+          <div class="section-divider"></div>
+          <div class="sec-heading"><h2 class="sec-title">最新动态</h2><button type="button" class="ghost-link" id="all-news-link">查看全部 <span aria-hidden="true">↗</span></button></div>
+          <div id="overview-news"></div>
+          <div class="source-summary" id="source-summary">来源分类由数据提供方标注，尚不能作为 OpenAI 官方身份认证；历史记录可查看逐条来源。</div>
+        </section>
+        <section role="tabpanel" class="panel" id="panel-history" aria-labelledby="tab-history" hidden>
+          <h2 class="detail-section-heading">历史事件</h2>
+          <p class="note">按事件性质分开记录；修订不重复计数，撤回后不保留有效重置声明。</p>
+          <div class="timeline" id="history-timeline"></div>
+          <div class="notice-box" id="history-notice">模拟数据用于检查时间边界与证据呈现，不证明个人额度已恢复。</div>
+        </section>
+        <section role="tabpanel" class="panel" id="panel-news" aria-labelledby="tab-news" hidden>
+          <h2 class="detail-section-heading">资讯与来源</h2>
+          <p class="note">最新三条优先；完整列表保留更正和撤回的状态。每条标明来源类型和修订。</p>
+          <div id="news-stories"></div>
+          <div class="source-summary">真实产品将通过已校验的 HTTPS 链接打开原始页面；这里仅演示合成链接结构。</div>
+        </section>
+      </div>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </section>
+  </div>
+  <footer class="preview-footer">
+    <strong>预览范围：</strong>本 HTML 仅用于 R2.3 B 版设计对照；以已保存 R2.2 为结构基础。画面中未来倒计时完全模拟；引用历史资料来自公开独立第三方网站，不代表 OpenAI 官方确认。原生 AppKit/Win32、支付和 Feed 均未因该页面改动。真实接口和数据真实性须另行验收。
+  </footer>
+</main>
+<script>
+(function(){
+"use strict";
+var root=document.getElementById("reset-r22");
+if(!root)return;
+var state={scenario:"v1",tier:"free",period:"30",tab:"overview",expanded:false,index:0,hover:false,focus:false,visual:"decor"};
+var previewParams=new URLSearchParams(window.location.search);
+if(previewParams.has("cardOnly"))document.body.classList.add("rc-card-only");
+if(["v1","v2","v3","stale","empty","long"].indexOf(previewParams.get("scenario"))>=0)state.scenario=previewParams.get("scenario");
+if(["decor","promo","off"].indexOf(previewParams.get("visual"))>=0)state.visual=previewParams.get("visual");
+if(["free","pro"].indexOf(previewParams.get("tier"))>=0)state.tier=previewParams.get("tier");
+var $=function(id){return root.querySelector("#"+id);};
+var sample=[
+ {id:"notice",type:"预告",source:"纯模拟的未来预告",title:"演示：未来重置窗口预计 10 月 13 日 06:00",summary:"这个预计时间是 UI 测试用的虚构数据，不是 OpenAI 对下一次全员重置的承诺。",updated:"10-13",revision:1,url:"https://example.org/reset-clock-demo/notice"},
+ {id:"guide",type:"全员重置",source:"Tibo Reset 独立网站 · 已收录记录",title:"10 月 11 日：全员重置已确认",summary:"参考站点收录的历史全员重置记录。个别用户额度仍需按自己的账号状态核对。",updated:"10-11",revision:1,url:"https://tiboreset.com/zh/tracker"},
+ {id:"analysis",type:"储备重置",source:"Tibo Reset 独立网站 · 已收录记录",title:"10 月 7 日：储备重置额度已发放",summary:"储备重置与直接全员重置不同；发放并不意味着个人额度立即恢复，可能需要主动兑换。",updated:"10-07",revision:1,url:"https://tiboreset.com/zh/tracker"}
+];
+function el(tag,cls,txt){var n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n;}
+function button(text,cls,fn){var b=el("button",cls,text);b.type="button";b.addEventListener("click",fn);return b;}
+function emit(msg){$("toast").textContent=msg;}
+function activeNews(){
+ if(state.scenario==="empty"||state.scenario==="stale")return [];
+ return sample.filter(function(a){return !(state.scenario==="v3"&&a.id==="notice");});
+}
+function selectedData(n) {
+ var copy=Object.assign({},n);
+ if(copy.id==="notice"&&state.scenario==="v2"){copy.title="重置预告更正：预计时间已调整，请查看原文";copy.revision=2;copy.updated="10-12 15:00";}
+ if(copy.id==="notice"&&state.scenario==="v3"){copy.title="重置预告已撤回";copy.revision=3;copy.updated="10-12 15:40";copy.withdrawn=true;}
+ if(state.scenario==="stale"){copy.unavailable=true;if(copy.id==="notice")copy.title="来源无法确认：原预告暂不可作为有效消息";}
+ if(copy.id==="notice"&&state.scenario==="long"){copy.title="重置预告更正与适用范围说明：这是一条故意超长的中文资讯标题，用来检查不同缩放比例与窄窗口下的截断和展开表现，实际阅读请进入记录与动态窗口查看完整信息";}
+ return copy;
+}
+function currentNews(){return activeNews().map(selectedData);}
+function selectButtons(selector,key,v){root.querySelectorAll(selector).forEach(function(b){var on=b.dataset[key]===v;b.classList.toggle("active",on);b.setAttribute("aria-pressed",String(on));});}
+function setTab(tab,focus){
+ state.tab=tab;
+ root.querySelectorAll("[role=tab]").forEach(function(b){
+  var selected=b.dataset.tab===tab;b.setAttribute("aria-selected",String(selected));b.tabIndex=selected?0:-1;if(selected&&focus)b.focus();
+ });
+ ["overview","history","news"].forEach(function(name){$("panel-"+name).hidden=name!==tab;});
+}
+function renderCard(){
+ selectButtons("#scenario button","scenario",state.scenario);
+ selectButtons("#tier button","tier",state.tier);
+ var count=$("count"),status=$("card-status"),label=$("count-label"),date=$("expected");
+ count.replaceChildren();count.className="count";status.className="compact-status";
+ if(state.scenario==="v1"||state.scenario==="v2"||state.scenario==="long"){
+  label.textContent="距离下一次预计重置";
+  var amount=state.scenario==="v2"?["2","10"]:["1","30"];
+  count.append(el("span","",amount[0]),el("small","","小时"),el("span","",amount[1]),el("small","","分"));
+  date.textContent=state.scenario==="v2"?"预计调整为 10 月 13 日 06:40 · 本地时间":"预计 10 月 13 日 06:00 · 本地时间";
+  status.textContent=state.scenario==="v2"?"时间更正":"来源预告";
+  if(state.scenario==="v2")status.classList.add("warn");
+ }else{
+  count.classList.add("text-status");
+  if(state.scenario==="v3"){label.textContent="当前重置状态";count.append(el("span","","公告已撤回"));date.textContent="原预计时间已取消 · 不再倒计时";status.textContent="已撤回";status.classList.add("alert");}
+  if(state.scenario==="stale"){label.textContent="当前来源状态";count.append(el("span","","来源检查延迟"));date.textContent="暂不提供可行动的预计倒计时";status.textContent="来源异常";status.classList.add("warn");}
+  if(state.scenario==="empty"){label.textContent="当前重置状态";count.append(el("span","","暂无确定时间"));date.textContent="等待新的有效预告";status.textContent="无数据";status.classList.add("warn");}
+ }
+ status.hidden=(state.scenario==="v1"||state.scenario==="long");
+ renderVisual();renderTicker();
+}
+function renderVisual(){
+ selectButtons("#visual-switch button","visual",state.visual);
+ $("right-visual").hidden=state.visual==="off";
+ $("decor-visual").hidden=state.visual!=="decor";
+ $("promo-visual").hidden=state.visual!=="promo";
+}
+function renderTicker(){
+ var entries=currentNews();
+ $("ticker-title").textContent="精选动态";
+ $("ticker-empty").hidden=entries.length!==0;
+ var list=$("expanded-news");list.replaceChildren();list.hidden=entries.length===0;
+ entries.slice(0,3).forEach(function(item){
+   var row=el("div","ticker-expanded-item");
+   var type=el("span","ticker-tag",item.type);
+   var title=el("p","",item.title);
+   title.title=item.title;
+   row.append(type,title,el("span","source",item.updated));
+   list.append(row);
+ });
+}
+function metricsData(){
+ if(state.scenario==="empty"||state.scenario==="stale")return [null,null,null,null];
+ if(state.period==="month")return [state.scenario==="v3"?0:1,0,1,1];
+ return [state.scenario==="v3"?1:2,1,1,1];
+}
+function renderOverview(){
+ selectButtons("#period button","period",state.period);
+ var values=metricsData(),names=["来源预告","确认完成","赠送机会","用户观察"],subs=["来源发布次数","独立完成声明","明确赠送事件","不代表官方确认"];
+ $("metrics").replaceChildren();
+ names.forEach(function(name,i){
+  var locked=state.tier==="free" && i>1;
+  var card=el("div","metric"+(locked?" locked":"")),val=el("div","value"),number=values[i];
+  card.append(el("div","name",name));
+  val.append(el("span","",locked?"未开放":number===null?"数据不足":String(number)));
+  if(!locked&&number!==null)val.append(el("span","suffix"," 次"));
+  card.append(val,el("div","description",locked?"Free 不显示此类数量，非零次结论":subs[i]));
+  $("metrics").append(card);
+ });
+ $("period-note").textContent=(state.period==="30"?"最近 30 天":"本月")+" · "+
+  (state.scenario==="empty"||state.scenario==="stale"?"来源不可核验，数量显示数据不足":"合成归档覆盖此时间窗；修订与撤回去重");
+ $("overview-news").replaceChildren();
+ var news=currentNews().slice(0,3);
+ if(!news.length)$("overview-news").append(el("p","note","暂无有效精选动态"));
+ news.forEach(function(item){
+  var row=el("div","news-preview-item"),left=el("div"),line=el("div","news-preview-title"),right=button("详情 ↗","ghost-link",function(){setTab("news",true)});
+  line.append(el("span","chip"+(item.type==="编辑分析"?" editorial":""),item.type),document.createTextNode(item.title));
+  left.append(line,el("div","news-preview-sub",item.updated+" · "+item.source));
+  row.append(left,right);$("overview-news").append(row);
+ });
+
+}
+function renderHistory(){
+ var rows=[
+  {date:"10-12 · 最新修订",kind:"来源预告",title:"下一次重置预告",detail:"仅是预计时刻，未收到独立的完成确认。",type:""},
+  {date:"10-09 · 个人观察",kind:"用户观察",title:"用户报告的恢复记录",detail:"仅限观察样本，不能作为官方重置次数。",type:"uncertain"},
+  {date:"10-04 · 来源说明",kind:"赠送机会",title:"赠送机会事件",detail:"提供方明确的机会记录，不代表所有账号都适用。",type:""},
+  {date:"09-24 · 完成声明",kind:"确认完成",title:"一次历史重置已确认",detail:"与预告是不同事件 ID，按独立确认时间计数。",type:""}
+ ];
+ if(state.scenario==="v3"){rows[0].date="10-12 · 修订 3";rows[0].kind="已撤回";rows[0].title="原重置预告已撤回";rows[0].detail="撤回的预告不继续计入有效预告。";rows[0].type="void";}
+ if(state.scenario==="empty"||state.scenario==="stale")rows=[];
+ if(state.tier==="free" && rows.length)rows=rows.filter(function(row){return row.kind==="来源预告"||row.kind==="已撤回"||row.kind==="确认完成";});
+ $("history-timeline").replaceChildren();
+ if(rows.length===0)$("history-timeline").append(el("p","note","历史归档不完整，暂无可核验的统计记录。"));
+ rows.forEach(function(item){
+  var row=el("div","timeline-row"+(item.type?" "+item.type:""));
+  row.append(el("div","timeline-date",item.date),el("div","timeline-title",item.kind+" · "+item.title),el("div","timeline-info",item.detail));
+  var link=button("查看证据链接 ↗","timeline-source",function(){emit("这是合成数据，未打开虚构的来源网页。真实版本会检查并打开 HTTPS 原文。");});
+  row.append(link);$("history-timeline").append(row);
+ });
+}
+function renderStories(){
+ var items=sample.map(selectedData);
+ $("news-stories").replaceChildren();
+ if(state.scenario==="empty"){$("news-stories").append(el("p","note","当前没有可展示的资讯。"));return;}
+ items.forEach(function(item){
+  var story=el("article","story"),top=el("div","story-head"),tag=el("span","chip"+(item.withdrawn?" withdrawn":item.unavailable?" withdrawn":item.type==="编辑分析"?" editorial":""),item.withdrawn?"已撤回":item.unavailable?"来源异常":item.type);
+  var stamp=el("span","news-preview-sub","修订 "+item.revision+" · "+item.updated);
+  top.append(tag,stamp);story.append(top,el("div","story-title",item.title),el("p","story-desc",item.summary));
+  var foot=el("div","story-foot"),source=el("span","",item.source);
+  var btn=button(item.unavailable?"来源不可打开":"查看来源 ↗","ghost-link",function(){emit("这是合成数据，不打开虚构来源："+item.url);});
+  btn.disabled=Boolean(item.unavailable);
+  foot.append(source,btn);story.append(foot);$("news-stories").append(story);
+ });
+}
+function render(){renderCard();renderOverview();renderHistory();renderStories();setTab(state.tab,false);
+ $("window-status").className="window-status"+(state.scenario==="stale"||state.scenario==="empty"?" warn":"");
+ $("window-status").textContent=state.scenario==="stale"?"上游检查延迟":state.scenario==="empty"?"无有效来源":"合成数据 · 未独立核验";
+ $("source-summary").textContent=state.scenario==="empty"?"无可信归档时不把未知计作 0。基础计时和来源状态仍可使用。":"来源类别是提供方的标注，不能替代官方认证；个人额度恢复须独立核对。";
+}
+root.querySelectorAll("[data-scenario]").forEach(function(button){button.addEventListener("click",function(){state.scenario=button.dataset.scenario;state.index=0;state.expanded=false;render();});});
+root.querySelectorAll("[data-tier]").forEach(function(button){button.addEventListener("click",function(){state.tier=button.dataset.tier;render();});});
+root.querySelectorAll("[data-visual]").forEach(function(button){button.addEventListener("click",function(){state.visual=button.dataset.visual;renderVisual();});});
+root.querySelectorAll("[data-period]").forEach(function(button){button.addEventListener("click",function(){state.period=button.dataset.period;renderOverview();});});
+root.querySelectorAll("[data-tab]").forEach(function(button){
+ button.addEventListener("click",function(){setTab(button.dataset.tab,false);});
+ button.addEventListener("keydown",function(event){
+  var keys=["ArrowRight","ArrowLeft","Home","End"];if(keys.indexOf(event.key)===-1)return;
+  event.preventDefault();var tabs=["overview","history","news"],i=tabs.indexOf(state.tab);
+  if(event.key==="Home")i=0;else if(event.key==="End")i=tabs.length-1;else i=(i+(event.key==="ArrowRight"?1:-1)+tabs.length)%tabs.length;
+  setTab(tabs[i],true);
+ });
+});
+$("all-news-link").addEventListener("click",function(){setTab("news",true);});
+$("ticker-all").addEventListener("click",function(){setTab("news",true);});
+render();
+})();
+</script>
+</body>
+</html>
