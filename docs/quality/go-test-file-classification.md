@@ -428,3 +428,16 @@ OPENDESK_LIVE_CLIPBOARD_TEST=1 go test ./automation -run '^TestDarwinRichClipboa
 | `examples/desktop-reset-clock/internal/catalog/catalog_test.go` | `KEEP_PACKAGE` | 是（安全目录模型） | HTTPS 拒绝危险 URL、推广声明必填 | 不审核真实商家授权 |
 
 统一模块命令为 `(cd examples/desktop-reset-clock && go test ./... -count=1)`；跨平台 CI 文件 `.github/workflows/reset-clock-ci.yml`。这是**独立 Go module 内部白盒测试**，不为 Runtime JS API 建立第二套接口测试体系。
+
+
+### Desktop Reset Clock R2.4-B（Go 原生采集与 Bridge）
+
+| 路径 | 处置 | 是否需要私有 seam | 主要测试职责 | 证据边界 |
+| --- | --- | --- | --- | --- |
+| `examples/desktop-reset-clock/internal/provider/codexreset/provider_test.go` | `KEEP_PACKAGE`（独立模块） | 是：私有 GET 限流与缓存时钟 | httptest 四端点、429/503/304、全域 60 秒限流、分资源 Cache-Control、来源失效与 SSRF 拒绝 | Mock，不证明公网四接口可访问 |
+| `examples/desktop-reset-clock/internal/bridge/bridge_test.go` | `KEEP_PACKAGE`（独立模块） | 是：归档持久化与 Go Feed 协议闭环 | Collector→Bridge→现有 Feed Client、修订/撤回、重启、分页 200+、矛盾证据拒绝 | 不证明上游原文确为 OpenAI 官方 |
+| `examples/desktop-reset-clock/internal/bridge/freshness_enrichment_test.go` | `KEEP_PACKAGE`（独立模块） | 是：Bridge 发布健康计算、证据增补 seam | 来源 30 分钟过期立即改为 stale、Feed ETag 失效、健康 503、首次缺失的帖子时间有证据补录一次 | fake clock + loopback HTTP；不证明外网来源真实性 |
+| `examples/desktop-reset-clock/internal/history/third_party_enrichment_test.go` | `KEEP_PACKAGE`（独立模块） | 是：History 累积修订一致性 | 未知原帖时间后续补充、禁止已确认源时间改写或再次删除 | 内存数据，绝非官方时钟认证 |
+| `examples/desktop-reset-clock/cmd/reset-clock-bridge/main_test.go` | `KEEP_PACKAGE`（独立模块） | 是：probe 判定逻辑 | 条件缓存命中不得伪装成四个真实 HTTP GET 成功 | 逻辑校验，不代替真实 DNS/HTTP GET |
+
+统一定向命令：`(cd examples/desktop-reset-clock && go test ./internal/bridge ./internal/provider/codexreset ./internal/history ./cmd/reset-clock-bridge -count=1)`；全量模块测试使用 `go test ./... -count=1`。不要恢复或另建普通 Runtime JavaScript API 的 Go 公共接口测试。

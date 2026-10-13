@@ -3,6 +3,7 @@ package bridge
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -42,6 +43,7 @@ type source struct {
 	clk            *fakeClock
 	notModified    bool
 	omitResetTweet bool
+	contradictory  bool
 	at             time.Time
 }
 
@@ -67,11 +69,15 @@ func (s *source) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/forecast":
 		payload = map[string]any{"updated_at": now, "last_reset_at": now, "confidence": "low", "probabilities": map[string]any{"rounded_24h": 19, "rounded_48h": 34}, "official_signal": nil}
 	case "/api/timeline":
-		payload = map[string]any{"updated_at": now, "events": []any{
+		events := []any{
 			map[string]any{"id": "res1", "group": "reset", "type": "reset", "announcement_state": resetState(s.withdrawn), "announced_at": eventAt, "url": "https://x.com/person/status/res1", "summary": s.summary},
 			map[string]any{"id": "gift1", "group": "credits", "type": "credits", "announcement_state": "none", "announced_at": eventAt, "url": "https://x.com/person/status/gift1", "summary": "额外机会"},
 			map[string]any{"id": "pending1", "group": "credits", "type": "credits", "announcement_state": "none", "announced_at": eventAt, "summary": "无链接"},
-			map[string]any{"id": "candidate", "group": "reset", "type": "reset", "announcement_state": "none", "announced_at": eventAt, "url": "https://x.com/person/status/candidate", "summary": "不应计数"}}}
+			map[string]any{"id": "candidate", "group": "reset", "type": "reset", "announcement_state": "none", "announced_at": eventAt, "url": "https://x.com/person/status/candidate", "summary": "不应计数"}}
+		if s.contradictory {
+			events = append(events, map[string]any{"id": "conflict1", "group": "reset", "type": "reset", "announcement_state": "announced", "confirmed": false, "announced_at": eventAt, "url": "https://x.com/person/status/conflict1", "summary": "追踪状态声称已确认但记录又标记 confirmed false"})
+		}
+		payload = map[string]any{"updated_at": now, "events": events}
 	case "/api/feed":
 		tweets := []any{map[string]any{"id": "ordinary", "at": eventAt, "text": "普通消息", "url": "https://x.com/person/status/ordinary"}}
 		if !s.omitResetTweet {
@@ -298,4 +304,108 @@ func resetState(withdrawn bool) string {
 		return "withdrawn"
 	}
 	return "announced"
+}
+
+// The archive is paginated using the existing production Go client, not a
+// standalone HTTP status-only test. It must work past one 200-record page.
+func TestArchiveMultiPageAndConditionalGet(t *testing.T) {
+	e, _, clk, stopUp := setup(t)
+	defer stopUp()
+	if _, err := e.Poll(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	e.mu.Lock()
+	for i := 0; i < 405; i++ {
+		observed := clk.Now().Add(-time.Duration(i+1) * time.Minute)
+		e.disk.Archive.Records = append(e.disk.Archive.Records, history.Record{
+			ID: fmt.Sprintf("codex-reset:historical:%04d", i), Revision: 1, Kind: "third_party_reset",
+			State: "active", SourceType: "third_party", Audience: "public",
+			ProviderReportedAt: &observed, SourceURL: "https://codex-reset.com/",
+			Summary: "第三方历史追踪记录，不是 OpenAI 官方证据",
+		})
+	}
+	e.disk.Archive.ArchiveVersion++
+	e.disk.Snapshot.FeedVersion++
+	e.mu.Unlock()
+	if err := e.Save(); err != nil {
+		t.Fatal(err)
+	}
+	server := bridgeServer(t, e)
+	defer server.Close()
+	c := feed.Client{AllowLocalHTTP: true}
+	got, err := c.Fetch(context.Background(), server.URL+"/feed", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	all, err := c.FetchArchive(context.Background(), server.URL+"/feed", got.Snapshot.HistoryURL, got.Snapshot.ChannelID, got.Snapshot.HistoryVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all.Records) != 408 || all.Complete {
+		t.Fatalf("wrong merged history count/completeness: %d complete=%v", len(all.Records), all.Complete)
+	}
+	if sum := history.Analyze(&all, clk.Now(), time.UTC); sum.Last30Days.Confirmations.Known {
+		t.Fatal("incomplete third-party history claimed full official coverage")
+	}
+	resp, err := http.Get(server.URL + "/archive")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tag := resp.Header.Get("ETag")
+	resp.Body.Close()
+	if resp.StatusCode != 200 || tag == "" {
+		t.Fatalf("archive did not send etag: %d %q", resp.StatusCode, tag)
+	}
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/archive", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("If-None-Match", tag)
+	conditional, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conditional.Body.Close()
+	if conditional.StatusCode != http.StatusNotModified {
+		t.Fatalf("archive 304 expected, got %d", conditional.StatusCode)
+	}
+	stale, err := http.Get(server.URL + "/archive?cursor=1-200")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale.Body.Close()
+	if stale.StatusCode != http.StatusBadRequest {
+		t.Fatalf("stale cursor not rejected: %d", stale.StatusCode)
+	}
+}
+
+// Some live responses expose "announcement_state=announced" alongside an
+// explicit "confirmed=false". Such contradicting evidence stays under review.
+func TestConflictingResetEvidenceIsNotConfirmed(t *testing.T) {
+	e, src, _, stop := setup(t)
+	defer stop()
+	src.mu.Lock()
+	src.contradictory = true
+	src.mu.Unlock()
+	if _, err := e.Poll(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	d := e.Report()
+	if len(d.Snapshot.Events) != 2 {
+		t.Fatalf("contradiction appeared as confirmed reset: %+v", d.Snapshot.Events)
+	}
+	found := false
+	for _, p := range d.Pending {
+		if strings.HasSuffix(p.ID, "conflict1") && p.Reason == "contradictory_confirmation" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("contradictory event missing review evidence: %+v", d.Pending)
+	}
+	for _, r := range d.Archive.Records {
+		if strings.HasSuffix(r.ID, "conflict1") {
+			t.Fatal("conflicting event entered archive as confirmed")
+		}
+	}
 }

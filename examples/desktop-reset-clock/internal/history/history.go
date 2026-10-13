@@ -161,7 +161,7 @@ func ValidateArchive(a Archive) error {
   }
   if previous,ok:=identities[r.ID];ok {
     prior, next:=previous.SourcePublishedAt,r.SourcePublishedAt
-    if (prior==nil)!=(next==nil) || (prior!=nil && next!=nil && !prior.Equal(*next)) {
+    if prior!=nil && (next==nil || !prior.Equal(*next)) {
       return fmt.Errorf("history %s changed original publication time",r.ID)
     }
   }

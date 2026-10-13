@@ -27,6 +27,10 @@ import (
 
 const channelID = "codex-reset-third-party-v1"
 
+// Freshness is an independently enforced publishing policy, even between polls.
+// It mirrors the collector's 30 minute publisher-check ceiling.
+const maxPublishedAge = 30 * time.Minute
+
 type Review struct {
 	ID         string    `json:"id"`
 	Reason     string    `json:"reason"`
@@ -235,6 +239,7 @@ type timelineItem struct {
 	Summary           string `json:"summary"`
 	AnnouncedAt       string `json:"announced_at"`
 	AnnouncementState string `json:"announcement_state"`
+	Confirmed         *bool  `json:"confirmed,omitempty"` // optional contradiction evidence; not a positive verification shortcut
 	URL               string `json:"url"`
 }
 type tweet struct {
@@ -309,6 +314,14 @@ func merge(d *Disk, now time.Time) error {
 			continue
 		}
 		id := "codex-reset:post:" + x.ID
+		// The published stable classification is normally sufficient; however,
+		// if the same record explicitly carries contradictory evidence, do not
+		// promote it to a provider-confirmed reset. This optional field is a
+		// fail-closed guard, never required to confirm a legitimate event.
+		if x.Group == "reset" && x.AnnouncementState == "announced" && x.Confirmed != nil && !*x.Confirmed {
+			d.Pending = addReview(d.Pending, Review{id, "contradictory_confirmation", "timeline", now})
+			continue
+		}
 		at, err := clock(x.AnnouncedAt)
 		if err != nil {
 			return err
@@ -334,8 +347,12 @@ func merge(d *Disk, now time.Time) error {
 		if t, ok := byTweet[x.ID]; ok && t.URL == x.URL {
 			if stamp, err := clock(t.At); err == nil {
 				stamp = stamp.UTC()
-				rec.SourcePublishedAt = &stamp
-				ev.SourcePublishedAt = &stamp
+				if !stamp.After(now.Add(5 * time.Minute)) {
+					rec.SourcePublishedAt = &stamp
+					ev.SourcePublishedAt = &stamp
+				} else {
+					d.Pending = addReview(d.Pending, Review{id, "future_original_post_timestamp", "feed", now})
+				}
 			}
 		}
 		if evChanged, err := upsertEvent(&d.Snapshot.Events, ev); err != nil {
@@ -478,7 +495,9 @@ func upsertEvent(items *[]events.Event, next events.Event) (bool, error) {
 		}
 		next.Revision = old.Revision
 		// Never rewrite known original post-publication timestamps on new revisions.
-		next.SourcePublishedAt = old.SourcePublishedAt
+		if old.SourcePublishedAt != nil { // never replace a known original post timestamp
+			next.SourcePublishedAt = old.SourcePublishedAt
+		}
 		if reflect.DeepEqual(old, next) {
 			return false, nil
 		}
@@ -506,7 +525,9 @@ func upsertRecord(items *[]history.Record, next history.Record) (bool, error) {
 			return false, nil
 		}
 		next.Revision = old.Revision
-		next.SourcePublishedAt = old.SourcePublishedAt
+		if old.SourcePublishedAt != nil { // allow evidence enrichment: unknown -> documented source timestamp
+			next.SourcePublishedAt = old.SourcePublishedAt
+		}
 		if reflect.DeepEqual(old, next) {
 			return false, nil
 		}
@@ -541,6 +562,21 @@ func upsertNews(items *[]news.Item, next news.Item) (bool, error) {
 	*items = append(*items, next)
 	return true, nil
 }
+
+// liveHealth derives read-time publication safety without modifying the cached
+// canonical snapshot or issuing a false content revision when the source ages out.
+func (e *Engine) liveHealth(health events.SourceHealth) events.SourceHealth {
+	if health.Status != "ok" {
+		return health
+	}
+	checked := health.LastCheckedAt
+	now := e.currentTime()
+	if checked == nil || checked.IsZero() || now.Sub(*checked) > maxPublishedAge || checked.After(now.Add(5*time.Minute)) {
+		health.Status = "stale"
+	}
+	return health
+}
+
 func (e *Engine) Handler(origin string) (http.Handler, error) {
 	parsed, err := url.Parse(origin)
 	if err != nil || parsed == nil || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" || parsed.Path != "" || (parsed.Scheme != "https" && !(parsed.Scheme == "http" && (parsed.Hostname() == "localhost" || parsed.Hostname() == "127.0.0.1" || parsed.Hostname() == "::1"))) {
@@ -557,6 +593,7 @@ func (e *Engine) Handler(origin string) (http.Handler, error) {
 		d := e.disk
 		e.mu.RUnlock()
 		s := d.Snapshot
+		s.SourceHealth = e.liveHealth(s.SourceHealth)
 		s.HistoryURL = origin + "/archive"
 		s.HistoryVersion = d.Archive.ArchiveVersion
 		jsonResponse(w, r, s)
@@ -604,10 +641,13 @@ func (e *Engine) Handler(origin string) (http.Handler, error) {
 		e.mu.RLock()
 		d := e.disk
 		e.mu.RUnlock()
-		if d.Snapshot.SourceHealth.Status != "ok" {
+		health := e.liveHealth(d.Snapshot.SourceHealth)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		if health.Status != "ok" {
 			w.WriteHeader(http.StatusServiceUnavailable)
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"source_health": d.Snapshot.SourceHealth, "last_error": d.LastError, "data_source_url": codexreset.SourceURL})
+		_ = json.NewEncoder(w).Encode(map[string]any{"source_health": health, "last_error": d.LastError, "data_source_url": codexreset.SourceURL})
 	})
 	return mux, nil
 }

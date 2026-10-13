@@ -306,3 +306,11 @@ Bridge 采用 Go 标准库请求四个公开 GET API，同一上游域名任何�
 在 macOS / Windows 真机开发环境可另行运行已有 Go 客户端，启用 `-allow-local-http` 并指定 `-feed http://127.0.0.1:8788/feed` 测试读取；本阶段未修改原生界面。当前第三方确认与储备事件会保存在历史、资讯及带有 `source_type:third_party` 的 Feed 事件中，**所有第三方事件都没有 `effective_at` 和 `verified_at`，不会触发官方未来重置提醒**。第三方历史归档暂固定 `complete:false`，统计数据不足不能展示「0次」。上游异常继续提供旧缓存，但标记 `stale`。
 
 实现细节、测试证据和限制：[`docs/quality/desktop-reset-clock-r24-b-go-bridge.zh-CN.md`](../../docs/quality/desktop-reset-clock-r24-b-go-bridge.zh-CN.md)。
+
+
+### R2.4-B 可靠性补充
+
+- `serve` 四接口完整采集一轮之后空闲约 **5 分钟**再刷新；所有真实 GET 仍受**全域至少 60 秒间隔**、响应 Cache-Control 与 429 Retry-After 限制。首次完整采集至少约 3 分钟；无需 Node/npm。
+- `probe` 输出 `live_api_verified` 仅在四端点确实发出真实 GET 并成功验证时为 `true`；使用有效 HTTP 缓存而跳过某端点时为 `false`，不代表历史 JSON 数据丢失。不能用 `probe` 的旧缓存结果冒充当天真实公网联通性。
+- 如果上游最近发布检查时间在服务运行中已经超过 30 分钟，即使还没有开始下一轮采集，`/feed` 也会即时变成 `stale`，`/healthz` 返回 503；缓存历史保留，未来精确倒计时不会被编造。
+- Timeline 记录初期缺少原帖发布时间时可以从后续公开 Feed 同 ID 原帖补证并留下 revision，不能擅改已有原帖时间或升级为官方确认。历史仍标记 `complete:false`。

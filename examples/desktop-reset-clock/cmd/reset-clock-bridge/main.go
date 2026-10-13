@@ -25,6 +25,18 @@ func main() {
 		log.Fatal(err)
 	}
 }
+func liveProbeVerified(results map[string]codexreset.Result, err error) bool {
+	if err != nil {
+		return false
+	}
+	for _, name := range codexreset.Endpoints {
+		r, ok := results[name]
+		if !ok || r.Status != "ok" || r.FromCache || (r.HTTPStatus != http.StatusOK && r.HTTPStatus != http.StatusNotModified) {
+			return false
+		}
+	}
+	return true
+}
 func run(args []string) error {
 	if len(args) == 0 || (args[0] != "probe" && args[0] != "serve") {
 		return errors.New("usage: reset-clock-bridge probe|serve [-state path] [-listen 127.0.0.1:8788]")
@@ -53,7 +65,7 @@ func run(args []string) error {
 	defer stop()
 	if mode == "probe" {
 		results, err := service.Poll(ctx)
-		report := map[string]any{"source": codexreset.SourceURL, "results": results, "source_health": service.Report().Snapshot.SourceHealth, "next_allowed_at": service.Report().Provider.NextAllowedAt, "live_api_verified": err == nil}
+		report := map[string]any{"source": codexreset.SourceURL, "results": results, "source_health": service.Report().Snapshot.SourceHealth, "next_allowed_at": service.Report().Provider.NextAllowedAt, "live_api_verified": liveProbeVerified(results, err)}
 		if encodeErr := json.NewEncoder(os.Stdout).Encode(report); encodeErr != nil {
 			return encodeErr
 		}
@@ -89,7 +101,9 @@ func run(args []string) error {
 			if err != nil {
 				log.Printf("collector: %v (previous cache retained)", err)
 			}
-			timer := time.NewTimer(30 * time.Minute)
+			// A completed four-endpoint round takes at least 3 minutes. Refresh after
+			// five idle minutes so the first source clock does not age out at 30m.
+			timer := time.NewTimer(5 * time.Minute)
 			select {
 			case <-timer.C:
 			case <-ctx.Done():
