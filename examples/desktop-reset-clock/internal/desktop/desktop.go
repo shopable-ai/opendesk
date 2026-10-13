@@ -46,6 +46,8 @@ type Display struct {
 	Effective   string `json:"effective"`
 	Countdown   string `json:"countdown"`
 	Health      string `json:"health"`
+	DataSourceURL string `json:"data_source_url"`
+	TickerCached bool `json:"ticker_cached"`
 	Diagnostics string `json:"diagnostics"`
 	FeedURL     string `json:"feed_url"`
 

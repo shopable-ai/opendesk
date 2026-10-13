@@ -370,10 +370,12 @@ func (a *App) displayLocked() desktop.Display {
 	d := desktop.Display{
 		Demo: demo, LocalTime: parts.Time, LocalDate: parts.Date + " · " + parts.Zone,
 		Clock: parts.Date + " " + parts.Time + " " + parts.Zone,
-		Title: "暂无确定的下一次重置", Summary: "尚无有效来源公告",
-		Badge: "暂无确定公告", StatusKind: "empty", CardHint: "当前公告状态",
-		CardValue: "暂无确定的下一次重置", CardSummary: "尚无有效来源公告",
+		Title: "下一次时间待公布", Summary: "尚无有效来源公告",
+		Badge: "下一次待公布", StatusKind: "empty", CardHint: "重置时间",
+		CardValue: "下一次时间待公布", CardSummary: "尚无有效来源公告",
+		CardMeta: "最近一次第三方重置：暂无可核验记录",
 		CardFoot: state, Health: state, FeedURL: s.Config.FeedURL,
+		DataSourceURL: "https://codex-reset.com/",
 		Show: s.Config.Show, Locked: s.Config.Locked, Quiet: s.Config.Quiet,
 		Advance10: s.Config.Advance10, Clock24: s.Config.Clock24,
 		X: s.Config.X, Y: s.Config.Y,
@@ -386,7 +388,8 @@ func (a *App) displayLocked() desktop.Display {
 		timeLabel(s.Health.LastSourceCheckedAt), timeLabel(s.Health.LastEventChangedAt),
 		timeLabel(s.Health.LastFailureAt), s.Health.LastError)
 	if demo {
-		d.Badge = "【模拟数据】暂无确定公告"
+		d.Badge = "【模拟数据】下一次待公布"
+		d.DataSourceURL = "" // The synthetic demo is not upstream data.
 	}
 	d.MemberStatus=s.Membership.Status(now,demo)
 	d.TickerExpanded=s.Config.TickerExpanded
@@ -433,7 +436,7 @@ func (a *App) displayLocked() desktop.Display {
           rows:=make([]desktop.MetricRow,0,len(data))
           for i,x:=range data {
              value:=x.m.Label()
-             if !pro && i>1 {value="未开放"}
+             if !pro && i>1 && x.m.Known {value="未开放"}
              rows=append(rows,desktop.MetricRow{Name:x.name,Value:value,Detail:x.desc})
           }
           return rows
@@ -446,13 +449,14 @@ func (a *App) displayLocked() desktop.Display {
            if r.SourceUpdatedAt!=nil{return *r.SourceUpdatedAt}
            if r.SourcePublishedAt!=nil{return *r.SourcePublishedAt}
            if r.ObservedAt!=nil{return *r.ObservedAt}
+           if r.ProviderReportedAt!=nil{return *r.ProviderReportedAt}
            return time.Time{}
         }
         sort.SliceStable(records,func(i,j int)bool{return recordAt(records[i]).After(recordAt(records[j]))})
         for _,r:=range records{
-           if !pro && r.Kind!="reset_announcement" && r.Kind!="reset_completed" {continue}
            if len(d.HistoryRows)>=64 {break}
-           kind:=map[string]string{"reset_announcement":"来源预告","reset_completed":"确认完成","extra_opportunity":"赠送机会","observed_reset":"用户观察"}[r.Kind]
+           kind:=map[string]string{"reset_announcement":"来源预告","reset_completed":"确认完成","extra_opportunity":"赠送机会","observed_reset":"用户观察",
+               "third_party_reset":"第三方全员重置","third_party_credits":"第三方储备重置","service_incident":"服务故障"}[r.Kind]
            state:=map[string]string{"active":"有效","withdrawn":"已撤回","superseded":"已更正"}[r.State]
            at:=recordAt(r)
            row:=desktop.HistoryRow{When:shortDate(&at,s.Config.Zone),Kind:kind,State:state,
@@ -463,6 +467,17 @@ func (a *App) displayLocked() desktop.Display {
            if d.HistorySourceURL=="" && row.URL!=""{d.HistorySourceURL=row.URL}
         }
 	}
+    // R2.5: incomplete independent archives provide dated evidence, never zero counts.
+    if s.Archive!=nil && !s.Archive.Complete {
+        d.Stats30=[]desktop.MetricRow{
+            {Name:"全员重置（第三方）",Value:"数据不足",Detail:"第三方历史覆盖不完整"},
+            {Name:"储备重置（第三方）",Value:"数据不足",Detail:"与全员重置分开"},
+            {Name:"服务故障",Value:"数据不足",Detail:"不能计入额度重置"},
+            {Name:"官方确认",Value:"数据不足",Detail:"第三方追踪不是 OpenAI 官方确认"},
+        }
+        d.StatsMonth=append([]desktop.MetricRow(nil),d.Stats30...)
+        d.DetailsHistory="最近 30 天：数据不足；当前自然月：数据不足。\n第三方记录仅供核验，不能推断个人额度恢复。"
+    }
 	if s.ArchiveError!="" {d.DetailsHistory+="\n"+s.ArchiveError+"；统计显示数据不足。"}
 	if s.Snapshot!=nil {
         var full strings.Builder
@@ -486,6 +501,20 @@ func (a *App) displayLocked() desktop.Display {
 		}
         if len(top)>0 {d.DetailsOverviewNews=d.DetailsNews}
 	}
+    // A dated tracker observation may supply the last reset, never a future clock.
+    if s.Archive!=nil {
+        var latest *history.Record
+        for i:=range s.Archive.Records {
+            r:=&s.Archive.Records[i]
+            if r.Kind!="third_party_reset" || r.State!="active" ||
+                r.ProviderReportedAt==nil || r.ProviderReportedAt.After(now) {continue}
+            if latest==nil || r.ProviderReportedAt.After(*latest.ProviderReportedAt) {latest=r}
+        }
+        if latest!=nil {
+            d.CardMeta="最近一次第三方重置 · "+shortDate(latest.ProviderReportedAt,s.Config.Zone)
+            if latest.SourceURL!="" && !d.HasSourceURL {d.SourceURL=latest.SourceURL;d.HasSourceURL=true}
+        }
+    }
 	if s.Snapshot == nil {
         d.TickerExpanded=false
 		if s.Health.LastError != "" {
@@ -533,8 +562,8 @@ func (a *App) displayLocked() desktop.Display {
 			d.Summary, d.SourceURL = withdrawn.Summary, withdrawn.SourceURL
 			d.Published, d.HasSourceURL = timeLabel(withdrawn.SourcePublishedAt), true
 			d.StatusKind, d.Badge = "withdrawn", "公告已撤回"
-			d.CardValue, d.CardSummary = "公告已撤回", cardText(withdrawn.Summary, demo)
-			d.CardMeta = "原预计时间已取消 · 不再倒计时"
+			d.CardValue, d.CardSummary = "下一次时间待公布", cardText(withdrawn.Summary, demo)
+			if s.Archive==nil { d.CardMeta = "原预计时间已取消 · 不再倒计时" }
 		} else if fallback != nil {
 			d.Summary, d.SourceURL = fallback.Summary, fallback.SourceURL
 			d.Published, d.HasSourceURL = timeLabel(fallback.SourcePublishedAt), true
@@ -549,7 +578,7 @@ func (a *App) displayLocked() desktop.Display {
         d.HasUpcoming=false
         d.Countdown=""
         d.CardHint="当前来源状态"
-        d.CardValue="预计时间待核验"
+        d.CardValue="下一次时间待公布"
         d.CardMeta="上游信息异常，暂不展示可行动的倒计时"
     }
 	if state == "来源可能过期（停止自动公告提醒）" || state == "来源严重异常（缓存）" ||
@@ -563,16 +592,17 @@ func (a *App) displayLocked() desktop.Display {
 	}
     // Keep withdrawn and unavailable stories in the full audit list, but
     // never promote them (or stale cached headlines) to the active ticker.
-    if s.Health.Grade(now)=="已检查，无新公告或缓存有效" {
-      for _,item:=range news.Top(s.Snapshot.News,3) {
+    // Only previously validated headlines survive network loss, with visible cache label.
+    for _,item:=range news.Top(s.Snapshot.News,3) {
         source:=map[string]string{"official":"来源标注官方","third_party":"第三方","editorial":"编辑分析"}[item.SourceType]
         d.TickerItems=append(d.TickerItems,desktop.TickerItem{
-          ID:item.ID,Title:cardText(item.Title,demo),
-          Source:source,Updated:shortDate(&item.UpdatedAt,s.Config.Zone),URL:item.SourceURL,
+            ID:item.ID,Title:cardText(item.Title,demo),
+            Source:source,Updated:shortDate(&item.UpdatedAt,s.Config.Zone),URL:item.SourceURL,
         })
-      }
     }
-    if len(d.TickerItems)>0 {d.TickerIndex=a.tickerIndex%len(d.TickerItems)}else {d.TickerExpanded=false}
+    d.TickerCached=state!="已检查，无新公告或缓存有效" && len(d.TickerItems)>0
+    d.TickerIndex=0
+    d.TickerExpanded=false // V1 always shows up to three non-rotating rows.
 	if demo {
 		d.Badge = "【模拟】" + d.Badge
 	}
