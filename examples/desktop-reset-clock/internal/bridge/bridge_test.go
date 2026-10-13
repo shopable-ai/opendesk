@@ -34,14 +34,15 @@ func (c *fakeClock) Wait(_ context.Context, d time.Duration) error {
 }
 
 type source struct {
-	mu          sync.Mutex
-	summary     string
-	withdrawn   bool
-	httpStatus  int
-	requests    []time.Time
-	clk         *fakeClock
-	notModified bool
-	at          time.Time
+	mu             sync.Mutex
+	summary        string
+	withdrawn      bool
+	httpStatus     int
+	requests       []time.Time
+	clk            *fakeClock
+	notModified    bool
+	omitResetTweet bool
+	at             time.Time
 }
 
 func (s *source) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -72,8 +73,11 @@ func (s *source) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			map[string]any{"id": "pending1", "group": "credits", "type": "credits", "announcement_state": "none", "announced_at": eventAt, "summary": "无链接"},
 			map[string]any{"id": "candidate", "group": "reset", "type": "reset", "announcement_state": "none", "announced_at": eventAt, "url": "https://x.com/person/status/candidate", "summary": "不应计数"}}}
 	case "/api/feed":
-		payload = map[string]any{"fetched_at": now, "stale": false, "signal": nil, "events": []any{}, "newest_post_at": now, "tweets": []any{
-			map[string]any{"id": "res1", "at": eventAt, "text": "重置进展", "url": "https://x.com/person/status/res1"}, map[string]any{"id": "ordinary", "at": eventAt, "text": "普通消息", "url": "https://x.com/person/status/ordinary"}}}
+		tweets := []any{map[string]any{"id": "ordinary", "at": eventAt, "text": "普通消息", "url": "https://x.com/person/status/ordinary"}}
+		if !s.omitResetTweet {
+			tweets = append([]any{map[string]any{"id": "res1", "at": eventAt, "text": "重置进展", "url": "https://x.com/person/status/res1"}}, tweets...)
+		}
+		payload = map[string]any{"fetched_at": now, "stale": false, "signal": nil, "events": []any{}, "newest_post_at": now, "tweets": tweets}
 	case "/api/status-history":
 		payload = map[string]any{"checked_at": now, "stale": false, "current": map[string]any{"indicator": "minor"}, "surfaces": []any{}, "compensation_links": []any{}, "stats": map[string]any{"days": 90}, "incidents": []any{map[string]any{"id": "inc1", "name": "服务故障", "status": "monitoring", "started_at": eventAt, "source_url": "https://status.openai.com/incidents/inc1"}}}
 	default:
@@ -202,6 +206,7 @@ func TestEndToEndRealClient(t *testing.T) {
 	}
 	src.mu.Lock()
 	src.withdrawn = true
+	src.omitResetTweet = true // withdrawn post has also scrolled out of the short feed
 	src.mu.Unlock()
 	if _, err := e.Poll(context.Background()); err != nil {
 		t.Fatal(err)
