@@ -207,6 +207,11 @@ func TestEndToEndRealClient(t *testing.T) {
 		t.Fatal(err)
 	}
 	d = e.Report()
+	for _, n := range news.Top(d.Snapshot.News, 3) {
+		if strings.HasSuffix(n.ID, "res1") {
+			t.Fatal("withdrawn news is still active")
+		}
+	}
 	for _, ev := range d.Snapshot.Events {
 		if strings.HasSuffix(ev.ID, "res1") {
 			if ev.State != "withdrawn" || ev.Revision != 3 {

@@ -386,6 +386,7 @@ func merge(d *Disk, now time.Time) error {
 			continue
 		}
 		kind := "update"
+		newsState := "active"
 		for _, e := range timeline.Events {
 			if e.ID == t.ID {
 				if e.Group == "reset" && e.AnnouncementState == "announced" {
@@ -394,6 +395,9 @@ func merge(d *Disk, now time.Time) error {
 				if e.Group == "credits" {
 					kind = "credits_tracking"
 				}
+				if e.AnnouncementState == "withdrawn" {
+					newsState = "withdrawn"
+				}
 				break
 			}
 		}
@@ -401,7 +405,7 @@ func merge(d *Disk, now time.Time) error {
 		if title == "" {
 			continue
 		}
-		it := news.Item{ID: "codex-reset:post:" + t.ID, Title: title, Summary: "第三方公开动态，不代表官方重置或个人额度变化", PublishedAt: at, UpdatedAt: at, SourceURL: t.URL, Category: kind, SourceType: "third_party", State: "active"}
+		it := news.Item{ID: "codex-reset:post:" + t.ID, Title: title, Summary: "第三方公开动态，不代表官方重置或个人额度变化", PublishedAt: at, UpdatedAt: at, SourceURL: t.URL, Category: kind, SourceType: "third_party", State: newsState}
 		if yes, err := upsertNews(&d.Snapshot.News, it); err != nil {
 			return err
 		} else if yes {
@@ -496,6 +500,9 @@ func upsertNews(items *[]news.Item, next news.Item) (bool, error) {
 		}
 		if old.SourceType != next.SourceType {
 			return false, errors.New("news provenance changed")
+		}
+		if old.State == "withdrawn" && next.State == "active" {
+			return false, nil
 		}
 		next.PublishedAt = old.PublishedAt
 		next.Revision = old.Revision
