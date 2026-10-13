@@ -277,6 +277,6 @@ macOS/Windows 原生视觉仍需要独立实窗截图、键盘/读屏与 100/150
 
 ### R2.4 公开重置数据源与接口调查（2026-10-13）
 
-**研究结论已保存**：\`docs/plans/desktop-reset-clock-public-source-r24.zh-CN.md\`。用户提供的 \`tiboreset.com/zh\` 明确推荐通过 \`codex-reset.com\` 的公开只读 API（\`/api/forecast\`、\`/api/timeline\`、\`/api/feed\`、\`/api/status-history\`）复用数据，而不是抓取 HTML 或使用账号 Cookie。上游有可见署名、User-Agent 和最多每分钟一次请求等要求。
+**研究结论已保存**：`docs/plans/desktop-reset-clock-public-source-r24.zh-CN.md`。用户提供的 `tiboreset.com/zh` 明确推荐通过 `codex-reset.com` 的公开只读 API（`/api/forecast`、`/api/timeline`、`/api/feed`、`/api/status-history`）复用数据，而不是抓取 HTML 或使用账号 Cookie。上游有可见署名、User-Agent 和最多每分钟一次请求等要求。
 
 **必须注意**：这不是能够直接输入 Go 客户端 Feed URL 的同构接口，当前客户端需要独立上游 Bridge 映射为既有 Snapshot/History/News 契约；没有明确未来公告时间时，不能把预测概率/历史间隔变成精确倒计时。C3 仍只是离线模拟 HTML，Go 客户端未因此获得真实数据功能。下一步先运行 R2.4-A 真实 API 探针与字段测试，再做独立 Bridge、C4 数据预览，最后经视觉确认进入原生实现。
