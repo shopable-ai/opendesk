@@ -34,6 +34,7 @@ type Cache struct {
 	CacheControl string          `json:"cache_control,omitempty"`
 	CheckedAt    time.Time       `json:"checked_at,omitempty"` // upstream claim, not local HTTP request time
 	ExpiresAt    time.Time       `json:"expires_at,omitempty"`
+	NextFetchAt  time.Time       `json:"next_fetch_at,omitempty"` // per-resource Cache-Control; NOT the host limiter
 }
 type State struct {
 	NextAllowedAt time.Time        `json:"next_allowed_at,omitempty"`
@@ -47,6 +48,7 @@ type Result struct {
 	DurationMS  int64  `json:"duration_ms"`
 	Cache       Cache  `json:"-"`
 	NotModified bool   `json:"not_modified,omitempty"`
+	FromCache   bool   `json:"from_cache,omitempty"`
 }
 type Collector struct {
 	HTTP *http.Client
@@ -242,12 +244,15 @@ func ValidatePayload(name string, body []byte) (time.Time, bool, error) {
 	return t, stale, nil
 }
 func retryAfter(v string, now time.Time) time.Time {
-	if s, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+	// Respect long Retry-After delays. Do not turn a 2-hour 429 into an
+	// optimistic 1-hour retry. Bound pathological input to one month.
+	const max = 30 * 24 * time.Hour
+	if s, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64); err == nil {
 		if s < 60 {
 			s = 60
 		}
-		if s > 3600 {
-			s = 3600
+		if s > int64(max/time.Second) {
+			s = int64(max / time.Second)
 		}
 		return now.Add(time.Duration(s) * time.Second)
 	}
@@ -255,8 +260,8 @@ func retryAfter(v string, now time.Time) time.Time {
 		if t.Before(now.Add(MinInterval)) {
 			return now.Add(MinInterval)
 		}
-		if t.After(now.Add(time.Hour)) {
-			return now.Add(time.Hour)
+		if t.After(now.Add(max)) {
+			return now.Add(max)
 		}
 		return t
 	}
@@ -266,16 +271,24 @@ func cacheDelay(v string) time.Duration {
 	for _, item := range strings.Split(strings.ToLower(v), ",") {
 		item = strings.TrimSpace(item)
 		if strings.HasPrefix(item, "max-age=") {
-			n, err := strconv.Atoi(strings.TrimPrefix(item, "max-age="))
+			n, err := strconv.ParseInt(strings.TrimSpace(strings.TrimPrefix(item, "max-age=")), 10, 64)
 			if err == nil && n > 0 {
-				if n > 3600 {
-					n = 3600
+				if n > 30*24*3600 {
+					n = 30 * 24 * 3600
 				}
 				return time.Duration(n) * time.Second
 			}
 		}
 	}
 	return 0
+}
+func directive(v, token string) bool {
+	for _, part := range strings.Split(strings.ToLower(v), ",") {
+		if strings.TrimSpace(part) == token {
+			return true
+		}
+	}
+	return false
 }
 func validateCache(ca Cache, now time.Time) error {
 	if len(ca.Body) == 0 {
@@ -323,6 +336,22 @@ func (c Collector) get(ctx context.Context, name string, st *State, persist func
 	base, _ := c.base()
 	last := st.Cache[name]
 	out := Result{Name: name, Status: "unavailable", Cache: last}
+	// Cache-Control controls rereads of THIS resource. Other paths must still
+	// be polled in order, one request per minute domain-wide. An unexpired
+	// cached copy is safe only while the independent source freshness limit
+	// and publisher expiry both remain valid.
+	if c.now().Before(last.NextFetchAt) {
+		if _, stale, err := ValidatePayload(name, last.Body); err == nil && !stale {
+			if err := validateCache(last, c.now()); err == nil {
+				out.Status = "ok"
+				out.FromCache = true
+				return out, nil
+			}
+		}
+		out.Status = "stale"
+		out.Error = "cache_control_blocks_fresh_observation"
+		return out, errors.New(out.Error)
+	}
 	for attempt := 0; attempt < 2; attempt++ {
 		if d := st.NextAllowedAt.Sub(c.now()); d > 0 {
 			if err := c.wait(ctx, d); err != nil {
@@ -447,7 +476,13 @@ func (c Collector) get(ctx context.Context, name string, st *State, persist func
 				return out, err
 			}
 		}
+		if directive(res.Header.Get("Cache-Control"), "no-store") {
+			out.Status = "invalid"
+			out.Error = "upstream_no_store"
+			return out, errors.New(out.Error)
+		}
 		updated := Cache{Body: append(json.RawMessage(nil), b...), ETag: res.Header.Get("ETag"), LastModified: res.Header.Get("Last-Modified"), CacheControl: res.Header.Get("Cache-Control"), CheckedAt: checked, ExpiresAt: expires}
+		updated.NextFetchAt = c.now().Add(cacheDelay(updated.CacheControl))
 		if stale {
 			out.Status = "stale"
 			out.Error = "provider_stale"
@@ -459,10 +494,8 @@ func (c Collector) get(ctx context.Context, name string, st *State, persist func
 			return out, err
 		}
 		st.Cache[name] = updated
-		// Respect max-age without weakening the strict global minimum.
-		if until := c.now().Add(cacheDelay(updated.CacheControl)); until.After(st.NextAllowedAt) {
-			st.NextAllowedAt = until
-		}
+		// Keep the global host limiter independent of each response's max-age.
+		// Otherwise one long forecast TTL can block timeline/feed/status for hours.
 		if err := persist(); err != nil {
 			return out, fmt.Errorf("persist fetched data: %w", err)
 		}

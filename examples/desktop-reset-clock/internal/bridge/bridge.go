@@ -412,6 +412,30 @@ func merge(d *Disk, now time.Time) error {
 			changed = true
 		}
 	}
+	// A source can explicitly retract a tracked post after it has rolled out of
+	// the short tweets feed. In that case withdraw the *stored* news as well.
+	for _, x := range timeline.Events {
+		if x.AnnouncementState != "withdrawn" || x.ID == "" {
+			continue
+		}
+		id := "codex-reset:post:" + x.ID
+		for _, old := range d.Snapshot.News {
+			if old.ID != id || old.State != "active" {
+				continue
+			}
+			next := old
+			next.State = "withdrawn"
+			next.UpdatedAt = now
+			if next.UpdatedAt.Before(next.PublishedAt) {
+				next.UpdatedAt = next.PublishedAt
+			}
+			if yes, err := upsertNews(&d.Snapshot.News, next); err != nil {
+				return err
+			} else if yes {
+				changed = true
+			}
+		}
+	}
 	if historyChanged {
 		d.Archive.ArchiveVersion++
 		changed = true
