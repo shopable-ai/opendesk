@@ -1,3 +1,66 @@
+# OpenDesk Reset Clock · V1（R2.5）原生桌面挂件
+
+> **2026-10-13 R2.5 状态：AppKit / Win32 桌面卡片已实现源码；真实 Mac / Windows 实窗与公网 Go 采集仍需设备和独立证据，不能把代码提交或模拟测试等同于 V1 真机验收。** 它不是 OpenAI 官方服务，默认不提供个人账号重置倒计时。当前无正式部署的公共 HTTPS Feed Bridge。
+>
+> 旧版 R1/R2 演示说明作为历史版本说明保留在下方。**请优先使用本节的 V1 正式入口**，不再按旧版“单条轮播 / 手动展开”验收。
+
+## V1 本机两进程联调：真实数据 → 桌面常驻卡片
+
+前提：macOS 或 Windows 装有 Go 1.22+，可访问 `codex-reset.com` 公网 API；macOS 需要 Xcode Command Line Tools。**从仓库根目录**开启两个终端：
+
+**终端 A：启动唯一 Go Collector + Feed Bridge**：
+
+```bash
+cd examples/desktop-reset-clock
+go run ./cmd/reset-clock-bridge serve -listen 127.0.0.1:8788
+```
+
+**终端 B：启动原生桌面挂件**（另开一个终端，从仓库根目录执行）：
+
+```bash
+cd examples/desktop-reset-clock
+go run ./cmd/desktop-reset-clock -feed http://127.0.0.1:8788/feed -allow-local-http
+```
+
+- 桌面程序只访问 Bridge 的 `/feed`、`/archive`，不会请求四个上游 API；只有终端 A 会以**同一域名全局请求间隔至少 60 秒**依次获取四个 API。首次完整采集至少约 3 分钟，源端可能拒绝/限流；等待上游验证时卡片可显示“下一次时间待公布”和来源署名，**不会伪造三条新闻**。
+- 使用状态栏/托盘可直接显示/隐藏、锁定/解锁（锁定时鼠标穿透）、查看记录与动态、立即刷新、打开设置/原始来源、退出。隐藏卡片时**仍由同一个桌面进程执行 HTTP 刷新**；退出应用才会停止客户端刷新。Bridge 独立启动，桌面退出不会自动结束 Bridge。
+- 卡片宽度 386 逻辑像素，三条最新有效来源动态**默认常显**，不轮播；少于三条就按真实条数展示。没有精确未来官方时间则显示 **下一次时间待公布**；最近一次带第三方报告时间的重置仅作为历史显示，和储备重置、服务事故分开。来源失效时已保存内容标明“缓存”，不产生未核实通知。
+- 卡片内及记录详情同时显示可打开的 `Data: codex-reset.com`，跳转 `https://codex-reset.com/`。解锁状态下可以点击卡片，锁定时从菜单/托盘打开来源。第三方追踪记录不是 OpenAI 官方公告，也不能确定个人额度已恢复。
+- 历史 30 天/自然月覆盖不足时显示“数据不足”，不显示 0；历史修订和撤回仍在详情历史/资讯中供核验。上一轮 Mock/Demo 仅用于自动测试，正式入口不使用模拟消息。
+- **没有公网部署地址**：所有用户需要独立运行的演示仅限本机双进程。若要真正发布给他人使用，必须部署有合法 HTTPS 的唯一 Bridge，复核来源再分发条款、状态/访问控制和可用性；桌面客户端之后只需 `-feed https://<实际已部署服务>/feed`，目前没有可用域名可填。
+
+### macOS 无需终端常驻显示的开发版 `.app`（未签名）
+
+在仓库根目录：
+
+```bash
+cd examples/desktop-reset-clock
+bash scripts/build-macos-app.sh
+cd ../..
+open '.runtime/tests/desktop-reset-clock/v1/Reset Clock.app' --args -feed http://127.0.0.1:8788/feed -allow-local-http
+```
+
+脚本构建真实 CGO/AppKit 程序并生成 `LSUIElement` 菜单栏开发应用于 `.runtime/tests/desktop-reset-clock/v1/Reset Clock.app`；它**不是签名/公证的发行包**，不会要求管理员权限或修改登录启动项。如果已有构建文件会拒绝覆盖，避免打断其他任务。终端 A 的 Bridge 仍需要先启动。不支持在 Linux 上构建 AppKit 版本。
+
+### Windows 开发编译及限制
+
+在 `examples/desktop-reset-clock/` 下编译 `go build -o ../../.runtime/tests/desktop-reset-clock/v1/desktop-reset-clock.exe ./cmd/desktop-reset-clock`（先建立目标文件夹）。Windows 原生 Win32/GDI 和 WorkerW 优先尝试、失败回退到非置顶窗口；**编译成功不等于 Windows 真机的 Explorer、缩放、后台和桌面层级已验收**。
+
+### 测试和证据
+
+```bash
+cd examples/desktop-reset-clock
+go test ./... -count=1
+go test -race ./... -count=1
+go vet ./...
+go build ./cmd/reset-clock-bridge
+go build ./cmd/desktop-reset-clock
+```
+
+`go test` 中的 HTTP Mock 是**隔离协议回归**，不是已联网的四接口验收。在有外网的 Mac 使用现有 `go run ./cmd/reset-clock-bridge probe` 检查返回的 `live_api_verified`，不得通过多进程绕过 60 秒间隔。真实 AppKit / Win32 截图和本地测试日志保存于根目录 `.runtime/tests/desktop-reset-clock/v1/`，不要提交这些运行文件。正式阶段报告：`docs/quality/desktop-reset-clock-v1-r25-native.zh-CN.md`。
+
+---
+
 # OpenDesk Reset Clock · Go 桌面客户端演示
 
 > 状态（2026-10-12）：**R2 已新增历史归档、三条动态、Free 高级提醒试用与模拟会员/订单、macOS/Win32 独立详情窗口源码；真机视觉仍待验收**。这不是官方实时公告源，也不是已发行、已签名的 macOS / Windows 产品。桌面实窗、托盘系统权限、多屏、休眠与 Explorer / Spaces 稳定性尚待对应真机验收。
@@ -284,7 +347,7 @@ macOS/Windows 原生视觉仍需要独立实窗截图、键盘/读屏与 100/150
 
 ## R2.4-B · Go 原生第三方 Feed Bridge（2026-10-13）
 
-**这是独立的公开数据采集与归档进程，不是在桌面端执行网页爬虫。**数据来自第三方追踪服务 [codex-reset.com](https://codex-reset.com/)；不是 OpenAI 官方账号额度，不能根据历史概率制造准确未来倒计时。免费再展示时须在显示数据的**同一界面**给出可见的「[Data: codex-reset.com](https://codex-reset.com/)」来源链接；AppKit / Win32 尚未完成该署名展示，不能认定公开展示已合规。
+**这是独立的公开数据采集与归档进程，不是在桌面端执行网页爬虫。**数据来自第三方追踪服务 [codex-reset.com](https://codex-reset.com/)；不是 OpenAI 官方账号额度，不能根据历史概率制造准确未来倒计时。免费再展示时须在显示数据的**同一界面**给出可见的「[Data: codex-reset.com](https://codex-reset.com/)」来源链接；R2.4-B 时 AppKit / Win32 尚未完成该署名；R2.5 已写入原生界面源码，但真机可视与可点击验收仍为 NOT_TESTED。
 
 在 **OpenDesk 仓库根目录**复制运行：
 
@@ -303,7 +366,7 @@ curl -i http://127.0.0.1:8788/healthz
 
 Bridge 采用 Go 标准库请求四个公开 GET API，同一上游域名任何两个请求间**至少 60 秒**（四接口的首次完整采集需要至少 3 分钟），支持 ETag / 304、429 / Retry-After、原始证据与跨重启限流持久化。默认状态位于仓库根 `.runtime/desktop-reset-clock/bridge-state.json`，不提交至 Git。守护进程只监听数字回环 IP；公网发布必须 HTTPS。若异常退出残留 `bridge-state.json.lock/`，先确认没有其他进程在使用状态文件再手动清理。
 
-在 macOS / Windows 真机开发环境可另行运行已有 Go 客户端，启用 `-allow-local-http` 并指定 `-feed http://127.0.0.1:8788/feed` 测试读取；本阶段未修改原生界面。当前第三方确认与储备事件会保存在历史、资讯及带有 `source_type:third_party` 的 Feed 事件中，**所有第三方事件都没有 `effective_at` 和 `verified_at`，不会触发官方未来重置提醒**。第三方历史归档暂固定 `complete:false`，统计数据不足不能展示「0次」。上游异常继续提供旧缓存，但标记 `stale`。
+在 macOS / Windows 真机开发环境可另行运行已有 Go 客户端，启用 `-allow-local-http` 并指定 `-feed http://127.0.0.1:8788/feed` 测试读取；R2.4-B 阶段未修改原生界面；R2.5 原生层已实现源码，仍待真实桌面验收。当前第三方确认与储备事件会保存在历史、资讯及带有 `source_type:third_party` 的 Feed 事件中，**所有第三方事件都没有 `effective_at` 和 `verified_at`，不会触发官方未来重置提醒**。第三方历史归档暂固定 `complete:false`，统计数据不足不能展示「0次」。上游异常继续提供旧缓存，但标记 `stale`。
 
 实现细节、测试证据和限制：[`docs/quality/desktop-reset-clock-r24-b-go-bridge.zh-CN.md`](../../docs/quality/desktop-reset-clock-r24-b-go-bridge.zh-CN.md)。
 
