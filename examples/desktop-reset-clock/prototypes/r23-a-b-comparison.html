@@ -20,7 +20,7 @@ a{color:#126e58}a:focus-visible,select:focus-visible{outline:3px solid #57ba99}
 @media(max-width:900px){.grid{grid-template-columns:1fr}main{padding:16px 12px}}
 </style></head><body>
 <main><h1>Reset Clock · R2.3 卡片 A/B 比较</h1>
-<p class="intro">仅用于视觉判断。A 是已保存的单行轮播样式；B 是三条常显样式，右侧可切换装饰图形或带明确标签的推广占位。未来 1 小时 30 分倒计时为合成演示，并非已核实的下一次官方重置时间。</p>
+<p class="intro">仅用于视觉判断。A 是已保存的单行轮播样式；B2 是日期前置、三条常显的简洁样式；查看详情改为倒计时标题旁的小图标，右侧可切换装饰图形或带明确标签的推广占位。未来 1 小时 30 分倒计时为合成演示，并非已核实的下一次官方重置时间。</p>
 <div class="controls">
 <label>事件状态 <select id="scenario"><option value="v1">模拟预告</option><option value="v2">更正</option><option value="v3">已撤回</option><option value="stale">来源异常</option><option value="empty">无数据</option><option value="long">超长标题</option></select></label>
 <label>B 版右侧 <select id="visual"><option value="decor">轻图形（默认）</option><option value="promo">推广示意</option><option value="off">关闭图形</option></select></label>
@@ -30,7 +30,7 @@ a{color:#126e58}a:focus-visible,select:focus-visible{outline:3px solid #57ba99}
 <section><h2>A · 单行轮播（保留）</h2><p>默认一条，6 秒轮播，支持手动前后切换和展开。基线来自既有 R2.2 原型。</p>
 <iframe id="a" title="A 版单行轮播卡片" src="r23-a-single-line-archive.html?cardOnly=1&amp;scenario=v1&amp;tier=free" loading="eager"></iframe>
 <div class="links"><a href="r23-a-single-line-archive.html" target="_blank" rel="noopener">打开完整 A 版和详情窗口 ↗</a></div></section>
-<section><h2>B · 三条常显（新版）</h2><p>三条有效信息默认直接展示；不轮播、不折叠。一般状态去掉“来源预告 · 未确认”角标。</p>
+<section><h2>B2 · 三条常显（日期前置）</h2><p>移除「最新动态 / 查看全部」标题行和类别标签；左侧日期＋右侧标题，图标可查看详情，不轮播、不折叠。</p>
 <iframe id="b" title="B 版常显三条动态卡片" src="r23-b-three-visible.html?cardOnly=1&amp;scenario=v1&amp;visual=decor&amp;tier=free" loading="eager"></iframe>
 <div class="links"><a href="r23-b-three-visible.html" target="_blank" rel="noopener">打开完整 B 版和详情窗口 ↗</a></div></section>
 </div>
