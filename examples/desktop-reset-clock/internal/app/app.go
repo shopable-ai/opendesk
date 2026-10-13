@@ -502,6 +502,7 @@ func (a *App) displayLocked() desktop.Display {
         if len(top)>0 {d.DetailsOverviewNews=d.DetailsNews}
 	}
     // A dated tracker observation may supply the last reset, never a future clock.
+    lastResetMeta:=""
     if s.Archive!=nil {
         var latest *history.Record
         for i:=range s.Archive.Records {
@@ -511,7 +512,8 @@ func (a *App) displayLocked() desktop.Display {
             if latest==nil || r.ProviderReportedAt.After(*latest.ProviderReportedAt) {latest=r}
         }
         if latest!=nil {
-            d.CardMeta="最近一次第三方重置 · "+shortDate(latest.ProviderReportedAt,s.Config.Zone)
+            lastResetMeta="最近一次第三方重置 · "+shortDate(latest.ProviderReportedAt,s.Config.Zone)
+            d.CardMeta=lastResetMeta
             if latest.SourceURL!="" && !d.HasSourceURL {d.SourceURL=latest.SourceURL;d.HasSourceURL=true}
         }
     }
@@ -571,6 +573,9 @@ func (a *App) displayLocked() desktop.Display {
 			d.CardMeta = "发布 " + shortDate(fallback.SourcePublishedAt, s.Config.Zone)
 		}
 	}
+    // Fallback events are historical facts; they must not override the latest
+    // dated third-party reset or become a future prediction.
+    if chosen==nil && lastResetMeta!="" {d.CardMeta=lastResetMeta}
     // Source lag/error invalidates a live actionable forecast, even when an
     // event's original effective_at remains in the future. Audit metadata
     // and HTTPS evidence stay visible in the detail window.
