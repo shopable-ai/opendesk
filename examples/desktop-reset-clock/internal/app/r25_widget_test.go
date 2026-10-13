@@ -77,4 +77,9 @@ func TestV1ThirdPartyTimelineAndThreeSourceLinkedNews(t *testing.T) {
     if !cached.TickerCached||len(cached.TickerItems)!=3||cached.HasUpcoming {
         t.Fatalf("stale status must retain previously verified cache, without new reset: %+v",cached)
     }
+    // A different validated feed must not be falsely credited to codex-reset.
+    a.s.Snapshot.DataSourceURL="https://other.example/"
+    if got:=a.Display().DataSourceURL;got!="" {
+        t.Fatalf("unrelated feed was misattributed: %q",got)
+    }
 }
