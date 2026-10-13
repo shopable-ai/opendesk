@@ -58,6 +58,8 @@ const (
 
 var (
 	user32          = syscall.NewLazyDLL("user32.dll")
+	msimg32         = syscall.NewLazyDLL("msimg32.dll")
+	gradientFill    = msimg32.NewProc("GradientFill")
 	gdi32           = syscall.NewLazyDLL("gdi32.dll")
 	shell32         = syscall.NewLazyDLL("shell32.dll")
 	kernel32        = syscall.NewLazyDLL("kernel32.dll")
@@ -117,6 +119,8 @@ var (
 type trackMouse struct{ Size, Flags uint32; Hwnd uintptr; HoverTime uint32 }
 type point struct{ X, Y int32 }
 type rect struct{ Left, Top, Right, Bottom int32 }
+type gradientVertex struct{ X, Y int32; Red, Green, Blue, Alpha uint16 }
+type gradientMesh struct{ UpperLeft, LowerRight uint32 }
 type wndClass struct {
 	Size, Style                        uint32
 	Proc                               uintptr
@@ -501,6 +505,18 @@ func (w *windowsUI) paintFill(dc uintptr, area rect, color uintptr) {
 	call(fillRect, dc, uintptr(unsafe.Pointer(&area)), brush)
 	call(deleteObject, brush)
 }
+// GDI uses a native vertical gradient; the solid color is a safe fallback.
+func (w *windowsUI) paintGradient(dc uintptr, height int32) {
+    verts:=[2]gradientVertex{
+        {X:0,Y:0,Red:0x0c00,Green:0x2700,Blue:0x2b00},
+        {X:cardWidth,Y:height,Red:0x1800,Green:0x5a00,Blue:0x4b00},
+    }
+    mesh:=gradientMesh{UpperLeft:0,LowerRight:1}
+    if call(gradientFill,dc,uintptr(unsafe.Pointer(&verts[0])),2,
+        uintptr(unsafe.Pointer(&mesh)),1,1)==0 {
+        w.paintFill(dc,rect{0,0,cardWidth,height},rgb(21,59,57))
+    }
+}
 func (w *windowsUI) paintText(dc uintptr, str string, area rect, size, weight int32, color uintptr, flags uintptr) {
 	if str == "" {
 		return
@@ -522,7 +538,7 @@ func (w *windowsUI) paint() {
  defer call(endPaint,w.card,uintptr(unsafe.Pointer(&state)))
  w.mu.Lock();d:=w.display;w.mu.Unlock()
  height:=cardHeight+len(d.TickerItems)*38
- w.paintFill(dc,rect{0,0,cardWidth,int32(height)},rgb(21,59,57))
+ w.paintGradient(dc,int32(height))
   call(setBk,dc,1)
   white,subtle,green:=rgb(247,251,249),rgb(190,216,207),rgb(166,225,203)
   w.paintText(dc,"↻  Reset Clock",rect{18,16,181,41},15,700,white,0x20|0x8000)
