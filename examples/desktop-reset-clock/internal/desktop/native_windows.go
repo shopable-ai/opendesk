@@ -50,7 +50,7 @@ const (
 	swShow           = 5
 	swShowNoActivate = 4
 	cardWidth        = 386
-	cardHeight       = 202
+	cardHeight       = 264
 	cardExpandedHeight = 334
 	settingsWidth    = 554
 	settingsHeight   = 590
@@ -408,19 +408,14 @@ func windowProc(hwnd uintptr, id uint32, wparam, lparam uintptr) uintptr {
 			w.mu.Unlock()
 			if !locked {
                 x,y:=int(uint16(lparam&0xffff)),int(uint16((lparam>>16)&0xffff))
-                if y>=157&&y<=200 {
-                    if count>0 {
-                        switch {
-                        case x>=303: w.emit("ticker_toggle","")
-                        case x>=274: w.emit("ticker_next","")
-                        case x>=245: w.emit("ticker_prev","")
-                        default: w.detailsWindow()
-                        }
-                    }
-                    return 0
+                height:=cardHeight+count*38
+                if y<50&&x>=220 {w.detailsWindow();return 0}
+                if y>=height-38&&x<255 {
+                    w.mu.Lock();source:=w.display.DataSourceURL;w.mu.Unlock()
+                    if source!="" {w.openDetailsURL(source);return 0}
                 }
-                if y>=205&&y<=cardExpandedHeight&&count>0 {w.detailsWindow();return 0}
-				call(releaseCapture)
+                if y>=180&&y<height-38 {w.detailsWindow();return 0}
+                call(releaseCapture)
 				call(sendMsg, hwnd, 0x00A1, 2, 0)
 			}
 			return 0
@@ -466,8 +461,7 @@ func (w *windowsUI) render() {
  defer func(){w.mu.Lock();w.placing=false;w.mu.Unlock()}()
  if w.card==0{return}
  if d.Show {call(showWin,w.card,swShowNoActivate)}else{call(showWin,w.card,swHide)}
- height:=cardHeight
- if d.TickerExpanded&&len(d.TickerItems)>0{height=cardExpandedHeight}
+ height:=cardHeight+len(d.TickerItems)*38
  x,y:=d.X,d.Y
  // Clamp inside the virtual desktop, retaining negative coordinates for
  // secondary monitors placed left/above the primary. DPI/mixed-monitor
@@ -527,50 +521,38 @@ func (w *windowsUI) paint() {
  if dc==0{return}
  defer call(endPaint,w.card,uintptr(unsafe.Pointer(&state)))
  w.mu.Lock();d:=w.display;w.mu.Unlock()
- height:=cardHeight
- if d.TickerExpanded&&len(d.TickerItems)>0{height=cardExpandedHeight}
+ height:=cardHeight+len(d.TickerItems)*38
  w.paintFill(dc,rect{0,0,cardWidth,int32(height)},rgb(21,59,57))
- call(setBk,dc,1)
- white,subtle,green:=rgb(247,251,249),rgb(190,216,207),rgb(166,225,203)
- w.paintText(dc,"↻  Reset Clock",rect{18,14,148,38},15,650,white,0x20|0x8000)
- badgeBg,badgeInk:=rgb(35,83,71),rgb(209,243,228)
- if d.StatusKind=="revised"||d.StatusKind=="stale"||d.StatusKind=="error"{
-  badgeBg,badgeInk=rgb(88,72,47),rgb(255,231,194)
- }else if d.StatusKind=="withdrawn"{
-  badgeBg,badgeInk=rgb(92,53,60),rgb(255,214,221)
- }
- w.paintFill(dc,rect{154,14,368,40},badgeBg)
- w.paintText(dc,d.Badge,rect{162,14,362,39},11,600,badgeInk,0x20|0x8000)
- w.paintText(dc,d.CardHint,rect{18,53,367,74},12,400,subtle,0x20|0x8000)
- size:=int32(35)
- if !d.HasUpcoming{size=23}
- w.paintText(dc,d.CardValue,rect{18,77,369,122},size,700,white,0x20|0x8000)
- w.paintText(dc,d.CardMeta,rect{18,126,367,148},12,400,subtle,0x20|0x8000)
- w.paintFill(dc,rect{18,154,368,155},rgb(66,112,99))
- w.paintText(dc,"动态",rect{18,163,54,189},11,650,green,0x20|0x8000)
- count:=len(d.TickerItems);index:=0
- if count>0{index=d.TickerIndex%count;if index<0{index=0}}
- if !d.TickerExpanded{
-  title:="暂无有效动态"
-  if count>0{title=d.TickerItems[index].Title}
-  w.paintText(dc,title,rect{58,162,204,192},12,500,white,0x20|0x8000)
- }
- w.paintText(dc,fmt.Sprintf("%d / %d",func()int{if count==0{return 0};return index+1}(),count),
-  rect{206,163,241,189},10,400,subtle,0x20|0x0002|0x8000)
- w.paintText(dc,"‹",rect{245,163,269,190},16,600,white,0x20|0x0001|0x8000)
- w.paintText(dc,"›",rect{274,163,298,190},16,600,white,0x20|0x0001|0x8000)
- toggle:="展开"
- if d.TickerExpanded{toggle="收起"}
- w.paintText(dc,toggle,rect{303,163,369,190},11,600,green,0x20|0x0001|0x8000)
- if d.TickerExpanded {
-  for i,item:=range d.TickerItems {
-   if i>=3{break}
-   top:=int32(207+i*41)
-   w.paintFill(dc,rect{18,top-3,368,top-2},rgb(58,93,84))
-   w.paintText(dc,item.Title,rect{18,top,368,top+21},12,550,white,0x20|0x8000)
-   w.paintText(dc,item.Source+" · "+item.Updated,rect{18,top+20,368,top+38},10,400,subtle,0x20|0x8000)
+  call(setBk,dc,1)
+  white,subtle,green:=rgb(247,251,249),rgb(190,216,207),rgb(166,225,203)
+  w.paintText(dc,"↻  Reset Clock",rect{18,16,181,41},15,700,white,0x20|0x8000)
+  w.paintText(dc,"记录与动态 ↗",rect{240,14,369,43},12,600,green,0x20|0x8000)
+  w.paintText(dc,d.CardHint,rect{18,55,368,77},12,500,green,0x20|0x8000)
+  size:=int32(33)
+  if !d.HasUpcoming {size=23}
+  w.paintText(dc,d.CardValue,rect{18,79,368,118},size,700,white,0x20|0x8000)
+  w.paintText(dc,d.CardMeta,rect{18,125,368,147},12,500,white,0x20|0x8000)
+  note:="独立第三方追踪 · 不代表个人额度恢复"
+  if d.StatusKind=="withdrawn" {note="先前公告已撤回 · 下一次时间待公布"}
+  if d.TickerCached {note="来源待核验 · 以下仅为已保存的历史内容"}
+  w.paintText(dc,note,rect{18,152,368,172},11,400,subtle,0x20|0x8000)
+  w.paintFill(dc,rect{18,180,368,181},rgb(66,112,99))
+  title:="最近动态"
+  if d.TickerCached {title="最近动态 · 缓存"}
+  w.paintText(dc,title,rect{18,189,368,210},12,650,green,0x20|0x8000)
+  if len(d.TickerItems)==0 {
+      w.paintText(dc,"暂无可核验动态",rect{18,212,368,235},11,400,subtle,0x20|0x8000)
   }
- }
+  for i,item:=range d.TickerItems {
+      if i>=3 {break}
+      top:=int32(212+i*38)
+      w.paintText(dc,item.Title,rect{18,top,368,top+19},12,550,white,0x20|0x8000)
+      w.paintText(dc,item.Updated+" · "+item.Source,rect{18,top+19,368,top+35},10,400,subtle,0x20|0x8000)
+  }
+  if d.DataSourceURL!="" {
+      w.paintText(dc,"Data: codex-reset.com ↗",rect{18,int32(height-31),274,int32(height-9)},
+          11,550,green,0x20|0x8000)
+  }
 }
 
 func (w *windowsUI) openSource() {
@@ -598,10 +580,8 @@ func (w *windowsUI) menu() {
 	opts := []menuOption{
 		{name: "settings", title: "查看公告与设置"},
 		{name: "details", title: "记录与动态"},
-        {name: "ticker_prev", title: "上一条动态"},
-        {name: "ticker_next", title: "下一条动态"},
-        {name: "ticker_toggle", title: "展开 / 收起动态", checked: d.TickerExpanded},
 		{name: "refresh", title: "立即检查来源"},
+        {name: "data_source", title: "打开数据来源"},
 		{name: "source", title: "打开原始公告"},
         {name:"resource_0",title:"Codex 官方资料"},
         {name:"resource_1",title:"API 使用指南"},
@@ -631,7 +611,7 @@ func (w *windowsUI) menu() {
 		if option.checked {
 			flags |= 0x0008
 		}
-		if (option.name == "source" && !d.HasSourceURL) || (strings.HasPrefix(option.name,"ticker_") && len(d.TickerItems)==0) {
+		if (option.name == "source" && !d.HasSourceURL) || (option.name=="data_source" && d.DataSourceURL=="") {
 			flags |= 0x0001
 		}
 		call(appendMenu, m, flags, uintptr(i+1), utf(option.title))
@@ -651,6 +631,8 @@ func (w *windowsUI) menu() {
 		w.detailsWindow()
 	case "source":
 		w.openSource()
+    case "data_source":
+        w.openDetailsURL(d.DataSourceURL)
     case "resource_0":
         w.openResourceLink(0)
     case "resource_1":
