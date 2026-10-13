@@ -1,0 +1,40 @@
+{
+  "_note": "Minimized records sampled 2026-10-13 from publicly readable JSON APIs. summary/text are editorial paraphrases, NOT verbatim source posts; do not treat as complete archival coverage.",
+  "captured_at": "2026-10-13T11:29:00.000Z",
+  "forecast": {
+    "updated_at": "2026-10-13T11:01:42.399Z",
+    "probabilities": {"rounded_24h": 19, "rounded_48h": 34},
+    "confidence": "low",
+    "last_reset_at": "2026-10-13T05:03:51.000Z",
+    "official_signal": null
+  },
+  "timeline": {
+    "updated_at": "2026-10-13T11:02:42.415Z",
+    "events": [
+      {"id": "2109812360596865224", "type": "reset", "group": "reset", "summary": "运营方观测到全员重置，随后有人发布确认消息", "announced_at": "2026-10-13T05:03:51.000Z", "announcement_state": "announced", "url": "https://x.com/thsottiaux/status/2109812360596865224"},
+      {"id": "2109812216212099456", "type": "reset", "group": "reset", "summary": "有关重置的候选消息，尚未成为完成证据", "announced_at": "2026-10-13T01:03:25.000Z", "announcement_state": "none", "url": "https://x.com/thsottiaux/status/2109812216212099456"},
+      {"id": "2107913674593644711", "type": "credits", "group": "credits", "summary": "宣布为符合条件的账户增加储备重置", "announced_at": "2026-10-07T19:19:17.000Z", "announcement_state": "none", "url": "https://x.com/thsottiaux/status/2107913674593644711"},
+      {"id": "2107975486798164736", "type": "credits", "group": "credits", "summary": "监测账户显示储备重置可用，但没有对应的原帖链接", "announced_at": "2026-10-07T23:24:55.000Z", "announcement_state": "none", "url": null}
+    ]
+  },
+  "feed": {
+    "fetched_at": "2026-10-13T11:08:34.000Z",
+    "stale": false,
+    "newest_post_at": "2026-10-13T06:21:26.000Z",
+    "signal": null,
+    "tweets": [
+      {"id": "2109892247580000595", "at": "2026-10-13T06:21:26.000Z", "text": "关于近期计划的普通动态，并非已确认重置", "url": "https://x.com/thsottiaux/status/2109892247580000595"},
+      {"id": "2109812360596865224", "at": "2026-10-13T01:03:59.000Z", "text": "较早宣布后续将进行重置；发帖时间和运营方观测时间不同", "url": "https://x.com/thsottiaux/status/2109812360596865224"}
+    ],
+    "events": []
+  },
+  "status-history": {
+    "checked_at": "2026-10-13T11:25:42.460Z",
+    "stale": false,
+    "current": {"indicator": "minor", "codex": "degraded_performance"},
+    "surfaces": [{"id": "web", "status": "degraded_performance"}],
+    "incidents": [{"id": "01M4T4ZCM54D3ZPTQXRSWFG0XS", "name": "GPT-6.1 Sol Codex 与 Work 模式部分性能下降", "status": "monitoring", "started_at": "2026-10-13T08:10:00.000Z", "source_url": "https://status.openai.com/incidents/01M4T4ZCM54D3ZPTQXRSWFG0XS"}],
+    "compensation_links": [],
+    "stats": {"days": 90}
+  }
+}
