@@ -6,8 +6,10 @@
 extern void RCGoAction(char *name, char *value);
 
 static const CGFloat RCScreenCardWidth = 386;
-static const CGFloat RCScreenCardHeight = 202;
-static const CGFloat RCScreenCardExpandedHeight = 334;
+static const CGFloat RCScreenCardHeight = 264;
+static CGFloat RCCardHeight(NSUInteger count) {
+    return RCScreenCardHeight + MIN(count,(NSUInteger)3) * 38;
+}
 static const CGFloat RCSettingsWidth = 520;
 static const CGFloat RCSettingsBaseHeight = 534;
 static const CGFloat RCSettingsExpandedHeight = 660;
@@ -99,6 +101,12 @@ static NSTextView *RCScrollableText(NSView *parent,NSRect frame) {
 @end
 @implementation RCCardView
 - (BOOL)mouseDownCanMoveWindow { return YES; }
+- (void)drawRect:(NSRect)dirtyRect {
+    NSBezierPath *shape=[NSBezierPath bezierPathWithRoundedRect:self.bounds xRadius:16 yRadius:16];
+    NSGradient *gradient=[[NSGradient alloc] initWithStartingColor:RCColor(.047,.155,.170)
+        endingColor:RCColor(.092,.355,.294)];
+    [gradient drawInBezierPath:shape angle:-20];
+}
 - (void)updateTrackingAreas {
  [super updateTrackingAreas];
  if (self.hoverArea) [self removeTrackingArea:self.hoverArea];
@@ -148,6 +156,10 @@ static NSTextView *RCScrollableText(NSView *parent,NSRect frame) {
 @property (strong) NSTextField *metaLabel;
 @property (strong) NSTextField *footLabel;
 @property (strong) NSTextField *tickerText;
+@property (strong) NSButton *detailsEntry;
+@property (strong) NSButton *creditLink;
+@property (strong) NSTextField *newsHeading;
+@property (strong) NSTextField *emptyNews;
 @property (strong) NSTextField *tickerCount;
 @property (strong) NSButton *tickerPrev;
 @property (strong) NSButton *tickerNext;
@@ -192,63 +204,62 @@ static RCController *controller;
     self.card.delegate = self;
 
     RCCardView *background = [[RCCardView alloc] initWithFrame:NSMakeRect(0,0,RCScreenCardWidth,RCScreenCardHeight)];
-    background.wantsLayer = YES;
-    background.layer.backgroundColor = RCColor(.082,.217,.212).CGColor;
-    background.layer.cornerRadius = 16;
-    self.card.contentView = background;
-    NSTextField *brand = RCText(background,RCTopRect(RCScreenCardHeight,18,16,132,22),13,
-                                NSFontWeightSemibold,NSColor.whiteColor,NO,NSTextAlignmentLeft);
+    background.wantsLayer=YES;
+    background.layer.cornerRadius=16;
+    background.layer.masksToBounds=YES;
+    background.autoresizingMask=NSViewWidthSizable|NSViewHeightSizable;
+    self.card.contentView=background;
+    NSTextField *brand=RCText(background,RCTopRect(RCScreenCardHeight,18,16,164,24),14,
+                             NSFontWeightBold,NSColor.whiteColor,NO,NSTextAlignmentLeft);
     brand.stringValue=@"↻  Reset Clock";
-    self.badgeBackground = [[NSView alloc] initWithFrame:RCTopRect(RCScreenCardHeight,171,14,197,24)];
-    self.badgeBackground.wantsLayer=YES;
-    self.badgeBackground.layer.cornerRadius=9;
-    [background addSubview:self.badgeBackground];
-    self.badgeLabel = RCText(self.badgeBackground,NSMakeRect(8,3,182,18),11,
-                           NSFontWeightMedium,NSColor.whiteColor,NO,NSTextAlignmentLeft);
-    self.hintLabel=RCText(background,RCTopRect(RCScreenCardHeight,18,53,350,20),12,
-                          NSFontWeightRegular,RCColor(.73,.85,.80),NO,NSTextAlignmentLeft);
-    self.valueLabel=RCText(background,RCTopRect(RCScreenCardHeight,18,76,350,44),34,
-                           NSFontWeightBold,NSColor.whiteColor,NO,NSTextAlignmentLeft);
-    self.metaLabel=RCText(background,RCTopRect(RCScreenCardHeight,18,125,350,19),11,
-                          NSFontWeightRegular,RCColor(.77,.87,.82),NO,NSTextAlignmentLeft);
-    NSView *divider=[[NSView alloc] initWithFrame:RCTopRect(RCScreenCardHeight,18,154,350,1)];
+    self.detailsEntry=[[NSButton alloc] initWithFrame:RCTopRect(RCScreenCardHeight,246,13,122,28)];
+    self.detailsEntry.bordered=NO;
+    self.detailsEntry.title=@"记录与动态 ↗";
+    self.detailsEntry.font=[NSFont systemFontOfSize:12 weight:NSFontWeightMedium];
+    self.detailsEntry.contentTintColor=NSColor.whiteColor;
+    self.detailsEntry.target=self;
+    self.detailsEntry.action=@selector(openDetailsClick:);
+    [background addSubview:self.detailsEntry];
+    self.hintLabel=RCText(background,RCTopRect(RCScreenCardHeight,18,56,348,20),12,
+                   NSFontWeightMedium,RCColor(.72,.92,.82),NO,NSTextAlignmentLeft);
+    self.valueLabel=RCText(background,RCTopRect(RCScreenCardHeight,18,79,350,40),24,
+                   NSFontWeightBold,NSColor.whiteColor,NO,NSTextAlignmentLeft);
+    self.metaLabel=RCText(background,RCTopRect(RCScreenCardHeight,18,125,350,20),12,
+                   NSFontWeightMedium,RCColor(.83,.96,.88),NO,NSTextAlignmentLeft);
+    self.summaryLabel=RCText(background,RCTopRect(RCScreenCardHeight,18,151,350,17),10.5,
+                   NSFontWeightRegular,RCColor(.72,.84,.80),NO,NSTextAlignmentLeft);
+    NSView *divider=[[NSView alloc] initWithFrame:RCTopRect(RCScreenCardHeight,18,180,350,1)];
     divider.wantsLayer=YES;
-    divider.layer.backgroundColor=[NSColor colorWithCalibratedWhite:1 alpha:.16].CGColor;
+    divider.layer.backgroundColor=[[NSColor whiteColor] colorWithAlphaComponent:.18].CGColor;
     [background addSubview:divider];
-    NSTextField *newsHeading=RCText(background,RCTopRect(RCScreenCardHeight,18,166,33,22),11,
-                        NSFontWeightSemibold,RCColor(.69,.90,.81),NO,NSTextAlignmentLeft);
-    newsHeading.stringValue=@"动态";
-    self.tickerText=RCText(background,RCTopRect(RCScreenCardHeight,58,164,144,24),12,
-                           NSFontWeightMedium,NSColor.whiteColor,NO,NSTextAlignmentLeft);
-    self.tickerCount=RCText(background,RCTopRect(RCScreenCardHeight,205,166,37,20),10,
-                            NSFontWeightRegular,RCColor(.73,.85,.80),NO,NSTextAlignmentCenter);
-    self.tickerPrev=[[NSButton alloc] initWithFrame:RCTopRect(RCScreenCardHeight,245,162,25,28)];
-    self.tickerNext=[[NSButton alloc] initWithFrame:RCTopRect(RCScreenCardHeight,274,162,25,28)];
-    self.tickerExpand=[[NSButton alloc] initWithFrame:RCTopRect(RCScreenCardHeight,303,162,65,28)];
-    NSArray<NSButton *> *buttons=@[self.tickerPrev,self.tickerNext,self.tickerExpand];
-    NSArray<NSString *> *titles=@[@"‹",@"›",@"展开"];
-    NSArray<NSString *> *commands=@[@"ticker_prev",@"ticker_next",@"ticker_toggle"];
-    for (NSUInteger i=0;i<buttons.count;i++) {
-      NSButton *b=buttons[i];
-      b.title=titles[i]; b.identifier=commands[i]; b.font=[NSFont systemFontOfSize:11];
-      b.bezelStyle=NSBezelStyleRounded;
-      b.target=self; b.action=@selector(tickerAction:);
-      b.toolTip=@[@"上一条有效动态",@"下一条有效动态",@"展开或收起精选动态"][i];
-      [background addSubview:b];
-    }
+    self.newsHeading=RCText(background,RCTopRect(RCScreenCardHeight,18,189,350,19),12,
+                         NSFontWeightSemibold,RCColor(.76,.96,.84),NO,NSTextAlignmentLeft);
+    self.newsHeading.stringValue=@"最近动态";
+    self.emptyNews=RCText(background,RCTopRect(RCScreenCardHeight,18,212,350,20),11,
+                          NSFontWeightRegular,RCColor(.77,.89,.82),NO,NSTextAlignmentLeft);
+    self.emptyNews.stringValue=@"暂无可核验动态";
     NSMutableArray<NSTextField *> *rows=[NSMutableArray array];
     NSMutableArray<NSTextField *> *sources=[NSMutableArray array];
     for (NSInteger i=0;i<3;i++) {
-      CGFloat top=207+i*41;
-      NSTextField *title=RCText(background,RCTopRect(RCScreenCardHeight,18,top,350,19),12,
-                                NSFontWeightMedium,NSColor.whiteColor,NO,NSTextAlignmentLeft);
-      NSTextField *source=RCText(background,RCTopRect(RCScreenCardHeight,18,top+19,350,15),10,
-                                NSFontWeightRegular,RCColor(.67,.82,.75),NO,NSTextAlignmentLeft);
-      title.hidden=YES;source.hidden=YES;
-      [rows addObject:title];[sources addObject:source];
+        CGFloat top=212+i*38;
+        NSTextField *title=RCText(background,RCTopRect(RCScreenCardHeight,18,top,350,19),12,
+                                  NSFontWeightMedium,NSColor.whiteColor,NO,NSTextAlignmentLeft);
+        NSTextField *source=RCText(background,RCTopRect(RCScreenCardHeight,18,top+19,350,16),10,
+                                  NSFontWeightRegular,RCColor(.73,.86,.79),NO,NSTextAlignmentLeft);
+        title.hidden=YES;source.hidden=YES;
+        [rows addObject:title];[sources addObject:source];
     }
     self.tickerRows=rows;self.tickerSources=sources;
-    for (NSView *v in background.subviews) v.autoresizingMask=NSViewMinYMargin;
+    self.creditLink=[[NSButton alloc] initWithFrame:NSMakeRect(18,8,230,23)];
+    self.creditLink.bordered=NO;
+    self.creditLink.title=@"Data: codex-reset.com ↗";
+    self.creditLink.font=[NSFont systemFontOfSize:10.5 weight:NSFontWeightMedium];
+    self.creditLink.contentTintColor=RCColor(.76,.95,.85);
+    self.creditLink.target=self;
+    self.creditLink.action=@selector(openCreditClick:);
+    [background addSubview:self.creditLink];
+    for (NSView *v in background.subviews)
+        if (v!=self.creditLink) v.autoresizingMask=NSViewMinYMargin;
     self.tray = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
     self.tray.button.title = @"◷";
     self.tray.button.toolTip = @"OpenDesk Reset Clock";
@@ -269,37 +280,25 @@ static RCController *controller;
     return item;
 }
 - (void)makeMenu {
-    NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Reset Clock"];
-    [menu addItem:[self menuItem:@"查看公告与设置" action:@"settings"]];
+    NSMenu *menu=[[NSMenu alloc] initWithTitle:@"Reset Clock"];
     [menu addItem:[self menuItem:@"记录与动态" action:@"details"]];
-    [menu addItem:[self menuItem:@"立即检查来源" action:@"refresh"]];
-    [menu addItem:[self menuItem:@"Codex 官方资料" action:@"resource_0"]];
-    [menu addItem:[self menuItem:@"API 使用指南" action:@"resource_1"]];
+    [menu addItem:[self menuItem:@"设置" action:@"settings"]];
+    [menu addItem:[self menuItem:@"立即刷新" action:@"refresh"]];
+    [menu addItem:[self menuItem:@"打开数据来源" action:@"data_source"]];
     [menu addItem:[self menuItem:@"打开原始公告" action:@"source"]];
-    [menu addItem:[self menuItem:@"上一条动态" action:@"ticker_prev"]];
-    [menu addItem:[self menuItem:@"下一条动态" action:@"ticker_next"]];
-    [menu addItem:[self menuItem:@"展开 / 收起动态" action:@"ticker_toggle"]];
     [menu addItem:[NSMenuItem separatorItem]];
     [menu addItem:[self menuItem:@"显示桌面卡片" action:@"show"]];
     [menu addItem:[self menuItem:@"锁定位置（点击穿透）" action:@"lock"]];
     [menu addItem:[self menuItem:@"免打扰" action:@"quiet"]];
-    [menu addItem:[self menuItem:@"提前 10 分钟提醒" action:@"advance"]];
-    [menu addItem:[self menuItem:@"24 小时制" action:@"clock"]];
-    [menu addItem:[self menuItem:@"10 分钟后手动提醒" action:@"manual"]];
-    [menu addItem:[NSMenuItem separatorItem]];
     if (self.demo) {
-        for (int revision = 1; revision <= 3; revision++) {
-            [menu addItem:[self menuItem:[NSString stringWithFormat:@"模拟公告 V%d",revision]
-                                   action:[NSString stringWithFormat:@"demo_v%d",revision]]];
-        }
-        [menu addItem:[self menuItem:@"模拟 Pro（不收费）" action:@"mock_pay"]];
-        [menu addItem:[self menuItem:@"模拟退款 / 撤权" action:@"mock_refund"]];
         [menu addItem:[NSMenuItem separatorItem]];
+        for (int revision=1;revision<=3;revision++)
+            [menu addItem:[self menuItem:[NSString stringWithFormat:@"模拟公告 V%d",revision]
+                                       action:[NSString stringWithFormat:@"demo_v%d",revision]]];
     }
-    [menu addItem:[self menuItem:@"启用系统通知权限" action:@"permission"]];
     [menu addItem:[NSMenuItem separatorItem]];
-    [menu addItem:[self menuItem:@"退出" action:@"quit"]];
-    self.tray.menu = menu;
+    [menu addItem:[self menuItem:@"退出程序" action:@"quit"]];
+    self.tray.menu=menu;
 }
 - (void)syncMenu:(NSDictionary *)data {
     for (NSMenuItem *item in self.tray.menu.itemArray) {
@@ -312,10 +311,6 @@ static RCController *controller;
             item.state = RCBool(data,key) ? NSControlStateValueOn : NSControlStateValueOff;
         }
         if ([command isEqualToString:@"source"]) item.enabled = self.sourceURL.length > 0;
-        if ([command hasPrefix:@"ticker_"]) {
-          NSArray *news=[data[@"ticker_items"] isKindOfClass:NSArray.class]?data[@"ticker_items"]:@[];
-          item.enabled=news.count>0;
-        }
     }
 }
 - (void)openSource {
@@ -328,6 +323,7 @@ static RCController *controller;
     if ([command isEqualToString:@"settings"]) { [self showSettings]; return; }
     if ([command isEqualToString:@"details"]) { [self showDetails]; return; }
     if ([command isEqualToString:@"source"]) { [self openSource]; return; }
+    if ([command isEqualToString:@"data_source"]) { [self openCreditClick:nil]; return; }
     if ([command hasPrefix:@"resource_"]) {
       NSInteger idx=[[command substringFromIndex:9] integerValue];
       NSArray *urls=self.lastPayload[@"resource_urls"];
@@ -589,7 +585,10 @@ static RCController *controller;
  self.newsPicker.enabled=news.count>0;
  [self syncSelectedLinks:nil];
 }
-- (void)tickerAction:(NSButton *)sender { [self emit:sender.identifier value:@""]; }
+- (void)openDetailsClick:(id)sender { [self showDetails]; }
+- (void)openCreditClick:(id)sender {
+    [self openSafeDetailsURL:@"https://codex-reset.com/"];
+}
 - (void)saveFeed:(id)sender { [self emit:@"url" value:self.feedField.stringValue]; }
 - (void)refresh:(id)sender { [self emit:@"refresh" value:@""]; }
 - (void)manual:(id)sender { [self emit:@"manual" value:@""]; }
@@ -634,72 +633,48 @@ static RCController *controller;
     self.card.ignoresMouseEvents = self.locked;
     [self.card setMovableByWindowBackground:!self.locked];
     [self syncMenu:data];
-    NSString *kind = RCString(data,@"status_kind");
-    NSColor *badgeColor = RCColor(.16,.33,.29);
-    NSColor *badgeText = RCColor(.70,.96,.82);
-    if ([kind isEqualToString:@"revised"] || [kind isEqualToString:@"stale"] ||
-        [kind isEqualToString:@"error"]) {
-        badgeColor = RCColor(.38,.29,.18); badgeText = RCColor(1,.84,.60);
-    } else if ([kind isEqualToString:@"withdrawn"]) {
-        badgeColor = RCColor(.39,.22,.27); badgeText = RCColor(1,.72,.76);
-    } else if ([kind isEqualToString:@"empty"]) {
-        badgeColor = RCColor(.25,.33,.43); badgeText = RCColor(.82,.89,.96);
-    }
-    NSString *badge = RCString(data,@"badge");
-    RCSetString(self.badgeLabel,badge);
-    self.badgeLabel.textColor = badgeText;
-    self.badgeBackground.layer.backgroundColor = badgeColor.CGColor;
-    CGFloat preferred = ceil([self.badgeLabel intrinsicContentSize].width) + 18;
-    CGFloat width = MIN(212,MAX(90,preferred));
-    self.badgeBackground.frame = RCTopRect(RCScreenCardHeight,368-width,14,width,24);
-    self.badgeLabel.frame = NSMakeRect(8,3,width-16,18);
     RCSetString(self.hintLabel,RCString(data,@"card_hint"));
-    BOOL upcoming = RCBool(data,@"has_upcoming");
-    self.valueLabel.font = [NSFont systemFontOfSize:upcoming ? 34 : 23 weight:NSFontWeightBold];
+    BOOL upcoming=RCBool(data,@"has_upcoming");
+    self.valueLabel.font=[NSFont systemFontOfSize:upcoming?32:23 weight:NSFontWeightBold];
     RCSetString(self.valueLabel,RCString(data,@"card_value"));
     RCSetString(self.metaLabel,RCString(data,@"card_meta"));
+    BOOL cached=RCBool(data,@"ticker_cached");
+    NSString *kind=RCString(data,@"status_kind");
+    NSString *note=[kind isEqualToString:@"withdrawn"]?
+        @"先前公告已撤回 · 下一次时间待公布":
+        (cached?@"来源待核验 · 以下仅为已保存的历史内容":
+          @"独立第三方追踪 · 不代表个人额度恢复");
+    RCSetString(self.summaryLabel,note);
+    RCSetString(self.newsHeading,cached?@"最近动态 · 缓存":@"最近动态");
     NSArray *stories=[data[@"ticker_items"] isKindOfClass:NSArray.class]?data[@"ticker_items"]:@[];
-    BOOL expanded=RCBool(data,@"ticker_expanded")&&stories.count>0;
-    CGFloat desiredHeight=expanded?RCScreenCardExpandedHeight:RCScreenCardHeight;
-    NSInteger index=[data[@"ticker_index"] integerValue];
-    if (index<0||index>=stories.count) index=0;
-    NSDictionary *current=stories.count>0&&[stories[index] isKindOfClass:NSDictionary.class]?stories[index]:nil;
-    RCSetString(self.tickerText,current?RCString(current,@"title"):@"暂无有效动态");
-    RCSetString(self.tickerCount,stories.count>0?[NSString stringWithFormat:@"%ld / %lu",(long)index+1,(unsigned long)stories.count]:@"0 / 0");
-    self.tickerPrev.enabled=stories.count>1&&!expanded;
-    self.tickerNext.enabled=stories.count>1&&!expanded;
-    self.tickerExpand.enabled=stories.count>0;
-    self.tickerExpand.title=expanded?@"收起":@"展开";
-    self.tickerText.hidden=expanded;
+    NSUInteger count=MIN(stories.count,(NSUInteger)3);
+    CGFloat desiredHeight=RCCardHeight(count);
+    self.emptyNews.hidden=count>0;
     for (NSUInteger i=0;i<self.tickerRows.count;i++) {
-      BOOL shown=expanded&&i<stories.count&&[stories[i] isKindOfClass:NSDictionary.class];
-      self.tickerRows[i].hidden=!shown;
-      self.tickerSources[i].hidden=!shown;
-      if (shown) {
-        NSDictionary *item=stories[i];
-        RCSetString(self.tickerRows[i],RCString(item,@"title"));
-        RCSetString(self.tickerSources[i],[NSString stringWithFormat:@"%@ · %@",
-                    RCString(item,@"source"),RCString(item,@"updated")]);
-      }
+        BOOL active=i<count && [stories[i] isKindOfClass:NSDictionary.class];
+        self.tickerRows[i].hidden=!active;
+        self.tickerSources[i].hidden=!active;
+        if (active) {
+            NSDictionary *item=stories[i];
+            RCSetString(self.tickerRows[i],RCString(item,@"title"));
+            RCSetString(self.tickerSources[i],[NSString stringWithFormat:@"%@ · %@",
+                        RCString(item,@"updated"),RCString(item,@"source")]);
+        }
     }
-    // Keep the same top edge while the card expands; persistent Y stays the
-    // coordinate of the collapsed card. Ignore programmatic move callbacks.
+    self.creditLink.hidden=RCString(data,@"data_source_url").length==0;
     self.adjustingCard=YES;
     NSRect frame=self.card.frame;
     NSPoint origin=NSMakePoint([data[@"x"] doubleValue],
-               [data[@"y"] doubleValue]-(desiredHeight-RCScreenCardHeight));
-    // An expanded widget close to the screen edge must remain fully visible.
-    // This clamp affects presentation only; persisted collapsed X/Y are stable.
+                 [data[@"y"] doubleValue]-(desiredHeight-RCScreenCardHeight));
     NSScreen *screen=self.card.screen ?: NSScreen.mainScreen;
     if (screen) {
-      NSRect visible=screen.visibleFrame;
-      origin.x=MAX(NSMinX(visible),MIN(origin.x,NSMaxX(visible)-RCScreenCardWidth));
-      origin.y=MAX(NSMinY(visible),MIN(origin.y,NSMaxY(visible)-desiredHeight));
+        NSRect visible=screen.visibleFrame;
+        origin.x=MAX(NSMinX(visible),MIN(origin.x,NSMaxX(visible)-RCScreenCardWidth));
+        origin.y=MAX(NSMinY(visible),MIN(origin.y,NSMaxY(visible)-desiredHeight));
     }
     if (fabs(frame.size.height-desiredHeight)>1 || fabs(frame.origin.x-origin.x)>1 ||
-        fabs(frame.origin.y-origin.y)>1) {
-      [self.card setFrame:NSMakeRect(origin.x,origin.y,RCScreenCardWidth,desiredHeight) display:YES];
-    }
+        fabs(frame.origin.y-origin.y)>1)
+        [self.card setFrame:NSMakeRect(origin.x,origin.y,RCScreenCardWidth,desiredHeight) display:YES];
     self.adjustingCard=NO;
     if (self.settings) {
         if (!self.settings.isKeyWindow) RCSetString(self.feedField,RCString(data,@"feed_url"));
