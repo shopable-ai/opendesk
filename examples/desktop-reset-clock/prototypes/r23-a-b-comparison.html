@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reset Clock R2.3 — A/B 常驻卡片并排对比</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:#1c362f;background:#f0f4f1}
+*{box-sizing:border-box}body{margin:0}main{max-width:1050px;margin:0 auto;padding:26px 22px 42px}
+h1{font-size:22px;margin:0 0 7px;letter-spacing:-.4px}
+.intro{font-size:13px;line-height:1.6;color:#66796f;margin:0 0 16px}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 22px}
+.controls label{font-size:12px;display:flex;align-items:center;gap:7px;color:#597469}
+select{font:inherit;border:1px solid #cfddd2;border-radius:8px;padding:8px 26px 8px 11px;color:#1a4236;background:#fff}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}
+section{background:white;border:1px solid #dce7df;border-radius:14px;padding:16px;min-width:0}
+h2{font-size:15px;margin:0 0 5px}p{font-size:12px;line-height:1.65;color:#637a6c;margin:0 0 12px}
+iframe{display:block;width:min(394px,100%);height:420px;border:none;overflow:hidden;background:transparent}
+a{color:#126e58}a:focus-visible,select:focus-visible{outline:3px solid #57ba99}
+.links{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;margin-top:12px}
+.disclaimer{border-top:1px solid #dee5df;margin-top:20px;padding-top:16px;color:#6a8174}
+@media(max-width:900px){.grid{grid-template-columns:1fr}main{padding:16px 12px}}
+</style></head><body>
+<main><h1>Reset Clock · R2.3 卡片 A/B 比较</h1>
+<p class="intro">仅用于视觉判断。A 是已保存的单行轮播样式；B 是三条常显样式，右侧可切换装饰图形或带明确标签的推广占位。未来 1 小时 30 分倒计时为合成演示，并非已核实的下一次官方重置时间。</p>
+<div class="controls">
+<label>事件状态 <select id="scenario"><option value="v1">模拟预告</option><option value="v2">更正</option><option value="v3">已撤回</option><option value="stale">来源异常</option><option value="empty">无数据</option><option value="long">超长标题</option></select></label>
+<label>B 版右侧 <select id="visual"><option value="decor">轻图形（默认）</option><option value="promo">推广示意</option><option value="off">关闭图形</option></select></label>
+<label>权益 <select id="tier"><option value="free">Free</option><option value="pro">模拟 Pro</option></select></label>
+</div>
+<div class="grid">
+<section><h2>A · 单行轮播（保留）</h2><p>默认一条，6 秒轮播，支持手动前后切换和展开。基线来自既有 R2.2 原型。</p>
+<iframe id="a" title="A 版单行轮播卡片" src="r23-a-single-line-archive.html?cardOnly=1&amp;scenario=v1&amp;tier=free" loading="eager"></iframe>
+<div class="links"><a href="r23-a-single-line-archive.html" target="_blank" rel="noopener">打开完整 A 版和详情窗口 ↗</a></div></section>
+<section><h2>B · 三条常显（新版）</h2><p>三条有效信息默认直接展示；不轮播、不折叠。一般状态去掉“来源预告 · 未确认”角标。</p>
+<iframe id="b" title="B 版常显三条动态卡片" src="r23-b-three-visible.html?cardOnly=1&amp;scenario=v1&amp;visual=decor&amp;tier=free" loading="eager"></iframe>
+<div class="links"><a href="r23-b-three-visible.html" target="_blank" rel="noopener">打开完整 B 版和详情窗口 ↗</a></div></section>
+</div>
+<p class="disclaimer">参考：<a href="https://tiboreset.com/zh" target="_blank" rel="noopener noreferrer">tiboreset.com/zh ↗</a>、<a href="https://tiboreset.com/zh/tracker" target="_blank" rel="noopener noreferrer">历史记录 ↗</a>、<a href="https://tiboreset.com/zh/codex-usage" target="_blank" rel="noopener noreferrer">个人额度计时 ↗</a>。该站为第三方资料，仅用于原型信息分类研究，不作为官方来源身份认证或生产授权。推广占位没有广告主、定价和真实跳转。</p>
+</main>
+<script>
+(()=>{
+const a=document.getElementById("a"),b=document.getElementById("b");
+const scenario=document.getElementById("scenario"),visual=document.getElementById("visual"),tier=document.getElementById("tier");
+function update(){
+const params=new URLSearchParams({cardOnly:"1",scenario:scenario.value,tier:tier.value});
+a.src="r23-a-single-line-archive.html?"+params.toString();
+params.set("visual",visual.value);
+b.src="r23-b-three-visible.html?"+params.toString();
+}
+[scenario,visual,tier].forEach(el=>el.addEventListener("change",update));
+})();
+</script></body></html>
