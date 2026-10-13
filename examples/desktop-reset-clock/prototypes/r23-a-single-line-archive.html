@@ -120,6 +120,10 @@ button:focus-visible,a:focus-visible,select:focus-visible,[tabindex]:focus-visib
 @media(max-width:460px){.shell{padding:17px 12px 35px}.compact{width:min(100%,386px)}.compact-inner{padding:15px}.count{font-size:32px}.window-header{padding:15px}.window-status{white-space:normal;text-align:right}.panel{padding:15px}.metrics{gap:7px}.metric{padding:10px}.ticker-actions{gap:3px}.tiny-control{min-width:25px;padding:0 5px}.tiny-control.expand{min-width:44px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;scroll-behavior:auto!important;transition:none!important}}
 @media(forced-colors:active){.compact,.detail,.metric,.story{forced-color-adjust:auto;border:1px solid CanvasText}.tiny-control,.chip,.period button{border:1px solid ButtonText}}
+
+/* Comparison embed mode: retain the A card itself; hide inspector chrome. */
+body.rc-card-only .head,body.rc-card-only .controls,body.rc-card-only .card-caption,body.rc-card-only .preview-footer,body.rc-card-only .region-title,body.rc-card-only .workarea>section:nth-child(2){display:none!important}
+body.rc-card-only .shell{padding:4px;max-width:394px}body.rc-card-only .workarea{display:block}body.rc-card-only .compact{width:386px;max-width:100%;box-shadow:none}
 </style>
 </head>
 <body>
@@ -227,6 +231,10 @@ button:focus-visible,a:focus-visible,select:focus-visible,[tabindex]:focus-visib
 var root=document.getElementById("reset-r22");
 if(!root)return;
 var state={scenario:"v1",tier:"free",period:"30",tab:"overview",expanded:false,index:0,hover:false,focus:false};
+var rcParams=new URLSearchParams(window.location.search);
+if(rcParams.has("cardOnly")) document.body.classList.add("rc-card-only");
+if(["v1","v2","v3","stale","empty","long"].indexOf(rcParams.get("scenario"))!==-1) state.scenario=rcParams.get("scenario");
+if(["free","pro"].indexOf(rcParams.get("tier"))!==-1) state.tier=rcParams.get("tier");
 var $=function(id){return root.querySelector("#"+id);};
 var sample=[
   {id:"notice",type:"来源预告",source:"提供方标注官方",title:"重置预告：预计时间已发布，请核对原文",summary:"这是一条合成来源预告。预计时刻不代表确认完成，也不代表个人额度恢复。",updated:"10-12 14:20",revision:1,url:"https://example.org/reset-clock-demo/notice"},
