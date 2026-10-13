@@ -375,7 +375,7 @@ func (a *App) displayLocked() desktop.Display {
 		CardValue: "下一次时间待公布", CardSummary: "尚无有效来源公告",
 		CardMeta: "最近一次第三方重置：暂无可核验记录",
 		CardFoot: state, Health: state, FeedURL: s.Config.FeedURL,
-		DataSourceURL: "https://codex-reset.com/",
+		DataSourceURL: "", // Only credit the provider after a validated snapshot identifies it.
 		Show: s.Config.Show, Locked: s.Config.Locked, Quiet: s.Config.Quiet,
 		Advance10: s.Config.Advance10, Clock24: s.Config.Clock24,
 		X: s.Config.X, Y: s.Config.Y,
@@ -383,6 +383,11 @@ func (a *App) displayLocked() desktop.Display {
 		LastChecked: shortDate(s.Health.LastSourceCheckedAt, s.Config.Zone),
 		LastChanged: shortDate(s.Health.LastEventChangedAt, s.Config.Zone),
 	}
+    // A user-supplied trusted feed is not automatically codex-reset.com.
+    // Attribution must follow the validated source identity, not our branding.
+    if s.Snapshot!=nil && !demo && s.Snapshot.DataSourceURL=="https://codex-reset.com/" {
+        d.DataSourceURL=s.Snapshot.DataSourceURL
+    }
 	d.Diagnostics = fmt.Sprintf("本机请求: %s | 有效数据: %s\n上游检查: %s | 本地发现公告变化: %s\n最后失败: %s (%s)",
 		timeLabel(s.Health.LastAttemptAt), timeLabel(s.Health.LastValidFeedAt),
 		timeLabel(s.Health.LastSourceCheckedAt), timeLabel(s.Health.LastEventChangedAt),
