@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Reset Clock · R2.3 C3 · 参考图高还原渐变 Hero 预览</title>
+<style>
+:root{--page:#edf3f0;--ink:#203b32;--muted:#64796e;--line:#dce7df;--card:#092d2a;--mint:#b5f5d9;--mint-muted:#c4e5d7;--white:#f8fffc;--focus:#b4f8db;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+*{box-sizing:border-box}
+html{background:var(--page)}
+body{margin:0;color:var(--ink);font-size:13px}
+button,select{font:inherit}
+button{cursor:pointer}
+button:focus-visible,select:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:3px solid #64b69b;outline-offset:3px}
+[hidden]{display:none!important}
+.shell{max-width:1120px;margin:auto;padding:26px 20px 55px}
+.preview-head{display:flex;justify-content:space-between;gap:16px;align-items:start;flex-wrap:wrap;margin-bottom:18px}
+.preview-head h1{font-size:21px;letter-spacing:-.5px;margin:0}
+.preview-head p{font-size:12px;color:#59736a;line-height:1.7;margin:6px 0 0}
+.preview-mark{align-self:start;background:#e2f1e9;color:#236450;border:1px solid #b4d8c4;border-radius:7px;padding:6px 9px;font-size:11px;font-weight:700}
+.preview-controls{display:flex;flex-wrap:wrap;gap:10px 19px;align-items:center;margin-bottom:20px;padding:12px 14px;background:#fff;border:1px solid #d8e5da;border-radius:11px}
+.preview-controls label{display:flex;align-items:center;gap:7px;font-size:11.5px;color:#5f746a}
+.preview-controls select{min-height:31px;border:1px solid #cadbcf;border-radius:7px;padding:5px 8px;background:#fff;color:#254c3b}
+.preview-layout{display:grid;grid-template-columns:minmax(0,386px) minmax(0,1fr);align-items:start;gap:25px}
+.region-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:11px;font-weight:690;color:#577266;margin:0 0 10px}
+.region-heading small{font-size:11px;color:#7e9186;font-weight:500}
+.clock-card{position:relative;isolation:isolate;overflow:hidden;width:386px;max-width:100%;border:1px solid #2d6860;border-radius:20px;background:radial-gradient(ellipse 72% 65% at 90% 7%,#186b78 0%,transparent 89%),radial-gradient(ellipse 85% 55% at 35% 100%,#10584c 0%,transparent 85%),linear-gradient(155deg,#103e3a 0%,#06332f 48%,#082b2a 100%);color:var(--white);box-shadow:0 17px 31px #163b3425,0 1px 3px #1d3e3e32;line-height:1.45}
+.clock-card::before{content:"";position:absolute;inset:-1px;pointer-events:none;z-index:1;background:radial-gradient(ellipse 82% 18% at 72% 53%,#52b8ad35,transparent 75%),linear-gradient(170deg,transparent 43%,#0b372fa8 72%,#0b372f 91%);opacity:.87}
+.clock-card::after{content:"";position:absolute;inset:0;border-radius:20px;border:1px solid #a6fff51b;pointer-events:none;z-index:4}
+.hero-art{position:absolute;right:-7px;top:35px;width:60%;height:209px;z-index:0;pointer-events:none;overflow:hidden;opacity:.97;-webkit-mask-image:linear-gradient(to right,transparent 0%,#000 17%,#000 100%),linear-gradient(to bottom,#000 0%,#000 77%,transparent 99%);-webkit-mask-composite:source-in;mask-image:linear-gradient(to right,transparent 0%,#000 17%,#000 100%),linear-gradient(to bottom,#000 0%,#000 77%,transparent 99%);mask-composite:intersect}
+.hero-art img{display:block;width:100%;height:100%;object-fit:cover;object-position:58% 50%}
+.hero-shimmer{position:absolute;z-index:0;right:-72px;top:-75px;width:290px;height:275px;pointer-events:none;background:radial-gradient(circle,#3fae9d3f,transparent 72%)}
+.hero-ribbon{position:absolute;z-index:1;pointer-events:none;left:-36px;right:-25px;top:194px;height:50px;border-top:1px solid #75f5d23c;border-radius:70% 30% 0 0;transform:rotate(-5deg);background:linear-gradient(170deg,#1c7c684a,transparent 80%)}
+.card-content{position:relative;z-index:2;padding:15px 17px 0}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:31px}
+.brand{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:740;letter-spacing:-.2px;white-space:nowrap}
+.brand-mark{width:25px;height:25px;border-radius:50%;display:grid;place-items:center;background:#185b50;color:#aeffe0}
+.brand-mark svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.details-link{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 10px 6px 12px;min-height:30px;border-radius:999px;white-space:nowrap;color:#e3fff2;background:#10453fd9;border:1px solid #6bbbaa7d;font-weight:650;font-size:11px;box-shadow:0 2px 7px #002d271f}
+.details-link:hover{background:#226959}
+.details-link:focus-visible{outline-color:var(--focus)}
+.details-link svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round}
+.card-main{position:relative;min-height:145px;padding-top:28px}
+.time-label{color:#f1fff6;font-size:13px;font-weight:660;letter-spacing:.05px;max-width:235px}
+.countdown{display:flex;align-items:baseline;gap:4px;min-height:62px;max-width:228px;white-space:nowrap;font-variant-numeric:tabular-nums;margin-top:7px}
+.countdown strong{font-size:47px;font-weight:790;letter-spacing:-1.6px;line-height:1.18;color:#fff;text-shadow:0 1px 10px #9ce7dd16}
+.countdown small{font-size:15px;font-weight:690;color:#aaf1d4;margin-right:4px}
+.countdown.status-text{align-items:center;white-space:normal}
+.countdown.status-text strong{font-size:24px;letter-spacing:-.6px;line-height:1.35}
+.expected{font-size:11px;color:#e0f2e9;line-height:1.45;letter-spacing:.05px;white-space:nowrap;max-width:338px;overflow:hidden;text-overflow:ellipsis;position:relative;z-index:3}
+.special-state{position:absolute;top:49px;left:17px;z-index:3;font-size:10px;padding:4px 7px;font-weight:700;border-radius:6px;background:#734f2f;color:#ffe8b9;border:1px solid #a9844f}
+.special-state.danger{background:#6d3643;color:#ffe1e6;border-color:#ae6676}
+.special-state.neutral{background:#32554d;color:#e0eee6;border-color:#698979}
+.news{position:relative;z-index:2;margin:16px 0 0;border-top:1px solid #86e2c751;padding:1px 0 0}
+.news-row{display:grid;grid-template-columns:47px minmax(0,1fr);gap:12px;align-items:center;min-height:38px;border-bottom:1px solid #a0f3d12e}
+.news-row:last-child{border-bottom:0}
+.news-date{font-size:11.5px;color:#b1f4d7;font-weight:680;white-space:nowrap;font-variant-numeric:tabular-nums}
+.news-title{font-size:12px;color:#f4fff8;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0;font-weight:550;letter-spacing:.05px}
+.news-empty{font-size:11px;color:#d0e9da;padding:13px 0 18px}
+.card-foot{font-size:10px;line-height:1.45;color:#c3dcd0;margin:0 -17px;padding:11px 17px 12px;border-top:1px solid #d2fae81c;background:linear-gradient(90deg,#08332db4,#0d52493b)}
+.promo-disclosure{position:absolute;z-index:3;right:15px;top:171px;font-size:9px;color:#e2f6e9;background:#0a463bc9;padding:3px 6px;border-radius:4px;border:1px solid #5b9e8059}
+.presentation-note{font-size:11px;color:#577365;line-height:1.65;margin:10px 2px 0}
+.details-window{min-width:0;background:#fff;border:1px solid #dae7de;border-radius:15px;box-shadow:0 8px 27px #23503c0d;overflow:hidden}
+.detail-head{padding:17px 19px 14px;border-bottom:1px solid #e0eae2;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.detail-head h2{font-size:16px;margin:0;letter-spacing:-.3px}
+.detail-head p{margin:5px 0 0;font-size:11px;color:#71897a}
+.detail-close{display:none;border:1px solid #d3e1d8;background:#f7faf7;border-radius:7px;font-size:11px;color:#3c6954;padding:6px 9px}
+.detail-tabs{display:flex;align-items:center;gap:7px;padding:8px 17px 0;border-bottom:1px solid #e1e9e4}
+.detail-tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:10px 12px;color:#687e72;font-size:12px}
+.detail-tabs button[aria-selected=true]{font-weight:760;color:#107b60;border-bottom-color:#15836d;background:#eef8f1}
+.detail-page{padding:18px 20px 20px;min-height:310px}
+.section-title{font-size:14px;font-weight:750;color:#183e30;margin:0}
+.section-caption{font-size:11px;color:#71877a;margin:5px 0 0;line-height:1.65}
+.range{display:flex;gap:2px;border:1px solid #e0e9e2;background:#f1f6f1;padding:3px;border-radius:9px}
+.range button{background:transparent;border:0;padding:6px 9px;border-radius:6px;font-size:11px;color:#516b5c}
+.range button[aria-pressed=true]{background:#fff;color:#117a5e;box-shadow:0 1px 5px #23412b17;font-weight:730}
+.row-between{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0 0}
+.metric{border:1px solid #e0e9e2;border-radius:10px;padding:12px 10px;background:#fafcf9;min-width:0}
+.metric-name{font-size:11px;color:#607967}
+.metric-value{font-size:22px;font-weight:760;color:#254a37;margin:7px 0 4px;font-variant-numeric:tabular-nums}
+.metric-value.unknown{font-size:14px;margin-top:12px}
+.metric-sub{font-size:10px;color:#718679;line-height:1.45}
+.section-rule{height:1px;background:#e2eae4;margin:19px 0}
+.link-button{background:none;border:0;color:#13745b;padding:5px 0;font-size:11px;font-weight:660}
+.link-button:hover{text-decoration:underline}
+.summary-entry{padding:10px 0;border-bottom:1px solid #eef0ed}
+.summary-entry:last-child{border-bottom:0}
+.entry-title{font-size:12px;color:#264c3a;font-weight:680;line-height:1.6}
+.entry-meta{font-size:10px;color:#798c7f;margin-top:3px}
+.chip{display:inline-block;border-radius:5px;padding:2px 5px;background:#e7f4ec;color:#20644d;font-size:10px;font-weight:700;margin-right:5px}
+.chip.warn{background:#fff0dc;color:#96601b}
+.chip.danger{background:#fae7e9;color:#a13d4e}
+.disclaimer{background:#f3f8f3;border:1px solid #e1ebe3;border-radius:8px;color:#607868;line-height:1.6;font-size:11px;padding:10px 12px;margin:14px 0 0}
+.timeline{border-left:2px solid #d7e7d8;margin:16px 0 0 8px;padding-left:19px}
+.timeline-entry{padding:0 0 20px;position:relative}
+.timeline-entry::before{content:"";position:absolute;left:-26px;top:3px;width:11px;height:11px;border:2px solid #fff;border-radius:50%;background:#62b497}
+.timeline-entry.revoked::before{background:#b85b70}
+.timeline-date{font-size:10px;color:#748879}
+.timeline-title{font-size:12px;font-weight:690;color:#254a37;margin-top:4px}
+.timeline-copy{font-size:11px;color:#667e6e;margin-top:5px;line-height:1.6}
+.news-story{border-bottom:1px solid #e5eae5;padding:12px 0}
+.news-story:last-child{border-bottom:0}
+.news-story-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.story-title{font-size:12.5px;font-weight:730;color:#214637;margin:8px 0 3px}
+.story-copy{font-size:11px;color:#667b6e;line-height:1.65;margin:0}
+.story-source{font-size:10px;color:#829488}
+.empty-page{font-size:12px;color:#6a8173;padding:18px 3px}
+.preview-footer{font-size:11px;color:#687e71;margin-top:18px;line-height:1.7}
+@media(max-width:920px){.preview-layout{grid-template-columns:1fr}.details-window{max-width:660px}.detail-close{display:block}}
+@media(max-width:445px){.shell{padding:18px 11px 45px}.card-content{padding:14px 15px 0}.card-foot{margin:0 -15px;padding:10px 15px}.hero-art{width:61%;right:-10px;top:36px;height:192px}.countdown{max-width:221px}.countdown strong{font-size:39px}.countdown small{font-size:13px}.countdown.status-text strong{font-size:21px}.time-label{font-size:12px}.card-head{gap:4px}.brand{font-size:13px}.details-link{padding:5px 8px;font-size:10.5px}.expected{font-size:10.5px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.detail-page{padding:15px}.promo-disclosure{right:14px}}
+
+/* R2.3 C3: reference-faithful teal glass, luminous photographic hero, compact density.
+   The artwork is a self-contained WebP; all countdown/news/control content remains DOM text. */
+.clock-card{
+  border:1px solid #1f766e;
+  border-radius:18px;
+  background:radial-gradient(ellipse 75% 64% at 89% 11%,#076784 0%,transparent 82%),
+    radial-gradient(ellipse 100% 75% at 18% 1%,#105b56 0%,transparent 68%),
+    radial-gradient(ellipse 85% 43% at 50% 100%,#0c5b49 0%,transparent 90%),
+    linear-gradient(155deg,#0b423e 0%,#042c2d 56%,#062e31 100%);
+  box-shadow:0 16px 35px #153c4250,0 35px 45px -31px #0b49472e,inset 0 1px #8df7dc65;
+  line-height:1.45;
+}
+.clock-card::before{
+  content:"";position:absolute;z-index:1;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 62% 18% at 100% 59%,#22cfb635,transparent 100%),
+    linear-gradient(175deg,transparent 45%,#002d2d13 58%,#032b2b2c 67%,#032e2c9a 80%,transparent 100%);
+  opacity:.85;
+}
+.clock-card::after{border-radius:18px;border-color:#b0fced26}
+.hero-art{
+  right:-2px;top:18px;width:59.1%;height:172px;z-index:0;opacity:1;
+  -webkit-mask-image:linear-gradient(to right,transparent 0%,#000 5%,#000 100%),
+    linear-gradient(to bottom,transparent 0%,#000 8%,#000 81%,transparent 99%);
+  -webkit-mask-composite:source-in;
+  mask-image:linear-gradient(to right,transparent 0%,#000 5%,#000 100%),
+    linear-gradient(to bottom,transparent 0%,#000 8%,#000 81%,transparent 99%);
+  mask-composite:intersect;
+}
+.hero-art img{object-fit:fill;object-position:center;width:100%;height:100%}
+.hero-shimmer{right:-36px;top:-21px;width:240px;height:184px;background:radial-gradient(circle,#4dcabf26,transparent 74%)}
+.hero-ribbon{
+  top:174px;left:-32px;right:-24px;height:41px;border-top:0;
+  border-radius:75% 26% 0 0;transform:rotate(-4deg);
+  background:linear-gradient(176deg,#0e9f8435,transparent 86%);
+}
+.card-content{padding:15px 17px 0}
+.card-head{min-height:31px;justify-content:flex-start;gap:12px}
+.brand{font-size:14px;font-weight:760;letter-spacing:-.32px}
+.brand-mark{width:25px;height:25px;background:#126c60;color:#90ffdc;box-shadow:0 0 14px #4ed4b337}
+.details-link{
+  background:linear-gradient(135deg,#147966cc,#075248eb);
+  border:1px solid #72d5b9aa;color:#ecfff6;
+  box-shadow:inset 0 1px #d1ffdd18,0 4px 12px #032a2537;
+}
+.card-main{min-height:125px;padding-top:27px}
+.time-label{color:#e8fff7;font-size:13px;font-weight:660}
+.countdown strong{font-size:48px;letter-spacing:-1.4px;color:#f9fffe;text-shadow:0 1px 4px #c8fff71c}
+.countdown small{font-size:16px;color:#96ffe0;font-weight:730}
+.expected{color:#d5f2e9;max-width:300px}
+.news{margin-top:8px;border-top-color:#79efca48}
+.news-row{min-height:34px;gap:10px;border-bottom-color:#a2eacd29}
+.news-date{color:#9ef4da;font-weight:710}
+.news-title{color:#f7fffc;font-weight:590}
+.card-foot{color:#b7d3ca;background:linear-gradient(90deg,#052e2bc2,#06504761);padding-top:8px;padding-bottom:8px}
+.promo-disclosure{right:13px;top:163px;background:#063e38e5;color:#d6fff0;border-color:#91d8bb55}
+@media(max-width:445px){
+  .hero-art{width:59.1%;height:169px;right:-2px;top:18px}
+  .countdown strong{font-size:41px}
+  .countdown small{font-size:14px}
+  .expected{max-width:300px}
+}
+
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media(forced-colors:active){.clock-card,.details-window,.metric{border:1px solid CanvasText;forced-color-adjust:auto}.details-link,.news-row{border-color:CanvasText}}
+</style>
+</head>
+<body>
+<main class="shell" id="reset-r23-approved">
+ <header class="preview-head">
+  <div>
+   <h1>Reset Clock · R2.3 C3 参考图高还原版</h1>
+   <p>按用户参考效果图重做：城市光影、金币钱包、青绿流光自然融合 · 左侧真实倒计时 · 三条常显动态</p>
+  </div>
+  <span class="preview-mark">离线视觉演示 / 非官方数据</span>
+ </header>
+ <div class="preview-controls" aria-label="设计验收模拟控制">
+  <label>模拟状态
+   <select id="scenario">
+    <option value="forecast">有效预告</option><option value="revised">已更正</option>
+    <option value="withdrawn">已撤回</option><option value="stale">来源异常</option>
+    <option value="empty">无数据</option><option value="long">长中文标题</option>
+   </select>
+  </label>
+  <label>图形展示
+   <select id="art-mode">
+    <option value="promo">参考图融合 Banner</option>
+    <option value="decor">无广告的纯渐变</option>
+   </select>
+  </label>
+  <label>模拟权益
+   <select id="tier"><option value="free">Free</option><option value="pro">模拟 Pro</option></select>
+  </label>
+ </div>
+ <div class="preview-layout">
+  <section aria-label="桌面常驻卡片">
+   <div class="region-heading"><span>桌面卡片 · C3 参考图版</span><small>宽度 386px 基线</small></div>
+   <article class="clock-card" id="card" aria-label="Reset Clock 桌面卡片">
+    <div class="hero-shimmer" aria-hidden="true"></div>
+    <div class="hero-art" id="hero-art">
+     <img src="../internal/desktop/assets/r23-c3-reference-hero.webp" alt="推广示意：ChatGPT账号会员，购买、开通；城市、金币与钱包场景（非实际交易）" decoding="async" loading="eager">
+    </div>
+    <div class="hero-ribbon" aria-hidden="true"></div>
+    <div class="special-state" id="special-state" hidden></div>
+    <div class="card-content">
+     <div class="card-head">
+      <div class="brand">
+       <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M20 10a8 8 0 0 0-14.5-3L3 10M3 4v6h6M4 14a8 8 0 0 0 14.5 3L21 14M15 14h6v6"/></svg>
+       </span>
+       Reset Clock
+      </div>
+      <button class="details-link" id="open-details" type="button" aria-expanded="true" aria-controls="details-panel">记录与动态
+       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
+      </button>
+     </div>
+     <div class="card-main">
+      <div class="time-label" id="label">距离预计重置</div>
+      <div class="countdown" id="countdown" aria-live="off">
+       <strong>1</strong><small>小时</small><strong>30</strong><small>分</small>
+      </div>
+      <div class="expected" id="expected">预计 10 月 13 日 06:00 · 本地时间（模拟）</div>
+     </div>
+     <section class="news" id="news-list" aria-label="三条精选动态，时间在前" role="list"></section>
+     <div class="card-foot">ⓘ　未来预告仅为界面演示，不代表官方确认或个人额度恢复。</div>
+    </div>
+    <span class="promo-disclosure" id="promo-disclosure">推广 · 示意</span>
+   </article>
+   <p class="presentation-note">C3 按上传的参考图还原右侧金币、钱包、城市与光晕。广告文案直接在 WebP 图片内，非可点击购买按钮；倒计时、动态和详情入口仍为真实 HTML 元素。所有时间与交易内容均为演示。</p>
+  </section>
+  <section class="details-window" id="details-panel" aria-label="记录与动态独立详情窗口">
+   <header class="detail-head">
+    <div><h2>记录与动态</h2><p>概览、事件修订与独立来源资讯</p></div>
+    <button id="close-details" class="detail-close" type="button">关闭预览</button>
+   </header>
+   <nav class="detail-tabs" role="tablist" aria-label="记录与动态分页">
+    <button type="button" role="tab" data-tab="overview" id="tab-overview" aria-selected="true" aria-controls="panel-overview" tabindex="0">概览</button>
+    <button type="button" role="tab" data-tab="history" id="tab-history" aria-selected="false" aria-controls="panel-history" tabindex="-1">历史记录</button>
+    <button type="button" role="tab" data-tab="news" id="tab-news" aria-selected="false" aria-controls="panel-news" tabindex="-1">资讯</button>
+   </nav>
+   <section class="detail-page" role="tabpanel" id="panel-overview" aria-labelledby="tab-overview">
+    <div class="row-between">
+     <h3 class="section-title">事件统计</h3>
+     <div class="range" id="range">
+      <button type="button" data-period="30" aria-pressed="true">最近 30 天</button>
+      <button type="button" data-period="month" aria-pressed="false">本月</button>
+     </div>
+    </div>
+    <p class="section-caption" id="coverage">合成归档用于验证统计区间与覆盖范围。</p>
+    <div class="metrics" id="metrics"></div>
+    <div class="section-rule"></div>
+    <div class="row-between">
+     <h3 class="section-title">最新有效动态</h3>
+     <button class="link-button" id="open-news" type="button">查看全部资讯 ↗</button>
+    </div>
+    <div id="overview-news"></div>
+    <div class="disclaimer">来源类别由数据提供方标注，不能代替官方身份核验；个人额度变化须在用户账户中确认。</div>
+   </section>
+   <section class="detail-page" role="tabpanel" id="panel-history" aria-labelledby="tab-history" hidden>
+    <h3 class="section-title">历史事件时间线</h3>
+    <p class="section-caption">发布、更正、确认、撤回分开呈现；同一事件不会因修订多次计数。</p>
+    <div class="timeline" id="timeline"></div>
+   </section>
+   <section class="detail-page" role="tabpanel" id="panel-news" aria-labelledby="tab-news" hidden>
+    <h3 class="section-title">资讯与来源</h3>
+    <p class="section-caption">保留已撤回及来源失效状态；仅有效且可核验的新闻参与桌面展示。</p>
+    <div id="all-news"></div>
+   </section>
+  </section>
+ </div>
+ <footer class="preview-footer">R2.3 C3 参考上传的高质感渐变效果图创建离线 HTML 视觉预览，文字「ChatGPT账号会员 / 购买 / 开通」是图片内设计元素，不是 OpenAI 官方销售声明，也不表示实际支付、充值或开通服务可用。倒计时、资讯与账户权益均采用模拟数据；未连接真实 Feed、支付接口或原生桌面宿主。原 C / C2 版保留为对照。</footer>
+</main>
+<script>
+(function(){
+ "use strict";
+ var root=document.getElementById("reset-r23-approved");
+ if(!root)return;
+ var $=function(id){return root.querySelector("#"+id);};
+ var state={scenario:"forecast",art:"promo",tier:"free",period:"30",tab:"overview",details:true};
+ var base=[
+   {id:"forecast",date:"2026-10-13",label:"10/13",type:"预告",title:"模拟预告：预计 06:00 重置",summary:"预计时间仅用于此 HTML 的视觉验证；并非真实官方的下一次重置通知。",source:"演示资料",revision:1,status:"active",url:""},
+   {id:"global",date:"2026-10-11",label:"10/11",type:"全员重置",title:"全员重置已确认",summary:"用于演示事件类别的独立历史案例；不能直接推断任何特定账户的额度已恢复。",source:"第三方资料示意",revision:1,status:"active",url:"https://tiboreset.com/zh"},
+   {id:"banked",date:"2026-10-07",label:"10/07",type:"储备重置",title:"储备重置额度已发放",summary:"储备重置与全员重置不同；是否适用个人账户仍要逐项核实。",source:"第三方资料示意",revision:1,status:"active",url:"https://tiboreset.com/zh"}
+ ];
+ function node(tag,className,value){var e=document.createElement(tag);if(className)e.className=className;if(value!==undefined)e.textContent=value;return e;}
+ function data(){
+   return base.map(function(item){
+     var n=Object.assign({},item);
+     if(n.id==="forecast"){
+       if(state.scenario==="revised"){n.title="模拟更正：预计调整至 06:40";n.revision=2;n.status="revised";}
+       if(state.scenario==="withdrawn"){n.title="模拟预告已撤回";n.revision=3;n.status="withdrawn";}
+       if(state.scenario==="long")n.title="模拟预告更正和适用范围的超长中文标题：用于检测桌面卡片缩放、视口变窄与日期栏宽度变化时是否保持单行省略号";
+     }
+     return n;
+   });
+ }
+ function active(){if(state.scenario==="stale"||state.scenario==="empty")return[];return data().filter(function(n){return n.status==="active"||n.status==="revised";}).slice(0,3);}
+ function setCountdown(parts,text){
+   var value=$("countdown");value.replaceChildren();value.className="countdown"+(text?" status-text":"");
+   if(text){value.append(node("strong","",text));return;}
+   parts.forEach(function(part){value.append(node("strong","",part[0]),node("small","",part[1]));});
+ }
+ function renderCard(){
+   var label=$("label"),expected=$("expected"),badge=$("special-state");badge.hidden=true;badge.className="special-state";
+   label.textContent="距离预计重置";
+   if(state.scenario==="forecast"||state.scenario==="long"){
+     setCountdown([["1","小时"],["30","分"]]);
+     expected.textContent="预计 10 月 13 日 06:00 · 本地时间（模拟）";
+   }else if(state.scenario==="revised"){
+     setCountdown([["2","小时"],["10","分"]]);expected.textContent="更正为 10 月 13 日 06:40 · 本地时间（模拟）";
+     badge.textContent="时间已更正";badge.hidden=false;
+   }else if(state.scenario==="withdrawn"){
+     label.textContent="当前事件状态";setCountdown(null,"预告已撤回");
+     expected.textContent="原预计时间已取消，不再倒计时";
+     badge.textContent="已撤回";badge.classList.add("danger");badge.hidden=false;
+   }else if(state.scenario==="stale"){
+     label.textContent="当前来源状态";setCountdown(null,"时间待核验");
+     expected.textContent="来源检查异常，停止有效倒计时";
+     badge.textContent="来源异常";badge.hidden=false;
+   }else{
+     label.textContent="当前重置状态";setCountdown(null,"暂无确定时间");
+     expected.textContent="等待新的有效预告";
+     badge.textContent="无数据";badge.classList.add("neutral");badge.hidden=false;
+   }
+   $("hero-art").hidden=state.art!=="promo";
+   $("promo-disclosure").hidden=state.art!=="promo";
+   var list=$("news-list");list.replaceChildren();
+   var items=active();
+   if(!items.length)list.append(node("div","news-empty","暂无可展示的有效动态"));
+   items.forEach(function(item){
+     var row=node("div","news-row");
+     row.setAttribute("role","listitem");
+     var when=node("time","news-date",item.label);when.dateTime=item.date;
+     var title=node("span","news-title",item.title);title.title=item.title;
+     row.append(when,title);list.append(row);
+   });
+ }
+ function metricValues(){
+   if(state.scenario==="empty"||state.scenario==="stale")return [null,null,null,null];
+   return state.period==="30"?[state.scenario==="withdrawn"?1:2,1,1,1]:[state.scenario==="withdrawn"?0:1,0,1,1];
+ }
+ function renderOverview(){
+   var values=metricValues(),names=["来源预告","确认完成","赠送机会","用户观察"],descs=["发布记录，不等于完成","独立完成证据","需核验适用范围","不是官方确认"];
+   var list=$("metrics");list.replaceChildren();
+   names.forEach(function(name,i){
+     var locked=state.tier==="free"&&i>=2;
+     var item=node("div","metric");
+     var value=node("div","metric-value"+((values[i]===null||locked)?" unknown":""),locked?"未开放":values[i]===null?"数据不足":String(values[i]));
+     item.append(node("div","metric-name",name),value,node("div","metric-sub",locked?"仅模拟 Pro 展示":descs[i]));
+     list.append(item);
+   });
+   $("coverage").textContent=(state.period==="30"?"最近 30 天":"本月")+" · "+((state.scenario==="empty"||state.scenario==="stale")?"归档不可核验，显示数据不足":"模拟完整归档，修订和撤回不重复计数");
+   root.querySelectorAll("[data-period]").forEach(function(button){button.setAttribute("aria-pressed",String(button.dataset.period===state.period));});
+   var area=$("overview-news");area.replaceChildren();
+   var items=active();
+   if(!items.length)area.append(node("p","empty-page","暂无可展示的有效动态。"));
+   items.forEach(function(item){
+     var entry=node("div","summary-entry");
+     var headline=node("div","entry-title");
+     headline.append(node("span","chip",item.type),document.createTextNode(item.title));
+     entry.append(headline,node("div","entry-meta",item.date+" · "+item.source));
+     area.append(entry);
+   });
+ }
+ function renderHistory(){
+   var area=$("timeline");area.replaceChildren();
+   if(state.scenario==="empty"||state.scenario==="stale"){area.append(node("p","empty-page","数据不足：历史归档不可核验，不推断事件数量。"));return;}
+   var items=[
+     {date:"10/13 · 预告发布",title:"重置预告",text:"仅为视觉原型模拟，不代表实际发布。",kind:"active"},
+     {date:"10/11 · 完成",title:"全员重置确认记录",text:"第三方资料类别演示，来源身份未独立核验。",kind:"active"},
+     {date:"10/07 · 发放",title:"储备重置记录",text:"与全员重置、用户观察分开统计。",kind:"active"}
+   ];
+   if(state.scenario==="revised")items.unshift({date:"10/13 · 修订 2",title:"预计时间更正",text:"原预计时间失效，应以最新有效记录为准。",kind:"active"});
+   if(state.scenario==="withdrawn")items.unshift({date:"10/13 · 修订 3",title:"预告被撤回",text:"从有效倒计时和三条动态中移除，保留历史修订。",kind:"revoked"});
+   if(state.tier==="free")items=items.filter(function(item){return item.title!=="储备重置记录";});
+   items.forEach(function(item){
+     var row=node("div","timeline-entry"+(item.kind==="revoked"?" revoked":""));
+     row.append(node("div","timeline-date",item.date),node("div","timeline-title",item.title),node("div","timeline-copy",item.text));
+     area.append(row);
+   });
+ }
+ function renderStories(){
+   var area=$("all-news");area.replaceChildren();
+   if(state.scenario==="empty"){area.append(node("p","empty-page","没有已验证的资讯记录。"));return;}
+   data().forEach(function(item){
+     var entry=node("article","news-story");
+     var top=node("div","news-story-top");
+     top.append(node("span","chip"+(item.status==="withdrawn"?" danger":item.status==="revised"?" warn":""),item.status==="withdrawn"?"已撤回":item.status==="revised"?"已更正":item.type),node("span","story-source",item.date+" · 修订 "+item.revision));
+     entry.append(top,node("div","story-title",item.title),node("p","story-copy",item.summary));
+     var meta=node("div","entry-meta",item.source+(item.url?" · HTTPS 资料地址可核对":" · 仅模拟，无原文链接"));
+     entry.append(meta);area.append(entry);
+   });
+ }
+ function selectTab(tab,focus){
+   state.tab=tab;
+   root.querySelectorAll("[data-tab]").forEach(function(button){
+     var current=button.dataset.tab===tab;
+     button.setAttribute("aria-selected",String(current));button.tabIndex=current?0:-1;
+     if(current&&focus)button.focus();
+   });
+   ["overview","history","news"].forEach(function(name){$("panel-"+name).hidden=name!==tab;});
+ }
+ function render(){
+   renderCard();renderOverview();renderHistory();renderStories();selectTab(state.tab,false);
+ }
+ function toggleDetails(value){
+   state.details=value;$("details-panel").hidden=!value;
+   $("open-details").setAttribute("aria-expanded",String(value));
+   $("open-details").textContent=value?"记录与动态":"记录与动态";
+   var arrow=document.createElementNS("http://www.w3.org/2000/svg","svg");
+   arrow.setAttribute("viewBox","0 0 24 24");arrow.setAttribute("aria-hidden","true");
+   var line=document.createElementNS("http://www.w3.org/2000/svg","path");
+   line.setAttribute("d","m9 5 7 7-7 7");arrow.append(line);$("open-details").append(arrow);
+   if(value)selectTab("overview",false);
+ }
+ $("scenario").addEventListener("change",function(e){state.scenario=e.target.value;render();});
+ $("art-mode").addEventListener("change",function(e){state.art=e.target.value;renderCard();});
+ $("tier").addEventListener("change",function(e){state.tier=e.target.value;render();});
+ root.querySelectorAll("[data-period]").forEach(function(button){button.addEventListener("click",function(){state.period=button.dataset.period;renderOverview();});});
+ root.querySelectorAll("[data-tab]").forEach(function(button){
+   button.addEventListener("click",function(){selectTab(button.dataset.tab,false);});
+   button.addEventListener("keydown",function(event){
+     if(["ArrowRight","ArrowLeft","Home","End"].indexOf(event.key)===-1)return;
+     event.preventDefault();
+     var tabs=["overview","history","news"],index=tabs.indexOf(state.tab);
+     if(event.key==="Home")index=0;else if(event.key==="End")index=2;
+     else index=(index+(event.key==="ArrowRight"?1:2))%3;
+     selectTab(tabs[index],true);
+   });
+ });
+ $("open-news").addEventListener("click",function(){selectTab("news",true);});
+ $("open-details").addEventListener("click",function(){toggleDetails(!state.details);});
+ $("close-details").addEventListener("click",function(){toggleDetails(false);});
+ render();
+})();
+</script>
+</body>
+</html>
