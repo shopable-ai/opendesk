@@ -28,6 +28,7 @@ type Record struct {
  EffectiveAt *time.Time `json:"effective_at,omitempty"`
  ConfirmedAt *time.Time `json:"confirmed_at,omitempty"`
  ObservedAt *time.Time `json:"observed_at,omitempty"`
+ ProviderReportedAt *time.Time `json:"provider_reported_at,omitempty"`
  VerifiedAt *time.Time `json:"verified_at,omitempty"`
  SourceURL string `json:"source_url"`
  Summary string `json:"summary,omitempty"`
@@ -100,7 +101,7 @@ func ValidateRecord(r Record) error {
   return errors.New("invalid record identity, audience or summary")
  }
  if r.State!="active" && r.State!="withdrawn" && r.State!="superseded" {return errors.New("invalid state")}
- if r.SourceType!="official" && r.SourceType!="user_observation" {return errors.New("invalid source type")}
+ if r.SourceType!="official" && r.SourceType!="user_observation" && r.SourceType!="third_party" {return errors.New("invalid source type")}
  switch r.Kind {
  case "reset_announcement","reset_completed","extra_opportunity":
   if r.SourceType!="official" || r.SourcePublishedAt==nil || r.VerifiedAt==nil {
@@ -109,6 +110,8 @@ func ValidateRecord(r Record) error {
   if r.Kind=="reset_completed" && r.State=="active" && r.ConfirmedAt==nil {return errors.New("missing official completion timestamp")}
  case "observed_reset":
   if r.SourceType!="user_observation" || r.ObservedAt==nil {return errors.New("observation must have observation timestamp")}
+ case "third_party_reset","third_party_credits","service_incident":
+  if r.SourceType!="third_party" || r.ProviderReportedAt==nil || r.VerifiedAt!=nil || r.EffectiveAt!=nil || r.ConfirmedAt!=nil {return errors.New("third party cannot claim official verification or completion")}
  default: return errors.New("unrecognized history kind")
  }
  u,err:=url.Parse(r.SourceURL)

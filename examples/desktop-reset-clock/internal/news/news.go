@@ -3,6 +3,7 @@
 package news
 
 import (
+ "encoding/json"
  "errors"
  "fmt"
  "net/url"
@@ -24,13 +25,23 @@ type Item struct {
  State string `json:"state"`
  VerifiedAt time.Time `json:"verified_at"`
 }
+// A zero third-party verified_at must not be serialized as year 0001 or
+// replaced by an invented verification timestamp.
+func (n Item) MarshalJSON() ([]byte,error) {
+ type plain Item
+ type wire struct { *plain; VerifiedAt *time.Time `json:"verified_at,omitempty"` }
+ var verified *time.Time
+ if !n.VerifiedAt.IsZero(){t:=n.VerifiedAt;verified=&t}
+ p:=plain(n)
+ return json.Marshal(wire{plain:&p,VerifiedAt:verified})
+}
 func Validate(items []Item)error{
  if len(items)>64{return errors.New("too many curated updates")}
  ids:=map[string]bool{}
  for _,n:=range items{
   if strings.TrimSpace(n.ID)=="" || len(n.ID)>160 || n.Revision<1 || ids[n.ID] ||
    strings.TrimSpace(n.Title)=="" || len([]rune(n.Title))>130 || len([]rune(n.Summary))>480 ||
-   n.PublishedAt.IsZero() || n.UpdatedAt.IsZero() || n.VerifiedAt.IsZero() ||
+   n.PublishedAt.IsZero() || n.UpdatedAt.IsZero() || (n.SourceType=="official" && n.VerifiedAt.IsZero()) ||
    n.UpdatedAt.Before(n.PublishedAt) || len(n.Category)>64 || n.Category=="" {
    return fmt.Errorf("invalid news identity/content: %q",n.ID)
   }

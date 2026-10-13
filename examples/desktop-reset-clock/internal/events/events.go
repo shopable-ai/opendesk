@@ -25,6 +25,7 @@ type Event struct {
 	Type              string     `json:"type"`
 	State             string     `json:"state"`
 	Audience          string     `json:"audience"`
+	SourceType        string     `json:"source_type,omitempty"`
 	SourcePublishedAt *time.Time `json:"source_published_at,omitempty"`
 	SourceUpdatedAt   *time.Time `json:"source_updated_at,omitempty"`
 	EffectiveAt       *time.Time `json:"effective_at"`
@@ -42,6 +43,7 @@ type Snapshot struct {
 	HistoryURL    string       `json:"history_url,omitempty"`
 	HistoryVersion int64       `json:"history_version,omitempty"`
 	News          []news.Item  `json:"news,omitempty"`
+	DataSourceURL string `json:"data_source_url,omitempty"`
 }
 
 func Decode(data []byte) (Snapshot, error) {
@@ -84,6 +86,7 @@ func Validate(s Snapshot) error {
 			return errors.New("invalid archive URL")
 		}
 	}
+	if s.DataSourceURL!="" { u,err:=url.Parse(s.DataSourceURL); if err!=nil || u==nil || u.Scheme!="https" || u.Host=="" || u.User!=nil || u.Fragment!="" || u.Opaque!="" {return errors.New("invalid data_source_url")} }
 	if err:=news.Validate(s.News);err!=nil{return fmt.Errorf("invalid news: %w",err)}
 	ids := map[string]bool{}
 	for _, e := range s.Events {
@@ -91,6 +94,8 @@ func Validate(s Snapshot) error {
 			return fmt.Errorf("invalid or repeated event id: %q", e.ID)
 		}
 		ids[e.ID] = true
+		if e.SourceType!="" && !oneOf(e.SourceType,"official","third_party","user_observation") {return fmt.Errorf("event %s invalid provenance",e.ID)}
+		if e.SourceType=="third_party" && (e.EffectiveAt!=nil || e.VerifiedAt!=nil) {return fmt.Errorf("event %s third-party has unverified actionable timestamp",e.ID)}
 		if !oneOf(e.State, "active", "withdrawn", "superseded") {
 			return fmt.Errorf("event %s invalid state", e.ID)
 		}
@@ -172,7 +177,7 @@ func Reconcile(old *Snapshot, next Snapshot) (changed bool, err error) {
 // Eligible is deliberately conservative: a public reset prediction does not
 // mean a particular user's personal account quota has changed.
 func Eligible(e Event, now time.Time, upstreamChecked *time.Time) bool {
-	if e.Type != "reset_announcement" || e.State != "active" || (e.Audience != "all_users" && e.Audience != "public") || e.EffectiveAt == nil || !e.EffectiveAt.After(now) || e.VerifiedAt == nil {
+	if e.SourceType=="third_party" || e.Type != "reset_announcement" || e.State != "active" || (e.Audience != "all_users" && e.Audience != "public") || e.EffectiveAt == nil || !e.EffectiveAt.After(now) || e.VerifiedAt == nil {
 		return false
 	}
 	return upstreamChecked != nil && !upstreamChecked.After(now.Add(time.Minute)) && now.Sub(*upstreamChecked) <= 30*time.Minute

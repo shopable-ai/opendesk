@@ -34,6 +34,8 @@ jobs:
         run: go vet ./...
       - name: Build native client
         run: go build ./cmd/desktop-reset-clock
+      - name: Build Go Feed Bridge
+        run: go build ./cmd/reset-clock-bridge
 
   race-and-cross:
     runs-on: ubuntu-latest

@@ -280,3 +280,29 @@ macOS/Windows 原生视觉仍需要独立实窗截图、键盘/读屏与 100/150
 **研究结论已保存**：`docs/plans/desktop-reset-clock-public-source-r24.zh-CN.md`。用户提供的 `tiboreset.com/zh` 明确推荐通过 `codex-reset.com` 的公开只读 API（`/api/forecast`、`/api/timeline`、`/api/feed`、`/api/status-history`）复用数据，而不是抓取 HTML 或使用账号 Cookie。上游有可见署名、User-Agent 和最多每分钟一次请求等要求。
 
 **必须注意**：这不是能够直接输入 Go 客户端 Feed URL 的同构接口，当前客户端需要独立上游 Bridge 映射为既有 Snapshot/History/News 契约；没有明确未来公告时间时，不能把预测概率/历史间隔变成精确倒计时。C3 仍只是离线模拟 HTML，Go 客户端未因此获得真实数据功能。下一步先运行 R2.4-A 真实 API 探针与字段测试，再做独立 Bridge、C4 数据预览，最后经视觉确认进入原生实现。
+
+
+## R2.4-B · Go 原生第三方 Feed Bridge（2026-10-13）
+
+**这是独立的公开数据采集与归档进程，不是在桌面端执行网页爬虫。**数据来自第三方追踪服务 [codex-reset.com](https://codex-reset.com/)；不是 OpenAI 官方账号额度，不能根据历史概率制造准确未来倒计时。免费再展示时须在显示数据的**同一界面**给出可见的「[Data: codex-reset.com](https://codex-reset.com/)」来源链接；AppKit / Win32 尚未完成该署名展示，不能认定公开展示已合规。
+
+在 **OpenDesk 仓库根目录**复制运行：
+
+```sh
+(cd examples/desktop-reset-clock && go run ./cmd/reset-clock-bridge probe)
+(cd examples/desktop-reset-clock && go run ./cmd/reset-clock-bridge serve -listen 127.0.0.1:8788)
+```
+
+在另一个终端查看本机数据：
+
+```sh
+curl -i http://127.0.0.1:8788/feed
+curl -i http://127.0.0.1:8788/archive
+curl -i http://127.0.0.1:8788/healthz
+```
+
+Bridge 采用 Go 标准库请求四个公开 GET API，同一上游域名任何两个请求间**至少 60 秒**（四接口的首次完整采集需要至少 3 分钟），支持 ETag / 304、429 / Retry-After、原始证据与跨重启限流持久化。默认状态位于仓库根 `.runtime/desktop-reset-clock/bridge-state.json`，不提交至 Git。守护进程只监听数字回环 IP；公网发布必须 HTTPS。若异常退出残留 `bridge-state.json.lock/`，先确认没有其他进程在使用状态文件再手动清理。
+
+在 macOS / Windows 真机开发环境可另行运行已有 Go 客户端，启用 `-allow-local-http` 并指定 `-feed http://127.0.0.1:8788/feed` 测试读取；本阶段未修改原生界面。当前第三方确认与储备事件会保存在历史、资讯及带有 `source_type:third_party` 的 Feed 事件中，**所有第三方事件都没有 `effective_at` 和 `verified_at`，不会触发官方未来重置提醒**。第三方历史归档暂固定 `complete:false`，统计数据不足不能展示「0次」。上游异常继续提供旧缓存，但标记 `stale`。
+
+实现细节、测试证据和限制：[`docs/quality/desktop-reset-clock-r24-b-go-bridge.zh-CN.md`](../../docs/quality/desktop-reset-clock-r24-b-go-bridge.zh-CN.md)。
