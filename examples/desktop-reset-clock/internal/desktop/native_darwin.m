@@ -312,6 +312,8 @@ static RCController *controller;
             item.state = RCBool(data,key) ? NSControlStateValueOn : NSControlStateValueOff;
         }
         if ([command isEqualToString:@"source"]) item.enabled = self.sourceURL.length > 0;
+        if ([command isEqualToString:@"data_source"])
+            item.enabled = [RCString(data,@"data_source_url") isEqualToString:@"https://codex-reset.com/"];
     }
 }
 - (void)openSource {
@@ -598,7 +600,8 @@ static RCController *controller;
 }
 - (void)openDetailsClick:(id)sender { [self showDetails]; }
 - (void)openCreditClick:(id)sender {
-    [self openSafeDetailsURL:@"https://codex-reset.com/"];
+    NSString *url=RCString(self.lastPayload,@"data_source_url");
+    if ([url isEqualToString:@"https://codex-reset.com/"]) [self openSafeDetailsURL:url];
 }
 - (void)saveFeed:(id)sender { [self emit:@"url" value:self.feedField.stringValue]; }
 - (void)refresh:(id)sender { [self emit:@"refresh" value:@""]; }
