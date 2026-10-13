@@ -202,3 +202,14 @@
 - 新 `tests/r22_browser_test.py` 自动验证浏览器脚本错误、尺寸界限、真实 DOM 交互、模拟权限分级、来源状态、键盘切页和焦点暂停、色彩对比度，并生成可审查 PNG。100/150/200 **CSS zoom** 测试不等同于 macOS/Windows 原生 DPI 或浏览器页面缩放的所有语义。
 - **新版浏览器回归状态**：本记录落库时最新提交的 CI 仍在队列或运行中，不能标记 PASSED；截图虽已生成但尚无人工逐张审阅记录，因此原文评分矩阵中的独立视觉95分目标继续为 `NOT_PASSED`。
 - 独立原生视窗状态仍为 `NOT_TESTED`：GitHub macOS Runner 编译和 Windows Runner 编译测试不能代替 Mac 实窗、Win32 WorkerW、多屏、DPI 和辅助技术测试。
+
+
+## R2.3 C 视觉基线确认与平台测试边界（2026-10-13）
+
+- 用户已明确选定「渐变 Banner 与整张卡片融合」的设计方向；HTML 实际保存为 examples/desktop-reset-clock/prototypes/r23-c-approved-hero.html。
+- 唯一 JPEG 宣传素材：examples/desktop-reset-clock/internal/desktop/assets/r23-reset-clock-wallet-promo.jpg。其作用是画面演示，不代表真实商家、支付资质、官方预告或成功到账保证。
+- 与 R2.3 B2 相比：取消硬矩形图形容器，柔和曲线/背景混合；倒计时数字与时间单位提高对比度；详情入口回到顶部「记录与动态 ›」文本胶囊；保留日期在左、三条常显、无额外新闻标题和分类标签。
+- 本阶段交付为 **HTML + 离线图形 + 下一轮实施 GOAL**。当前尚未把新 Banner 层、颜色和内容布局应用到 AppKit/Win32。既有 R2.2 原生实现不能被称为 R2.3 C 原生完成。
+- 设计方向由用户批准，但各独立 95 分目标尚待原型浏览器真实测量与原生截图对照：内容准确性、信息价值、布局、配色、密度、资讯交互、详情信息架构、无障碍 **均不因用户选择设计方向而自动打 95 分**。对尚未实测项目继续标明 NOT_TESTED。
+- 上游官方公告 Feed、正式付费/充值商家、Mac/Windows 两端新布局的实际可用性分别保持原有的 BLOCKED / NOT_TESTED 边界。
+- 下阶段实施与独立质量标准见 docs/plans/desktop-reset-clock-r23-approved-hero-native-goal.zh-CN.md。验收截图与命令证据的本地目录：.runtime/tests/desktop-reset-clock/r23/（不提交）。
