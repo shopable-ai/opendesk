@@ -80,6 +80,20 @@ go build ./cmd/desktop-reset-clock
 - 当前网络执行环境未完成真实上游 Go `probe`；任何 HTTP Mock 验收均仅证明协议路径，不证明第三方 API 已真实采集。
 - GitHub Actions CI 的具体最新成功或失败状态以该 SHA 对应的 `Reset Clock Standalone R2` 运行结果为准。旧版 R2.4B 基线 CI 成功不能代表 R2.5 变更已经通过。
 
+### 2026-10-13 提交 `66532276d08c80b11ed9c0a1687793867d31d418` 的 CI 实际证据
+
+[Reset Clock Standalone R2 · GitHub Actions #38430127269](https://github.com/shopable-ai/opendesk/actions/runs/38430127269)：
+
+| Job | 观察到的结果 | 说明 |
+| --- | --- | --- |
+| `go-native (ubuntu-latest)` | **PASS** | 单测、vet、Bridge/client build |
+| `go-native (windows-latest)` | **PASS** | 单测、vet、Win32 client/build |
+| `race-and-cross` | **PASS** | Linux race 和 Windows amd64/macOS non-CGO 交叉编译 |
+| `R2.2 Chromium visual oracle` | **PASS** | 仅历史 HTML 视觉基线，非原生截图 |
+| `go-native (macos-latest)` | **QUEUED / NOT_YET_TESTED** | 需要 CGO/AppKit 原生构建和新 `.app` 脚本结果 |
+
+这里的 PASS 是 GitHub Actions 的远端构建/单测结果，并**非当前容器自己运行了本机 Go 命令**。macOS job 和截图验收在获得真实结果前保持 NOT_TESTED。随后的纯文档提交不修改本次受测 Go 源码。
+
 ## 4. 独立质量门槛：不做虚高评分
 
 | 维度 | 目标 | R2.5 证据状态 |
