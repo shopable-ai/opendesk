@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>Reset Clock R2.3 B — 三条动态常显 · 精简状态 · 轻图形／推广示意</title>
+<title>Reset Clock R2.3 B2 — 日期前置的三条常显动态 · 图标详情入口</title>
 <style>
 :root {
   color-scheme:light;
@@ -158,13 +158,35 @@ body.rc-card-only .head,body.rc-card-only .controls,body.rc-card-only .card-capt
 body.rc-card-only .shell{padding:4px;max-width:394px}
 body.rc-card-only .workarea{display:block}
 body.rc-card-only .compact{width:386px;max-width:100%;box-shadow:none}
+
+/* R2.3 B2 — three news lines, date first, no redundant header/category chip. */
+.count-heading{display:flex;align-items:center;gap:8px;max-width:242px;margin:15px 0 6px}
+.count-heading .count-label{margin:0;max-width:none}
+.details-entry{display:grid;place-items:center;flex:none;width:29px;height:29px;padding:5px;border:1px solid #47776a;background:#26544a;border-radius:7px;color:#c6e8d5;cursor:pointer}
+.details-entry svg{width:17px;height:17px}
+.details-entry:hover{background:#326759;color:#fff}
+.details-entry:focus-visible{outline:3px solid #b4ecd0;outline-offset:2px}
+.ticker-three{margin-top:13px}
+.ticker-three .ticker-expanded{padding:6px 0 7px;max-height:none;overflow:visible}
+.ticker-three .ticker-expanded-item{display:flex;align-items:center;gap:10px;min-height:32px;padding:5px 0;border-top:1px solid #345f53;min-width:0}
+.ticker-three .ticker-expanded-item:first-child{border-top:0}
+.ticker-three .ticker-date{flex:0 0 42px;color:#a6d8c0;font-size:11px;font-variant-numeric:tabular-nums;line-height:1.3;white-space:nowrap}
+.ticker-three .ticker-story{flex:1;display:block;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#f3faf5;font-size:12px;line-height:1.4}
+.ticker-three .ticker-empty{padding:12px 0 15px}
+@media(max-width:460px){
+ .count-heading{max-width:220px}
+ .details-entry{width:27px;height:27px}
+ .ticker-three .ticker-expanded-item{gap:8px}
+ .ticker-three .ticker-date{flex-basis:40px;font-size:10.5px}
+ .ticker-three .ticker-story{font-size:11.5px}
+}
 </style>
 </head>
 <body>
 <main class="shell" id="reset-r22">
   <header class="head">
-    <div><h1>Reset Clock <span style="font-weight:480;color:#57766a">/ R2.3 B · 三条动态常显版</span></h1>
-    <p>三条动态直接常显 · 去除普通预告状态角标 · 右侧可切换装饰/推广示意 · 时间与动态为界面模拟，非官方下一次重置日程</p></div>
+    <div><h1>Reset Clock <span style="font-weight:480;color:#57766a">/ R2.3 B2 · 日期前置紧凑版</span></h1>
+    <p>三条动态常显，日期统一左对齐 · 去掉动态标题栏与类别标签 · 用图标进入记录与动态 · 未来倒计时为纯模拟</p></div>
     <span class="prototype-label">设计数据 · 下一次时间纯模拟</span>
   </header>
   <section class="controls" aria-label="原型测试控制">
@@ -212,24 +234,27 @@ body.rc-card-only .compact{width:386px;max-width:100%;box-shadow:none}
               <strong>开发者工具</strong>
             </div>
           </div>
-          <div class="count-label" id="count-label">距离下一次预计重置</div>
+          <div class="count-heading">
+            <div class="count-label" id="count-label">距离预计重置</div>
+            <button type="button" class="details-entry" id="details-entry" title="打开记录与动态" aria-label="打开记录与动态详情窗口" aria-controls="details-window">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 6h14M5 12h14M5 18h9"/><path d="m16.5 17 2.5 2.5 3.5-4"/>
+              </svg>
+            </button>
+          </div>
           <div class="count" id="count" aria-live="off"><span>1</span><small>小时</small><span>30</span><small>分</small></div>
           <div class="expected" id="expected">预计 10 月 13 日 06:00 · 本地时间</div>
-          <section class="ticker ticker-three" aria-label="三条常显的精选动态">
-            <div class="ticker-top">
-              <span class="ticker-heading" id="ticker-title">精选动态</span>
-              <button type="button" id="ticker-all" class="ticker-all" aria-label="在详情窗口查看全部资讯">查看全部 <span aria-hidden="true">↗</span></button>
-            </div>
-            <div class="ticker-expanded" id="expanded-news"></div>
+          <section class="ticker ticker-three" aria-label="近期有效动态（日期在前）">
+            <div class="ticker-expanded" id="expanded-news" role="list"></div>
             <div class="ticker-empty" id="ticker-empty" hidden>暂无可展示的有效动态</div>
           </section>
         </div>
       </article>
-      <p class="card-caption">B 版默认完整呈现最多 3 条有效摘要；不轮播，也不要求展开。无真实上游确认时不能将倒计时视作官方承诺；右侧“推广”是明确标注的占位演示。</p>
+      <p class="card-caption">B2：最多三条有效消息常显，每行仅保留日期和标题；详情入口已移至倒计时标签旁。倒计时及消息中的未来预告均为模拟，推广位置须明确标记。</p>
     </section>
     <section aria-label="按需打开的详情窗口">
       <div class="region-title"><span>记录与动态 · 独立详情窗口</span><span class="size">内容分区 · 不承载付费广告</span></div>
-      <div class="detail">
+      <div class="detail" id="details-window" tabindex="-1">
         <header class="window-header">
           <div><div class="window-title">Reset Clock · 记录与动态</div><div class="window-subtitle">重置事件、来源证据与精选资讯</div></div>
           <div id="window-status" class="window-status">演示数据 · 来源未独立核验</div>
@@ -271,7 +296,7 @@ body.rc-card-only .compact{width:386px;max-width:100%;box-shadow:none}
     </section>
   </div>
   <footer class="preview-footer">
-    <strong>预览范围：</strong>本 HTML 仅用于 R2.3 B 版设计对照；以已保存 R2.2 为结构基础。画面中未来倒计时完全模拟；引用历史资料来自公开独立第三方网站，不代表 OpenAI 官方确认。原生 AppKit/Win32、支付和 Feed 均未因该页面改动。真实接口和数据真实性须另行验收。
+    <strong>预览范围：</strong>本 HTML 仅用于 R2.3 B2 版设计对照；以已保存 R2.2 为结构基础。画面中未来倒计时完全模拟；引用历史资料来自公开独立第三方网站，不代表 OpenAI 官方确认。原生 AppKit/Win32、支付和 Feed 均未因该页面改动。真实接口和数据真实性须另行验收。
   </footer>
 </main>
 <script>
@@ -287,9 +312,9 @@ if(["decor","promo","off"].indexOf(previewParams.get("visual"))>=0)state.visual=
 if(["free","pro"].indexOf(previewParams.get("tier"))>=0)state.tier=previewParams.get("tier");
 var $=function(id){return root.querySelector("#"+id);};
 var sample=[
- {id:"notice",type:"预告",source:"纯模拟的未来预告",title:"演示：未来重置窗口预计 10 月 13 日 06:00",summary:"这个预计时间是 UI 测试用的虚构数据，不是 OpenAI 对下一次全员重置的承诺。",updated:"10-13",revision:1,url:"https://example.org/reset-clock-demo/notice"},
- {id:"guide",type:"全员重置",source:"Tibo Reset 独立网站 · 已收录记录",title:"10 月 11 日：全员重置已确认",summary:"参考站点收录的历史全员重置记录。个别用户额度仍需按自己的账号状态核对。",updated:"10-11",revision:1,url:"https://tiboreset.com/zh/tracker"},
- {id:"analysis",type:"储备重置",source:"Tibo Reset 独立网站 · 已收录记录",title:"10 月 7 日：储备重置额度已发放",summary:"储备重置与直接全员重置不同；发放并不意味着个人额度立即恢复，可能需要主动兑换。",updated:"10-07",revision:1,url:"https://tiboreset.com/zh/tracker"}
+ {id:"notice",type:"预告",source:"纯模拟的未来预告",title:"模拟预告：预计 06:00 重置",summary:"2026-10-13 06:00 仅为 UI 测试使用的虚构时间，不是 OpenAI 官方确认的下一次全员重置。",updated:"10-13",date:"2026-10-13",revision:1,url:"https://example.org/reset-clock-demo/notice"},
+ {id:"guide",type:"全员重置",source:"Tibo Reset 独立网站 · 已收录记录",title:"全员重置已确认",summary:"2026-10-11 全员重置已被第三方追踪站收录；不能据此确认每个账户的当前使用额度。",updated:"10-11",date:"2026-10-11",revision:1,url:"https://tiboreset.com/zh"},
+ {id:"analysis",type:"储备重置",source:"Tibo Reset 独立网站 · 已收录记录",title:"储备重置额度已发放",summary:"2026-10-07 的储备重置与全员重置不同，可能需要用户主动兑换，不能当作个人额度已恢复的证据。",updated:"10-07",date:"2026-10-07",revision:1,url:"https://tiboreset.com/zh"}
 ];
 function el(tag,cls,txt){var n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n;}
 function button(text,cls,fn){var b=el("button",cls,text);b.type="button";b.addEventListener("click",fn);return b;}
@@ -300,10 +325,10 @@ function activeNews(){
 }
 function selectedData(n) {
  var copy=Object.assign({},n);
- if(copy.id==="notice"&&state.scenario==="v2"){copy.title="重置预告更正：预计时间已调整，请查看原文";copy.revision=2;copy.updated="10-12 15:00";}
+ if(copy.id==="notice"&&state.scenario==="v2"){copy.title="模拟更正：预计 06:40 重置";copy.revision=2;copy.updated="10-12 15:00";}
  if(copy.id==="notice"&&state.scenario==="v3"){copy.title="重置预告已撤回";copy.revision=3;copy.updated="10-12 15:40";copy.withdrawn=true;}
  if(state.scenario==="stale"){copy.unavailable=true;if(copy.id==="notice")copy.title="来源无法确认：原预告暂不可作为有效消息";}
- if(copy.id==="notice"&&state.scenario==="long"){copy.title="重置预告更正与适用范围说明：这是一条故意超长的中文资讯标题，用来检查不同缩放比例与窄窗口下的截断和展开表现，实际阅读请进入记录与动态窗口查看完整信息";}
+ if(copy.id==="notice"&&state.scenario==="long"){copy.title="模拟预告更正与适用范围说明：这是一条故意超长的中文消息标题，用于检查三条常显模式在很窄窗口及高缩放时能否保持单行、省略号与固定卡片高度";}
  return copy;
 }
 function currentNews(){return activeNews().map(selectedData);}
@@ -321,7 +346,7 @@ function renderCard(){
  var count=$("count"),status=$("card-status"),label=$("count-label"),date=$("expected");
  count.replaceChildren();count.className="count";status.className="compact-status";
  if(state.scenario==="v1"||state.scenario==="v2"||state.scenario==="long"){
-  label.textContent="距离下一次预计重置";
+  label.textContent="距离预计重置";
   var amount=state.scenario==="v2"?["2","10"]:["1","30"];
   count.append(el("span","",amount[0]),el("small","","小时"),el("span","",amount[1]),el("small","","分"));
   date.textContent=state.scenario==="v2"?"预计调整为 10 月 13 日 06:40 · 本地时间":"预计 10 月 13 日 06:00 · 本地时间";
@@ -344,15 +369,17 @@ function renderVisual(){
 }
 function renderTicker(){
  var entries=currentNews();
- $("ticker-title").textContent="精选动态";
  $("ticker-empty").hidden=entries.length!==0;
  var list=$("expanded-news");list.replaceChildren();list.hidden=entries.length===0;
  entries.slice(0,3).forEach(function(item){
    var row=el("div","ticker-expanded-item");
-   var type=el("span","ticker-tag",item.type);
-   var title=el("p","",item.title);
+   row.setAttribute("role","listitem");
+   var when=el("time","ticker-date",(item.date||"").slice(5).replace("-","/")||item.updated.replace("-","/"));
+   if(item.date)when.setAttribute("datetime",item.date);
+   when.title="事件日期；演示数据以本地时间呈现，历史记录的原始来源以 UTC 标注";
+   var title=el("span","ticker-story",item.title);
    title.title=item.title;
-   row.append(type,title,el("span","source",item.updated));
+   row.append(when,title);
    list.append(row);
  });
 }
@@ -439,7 +466,7 @@ root.querySelectorAll("[data-tab]").forEach(function(button){
  });
 });
 $("all-news-link").addEventListener("click",function(){setTab("news",true);});
-$("ticker-all").addEventListener("click",function(){setTab("news",true);});
+$("details-entry").addEventListener("click",function(){setTab("overview",true);});
 render();
 })();
 </script>
