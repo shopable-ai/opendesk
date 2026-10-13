@@ -245,3 +245,16 @@ go run ./cmd/demo
     open examples/desktop-reset-clock/prototypes/r23-c-approved-hero.html
 
 macOS/Windows 原生视觉仍需要独立实窗截图、键盘/读屏与 100/150/200% 缩放验收。截图日志仅保存在仓库根 .runtime/tests/desktop-reset-clock/r23/，不要提交。
+
+### R2.3 C2 ChatGPT 会员 Banner 视觉预览（2026-10-13）
+
+- **最新 C2 视觉预览**：`prototypes/r23-c2-approved-hero-chatgpt-member.html`。继续保留 `prototypes/r23-c-approved-hero.html` 作为用户确认的 C 版基线，**没有修改原生 AppKit / Win32**。
+- **新图片素材**：`internal/desktop/assets/r23-chatgpt-member-banner.svg`。使用透明 SVG（非不透明 JPG），以渐变、高光、斜置半透明会员卡及边缘柔化实现与深青绿卡片的自然融合；「ChatGPT账号会员」「购买」「开通」文字均**绘制在图片文件内**，不是页面覆盖按钮。旧 JPEG 继续保留用于 C 版。
+- **沿用交互**：有效预告、更正、撤回、来源异常、无数据、长标题；Free / 模拟 Pro；推广 Banner / 无广告纯渐变；独立详情页及最近 30 天 / 本月切换。卡片继续按约 386px 展示高对比倒计时与日期在左的最多三条常显动态，无轮播、展开或额外资讯标题栏。
+- **使用方式**（从仓库根目录，在 macOS）：
+
+  ```bash
+  open examples/desktop-reset-clock/prototypes/r23-c2-approved-hero-chatgpt-member.html
+  ```
+
+- **仅为静态视觉示意**：图片中的购买、开通是平面设计内容，**没有真实账号销售、充值、订单、支付、自动开通或 OpenAI 官方合作保证**。HTML 未连接真实 Feed；原生客户端仍沿用旧实现。若未来产品上线相关服务，须独立完成资格、信任与交易信息核验。

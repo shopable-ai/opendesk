@@ -213,3 +213,11 @@
 - 设计方向由用户批准，但各独立 95 分目标尚待原型浏览器真实测量与原生截图对照：内容准确性、信息价值、布局、配色、密度、资讯交互、详情信息架构、无障碍 **均不因用户选择设计方向而自动打 95 分**。对尚未实测项目继续标明 NOT_TESTED。
 - 上游官方公告 Feed、正式付费/充值商家、Mac/Windows 两端新布局的实际可用性分别保持原有的 BLOCKED / NOT_TESTED 边界。
 - 下阶段实施与独立质量标准见 docs/plans/desktop-reset-clock-r23-approved-hero-native-goal.zh-CN.md。验收截图与命令证据的本地目录：.runtime/tests/desktop-reset-clock/r23/（不提交）。
+
+## R2.3 C2 Banner 图片文案替换与独立质量边界（2026-10-13）
+
+- **交付范围**：新增 `examples/desktop-reset-clock/prototypes/r23-c2-approved-hero-chatgpt-member.html` 和 `examples/desktop-reset-clock/internal/desktop/assets/r23-chatgpt-member-banner.svg`，保留 C 版 HTML 及 `r23-reset-clock-wallet-promo.jpg`，不修改 `native_darwin.m` / `native_windows.go` 等 Go 桌面端相关代码。
+- **相较 C 版**：维持 386px 深青绿色渐变一体化卡片、左侧亮白倒计时与薄荷色单位、顶部「记录与动态」胶囊、日期在左的三条动态及详情交互。把原 JPEG 中的「账号充值 / 安全稳定 / 快速到账」替换为独立透明 SVG 中的「ChatGPT账号会员 / 购买 / 开通」。图片用半透明会员卡、暖金色强调、光晕及渐隐蒙版降低硬矩形边界，避免对主数字争夺视觉权重。
+- **图像形态选择**：本轮选择透明可缩放 **SVG** 而非不透明 JPG，以保证透明边界、中文细节和小尺寸清晰度；这仍是独立图片素材，不是 HTML 覆盖文字或交互按钮。旧版 JPEG 继续存在用于历史设计对照。未来若原生端使用，应先做对应平台图像管线及实窗验收，本轮不提前改动。
+- **行为保留**：原有预告 / 更正 / 撤回 / 来源异常 / 无数据 / 长标题 / Free / 模拟 Pro / 图形展示开关及详情三页继续保留，任何数据均为模拟，不宣称真实支付或官方会员权益。
+- **验收边界**：C2 为 HTML 与图片视觉原型，不是 Go 原生窗口，真实用户账号、支付交易及官方数据源仍为 **NOT_IMPLEMENTED / BLOCKED**。95 分是各独立视觉维度的设计目标，而非未经证据验证的专家认证；后续应在实际浏览器逐状态、缩放、字体替换与图片加载下留存可复核证据。Mac/Windows 原生实窗依然 **NOT_TESTED**。
