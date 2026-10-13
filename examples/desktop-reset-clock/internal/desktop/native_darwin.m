@@ -136,6 +136,7 @@ static NSTextView *RCScrollableText(NSView *parent,NSRect frame) {
 @property (strong) NSTextField *detailsResources;
 @property (strong) NSTextField *detailsMembership;
 @property (strong) NSButton *detailsSourceButton;
+@property (strong) NSButton *detailsCredit;
 @property (strong) NSPopUpButton *historyPicker;
 @property (copy) NSArray *lastEvidenceOptions;
 @property (strong) NSPopUpButton *newsPicker;
@@ -405,6 +406,14 @@ static RCController *controller;
   NSTextField *heading=RCText(content,RCTopRect(RCDetailsHeight,18,15,520,24),16,
                          NSFontWeightSemibold,NSColor.labelColor,NO,NSTextAlignmentLeft);
   heading.stringValue=@"记录与动态";
+  self.detailsCredit=[[NSButton alloc] initWithFrame:RCTopRect(RCDetailsHeight,356,13,187,27)];
+  self.detailsCredit.bordered=NO;
+  self.detailsCredit.title=@"Data: codex-reset.com ↗";
+  self.detailsCredit.font=[NSFont systemFontOfSize:11 weight:NSFontWeightMedium];
+  self.detailsCredit.contentTintColor=NSColor.secondaryLabelColor;
+  self.detailsCredit.target=self;
+  self.detailsCredit.action=@selector(openCreditClick:);
+  [content addSubview:self.detailsCredit];
   self.detailTabs=[[NSSegmentedControl alloc] initWithFrame:RCTopRect(RCDetailsHeight,18,48,524,31)];
   self.detailTabs.segmentCount=3;
   for (NSInteger i=0;i<3;i++) [self.detailTabs setLabel:@[@"概览",@"历史记录",@"资讯"][i] forSegment:i];
@@ -542,6 +551,7 @@ static RCController *controller;
 
 - (void)syncDetails:(NSDictionary *)data {
  if (!self.details || !data) return;
+ self.detailsCredit.hidden=RCString(data,@"data_source_url").length==0;
  NSString *period=self.detailPeriod.selectedSegment==1?@"stats_month":@"stats_30";
  NSArray *metrics=[data[period] isKindOfClass:NSArray.class]?data[period]:@[];
  for (NSUInteger i=0;i<self.statValues.count;i++){
@@ -549,7 +559,8 @@ static RCController *controller;
    RCSetString(self.statValues[i],row?RCString(row,@"value"):@"数据不足");
  }
  RCSetString(self.overviewNews,RCString(data,@"details_overview_news"));
- RCSetString(self.detailHealth,[NSString stringWithFormat:@"%@\n来源类别为提供方标注；不能推断个人额度已恢复。",RCString(data,@"health")]);
+ RCSetString(self.detailHealth,[NSString stringWithFormat:@"%@\n%@\n不能推断个人额度已恢复。",
+    RCString(data,@"card_meta"),RCString(data,@"health")]);
  NSMutableString *timeline=[NSMutableString string];
  NSArray *rows=[data[@"history_rows"] isKindOfClass:NSArray.class]?data[@"history_rows"]:@[];
  for (NSDictionary *row in rows) {
