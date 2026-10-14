@@ -78,6 +78,16 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Render and check R2.2 source prototype
         run: python examples/desktop-reset-clock/tests/r22_browser_test.py
+      - name: Verify approved C3 artwork identity and render source layout
+        run: python examples/desktop-reset-clock/tests/r23_c3_browser_test.py
+      - name: Upload approved C3 browser reference, not native screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reset-clock-r23-c3-browser-evidence
+          path: .runtime/tests/desktop-reset-clock/c3
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Preserve visual evidence without committing runtime data
         uses: actions/upload-artifact@v4
         if: always()
