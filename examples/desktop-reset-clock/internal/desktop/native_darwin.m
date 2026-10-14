@@ -438,7 +438,7 @@ static RCController *controller;
     RCSetString(self.miniLabel,miniValue);
     self.miniLabel.textColor=live?NSColor.whiteColor:RCColor(.72,.81,.79);
     self.miniOpen.contentTintColor=live?RCColor(.66,1,.83):RCColor(.68,.78,.75);
-    self.mini.toolTip=tooltip;
+    self.mini.contentView.toolTip=tooltip;
     self.mini.level=RCBool(data,@"mini_float")?NSFloatingWindowLevel:
         CGWindowLevelForKey(kCGDesktopIconWindowLevelKey)+1;
     self.adjustingMini=YES;
