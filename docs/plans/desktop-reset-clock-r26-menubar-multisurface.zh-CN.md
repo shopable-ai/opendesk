@@ -113,3 +113,16 @@ P0 延续现有菜单，不强制再做 `NSPopover`；以后如实际用户测�
 **推荐最终默认体验：Menu Bar + 主桌面卡片；迷你卡片开关默认关；无有效重置时间灰态，有核验未来时间才高亮，预告不等于个人额度恢复。**
 
 本文件给出的是设计目标，不是声称实现评分。待执行后将「设计、信息可信、macOS 原生视觉、跨 Spaces 交互、数据可靠性、性能、可维护性」分别打分，任何没有真机证据的维度写 `NOT_TESTED`，不凭总体印象宣称 95+。
+
+
+## 8. R2.6 源码实施增量（2026-10-14）
+
+根据用户批准，此轮**已写入源码**：Go 紧凑状态模型（`internal/app/compact.go`）；菜单栏状态 `idle/upcoming/soon/revised/withdrawn/stale/error`；菜单图标与可选倒计时文字；默认关闭的迷你 NSPanel、拖动记忆与显式悬浮开关；原生菜单/设置入口；以及现有 Go Bridge 的 `/reset-clock/` 只读网页概览、历史、资讯。
+
+- 这不是三个独立进程；只有原有客户端 Go `Display` 渲染多形态，Feed 不增加网络请求。
+- 现存「记录与动态」原生弹窗由菜单栏和主卡片入口打开。R2.6 改为**优先打开同源 Bridge 声明的网页 URL**；未配置或打开失败则保留原生窗口。**原生设置窗口仍是本地首选**，不能搬到无确定可信身份的网页。
+- 网址策略：`web_details_url` 必须出自当前 Feed 且与 Feed URL 同 scheme/host/port、路径必须为 `/reset-clock/`，HTTPS 或明确允许的 localhost HTTP；第三方数据来源 `codex-reset.com` **不是** Reset Clock 产品官网。当前可运行的是本机 `http://127.0.0.1:8788/reset-clock/`，正式域名、签名与产品官网发布尚待另行确认。
+- macOS 状态栏灰/亮采用系统模板图标加轮廓和文字区分，灰态通过 `appearsDisabled` 表达但仍可点击。只用现有合法新鲜未来事件倒计时，不从第三方历史计算官方重置预测。
+- Windows 当前保留 Win32 托盘卡片和设置；如 Feed 声明同源网页入口，也可以从菜单和卡片打开网页。macOS 迷你挂件是本轮首发，Windows 同等 mini UI 未在本轮实现。
+- 对应新增测试：`internal/app/compact_test.go`、`internal/settings/r26_preferences_test.go`、`internal/events/r26_web_details_test.go`、`internal/bridge/dashboard_test.go`。
+- **质量边界**：源码已提交，不等于已在用户的 Mac 实际加载/截图/交互或已在公网部署网站。CI/Mac CGO/真机、Windows 真机请查看新质量报告 `docs/quality/desktop-reset-clock-r26-native-web.zh-CN.md`，未取得证据前不得声称 95+。
