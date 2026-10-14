@@ -59,3 +59,19 @@ Mac 开发 .app 构建：`(cd examples/desktop-reset-clock && bash scripts/build
 ### macOS 迷你面板移动性能补充
 
 `native_darwin.m` 使用模型位置变更检测避免 UI 1 秒刷新期间把正在拖动的小挂件拉回旧位置；对 `windowDidMove` 增加短时防抖，降低拖动时反复落盘的风险。这是**源码设计和 Mac 构建校验对象**，实际连续拖动、屏幕切换与休眠恢复仍需真机测量，不能仅凭代码评审标记 PASS。
+
+## 2026-10-14 最终源码 CI Gate（当前 R2.6 代码）
+
+提交：`53ab20542aef3e41a0e16fc3886dfa94d296072e`
+
+[Reset Clock Standalone R2 — #38549496602](https://github.com/shopable-ai/opendesk/actions/runs/38549496602)：**COMPLETED / SUCCESS**。
+
+- `go-native (ubuntu-latest)`：PASS。
+- `go-native (windows-latest)`：PASS。
+- `go-native (macos-latest)`：PASS（Go 单测、vet、原生 AppKit 客户端和 Go Bridge 构建、未签名 .app 开发包打包）。
+- `race-and-cross`：PASS。
+- `R2.2 Chromium visual oracle`：PASS（历史浏览器 HTML 视觉回归，并非 R2.6 原生挂件截图）。
+
+**严禁混淆**：上述 CI 证明源码能编译、测试和产出开发包，不证明真实 Mac 上菜单栏状态切换、迷你挂件拖动/点击、浏览器详情跳转、多屏/Spaces 或锁定穿透的视觉与交互已验收。独立视觉、系统行为、稳定性质量评分在真实证据出现前保持 `NOT_TESTED`。生产 HTTPS 产品官网域名仍是 `NOT_CONFIGURED`，本机 Bridge URL 不能被称为官网。
+
+**网页回退准确语义**：`web_details_url` 缺失/不可信时打开原生详情；macOS 在 OS 拒绝 URL 打开时也回退原生详情。仅仅成功发起浏览器打开动作，并不保证 HTTP 页面已经加载成功；打开后服务不可用时浏览器可能显示连接错误，用户可以再从原生入口查看缓存记录。不要把网页加载成功误写成已经验收。
