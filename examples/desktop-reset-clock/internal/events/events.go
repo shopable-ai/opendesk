@@ -44,6 +44,8 @@ type Snapshot struct {
 	HistoryVersion int64       `json:"history_version,omitempty"`
 	News          []news.Item  `json:"news,omitempty"`
 	DataSourceURL string `json:"data_source_url,omitempty"`
+	// Optional read-only browser overview from the same HTTP Feed Bridge.
+	WebDetailsURL string `json:"web_details_url,omitempty"`
 }
 
 func Decode(data []byte) (Snapshot, error) {
@@ -87,6 +89,14 @@ func Validate(s Snapshot) error {
 		}
 	}
 	if s.DataSourceURL!="" { u,err:=url.Parse(s.DataSourceURL); if err!=nil || u==nil || u.Scheme!="https" || u.Host=="" || u.User!=nil || u.Fragment!="" || u.Opaque!="" {return errors.New("invalid data_source_url")} }
+	if s.WebDetailsURL!="" {
+		u,err:=url.Parse(s.WebDetailsURL)
+		if err!=nil || u==nil || u.Host=="" || u.User!=nil || u.Fragment!="" || u.Opaque!="" ||
+			u.RawQuery!="" || u.Path!="/reset-clock/" ||
+			(u.Scheme!="https" && !(u.Scheme=="http" && (u.Hostname()=="localhost" || u.Hostname()=="127.0.0.1" || u.Hostname()=="::1"))) {
+			return errors.New("invalid web_details_url")
+		}
+	}
 	if err:=news.Validate(s.News);err!=nil{return fmt.Errorf("invalid news: %w",err)}
 	ids := map[string]bool{}
 	for _, e := range s.Events {
