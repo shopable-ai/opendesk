@@ -196,6 +196,9 @@ static NSImage *RCC3HeroImage;
 @property (strong) NSButton *miniOpen;
 @property (copy) NSString *traySymbol;
 @property BOOL adjustingMini;
+@property BOOL miniPositionInitialized;
+@property NSInteger requestedMiniX;
+@property NSInteger requestedMiniY;
 @property (strong) NSWindow *settings;
 @property (strong) NSWindow *details;
 @property (strong) NSSegmentedControl *detailTabs;
@@ -446,8 +449,15 @@ static RCController *controller;
     NSScreen *screen=self.mini.screen?:NSScreen.mainScreen;
     if (screen) {
         NSRect visible=screen.visibleFrame;
-        CGFloat x=[data[@"mini_x"] doubleValue],y=[data[@"mini_y"] doubleValue];
-        if (x==0 && y==0) {
+        NSInteger nextX=[data[@"mini_x"] integerValue],nextY=[data[@"mini_y"] integerValue];
+        BOOL newPosition=!self.miniPositionInitialized || self.requestedMiniX!=nextX ||
+            self.requestedMiniY!=nextY;
+        self.miniPositionInitialized=YES;
+        self.requestedMiniX=nextX;self.requestedMiniY=nextY;
+        // Do not jump back to the old persisted point while the user drags.
+        CGFloat x=newPosition?(CGFloat)nextX:frame.origin.x;
+        CGFloat y=newPosition?(CGFloat)nextY:frame.origin.y;
+        if (newPosition && nextX==0 && nextY==0) {
             x=NSMaxX(visible)-RCMiniWidth-24;
             y=NSMinY(visible)+25;
         }
@@ -844,8 +854,10 @@ static RCController *controller;
 - (void)windowDidMove:(NSNotification *)note {
     if (note.object==self.mini) {
         if (!self.adjustingMini) {
-            NSPoint point=self.mini.frame.origin;
-            [self emit:@"mini_position" value:[NSString stringWithFormat:@"%d,%d",(int)point.x,(int)point.y]];
+            // Drag events can be frequent. Persist only after the pointer
+            // settles; the renderer must not snap to stale model coordinates.
+            [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(persistMiniPosition) object:nil];
+            [self performSelector:@selector(persistMiniPosition) withObject:nil afterDelay:.35];
         }
         return;
     }
@@ -853,6 +865,11 @@ static RCController *controller;
     NSPoint origin = self.card.frame.origin;
     CGFloat expansion=self.card.frame.size.height-RCScreenCardHeight;
     [self emit:@"position" value:[NSString stringWithFormat:@"%d,%d",(int)origin.x,(int)(origin.y+expansion)]];
+}
+- (void)persistMiniPosition {
+    if (!self.mini) return;
+    NSPoint point=self.mini.frame.origin;
+    [self emit:@"mini_position" value:[NSString stringWithFormat:@"%d,%d",(int)point.x,(int)point.y]];
 }
 - (void)syncCheckboxes:(NSDictionary *)data {
     self.quietSwitch.state = RCBool(data,@"quiet") ? NSControlStateValueOn : NSControlStateValueOff;

@@ -8,7 +8,7 @@
 2. **可选迷你卡片**：同进程第二个 `NSPanel`，默认关闭，支持独立拖动位置、持久化以及显式 `NSFloatingWindowLevel` 选项。主卡片的 C3 已批准渐变与三条动态保留；默认没有 Dock 图标，未侵入 Dock。
 3. **单一事实模型**：`internal/app/compact.go` 根据已有 `HasUpcoming` 与合法未来时刻投射 `MenuStatus`。历史、第三方统计或来源异常不会被改写成未来确定倒计时。
 4. **网页详情**：现有 `cmd/reset-clock-bridge` 进程新增 `GET /reset-clock/`；HTML/CSS 直接由 Go `html/template` 从 Bridge 内存可信状态渲染，响应 CSP、HTML 自动转义、不含第三方远程脚本；页面有概览、历史记录、资讯、原始来源。无额外轮询。
-5. **可恢复的原生窗口**：菜单「记录与动态」和主卡片按钮在 `web_details_url` 出自本 Feed 同源合法网址时，使用默认浏览器打开；网站不可用、未提供或无法打开时，打开既有本地详情。原生「设置」保留在本机。
+5. **可恢复的原生窗口**：菜单「记录与动态」和主卡片按钮在 `web_details_url` 出自本 Feed 同源合法网址时，使用默认浏览器打开；网页 URL 缺失或系统拒绝打开时，使用既有本地详情；浏览器已经成功启动但服务端随后返回 5xx/断网时，不会自动关闭浏览器。原生「设置」保留在本机。
 6. **Windows 兼容**：保留 Win32 UI，详情入口适配同源网页，暂不声称已做 Windows 迷你浮窗。
 
 ## 如何看到实际入口
@@ -54,3 +54,8 @@ Mac 开发 .app 构建：`(cd examples/desktop-reset-clock && bash scripts/build
 ## 已观察到的首轮 R2.6 CI 证据
 
 [Reset Clock Standalone R2 — run 38548507037](https://github.com/shopable-ai/opendesk/actions/runs/38548507037)，对应包含 R2.6 AppKit/Bridge 代码的 `752a5ebb2abdd96c9f30e1b6cff9341e1772f37c`：`go-native` 的 Ubuntu/macOS/Windows 三平台成功、`race-and-cross` 成功、历史 R2.2 Chromium/C3 原型测试成功。**这是构建和隔离测试证据，不是用户 Mac 的实窗截图。** 后续改动应以新的 HEAD CI 为准。
+
+
+### macOS 迷你面板移动性能补充
+
+`native_darwin.m` 使用模型位置变更检测避免 UI 1 秒刷新期间把正在拖动的小挂件拉回旧位置；对 `windowDidMove` 增加短时防抖，降低拖动时反复落盘的风险。这是**源码设计和 Mac 构建校验对象**，实际连续拖动、屏幕切换与休眠恢复仍需真机测量，不能仅凭代码评审标记 PASS。
