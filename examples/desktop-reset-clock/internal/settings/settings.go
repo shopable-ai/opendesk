@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/shopable-ai/opendesk/examples/desktop-reset-clock/internal/events"
@@ -50,7 +51,7 @@ type State struct {
 }
 
 func Default() State {
-	return State{Config: Config{Clock24: true, Show: true, Locked: true, MenuText: true, X: 70, Y: 70, PollSeconds: 300}, Fired: map[string]bool{}}
+	return State{Config: Config{Clock24: true, Show: true, Locked: true, MenuText: true, MiniShow: runtime.GOOS == "darwin", X: 70, Y: 70, PollSeconds: 300}, Fired: map[string]bool{}}
 }
 func Path() (string, error) {
 	if home := os.Getenv("OPENDESK_RESET_HOME"); home != "" {

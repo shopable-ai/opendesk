@@ -6,7 +6,7 @@ package desktop
 #cgo CFLAGS: -x objective-c -fblocks
 #cgo LDFLAGS: -framework Cocoa -framework CoreGraphics -framework UserNotifications
 #include <stdlib.h>
-void RCAppSetHeroPNG(const unsigned char *data, int length);
+int RCAppSetHeroPNG(const unsigned char *data, int length);
 void RCAppRun(void);
 void RCAppStop(void);
 void RCAppUpdate(const char *json);
@@ -16,6 +16,7 @@ import "C"
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"unsafe"
 )
@@ -32,6 +33,13 @@ var (
 
 func newNative() UI { return &macUI{} }
 func (m *macUI) Run(ctx context.Context, handle func(Action)) error {
+	hero, err := loadC3Hero()
+	if err != nil {
+		return fmt.Errorf("decode approved C3 artwork: %w", err)
+	}
+	if len(hero.PNG) == 0 || C.RCAppSetHeroPNG((*C.uchar)(unsafe.Pointer(&hero.PNG[0])), C.int(len(hero.PNG))) == 0 {
+		return fmt.Errorf("AppKit could not load approved C3 artwork")
+	}
 	m.mu.Lock()
 	m.handle = handle
 	m.mu.Unlock()
@@ -46,9 +54,7 @@ func (m *macUI) Run(ctx context.Context, handle func(Action)) error {
 		case <-done:
 		}
 	}()
-	if hero, err := loadC3Hero(); err == nil && len(hero.PNG) > 0 {
-		C.RCAppSetHeroPNG((*C.uchar)(unsafe.Pointer(&hero.PNG[0])), C.int(len(hero.PNG)))
-	}
+
 	C.RCAppRun() // AppKit must run on main OS thread (locked by cmd).
 	close(done)
 	activeMacMu.Lock()

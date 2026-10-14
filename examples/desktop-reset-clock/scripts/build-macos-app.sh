@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Developer-only, unsigned AppKit bundle. Never publishes or installs itself.
+# Developer-only AppKit bundle with a stable ad-hoc identity. Never installs itself.
 set -euo pipefail
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
@@ -9,14 +9,22 @@ fi
 
 project="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 root="$(cd "$project/../.." && pwd)"
-bundle="$root/.runtime/tests/desktop-reset-clock/v1/Reset Clock.app"
+output_dir="$root/.runtime/tests/desktop-reset-clock/v1"
+if [[ $# -gt 0 ]]; then
+  if [[ $# -ne 2 || "$1" != "--output-dir" || "$2" != /* ]]; then
+    echo "Usage: $0 [--output-dir /absolute/versioned/directory]" >&2
+    exit 2
+  fi
+  output_dir="$2"
+fi
+bundle="$output_dir/Reset Clock.app"
 exe="$bundle/Contents/MacOS/reset-clock"
-if [[ -e "$exe" ]]; then
+if [[ -e "$bundle" ]]; then
   echo "Existing dev app is preserved: $bundle" >&2
-  echo "Move that build aside manually before building a new one." >&2
+  echo "Use --output-dir with a new versioned directory." >&2
   exit 1
 fi
-mkdir -p "$bundle/Contents/MacOS"
+mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
 cat > "$bundle/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -36,9 +44,17 @@ PLIST
   cd "$project"
   CGO_ENABLED=1 go build -trimpath -o "$exe" ./cmd/desktop-reset-clock
 )
+# Seal the completed bundle; keep the same identifier across development builds.
+{
+  git -C "$root" rev-parse HEAD
+  git -C "$root" status --short -- examples/desktop-reset-clock
+  (cd "$project" && shasum -a 256 internal/desktop/native_darwin.m internal/desktop/native_darwin.go internal/desktop/hero_art.go internal/desktop/assets/r23-c3-reference-hero.webp internal/settings/settings.go)
+} > "$bundle/Contents/Resources/build-provenance.txt"
+codesign --force --sign - --identifier com.opendesk.resetclock "$bundle"
+codesign --verify --strict --verbose=2 "$bundle"
 plutil -lint "$bundle/Contents/Info.plist"
 test -x "$exe"
-echo "Unsigned local development app: $bundle"
+echo "Ad-hoc signed local development app (not notarized): $bundle"
 echo "Start the Bridge separately; then open the app with:"
 echo "open '$bundle' --args -feed http://127.0.0.1:8788/feed -allow-local-http"
 echo "This is not notarized or a claim of live AppKit window acceptance."

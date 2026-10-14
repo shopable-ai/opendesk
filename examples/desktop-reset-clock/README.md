@@ -1,10 +1,81 @@
-# OpenDesk Reset Clock · V1（R2.6）原生桌面挂件
+# OpenDesk Reset Clock · R2.7 原生桌面挂件
 
-> **2026-10-14 R2.6：真实 macOS AppKit 开发应用与唯一 Go Bridge 已完成本机联调。** 四个公开 API、三条真实动态、桌面层级、物理拖动/锁定穿透、隐藏后台轮询、进程范围断连恢复、退出重启和单实例均有本机证据。Windows 仅完成交叉编译；多屏、Spaces、休眠和系统通知展示尚未实测。它是独立第三方追踪工具，不能确定个人账号额度已恢复；目前没有公共 HTTPS Bridge 或签名发行包。
->
-> 本轮结论及九项独立评价见 [R2.6 Mac 验收报告](../../docs/quality/desktop-reset-clock-v1-r26-mac-acceptance.zh-CN.md)。下方 R1/R2/R2.5 说明保留为历史记录；其中旧验收状态不代表 R2.6 现状。
+R2.7 已修复原生插画顶部／右侧间隙、新闻行垂直居中及多天倒计时的可读性，并提供离线 HTML。当前真实 Mac 的主卡片布局与 mini 左下角定位已取得实窗证据；**严格 HTML 字形比对仍未通过、原始批准 PNG 未找到，不能宣称八维全部 ≥95 或通过长期运行资格**。完整分数和证据见 [R2.7 质量报告](../../docs/quality/desktop-reset-clock-r27-native-visual-parity.zh-CN.md)。
 
-## V1 本机两进程联调：真实数据 → 桌面常驻卡片
+## 运行新版 macOS 开发应用
+
+前提：macOS、Go 1.22+、Xcode Command Line Tools。Apple Silicon 构建时选择 `GOARCH=arm64`。在**仓库根目录**构建到全新版本目录：
+
+```bash
+(cd examples/desktop-reset-clock && GOARCH=arm64 bash scripts/build-macos-app.sh --output-dir "$PWD/../../.runtime/tests/desktop-reset-clock/r27/final")
+```
+
+脚本拒绝覆盖任何已有 bundle，完成后以稳定 identifier `com.opendesk.resetclock` 做 ad-hoc 签名并严格核验；这是本地开发包，未公证。先在一个终端从**仓库根目录**运行唯一 Bridge：
+
+```bash
+(cd examples/desktop-reset-clock && go run ./cmd/reset-clock-bridge serve -listen 127.0.0.1:8789)
+```
+
+然后从**仓库根目录**执行普通一行启动命令：
+
+```bash
+open '.runtime/tests/desktop-reset-clock/r27/final/Reset Clock.app' --args -feed http://127.0.0.1:8789/feed -allow-local-http
+```
+
+若 Bridge 已在运行，复用它；不要再启动第二个采集器。它以同域请求至少间隔 60 秒获取四个上游 API，首次完整轮次至少约三分钟。主卡片只读取 Bridge，不直接请求上游。隐藏卡片仍继续刷新；退出客户端不自动停止 Bridge。最终启动身份、签名、提交及截图记录在本地 `.runtime/tests/desktop-reset-clock/r27/final-current-run.json`。更新源码不会自动替换已经运行的旧应用，需核对进程及构建来源。
+
+## mini 与主卡片
+
+主卡片显示完整状态、预计时间和最多三条动态；mini 是同一进程、同一数据源的 88×44pt 小挂件，仅显示简短倒计时。它不启动第二个采集器，macOS新配置默认开启，可在菜单或设置中单独显示／隐藏；已保存的明确关闭选择仍保留。
+
+新状态下 mini 默认位于屏幕左下角，AppKit 坐标为屏幕原点右移4pt、上移20pt；已有拖动坐标继续保留。当前底部 Dock 的真实空白区域已验证：mini 完整可见，也能拖到屏幕底边，刷新不会再把它拉回 Dock 上方。拖动倒计时文字或空白处移动，点击时钟打开详情。“锁定主卡片（点击穿透）”只控制主卡片，mini 仍能拖动。重启后保留已保存坐标。
+
+[mini 实窗证据](../../.runtime/tests/desktop-reset-clock/r27/mini-fix/default06-desktop.png)和[独立证据检查](../../.runtime/tests/desktop-reset-clock/r27/mini-fix/mini-placement-check.json)对应本轮 native 源码；没有改变用户 Dock 的位置或图标习惯。左侧／右侧 Dock、多显示器和 Dock 几乎占满屏幕时的布局尚无实窗验收。
+
+## 一行打开离线 HTML
+
+在**仓库根目录**运行：
+
+```bash
+open examples/desktop-reset-clock/prototypes/r27-native-visual-parity.html
+```
+
+该文件内嵌原 C3 WebP 和与原生函数字节相同的 2× 透明 PNG，无 CDN 或在线字体。可切换预告、过期缓存、撤回、空列表及长标题；所有预览数据都是 fixture。历史 [C3 HTML](prototypes/r23-c3-reference-inspired-hero.html)未修改。C3 图片中原有的“ChatGPT 会员”推广文字完整保留。
+
+卡片宽 386pt，0／1 条动态高 265pt，2 条高 299pt，3 条高 333pt；没有三条空占位行。原生新闻行 34pt，日期与标题的实测中心差为 0pt。素材仅左侧和底部渐隐，顶部／右侧保留不透明像素；macOS 解码或加载失败会明确阻止启动，Windows 仍保留回退。浏览器使用 AppKit calibrated NSColor 转换出的 sRGB 颜色，而不是直接复用数字 RGB。
+
+## 验证入口与范围
+
+在**仓库根目录**运行浏览器检查：
+
+```bash
+python3 examples/desktop-reset-clock/tests/r27_native_visual_parity_test.py
+```
+
+需要已有 Go、Node Playwright 与 Chromium，不自动安装依赖。可用 `OPENDESK_GO`、`OPENDESK_PLAYWRIGHT_NODE`、`OPENDESK_PLAYWRIGHT_MODULE`、`OPENDESK_PLAYWRIGHT_EXECUTABLE` 指定已有路径。真实原生截图的像素检查使用已安装 Pillow 的 Python：
+
+```bash
+python3 examples/desktop-reset-clock/tests/r27_native_screenshot_check.py
+```
+
+浏览器严格字形与剩余绘制区域 gate 当前失败，不能把几何／素材检查通过解释为全部一致。mini 的已保存真机证据可从仓库根目录检查：
+
+```bash
+python3 examples/desktop-reset-clock/tests/r27_mini_placement_check.py
+```
+
+这些入口的运行产物均写到 `.runtime/tests/desktop-reset-clock/r27/`。像素检查读取已有实窗截图，不启动或操控桌面。隔离 fixture 服务入口为 `tests/r27_fixture_server.py`，默认 loopback 随机端口，模拟标识不会被解释为官方消息。
+
+在 **`examples/desktop-reset-clock/`** 运行模块检查；本轮最后一轮显式编译了 AppKit CGO：
+
+```bash
+CGO_ENABLED=1 GOARCH=arm64 go test -race ./... -count=1
+CGO_ENABLED=1 GOARCH=arm64 go vet ./...
+```
+
+实测覆盖菜单、设置、网页优先详情、主卡片拖动／锁定穿透、隐藏刷新、单实例和主／迷你坐标恢复。1728×1117 与 1496×967 是同一屏幕的两种逻辑分辨率，均为 2×；深浅壁纸也有实窗证据，原壁纸与显示设置已恢复。尚无其他物理 DPI、Windows live、Spaces／全屏、休眠、多显示器和隔夜证据。Windows amd64 交叉编译通过，不能作为 Windows 真机证明。长期运行结论为 **NOT_QUALIFIED**。
+
+## R2.6 既有真实数据联调（保留的操作说明）
 
 前提：Go 1.22+，可访问 `codex-reset.com` 公网 API；macOS 需要 Xcode Command Line Tools。R2.6 本机使用 Go 1.25.13、macOS 26.5.1。以下两条命令的**工作目录均为仓库根目录下的 `examples/desktop-reset-clock/`**，分别在两个终端运行。
 
@@ -27,47 +98,6 @@ go run ./cmd/desktop-reset-clock -feed http://127.0.0.1:8789/feed -allow-local-h
 - 卡片内及记录详情同时显示可打开的 `Data: codex-reset.com`，跳转 `https://codex-reset.com/`。解锁状态下可以点击卡片，锁定时从菜单/托盘打开来源。第三方追踪记录不是 OpenAI 官方公告，也不能确定个人额度已恢复。
 - 历史 30 天/自然月覆盖不足时显示“数据不足”，不显示 0；历史修订和撤回仍在详情历史/资讯中供核验。上一轮 Mock/Demo 仅用于自动测试，正式入口不使用模拟消息。
 - **没有公网部署地址**：所有用户需要独立运行的演示仅限本机双进程。若要真正发布给他人使用，必须部署有合法 HTTPS 的唯一 Bridge，复核来源再分发条款、状态/访问控制和可用性；桌面客户端之后只需 `-feed https://<实际已部署服务>/feed`，目前没有可用域名可填。
-
-### macOS 无需终端常驻显示的开发版 `.app`（未签名）
-
-先在 `examples/desktop-reset-clock/` 工作目录构建（Apple Silicon 设置 `GOARCH=arm64`，Intel 使用本机默认架构）：
-
-```bash
-GOARCH=arm64 bash scripts/build-macos-app.sh
-```
-
-Bridge 启动后，在**仓库根目录**执行本轮实际验证的一行启动命令：
-
-```bash
-open '.runtime/tests/desktop-reset-clock/v1/Reset Clock.app' --args -feed http://127.0.0.1:8789/feed -allow-local-http
-```
-
-脚本构建真实 CGO/AppKit 程序并生成 `LSUIElement` 菜单栏开发应用于 `.runtime/tests/desktop-reset-clock/v1/Reset Clock.app`；它**不是签名/公证的发行包**，不会要求管理员权限或修改登录启动项。已有构建文件时脚本会拒绝覆盖。维护者重新验收时，先退出并核验本任务进程，再把整个旧 bundle 保存到 `.runtime/` 构建备份后重建；保持同一 bundle ID，不修改已运行 bundle 或重置系统权限。终端 A 的 Bridge 仍需要先启动。不支持在 Linux 上构建 AppKit 版本。
-
-### C3 原生界面与真实版本核验
-
-图片来自唯一源 `internal/desktop/assets/r23-c3-reference-hero.webp`，Go `embed` 打包进原生可执行程序；运行时仅解码一次，给 AppKit PNG 和 Win32 透明 DIB，无需单独复制 HTML 或图片资源。时间、三条动态、详情和来源按钮仍是可交互原生控件，使用真实 Display，不是背景图中的静态假文字。图片故障时安全退回纯渐变。
-
-更新 Git 不会自动替换 Mac/Windows 已启动程序。验收前核实加载的源码、程序 PID、构建时间、单实例状态；C3 HTML 截图不能替代真实 native 视觉截图。布局按 386pt 宽、3 条动态约 333pt 高（0 条约 265pt）；需检查 100%/150%/200% 缩放、长文本、无未来时间、源失效/撤回、窗口点击穿透和来源链接。
-
-### Windows 开发编译及限制
-
-在 `examples/desktop-reset-clock/` 下编译 `go build -o ../../.runtime/tests/desktop-reset-clock/v1/desktop-reset-clock.exe ./cmd/desktop-reset-clock`（先建立目标文件夹）。Windows 原生 Win32/GDI 和 WorkerW 优先尝试、失败回退到非置顶窗口；**编译成功不等于 Windows 真机的 Explorer、缩放、后台和桌面层级已验收**。
-
-### 测试和证据
-
-```bash
-cd examples/desktop-reset-clock
-go test ./... -count=1
-go test -race ./... -count=1
-go vet ./...
-go build -o ../../.runtime/tests/desktop-reset-clock/v1/reset-clock-bridge ./cmd/reset-clock-bridge
-CGO_ENABLED=1 go build -o ../../.runtime/tests/desktop-reset-clock/v1/desktop-reset-clock ./cmd/desktop-reset-clock
-```
-
-构建前建立仓库根 `.runtime/tests/desktop-reset-clock/v1/` 目录。
-
-`go test` 中的 HTTP Mock 是**隔离协议回归**，不是已联网的四接口验收。在有外网的 Mac 使用现有 `go run ./cmd/reset-clock-bridge probe` 检查返回的 `live_api_verified`，不得通过多进程绕过 60 秒间隔。真实 AppKit / Win32 截图和本地测试日志保存于根目录 `.runtime/tests/desktop-reset-clock/v1/`，不要提交这些运行文件。当前报告：[R2.6 Mac 验收](../../docs/quality/desktop-reset-clock-v1-r26-mac-acceptance.zh-CN.md)；[R2.5 源码阶段](../../docs/quality/desktop-reset-clock-v1-r25-native.zh-CN.md)保留为历史基线。
 
 ---
 

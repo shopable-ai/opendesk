@@ -11,7 +11,7 @@ static const CGFloat RCScreenCardHeight = 265;
 static CGFloat RCCardHeight(NSUInteger count) {
     return 231 + MAX((NSUInteger)1,MIN(count,(NSUInteger)3)) * 34;
 }
-static const CGFloat RCMiniWidth = 176;
+static const CGFloat RCMiniWidth = 88;
 static const CGFloat RCMiniHeight = 44;
 static const CGFloat RCSettingsWidth = 520;
 static const CGFloat RCSettingsBaseHeight = 562;
@@ -46,6 +46,12 @@ static NSAttributedString *RCStyledCardValue(NSString *value, BOOL upcoming) {
        NSForegroundColorAttributeName:upcoming?RCColor(.61,1,.86):NSColor.whiteColor
     } range:full];
     if (!upcoming) return result;
+    // Keep mint units readable when a multi-day value reaches the bright artwork.
+    NSShadow *valueShadow = [[NSShadow alloc] init];
+    valueShadow.shadowColor = [NSColor colorWithWhite:0 alpha:.9];
+    valueShadow.shadowBlurRadius = 3;
+    valueShadow.shadowOffset = NSMakeSize(0, -1);
+    [result addAttribute:NSShadowAttributeName value:valueShadow range:full];
     CGFloat digitSize=text.length>18?36:(text.length>12?41:48);
     NSRegularExpression *digits=[NSRegularExpression regularExpressionWithPattern:@"[0-9]+"
          options:0 error:NULL];
@@ -58,6 +64,20 @@ static NSAttributedString *RCStyledCardValue(NSString *value, BOOL upcoming) {
     }
     return result;
 }
+// Only news cells center their intrinsic single-line text inside each 34pt row.
+// Other fields retain their established layout and accessibility behavior.
+@interface RCNewsTextCell : NSTextFieldCell
+@end
+@implementation RCNewsTextCell
+- (NSRect)drawingRectForBounds:(NSRect)bounds {
+    NSRect rect = [super drawingRectForBounds:bounds];
+    CGFloat height = MIN(NSHeight(rect), [self cellSizeForBounds:bounds].height);
+    rect.origin.y += (NSHeight(rect) - height) / 2.0;
+    rect.size.height = height;
+    return rect;
+}
+@end
+
 static NSTextField *RCText(NSView *parent, NSRect frame, CGFloat fontSize, NSFontWeight weight,
                            NSColor *color, BOOL wraps, NSTextAlignment align) {
     NSTextField *field = [[NSTextField alloc] initWithFrame:frame];
@@ -141,7 +161,7 @@ static NSImage *RCC3HeroImage;
         endingColor:RCColor(.024,.180,.192)];
     [gradient drawInRect:bounds angle:-24];
     if (self.heroImage) {
-        NSRect hero=NSMakeRect(NSWidth(bounds)-230,NSHeight(bounds)-18-172,228,172);
+        NSRect hero=NSMakeRect(NSWidth(bounds)-228,NSHeight(bounds)-172,228,172);
         [self.heroImage drawInRect:hero fromRect:NSZeroRect
             operation:NSCompositingOperationSourceOver fraction:1.0];
     }
@@ -326,10 +346,21 @@ static RCController *controller;
     NSMutableArray<NSView *> *lines=[NSMutableArray array];
     for (NSInteger i=0;i<3;i++) {
         CGFloat top=190+i*34;
-        NSTextField *date=RCText(background,RCTopRect(RCScreenCardHeight,17,top,49,30),11,
+        NSTextField *date=RCText(background,RCTopRect(RCScreenCardHeight,17,top,49,34),11,
                                  NSFontWeightSemibold,RCColor(.63,.96,.85),NO,NSTextAlignmentLeft);
-        NSTextField *title=RCText(background,RCTopRect(RCScreenCardHeight,75,top,293,30),12,
+        NSTextField *title=RCText(background,RCTopRect(RCScreenCardHeight,75,top,293,34),12,
                                   NSFontWeightMedium,NSColor.whiteColor,NO,NSTextAlignmentLeft);
+        // Install the dedicated cell before applying the existing news styles.
+        for (NSTextField *field in @[date, title]) {
+            NSFont *font=field.font;
+            NSColor *color=field.textColor;
+            field.cell=[[RCNewsTextCell alloc] initTextCell:@""];
+            field.font=font; field.textColor=color;
+            field.editable=NO; field.selectable=NO; field.bezeled=NO;
+            field.drawsBackground=NO;
+            field.lineBreakMode=NSLineBreakByTruncatingTail;
+            field.maximumNumberOfLines=1;
+        }
         date.hidden=YES; title.hidden=YES;
         [dates addObject:date]; [titles addObject:title];
         if (i<2) {
@@ -386,16 +417,16 @@ static RCController *controller;
     [self.mini setMovableByWindowBackground:YES];
     RCMiniView *background=[[RCMiniView alloc] initWithFrame:NSMakeRect(0,0,RCMiniWidth,RCMiniHeight)];
     self.mini.contentView=background;
-    self.miniOpen=[[NSButton alloc] initWithFrame:NSMakeRect(8,8,29,29)];
+    self.miniOpen=[[NSButton alloc] initWithFrame:NSMakeRect(5,8,22,29)];
     self.miniOpen.bordered=NO;
     self.miniOpen.title=@"◷";
-    self.miniOpen.font=[NSFont systemFontOfSize:20 weight:NSFontWeightMedium];
+    self.miniOpen.font=[NSFont systemFontOfSize:18 weight:NSFontWeightMedium];
     self.miniOpen.contentTintColor=RCColor(.65,.98,.84);
     self.miniOpen.target=self;
     self.miniOpen.action=@selector(openDetailsClick:);
     self.miniOpen.toolTip=@"查看 Reset Clock 记录与动态";
     [background addSubview:self.miniOpen];
-    self.miniLabel=RCText(background,NSMakeRect(39,11,128,22),15,
+    self.miniLabel=RCText(background,NSMakeRect(27,11,RCMiniWidth-33,22),11.5,
                        NSFontWeightSemibold,NSColor.whiteColor,NO,NSTextAlignmentCenter);
     self.miniLabel.stringValue=@"待公布";
 }
@@ -441,14 +472,19 @@ static RCController *controller;
     RCSetString(self.miniLabel,miniValue);
     self.miniLabel.textColor=live?NSColor.whiteColor:RCColor(.72,.81,.79);
     self.miniOpen.contentTintColor=live?RCColor(.66,1,.83):RCColor(.68,.78,.75);
-    self.mini.contentView.toolTip=tooltip;
+    self.mini.contentView.toolTip=[tooltip stringByAppendingString:
+        @"\n拖动倒计时文字或空白处移动；点击时钟查看详情"];
     self.mini.level=RCBool(data,@"mini_float")?NSFloatingWindowLevel:
         CGWindowLevelForKey(kCGDesktopIconWindowLevelKey)+1;
     self.adjustingMini=YES;
     NSRect frame=self.mini.frame;
     NSScreen *screen=self.mini.screen?:NSScreen.mainScreen;
     if (screen) {
-        NSRect visible=screen.visibleFrame;
+        // The empty desktop beside a bottom Dock is still usable by this small
+        // panel. visibleFrame excludes the whole Dock band, including that gap.
+        // Keep the menu bar clear while allowing the full screen's bottom edge.
+        NSRect bounds=screen.frame;
+        bounds.size.height=MIN(NSMaxY(bounds),NSMaxY(screen.visibleFrame))-NSMinY(bounds);
         NSInteger nextX=[data[@"mini_x"] integerValue],nextY=[data[@"mini_y"] integerValue];
         BOOL newPosition=!self.miniPositionInitialized || self.requestedMiniX!=nextX ||
             self.requestedMiniY!=nextY;
@@ -458,11 +494,13 @@ static RCController *controller;
         CGFloat x=newPosition?(CGFloat)nextX:frame.origin.x;
         CGFloat y=newPosition?(CGFloat)nextY:frame.origin.y;
         if (newPosition && nextX==0 && nextY==0) {
-            x=NSMaxX(visible)-RCMiniWidth-24;
-            y=NSMinY(visible)+25;
+            // A left-side Dock reserves the left strip; otherwise use the
+            // lower-left gap without requiring Accessibility permission.
+            x=MAX(NSMinX(bounds),NSMinX(screen.visibleFrame))+4;
+            y=NSMinY(bounds)+20;
         }
-        x=MAX(NSMinX(visible),MIN(x,NSMaxX(visible)-RCMiniWidth));
-        y=MAX(NSMinY(visible),MIN(y,NSMaxY(visible)-RCMiniHeight));
+        x=MAX(NSMinX(bounds),MIN(x,NSMaxX(bounds)-RCMiniWidth));
+        y=MAX(NSMinY(bounds),MIN(y,NSMaxY(bounds)-RCMiniHeight));
         if (fabs(frame.origin.x-x)>1 || fabs(frame.origin.y-y)>1)
             [self.mini setFrameOrigin:NSMakePoint(x,y)];
     }
@@ -495,7 +533,7 @@ static RCController *controller;
     [menu addItem:[self menuItem:@"显示迷你挂件" action:@"mini"]];
     [menu addItem:[self menuItem:@"迷你挂件悬浮置顶" action:@"mini_float"]];
     [menu addItem:[self menuItem:@"菜单栏显示剩余时间" action:@"menu_text"]];
-    [menu addItem:[self menuItem:@"锁定位置（点击穿透）" action:@"lock"]];
+    [menu addItem:[self menuItem:@"锁定主卡片（点击穿透）" action:@"lock"]];
     [menu addItem:[self menuItem:@"免打扰" action:@"quiet"]];
     if (self.demo) {
         [menu addItem:[NSMenuItem separatorItem]];
@@ -596,7 +634,7 @@ static RCController *controller;
         RCSettingsButton(content,189,18,165,@"10 分钟后手动提醒",@selector(manual:),self);
         RCSettingsText(content,232,20,470,@"桌面显示",13,YES);
         self.showSwitch = RCSettingsCheckbox(content,261,20,235,@"显示桌面卡片",@"show",self);
-        self.lockSwitch = RCSettingsCheckbox(content,261,270,230,@"锁定位置（点击穿透）",@"lock",self);
+        self.lockSwitch = RCSettingsCheckbox(content,261,270,230,@"锁定主卡片（点击穿透）",@"lock",self);
         self.miniShowSwitch=RCSettingsCheckbox(content,294,20,230,@"显示迷你挂件",@"mini",self);
         self.miniFloatSwitch=RCSettingsCheckbox(content,294,270,230,@"迷你挂件悬浮置顶",@"mini_float",self);
         self.menuTextSwitch=RCSettingsCheckbox(content,325,20,235,@"菜单栏显示倒计时",@"menu_text",self);
@@ -960,10 +998,11 @@ static RCController *controller;
 }
 @end
 
-void RCAppSetHeroPNG(const unsigned char *data, int length) {
-    if (!data || length<=0) return;
+int RCAppSetHeroPNG(const unsigned char *data, int length) {
+    if (!data || length<=0) return 0;
     NSData *bytes=[NSData dataWithBytes:data length:(NSUInteger)length];
     RCC3HeroImage=[[NSImage alloc] initWithData:bytes];
+    return RCC3HeroImage && RCC3HeroImage.isValid;
 }
 void RCAppRun(void) {
     @autoreleasepool {
