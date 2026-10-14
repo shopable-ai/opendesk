@@ -50,7 +50,7 @@ const (
 	swShow           = 5
 	swShowNoActivate = 4
 	cardWidth        = 386
-	cardHeight       = 264
+	cardHeight       = 265
 	cardExpandedHeight = 334
 	settingsWidth    = 554
 	settingsHeight   = 590
@@ -60,6 +60,7 @@ var (
 	user32          = syscall.NewLazyDLL("user32.dll")
 	msimg32         = syscall.NewLazyDLL("msimg32.dll")
 	gradientFill    = msimg32.NewProc("GradientFill")
+	alphaBlend      = msimg32.NewProc("AlphaBlend")
 	gdi32           = syscall.NewLazyDLL("gdi32.dll")
 	shell32         = syscall.NewLazyDLL("shell32.dll")
 	kernel32        = syscall.NewLazyDLL("kernel32.dll")
@@ -92,6 +93,13 @@ var (
 	selectObject    = gdi32.NewProc("SelectObject")
 	deleteObject    = gdi32.NewProc("DeleteObject")
 	createBrush     = gdi32.NewProc("CreateSolidBrush")
+	createPen       = gdi32.NewProc("CreatePen")
+	roundRect       = gdi32.NewProc("RoundRect")
+	compatibleDC    = gdi32.NewProc("CreateCompatibleDC")
+	deleteDC        = gdi32.NewProc("DeleteDC")
+	createDIB       = gdi32.NewProc("CreateDIBSection")
+	roundRegion     = gdi32.NewProc("CreateRoundRectRgn")
+	setWindowRegion = user32.NewProc("SetWindowRgn")
 	moveWindow      = user32.NewProc("MoveWindow")
 	enableWindow    = user32.NewProc("EnableWindow")
 	shellIcon       = shell32.NewProc("Shell_NotifyIconW")
@@ -121,6 +129,15 @@ type point struct{ X, Y int32 }
 type rect struct{ Left, Top, Right, Bottom int32 }
 type gradientVertex struct{ X, Y int32; Red, Green, Blue, Alpha uint16 }
 type gradientMesh struct{ UpperLeft, LowerRight uint32 }
+type bitmapInfoHeader struct {
+	Size uint32
+	Width, Height int32
+	Planes, BitCount uint16
+	Compression, SizeImage uint32
+	XPelsPerMeter, YPelsPerMeter int32
+	ClrUsed, ClrImportant uint32
+}
+type bitmapInfo struct { Header bitmapInfoHeader; Colors [1]uint32 }
 type wndClass struct {
 	Size, Style                        uint32
 	Proc                               uintptr
@@ -188,6 +205,7 @@ type windowsUI struct {
 	taskbar                                                           uint32
 	instance                                                          uintptr
 	desktopAttached                                                   bool
+	heroDC, heroBitmap, heroPrevious                                   uintptr
 	hovered, placing                                                 bool
 }
 
@@ -227,7 +245,9 @@ func (w *windowsUI) Run(ctx context.Context, handler func(Action)) error {
 	if w.card == 0 {
 		return errors.New("CreateWindowExW card failed")
 	}
-	call(user32.NewProc("SetLayeredWindowAttributes"), w.card, 0, 245, 2)
+	call(user32.NewProc("SetLayeredWindowAttributes"), w.card, 0, 255, 2)
+	w.initC3Hero()
+	defer w.releaseC3Hero()
 	w.taskbar = uint32(call(registerMessage, utf("TaskbarCreated")))
 	w.attachDesktop()
 	w.tray = notifyData{Size: uint32(unsafe.Sizeof(notifyData{})), Window: w.card, ID: 1, Flags: nifMessage | nifIcon | nifTip, Callback: wmTray, Icon: call(loadIcon, 0, 32512)}
@@ -416,13 +436,13 @@ func windowProc(hwnd uintptr, id uint32, wparam, lparam uintptr) uintptr {
 			w.mu.Unlock()
 			if !locked {
                 x,y:=int(uint16(lparam&0xffff)),int(uint16((lparam>>16)&0xffff))
-                height:=cardHeight+count*38
+                height:=cardHeightForItems(count)
                 if y<50&&x>=220 {w.detailsWindow();return 0}
-                if y>=height-38&&x<255 {
+                if y>=height-23&&x<255 {
                     w.mu.Lock();source:=w.display.DataSourceURL;w.mu.Unlock()
                     if source!="" {w.openDetailsURL(source);return 0}
                 }
-                if y>=180&&y<height-38 {w.detailsWindow();return 0}
+                if y>=186&&y<height-43 {w.detailsWindow();return 0}
                 call(releaseCapture)
 				call(sendMsg, hwnd, 0x00A1, 2, 0)
 			}
@@ -469,7 +489,7 @@ func (w *windowsUI) render() {
  defer func(){w.mu.Lock();w.placing=false;w.mu.Unlock()}()
  if w.card==0{return}
  if d.Show {call(showWin,w.card,swShowNoActivate)}else{call(showWin,w.card,swHide)}
- height:=cardHeight+len(d.TickerItems)*38
+ height:=cardHeightForItems(len(d.TickerItems))
  x,y:=d.X,d.Y
  // Clamp inside the virtual desktop, retaining negative coordinates for
  // secondary monitors placed left/above the primary. DPI/mixed-monitor
@@ -491,6 +511,8 @@ func (w *windowsUI) render() {
  target:=uintptr(1) // HWND_BOTTOM, non-topmost fallback.
  if w.desktopAttached{target=0}
  call(setWindowPos,w.card,target,uintptr(x),uintptr(y),cardWidth,uintptr(height),flags)
+  region:=call(roundRegion,0,0,cardWidth,uintptr(height),36,36)
+  if region!=0&&call(setWindowRegion,w.card,region,1)==0{call(deleteObject,region)}
  if d.Locked {
    call(setLong,w.card,-20&0xffffffff,exNoActivate|exToolWindow|exLayered|exTransparent)
  }else{
@@ -512,14 +534,62 @@ func (w *windowsUI) paintFill(dc uintptr, area rect, color uintptr) {
 // GDI uses a native vertical gradient; the solid color is a safe fallback.
 func (w *windowsUI) paintGradient(dc uintptr, height int32) {
     verts:=[2]gradientVertex{
-        {X:0,Y:0,Red:0x0c00,Green:0x2700,Blue:0x2b00},
-        {X:cardWidth,Y:height,Red:0x1800,Green:0x5a00,Blue:0x4b00},
+        {X:0,Y:0,Red:0x0b00,Green:0x4200,Blue:0x3e00},
+         {X:cardWidth,Y:height,Red:0x0600,Green:0x2e00,Blue:0x3100},
     }
     mesh:=gradientMesh{UpperLeft:0,LowerRight:1}
     if call(gradientFill,dc,uintptr(unsafe.Pointer(&verts[0])),2,
         uintptr(unsafe.Pointer(&mesh)),1,1)==0 {
         w.paintFill(dc,rect{0,0,cardWidth,height},rgb(21,59,57))
     }
+}
+// C3 uses the committed Go-embedded WebP, decoded once into a premultiplied
+// 32-bit BGRA bitmap. Native GDI AlphaBlend composites over the real gradient.
+func (w *windowsUI) initC3Hero() {
+	hero,err:=loadC3Hero()
+	if err!=nil||len(hero.BGRA)!=c3HeroWidth*c3HeroHeight*4{return}
+	dc:=call(compatibleDC,0)
+	if dc==0{return}
+	info:=bitmapInfo{Header:bitmapInfoHeader{
+		Size:uint32(unsafe.Sizeof(bitmapInfoHeader{})),
+		Width:c3HeroWidth,Height:-c3HeroHeight,Planes:1,BitCount:32,
+	}}
+	var pixels uintptr
+	bitmap:=call(createDIB,dc,uintptr(unsafe.Pointer(&info)),0,
+		uintptr(unsafe.Pointer(&pixels)),0,0)
+	if bitmap==0||pixels==0 {
+		if bitmap!=0{call(deleteObject,bitmap)}
+		call(deleteDC,dc)
+		return
+	}
+	copy(unsafe.Slice((*byte)(unsafe.Pointer(pixels)),len(hero.BGRA)),hero.BGRA)
+	w.heroPrevious=call(selectObject,dc,bitmap)
+	w.heroBitmap=bitmap
+	w.heroDC=dc
+}
+func (w *windowsUI) releaseC3Hero() {
+	if w.heroDC==0{return}
+	if w.heroPrevious!=0{call(selectObject,w.heroDC,w.heroPrevious)}
+	if w.heroBitmap!=0{call(deleteObject,w.heroBitmap)}
+	call(deleteDC,w.heroDC)
+	w.heroDC,w.heroBitmap,w.heroPrevious=0,0,0
+}
+func (w *windowsUI) paintC3Hero(dc uintptr) {
+	if w.heroDC==0{return}
+	// BLENDFUNCTION: AC_SRC_OVER, SourceConstantAlpha=255, AC_SRC_ALPHA.
+	call(alphaBlend,dc,cardWidth-c3HeroWidth-2,18,c3HeroWidth,c3HeroHeight,
+		w.heroDC,0,0,c3HeroWidth,c3HeroHeight,0x01ff0000)
+}
+func (w *windowsUI) paintDetailsPill(dc uintptr) {
+	brush:=call(createBrush,rgb(12,91,75))
+	pen:=call(createPen,0,1,rgb(94,185,155))
+	oldBrush:=call(selectObject,dc,brush)
+	oldPen:=call(selectObject,dc,pen)
+	call(roundRect,dc,239,14,370,43,28,28)
+	call(selectObject,dc,oldBrush)
+	call(selectObject,dc,oldPen)
+	call(deleteObject,brush)
+	call(deleteObject,pen)
 }
 func (w *windowsUI) paintText(dc uintptr, str string, area rect, size, weight int32, color uintptr, flags uintptr) {
 	if str == "" {
