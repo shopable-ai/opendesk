@@ -607,6 +607,60 @@ func (w *windowsUI) paintText(dc uintptr, str string, area rect, size, weight in
 	call(selectObject, dc, previous)
 	call(deleteObject, font)
 }
+// C3 uses 48px numeric glyphs paired with 16px mint-colored time units.
+// Unlike a bitmap banner, all numbers still come from the live Display.
+func (w *windowsUI) paintC3Remaining(dc uintptr, value string, upcoming bool) {
+	area:=rect{17,91,369,149}
+	if !upcoming {
+		w.paintText(dc,value,area,22,700,rgb(249,255,254),0x20|0x8000|0x04)
+		return
+	}
+	parts:=strings.Fields(value) // Go formatCardRemaining: N 天 N 小时 N 分
+	if len(parts)==0 {return}
+	numSize:=int32(48)
+	if len([]rune(value))>18 {numSize=36
+	}else if len([]rune(value))>12 {numSize=41}
+	type glyph struct {text string; width, top, fontSize, weight int32; color uintptr}
+	glyphs:=make([]glyph,0,len(parts))
+	total:=int32(0)
+	numbers:=0
+	for _,word:=range parts {
+		numeric:=true
+		for _,r:=range word {
+			if r<'0'||r>'9' {numeric=false;break}
+		}
+		size,weight,top,color:=int32(16),int32(660),int32(118),rgb(155,255,218)
+		if numeric {
+			numbers++
+			size,weight,top,color=numSize,760,91,rgb(249,255,254)
+		}
+		font:=call(createFont,uintptr(uint32(-size)),0,0,0,uintptr(weight),
+			0,0,0,1,0,0,0,0,utf("Segoe UI"))
+		if font==0 {w.paintText(dc,value,area,31,700,rgb(249,255,254),0x20|0x8000);return}
+		oldFont:=call(selectObject,dc,font)
+		measured:=rect{0,0,330,60}
+		call(drawText,dc,utf(word),^uintptr(0),uintptr(unsafe.Pointer(&measured)),0x20|0x400)
+		call(selectObject,dc,oldFont)
+		call(deleteObject,font)
+		width:=measured.Right
+		if width<=0 {width=int32(len([]rune(word)))*size}
+		glyphs=append(glyphs,glyph{text:word,width:width,top:top,fontSize:size,weight:weight,color:color})
+		total+=width+5
+		if !numeric {total+=5}
+	}
+	if numbers==0 || total>350 {
+		w.paintText(dc,value,area,31,700,rgb(249,255,254),0x20|0x8000|0x04)
+		return
+	}
+	x:=int32(17)
+	for _,piece:=range glyphs {
+		w.paintText(dc,piece.text,rect{x,piece.top,x+piece.width+2,piece.top+53},
+			piece.fontSize,piece.weight,piece.color,0x20)
+		x+=piece.width+5
+		if piece.fontSize==16 {x+=5}
+	}
+}
+
 func (w *windowsUI) paint() {
 	var state paint
 	dc:=call(beginPaint,w.card,uintptr(unsafe.Pointer(&state)))
@@ -622,11 +676,7 @@ func (w *windowsUI) paint() {
 	w.paintDetailsPill(dc)
 	w.paintText(dc,"记录与动态 ›",rect{249,16,364,42},11,650,white,0x20|0x8000|0x04)
 	w.paintText(dc,d.CardHint,rect{17,67,254,88},13,650,white,0x20|0x8000)
-	valueSize:=int32(45)
-	if !d.HasUpcoming {valueSize=22
-	}else if len([]rune(d.CardValue))>10 {valueSize=31
-	}else if len([]rune(d.CardValue))>7 {valueSize=37}
-	w.paintText(dc,d.CardValue,rect{17,91,369,149},valueSize,750,white,0x20|0x8000|0x04)
+	w.paintC3Remaining(dc,d.CardValue,d.HasUpcoming)
 	w.paintText(dc,d.CardMeta,rect{17,152,369,174},11,500,white,0x20|0x8000)
 	w.paintFill(dc,rect{17,185,369,186},rgb(41,107,91))
 	if len(d.TickerItems)==0 {
