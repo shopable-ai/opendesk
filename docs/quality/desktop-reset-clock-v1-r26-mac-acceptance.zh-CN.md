@@ -9,10 +9,11 @@
 - 工作区：`/Users/shopme/Documents/workspace/opendesk`，仅使用既有 `master`。
 - macOS 26.5.1（25F80），一个 Built-in Retina Display，1728×1117 逻辑像素，scale 2；可用区域 `{{0,90},{1728,994}}`。
 - Go 1.25.13；本机 Go 工具链为 darwin/amd64，开发 `.app` 使用 `GOARCH=arm64`、CGO/AppKit 构建。
-- 唯一客户端当前验收 PID **8613**，启动时间 2026-10-14 17:33:01 CST。此前最终修复版本 PID 1391 已从菜单正常退出，独立 `ps` 确认消失后才重启。
+- 唯一客户端当前验收 PID **17781**，启动时间 2026-10-14 17:56:44 CST。最终合并版本 PID 17605 已从菜单正常退出，独立 `ps` 确认消失后才重启；早期非 C3 版本证据保留为历史。
 - 可执行文件：仓库根 `.runtime/tests/desktop-reset-clock/v1/Reset Clock.app/Contents/MacOS/reset-clock`；bundle ID `com.opendesk.resetclock`，版本 1.0.0 / 1，`LSUIElement=true`。这是现有未签名开发入口，不是公证发行包。
-- 构建时间 `2026-10-14T09:09:51.614581Z`；Go VCS 基线 `01d0fa89aaf6d394e6584b86bc066b223808eff5`、`vcs.modified=true`。可执行 SHA-256：`6f876ae2e525eb81a23668bb4ef102cbd06eea31a96e438d293100f83d1ee59d`。
-- `r26-build-provenance.json` 保存实际构建时 51 个源码/构建输入哈希。生产代码与当前工作区逐个匹配；之后仅修正一处测试时序及文档，没有改变应用生产代码。不能把基线 SHA 写成尚未产生的最终提交 SHA。提交后的源码树核对、远端 SHA 和对应 CI 见本轮交付记录及 `r26-git-delivery.json`。
+- 构建时间 `2026-10-14T09:52:27.184522Z`；Go VCS 基线 `56b176800f06b42b46a2fb3c0651c3d06bb9cdad`、`vcs.modified=true`。可执行 SHA-256：`24625edf473f490ea4e9b9e821986bac233f95babacb6ab95d4d6b240d077373`。
+- 推送时发现远端并发更新 `5db62b0cdee40533b57f047047468959b1d33450`，保留其 C3 内嵌图像和布局，合并本轮生命周期修复。`r26-c3-build-provenance.json` 保存最终构建 55 个输入哈希（含图像、go.mod/go.sum）；生产输入与最终提交树逐个核对，不把带未提交修改的构建基线冒充最终 SHA。早期 `r26-build-provenance.json` 属于非 C3 旧 bundle。
+- 最终生产代码构建完成后只更新文档/验收证据；合并提交、远端 SHA 和对应 CI 见本轮交付消息及 `r26-git-delivery.json`。
 - 唯一 Bridge PID **6071**，监听 `127.0.0.1:8789`。原默认 8788 实际被其他服务占用；保留该服务，未终止无关进程。Collector 的持久状态及域级冷却仍共享同一 `.runtime/desktop-reset-clock/bridge-state.json`。
 
 本机证据统一位于仓库根 `.runtime/tests/desktop-reset-clock/v1/`。日志、截图、Swift 验收探针和二进制不进入版本控制。正式源码与一行运行入口见 [README](../../examples/desktop-reset-clock/README.md)。
@@ -39,19 +40,19 @@ CUA 能读取卡片，却对桌面 NSPanel 的物理 drag 返回 `noWindowsAvail
 
 | 项目 | 独立观察结果 | 本机证据 |
 |---|---|---|
-| 桌面背景层 | 卡片层级 -2147483602，即 desktop-icon + 1；普通窗为 0，实际被普通应用覆盖；桌面视图可见 | `r26-restart-settled.json`、`native-occluded-by-codex.png`、桌面截图 |
-| 解锁拖动/位置 | 一次物理拖动从 CG `(70,649)` 到 `(250,566)`；保存 AppKit 配置 `(250,287)`；坐标系不同 | `r26-physical-drag.log`、`r26-before-locked-input.json` |
-| 解锁点击 | 点击卡片“记录与动态”打开真实普通详情窗 | `r26-physical-click.log`、`r26-after-physical-click.json` |
-| 锁定穿透 | 相同按钮区域实际 AX 命中 Finder 桌面 group；物理点击没有打开详情；物理拖动后卡片坐标未变 | `r26-locked-click.log`、`r26-locked-drag.log`、`r26-after-locked-drag.json` |
-| 隐藏仍刷新 | `show=false`；09:10:32 最近请求，09:15:32 自动轮询更新 HTTP 成功时间，期间未手动刷新 | `r26-hidden-poll-before.json` / `r26-hidden-poll-after.json` |
+| 桌面背景层 | 卡片层级 -2147483602，即 desktop-icon + 1；普通窗为 0，实际被普通应用覆盖；桌面视图可见 | `r26-c3-after-restart.json`、`native-occluded-by-codex.png`、桌面截图 |
+| 解锁拖动/位置 | 一次物理拖动合并版本从 CG `(250,565)` 到 `(430,485)`；保存 AppKit 配置 `(430,367)`；坐标系不同 | `r26-c3-physical-drag.log`、`r26-c3-before-quit.json` |
+| 解锁点击 | 点击卡片“记录与动态”打开真实普通详情窗 | `r26-c3-physical-click.log`、`r26-c3-physical-click-windows.json` |
+| 锁定穿透 | 相同按钮区域实际 AX 命中 Finder 桌面 group；物理点击没有打开详情；物理拖动后卡片坐标未变 | `r26-c3-locked-click.log`、`r26-c3-locked-drag.log`、`r26-c3-after-locked-drag.json` |
+| 隐藏仍刷新 | `show=false`；早期版 09:10:32 → 09:15:32；最终 C3 版隐藏期间也独立观察到 300 秒自动轮询，期间未手动刷新 | `r26-hidden-poll-before.json` / `r26-hidden-poll-after.json`；最终 `r26-c3-hidden-before.json` / `r26-c3-hidden-after.json` |
 | 关闭普通窗口 | 详情/设置 `orderOut`，不结束应用；CG 可能保留隐藏窗口记录，应看 onscreen 状态 | 窗口观察记录、同 PID 后续轮询 |
 | 菜单和设置 | 显示/隐藏、锁定、免打扰、记录、设置、立即刷新、退出已操作；URL 初值正确，未保存编辑不会被 tick 覆盖 | AX 记录、`native-settings.png`、高级诊断截图 |
-| 单实例 | 同状态目录第二个客户端退出码 1，`already running`，未出现第二套 UI | `r26-single-instance.json` |
-| 退出/重启 | 1391 正常退出，8613 重启；配置完全相同，资讯 46、归档 50；稳定窗口尺寸和位置恢复 | `r26-quit-restart-result.json`、`r26-restart-settled.json` |
+| 单实例 | 同状态目录第二个客户端退出码 1，`already running`，未出现第二套 UI | `r26-c3-single-instance.json` |
+| 退出/重启 | 17605 正常退出，17781 重启；配置完全相同，资讯 46、归档 50；稳定窗口尺寸和位置恢复 | `r26-c3-quit-restart.json`、`r26-c3-after-restart.json` |
 
 来源导航的 HTTPS 校验与选择器已由隔离测试及实窗内容核对；本轮未逐一在外部浏览器点击所有来源按钮，不声称浏览器导航全通过。没有真实未来事件，因此未实测到时系统通知。
 
-七张核心截图都来自最终生产代码开发 bundle；重启后刷新截图。卡片逻辑尺寸 386×378（截图 772×756）；详情窗 560×620，设置 520×566。深青卡片、三条常显动态、同屏来源、文本省略和英文换行均已观察；详情/设置未出现裁切、按钮错位或异常拉宽。高级诊断另有展开截图。概览保留统计区与底部说明之间的留白；没有据此宣称与 HTML 原型逐像素一致。
+七张核心截图来自最终同一开发 bundle 的 PID 17605/17781，卡片在最终重启后刷新。卡片逻辑尺寸 386×333（截图 772×666）；详情窗 560×620，设置 520×566。C3 图像、深青卡片、三条常显动态、同屏来源、短日期、文本省略和英文换行均已观察；详情/设置未出现裁切、按钮错位或异常拉宽。高级诊断另有展开截图。概览保留统计区与底部说明之间的留白；没有据此宣称与 HTML 原型逐像素一致。内嵌的既有参考图带“ChatGPT 账号会员 / 购买 / 开通”等宣传字样；这些是图片内容，应用没有对应账户购买功能，不能当作官方背书。
 
 | 截图 | 内容 |
 |---|---|
@@ -76,15 +77,16 @@ CUA 能读取卡片，却对桌面 NSPanel 的物理 drag 返回 `noWindowsAvail
 3. `App.Run` 追踪 tick/poll/手动刷新并在退出时取消、等待；刷新 Add 与退出闸门在同一锁内，防止 Wait 后新增任务。macOS activeMac 指针同步，C action 字符串先复制，退出 watcher 正常收口。
 4. 设置窗先填入当前 Feed，再成为 key window；后续 tick 保留正在编辑的内容。实窗已验证初值与未保存编辑。
 5. 菜单和系统退出交由 Go cancel/等待后停止 AppKit loop，避免直接 terminate 绕过清理；stop 后投递事件唤醒主循环。[Apple stop 文档](https://developer.apple.com/documentation/appkit/nsapplication/stop%28_%3A%29?language=objc)说明停止并不立即中断当前事件处理。本轮真实菜单退出及重启已通过。
-6. 独立审查发现退出测试对服务端调度时序的假设；改为独立断言客户端取消状态，并带超时等待服务端取消 channel。race 下连续 50 次通过。
+6. 合并 C3 后实际发现 49pt 日期列填入完整日期时间而被截断，改为只呈现短日期，详情保留完整时间；底栏填充改用 SourceOver，修复灰色半透明覆盖与参考深青色不符。已重新构建和实窗复验。
+7. 独立审查发现退出测试对服务端调度时序的假设；改为独立断言客户端取消状态，并带超时等待服务端取消 channel。race 下连续 50 次通过。
 
-改动限于 `internal/app/app.go`、`app_test.go`，`internal/desktop/native_darwin.go`、`native_darwin.m`，`internal/bridge/bridge.go`、`bridge_test.go`，`internal/provider/codexreset/provider.go`、`provider_test.go`，本 README 和本报告。未引入依赖、第二套 UI/Collector 或生产后台。共享工作区其他任务修改保留，不纳入本次提交。
+改动限于 `internal/app/app.go`、`app_test.go`，`internal/desktop/native_darwin.go`、`native_darwin.m`，`internal/bridge/bridge.go`、`bridge_test.go`，`internal/provider/codexreset/provider.go`、`provider_test.go`，本 README、本报告及测试分类账中的唯一 C3 增量行。另保留远端 C3 的 hero_art.go/test、go.mod/go.sum 和内嵌资产引用。本轮修复未另选依赖；远端 C3 已引入的 golang.org/x/image v0.23.0 随合并保留。未引入第二套 UI/Collector 或生产后台。共享工作区其他任务修改保留，不纳入本次提交。
 
 ## Go 验证与九项独立评价
 
-在 `examples/desktop-reset-clock/`：`go test ./... -count=1`、`go test -race ./... -count=1`、`go vet ./...` 全部通过；测试时序修正后重跑全套，见 `r26-suite-recheck.json`。稳定性定向命令 `go test -race ./internal/app -run '^TestQuitCancelsAndWaitsForInFlightRefresh$' -count=50` 通过。
+在 `examples/desktop-reset-clock/`：`go test ./... -count=1`、`go test -race ./... -count=1`、`go vet ./...` 全部通过；测试时序修正后重跑全套，见 `r26-suite-recheck.json`；合并 C3 后全套重跑见 `r26-c3-final-tests.json`，日期/底栏修正后完整 race 再通过 `r26-c3-layout-race.log`。稳定性定向命令 `go test -race ./internal/app -run '^TestQuitCancelsAndWaitsForInFlightRefresh$' -count=50` 通过。
 
-Bridge build、CGO client build、Windows amd64 non-CGO cross-build，以及现有 `GOARCH=arm64 bash scripts/build-macos-app.sh` 均通过，详见 `r26-final-tests.json` / `r26-app-build.log`。产物全部位于 `.runtime/`。Mac linker 的 LC_DYSYMTAB 警告没有使构建或测试失败。CI 中旧 Chromium 原型任务只能证明原型，不能替代本报告 AppKit 截图。
+Bridge build、CGO client build、Windows amd64 non-CGO cross-build，以及现有 `GOARCH=arm64 bash scripts/build-macos-app.sh` 均通过，最终 C3 详见 `r26-c3-final-tests.json` / `r26-c3-app-build.log`。产物全部位于 `.runtime/`。Mac linker 的 LC_DYSYMTAB 警告没有使构建或测试失败。CI 中旧 Chromium 原型任务只能证明原型，不能替代本报告 AppKit 截图。补跑仓库 `node scripts/audit_test_architecture.js` **失败**：54 个既有 Go 测试未被现有分类格式识别/登记，包含此前 Reset Clock 旧行及其他域；当前新增 hero_art_test.go 已按解析器七列格式登记并被识别。此仓库级历史台账问题没有静默改写；日志 `r26-test-architecture.log`，不声称仓库所有 gate 通过。
 
 评价按各自成功条件判断，不从总测试数量推导分数，也不把源码存在当作实测。
 
