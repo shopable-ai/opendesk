@@ -25,6 +25,11 @@ type Config struct {
 	Show           bool   `json:"show"`
 	Locked         bool   `json:"locked"`
 	TickerExpanded bool `json:"ticker_expanded,omitempty"`
+	MenuText bool `json:"menu_text"`
+	MiniShow bool `json:"mini_show"`
+	MiniFloat bool `json:"mini_float"`
+	MiniX int `json:"mini_x"`
+	MiniY int `json:"mini_y"`
 	X              int    `json:"x"`
 	Y              int    `json:"y"`
 	PollSeconds    int    `json:"poll_seconds"`
@@ -45,7 +50,7 @@ type State struct {
 }
 
 func Default() State {
-	return State{Config: Config{Clock24: true, Show: true, Locked: true, X: 70, Y: 70, PollSeconds: 300}, Fired: map[string]bool{}}
+	return State{Config: Config{Clock24: true, Show: true, Locked: true, MenuText: true, X: 70, Y: 70, PollSeconds: 300}, Fired: map[string]bool{}}
 }
 func Path() (string, error) {
 	if home := os.Getenv("OPENDESK_RESET_HOME"); home != "" {

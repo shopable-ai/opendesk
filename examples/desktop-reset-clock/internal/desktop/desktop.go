@@ -34,7 +34,17 @@ type MetricRow struct {
  Value string `json:"value"`
  Detail string `json:"detail"`
 }
+// MenuStatus is a read-only Go projection of a verified future event.
+// AppKit and Win32 must never calculate source eligibility on their own.
+type MenuStatus struct {
+	State string `json:"state"`
+	ShortRemaining string `json:"short_remaining"`
+	Label string `json:"label"`
+	Tooltip string `json:"tooltip"`
+}
 type Display struct {
+	MenuStatus MenuStatus `json:"menu_status"`
+	WebDetailsURL string `json:"web_details_url,omitempty"`
 	Demo        bool   `json:"demo"`
 	Clock       string `json:"clock"`
 	LocalTime   string `json:"local_time"`
@@ -81,6 +91,11 @@ type Display struct {
 	NewsURLs [3]string `json:"news_urls"`
 	AllNews []SourceEvidence `json:"all_news,omitempty"`
 
+	MenuText bool `json:"menu_text"`
+	MiniShow bool `json:"mini_show"`
+	MiniFloat bool `json:"mini_float"`
+	MiniX int `json:"mini_x"`
+	MiniY int `json:"mini_y"`
 	Show      bool `json:"show"`
 	Locked    bool `json:"locked"`
 	Quiet     bool `json:"quiet"`

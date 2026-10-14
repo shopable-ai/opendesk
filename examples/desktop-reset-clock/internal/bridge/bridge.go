@@ -664,10 +664,12 @@ func (e *Engine) Handler(origin string) (http.Handler, error) {
 		e.mu.RUnlock()
 		s := d.Snapshot
 		s.SourceHealth = e.liveHealth(s.SourceHealth)
+		s.WebDetailsURL = origin + "/reset-clock/"
 		s.HistoryURL = origin + "/archive"
 		s.HistoryVersion = d.Archive.ArchiveVersion
 		jsonResponse(w, r, s)
 	})
+	mux.HandleFunc("/reset-clock/", e.webOverview)
 	mux.HandleFunc("/archive", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
 			http.Error(w, "GET required", 405)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -359,6 +360,17 @@ func cardText(s string, demo bool) string {
 	return string(r)
 }
 
+// sameOriginWebDetails prevents a feed from redirecting records to a different
+// website. Only an explicitly advertised same-origin Bridge route is opened.
+func sameOriginWebDetails(feedURL, webURL string, allowLocal bool) string {
+	if webURL=="" || feedURL=="" {return ""}
+	if err:=feed.CheckURL(webURL,allowLocal);err!=nil{return ""}
+	f,errF:=url.Parse(feedURL);w,errW:=url.Parse(webURL)
+	if errF!=nil || errW!=nil || f==nil || w==nil || w.User!=nil || w.Fragment!="" ||
+		w.RawQuery!="" || w.Path!="/reset-clock/" || f.Scheme!=w.Scheme ||
+		!strings.EqualFold(f.Host,w.Host) {return ""}
+	return webURL
+}
 func (a *App) displayLocked() desktop.Display {
 	s := a.s
 	now := a.now()
@@ -378,6 +390,8 @@ func (a *App) displayLocked() desktop.Display {
 		CardFoot: state, Health: state, FeedURL: s.Config.FeedURL,
 		DataSourceURL: "", // Only credit the provider after a validated snapshot identifies it.
 		Show: s.Config.Show, Locked: s.Config.Locked, Quiet: s.Config.Quiet,
+		MenuText: s.Config.MenuText, MiniShow: s.Config.MiniShow,
+		MiniFloat: s.Config.MiniFloat, MiniX: s.Config.MiniX, MiniY: s.Config.MiniY,
 		Advance10: s.Config.Advance10, Clock24: s.Config.Clock24,
 		X: s.Config.X, Y: s.Config.Y,
 		LastRequest: shortDate(s.Health.LastAttemptAt, s.Config.Zone),
@@ -386,7 +400,10 @@ func (a *App) displayLocked() desktop.Display {
 	}
     // A user-supplied trusted feed is not automatically codex-reset.com.
     // Attribution must follow the validated source identity, not our branding.
-    if s.Snapshot!=nil && !demo && s.Snapshot.DataSourceURL=="https://codex-reset.com/" {
+    if s.Snapshot!=nil {
+		d.WebDetailsURL=sameOriginWebDetails(s.Config.FeedURL,s.Snapshot.WebDetailsURL,s.Config.AllowLocalHTTP)
+	}
+	if s.Snapshot!=nil && !demo && s.Snapshot.DataSourceURL=="https://codex-reset.com/" {
         d.DataSourceURL=s.Snapshot.DataSourceURL
     }
 	d.Diagnostics = fmt.Sprintf("本机请求: %s | 有效数据: %s\n上游检查: %s | 本地发现公告变化: %s\n最后失败: %s (%s)",
@@ -524,6 +541,7 @@ func (a *App) displayLocked() desktop.Display {
         }
     }
 	if s.Snapshot == nil {
+		d.MenuStatus=compactStatus(now,nil,false,d.StatusKind)
         d.TickerExpanded=false
 		if s.Health.LastError != "" {
 			d.StatusKind = "error"
@@ -617,6 +635,7 @@ func (a *App) displayLocked() desktop.Display {
 	if demo {
 		d.Badge = "【模拟】" + d.Badge
 	}
+	d.MenuStatus=compactStatus(now,chosen,d.HasUpcoming,d.StatusKind)
 	return d
 }
 func (a *App) Display() desktop.Display { a.mu.Lock(); defer a.mu.Unlock(); return a.displayLocked() }
@@ -711,6 +730,19 @@ func (a *App) Action(ctx context.Context, action desktop.Action) {
 		switch action.Name {
 		case "show":
 			a.s.Config.Show = !a.s.Config.Show
+		case "show_main":
+			a.s.Config.Show = true
+		case "menu_text":
+			a.s.Config.MenuText = !a.s.Config.MenuText
+		case "mini":
+			a.s.Config.MiniShow = !a.s.Config.MiniShow
+		case "mini_float":
+			a.s.Config.MiniFloat = !a.s.Config.MiniFloat
+		case "mini_position":
+			var x,y int
+			if _,err:=fmt.Sscanf(action.Value,"%d,%d",&x,&y);err==nil{
+				a.s.Config.MiniX=x;a.s.Config.MiniY=y
+			}
 		case "lock":
 			a.s.Config.Locked = !a.s.Config.Locked
 		case "clock":

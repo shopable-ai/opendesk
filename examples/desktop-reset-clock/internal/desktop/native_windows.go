@@ -437,12 +437,12 @@ func windowProc(hwnd uintptr, id uint32, wparam, lparam uintptr) uintptr {
 			if !locked {
                 x,y:=int(uint16(lparam&0xffff)),int(uint16((lparam>>16)&0xffff))
                 height:=cardHeightForItems(count)
-                if y<50&&x>=220 {w.detailsWindow();return 0}
+                if y<50&&x>=220 {w.openWebDetails();return 0}
                 if y>=height-23&&x<255 {
                     w.mu.Lock();source:=w.display.DataSourceURL;w.mu.Unlock()
                     if source!="" {w.openDetailsURL(source);return 0}
                 }
-                if y>=186&&y<height-43 {w.detailsWindow();return 0}
+                if y>=186&&y<height-43 {w.openWebDetails();return 0}
                 call(releaseCapture)
 				call(sendMsg, hwnd, 0x00A1, 2, 0)
 			}
@@ -779,7 +779,7 @@ func (w *windowsUI) menu() {
 	case "settings":
 		w.settingsWindow()
 	case "details":
-		w.detailsWindow()
+		if d.WebDetailsURL!="" {w.openWebDetails()} else {w.detailsWindow()}
 	case "source":
 		w.openSource()
     case "data_source":
@@ -925,9 +925,17 @@ func (w *windowsUI) setDetailsPeriod(index int){
  w.mu.Lock();d:=w.display;w.mu.Unlock()
  w.syncDetails(d)
 }
+func (w *windowsUI) openWebDetails(){
+ w.mu.Lock()
+ link:=w.display.WebDetailsURL
+ w.mu.Unlock()
+ if link!="" {w.openDetailsURL(link)} else {w.detailsWindow()}
+}
 func (w *windowsUI) openDetailsURL(raw string){
  parsed,err:=url.Parse(raw)
- if err!=nil || parsed.Scheme!="https" || parsed.Host=="" || parsed.User!=nil ||
+ if err!=nil || (parsed.Scheme!="https" && !(parsed.Scheme=="http" &&
+    (parsed.Hostname()=="localhost"||parsed.Hostname()=="127.0.0.1"||parsed.Hostname()=="::1") &&
+    parsed.Path=="/reset-clock/")) || parsed.Host=="" || parsed.User!=nil ||
     parsed.Fragment!="" || parsed.Opaque!="" {return}
  call(shell32.NewProc("ShellExecuteW"),0,utf("open"),utf(raw),0,0,1)
 }
