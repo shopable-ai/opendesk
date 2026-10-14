@@ -50,7 +50,7 @@ const (
 	swShow           = 5
 	swShowNoActivate = 4
 	cardWidth        = 386
-	cardHeight       = 264
+	cardHeight       = 265
 	cardExpandedHeight = 334
 	settingsWidth    = 554
 	settingsHeight   = 590
@@ -60,6 +60,7 @@ var (
 	user32          = syscall.NewLazyDLL("user32.dll")
 	msimg32         = syscall.NewLazyDLL("msimg32.dll")
 	gradientFill    = msimg32.NewProc("GradientFill")
+	alphaBlend      = msimg32.NewProc("AlphaBlend")
 	gdi32           = syscall.NewLazyDLL("gdi32.dll")
 	shell32         = syscall.NewLazyDLL("shell32.dll")
 	kernel32        = syscall.NewLazyDLL("kernel32.dll")
@@ -92,6 +93,13 @@ var (
 	selectObject    = gdi32.NewProc("SelectObject")
 	deleteObject    = gdi32.NewProc("DeleteObject")
 	createBrush     = gdi32.NewProc("CreateSolidBrush")
+	createPen       = gdi32.NewProc("CreatePen")
+	roundRect       = gdi32.NewProc("RoundRect")
+	compatibleDC    = gdi32.NewProc("CreateCompatibleDC")
+	deleteDC        = gdi32.NewProc("DeleteDC")
+	createDIB       = gdi32.NewProc("CreateDIBSection")
+	roundRegion     = gdi32.NewProc("CreateRoundRectRgn")
+	setWindowRegion = user32.NewProc("SetWindowRgn")
 	moveWindow      = user32.NewProc("MoveWindow")
 	enableWindow    = user32.NewProc("EnableWindow")
 	shellIcon       = shell32.NewProc("Shell_NotifyIconW")
@@ -121,6 +129,15 @@ type point struct{ X, Y int32 }
 type rect struct{ Left, Top, Right, Bottom int32 }
 type gradientVertex struct{ X, Y int32; Red, Green, Blue, Alpha uint16 }
 type gradientMesh struct{ UpperLeft, LowerRight uint32 }
+type bitmapInfoHeader struct {
+	Size uint32
+	Width, Height int32
+	Planes, BitCount uint16
+	Compression, SizeImage uint32
+	XPelsPerMeter, YPelsPerMeter int32
+	ClrUsed, ClrImportant uint32
+}
+type bitmapInfo struct { Header bitmapInfoHeader; Colors [1]uint32 }
 type wndClass struct {
 	Size, Style                        uint32
 	Proc                               uintptr
@@ -188,6 +205,7 @@ type windowsUI struct {
 	taskbar                                                           uint32
 	instance                                                          uintptr
 	desktopAttached                                                   bool
+	heroDC, heroBitmap, heroPrevious                                   uintptr
 	hovered, placing                                                 bool
 }
 
@@ -227,7 +245,9 @@ func (w *windowsUI) Run(ctx context.Context, handler func(Action)) error {
 	if w.card == 0 {
 		return errors.New("CreateWindowExW card failed")
 	}
-	call(user32.NewProc("SetLayeredWindowAttributes"), w.card, 0, 245, 2)
+	call(user32.NewProc("SetLayeredWindowAttributes"), w.card, 0, 255, 2)
+	w.initC3Hero()
+	defer w.releaseC3Hero()
 	w.taskbar = uint32(call(registerMessage, utf("TaskbarCreated")))
 	w.attachDesktop()
 	w.tray = notifyData{Size: uint32(unsafe.Sizeof(notifyData{})), Window: w.card, ID: 1, Flags: nifMessage | nifIcon | nifTip, Callback: wmTray, Icon: call(loadIcon, 0, 32512)}
@@ -416,13 +436,13 @@ func windowProc(hwnd uintptr, id uint32, wparam, lparam uintptr) uintptr {
 			w.mu.Unlock()
 			if !locked {
                 x,y:=int(uint16(lparam&0xffff)),int(uint16((lparam>>16)&0xffff))
-                height:=cardHeight+count*38
+                height:=cardHeightForItems(count)
                 if y<50&&x>=220 {w.detailsWindow();return 0}
-                if y>=height-38&&x<255 {
+                if y>=height-23&&x<255 {
                     w.mu.Lock();source:=w.display.DataSourceURL;w.mu.Unlock()
                     if source!="" {w.openDetailsURL(source);return 0}
                 }
-                if y>=180&&y<height-38 {w.detailsWindow();return 0}
+                if y>=186&&y<height-43 {w.detailsWindow();return 0}
                 call(releaseCapture)
 				call(sendMsg, hwnd, 0x00A1, 2, 0)
 			}
@@ -469,7 +489,7 @@ func (w *windowsUI) render() {
  defer func(){w.mu.Lock();w.placing=false;w.mu.Unlock()}()
  if w.card==0{return}
  if d.Show {call(showWin,w.card,swShowNoActivate)}else{call(showWin,w.card,swHide)}
- height:=cardHeight+len(d.TickerItems)*38
+ height:=cardHeightForItems(len(d.TickerItems))
  x,y:=d.X,d.Y
  // Clamp inside the virtual desktop, retaining negative coordinates for
  // secondary monitors placed left/above the primary. DPI/mixed-monitor
@@ -491,6 +511,8 @@ func (w *windowsUI) render() {
  target:=uintptr(1) // HWND_BOTTOM, non-topmost fallback.
  if w.desktopAttached{target=0}
  call(setWindowPos,w.card,target,uintptr(x),uintptr(y),cardWidth,uintptr(height),flags)
+  region:=call(roundRegion,0,0,cardWidth,uintptr(height),36,36)
+  if region!=0&&call(setWindowRegion,w.card,region,1)==0{call(deleteObject,region)}
  if d.Locked {
    call(setLong,w.card,-20&0xffffffff,exNoActivate|exToolWindow|exLayered|exTransparent)
  }else{
@@ -512,14 +534,64 @@ func (w *windowsUI) paintFill(dc uintptr, area rect, color uintptr) {
 // GDI uses a native vertical gradient; the solid color is a safe fallback.
 func (w *windowsUI) paintGradient(dc uintptr, height int32) {
     verts:=[2]gradientVertex{
-        {X:0,Y:0,Red:0x0c00,Green:0x2700,Blue:0x2b00},
-        {X:cardWidth,Y:height,Red:0x1800,Green:0x5a00,Blue:0x4b00},
+        {X:0,Y:0,Red:0x0b00,Green:0x4200,Blue:0x3e00},
+         {X:cardWidth,Y:height,Red:0x0600,Green:0x2e00,Blue:0x3100},
     }
     mesh:=gradientMesh{UpperLeft:0,LowerRight:1}
     if call(gradientFill,dc,uintptr(unsafe.Pointer(&verts[0])),2,
         uintptr(unsafe.Pointer(&mesh)),1,1)==0 {
         w.paintFill(dc,rect{0,0,cardWidth,height},rgb(21,59,57))
     }
+}
+// C3 uses the committed Go-embedded WebP, decoded once into a premultiplied
+// 32-bit BGRA bitmap. Native GDI AlphaBlend composites over the real gradient.
+func (w *windowsUI) initC3Hero() {
+	hero,err:=loadC3Hero()
+	if err!=nil||len(hero.BGRA)!=c3HeroWidth*c3HeroHeight*4{return}
+	dc:=call(compatibleDC,0)
+	if dc==0{return}
+	info:=bitmapInfo{Header:bitmapInfoHeader{
+		Size:uint32(unsafe.Sizeof(bitmapInfoHeader{})),
+		Width:c3HeroWidth,Height:-c3HeroHeight,Planes:1,BitCount:32,
+	}}
+	// Keep the out pointer typed as unsafe.Pointer throughout the Win32 call.
+	// A round-trip uintptr -> unsafe.Pointer triggers go vet's unsafeptr check.
+	var pixels unsafe.Pointer
+	bitmap:=call(createDIB,dc,uintptr(unsafe.Pointer(&info)),0,
+		uintptr(unsafe.Pointer(&pixels)),0,0)
+	if bitmap==0||pixels==nil {
+		if bitmap!=0{call(deleteObject,bitmap)}
+		call(deleteDC,dc)
+		return
+	}
+	copy(unsafe.Slice((*byte)(pixels),len(hero.BGRA)),hero.BGRA)
+	w.heroPrevious=call(selectObject,dc,bitmap)
+	w.heroBitmap=bitmap
+	w.heroDC=dc
+}
+func (w *windowsUI) releaseC3Hero() {
+	if w.heroDC==0{return}
+	if w.heroPrevious!=0{call(selectObject,w.heroDC,w.heroPrevious)}
+	if w.heroBitmap!=0{call(deleteObject,w.heroBitmap)}
+	call(deleteDC,w.heroDC)
+	w.heroDC,w.heroBitmap,w.heroPrevious=0,0,0
+}
+func (w *windowsUI) paintC3Hero(dc uintptr) {
+	if w.heroDC==0{return}
+	// BLENDFUNCTION: AC_SRC_OVER, SourceConstantAlpha=255, AC_SRC_ALPHA.
+	call(alphaBlend,dc,cardWidth-c3HeroWidth-2,18,c3HeroWidth,c3HeroHeight,
+		w.heroDC,0,0,c3HeroWidth,c3HeroHeight,0x01ff0000)
+}
+func (w *windowsUI) paintDetailsPill(dc uintptr) {
+	brush:=call(createBrush,rgb(12,91,75))
+	pen:=call(createPen,0,1,rgb(94,185,155))
+	oldBrush:=call(selectObject,dc,brush)
+	oldPen:=call(selectObject,dc,pen)
+	call(roundRect,dc,239,14,370,43,28,28)
+	call(selectObject,dc,oldBrush)
+	call(selectObject,dc,oldPen)
+	call(deleteObject,brush)
+	call(deleteObject,pen)
 }
 func (w *windowsUI) paintText(dc uintptr, str string, area rect, size, weight int32, color uintptr, flags uintptr) {
 	if str == "" {
@@ -535,44 +607,103 @@ func (w *windowsUI) paintText(dc uintptr, str string, area rect, size, weight in
 	call(selectObject, dc, previous)
 	call(deleteObject, font)
 }
+// C3 uses 48px numeric glyphs paired with 16px mint-colored time units.
+// Unlike a bitmap banner, all numbers still come from the live Display.
+func (w *windowsUI) paintC3Remaining(dc uintptr, value string, upcoming bool) {
+	area:=rect{17,91,369,149}
+	if !upcoming {
+		w.paintText(dc,value,area,22,700,rgb(249,255,254),0x20|0x8000|0x04)
+		return
+	}
+	parts:=strings.Fields(value) // Go formatCardRemaining: N 天 N 小时 N 分
+	if len(parts)==0 {return}
+	numSize:=int32(48)
+	if len([]rune(value))>18 {numSize=36
+	}else if len([]rune(value))>12 {numSize=41}
+	type glyph struct {text string; width, top, fontSize, weight int32; color uintptr}
+	glyphs:=make([]glyph,0,len(parts))
+	total:=int32(0)
+	numbers:=0
+	for _,word:=range parts {
+		numeric:=true
+		for _,r:=range word {
+			if r<'0'||r>'9' {numeric=false;break}
+		}
+		size,weight,top,color:=int32(16),int32(660),int32(118),rgb(155,255,218)
+		if numeric {
+			numbers++
+			size,weight,top,color=numSize,760,91,rgb(249,255,254)
+		}
+		font:=call(createFont,uintptr(uint32(-size)),0,0,0,uintptr(weight),
+			0,0,0,1,0,0,0,0,utf("Segoe UI"))
+		if font==0 {w.paintText(dc,value,area,31,700,rgb(249,255,254),0x20|0x8000);return}
+		oldFont:=call(selectObject,dc,font)
+		measured:=rect{0,0,330,60}
+		call(drawText,dc,utf(word),^uintptr(0),uintptr(unsafe.Pointer(&measured)),0x20|0x400)
+		call(selectObject,dc,oldFont)
+		call(deleteObject,font)
+		width:=measured.Right
+		if width<=0 {width=int32(len([]rune(word)))*size}
+		glyphs=append(glyphs,glyph{text:word,width:width,top:top,fontSize:size,weight:weight,color:color})
+		total+=width+5
+		if !numeric {total+=5}
+	}
+	if numbers==0 || total>350 {
+		w.paintText(dc,value,area,31,700,rgb(249,255,254),0x20|0x8000|0x04)
+		return
+	}
+	x:=int32(17)
+	for _,piece:=range glyphs {
+		w.paintText(dc,piece.text,rect{x,piece.top,x+piece.width+2,piece.top+53},
+			piece.fontSize,piece.weight,piece.color,0x20)
+		x+=piece.width+5
+		if piece.fontSize==16 {x+=5}
+	}
+}
+
 func (w *windowsUI) paint() {
- var state paint
- dc:=call(beginPaint,w.card,uintptr(unsafe.Pointer(&state)))
- if dc==0{return}
- defer call(endPaint,w.card,uintptr(unsafe.Pointer(&state)))
- w.mu.Lock();d:=w.display;w.mu.Unlock()
- height:=cardHeight+len(d.TickerItems)*38
- w.paintGradient(dc,int32(height))
-  call(setBk,dc,1)
-  white,subtle,green:=rgb(247,251,249),rgb(190,216,207),rgb(166,225,203)
-  w.paintText(dc,"↻  Reset Clock",rect{18,16,181,41},15,700,white,0x20|0x8000)
-  w.paintText(dc,"记录与动态 ↗",rect{240,14,369,43},12,600,green,0x20|0x8000)
-  w.paintText(dc,d.CardHint,rect{18,55,368,77},12,500,green,0x20|0x8000)
-  size:=int32(33)
-  if !d.HasUpcoming {size=23}
-  w.paintText(dc,d.CardValue,rect{18,79,368,118},size,700,white,0x20|0x8000)
-  w.paintText(dc,d.CardMeta,rect{18,125,368,147},12,500,white,0x20|0x8000)
-  note:="独立第三方追踪 · 不代表个人额度恢复"
-  if d.StatusKind=="withdrawn" {note="先前公告已撤回 · 下一次时间待公布"}
-  if d.TickerCached {note="来源待核验 · 以下仅为已保存的历史内容"}
-  w.paintText(dc,note,rect{18,152,368,172},11,400,subtle,0x20|0x8000)
-  w.paintFill(dc,rect{18,180,368,181},rgb(66,112,99))
-  title:="最近动态"
-  if d.TickerCached {title="最近动态 · 缓存"}
-  w.paintText(dc,title,rect{18,189,368,210},12,650,green,0x20|0x8000)
-  if len(d.TickerItems)==0 {
-      w.paintText(dc,"暂无可核验动态",rect{18,212,368,235},11,400,subtle,0x20|0x8000)
-  }
-  for i,item:=range d.TickerItems {
-      if i>=3 {break}
-      top:=int32(212+i*38)
-      w.paintText(dc,item.Title,rect{18,top,368,top+19},12,550,white,0x20|0x8000)
-      w.paintText(dc,item.Updated+" · "+item.Source,rect{18,top+19,368,top+35},10,400,subtle,0x20|0x8000)
-  }
-  if d.DataSourceURL!="" {
-      w.paintText(dc,"Data: codex-reset.com ↗",rect{18,int32(height-31),274,int32(height-9)},
-          11,550,green,0x20|0x8000)
-  }
+	var state paint
+	dc:=call(beginPaint,w.card,uintptr(unsafe.Pointer(&state)))
+	if dc==0{return}
+	defer call(endPaint,w.card,uintptr(unsafe.Pointer(&state)))
+	w.mu.Lock();d:=w.display;w.mu.Unlock()
+	height:=cardHeightForItems(len(d.TickerItems))
+	w.paintGradient(dc,int32(height))
+	w.paintC3Hero(dc)
+	call(setBk,dc,1)
+	white,subtle,green:=rgb(248,255,253),rgb(186,222,207),rgb(153,242,211)
+	w.paintText(dc,"↻  Reset Clock",rect{17,15,214,44},14,760,white,0x20|0x8000)
+	w.paintDetailsPill(dc)
+	w.paintText(dc,"记录与动态 ›",rect{249,16,364,42},11,650,white,0x20|0x8000|0x04)
+	w.paintText(dc,d.CardHint,rect{17,67,254,88},13,650,white,0x20|0x8000)
+	w.paintC3Remaining(dc,d.CardValue,d.HasUpcoming)
+	w.paintText(dc,d.CardMeta,rect{17,152,369,174},11,500,white,0x20|0x8000)
+	w.paintFill(dc,rect{17,185,369,186},rgb(41,107,91))
+	if len(d.TickerItems)==0 {
+		w.paintText(dc,"暂无可核验动态",rect{17,194,369,220},11,400,subtle,0x20|0x8000|0x04)
+	}
+	for i,item:=range d.TickerItems {
+		if i>=3 {break}
+		top:=int32(190+i*34)
+		w.paintText(dc,item.Updated,rect{17,top,66,top+30},11,690,green,0x20|0x8000|0x04)
+		w.paintText(dc,item.Title,rect{75,top,369,top+30},12,560,white,0x20|0x8000|0x04)
+		if i<len(d.TickerItems)-1&&i<2 {
+			w.paintFill(dc,rect{17,top+33,369,top+34},rgb(32,88,78))
+		}
+	}
+	// Preserve both source disclosure and an actionable source link, not fake
+	// official resets or an HTML banner baked into the native text content.
+	footY:=int32(height-43)
+	w.paintFill(dc,rect{0,footY,cardWidth,int32(height)},rgb(6,46,43))
+	w.paintFill(dc,rect{0,footY,cardWidth,footY+1},rgb(42,104,89))
+	note:="第三方追踪 · 不代表个人额度恢复"
+	if d.StatusKind=="withdrawn" {note="先前公告已撤回 · 下一次时间待公布"}
+	if d.TickerCached {note="来源待核验 · 以下为历史缓存"}
+	w.paintText(dc,note,rect{17,footY+3,369,footY+21},10,400,subtle,0x20|0x8000)
+	if d.DataSourceURL!="" {
+		w.paintText(dc,"Data: codex-reset.com ↗",rect{17,int32(height-23),260,int32(height-4)},
+			11,550,green,0x20|0x8000)
+	}
 }
 
 func (w *windowsUI) openSource() {
