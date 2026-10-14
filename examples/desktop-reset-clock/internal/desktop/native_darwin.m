@@ -11,9 +11,11 @@ static const CGFloat RCScreenCardHeight = 265;
 static CGFloat RCCardHeight(NSUInteger count) {
     return 231 + MAX((NSUInteger)1,MIN(count,(NSUInteger)3)) * 34;
 }
+static const CGFloat RCMiniWidth = 176;
+static const CGFloat RCMiniHeight = 44;
 static const CGFloat RCSettingsWidth = 520;
-static const CGFloat RCSettingsBaseHeight = 534;
-static const CGFloat RCSettingsExpandedHeight = 660;
+static const CGFloat RCSettingsBaseHeight = 562;
+static const CGFloat RCSettingsExpandedHeight = 688;
 static const CGFloat RCDetailsHeight = 588;
 
 static NSColor *RCColor(CGFloat red, CGFloat green, CGFloat blue) {
@@ -171,8 +173,29 @@ static NSImage *RCC3HeroImage;
 - (void)mouseExited:(NSEvent *)event { RCGoAction("ticker_resume",""); }
 @end
 
+// The optional mini surface is a second native panel owned by the *same*
+// process and fed by the same Go Display. Nothing polls or stores separately.
+@interface RCMiniView : NSView
+@end
+@implementation RCMiniView
+- (BOOL)mouseDownCanMoveWindow { return YES; }
+- (void)drawRect:(NSRect)dirtyRect {
+    NSBezierPath *pill=[NSBezierPath bezierPathWithRoundedRect:self.bounds xRadius:22 yRadius:22];
+    NSGradient *gradient=[[NSGradient alloc] initWithStartingColor:RCColor(.055,.22,.22)
+        endingColor:RCColor(.06,.35,.30)];
+    [gradient drawInBezierPath:pill angle:-15];
+    [[RCColor(.61,.98,.82) colorWithAlphaComponent:.38] setStroke];
+    pill.lineWidth=.8;[pill stroke];
+}
+@end
+
 @interface RCController : NSObject <NSApplicationDelegate, NSWindowDelegate>
 @property (strong) NSPanel *card;
+@property (strong) NSPanel *mini;
+@property (strong) NSTextField *miniLabel;
+@property (strong) NSButton *miniOpen;
+@property (copy) NSString *traySymbol;
+@property BOOL adjustingMini;
 @property (strong) NSWindow *settings;
 @property (strong) NSWindow *details;
 @property (strong) NSSegmentedControl *detailTabs;
@@ -232,6 +255,9 @@ static NSImage *RCC3HeroImage;
 @property (strong) NSButton *showSwitch;
 @property (strong) NSButton *lockSwitch;
 @property (strong) NSButton *clockSwitch;
+@property (strong) NSButton *menuTextSwitch;
+@property (strong) NSButton *miniShowSwitch;
+@property (strong) NSButton *miniFloatSwitch;
 @property (strong) NSButton *advancedButton;
 @property (copy) NSString *sourceURL;
 @property BOOL shown;
@@ -331,13 +357,108 @@ static RCController *controller;
     self.summaryLabel.autoresizingMask=NSViewMaxYMargin;
     self.creditLink.autoresizingMask=NSViewMaxYMargin;
     self.tray = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
-    self.tray.button.title = @"◷";
+    self.tray.button.title = @"◷"; // fallback on systems without SF Symbols
+    self.tray.button.imagePosition = NSImageLeft;
     self.tray.button.toolTip = @"OpenDesk Reset Clock";
     self.shown = YES;
     self.locked = YES;
     self.card.ignoresMouseEvents = YES;
+    [self createMini];
     [self makeMenu];
     [self.card orderFrontRegardless];
+}
+
+- (void)createMini {
+    self.mini=[[NSPanel alloc] initWithContentRect:NSMakeRect(120,110,RCMiniWidth,RCMiniHeight)
+        styleMask:NSWindowStyleMaskNonactivatingPanel|NSWindowStyleMaskBorderless
+        backing:NSBackingStoreBuffered defer:NO];
+    self.mini.level=CGWindowLevelForKey(kCGDesktopIconWindowLevelKey)+1;
+    self.mini.collectionBehavior=NSWindowCollectionBehaviorCanJoinAllSpaces |
+        NSWindowCollectionBehaviorStationary | NSWindowCollectionBehaviorIgnoresCycle;
+    self.mini.opaque=NO;
+    self.mini.backgroundColor=NSColor.clearColor;
+    self.mini.hasShadow=YES;
+    self.mini.hidesOnDeactivate=NO;
+    self.mini.delegate=self;
+    [self.mini setMovableByWindowBackground:YES];
+    RCMiniView *background=[[RCMiniView alloc] initWithFrame:NSMakeRect(0,0,RCMiniWidth,RCMiniHeight)];
+    self.mini.contentView=background;
+    self.miniOpen=[[NSButton alloc] initWithFrame:NSMakeRect(8,8,29,29)];
+    self.miniOpen.bordered=NO;
+    self.miniOpen.title=@"◷";
+    self.miniOpen.font=[NSFont systemFontOfSize:20 weight:NSFontWeightMedium];
+    self.miniOpen.contentTintColor=RCColor(.65,.98,.84);
+    self.miniOpen.target=self;
+    self.miniOpen.action=@selector(openDetailsClick:);
+    self.miniOpen.toolTip=@"查看 Reset Clock 记录与动态";
+    [background addSubview:self.miniOpen];
+    self.miniLabel=RCText(background,NSMakeRect(39,11,128,22),15,
+                       NSFontWeightSemibold,NSColor.whiteColor,NO,NSTextAlignmentCenter);
+    self.miniLabel.stringValue=@"待公布";
+}
+- (void)syncCompact:(NSDictionary *)data {
+    NSDictionary *status=[data[@"menu_status"] isKindOfClass:NSDictionary.class] ?
+        data[@"menu_status"] : @{};
+    NSString *state=RCString(status,@"state");
+    BOOL live=[state isEqualToString:@"upcoming"] || [state isEqualToString:@"revised"] ||
+         [state isEqualToString:@"soon"];
+    NSString *icon=@"clock";
+    if ([state isEqualToString:@"upcoming"] || [state isEqualToString:@"revised"]) icon=@"clock.fill";
+    else if ([state isEqualToString:@"soon"] || [state isEqualToString:@"error"] ||
+        [state isEqualToString:@"stale"]) icon=@"exclamationmark.circle";
+    else if ([state isEqualToString:@"withdrawn"]) icon=@"clock.arrow.circlepath";
+    if (![self.traySymbol isEqualToString:icon]) {
+        NSImage *image=[NSImage imageWithSystemSymbolName:icon accessibilityDescription:@"Reset Clock"];
+        if (!image) image=[NSImage imageWithSystemSymbolName:@"clock" accessibilityDescription:@"Reset Clock"];
+        if (image) {
+            image.template=YES;
+            self.tray.button.image=image;
+        } else {
+            self.tray.button.image=nil;
+        }
+        self.traySymbol=icon;
+    }
+    NSString *remaining=RCString(status,@"short_remaining");
+    NSString *text=RCBool(data,@"menu_text")?remaining:@"";
+    if (!self.tray.button.image) text=[@"◷ " stringByAppendingString:text];
+    if (![self.tray.button.title isEqualToString:text]) self.tray.button.title=text;
+    self.tray.button.appearsDisabled=!live; // Still clickable in inactive state.
+    NSString *tooltip=RCString(status,@"tooltip");
+    if (![self.tray.button.toolTip isEqualToString:tooltip]) self.tray.button.toolTip=tooltip;
+    self.tray.button.accessibilityLabel=tooltip;
+    NSString *summary=RCString(status,@"label");
+    NSString *head=remaining.length>0?[NSString stringWithFormat:@"%@ · %@",summary,remaining]:summary;
+    for (NSMenuItem *item in self.tray.menu.itemArray) {
+        if ([item.representedObject isEqual:@"status"] && ![item.title isEqualToString:head])
+            item.title=head;
+    }
+    NSString *miniValue=remaining.length>0?remaining:summary;
+    if ([state isEqualToString:@"idle"] || [state isEqualToString:@"withdrawn"]) miniValue=@"待公布";
+    if ([state isEqualToString:@"error"] || [state isEqualToString:@"stale"]) miniValue=@"来源异常";
+    RCSetString(self.miniLabel,miniValue);
+    self.miniLabel.textColor=live?NSColor.whiteColor:RCColor(.72,.81,.79);
+    self.miniOpen.contentTintColor=live?RCColor(.66,1,.83):RCColor(.68,.78,.75);
+    self.mini.toolTip=tooltip;
+    self.mini.level=RCBool(data,@"mini_float")?NSFloatingWindowLevel:
+        CGWindowLevelForKey(kCGDesktopIconWindowLevelKey)+1;
+    self.adjustingMini=YES;
+    NSRect frame=self.mini.frame;
+    NSScreen *screen=self.mini.screen?:NSScreen.mainScreen;
+    if (screen) {
+        NSRect visible=screen.visibleFrame;
+        CGFloat x=[data[@"mini_x"] doubleValue],y=[data[@"mini_y"] doubleValue];
+        if (x==0 && y==0) {
+            x=NSMaxX(visible)-RCMiniWidth-24;
+            y=NSMinY(visible)+25;
+        }
+        x=MAX(NSMinX(visible),MIN(x,NSMaxX(visible)-RCMiniWidth));
+        y=MAX(NSMinY(visible),MIN(y,NSMaxY(visible)-RCMiniHeight));
+        if (fabs(frame.origin.x-x)>1 || fabs(frame.origin.y-y)>1)
+            [self.mini setFrameOrigin:NSMakePoint(x,y)];
+    }
+    self.adjustingMini=NO;
+    if (RCBool(data,@"mini_show")) [self.mini orderFrontRegardless];
+    else [self.mini orderOut:nil];
 }
 
 - (void)emit:(NSString *)name value:(NSString *)value {
@@ -351,13 +472,19 @@ static RCController *controller;
 }
 - (void)makeMenu {
     NSMenu *menu=[[NSMenu alloc] initWithTitle:@"Reset Clock"];
-    [menu addItem:[self menuItem:@"记录与动态" action:@"details"]];
+    NSMenuItem *summary=[[NSMenuItem alloc] initWithTitle:@"下一次时间待公布" action:nil keyEquivalent:@""];
+    summary.enabled=NO; summary.representedObject=@"status";[menu addItem:summary];
+    [menu addItem:[NSMenuItem separatorItem]];
+    [menu addItem:[self menuItem:@"记录与动态（网页优先）" action:@"details"]];
     [menu addItem:[self menuItem:@"设置" action:@"settings"]];
     [menu addItem:[self menuItem:@"立即刷新" action:@"refresh"]];
     [menu addItem:[self menuItem:@"打开数据来源" action:@"data_source"]];
     [menu addItem:[self menuItem:@"打开原始公告" action:@"source"]];
     [menu addItem:[NSMenuItem separatorItem]];
     [menu addItem:[self menuItem:@"显示桌面卡片" action:@"show"]];
+    [menu addItem:[self menuItem:@"显示迷你挂件" action:@"mini"]];
+    [menu addItem:[self menuItem:@"迷你挂件悬浮置顶" action:@"mini_float"]];
+    [menu addItem:[self menuItem:@"菜单栏显示剩余时间" action:@"menu_text"]];
     [menu addItem:[self menuItem:@"锁定位置（点击穿透）" action:@"lock"]];
     [menu addItem:[self menuItem:@"免打扰" action:@"quiet"]];
     if (self.demo) {
@@ -373,10 +500,14 @@ static RCController *controller;
 - (void)syncMenu:(NSDictionary *)data {
     for (NSMenuItem *item in self.tray.menu.itemArray) {
         NSString *command = [item.representedObject isKindOfClass:NSString.class] ? item.representedObject : @"";
-        if ([command isEqualToString:@"show"] || [command isEqualToString:@"lock"] ||
+        if ([command isEqualToString:@"show"] || [command isEqualToString:@"mini"] ||
+            [command isEqualToString:@"mini_float"] || [command isEqualToString:@"menu_text"] ||
+            [command isEqualToString:@"lock"] ||
             [command isEqualToString:@"quiet"] || [command isEqualToString:@"advance"] ||
             [command isEqualToString:@"clock"] || [command isEqualToString:@"ticker_toggle"]) {
-            NSString *key = @{ @"show":@"show", @"lock":@"locked", @"quiet":@"quiet",
+            NSString *key = @{ @"show":@"show", @"mini":@"mini_show",
+                                @"mini_float":@"mini_float", @"menu_text":@"menu_text",
+                                @"lock":@"locked", @"quiet":@"quiet",
                                 @"advance":@"advance_10", @"clock":@"clock_24", @"ticker_toggle":@"ticker_expanded" }[command];
             item.state = RCBool(data,key) ? NSControlStateValueOn : NSControlStateValueOff;
         }
@@ -393,7 +524,7 @@ static RCController *controller;
 - (void)menuAction:(NSMenuItem *)sender {
     NSString *command = sender.representedObject;
     if ([command isEqualToString:@"settings"]) { [self showSettings]; return; }
-    if ([command isEqualToString:@"details"]) { [self showDetails]; return; }
+    if ([command isEqualToString:@"details"]) { [self openDetailsPreferWeb]; return; }
     if ([command isEqualToString:@"source"]) { [self openSource]; return; }
     if ([command isEqualToString:@"data_source"]) { [self openCreditClick:nil]; return; }
     if ([command hasPrefix:@"resource_"]) {
@@ -414,6 +545,23 @@ static RCController *controller;
         return;
     }
     [self emit:command value:@""];
+}
+
+// The browser-first route is supplied and same-origin checked by Go, not
+// derived from third-party marketing URLs. The native details remain as a
+// fallback until a real web deployment is available.
+- (void)openDetailsPreferWeb {
+    NSString *raw=RCString(self.lastPayload,@"web_details_url");
+    NSURLComponents *parts=[NSURLComponents componentsWithString:raw];
+    NSString *host=parts.host.lowercaseString;
+    BOOL secure=[parts.scheme.lowercaseString isEqualToString:@"https"];
+    BOOL loopback=[parts.scheme.lowercaseString isEqualToString:@"http"] &&
+       ([host isEqualToString:@"localhost"] || [host isEqualToString:@"127.0.0.1"] ||
+        [host isEqualToString:@"::1"]);
+    if (parts && (secure||loopback) && parts.user==nil && parts.password==nil &&
+        [parts.path isEqualToString:@"/reset-clock/"] && parts.query==nil && parts.fragment==nil &&
+        [[NSWorkspace sharedWorkspace] openURL:parts.URL]) return;
+    [self showDetails];
 }
 
 - (void)showSettings {
@@ -440,18 +588,21 @@ static RCController *controller;
         RCSettingsText(content,232,20,470,@"桌面显示",13,YES);
         self.showSwitch = RCSettingsCheckbox(content,261,20,235,@"显示桌面卡片",@"show",self);
         self.lockSwitch = RCSettingsCheckbox(content,261,270,230,@"锁定位置（点击穿透）",@"lock",self);
-        self.clockSwitch = RCSettingsCheckbox(content,294,20,235,@"24 小时制",@"clock",self);
-        RCSettingsText(content,341,20,470,@"来源状态",13,YES);
-        RCSettingsText(content,368,20,200,@"本机最近检查",11,NO);
-        self.requestValue = RCSettingsText(content,386,20,205,@"未知",12,YES);
-        RCSettingsText(content,368,270,200,@"上游最近检查",11,NO);
-        self.sourceValue = RCSettingsText(content,386,270,208,@"未知",12,YES);
-        RCSettingsText(content,415,20,230,@"公告内容最近变化",11,NO);
-        self.changedValue = RCSettingsText(content,433,20,205,@"未知",12,YES);
-        RCSettingsText(content,415,270,210,@"当前来源状态",11,NO);
-        self.sourceStatus = RCSettingsText(content,433,270,215,@"未知",11,YES);
-        self.advancedButton = RCSettingsButton(content,472,18,140,@"高级诊断 ▸",@selector(toggleDiagnostics:),self);
-        self.diagnostics = RCText(content,RCTopRect(RCSettingsBaseHeight,20,529,476,110),
+        self.miniShowSwitch=RCSettingsCheckbox(content,294,20,230,@"显示迷你挂件",@"mini",self);
+        self.miniFloatSwitch=RCSettingsCheckbox(content,294,270,230,@"迷你挂件悬浮置顶",@"mini_float",self);
+        self.menuTextSwitch=RCSettingsCheckbox(content,325,20,235,@"菜单栏显示倒计时",@"menu_text",self);
+        self.clockSwitch = RCSettingsCheckbox(content,325,270,230,@"24 小时制",@"clock",self);
+        RCSettingsText(content,368,20,470,@"来源状态",13,YES);
+        RCSettingsText(content,395,20,200,@"本机最近检查",11,NO);
+        self.requestValue = RCSettingsText(content,413,20,205,@"未知",12,YES);
+        RCSettingsText(content,395,270,200,@"上游最近检查",11,NO);
+        self.sourceValue = RCSettingsText(content,413,270,208,@"未知",12,YES);
+        RCSettingsText(content,442,20,230,@"公告内容最近变化",11,NO);
+        self.changedValue = RCSettingsText(content,460,20,205,@"未知",12,YES);
+        RCSettingsText(content,442,270,210,@"当前来源状态",11,NO);
+        self.sourceStatus = RCSettingsText(content,460,270,215,@"未知",11,YES);
+        self.advancedButton = RCSettingsButton(content,499,18,140,@"高级诊断 ▸",@selector(toggleDiagnostics:),self);
+        self.diagnostics = RCText(content,RCTopRect(RCSettingsBaseHeight,20,556,476,110),
                                   11,NSFontWeightRegular,NSColor.secondaryLabelColor,YES,NSTextAlignmentLeft);
         self.diagnostics.maximumNumberOfLines = 6;
         self.diagnostics.selectable = YES;
@@ -667,7 +818,7 @@ static RCController *controller;
  self.newsPicker.enabled=news.count>0;
  [self syncSelectedLinks:nil];
 }
-- (void)openDetailsClick:(id)sender { [self showDetails]; }
+- (void)openDetailsClick:(id)sender { [self openDetailsPreferWeb]; }
 - (void)openCreditClick:(id)sender {
     NSString *url=RCString(self.lastPayload,@"data_source_url");
     if ([url isEqualToString:@"https://codex-reset.com/"]) [self openSafeDetailsURL:url];
@@ -691,6 +842,13 @@ static RCController *controller;
 }
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender { return NO; }
 - (void)windowDidMove:(NSNotification *)note {
+    if (note.object==self.mini) {
+        if (!self.adjustingMini) {
+            NSPoint point=self.mini.frame.origin;
+            [self emit:@"mini_position" value:[NSString stringWithFormat:@"%d,%d",(int)point.x,(int)point.y]];
+        }
+        return;
+    }
     if (note.object != self.card || self.locked || self.adjustingCard) return;
     NSPoint origin = self.card.frame.origin;
     CGFloat expansion=self.card.frame.size.height-RCScreenCardHeight;
@@ -702,6 +860,9 @@ static RCController *controller;
     self.showSwitch.state = RCBool(data,@"show") ? NSControlStateValueOn : NSControlStateValueOff;
     self.lockSwitch.state = RCBool(data,@"locked") ? NSControlStateValueOn : NSControlStateValueOff;
     self.clockSwitch.state = RCBool(data,@"clock_24") ? NSControlStateValueOn : NSControlStateValueOff;
+    self.miniShowSwitch.state = RCBool(data,@"mini_show") ? NSControlStateValueOn : NSControlStateValueOff;
+    self.miniFloatSwitch.state = RCBool(data,@"mini_float") ? NSControlStateValueOn : NSControlStateValueOff;
+    self.menuTextSwitch.state = RCBool(data,@"menu_text") ? NSControlStateValueOn : NSControlStateValueOff;
 }
 - (void)apply:(NSString *)json {
     NSData *bytes = [json dataUsingEncoding:NSUTF8StringEncoding];
@@ -716,6 +877,7 @@ static RCController *controller;
     self.card.ignoresMouseEvents = self.locked;
     [self.card setMovableByWindowBackground:!self.locked];
     [self syncMenu:data];
+    [self syncCompact:data];
     RCSetString(self.hintLabel,RCString(data,@"card_hint"));
     BOOL upcoming=RCBool(data,@"has_upcoming");
     NSString *cardValue=RCString(data,@"card_value");
