@@ -606,43 +606,52 @@ func (w *windowsUI) paintText(dc uintptr, str string, area rect, size, weight in
 	call(deleteObject, font)
 }
 func (w *windowsUI) paint() {
- var state paint
- dc:=call(beginPaint,w.card,uintptr(unsafe.Pointer(&state)))
- if dc==0{return}
- defer call(endPaint,w.card,uintptr(unsafe.Pointer(&state)))
- w.mu.Lock();d:=w.display;w.mu.Unlock()
- height:=cardHeight+len(d.TickerItems)*38
- w.paintGradient(dc,int32(height))
-  call(setBk,dc,1)
-  white,subtle,green:=rgb(247,251,249),rgb(190,216,207),rgb(166,225,203)
-  w.paintText(dc,"↻  Reset Clock",rect{18,16,181,41},15,700,white,0x20|0x8000)
-  w.paintText(dc,"记录与动态 ↗",rect{240,14,369,43},12,600,green,0x20|0x8000)
-  w.paintText(dc,d.CardHint,rect{18,55,368,77},12,500,green,0x20|0x8000)
-  size:=int32(33)
-  if !d.HasUpcoming {size=23}
-  w.paintText(dc,d.CardValue,rect{18,79,368,118},size,700,white,0x20|0x8000)
-  w.paintText(dc,d.CardMeta,rect{18,125,368,147},12,500,white,0x20|0x8000)
-  note:="独立第三方追踪 · 不代表个人额度恢复"
-  if d.StatusKind=="withdrawn" {note="先前公告已撤回 · 下一次时间待公布"}
-  if d.TickerCached {note="来源待核验 · 以下仅为已保存的历史内容"}
-  w.paintText(dc,note,rect{18,152,368,172},11,400,subtle,0x20|0x8000)
-  w.paintFill(dc,rect{18,180,368,181},rgb(66,112,99))
-  title:="最近动态"
-  if d.TickerCached {title="最近动态 · 缓存"}
-  w.paintText(dc,title,rect{18,189,368,210},12,650,green,0x20|0x8000)
-  if len(d.TickerItems)==0 {
-      w.paintText(dc,"暂无可核验动态",rect{18,212,368,235},11,400,subtle,0x20|0x8000)
-  }
-  for i,item:=range d.TickerItems {
-      if i>=3 {break}
-      top:=int32(212+i*38)
-      w.paintText(dc,item.Title,rect{18,top,368,top+19},12,550,white,0x20|0x8000)
-      w.paintText(dc,item.Updated+" · "+item.Source,rect{18,top+19,368,top+35},10,400,subtle,0x20|0x8000)
-  }
-  if d.DataSourceURL!="" {
-      w.paintText(dc,"Data: codex-reset.com ↗",rect{18,int32(height-31),274,int32(height-9)},
-          11,550,green,0x20|0x8000)
-  }
+	var state paint
+	dc:=call(beginPaint,w.card,uintptr(unsafe.Pointer(&state)))
+	if dc==0{return}
+	defer call(endPaint,w.card,uintptr(unsafe.Pointer(&state)))
+	w.mu.Lock();d:=w.display;w.mu.Unlock()
+	height:=cardHeightForItems(len(d.TickerItems))
+	w.paintGradient(dc,int32(height))
+	w.paintC3Hero(dc)
+	call(setBk,dc,1)
+	white,subtle,green:=rgb(248,255,253),rgb(186,222,207),rgb(153,242,211)
+	w.paintText(dc,"↻  Reset Clock",rect{17,15,214,44},14,760,white,0x20|0x8000)
+	w.paintDetailsPill(dc)
+	w.paintText(dc,"记录与动态 ›",rect{249,16,364,42},11,650,white,0x20|0x8000|0x04)
+	w.paintText(dc,d.CardHint,rect{17,67,254,88},13,650,white,0x20|0x8000)
+	valueSize:=int32(45)
+	if !d.HasUpcoming {valueSize=22
+	}else if len([]rune(d.CardValue))>10 {valueSize=31
+	}else if len([]rune(d.CardValue))>7 {valueSize=37}
+	w.paintText(dc,d.CardValue,rect{17,91,369,149},valueSize,750,white,0x20|0x8000|0x04)
+	w.paintText(dc,d.CardMeta,rect{17,152,369,174},11,500,white,0x20|0x8000)
+	w.paintFill(dc,rect{17,185,369,186},rgb(41,107,91))
+	if len(d.TickerItems)==0 {
+		w.paintText(dc,"暂无可核验动态",rect{17,194,369,220},11,400,subtle,0x20|0x8000|0x04)
+	}
+	for i,item:=range d.TickerItems {
+		if i>=3 {break}
+		top:=int32(190+i*34)
+		w.paintText(dc,item.Updated,rect{17,top,66,top+30},11,690,green,0x20|0x8000|0x04)
+		w.paintText(dc,item.Title,rect{75,top,369,top+30},12,560,white,0x20|0x8000|0x04)
+		if i<len(d.TickerItems)-1&&i<2 {
+			w.paintFill(dc,rect{17,top+33,369,top+34},rgb(32,88,78))
+		}
+	}
+	// Preserve both source disclosure and an actionable source link, not fake
+	// official resets or an HTML banner baked into the native text content.
+	footY:=int32(height-43)
+	w.paintFill(dc,rect{0,footY,cardWidth,int32(height)},rgb(6,46,43))
+	w.paintFill(dc,rect{0,footY,cardWidth,footY+1},rgb(42,104,89))
+	note:="第三方追踪 · 不代表个人额度恢复"
+	if d.StatusKind=="withdrawn" {note="先前公告已撤回 · 下一次时间待公布"}
+	if d.TickerCached {note="来源待核验 · 以下为历史缓存"}
+	w.paintText(dc,note,rect{17,footY+3,369,footY+21},10,400,subtle,0x20|0x8000)
+	if d.DataSourceURL!="" {
+		w.paintText(dc,"Data: codex-reset.com ↗",rect{17,int32(height-23),260,int32(height-4)},
+			11,550,green,0x20|0x8000)
+	}
 }
 
 func (w *windowsUI) openSource() {
