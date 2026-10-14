@@ -554,15 +554,17 @@ func (w *windowsUI) initC3Hero() {
 		Size:uint32(unsafe.Sizeof(bitmapInfoHeader{})),
 		Width:c3HeroWidth,Height:-c3HeroHeight,Planes:1,BitCount:32,
 	}}
-	var pixels uintptr
+	// Keep the out pointer typed as unsafe.Pointer throughout the Win32 call.
+	// A round-trip uintptr -> unsafe.Pointer triggers go vet's unsafeptr check.
+	var pixels unsafe.Pointer
 	bitmap:=call(createDIB,dc,uintptr(unsafe.Pointer(&info)),0,
 		uintptr(unsafe.Pointer(&pixels)),0,0)
-	if bitmap==0||pixels==0 {
+	if bitmap==0||pixels==nil {
 		if bitmap!=0{call(deleteObject,bitmap)}
 		call(deleteDC,dc)
 		return
 	}
-	copy(unsafe.Slice((*byte)(unsafe.Pointer(pixels)),len(hero.BGRA)),hero.BGRA)
+	copy(unsafe.Slice((*byte)(pixels),len(hero.BGRA)),hero.BGRA)
 	w.heroPrevious=call(selectObject,dc,bitmap)
 	w.heroBitmap=bitmap
 	w.heroDC=dc
