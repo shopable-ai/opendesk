@@ -15,6 +15,9 @@ func compactStatus(now time.Time, at *time.Time, hasUpcoming bool, kind string) 
     case "stale": out.State="stale";out.Label="等待来源核验";out.Tooltip="Reset Clock · 来源过期，暂停未来倒计时"
     case "withdrawn": out.State="withdrawn";out.Label="预告已撤回";out.Tooltip="Reset Clock · 原预告已撤回，下一次时间待公布"
     }
+    // Defense in depth: an unhealthy or withdrawn source can never become
+    // actionable even if a caller accidentally retains HasUpcoming=true.
+    if kind=="error" || kind=="stale" || kind=="withdrawn" {return out}
     if !hasUpcoming||at==nil||!at.After(now) {return out}
     delta:=at.Sub(now)
     minutes:=int64(delta/time.Minute)

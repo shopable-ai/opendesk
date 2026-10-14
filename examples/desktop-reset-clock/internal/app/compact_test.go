@@ -17,6 +17,8 @@ func TestCompactStatusTransitions(t *testing.T){
  past:=now.Add(-time.Second)
  if compactStatus(now,&past,true,"active").ShortRemaining!="" {t.Fatal("expired")}
  if compactStatus(now,&future,false,"active").ShortRemaining!="" {t.Fatal("unverified")}
+ if got:=compactStatus(now,&future,true,"stale");got.ShortRemaining!="" {t.Fatalf("stale must override contradictory flag: %+v",got)}
+ if got:=compactStatus(now,&future,true,"withdrawn");got.ShortRemaining!="" {t.Fatalf("withdrawn must override contradictory flag: %+v",got)}
  if compactRemaining(24*60+5)!="1d 0h"{t.Fatal("days")}
 }
 func TestWebDetailsSameOrigin(t *testing.T){

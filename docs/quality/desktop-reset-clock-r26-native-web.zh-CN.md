@@ -15,15 +15,15 @@
 
 从 OpenDesk **仓库根**使用两个终端：
 
-``bash
+```bash
 # 终端 A：启动已有 Go Collector + Bridge，监听本机
 (cd examples/desktop-reset-clock && go run ./cmd/reset-clock-bridge serve -listen 127.0.0.1:8788)
-``
+```
 
-``bash
+```bash
 # 终端 B：启动桌面常驻应用
 (cd examples/desktop-reset-clock && go run ./cmd/desktop-reset-clock -feed http://127.0.0.1:8788/feed -allow-local-http)
-``
+```
 
 直接打开网页版地址：`http://127.0.0.1:8788/reset-clock/`。这是**本机网页，不是正式官网**。桌面卡片默认锁定点击穿透，需要用**顶部菜单栏 Reset Clock 图标 →「记录与动态（网页优先）」**打开；「设置」也在同一菜单。若菜单栏因 macOS 显示限制被折叠，应在真实 Mac 验收中记录。
 
@@ -33,9 +33,9 @@ Mac 开发 .app 构建：`(cd examples/desktop-reset-clock && bash scripts/build
 
 | Gate | 目标 | 现状 |
 | --- | --- | --- |
-| Go 单元：状态、迁移与同源链接 | PASS | 测试源码已写入；等待最新 GitHub Actions 完成，不先写 PASS |
-| Bridge 网页输出/XSS/GET 限制 | PASS | 测试源码已写入；待 GitHub CI |
-| CGO AppKit 编译/Win32 编译 | PASS | 待当次提交 CI；不能用上一版结果 |
+| Go 单元：状态、迁移与同源链接 | PASS | [GitHub Actions #38548507037](https://github.com/shopable-ai/opendesk/actions/runs/38548507037)：Linux、Windows、macOS 单测均通过（基线 `752a5ebb...`） |
+| Bridge 网页输出/XSS/GET 限制 | PASS | 同轮 Go 单测通过；HTTP Mock 证明协议及模板安全，非公开网站已部署 |
+| CGO AppKit 编译/Win32 编译 | PASS | 同轮 go-native (macos-latest/windows-latest) 成功，包含 Mac 开发 .app 打包；不等于真机可视验收 |
 | 菜单栏图标与迷你卡片真实 Mac 可视 | ≥95 | **NOT_TESTED**：需真实 WindowServer 实窗截图和交互 |
 | 主卡片 C3 一致性 | ≥95 | **NOT_TESTED**：保留代码不能替代视觉对比 |
 | 多屏、Dock 位置、多 Spaces/休眠 | ≥95 | **NOT_TESTED**：需要真实 Mac 测试 |
@@ -49,3 +49,8 @@ Mac 开发 .app 构建：`(cd examples/desktop-reset-clock && bash scripts/build
 在真实 Mac 上：核对最新 HEAD / 当前 PID / `.app` 生成时间，执行独立模块 Go 测试、race、vet、Go Bridge HTTP 回归，并启动最新版原生 AppKit。用 **无数据 / 有合法预告 / 15m 内 / 撤回 / 来源 stale** 验证菜单栏图标、文本、VoiceOver、迷你挂件拖动、悬浮与主卡片隐藏。确认从菜单进入的浏览器 URL 来自实际 Bridge，并验证服务断开会安全回退。任何失败先修再签字。
 
 **不承诺这轮已经完成本地 macOS 实测，也不以静态网页预览代替原生截图；请根据最新 CI 和实际运行证据更新本报告。**
+
+
+## 已观察到的首轮 R2.6 CI 证据
+
+[Reset Clock Standalone R2 — run 38548507037](https://github.com/shopable-ai/opendesk/actions/runs/38548507037)，对应包含 R2.6 AppKit/Bridge 代码的 `752a5ebb2abdd96c9f30e1b6cff9341e1772f37c`：`go-native` 的 Ubuntu/macOS/Windows 三平台成功、`race-and-cross` 成功、历史 R2.2 Chromium/C3 原型测试成功。**这是构建和隔离测试证据，不是用户 Mac 的实窗截图。** 后续改动应以新的 HEAD CI 为准。

@@ -383,3 +383,30 @@ Bridge 采用 Go 标准库请求四个公开 GET API，同一上游域名任何�
 - `probe` 输出 `live_api_verified` 仅在四端点确实发出真实 GET 并成功验证时为 `true`；使用有效 HTTP 缓存而跳过某端点时为 `false`，不代表历史 JSON 数据丢失。不能用 `probe` 的旧缓存结果冒充当天真实公网联通性。
 - 如果上游最近发布检查时间在服务运行中已经超过 30 分钟，即使还没有开始下一轮采集，`/feed` 也会即时变成 `stale`，`/healthz` 返回 503；缓存历史保留，未来精确倒计时不会被编造。
 - Timeline 记录初期缺少原帖发布时间时可以从后续公开 Feed 同 ID 原帖补证并留下 revision，不能擅改已有原帖时间或升级为官方确认。历史仍标记 `complete:false`。
+
+
+## R2.6 · 顶部菜单栏、迷你挂件和「记录与动态」网页版（2026-10-14）
+
+**现有原生程序已扩展，多形态仍是同一个 Go 客户端。** Mac 菜单栏根据有证据且新鲜的未来事件切换灰态/活跃态/更正/即将到时/异常，并可选择显示紧凑剩余时间。默认继续显示原有 C3 深青绿主桌面卡片；迷你挂件默认关闭，可在「设置 → 桌面显示」或菜单栏打开，拖动后记住位置，也可显式开启普通窗口上方悬浮。菜单栏始终作为显示/隐藏主卡片及迷你卡片的恢复入口。
+
+**那个额外的窗口是「记录与动态」，不是「设置」。** 原生「设置」仍负责 Feed、提醒和挂件位置；主卡片右上角「记录与动态」和 macOS 菜单栏同名入口会**优先在默认浏览器中打开只读网页**，网页不可用时回退已有原生记录窗。默认桌面卡片处于锁定/点击穿透状态，所以最可靠的入口是**macOS 顶部菜单栏 Reset Clock 图标**。
+
+现有 Bridge 负责提供网页，不需要新进程或独立爬虫。两个终端分别从仓库根目录运行：
+
+```bash
+# 终端 A
+(cd examples/desktop-reset-clock && go run ./cmd/reset-clock-bridge serve -listen 127.0.0.1:8788)
+```
+
+```bash
+# 终端 B
+(cd examples/desktop-reset-clock && go run ./cmd/desktop-reset-clock -feed http://127.0.0.1:8788/feed -allow-local-http)
+```
+
+使用浏览器直接检查网页：<http://127.0.0.1:8788/reset-clock/>（必须先启动本机 Bridge）。菜单栏入口仅打开当前 Feed 中**经 Go 校验的同源** `/reset-clock/` 页面。没有合法 `web_details_url` 时仍使用本地原生详情。网页展示概览、历史和资讯，保留原始来源证据与「Data: codex-reset.com」署名；预测概率和第三方历史不转成个人额度或官方未来重置倒计时。
+
+**注意**：localhost 只是本机演示网页，并非已上线的 Reset Clock 官网；目前没有经确认的官网域名，不能将第三方追踪网站当成产品官网。Mac `.app` 仍是未签名的本地开发包，且构建脚本保留旧文件以防覆盖；运行前核对实际二进制/HEAD，别误把旧程序当成新界面。原生截图、多屏/Dock/Spaces、实际浏览器点击仍待真机验收。计划与质量说明见：
+
+- `docs/plans/desktop-reset-clock-r26-menubar-multisurface.zh-CN.md`
+- `docs/quality/desktop-reset-clock-r26-native-web.zh-CN.md`
+
