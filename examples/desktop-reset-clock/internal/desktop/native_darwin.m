@@ -31,6 +31,31 @@ static void RCSetString(NSTextField *field, NSString *value) {
     NSString *safe = value ?: @"";
     if (![field.stringValue isEqualToString:safe]) field.stringValue = safe;
 }
+// C3 countdown: dominant numeric glyphs, quiet mint unit labels. Source
+// validity remains entirely in Go; this is native text typography only.
+static NSAttributedString *RCStyledCardValue(NSString *value, BOOL upcoming) {
+    NSString *text=value ?: @"";
+    NSMutableAttributedString *result=[[NSMutableAttributedString alloc] initWithString:text];
+    if (!text.length) return result;
+    NSRange full=NSMakeRange(0,text.length);
+    CGFloat unitSize=upcoming?16:22;
+    [result addAttributes:@{
+       NSFontAttributeName:[NSFont systemFontOfSize:unitSize weight:NSFontWeightSemibold],
+       NSForegroundColorAttributeName:upcoming?RCColor(.61,1,.86):NSColor.whiteColor
+    } range:full];
+    if (!upcoming) return result;
+    CGFloat digitSize=text.length>18?36:(text.length>12?41:48);
+    NSRegularExpression *digits=[NSRegularExpression regularExpressionWithPattern:@"[0-9]+"
+         options:0 error:NULL];
+    for (NSTextCheckingResult *match in [digits matchesInString:text options:0 range:full]) {
+       [result addAttributes:@{
+          NSFontAttributeName:[NSFont systemFontOfSize:digitSize weight:NSFontWeightBold],
+          NSForegroundColorAttributeName:NSColor.whiteColor,
+          NSKernAttributeName:@(-1.1)
+       } range:match.range];
+    }
+    return result;
+}
 static NSTextField *RCText(NSView *parent, NSRect frame, CGFloat fontSize, NSFontWeight weight,
                            NSColor *color, BOOL wraps, NSTextAlignment align) {
     NSTextField *field = [[NSTextField alloc] initWithFrame:frame];
@@ -694,10 +719,7 @@ static RCController *controller;
     RCSetString(self.hintLabel,RCString(data,@"card_hint"));
     BOOL upcoming=RCBool(data,@"has_upcoming");
     NSString *cardValue=RCString(data,@"card_value");
-    NSUInteger length=cardValue.length;
-    CGFloat valueSize=upcoming?(length>10?31:(length>7?37:45)):22;
-    self.valueLabel.font=[NSFont systemFontOfSize:valueSize weight:NSFontWeightBold];
-    RCSetString(self.valueLabel,cardValue);
+    self.valueLabel.attributedStringValue=RCStyledCardValue(cardValue,upcoming);
     RCSetString(self.metaLabel,RCString(data,@"card_meta"));
     BOOL cached=RCBool(data,@"ticker_cached");
     NSString *kind=RCString(data,@"status_kind");
