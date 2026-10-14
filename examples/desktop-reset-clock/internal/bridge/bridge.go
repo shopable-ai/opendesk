@@ -311,6 +311,9 @@ func merge(d *Disk, now time.Time) error {
 			kind = "third_party_credits"
 			typ = "extra_opportunity"
 		default:
+			if x.Group == "reset" && x.AnnouncementState == "" {
+				d.Pending = addReview(d.Pending, Review{"codex-reset:post:" + x.ID, "missing_announcement_state", "timeline", now})
+			}
 			continue
 		}
 		id := "codex-reset:post:" + x.ID
@@ -324,18 +327,34 @@ func merge(d *Disk, now time.Time) error {
 		}
 		at, err := clock(x.AnnouncedAt)
 		if err != nil {
-			return err
+			d.Pending = addReview(d.Pending, Review{id, "missing_provider_timestamp", "timeline", now})
+			continue
 		}
 		at = at.UTC()
 		if at.After(now.Add(5 * time.Minute)) {
 			d.Pending = addReview(d.Pending, Review{id, "future_provider_timestamp", "timeline", now})
 			continue
 		}
+		withdrawn := x.AnnouncementState == "withdrawn"
 		if !validURL(x.URL) {
+			if withdrawn {
+				ok, evChanged, recChanged, err := withdrawExisting(d, id, safeSummary("第三方追踪 · "+x.Summary, 700), at)
+				if err != nil {
+					return err
+				}
+				if ok {
+					if evChanged {
+						changed = true
+					}
+					if recChanged {
+						historyChanged = true
+					}
+					continue
+				}
+			}
 			d.Pending = addReview(d.Pending, Review{id, "missing_https_original", "timeline", now})
 			continue
 		}
-		withdrawn := x.AnnouncementState == "withdrawn"
 		state := "active"
 		if withdrawn {
 			state = "withdrawn"
@@ -471,6 +490,57 @@ func merge(d *Disk, now time.Time) error {
 	}
 	return nil
 }
+
+func withdrawExisting(d *Disk, id, summary string, reportedAt time.Time) (bool, bool, bool, error) {
+	var oldEvent *events.Event
+	for i := range d.Snapshot.Events {
+		if d.Snapshot.Events[i].ID == id {
+			oldEvent = &d.Snapshot.Events[i]
+			break
+		}
+	}
+	var oldRecord *history.Record
+	for i := range d.Archive.Records {
+		r := &d.Archive.Records[i]
+		if r.ID == id && (oldRecord == nil || r.Revision > oldRecord.Revision) {
+			oldRecord = r
+		}
+	}
+	if oldEvent == nil || oldRecord == nil || !validURL(oldEvent.SourceURL) || !validURL(oldRecord.SourceURL) {
+		return false, false, false, nil
+	}
+	event := events.Event{
+		ID:                id,
+		Type:              oldEvent.Type,
+		State:             "withdrawn",
+		Audience:          oldEvent.Audience,
+		SourceType:        oldEvent.SourceType,
+		SourcePublishedAt: oldEvent.SourcePublishedAt,
+		SourceURL:         oldEvent.SourceURL,
+		Summary:           summary,
+	}
+	record := history.Record{
+		ID:                 id,
+		Kind:               oldRecord.Kind,
+		State:              "withdrawn",
+		SourceType:         oldRecord.SourceType,
+		Audience:           oldRecord.Audience,
+		SourcePublishedAt:  oldRecord.SourcePublishedAt,
+		ProviderReportedAt: &reportedAt,
+		SourceURL:          oldRecord.SourceURL,
+		Summary:            summary,
+	}
+	evChanged, err := upsertEvent(&d.Snapshot.Events, event)
+	if err != nil {
+		return true, false, false, err
+	}
+	recChanged, err := upsertRecord(&d.Archive.Records, record)
+	if err != nil {
+		return true, evChanged, false, err
+	}
+	return true, evChanged, recChanged, nil
+}
+
 func addReview(items []Review, v Review) []Review {
 	for _, x := range items {
 		if x.ID == v.ID && x.Reason == v.Reason {

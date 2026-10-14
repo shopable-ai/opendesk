@@ -32,6 +32,7 @@ type App struct {
 	now        func() time.Time
 	ui         desktop.UI
 	cancel     context.CancelFunc
+	runWG      sync.WaitGroup
 	failures   int
 	DemoSwitch func(int)
 	wakeup     chan struct{}
@@ -620,6 +621,23 @@ func (a *App) displayLocked() desktop.Display {
 }
 func (a *App) Display() desktop.Display { a.mu.Lock(); defer a.mu.Unlock(); return a.displayLocked() }
 
+func (a *App) refreshAsync(ctx context.Context) {
+	a.mu.Lock()
+	if a.cancel == nil || ctx.Err() != nil {
+		a.mu.Unlock()
+		return
+	}
+	a.runWG.Add(1)
+	a.mu.Unlock()
+	go func() {
+		defer a.runWG.Done()
+		if err := a.Refresh(ctx); err != nil {
+			log.Printf("refresh: %v", err)
+		}
+		a.Tick()
+	}()
+}
+
 func (a *App) Action(ctx context.Context, action desktop.Action) {
 	switch action.Name {
 	case "demo_v1", "demo_v2", "demo_v3":
@@ -627,15 +645,10 @@ func (a *App) Action(ctx context.Context, action desktop.Action) {
 			var v int
 			fmt.Sscanf(action.Name, "demo_v%d", &v)
 			a.DemoSwitch(v)
-			go a.Action(ctx, desktop.Action{Name: "refresh"})
+			a.refreshAsync(ctx)
 		}
 	case "refresh":
-		go func() {
-			if err := a.Refresh(ctx); err != nil {
-				log.Printf("refresh: %v", err)
-			}
-			a.Tick()
-		}()
+		a.refreshAsync(ctx)
 	case "mock_pay", "mock_cancel", "mock_refund", "mock_restore":
 		// Explicitly limited to the synthetic Demo. A local flag never grants production Pro.
 		if a.DemoSwitch==nil{return}
@@ -681,14 +694,17 @@ func (a *App) Action(ctx context.Context, action desktop.Action) {
         a.mu.Unlock()
         a.Tick()
 	case "quit":
-		if a.cancel != nil {
-			a.cancel()
+		a.mu.Lock()
+		cancel := a.cancel
+		a.mu.Unlock()
+		if cancel != nil {
+			cancel()
 		}
 	case "url":
 		if err := a.ConfigureFeed(strings.TrimSpace(action.Value), strings.HasPrefix(action.Value, "http://")); err != nil {
 			log.Printf("feed URL rejected: %v", err)
 		} else {
-			go a.Action(ctx, desktop.Action{Name: "refresh"})
+			a.refreshAsync(ctx)
 		}
 	default:
 		a.mu.Lock()
@@ -722,12 +738,21 @@ func (a *App) Action(ctx context.Context, action desktop.Action) {
 }
 func (a *App) Run(ctx context.Context, ui desktop.UI) error {
 	ctx, cancel := context.WithCancel(ctx)
-	a.cancel = cancel
-	defer cancel()
 	a.mu.Lock()
+	a.cancel = cancel
 	a.ui = ui
 	a.mu.Unlock()
+	defer func() {
+		cancel()
+		a.mu.Lock()
+		a.cancel = nil
+		a.ui = nil
+		a.mu.Unlock()
+		a.runWG.Wait()
+	}()
+	a.runWG.Add(1)
 	go func() {
+		defer a.runWG.Done()
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 		a.Tick()
@@ -740,7 +765,11 @@ func (a *App) Run(ctx context.Context, ui desktop.UI) error {
 			}
 		}
 	}()
-	go a.poll(ctx)
+	a.runWG.Add(1)
+	go func() {
+		defer a.runWG.Done()
+		a.poll(ctx)
+	}()
 	return ui.Run(ctx, func(ac desktop.Action) { a.Action(ctx, ac) })
 }
 func (a *App) poll(ctx context.Context) {

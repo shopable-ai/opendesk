@@ -79,6 +79,9 @@ func TestValidation(t *testing.T) {
 	if _, _, err := ValidatePayload("timeline", []byte(`{"updated_at":"2026-10-13T11:00:00Z","events":[{"id":"a"}]}`)); err == nil {
 		t.Fatal("missing documented fields")
 	}
+	if _, _, err := ValidatePayload("timeline", []byte(`{"updated_at":"2026-10-13T11:00:00Z","events":[{"id":"a","group":"reset","type":"reset","summary":"confirmed historical row","announced_at":"2026-10-13T10:00:00Z","confirmed":true},{"id":"b","group":"credits","type":"credits","summary":"observed row","announced_at":null,"confirmed":true}]}`)); err != nil {
+		t.Fatal(err)
+	}
 	if _, _, err := ValidatePayload("forecast", []byte(`{"updated_at":"2026-10-13T11:00:00Z","official_signal":null,"confidence":"low","probabilities":{"rounded_24h":5,"rounded_48h":7}}`)); err != nil {
 		t.Fatal(err)
 	}

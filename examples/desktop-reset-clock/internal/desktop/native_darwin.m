@@ -341,7 +341,6 @@ static RCController *controller;
     }
     if ([command isEqualToString:@"quit"]) {
         [self emit:@"quit" value:@""];
-        [NSApp terminate:nil];
         return;
     }
     [self emit:command value:@""];
@@ -391,6 +390,8 @@ static RCController *controller;
         for (NSView *subview in content.subviews) subview.autoresizingMask = NSViewMinYMargin;
         [self.settings center];
     }
+    // Populate before the window becomes key; subsequent ticks preserve an active edit.
+    if (!self.settings.isKeyWindow) RCSetString(self.feedField,RCString(self.lastPayload,@"feed_url"));
     [self.settings makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
 }
@@ -621,6 +622,10 @@ static RCController *controller;
     return YES;
 }
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender { return NO; }
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
+    [self emit:@"quit" value:@""];
+    return NSTerminateCancel; // Go owns cancellation, draining, and the process exit.
+}
 - (void)windowDidMove:(NSNotification *)note {
     if (note.object != self.card || self.locked || self.adjustingCard) return;
     NSPoint origin = self.card.frame.origin;
@@ -715,7 +720,15 @@ void RCAppRun(void) {
         controller = nil;
     }
 }
-void RCAppStop(void) { dispatch_async(dispatch_get_main_queue(),^{[NSApp terminate:nil];}); }
+void RCAppStop(void) {
+    dispatch_async(dispatch_get_main_queue(),^{
+        [NSApp stop:nil];
+        // stop: is checked after an NSEvent, not merely a dispatch/run-loop callback.
+        [NSApp postEvent:[NSEvent otherEventWithType:NSEventTypeApplicationDefined
+            location:NSZeroPoint modifierFlags:0 timestamp:0 windowNumber:0
+            context:nil subtype:0 data1:0 data2:0] atStart:YES];
+    });
+}
 void RCAppUpdate(const char *json) {
     if (!json) return;
     NSString *serialized = [NSString stringWithUTF8String:json];

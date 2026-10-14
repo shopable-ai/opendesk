@@ -24,19 +24,36 @@ type macUI struct {
 	handle func(Action)
 }
 
-var activeMac *macUI
+var (
+	activeMacMu sync.Mutex
+	activeMac   *macUI
+)
 
 func newNative() UI { return &macUI{} }
 func (m *macUI) Run(ctx context.Context, handle func(Action)) error {
 	m.mu.Lock()
 	m.handle = handle
-	activeMac = m
 	m.mu.Unlock()
-	go func() { <-ctx.Done(); C.RCAppStop() }()
+	activeMacMu.Lock()
+	activeMac = m
+	activeMacMu.Unlock()
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			C.RCAppStop()
+		case <-done:
+		}
+	}()
 	C.RCAppRun() // AppKit must run on main OS thread (locked by cmd).
+	close(done)
+	activeMacMu.Lock()
+	if activeMac == m {
+		activeMac = nil
+	}
+	activeMacMu.Unlock()
 	m.mu.Lock()
 	m.handle = nil
-	activeMac = nil
 	m.mu.Unlock()
 	return nil
 }
@@ -50,7 +67,9 @@ func (m *macUI) Notify(v string) { s := C.CString(v); C.RCAppNotify(s); C.free(u
 
 //export RCGoAction
 func RCGoAction(name, value *C.char) {
+	activeMacMu.Lock()
 	m := activeMac
+	activeMacMu.Unlock()
 	if m == nil {
 		return
 	}
@@ -58,6 +77,14 @@ func RCGoAction(name, value *C.char) {
 	h := m.handle
 	m.mu.Unlock()
 	if h != nil {
-		go h(Action{Name: C.GoString(name), Value: C.GoString(value)})
+		action := Action{Name: C.GoString(name), Value: C.GoString(value)}
+		go func() {
+			activeMacMu.Lock()
+			active := activeMac == m
+			activeMacMu.Unlock()
+			if active {
+				h(action)
+			}
+		}()
 	}
 }

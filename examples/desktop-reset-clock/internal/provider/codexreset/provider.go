@@ -190,11 +190,17 @@ func ValidatePayload(name string, body []byte) (time.Time, bool, error) {
 			_ = json.Unmarshal(e["announcement_state"], &state)
 			_ = json.Unmarshal(e["type"], &typ)
 			_ = json.Unmarshal(e["summary"], &summary)
-			if id == "" || group == "" || state == "" || typ == "" || e["summary"] == nil {
+			if id == "" || group == "" || typ == "" || e["summary"] == nil {
 				return time.Time{}, false, errors.New("invalid timeline event")
 			}
-			if _, err := timeField(e, "announced_at"); err != nil {
-				return time.Time{}, false, err
+			if raw := e["announced_at"]; len(raw) > 0 && !bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+				var v string
+				if json.Unmarshal(raw, &v) != nil {
+					return time.Time{}, false, errors.New("invalid announced_at")
+				}
+				if _, err := parseTime(v); err != nil {
+					return time.Time{}, false, err
+				}
 			}
 		}
 	case "feed":

@@ -1,27 +1,26 @@
-# OpenDesk Reset Clock · V1（R2.5）原生桌面挂件
+# OpenDesk Reset Clock · V1（R2.6）原生桌面挂件
 
-> **2026-10-13 R2.5 状态：AppKit / Win32 桌面卡片已实现源码；真实 Mac / Windows 实窗与公网 Go 采集仍需设备和独立证据，不能把代码提交或模拟测试等同于 V1 真机验收。** 它不是 OpenAI 官方服务，默认不提供个人账号重置倒计时。当前无正式部署的公共 HTTPS Feed Bridge。
+> **2026-10-14 R2.6：真实 macOS AppKit 开发应用与唯一 Go Bridge 已完成本机联调。** 四个公开 API、三条真实动态、桌面层级、物理拖动/锁定穿透、隐藏后台轮询、进程范围断连恢复、退出重启和单实例均有本机证据。Windows 仅完成交叉编译；多屏、Spaces、休眠和系统通知展示尚未实测。它是独立第三方追踪工具，不能确定个人账号额度已恢复；目前没有公共 HTTPS Bridge 或签名发行包。
 >
-> 旧版 R1/R2 演示说明作为历史版本说明保留在下方。**请优先使用本节的 V1 正式入口**，不再按旧版“单条轮播 / 手动展开”验收。
+> 本轮结论及九项独立评价见 [R2.6 Mac 验收报告](../../docs/quality/desktop-reset-clock-v1-r26-mac-acceptance.zh-CN.md)。下方 R1/R2/R2.5 说明保留为历史记录；其中旧验收状态不代表 R2.6 现状。
 
 ## V1 本机两进程联调：真实数据 → 桌面常驻卡片
 
-前提：macOS 或 Windows 装有 Go 1.22+，可访问 `codex-reset.com` 公网 API；macOS 需要 Xcode Command Line Tools。**从仓库根目录**开启两个终端：
+前提：Go 1.22+，可访问 `codex-reset.com` 公网 API；macOS 需要 Xcode Command Line Tools。R2.6 本机使用 Go 1.25.13、macOS 26.5.1。以下两条命令的**工作目录均为仓库根目录下的 `examples/desktop-reset-clock/`**，分别在两个终端运行。
 
-**终端 A：启动唯一 Go Collector + Feed Bridge**：
-
-```bash
-cd examples/desktop-reset-clock
-go run ./cmd/reset-clock-bridge serve -listen 127.0.0.1:8788
-```
-
-**终端 B：启动原生桌面挂件**（另开一个终端，从仓库根目录执行）：
+终端 A，启动唯一 Go Collector + Feed Bridge（本轮实际运行的命令）：
 
 ```bash
-cd examples/desktop-reset-clock
-go run ./cmd/desktop-reset-clock -feed http://127.0.0.1:8788/feed -allow-local-http
+go run ./cmd/reset-clock-bridge serve -listen 127.0.0.1:8789
 ```
 
+终端 B，原生客户端 CLI 入口：
+
+```bash
+go run ./cmd/desktop-reset-clock -feed http://127.0.0.1:8789/feed -allow-local-http
+```
+
+默认端口为 8788。本轮 8788 已被其他服务占用，使用空闲的 8789，不结束其他服务。更换端口时同步修改两条命令中的地址。本轮原生 UI 验收使用下节的 `.app`；不要同时启动 CLI 客户端。
 - 桌面程序只访问 Bridge 的 `/feed`、`/archive`，不会请求四个上游 API；只有终端 A 会以**同一域名全局请求间隔至少 60 秒**依次获取四个 API。首次完整采集至少约 3 分钟，源端可能拒绝/限流；等待上游验证时卡片可显示“下一次时间待公布”和来源署名，**不会伪造三条新闻**。
 - 使用状态栏/托盘可直接显示/隐藏、锁定/解锁（锁定时鼠标穿透）、查看记录与动态、立即刷新、打开设置/原始来源、退出。隐藏卡片时**仍由同一个桌面进程执行 HTTP 刷新**；退出应用才会停止客户端刷新。Bridge 独立启动，桌面退出不会自动结束 Bridge。
 - 卡片宽度 386 逻辑像素，三条最新有效来源动态**默认常显**，不轮播；少于三条就按真实条数展示。没有精确未来官方时间则显示 **下一次时间待公布**；最近一次带第三方报告时间的重置仅作为历史显示，和储备重置、服务事故分开。来源失效时已保存内容标明“缓存”，不产生未核实通知。
@@ -31,16 +30,19 @@ go run ./cmd/desktop-reset-clock -feed http://127.0.0.1:8788/feed -allow-local-h
 
 ### macOS 无需终端常驻显示的开发版 `.app`（未签名）
 
-在仓库根目录：
+先在 `examples/desktop-reset-clock/` 工作目录构建（Apple Silicon 设置 `GOARCH=arm64`，Intel 使用本机默认架构）：
 
 ```bash
-cd examples/desktop-reset-clock
-bash scripts/build-macos-app.sh
-cd ../..
-open '.runtime/tests/desktop-reset-clock/v1/Reset Clock.app' --args -feed http://127.0.0.1:8788/feed -allow-local-http
+GOARCH=arm64 bash scripts/build-macos-app.sh
 ```
 
-脚本构建真实 CGO/AppKit 程序并生成 `LSUIElement` 菜单栏开发应用于 `.runtime/tests/desktop-reset-clock/v1/Reset Clock.app`；它**不是签名/公证的发行包**，不会要求管理员权限或修改登录启动项。如果已有构建文件会拒绝覆盖，避免打断其他任务。终端 A 的 Bridge 仍需要先启动。不支持在 Linux 上构建 AppKit 版本。
+Bridge 启动后，在**仓库根目录**执行本轮实际验证的一行启动命令：
+
+```bash
+open '.runtime/tests/desktop-reset-clock/v1/Reset Clock.app' --args -feed http://127.0.0.1:8789/feed -allow-local-http
+```
+
+脚本构建真实 CGO/AppKit 程序并生成 `LSUIElement` 菜单栏开发应用于 `.runtime/tests/desktop-reset-clock/v1/Reset Clock.app`；它**不是签名/公证的发行包**，不会要求管理员权限或修改登录启动项。如果已有构建文件会拒绝覆盖。维护者重新验收时，先退出并核验本任务进程，再把整个旧 bundle 保存到 `.runtime/` 构建备份后重建；保持同一 bundle ID，不修改已运行 bundle 或重置系统权限。终端 A 的 Bridge 仍需要先启动。不支持在 Linux 上构建 AppKit 版本。
 
 ### Windows 开发编译及限制
 
@@ -53,11 +55,13 @@ cd examples/desktop-reset-clock
 go test ./... -count=1
 go test -race ./... -count=1
 go vet ./...
-go build ./cmd/reset-clock-bridge
-go build ./cmd/desktop-reset-clock
+go build -o ../../.runtime/tests/desktop-reset-clock/v1/reset-clock-bridge ./cmd/reset-clock-bridge
+CGO_ENABLED=1 go build -o ../../.runtime/tests/desktop-reset-clock/v1/desktop-reset-clock ./cmd/desktop-reset-clock
 ```
 
-`go test` 中的 HTTP Mock 是**隔离协议回归**，不是已联网的四接口验收。在有外网的 Mac 使用现有 `go run ./cmd/reset-clock-bridge probe` 检查返回的 `live_api_verified`，不得通过多进程绕过 60 秒间隔。真实 AppKit / Win32 截图和本地测试日志保存于根目录 `.runtime/tests/desktop-reset-clock/v1/`，不要提交这些运行文件。正式阶段报告：`docs/quality/desktop-reset-clock-v1-r25-native.zh-CN.md`。
+构建前建立仓库根 `.runtime/tests/desktop-reset-clock/v1/` 目录。
+
+`go test` 中的 HTTP Mock 是**隔离协议回归**，不是已联网的四接口验收。在有外网的 Mac 使用现有 `go run ./cmd/reset-clock-bridge probe` 检查返回的 `live_api_verified`，不得通过多进程绕过 60 秒间隔。真实 AppKit / Win32 截图和本地测试日志保存于根目录 `.runtime/tests/desktop-reset-clock/v1/`，不要提交这些运行文件。当前报告：[R2.6 Mac 验收](../../docs/quality/desktop-reset-clock-v1-r26-mac-acceptance.zh-CN.md)；[R2.5 源码阶段](../../docs/quality/desktop-reset-clock-v1-r25-native.zh-CN.md)保留为历史基线。
 
 ---
 

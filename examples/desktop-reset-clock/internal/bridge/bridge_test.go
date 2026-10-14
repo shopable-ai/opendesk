@@ -43,6 +43,10 @@ type source struct {
 	clk            *fakeClock
 	notModified    bool
 	omitResetTweet bool
+	omitResetURL   bool
+	omitResetState bool
+	nullResetTime  bool
+	resetConfirmed *bool
 	contradictory  bool
 	at             time.Time
 }
@@ -69,8 +73,22 @@ func (s *source) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/forecast":
 		payload = map[string]any{"updated_at": now, "last_reset_at": now, "confidence": "low", "probabilities": map[string]any{"rounded_24h": 19, "rounded_48h": 34}, "official_signal": nil}
 	case "/api/timeline":
+		var resetTime any = eventAt
+		if s.nullResetTime {
+			resetTime = nil
+		}
+		reset := map[string]any{"id": "res1", "group": "reset", "type": "reset", "announced_at": resetTime, "summary": s.summary}
+		if !s.omitResetState {
+			reset["announcement_state"] = resetState(s.withdrawn)
+		}
+		if s.resetConfirmed != nil {
+			reset["confirmed"] = *s.resetConfirmed
+		}
+		if !s.omitResetURL {
+			reset["url"] = "https://x.com/person/status/res1"
+		}
 		events := []any{
-			map[string]any{"id": "res1", "group": "reset", "type": "reset", "announcement_state": resetState(s.withdrawn), "announced_at": eventAt, "url": "https://x.com/person/status/res1", "summary": s.summary},
+			reset,
 			map[string]any{"id": "gift1", "group": "credits", "type": "credits", "announcement_state": "none", "announced_at": eventAt, "url": "https://x.com/person/status/gift1", "summary": "额外机会"},
 			map[string]any{"id": "pending1", "group": "credits", "type": "credits", "announcement_state": "none", "announced_at": eventAt, "summary": "无链接"},
 			map[string]any{"id": "candidate", "group": "reset", "type": "reset", "announcement_state": "none", "announced_at": eventAt, "url": "https://x.com/person/status/candidate", "summary": "不应计数"}}
@@ -407,5 +425,107 @@ func TestConflictingResetEvidenceIsNotConfirmed(t *testing.T) {
 		if strings.HasSuffix(r.ID, "conflict1") {
 			t.Fatal("conflicting event entered archive as confirmed")
 		}
+	}
+}
+
+func TestWithdrawnTimelineKeepsSavedSourceWhenURLMissing(t *testing.T) {
+	e, src, _, stop := setup(t)
+	defer stop()
+	if _, err := e.Poll(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	src.mu.Lock()
+	src.withdrawn = true
+	src.omitResetTweet = true
+	src.omitResetURL = true
+	src.mu.Unlock()
+	if _, err := e.Poll(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	d := e.Report()
+	foundEvent := false
+	for _, ev := range d.Snapshot.Events {
+		if strings.HasSuffix(ev.ID, "res1") {
+			foundEvent = true
+			if ev.State != "withdrawn" || ev.Revision != 2 || ev.SourceURL != "https://x.com/person/status/res1" {
+				t.Fatalf("withdrawal did not preserve saved event source: %+v", ev)
+			}
+		}
+	}
+	if !foundEvent {
+		t.Fatal("withdrawn event missing")
+	}
+	var latest *history.Record
+	for i := range d.Archive.Records {
+		if strings.HasSuffix(d.Archive.Records[i].ID, "res1") && (latest == nil || d.Archive.Records[i].Revision > latest.Revision) {
+			latest = &d.Archive.Records[i]
+		}
+	}
+	if latest == nil || latest.State != "withdrawn" || latest.Revision != 2 || latest.SourceURL != "https://x.com/person/status/res1" {
+		t.Fatalf("withdrawal did not preserve saved archive source: %+v", latest)
+	}
+	for _, n := range news.Top(d.Snapshot.News, 3) {
+		if strings.HasSuffix(n.ID, "res1") {
+			t.Fatal("withdrawn post remained in active top news")
+		}
+	}
+}
+
+func TestResetWithoutAnnouncementStateStaysPending(t *testing.T) {
+	e, src, _, stop := setup(t)
+	defer stop()
+	confirmed := true
+	src.mu.Lock()
+	src.omitResetState = true
+	src.resetConfirmed = &confirmed
+	src.mu.Unlock()
+	if _, err := e.Poll(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	d := e.Report()
+	for _, ev := range d.Snapshot.Events {
+		if strings.HasSuffix(ev.ID, "res1") {
+			t.Fatalf("reset without announcement_state was published: %+v", ev)
+		}
+	}
+	foundPending := false
+	for _, p := range d.Pending {
+		if strings.HasSuffix(p.ID, "res1") && p.Reason == "missing_announcement_state" {
+			foundPending = true
+		}
+	}
+	if !foundPending {
+		t.Fatalf("missing announcement_state was not retained for review: %+v", d.Pending)
+	}
+}
+
+func TestTimelineNullAnnouncedAtDoesNotRejectWholeFeed(t *testing.T) {
+	e, src, _, stop := setup(t)
+	defer stop()
+	confirmed := true
+	src.mu.Lock()
+	src.resetConfirmed = &confirmed
+	src.nullResetTime = true
+	src.mu.Unlock()
+	if _, err := e.Poll(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	d := e.Report()
+	for _, ev := range d.Snapshot.Events {
+		if strings.HasSuffix(ev.ID, "res1") {
+			t.Fatalf("reset with missing timestamp was published: %+v", ev)
+		}
+	}
+	foundPending := false
+	for _, p := range d.Pending {
+		if strings.HasSuffix(p.ID, "res1") && p.Reason == "missing_provider_timestamp" {
+			foundPending = true
+		}
+	}
+	if !foundPending {
+		t.Fatalf("missing timestamp was not retained for review: %+v", d.Pending)
+	}
+	if len(d.Snapshot.Events) == 0 || len(d.Archive.Records) == 0 {
+		t.Fatal("one malformed timeline row discarded the whole feed")
 	}
 }
