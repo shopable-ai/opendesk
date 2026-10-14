@@ -6,9 +6,10 @@
 extern void RCGoAction(char *name, char *value);
 
 static const CGFloat RCScreenCardWidth = 386;
-static const CGFloat RCScreenCardHeight = 264;
+// One row is reserved for the verified empty state; three rows maximum.
+static const CGFloat RCScreenCardHeight = 265;
 static CGFloat RCCardHeight(NSUInteger count) {
-    return RCScreenCardHeight + MIN(count,(NSUInteger)3) * 38;
+    return 231 + MAX((NSUInteger)1,MIN(count,(NSUInteger)3)) * 34;
 }
 static const CGFloat RCSettingsWidth = 520;
 static const CGFloat RCSettingsBaseHeight = 534;
@@ -96,16 +97,42 @@ static NSTextView *RCScrollableText(NSView *parent,NSRect frame) {
  return view;
 }
 
+// The approved C3 artwork is decoded once from Go-embedded bytes.
+static NSImage *RCC3HeroImage;
 @interface RCCardView : NSView
 @property (strong) NSTrackingArea *hoverArea;
+@property (strong) NSImage *heroImage;
 @end
 @implementation RCCardView
 - (BOOL)mouseDownCanMoveWindow { return YES; }
 - (void)drawRect:(NSRect)dirtyRect {
-    NSBezierPath *shape=[NSBezierPath bezierPathWithRoundedRect:self.bounds xRadius:16 yRadius:16];
-    NSGradient *gradient=[[NSGradient alloc] initWithStartingColor:RCColor(.047,.155,.170)
-        endingColor:RCColor(.092,.355,.294)];
-    [gradient drawInBezierPath:shape angle:-20];
+    NSRect bounds=self.bounds;
+    NSBezierPath *shape=[NSBezierPath bezierPathWithRoundedRect:bounds xRadius:18 yRadius:18];
+    [NSGraphicsContext saveGraphicsState];
+    [shape addClip];
+    NSGradient *gradient=[[NSGradient alloc] initWithStartingColor:RCColor(.043,.259,.243)
+        endingColor:RCColor(.024,.180,.192)];
+    [gradient drawInRect:bounds angle:-24];
+    if (self.heroImage) {
+        NSRect hero=NSMakeRect(NSWidth(bounds)-230,NSHeight(bounds)-18-172,228,172);
+        [self.heroImage drawInRect:hero fromRect:NSZeroRect
+            operation:NSCompositingOperationSourceOver fraction:1.0];
+    }
+    NSGradient *horizon=[[NSGradient alloc] initWithStartingColor:
+        [RCColor(.06,.38,.35) colorWithAlphaComponent:.19]
+        endingColor:[RCColor(.02,.18,.18) colorWithAlphaComponent:0]];
+    [horizon drawInRect:NSMakeRect(0,NSHeight(bounds)-225,NSWidth(bounds),44) angle:-90];
+    [[RCColor(.025,.16,.16) colorWithAlphaComponent:.66] setFill];
+    NSRectFill(NSMakeRect(0,0,NSWidth(bounds),43));
+    [[RCColor(.66,.95,.82) colorWithAlphaComponent:.17] setStroke];
+    NSBezierPath *footLine=[NSBezierPath bezierPath];
+    [footLine moveToPoint:NSMakePoint(0,43)];
+    [footLine lineToPoint:NSMakePoint(NSWidth(bounds),43)];
+    [footLine stroke];
+    [NSGraphicsContext restoreGraphicsState];
+    [[RCColor(.70,.98,.90) colorWithAlphaComponent:.18] setStroke];
+    shape.lineWidth=1;
+    [shape stroke];
 }
 - (void)updateTrackingAreas {
  [super updateTrackingAreas];
@@ -159,14 +186,14 @@ static NSTextView *RCScrollableText(NSView *parent,NSRect frame) {
 @property (strong) NSTextField *tickerText;
 @property (strong) NSButton *detailsEntry;
 @property (strong) NSButton *creditLink;
-@property (strong) NSTextField *newsHeading;
 @property (strong) NSTextField *emptyNews;
 @property (strong) NSTextField *tickerCount;
 @property (strong) NSButton *tickerPrev;
 @property (strong) NSButton *tickerNext;
 @property (strong) NSButton *tickerExpand;
 @property (strong) NSArray<NSTextField *> *tickerRows;
-@property (strong) NSArray<NSTextField *> *tickerSources;
+@property (strong) NSArray<NSTextField *> *tickerDates;
+@property (strong) NSArray<NSView *> *tickerDividers;
 @property BOOL adjustingCard;
 @property (strong) NSTextField *feedField;
 @property (strong) NSTextField *requestValue;
@@ -206,61 +233,78 @@ static RCController *controller;
 
     RCCardView *background = [[RCCardView alloc] initWithFrame:NSMakeRect(0,0,RCScreenCardWidth,RCScreenCardHeight)];
     background.wantsLayer=YES;
-    background.layer.cornerRadius=16;
+    background.layer.cornerRadius=18;
     background.layer.masksToBounds=YES;
+    background.heroImage=RCC3HeroImage;
     background.autoresizingMask=NSViewWidthSizable|NSViewHeightSizable;
     self.card.contentView=background;
-    NSTextField *brand=RCText(background,RCTopRect(RCScreenCardHeight,18,16,164,24),14,
+    NSTextField *brand=RCText(background,RCTopRect(RCScreenCardHeight,17,16,195,25),14,
                              NSFontWeightBold,NSColor.whiteColor,NO,NSTextAlignmentLeft);
     brand.stringValue=@"↻  Reset Clock";
-    self.detailsEntry=[[NSButton alloc] initWithFrame:RCTopRect(RCScreenCardHeight,246,13,122,28)];
+    self.detailsEntry=[[NSButton alloc] initWithFrame:RCTopRect(RCScreenCardHeight,239,14,130,29)];
     self.detailsEntry.bordered=NO;
-    self.detailsEntry.title=@"记录与动态 ↗";
-    self.detailsEntry.font=[NSFont systemFontOfSize:12 weight:NSFontWeightMedium];
+    self.detailsEntry.title=@"记录与动态 ›";
+    self.detailsEntry.font=[NSFont systemFontOfSize:11 weight:NSFontWeightSemibold];
     self.detailsEntry.contentTintColor=NSColor.whiteColor;
+    self.detailsEntry.wantsLayer=YES;
+    self.detailsEntry.layer.cornerRadius=14.5;
+    self.detailsEntry.layer.backgroundColor=[RCColor(.04,.34,.29) colorWithAlphaComponent:.90].CGColor;
+    self.detailsEntry.layer.borderWidth=.7;
+    self.detailsEntry.layer.borderColor=[RCColor(.46,.84,.71) colorWithAlphaComponent:.55].CGColor;
     self.detailsEntry.target=self;
     self.detailsEntry.action=@selector(openDetailsClick:);
     [background addSubview:self.detailsEntry];
-    self.hintLabel=RCText(background,RCTopRect(RCScreenCardHeight,18,56,348,20),12,
-                   NSFontWeightMedium,RCColor(.72,.92,.82),NO,NSTextAlignmentLeft);
-    self.valueLabel=RCText(background,RCTopRect(RCScreenCardHeight,18,79,350,40),24,
+    self.hintLabel=RCText(background,RCTopRect(RCScreenCardHeight,17,67,237,21),13,
+                   NSFontWeightSemibold,RCColor(.91,1,.96),NO,NSTextAlignmentLeft);
+    self.valueLabel=RCText(background,RCTopRect(RCScreenCardHeight,17,91,350,59),45,
                    NSFontWeightBold,NSColor.whiteColor,NO,NSTextAlignmentLeft);
-    self.metaLabel=RCText(background,RCTopRect(RCScreenCardHeight,18,125,350,20),12,
-                   NSFontWeightMedium,RCColor(.83,.96,.88),NO,NSTextAlignmentLeft);
-    self.summaryLabel=RCText(background,RCTopRect(RCScreenCardHeight,18,151,350,17),10.5,
-                   NSFontWeightRegular,RCColor(.72,.84,.80),NO,NSTextAlignmentLeft);
-    NSView *divider=[[NSView alloc] initWithFrame:RCTopRect(RCScreenCardHeight,18,180,350,1)];
+    self.metaLabel=RCText(background,RCTopRect(RCScreenCardHeight,17,152,350,21),11,
+                   NSFontWeightMedium,RCColor(.84,.95,.89),NO,NSTextAlignmentLeft);
+    NSView *divider=[[NSView alloc] initWithFrame:RCTopRect(RCScreenCardHeight,17,185,352,1)];
     divider.wantsLayer=YES;
-    divider.layer.backgroundColor=[[NSColor whiteColor] colorWithAlphaComponent:.18].CGColor;
+    divider.layer.backgroundColor=[RCColor(.49,.92,.78) colorWithAlphaComponent:.29].CGColor;
     [background addSubview:divider];
-    self.newsHeading=RCText(background,RCTopRect(RCScreenCardHeight,18,189,350,19),12,
-                         NSFontWeightSemibold,RCColor(.76,.96,.84),NO,NSTextAlignmentLeft);
-    self.newsHeading.stringValue=@"最近动态";
-    self.emptyNews=RCText(background,RCTopRect(RCScreenCardHeight,18,212,350,20),11,
-                          NSFontWeightRegular,RCColor(.77,.89,.82),NO,NSTextAlignmentLeft);
+    self.emptyNews=RCText(background,RCTopRect(RCScreenCardHeight,17,194,352,22),11,
+                          NSFontWeightRegular,RCColor(.79,.91,.85),NO,NSTextAlignmentLeft);
     self.emptyNews.stringValue=@"暂无可核验动态";
-    NSMutableArray<NSTextField *> *rows=[NSMutableArray array];
-    NSMutableArray<NSTextField *> *sources=[NSMutableArray array];
+    NSMutableArray<NSTextField *> *titles=[NSMutableArray array];
+    NSMutableArray<NSTextField *> *dates=[NSMutableArray array];
+    NSMutableArray<NSView *> *lines=[NSMutableArray array];
     for (NSInteger i=0;i<3;i++) {
-        CGFloat top=212+i*38;
-        NSTextField *title=RCText(background,RCTopRect(RCScreenCardHeight,18,top,350,19),12,
+        CGFloat top=190+i*34;
+        NSTextField *date=RCText(background,RCTopRect(RCScreenCardHeight,17,top,49,30),11,
+                                 NSFontWeightSemibold,RCColor(.63,.96,.85),NO,NSTextAlignmentLeft);
+        NSTextField *title=RCText(background,RCTopRect(RCScreenCardHeight,75,top,293,30),12,
                                   NSFontWeightMedium,NSColor.whiteColor,NO,NSTextAlignmentLeft);
-        NSTextField *source=RCText(background,RCTopRect(RCScreenCardHeight,18,top+19,350,16),10,
-                                  NSFontWeightRegular,RCColor(.73,.86,.79),NO,NSTextAlignmentLeft);
-        title.hidden=YES;source.hidden=YES;
-        [rows addObject:title];[sources addObject:source];
+        date.hidden=YES; title.hidden=YES;
+        [dates addObject:date]; [titles addObject:title];
+        if (i<2) {
+            NSView *line=[[NSView alloc] initWithFrame:RCTopRect(RCScreenCardHeight,17,top+33,352,1)];
+            line.wantsLayer=YES;
+            line.layer.backgroundColor=[RCColor(.69,.96,.83) colorWithAlphaComponent:.12].CGColor;
+            line.hidden=YES;
+            [background addSubview:line];
+            [lines addObject:line];
+        }
     }
-    self.tickerRows=rows;self.tickerSources=sources;
-    self.creditLink=[[NSButton alloc] initWithFrame:NSMakeRect(18,8,230,23)];
+    self.tickerRows=titles;
+    self.tickerDates=dates;
+    self.tickerDividers=lines;
+    // Bottom-anchored footer remains visible as rows are added/removed.
+    self.summaryLabel=RCText(background,NSMakeRect(17,24,352,16),10,
+                   NSFontWeightRegular,RCColor(.76,.88,.83),NO,NSTextAlignmentLeft);
+    self.creditLink=[[NSButton alloc] initWithFrame:NSMakeRect(17,5,230,20)];
     self.creditLink.bordered=NO;
     self.creditLink.title=@"Data: codex-reset.com ↗";
     self.creditLink.font=[NSFont systemFontOfSize:10.5 weight:NSFontWeightMedium];
-    self.creditLink.contentTintColor=RCColor(.76,.95,.85);
+    self.creditLink.contentTintColor=RCColor(.68,.96,.85);
     self.creditLink.target=self;
     self.creditLink.action=@selector(openCreditClick:);
     [background addSubview:self.creditLink];
     for (NSView *v in background.subviews)
-        if (v!=self.creditLink) v.autoresizingMask=NSViewMinYMargin;
+        if (v!=self.creditLink && v!=self.summaryLabel) v.autoresizingMask=NSViewMinYMargin;
+    self.summaryLabel.autoresizingMask=NSViewMaxYMargin;
+    self.creditLink.autoresizingMask=NSViewMaxYMargin;
     self.tray = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
     self.tray.button.title = @"◷";
     self.tray.button.toolTip = @"OpenDesk Reset Clock";
@@ -649,8 +693,11 @@ static RCController *controller;
     [self syncMenu:data];
     RCSetString(self.hintLabel,RCString(data,@"card_hint"));
     BOOL upcoming=RCBool(data,@"has_upcoming");
-    self.valueLabel.font=[NSFont systemFontOfSize:upcoming?32:23 weight:NSFontWeightBold];
-    RCSetString(self.valueLabel,RCString(data,@"card_value"));
+    NSString *cardValue=RCString(data,@"card_value");
+    NSUInteger length=cardValue.length;
+    CGFloat valueSize=upcoming?(length>10?31:(length>7?37:45)):22;
+    self.valueLabel.font=[NSFont systemFontOfSize:valueSize weight:NSFontWeightBold];
+    RCSetString(self.valueLabel,cardValue);
     RCSetString(self.metaLabel,RCString(data,@"card_meta"));
     BOOL cached=RCBool(data,@"ticker_cached");
     NSString *kind=RCString(data,@"status_kind");
@@ -659,7 +706,6 @@ static RCController *controller;
         (cached?@"来源待核验 · 以下仅为已保存的历史内容":
           @"独立第三方追踪 · 不代表个人额度恢复");
     RCSetString(self.summaryLabel,note);
-    RCSetString(self.newsHeading,cached?@"最近动态 · 缓存":@"最近动态");
     NSArray *stories=[data[@"ticker_items"] isKindOfClass:NSArray.class]?data[@"ticker_items"]:@[];
     NSUInteger count=MIN(stories.count,(NSUInteger)3);
     CGFloat desiredHeight=RCCardHeight(count);
@@ -667,14 +713,15 @@ static RCController *controller;
     for (NSUInteger i=0;i<self.tickerRows.count;i++) {
         BOOL active=i<count && [stories[i] isKindOfClass:NSDictionary.class];
         self.tickerRows[i].hidden=!active;
-        self.tickerSources[i].hidden=!active;
+        self.tickerDates[i].hidden=!active;
         if (active) {
             NSDictionary *item=stories[i];
             RCSetString(self.tickerRows[i],RCString(item,@"title"));
-            RCSetString(self.tickerSources[i],[NSString stringWithFormat:@"%@ · %@",
-                        RCString(item,@"updated"),RCString(item,@"source")]);
+            RCSetString(self.tickerDates[i],RCString(item,@"updated"));
         }
     }
+    for (NSUInteger i=0;i<self.tickerDividers.count;i++)
+        self.tickerDividers[i].hidden=i+1>=count;
     self.creditLink.hidden=RCString(data,@"data_source_url").length==0;
     self.adjustingCard=YES;
     NSRect frame=self.card.frame;
@@ -705,6 +752,11 @@ static RCController *controller;
 }
 @end
 
+void RCAppSetHeroPNG(const unsigned char *data, int length) {
+    if (!data || length<=0) return;
+    NSData *bytes=[NSData dataWithBytes:data length:(NSUInteger)length];
+    RCC3HeroImage=[[NSImage alloc] initWithData:bytes];
+}
 void RCAppRun(void) {
     @autoreleasepool {
         [NSApplication sharedApplication];

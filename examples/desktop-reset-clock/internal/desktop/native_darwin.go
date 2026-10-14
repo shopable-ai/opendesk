@@ -6,6 +6,7 @@ package desktop
 #cgo CFLAGS: -x objective-c -fblocks
 #cgo LDFLAGS: -framework Cocoa -framework CoreGraphics -framework UserNotifications
 #include <stdlib.h>
+void RCAppSetHeroPNG(const unsigned char *data, int length);
 void RCAppRun(void);
 void RCAppStop(void);
 void RCAppUpdate(const char *json);
@@ -33,6 +34,9 @@ func (m *macUI) Run(ctx context.Context, handle func(Action)) error {
 	activeMac = m
 	m.mu.Unlock()
 	go func() { <-ctx.Done(); C.RCAppStop() }()
+	if hero, err := loadC3Hero(); err == nil && len(hero.PNG) > 0 {
+		C.RCAppSetHeroPNG((*C.uchar)(unsafe.Pointer(&hero.PNG[0])), C.int(len(hero.PNG)))
+	}
 	C.RCAppRun() // AppKit must run on main OS thread (locked by cmd).
 	m.mu.Lock()
 	m.handle = nil
