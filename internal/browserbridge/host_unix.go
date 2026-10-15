@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -59,6 +60,7 @@ type Host struct {
 	internalPending int
 	internalIDs map[string]bool
 	ai *browserai.Manager
+	aiHTTPServer *http.Server
 	aiPending int
 	aiControlPending int
 	localFiles bool
@@ -121,8 +123,10 @@ func (h *Host) Close() {
 		for client:=range h.clients{clients=append(clients,client)}
 		for _,p:=range h.devPending{p.timer.Stop()}
 		ai:=h.ai
+		aiHTTP:=h.aiHTTPServer
 		files:=h.files
 		h.mu.Unlock()
+		if aiHTTP!=nil{_ = aiHTTP.Close()}
 		if files!=nil{files.Close()}
 		if ai!=nil{ai.Close()}
 		if listener!=nil{_ = listener.Close()}
@@ -452,6 +456,7 @@ func (h *Host) Run() error {
 	if h.cfg.Provider!="opendesk" {return errors.New("E_MIGRATION_REQUIRED")}
 	defer h.Close()
 	if err:=h.startSocket();err!=nil{return err}
+	if err:=h.startAIHTTP();err!=nil{return err}
 	if err:=h.sendChrome(MustEncode(map[string]any{"v":1,"kind":"hello","workflowAiVersion":1,"localFilesVersion":FilesVersion,"localDevMultiVersion":1,"localDevAccessVersion":1}));err!=nil{return err}
 	timer:=time.AfterFunc(handshakeTimeout,func(){
 		h.mu.Lock();ready:=h.ready;h.mu.Unlock()
