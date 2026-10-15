@@ -61,3 +61,24 @@ func TestHTTPGatewayRejectsUnsupportedResponsesWithoutOpeningCodex(t *testing.T)
         t.Fatalf("streaming was not rejected before launching Codex: %d %s",rec.Code,rec.Body.String())
     }
 }
+
+func TestHTTPGatewayTypedInputAndJSONModes(t *testing.T) {
+    typed := `{"model":"gpt-4o-mini","input":[{"role":"user","content":[{"type":"input_text","text":"Plan a bounded form"}]}],"store":false,"stream":false,"text":{"format":{"type":"json_object"}}}`
+    request,input,err:=decodeGatewayRequest([]byte(typed))
+    if err!=nil || input!="Plan a bounded form" || request.Text.Format.Type!="json_object" {
+        t.Fatalf("compatible typed input rejected: %q %v",input,err)
+    }
+    for name,broken :=range map[string]string{
+        "tool-calls":`{"model":"gpt-4o-mini","input":[{"role":"user","content":[{"type":"tool_call","text":"execute shell"}]}],"store":false,"text":{"format":{"type":"json_object"}}}`,
+        "unknown-body":`{"model":"gpt-4o-mini","input":"hello","store":false,"tools":[],"text":{"format":{"type":"json_object"}}}`,
+        "missing-store":`{"model":"gpt-4o-mini","input":"hello","text":{"format":{"type":"json_object"}}}`,
+        "history":`{"model":"gpt-4o-mini","input":"hello","store":false,"previous_response_id":"resp_x","text":{"format":{"type":"json_object"}}}`,
+        "background":`{"model":"gpt-4o-mini","input":"hello","store":false,"background":true,"text":{"format":{"type":"json_object"}}}`,
+    } {
+        t.Run(name,func(t *testing.T){
+            if _,_,err:=decodeGatewayRequest([]byte(broken));err==nil {
+                t.Fatal("unsupported Responses feature silently accepted")
+            }
+        })
+    }
+}
