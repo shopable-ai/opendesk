@@ -27,7 +27,7 @@ func TestAdmissionPreflightFailureNeverDispatchesMutation(t *testing.T) {
 			{"multiple-sidebars", "E_HOST_AMBIGUOUS", []string{"sidebar-one", "sidebar-two"}, false},
 		} {
 			t.Run(method+"/"+scenario.name, func(t *testing.T) {
-				home, err := os.MkdirTemp("/private/tmp", "od-cli-preflight-")
+				home, err := os.MkdirTemp("/tmp", "od-cli-preflight-")
 				if err != nil {
 					t.Fatal(err)
 				}
