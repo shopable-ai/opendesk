@@ -127,28 +127,49 @@ func decodeGatewayRequest(raw []byte) (gatewayRequest,string,error) {
        req.Store==nil || *req.Store || req.PreviousResponseID!="" {
         return req,"",errors.New("E_UNSUPPORTED")
     }
-    // The compatibility subset requires a caller-supplied strict, closed
-    // Workflow JSON Schema. Other Responses input types are not simulated.
+    // Support the same minimal typed single-user input and JSON modes as the
+    // OpenDesk Responses adapter. Unsupported formats fail before CLI startup.
     format:=req.Text.Format
-    if format.Type!="json_schema" || !gatewayNamePattern.MatchString(format.Name) ||
-       format.Strict==nil || !*format.Strict || len(format.Schema)<2 ||
-       len(format.Schema)>MaxSchemaBytes {
-        return req,"",errors.New("E_UNSUPPORTED_FORMAT")
-    }
-    var shape struct {
-        Type string `json:"type"`
-        AdditionalProperties *bool `json:"additionalProperties"`
-    }
-    if json.Unmarshal(format.Schema,&shape)!=nil || shape.Type!="object" ||
-       shape.AdditionalProperties==nil || *shape.AdditionalProperties {
-        return req,"",errors.New("E_UNSUPPORTED_FORMAT")
+    switch format.Type {
+    case "json_object":
+        if format.Name!="" || format.Strict!=nil || len(format.Schema)!=0 {
+            return req,"",errors.New("E_UNSUPPORTED_FORMAT")
+        }
+    case "json_schema":
+        if !gatewayNamePattern.MatchString(format.Name) ||
+           format.Strict==nil || !*format.Strict || len(format.Schema)<2 ||
+           len(format.Schema)>MaxSchemaBytes {
+            return req,"",errors.New("E_UNSUPPORTED_FORMAT")
+        }
+        var shape struct {
+            Type string `json:"type"`
+            AdditionalProperties *bool `json:"additionalProperties"`
+        }
+        if json.Unmarshal(format.Schema,&shape)!=nil || shape.Type!="object" ||
+           shape.AdditionalProperties==nil || *shape.AdditionalProperties {
+            return req,"",errors.New("E_UNSUPPORTED_FORMAT")
+        }
+    default:return req,"",errors.New("E_UNSUPPORTED_FORMAT")
     }
     if !identifier.MatchString(req.Model) || len(req.Instructions)>4096 {
         return req,"",errors.New("E_GATEWAY_SCHEMA")
     }
     var input string
-    if json.Unmarshal(req.Input,&input)!=nil || strings.TrimSpace(input)=="" ||
-       len(input)>MaxInputBytes-4096 {
+    if json.Unmarshal(req.Input,&input)!=nil {
+        var items []struct {
+            Role string `json:"role"`
+            Content []struct{
+                Type string `json:"type"`
+                Text string `json:"text"`
+            } `json:"content"`
+        }
+        if strict(req.Input,&items)!=nil || len(items)!=1 || items[0].Role!="user" ||
+           len(items[0].Content)!=1 || items[0].Content[0].Type!="input_text" {
+            return req,"",errors.New("E_UNSUPPORTED_INPUT")
+        }
+        input=items[0].Content[0].Text
+    }
+    if strings.TrimSpace(input)=="" || len(input)>MaxInputBytes-4096 {
         return req,"",errors.New("E_UNSUPPORTED_INPUT")
     }
     return req,input,nil
@@ -210,8 +231,10 @@ func (g *HTTPGateway) response(w http.ResponseWriter,r *http.Request) {
         }
         _,_=g.call(cleanup,"ai.session.close",session.SessionID,map[string]any{})
     }()
-    payload:=map[string]any{"input":input,"consent":Consent{Model:true,Workflow:true,Observation:false},
-        "outputSchema":json.RawMessage(req.Text.Format.Schema)}
+    payload:=map[string]any{"input":input,"consent":Consent{Model:true,Workflow:true,Observation:false}}
+    if req.Text.Format.Type=="json_schema" {
+        payload["outputSchema"]=json.RawMessage(req.Text.Format.Schema)
+    }
     if req.Instructions!="" {
         // Caller instructions are data, not a new privileged system prompt.
         payload["input"]=req.Instructions+"\n\n"+input
