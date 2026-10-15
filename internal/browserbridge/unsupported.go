@@ -3,6 +3,7 @@
 package browserbridge
 
 import (
+	"context"
 	"errors"
 	"io"
 )
@@ -24,6 +25,10 @@ var errPlatform=errors.New("E_PLATFORM: OpenDesk Browser Native Host is currentl
 func Load() (Installation,error) {return Installation{},errPlatform}
 func Setup(string,string,string,string) (map[string]any,error) {return nil,errPlatform}
 func SetupAutomatic(string,string,string,string) (map[string]any,error) {return nil,errPlatform}
+// Keep the same context-aware signatures as install_unix.go. Unsupported
+// platforms reject registration rather than creating an incomplete Native host.
+func SetupAutomaticContext(context.Context,string,string,string,string) (map[string]any,error) {return nil,errPlatform}
+func SetupContext(context.Context,string,string,string,string) (map[string]any,error) {return nil,errPlatform}
 func Doctor() map[string]any {return map[string]any{"installed":false,"socketExists":false,"error":"E_PLATFORM"}}
 func Cleanup() (map[string]any,error) {return nil,errPlatform}
 func ManifestFor(string,string) (string,error) {return "",errPlatform}
