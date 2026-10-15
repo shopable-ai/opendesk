@@ -3,8 +3,16 @@
 package browserbridge
 
 import (
-	"context"
-	"opendesk/internal/browserai"
+    "context"
+    "errors"
+    "net"
+    "net/http"
+    "os"
+    "strconv"
+    "strings"
+    "time"
+
+    "opendesk/internal/browserai"
 )
 
 // handleAI is exclusively reached from the already authenticated Chrome
@@ -56,4 +64,43 @@ func (h *Host) handleAI(raw []byte) error {
 		_ = h.sendChrome(data)
 	}()
 	return nil
+}
+
+// startAIHTTP runs within this exact Native Host process and uses h.ai.
+// Both variables must be provided explicitly; ordinary Chrome/CLI launches
+// never expose a port. -http and Desktop App Mode do not enable this listener.
+func (h *Host) startAIHTTP() error {
+    address:=strings.TrimSpace(os.Getenv("OPENDESK_CODEX_HTTP_ADDR"))
+    token:=os.Getenv("OPENDESK_CODEX_HTTP_TOKEN")
+    if address==""&&token=="" {return nil}
+    bindHost,port,err:=net.SplitHostPort(address)
+    if err!=nil {return errors.New("E_GATEWAY_CONFIG")}
+    ip:=net.ParseIP(bindHost)
+    number,portErr:=strconv.Atoi(port)
+    if token=="" || ip==nil || !ip.IsLoopback() || portErr!=nil || number<1 || number>65535 {
+        return errors.New("E_GATEWAY_CONFIG")
+    }
+    listener,err:=net.Listen("tcp",address)
+    if err!=nil{return errors.New("E_GATEWAY_BIND")}
+    gateway,err:=browserai.NewHTTPGateway(h.ai,token,listener.Addr().String(),func()bool{
+        h.mu.Lock();defer h.mu.Unlock()
+        return h.ready&&!h.closed
+    })
+    if err!=nil {_=listener.Close();return err}
+    server:=&http.Server{Handler:gateway,ReadHeaderTimeout:5*time.Second,
+        ReadTimeout:15*time.Second,WriteTimeout:130*time.Second,
+        IdleTimeout:15*time.Second,MaxHeaderBytes:8192}
+    h.mu.Lock()
+    if h.closed {
+        h.mu.Unlock();_=listener.Close();return ErrClosed
+    }
+    h.aiHTTPServer=server
+    h.mu.Unlock()
+    go func(){
+        if serveErr:=server.Serve(listener);serveErr!=nil && !errors.Is(serveErr,http.ErrServerClosed) {
+            // The optional listener must not silently detach from its owner.
+            h.Close()
+        }
+    }()
+    return nil
 }
