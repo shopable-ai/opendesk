@@ -61,7 +61,7 @@ func TestBrowserDOMInvalidCallsRejectedBeforeCoreStartup(t *testing.T) {
 		})
 	}
 
-	for _, raw := range []string{"null\\n", "{}\\n", "not-json\\n"} {
+	for _, raw := range []string{"null\n", "{}\n", "not-json\n"} {
 		t.Run("invalid-adapter-"+strings.TrimSpace(raw), func(t *testing.T) {
 			adapter := &BrowserDOMRuntime{
 				stdin: &browserDOMTestWriteCloser{},
