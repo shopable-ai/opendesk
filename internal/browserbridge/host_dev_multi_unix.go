@@ -5,6 +5,7 @@ package browserbridge
 import (
     "bufio"
     "crypto/sha256"
+    "encoding/base64"
     "encoding/hex"
     "encoding/json"
     "errors"
@@ -34,6 +35,7 @@ type modernProvider struct {
     leaseID string
     sourceID string
     workspaceID string
+    sourceVersion int
     entries map[string]modernEntry
 }
 
@@ -212,6 +214,7 @@ func (h *Host) serveModernProvider(c *localClient, request Fields, reader *bufio
     h.mu.Lock()
     lease,ok:=h.leases[leaseID]
     ready:=h.ready&&h.localDevMulti&&!h.closed
+    sourceReady:=h.localDevSource
     already:=len(h.modern)>=4
     duplicate:=false
     for _,active:=range h.modern{
@@ -225,8 +228,15 @@ func (h *Host) serveModernProvider(c *localClient, request Fields, reader *bufio
             "error":map[string]string{"code":code}}))
         return
     }
+    sourceVersion:=0
+    if Has(request,"localDevSourceVersion"){sourceVersion=Int(request,"localDevSourceVersion")}
+    if sourceVersion!=0&&sourceVersion!=LocalDevSourceVersion||sourceVersion==LocalDevSourceVersion&&!sourceReady{
+        _=h.sendLocal(c,MustEncode(map[string]any{"v":1,"kind":"provider.rejected",
+            "error":map[string]string{"code":"E_NATIVE_UPDATE_REQUIRED"}}))
+        return
+    }
     entries,err:=h.readCatalog(request["projects"],lease)
-    if err!=nil||len(request)!=6 {
+    if err!=nil||!validModernProviderRegisterFields(request) {
         _=h.sendLocal(c,MustEncode(map[string]any{"v":1,"kind":"provider.rejected",
             "error":map[string]string{"code":"E_SCHEMA"}}))
         return
@@ -251,7 +261,7 @@ func (h *Host) serveModernProvider(c *localClient, request Fields, reader *bufio
     if len(h.modern)>=4{h.mu.Unlock();return}
     c.providerEpoch=epoch
     h.modern[c]=&modernProvider{leaseID:leaseID,sourceID:lease.sourceID,
-        workspaceID:lease.workspaceID,entries:entries}
+        workspaceID:lease.workspaceID,sourceVersion:sourceVersion,entries:entries}
     h.rotateAggregateLocked()
     h.mu.Unlock()
     if err=h.sendLocal(c,MustEncode(map[string]any{"v":1,"kind":"provider.registered",
@@ -285,6 +295,17 @@ func (h *Host) serveModernProvider(c *localClient, request Fields, reader *bufio
         }
     }
 }
+func validModernProviderRegisterFields(request Fields) bool {
+    if len(request)!=6&&len(request)!=7{return false}
+    for key:=range request{
+        switch key{
+        case "v","kind","providerId","catalogVersion","leaseId","projects","localDevSourceVersion":
+        default:return false
+        }
+    }
+    if len(request)==7&&!Has(request,"localDevSourceVersion"){return false}
+    return true
+}
 func (h *Host) releaseModernProvider(c *localClient) {
     h.mu.Lock()
     provider,exists:=h.modern[c]
@@ -292,17 +313,30 @@ func (h *Host) releaseModernProvider(c *localClient) {
     delete(h.modern,c)
     h.rotateAggregateLocked()
     ids:=[]string{}
+    epochs:=map[string]string{}
     for id,p:=range h.devPending {
-        if p.owner==c {p.timer.Stop();delete(h.devPending,id);ids=append(ids,id)}
+        if p.owner==c {
+            p.timer.Stop();delete(h.devPending,id);ids=append(ids,id)
+            if p.aggregateEpoch!=""{epochs[id]=p.aggregateEpoch}else{epochs[id]=c.providerEpoch}
+        }
     }
     h.mu.Unlock()
     for _,id:=range ids {
         _=h.sendChrome(MustEncode(map[string]any{"v":1,"kind":"dev.response",
-            "requestId":id,"providerEpoch":c.providerEpoch,
+            "requestId":id,"providerEpoch":epochs[id],
             "error":map[string]string{"code":"E_DEV_DISCONNECTED"}}))
     }
     _=provider
     h.providerState()
+}
+func (h *Host) modernProviderLiveLocked(provider *modernProvider) bool {
+    if provider==nil{return false}
+    lease,ok:=h.leases[provider.leaseID]
+    return ok&&lease.sourceID==provider.sourceID&&lease.workspaceID==provider.workspaceID
+}
+func (h *Host) devOwnerLiveLocked(owner *localClient) bool {
+    if provider:=h.modern[owner];provider!=nil{return h.modernProviderLiveLocked(provider)}
+    return owner!=nil&&h.provider==owner
 }
 func (h *Host) deliverDevReply(c *localClient, frame Fields, raw []byte) bool {
     id:=String(frame,"requestId")
@@ -319,10 +353,23 @@ func (h *Host) deliverDevReply(c *localClient, frame Fields, raw []byte) bool {
         h.mu.Unlock();return true
     }
     entry.timer.Stop();delete(h.devPending,id)
-    valid:=entry.aggregateEpoch==""||entry.aggregateEpoch==h.aggregateEpoch&&len(h.modern)>0
+    sourceMethod:=entry.method=="project.source.read"||entry.method=="project.source.validate"
+    valid:=h.devOwnerLiveLocked(c)&&(entry.aggregateEpoch==""||entry.aggregateEpoch==h.aggregateEpoch&&len(h.modern)>0)
     h.mu.Unlock()
-    if !valid{return true}
-    if entry.aggregateEpoch=="" {_=h.sendChrome(raw);return true}
+    if !valid{
+        epoch:=entry.aggregateEpoch;if epoch==""{epoch=entry.epoch}
+        h.devError(id,epoch,"E_DEV_DISCONNECTED")
+        return true
+    }
+    if entry.aggregateEpoch=="" {
+        if sourceMethod&&Has(frame,"result"){
+            var result map[string]any
+            if json.Unmarshal(frame["result"],&result)!=nil||result["bindingId"]!=entry.rawID||!validSourceTransferResult(entry,result){
+                h.devError(id,entry.epoch,"E_DEV_SOURCE_IDENTITY");return true
+            }
+        }
+        _=h.sendChrome(raw);return true
+    }
     reply:=map[string]any{"v":1,"kind":"dev.response","requestId":id,
         "providerEpoch":entry.aggregateEpoch}
     if Has(frame,"error") {
@@ -333,10 +380,17 @@ func (h *Host) deliverDevReply(c *localClient, frame Fields, raw []byte) bool {
             entry.rawID!=""&&result["bindingId"]!=entry.rawID {
             reply["error"]=map[string]string{"code":"E_DEV_SOURCE_IDENTITY","message":"Source identity mismatch"}
         }else{
+            if entry.method=="project.source.read"||entry.method=="project.source.validate" {
+                if !validSourceTransferResult(entry,result) {
+                    reply["error"]=map[string]string{"code":"E_DEV_SOURCE_IDENTITY","message":"Source identity mismatch"}
+                    goto encodeReply
+                }
+            }
             if entry.scopedID!="" {result["bindingId"]=entry.scopedID}
             reply["result"]=result
         }
     }
+encodeReply:
     data,jsonBytes,err:=encodeMeasured(reply)
     if err!=nil {
         if errors.Is(err,ErrLimit) {
@@ -350,6 +404,49 @@ func (h *Host) deliverDevReply(c *localClient, frame Fields, raw []byte) bool {
     }
     _=h.sendChrome(data)
     return true
+}
+func validSourceTransferResult(entry *pendingDev,result map[string]any) bool {
+    if entry==nil||entry.sourceParams==nil{return false}
+    required:=[]string{"bindingId","transferId","artifactId","inputHash","sourceHash","sourceBytes"}
+    for _,key:=range required{if _,ok:=result[key];!ok{return false}}
+    for _,key:=range []string{"transferId","artifactId","inputHash","sourceHash"}{
+        if stringValue(result[key])!=String(entry.sourceParams,key){return false}
+    }
+    sourceBytes:=intValue(result["sourceBytes"])
+    if sourceBytes!=Int(entry.sourceParams,"sourceBytes")||sourceBytes<=0||sourceBytes>localSourceMaxBytes{return false}
+    switch entry.method{
+    case "project.source.validate":
+        validated,ok:=result["validated"].(bool)
+        return ok&&validated&&exactSourceKeys(result,append(required,"validated"))
+    case "project.source.read":
+        if !exactSourceKeys(result,append(required,"offset","byteLength","dataBase64","done")){return false}
+        done,ok:=result["done"].(bool)
+        if !ok{return false}
+        offset:=intValue(result["offset"])
+        if offset!=Int(entry.sourceParams,"offset")||offset<0||offset>=sourceBytes||offset%localSourceChunkBytes!=0{return false}
+        wanted:=localSourceChunkBytes
+        if remain:=sourceBytes-offset;remain<wanted{wanted=remain}
+        dataBase64:=stringValue(result["dataBase64"])
+        decoded,err:=base64.StdEncoding.DecodeString(dataBase64)
+        return err==nil&&len(dataBase64)<=localSourceMaxBase64Size&&
+            base64.StdEncoding.EncodeToString(decoded)==dataBase64&&
+            intValue(result["byteLength"])==wanted&&len(decoded)==wanted&&
+            done==(offset+wanted==sourceBytes)
+    default:return false
+    }
+}
+func exactSourceKeys(result map[string]any,keys []string) bool {
+    if len(result)!=len(keys){return false}
+    for _,key:=range keys{if _,ok:=result[key];!ok{return false}}
+    return true
+}
+func stringValue(value any) string {text,_:=value.(string);return text}
+func intValue(value any) int {
+    switch typed:=value.(type){
+    case int:return typed
+    case float64:if typed==float64(int(typed)){return int(typed)}
+    }
+    return -1
 }
 func (h *Host) legacyCatalog() ([]map[string]any,error) {
     h.mu.Lock()
@@ -437,6 +534,9 @@ func (h *Host) handleModernDevRequest(f Fields) error {
         }()
         return nil
     }
+    if method=="project.source.read"||method=="project.source.validate" {
+        return h.handleModernSourceRequest(f,modern,epoch)
+    }
     if method!="project.resolve"{h.devError(id,epoch,"E_SCHEMA");return nil}
     target,found:=modern[bindingID]
     rawID:=""
@@ -462,7 +562,8 @@ func (h *Host) handleModernDevRequest(f Fields) error {
         return nil
     }else{h.devError(id,epoch,"E_DEV_DETACHED");return nil}
     h.mu.Lock()
-    if h.closed||h.aggregateEpoch!=epoch||h.modern[owner]==nil&&h.provider!=owner{
+    if h.closed||h.aggregateEpoch!=epoch||h.modern[owner]==nil&&h.provider!=owner||
+        h.modern[owner]!=nil&&!h.modernProviderLiveLocked(h.modern[owner]){
         h.mu.Unlock();h.devError(id,epoch,"E_DEV_DISCONNECTED");return nil
     }
     if len(h.devPending)>=4||len(h.pending)+len(h.devPending)+h.internalPending>=MaxInflight{
@@ -470,7 +571,7 @@ func (h *Host) handleModernDevRequest(f Fields) error {
     }
     if _,exists:=h.devPending[id];exists{h.mu.Unlock();h.devError(id,epoch,"E_LIMIT");return nil}
     pending:=&pendingDev{epoch:ownerEpoch,owner:owner,aggregateEpoch:epoch,
-        rawID:rawID,scopedID:scopedID}
+        rawID:rawID,scopedID:scopedID,method:method}
     pending.timer=time.AfterFunc(devTimeout,func(){
         h.mu.Lock();current:=h.devPending[id]
         if current==pending{delete(h.devPending,id)}
@@ -482,6 +583,53 @@ func (h *Host) handleModernDevRequest(f Fields) error {
     request:=MustEncode(map[string]any{"v":1,"kind":"dev.request","requestId":id,
         "providerEpoch":ownerEpoch,"method":"project.resolve",
         "params":map[string]any{"bindingId":rawID}})
+    if err:=h.sendLocal(owner,request);err!=nil{_ = owner.socket.Close()}
+    return nil
+}
+func (h *Host) handleModernSourceRequest(f Fields, modern map[string]struct{client *localClient;entry modernEntry;epoch string}, epoch string) error {
+    id:=String(f,"requestId")
+    method:=String(f,"method")
+    params,_:=Decode(f["params"])
+    bindingID:=String(params,"bindingId")
+    target,found:=modern[bindingID]
+    owner:=target.client;ownerEpoch:=target.epoch;rawID:=target.entry.rawID
+    if !found {
+        h.mu.Lock();old:=h.provider;h.mu.Unlock()
+        if old==nil||!strings.HasPrefix(bindingID,"local-v1-"){h.devError(id,epoch,"E_DEV_DETACHED");return nil}
+        catalog,err:=h.legacyCatalog()
+        if err!=nil{h.devError(id,epoch,"E_DEV_DISCONNECTED");return nil}
+        for _,row:=range catalog{if row["bindingId"]==bindingID{rawID,_=row["_rawId"].(string);break}}
+        if rawID==""{h.devError(id,epoch,"E_DEV_DETACHED");return nil}
+        owner=old;ownerEpoch=old.providerEpoch
+    }
+    h.mu.Lock()
+    provider:=h.modern[owner]
+    if h.closed||h.aggregateEpoch!=epoch||!h.devOwnerLiveLocked(owner){
+        h.mu.Unlock();h.devError(id,epoch,"E_DEV_DISCONNECTED");return nil
+    }
+    if !h.localDevSource||provider!=nil&&provider.sourceVersion!=LocalDevSourceVersion{
+        h.mu.Unlock();h.devError(id,epoch,"E_NATIVE_UPDATE_REQUIRED");return nil
+    }
+    if len(h.devPending)>=4||len(h.pending)+len(h.devPending)+h.internalPending>=MaxInflight{
+        h.mu.Unlock();h.devError(id,epoch,"E_LIMIT");return nil
+    }
+    if _,exists:=h.devPending[id];exists{h.mu.Unlock();h.devError(id,epoch,"E_LIMIT");return nil}
+    pending:=&pendingDev{epoch:ownerEpoch,owner:owner,aggregateEpoch:epoch,
+        rawID:rawID,scopedID:bindingID,method:method,sourceParams:params}
+    pending.timer=time.AfterFunc(devTimeout,func(){
+        h.mu.Lock();current:=h.devPending[id]
+        if current==pending{delete(h.devPending,id)}
+        h.mu.Unlock()
+        if current==pending{h.devError(id,epoch,"E_DEV_TIMEOUT")}
+    })
+    h.devPending[id]=pending
+    h.mu.Unlock()
+    forwarded:=map[string]any{}
+    for key,value:=range params{
+        if key=="bindingId"{forwarded[key]=rawID}else{forwarded[key]=json.RawMessage(value)}
+    }
+    request:=MustEncode(map[string]any{"v":1,"kind":"dev.request","requestId":id,
+        "providerEpoch":ownerEpoch,"method":method,"params":forwarded})
     if err:=h.sendLocal(owner,request);err!=nil{_ = owner.socket.Close()}
     return nil
 }

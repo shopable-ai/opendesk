@@ -26,7 +26,7 @@ const (
 )
 
 type pendingCall struct { answer chan []byte }
-type pendingDev struct { epoch string; timer *time.Timer; owner *localClient; aggregateEpoch string; scopedID string; rawID string }
+type pendingDev struct { epoch string; timer *time.Timer; owner *localClient; aggregateEpoch string; scopedID string; rawID string; method string; sourceParams Fields }
 type localClient struct {
 	socket *net.UnixConn
 	writeMu sync.Mutex
@@ -45,6 +45,7 @@ type Host struct {
 	localDev bool
 	localDevMulti bool
 	localDevAccess bool
+	localDevSource bool
 	closed bool
 	clients map[*localClient]bool
 	pending map[string]*pendingCall
@@ -215,12 +216,13 @@ func (h *Host) serveLocal(c *localClient) {
 		subtle.ConstantTimeCompare([]byte(String(auth,"credential")),[]byte(h.cfg.ClientCredential))!=1{
 		return
 	}
-	h.mu.Lock();ready:=h.ready;dev:=h.localDev;multi:=h.localDevMulti;devAccess:=h.localDevAccess;filesReady:=h.localFiles;h.mu.Unlock()
+	h.mu.Lock();ready:=h.ready;dev:=h.localDev;multi:=h.localDevMulti;devAccess:=h.localDevAccess;devSource:=h.localDevSource;filesReady:=h.localFiles;h.mu.Unlock()
 	if err=h.sendLocal(c,MustEncode(map[string]any{
 		"v":1,"kind":"authenticated","browserReady":ready,
 		"localDevVersion":func()int{if dev{return 1};return 0}(),
         "localDevMultiVersion":func()int{if multi{return 1};return 0}(),
         "localDevAccessVersion":func()int{if devAccess{return 1};return 0}(),
+        "localDevSourceVersion":func()int{if devSource{return LocalDevSourceVersion};return 0}(),
         "localFilesVersion":func()int{if filesReady{return FilesVersion};return 0}(),
 	}));err!=nil{return}
 	_ = c.socket.SetReadDeadline(time.Now().Add(10*time.Second))
@@ -340,7 +342,7 @@ func (h *Host) handleChrome(raw []byte) error {
 		if Int(f,"v")!=1 || String(f,"kind")!="welcome" ||
 			String(f,"extensionId")!=h.cfg.ExtensionID ||
 			String(f,"extensionVersion")==""{return errors.New("E_NATIVE_HANDSHAKE")}
-		h.mu.Lock();h.ready=true;h.localDev=Int(f,"localDevVersion")==1;h.localDevMulti=Int(f,"localDevMultiVersion")==1;h.localDevAccess=Int(f,"localDevAccessVersion")==1;h.localFiles=Int(f,"localFilesVersion")==FilesVersion;h.mu.Unlock()
+		h.mu.Lock();h.ready=true;h.localDev=Int(f,"localDevVersion")==1;h.localDevMulti=Int(f,"localDevMultiVersion")==1;h.localDevAccess=Int(f,"localDevAccessVersion")==1;h.localDevSource=Int(f,"localDevSourceVersion")==LocalDevSourceVersion;h.localFiles=Int(f,"localFilesVersion")==FilesVersion;h.mu.Unlock()
 		// The built-in Go provider never touches the disk before the browser
 		// has authorized Native and completed the exact welcome handshake.
 		// With no user file grants, keep Node's original disconnected state.
@@ -369,7 +371,7 @@ func (h *Host) handleChrome(raw []byte) error {
 		if entry!=nil{select{case entry.answer<-raw:default:}}
 		return nil
 	case "dev.request":
-		if err=ValidateDevRequest(f);err!=nil{return err}
+		if err=ValidateDevRequestRaw(raw);err!=nil{return err}
         h.mu.Lock();modern:=len(h.modern)>0;h.mu.Unlock()
         if modern{return h.handleModernDevRequest(f)}
 		id:=String(f,"requestId");epoch:=String(f,"providerEpoch")
@@ -377,6 +379,10 @@ func (h *Host) handleChrome(raw []byte) error {
 		bindingId:=String(params,"bindingId")
 		h.mu.Lock()
 		provider:=h.provider
+		sourceMethod:=String(f,"method")=="project.source.read"||String(f,"method")=="project.source.validate"
+		if sourceMethod&&(provider==nil||!h.localDevSource){
+			h.mu.Unlock();h.devError(id,epoch,"E_NATIVE_UPDATE_REQUIRED");return nil
+		}
 		if provider==nil&&h.internalEpoch!=""&&epoch==h.internalEpoch {
 			if h.internalPending>=4||len(h.pending)+len(h.devPending)+h.internalPending>=MaxInflight||
 				h.internalIDs[id] {
@@ -396,7 +402,8 @@ func (h *Host) handleChrome(raw []byte) error {
 		if _,exists:=h.devPending[id];exists{
 			h.mu.Unlock();h.devError(id,epoch,"E_LIMIT");return nil
 		}
-		entry:=&pendingDev{epoch:epoch}
+		entry:=&pendingDev{epoch:epoch,owner:provider,method:String(f,"method")}
+		if sourceMethod{entry.rawID=bindingId;entry.sourceParams=params}
 		entry.timer=time.AfterFunc(devTimeout,func(){
 			h.mu.Lock();current:=h.devPending[id]
 			if current==entry{delete(h.devPending,id)}
@@ -457,7 +464,7 @@ func (h *Host) Run() error {
 	defer h.Close()
 	if err:=h.startSocket();err!=nil{return err}
 	if err:=h.startAIHTTP();err!=nil{return err}
-	if err:=h.sendChrome(MustEncode(map[string]any{"v":1,"kind":"hello","workflowAiVersion":1,"localFilesVersion":FilesVersion,"localDevMultiVersion":1,"localDevAccessVersion":1}));err!=nil{return err}
+	if err:=h.sendChrome(MustEncode(map[string]any{"v":1,"kind":"hello","workflowAiVersion":1,"localFilesVersion":FilesVersion,"localDevMultiVersion":1,"localDevAccessVersion":1,"localDevSourceVersion":LocalDevSourceVersion}));err!=nil{return err}
 	timer:=time.AfterFunc(handshakeTimeout,func(){
 		h.mu.Lock();ready:=h.ready;h.mu.Unlock()
 		if !ready{h.Close()}

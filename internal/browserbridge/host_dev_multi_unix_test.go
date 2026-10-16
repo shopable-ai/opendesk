@@ -363,7 +363,9 @@ func TestModernReplyLimitRetiresPendingWithoutReleasingProvider(t *testing.T) {
 	client := &localClient{providerEpoch: ownerEpoch}
 	var output bytes.Buffer
 	host := &Host{output: &output, done: make(chan struct{}), aggregateEpoch: epoch,
-		devPending: make(map[string]*pendingDev), modern: map[*localClient]*modernProvider{client: {}}}
+		devPending: make(map[string]*pendingDev),
+		leases: map[string]devLease{"lease-a": {sourceID: "source-a", workspaceID: "workspace-a"}},
+		modern: map[*localClient]*modernProvider{client: {leaseID: "lease-a", sourceID: "source-a", workspaceID: "workspace-a"}}}
 	result := map[string]any{"bindingId": scopedID, "sourceUtf8": ""}
 	final := map[string]any{"v": 1, "kind": "dev.response", "requestId": "limit-1", "providerEpoch": epoch, "result": result}
 	base, err := json.Marshal(final)

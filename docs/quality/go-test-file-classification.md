@@ -397,6 +397,7 @@ OPENDESK_LIVE_CLIPBOARD_TEST=1 go test ./automation -run '^TestDarwinRichClipboa
 
 | `internal/browserbridge/dev_workspace_unix_test.go` | `KEEP_PACKAGE` | 是：`nativeFiles.temporary`、read-only grant、OS workspace root 与 session 生命周期 | 同名不同目录的真实文件快照、只读写入拒绝、重复来源复用、A 退出不影响 B、长期 read-write 授权保留 | 私有临时目录、真实 `os.Root` 和已认证安装 fixture；不启动实际 Chrome | 防止 CLI 临时授权越权写盘、按 basename 混目录或关闭其他会话 | R17 私有 Native 文件服务测试；macOS/Ubuntu CI 为原生模拟/真实文件证据，不是用户 Chrome UI。 |
 | `internal/browserbridge/host_dev_multi_unix_test.go` | `KEEP_PACKAGE` | 是：`Host.devPending`、`modern` 来源表、epoch 和用户私有 Socket 生命周期 | 真实 Unix Socket 认证、双 Node-like Provider 的反向项目解析、同目录重复租约拒绝、跨来源伪造 ACK 拒绝、A 退出 B 保持连接 | 实际临时文件、真实 Unix Socket 和模拟 Chrome Native 帧；不涉及真实网页登录 | 防止源码路由错误、重复 Provider 抢占、旧身份与迟到响应混淆 | R17 Go Host 协议/进程 seam；实际 Chrome 加载、Page/Controller 运行须独立验收。 |
+| `internal/browserbridge/source_transport_unix_test.go` | `KEEP_PACKAGE` | 是：冻结源码字段、Provider/lease/epoch、私有 Unix Socket 路由 | 482238 字节分块重建与最终复验、modern/legacy/混合来源、旧 peer、严格字段/边界、撤权/断线/迟到回包、inline 兼容 | `go test ./internal/browserbridge`；真实临时 Socket 与模拟 Chrome 帧 | 防止虚报分块能力、跨来源读取、超帧及撤权后返回源码 | 本机协议组件证据；不替代真实 Chrome 的运行/Stop 与安装验收。 |
 | `internal/browsercli/dev_unix_test.go` | `KEEP_PACKAGE` | 是：Go Browser CLI 的私有命令分派、可信 Node 入口查找 | 裸 browser/dev 等价、help/version 不接入目录、未知子命令报错和缺组件安全诊断 | 临时 HOME 和 in-memory 输出；不启动 Node/Chrome | 防止未知参数成为授权、help 产生安装副作用或裸入口错误路由 | R17 命令合同定向测试；真实打包二进制及 Mac 安装路径另行验收。 |
 
 

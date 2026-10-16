@@ -91,13 +91,72 @@ func ValidateDevRequest(f Fields) error {
 		return ErrSchema
 	}
 	method:=String(f,"method")
-	if method!="projects.list" && method!="project.resolve" {return ErrSchema}
+	if method!="projects.list" && method!="project.resolve" &&
+		method!="project.source.read" && method!="project.source.validate" {return ErrSchema}
 	var params map[string]json.RawMessage
 	if err:=json.Unmarshal(f["params"],&params);err!=nil{return ErrSchema}
-	for key:=range params {if key!="bindingId"{return ErrSchema}}
-	if method=="project.resolve" && String(params,"bindingId")==""{return ErrSchema}
+	if method=="projects.list" {
+		for key:=range params {if key!="bindingId"{return ErrSchema}}
+		if Has(params,"bindingId")&&!sourceIDValid(String(params,"bindingId")){return ErrSchema}
+		return nil
+	}
+	if method=="project.resolve" {
+		if len(params)!=1||!sourceIDValid(String(params,"bindingId")){return ErrSchema}
+		return nil
+	}
+	return validateLocalSourceParams(method,params)
+}
+func ValidateDevRequestRaw(raw []byte) error {
+	var req struct{
+		V int `json:"v"`
+		Kind string `json:"kind"`
+		RequestID string `json:"requestId"`
+		ProviderEpoch string `json:"providerEpoch"`
+		Method string `json:"method"`
+		Params json.RawMessage `json:"params"`
+	}
+	if decodeFilesObject(raw,&req)!=nil{return ErrSchema}
+	fields,err:=Decode(raw);if err!=nil{return err}
+	if err=ValidateDevRequest(fields);err!=nil{return err}
+	var params map[string]json.RawMessage
+	if decodeFilesObject(req.Params,&params)!=nil{return ErrSchema}
+	return validateLocalDevParamsStrict(req.Method,params)
+}
+func validateLocalDevParamsStrict(method string,params map[string]json.RawMessage) error {
+	switch method{
+	case "projects.list":
+		if len(params)>1{return ErrSchema}
+		if raw,ok:=params["bindingId"];ok&&!sourceIDValid(rawString(raw)){return ErrSchema}
+		return nil
+	case "project.resolve":
+		if len(params)!=1||!sourceIDValid(rawString(params["bindingId"])){return ErrSchema}
+		return nil
+	case "project.source.read","project.source.validate":
+		return validateLocalSourceParams(method,params)
+	default:return ErrSchema
+	}
+}
+func validateLocalSourceParams(method string,params map[string]json.RawMessage) error {
+	want:=6;if method=="project.source.read"{want=7}
+	if len(params)!=want{return ErrSchema}
+	required:=[]string{"bindingId","transferId","artifactId","inputHash","sourceHash","sourceBytes"}
+	for _,key:=range required{if _,ok:=params[key];!ok{return ErrSchema}}
+	for key:=range params{switch key{case "bindingId","transferId","artifactId","inputHash","sourceHash","sourceBytes","offset":default:return ErrSchema}}
+	if !sourceIDValid(rawString(params["bindingId"]))||!sourceIDValid(rawString(params["transferId"]))||
+		!sourceHashValid(rawString(params["artifactId"]))||!sourceHashValid(rawString(params["inputHash"]))||
+		!sourceHashValid(rawString(params["sourceHash"])){return ErrSchema}
+	sourceBytes:=rawInt(params["sourceBytes"])
+	if sourceBytes<=0||sourceBytes>localSourceMaxBytes{return ErrSchema}
+	if method=="project.source.validate"{
+		if _,ok:=params["offset"];ok{return ErrSchema}
+		return nil
+	}
+	offset:=rawInt(params["offset"])
+	if offset<0||offset>=sourceBytes||offset%localSourceChunkBytes!=0{return ErrSchema}
 	return nil
 }
+func rawString(raw json.RawMessage) string {var value string;if err:=json.Unmarshal(raw,&value);err!=nil{return ""};return value}
+func rawInt(raw json.RawMessage) int {var value int;if err:=json.Unmarshal(raw,&value);err!=nil{return -1};return value}
 func Encode(value any) ([]byte,error) {
 	data,_,err:=encodeMeasured(value)
 	return data,err
