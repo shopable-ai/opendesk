@@ -53,3 +53,38 @@ func TestBrowserMCPRejectsArbitraryExecutionArguments(t *testing.T) {
 		}
 	}
 }
+
+func TestBrowserMCPSemanticQueryRejectsHiddenPredicates(t *testing.T) {
+	s := NewServer(browserContractRuntime{code: "MOCK_CORE_REACHED"})
+	cases := []map[string]any{
+		{"kind": "role", "role": "button", "name": "Submit", "css": "button:nth-child(2)"},
+		{"kind": "attribute", "attribute": "id", "value": "save", "index": 1},
+		{"kind": "relation", "axis": "descendant",
+			"within": map[string]any{"kind": "testId", "value": "form", "script": "ignored"},
+			"target": map[string]any{"kind": "role", "role": "button", "name": "Submit"}},
+	}
+	for index, query := range cases {
+		params, _ := json.Marshal(map[string]any{"name": "tm_browser_locate", "arguments": map[string]any{
+			"scope": map[string]any{"tab": 1, "frame": 0}, "query": query,
+		}})
+		response := s.Handle(Request{JSONRPC: "2.0", ID: json.RawMessage("1"), Method: "tools/call", Params: params})
+		if response.Error == nil || response.Error.Code != ErrCodeInvalidParams {
+			t.Fatalf("case %d: invalid semantic fields must be blocked before Core, got %+v", index, response)
+		}
+	}
+	// Existing valid role and descendant queries must still pass MCP parsing.
+	for _, query := range []map[string]any{
+		{"kind": "role", "role": "button", "name": "Submit"},
+		{"kind": "relation", "axis": "descendant",
+			"within": map[string]any{"kind": "testId", "value": "form"},
+			"target": map[string]any{"kind": "role", "role": "button", "name": "Submit"}},
+	} {
+		params, _ := json.Marshal(map[string]any{"name": "tm_browser_locate", "arguments": map[string]any{
+			"scope": map[string]any{"tab": 1, "frame": 0}, "query": query,
+		}})
+		response := s.Handle(Request{JSONRPC: "2.0", ID: json.RawMessage("1"), Method: "tools/call", Params: params})
+		if response.Error != nil {
+			t.Fatalf("valid query unexpectedly rejected by MCP schema: %+v", response.Error)
+		}
+	}
+}

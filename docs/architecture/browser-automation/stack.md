@@ -89,7 +89,19 @@ global 不存在就保持原对象。正常 OpenDesk 初始化会加载该 polyf
 
 这些容器不是浏览器进程、真实 browser context 或 protocol session 的替代证明。
 
-## 5. Compatibility policy
+## 5. Separate installed BrowserDOM execution path
+
+自 2026-10-16 的源码核查起，独立 `BrowserDOM` 正式公开接口（`docs/api/browser-dom.md`、
+`types/BrowserDOM.d.ts`）通过 `automation/browser_dom.go` 及
+`automation/browser_core_adapter.mjs` 复用已安装的 Browser Core。它具备受宿主限制的网站 origin、
+Tab/Frame/Document、语义查询、读值、fill/click、有限等待、后置验证与现有 MCP 工具入口。
+目前范围限 macOS、Chrome 和受控 loopback 网站；真实安装与浏览器 live evidence 必须单独获取。
+
+该执行路径**不通过** `pageUpgraded` / `playwright` 兼容 facade，也不代表通用
+Playwright browser process、CDP、任意页面运行时或跨 origin 支持。既有
+`legacy/upgraded/playwright` stack 判定仍只涉及上述兼容 alias。
+
+## 6. Compatibility policy
 
 - 保留 `legacy/upgraded/playwright` stack 值和现有 facade，是为了兼容当前公开 recipe 与迁移代码。
 - 文档可以声明 compatibility facade 已实现，但不得把它升级为 browser process、DOM、selector engine

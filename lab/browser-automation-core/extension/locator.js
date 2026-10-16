@@ -23,9 +23,18 @@
   }
   const kinds = ['role', 'label', 'text', 'testId', 'attribute', 'relation'];
   const attributes = ['id', 'name', 'data-testid', 'data-action', 'data-order-role'];
+  const queryFields = {
+    role: ['kind', 'role', 'name'],
+    label: ['kind', 'value'], text: ['kind', 'value'], testId: ['kind', 'value'],
+    attribute: ['kind', 'attribute', 'value'],
+    relation: ['kind', 'axis', 'within', 'target'],
+  };
   function validate(query, depth = 0, maxChars = Infinity) {
     if (!query || typeof query !== 'object' || Array.isArray(query) || !kinds.includes(query.kind) || depth > 1) fail('INVALID_QUERY');
-    const text = value => typeof value === 'string' && value.length > 0 && value.length <= maxChars;
+    // Unknown fields must fail closed: ignoring a supposed second predicate
+    // can turn a precisely described target into a different clickable one.
+    if (Reflect.ownKeys(query).some(key => !queryFields[query.kind].includes(key))) fail('INVALID_QUERY');
+    const text = value => typeof value === 'string' && norm(value).length > 0 && value.length <= maxChars;
     if (query.kind === 'role' && (!text(query.role) || !text(query.name))) fail('INVALID_QUERY');
     if (['label', 'text', 'testId'].includes(query.kind) && !text(query.value)) fail('INVALID_QUERY');
     if (query.kind === 'attribute' && (!attributes.includes(query.attribute) || !text(query.value))) fail('INVALID_QUERY');

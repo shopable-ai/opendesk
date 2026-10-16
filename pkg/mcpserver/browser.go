@@ -51,7 +51,20 @@ func browserTools() []Tool {
 	}
 	scope := obj(map[string]any{"tab": map[string]any{"type": "integer"}, "frame": map[string]any{"type": "integer"}, "document": str()}, "tab", "frame")
 	target := map[string]any{"type": "object", "description": "Complete opaque target returned by Browser locate. Preserve every identity field unchanged; never synthesize or reuse after navigation/reconnect."}
-	query := map[string]any{"type": "object", "description": "Core semantic query: role+name; label/text/testId value; attribute+value; or limited descendant relation. No CSS or arbitrary page code."}
+	queryKind := map[string]any{"type": "string", "enum": []string{"role", "label", "text", "testId", "attribute", "relation"}}
+	attribute := map[string]any{"type": "string", "enum": []string{"id", "name", "data-testid", "data-action", "data-order-role"}}
+	// Shaped MCP inputs help agents construct valid Core queries and prevent
+	// accidental hidden predicates. Conditional constraints remain Core-owned.
+	queryLeaf := obj(map[string]any{
+		"kind": map[string]any{"type": "string", "enum": []string{"role", "label", "text", "testId", "attribute"}},
+		"role": str(), "name": str(), "value": str(), "attribute": attribute,
+	}, "kind")
+	query := obj(map[string]any{
+		"kind": queryKind, "role": str(), "name": str(), "value": str(), "attribute": attribute,
+		"axis": map[string]any{"type": "string", "enum": []string{"descendant"}},
+		"within": queryLeaf, "target": queryLeaf,
+	}, "kind")
+	query["description"] = "Use role+name, label/text/testId+value, attribute+value, or relation(descendant,within,target). All fields are exact; extras and unsupported combinations fail in Core. No CSS/evaluate."
 	condition := obj(map[string]any{
 		"kind":  map[string]any{"type": "string", "enum": []string{"equals", "nonEmpty"}},
 		"field": map[string]any{"type": "string", "enum": []string{"text", "value"}}, "expected": str(),

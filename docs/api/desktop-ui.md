@@ -98,7 +98,7 @@ scope.locator(target: OpenDeskUILocatorTarget): OpenDeskUILocator;
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `target` | `OpenDeskUILocatorTarget` | 是 | 无 | 一种文字、图片或 native semantic target；所有给出的 semantic 字段按精确 AND 条件解释。 |
+| `target` | `OpenDeskUILocatorTarget` | 是 | 无 | 一种文字、图片或 native semantic target；`role`/`name`/`identifier` 按精确 AND 条件匹配。语义 target 中的 `text` 只是 `name` 的简写；同时提供时必须完全一致。 |
 
 **返回值**
 
@@ -106,7 +106,7 @@ scope.locator(target: OpenDeskUILocatorTarget): OpenDeskUILocator;
 
 **行为与错误**
 
-P0 target 形式是 `{ text: '保存' }`、`{ image: './assets/save.png' }` 和 `{ role: 'button', name: '保存' }`；semantic target 也可提供 `identifier` 及现有 `UI.tapTargets()` 支持的扁平约束。图片不能与其他字段混用。没有 UI tree 时，text/image Locator 仍直接使用原有 visual capability；semantic target 则明确报告 native capability failure。
+P0 target 形式是 `{ text: '保存' }`、`{ image: './assets/save.png' }` 和 `{ role: 'button', name: '保存' }`；semantic target 也可提供 `identifier` 及现有 `UI.tapTargets()` 支持的扁平约束。若同时提供不同的 `text` 与 `name`，Locator 构造以 `INVALID_ARGUMENT` 拒绝，避免悄悄丢掉约束；`UI.tapTargets()` 的历史名称优先行为不变。图片不能与其他字段混用。没有 UI tree 时，text/image Locator 仍直接使用原有 visual capability；semantic target 则明确报告 native capability failure。
 
 **示例**
 
@@ -136,7 +136,7 @@ locator.find(options?: OpenDeskUILocatorFindOptions): Promise<OpenDeskUITargetMa
 
 **行为与错误**
 
-多匹配为 `AMBIGUOUS_TARGET`；无法证明搜索完整为 `SEARCH_INCOMPLETE`；截图/OCR/图片/权限/backend 失败保持原错误，不能转换为 `null`。semantic observation 在返回前释放本次 `Accessibility` ref。
+多匹配为 `AMBIGUOUS_TARGET`；无法证明搜索完整为 `SEARCH_INCOMPLETE`；截图/OCR/图片/权限/backend 失败保持原错误，不能转换为 `null`。semantic observation 读取后还会按当前 `role`/`name`/`identifier` 重新确认请求的身份字段；若属性缺失为 `SEARCH_INCOMPLETE`，若身份改变为 `STALE_TARGET`。无论读取成功还是失败，均尝试释放本次 `Accessibility` ref。
 
 **示例**
 

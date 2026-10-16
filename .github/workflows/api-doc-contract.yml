@@ -18,6 +18,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate API documentation contract
         run: node scripts/check_api_docs_contract.js
+      - name: Verify Browser Core semantic locator rules
+        run: node --test tests/browser-automation-core/locator.test.mjs
       - name: Validate product JavaScript syntax
         run: |
           node --check apps/opendesk/flow-runner.js
@@ -87,6 +89,10 @@ jobs:
           grep -F 'CSV_EXAMPLE_OK' .runtime/tests/bundled-libraries/csv-example.log
       - name: Run bundled JavaScript library Runtime smoke
         run: ./dist/opendesk -script tests/runtime-api/single/window-library.js -console-mode script
+      - name: Verify BrowserDOM startup and MCP schema fail-closed seams
+        run: |
+          go test -count=1 -run '^TestBrowserDOMInvalidCallsRejectedBeforeCoreStartup$' ./automation
+          go test -count=1 -run '^TestBrowserMCP' ./pkg/mcpserver
       - name: Run formal Runtime contract gate
         run: OPENDESK_RUNTIME_API_MODE=contract ./dist/opendesk -script scripts/test_runtime_apis.js -console-mode script
       - name: Run formal Runtime unit gate

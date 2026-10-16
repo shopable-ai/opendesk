@@ -19,6 +19,17 @@ test('locators reject code, arbitrary selectors and nested relation engines', ()
     assert.throws(() => api.validate(query), {code: 'INVALID_QUERY'});
   }
 });
+test('extra selector constraints and whitespace-only identities fail closed', () => {
+  const valid = {kind: 'role', role: 'button', name: 'Save'};
+  assert.equal(api.validate(valid), valid);
+  for (const query of [
+    {...valid, testId: 'danger'},
+    {kind: 'role', role: 'button', name: '  '},
+    {kind: 'text', value: '\t  '},
+    {kind: 'attribute', attribute: 'id', value: 'Save', index: 0},
+    {kind: 'relation', axis: 'descendant', within: {kind: 'testId', value: 'parent', css: '*'}, target: valid},
+  ]) assert.throws(() => api.validate(query), {code: 'INVALID_QUERY'});
+});
 test('zero and multiple matches fail closed; no first-match shortcut', () => {
   assert.throws(() => api.unique([]), {code: 'TARGET_NOT_FOUND'});
   assert.throws(() => api.unique([el(), el()]), {code: 'AMBIGUOUS_TARGET', candidateCount: 2});

@@ -133,6 +133,29 @@
   });
 
   test({
+    name: 'Conflicting text/native name is rejected before any observation or input',
+    tier: 'unit', covers: ['UI.within'],
+  }, async () => {
+    const h = fixture();
+    const scope = h.UI.within(clone(WIN));
+    const err = await expectCode(() => Promise.resolve().then(() => scope.locator({ role: 'button', name: 'Save', text: 'Delete' })), 'INVALID_ARGUMENT');
+    equal(err.actionState, 'not_started');
+    equal(h.calls.length, 0);
+  });
+
+  test({
+    name: 'Semantic locator rechecks native identity and releases stale or incomplete refs',
+    tier: 'unit', covers: ['UI.within'],
+  }, async () => {
+    const h = fixture({ Accessibility: {
+      find: async () => ({kind: 'AccessibilityElementRef', id: 'r1'}),
+      read: async () => ({properties: {role: 'button', name: 'Delete'}}),
+    } });
+    await expectCode(() => h.UI.within(clone(WIN)).locator({role: 'button', name: 'Save'}).find(), 'STALE_TARGET');
+    assert(h.calls.some(call => call[0] === 'Accessibility.release'), 'stale ref must be released');
+  });
+
+  test({
     name: 'Locator semantic find returns plain current observation and releases its temporary ref',
     tier: 'unit', covers: ['UI.within'],
   }, async () => {
@@ -165,8 +188,11 @@
     equal(text.source, 'ocr');
     equal(text.visible, true);
     h = fixture({ noAccessibility: true, UI: {
-      findImage: async (image, options) => ({ source: 'image', template: image, confidence: 0.9,
-        bounds: { x: 1, y: 2, width: 30, height: 10, coordinateSpace: 'screen' } }),
+      findImage: async (image, options) => {
+        h.calls.push(['findImage', image, options]);
+        return { source: 'image', template: image, confidence: 0.9,
+          bounds: { x: 1, y: 2, width: 30, height: 10, coordinateSpace: 'screen' } };
+      },
     } });
     const image = await h.UI.within(clone(WIN)).locator({ image: './save.png' }).find();
     equal(image.source, 'image');

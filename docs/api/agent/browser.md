@@ -21,7 +21,7 @@ docType: index
 | --- | --- | --- | --- |
 | `BrowserDOM.act(args: { operation: 'fill' \| 'click'; target: Record<string, any>; value?: string; sourceReadRequestId?: string; timeoutMs?: number }): BrowserDOMResponse;` | fill 或 click | 需核对正文；不能假定无副作用；继承本节限制 | [BrowserDOM.act](../browser-dom.md#browserdomactargs)；`read browser-dom BrowserDOM.act` |
 | `BrowserDOM.close(): void;` | 关闭本 execution 的 Client | 需核对正文；不能假定无副作用；继承本节限制 | [BrowserDOM.close](../browser-dom.md#browserdomclose)；`read browser-dom BrowserDOM.close` |
-| `BrowserDOM.locate(args: { scope: BrowserDOMScope; query: Record<string, any>; timeoutMs?: number }): BrowserDOMResponse;` | 唯一语义定位 | 需核对正文；不能假定无副作用；继承本节限制 | [BrowserDOM.locate](../browser-dom.md#browserdomlocateargs)；`read browser-dom BrowserDOM.locate` |
+| `BrowserDOM.locate(args: { scope: BrowserDOMScope; query: BrowserDOMQuery; timeoutMs?: number }): BrowserDOMResponse;` | 唯一语义定位 | 需核对正文；不能假定无副作用；继承本节限制 | [BrowserDOM.locate](../browser-dom.md#browserdomlocateargs)；`read browser-dom BrowserDOM.locate` |
 | `BrowserDOM.observe(args: { scope: BrowserDOMScope; timeoutMs?: number }): BrowserDOMResponse;` | 观察当前有限 DOM | 需核对正文；不能假定无副作用；继承本节限制 | [BrowserDOM.observe](../browser-dom.md#browserdomobserveargs)；`read browser-dom BrowserDOM.observe` |
 | `BrowserDOM.read(args: { target: Record<string, any>; field: 'text' \| 'value'; timeoutMs?: number }): BrowserDOMResponse;` | 读取本次 DOM 实值 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [BrowserDOM.read](../browser-dom.md#browserdomreadargs)；`read browser-dom BrowserDOM.read` |
 | `BrowserDOM.status(): BrowserDOMResponse;` | 连接、session、资源诊断 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [BrowserDOM.status](../browser-dom.md#browserdomstatus)；`read browser-dom BrowserDOM.status` |
@@ -35,6 +35,6 @@ docType: index
 维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
 
 
-- `docs/api/browser-dom.md` SHA-256 `e27c6af6b49c550e49e792d9b9e083645c88d79730b1ae45024d9a427b1b5be5`
+- `docs/api/browser-dom.md` SHA-256 `4c36821c1de347f5f2c7b628f1eb5295d4a71bbd8cebedef644e45841eaf9b04`
 
-- `types/BrowserDOM.d.ts` SHA-256 `c033354664b0525880a9cb265abbe7eb35e78f74249f0e29da13e658127a7e04`
+- `types/BrowserDOM.d.ts` SHA-256 `0ce26c0fb372daaabe7ac466dac44de91c98defb618b172144def0bc20eba286`

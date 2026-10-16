@@ -81,7 +81,7 @@ Experimental/可信本地授权；AX/UIA、ref 生命周期与坐标映射限制
 维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
 
 
-- `docs/api/desktop-ui.md` SHA-256 `db569ea662dca041f89a03a8e1c05d150c2fb8aef56a91c9f732f82eaef72d91`
+- `docs/api/desktop-ui.md` SHA-256 `ebbfdc288ae1ee8f0af9b13c2d35611ee0596743505e2df85dc60ec9c45e769b`
 
 - `types/UI.d.ts` SHA-256 `17b2e02797ce341f9f7915bf07819e8feee5ce543ca826f7e7b55832875df6fd`
 

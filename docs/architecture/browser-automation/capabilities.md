@@ -1,61 +1,43 @@
 # Browser Automation Capability Matrix
 
-本页只描述当前源码和测试能证明的事实。公开用户 API 以 `docs/api/` 为准；源码里仍存在的
-browser-shaped 兼容对象不因此成为用户 API。
+本页以 2026-10-16 的 OpenDesk `master` 源码为基线，区分老兼容 facade、桌面 API
+与真实（但有明确范围限制）的 Browser Core。公开签名仍以 `docs/api/` 为唯一来源。
+E4 仅表示自动化测试存在，**不等于本轮真机 E5 通过**。
 
-## Evidence Levels
+## Evidence levels
 
-- `E0`：只有需求或历史 Claim，没有实现证据。
-- `E1`：API shape 或类型存在。
-- `E2`：shim、alias 或 routing 存在。
-- `E3`：Go/Runtime 实现存在。
-- `E4`：当前仓库有自动化测试。
-- `E5`：本轮在真实环境完成 smoke，并保留可复核证据。
+- E0：计划、历史声明或尚无实现
+- E1：仅名称、签名或类型
+- E2：适配、包装或路由
+- E3：有真实运行代码
+- E4：有可检查的自动化测试（仅证明对应测试所断言的行为）
+- E5：本轮已在真实目标环境运行并保留审计证据
 
-`E4` 只证明测试断言的范围；兼容 shim 的测试不能证明 browser 或 Playwright 语义。
+## Current capabilities
 
-## Current Matrix
-
-| Capability | Current Surface | Runtime Reality | Evidence | Public status |
-| --- | --- | --- | --- | --- |
-| Desktop page | `page` | 截图、OS URL/App 打开、等待和权限；不是网页 DOM page | E4：`automation/page.go`、`polyfills/000-page.js`、`tests/runtime-api/unit/page.test.js` | Maintained；见 `docs/api/page.md` |
-| URL open | `page.openURL()` / `goto()` | 调用 OS `open` / `start` / `xdg-open`，不控制 tab 或 navigation lifecycle | E3：`automation/page.go` | Maintained desktop API |
-| Screenshot | `page.screenshot()` / `Screen.screenshot()` | 捕获桌面、显示器或窗口像素 | E4；真实环境能力另需 E5 | Maintained desktop API |
-| Stack label | `legacy` / `upgraded` / `playwright` | `NormalizeRuntimeStack` 接受历史名称，`ApplyRuntimeStackMode` 只做同一 Goja Runtime 内 alias | E4：`automation/runtime_stack*.go` | 新调用省略 `-stack`；旧值仅兼容 |
-| Browser-shaped globals | `browser`、`context`、upgraded globals、`Automation`、`playwright` | 初始化仍为旧脚本创建 in-process facade | E4：`automation/utils.go`、`polyfills/010-browser-automation-upgraded.js`、`automation/browser_compat_test.go` | Not public；不在 docs/types/catalog/examples |
-| Browser/Context container | internal `Browser` / `BrowserContext` | 只维护内存 page ownership、close 状态和 map | E4：`automation/browser.go`、`tests/automation/browser_lifecycle_test.go` | Not public |
-| Compatibility locator | internal selector carrier | 只把字符串和调用路由给 owner；没有 selector engine 或 actionability | E4：`polyfills/010-browser-automation-upgraded.js`、`automation/browser_compat_test.go` | Not public |
-| Compatibility evaluate | owner route 或本地 Goja 函数调用 | 不是网页 page realm | E4：同上 | Not public |
-| Cookies/storage/session | internal context maps | 不连接 cookie jar、profile、localStorage、sessionStorage 或网络会话 | E4：`automation/browser.go`、`automation/browser_compat_test.go` | Not public |
-| Real browser driver | none | 没有 browser process、tab protocol、DOM、CSS/XPath selector 或 network-idle | E0 | Unsupported |
-
-## Planned real-browser architecture (E0)
-
-下列条目是 2026-10-02 冻结的架构方向，不是当前已实现能力。它们在取得源码、自动测试和对应 live evidence 前保持 E0：
-
-| Planned capability | Intended responsibility | Evidence | Status |
+| Capability | Current owner / runtime reality | Evidence & scope | Public status |
 | --- | --- | --- | --- |
-| Browser Extension Provider | 在用户当前浏览器内提供 Tab / Frame / DOM 观察与语义动作 | E0 | Planned |
-| Browser execution owner / Broker | 统一承接 MCP、JavaScript/Flow 等 Browser 请求，并管理连接、请求关联、session、reconnect 与 Evidence | E0 | Planned |
-| Browser MCP semantic tools | 让 Agent/Codex 通过现有 OpenDesk MCP 使用 Browser observe / locate / read / act / verify 能力 | E0 | Planned |
-| Browser Agent structured trace | 直接从 Browser MCP/API 的真实请求、目标解析、动作、后置观察与验证形成 Agent Trace；不由 Recorder 重录 | E0 | Planned |
-| Browser Human capture | 由 Browser Extension 独立采集人工网页演示的 DOM/Tab 语义；不由 Desktop Recorder 推断 | E0 | Planned |
-| Browser + Desktop cross-surface execution | 在同一 Recipe/Flow 中显式切换 Browser 与 Desktop surface | E0 | Planned |
+| Desktop `page` | `automation/page.go`：截图、OS URL/App 打开、等待和权限；不是浏览器 DOM Page | E4：`tests/runtime-api/unit/page.test.js` | 正式桌面 API：`docs/api/page.md` |
+| Desktop UI Locator | `UI.within(win).locator()`；懒解析当前窗口、OCR/image/native 目标；严格匹配，窗口身份保护，现有动作 owner | E4：`tests/runtime-api/ui-scope-locator.contract.test.js` 与 `tests/runtime-api/unit/ui-scope-locator.test.js`；原生场景另需 E5 | Experimental · Local：`docs/api/desktop-ui.md` |
+| Native Accessibility | macOS AX / Windows UIA，执行期 refs、唯一性、read/perform/release | E4：`automation/accessibility*.go`、`tests/runtime-api/accessibility.js`；跨 OS 真机另验 | Experimental：`docs/api/accessibility.md` |
+| BrowserDOM / Native adapter | `automation/browser_dom.go` → 已安装 Core Client；固定执行权限、真实 Tab/Frame/Document | E3/E4：`tests/runtime-api/browser_dom.js`、Browser Core 合同、MCP 测试；运行依赖 macOS Chrome + 安装 | 有范围限制的公开接口：`docs/api/browser-dom.md` |
+| Browser Core Demo | `lab/browser-automation-core/` 的 broker/Chrome extension、有限语义 DOM 与动作 | E4：`tests/browser-automation-core/`，并非 Chrome 常规任意站点驱动 | 独立受控 browser execution（本仓库 lab） |
+| Browser MCP tools | `pkg/mcpserver/browser.go` 转交同一 BrowserDOM owner，保留 Core 结构化结果 | E4：`pkg/mcpserver/browser_test.go` | MCP 工具 `tm_browser_*`，非新执行引擎 |
+| Canonical browser evidence | Core Trace + Native adapter execution trace 记录实际 request/target/outcome | E4：`tests/browser-automation-core/evidence-contract.mjs` 等 | 结构化证据；ACK 不证明业务成功 |
+| Legacy `browser/context/pageUpgraded/playwright` | `runtime_stack.go`、`polyfills/010-browser-automation-upgraded.js` 内兼容路由 / in-memory maps | E4：`automation/browser_compat_test.go`，只证明兼容 facade | 非公开旧接口，不提供 DOM/CDP/Playwright 驱动 |
+| General browser Playwright Page / CSS / arbitrary JS / cross-origin | 不由上述旧 shim 或受控 BrowserDOM 实现 | E0 | 不支持，不能宣称 Playwright parity |
+| Cross-surface orchestrated Browser + Desktop actions | 分别已有执行入口，尚无统一正式跨 surface 作业保证 | E0/E1 视具体入口而定 | 未作为完整统一框架发布 |
+| Browser human-recording semantics | Desktop Recorder 不能直接推断真实 DOM 意图 | E0 | 未证明具备完整 browser semantic Recorder |
 
-架构正文见 [Browser Extension Runtime Bridge](extension-runtime-bridge.md)。任何 Planned/E0 条目都不能用于宣称公开 API、DOM Runtime、MCP Browser tool 或 Browser Recorder 已经可用。
+## Limits and directions
 
-## Current Interpretation
+- 桌面：不把像素当成原生角色或控件值；不把观察视为业务完成；不在非幂等 unknown 后自动重试。
+- 浏览器：实际授权受 origin/tab/document/session 约束；当前查询仅含 Core 的有限 role/label/text/testId/attribute/descendant，
+  不应虚构 CSS、任意页面脚本、完整 ARIA/shadow DOM 或通用 Playwright 自动等待。
+- MCP：不拼接元素 ref，不复用旧 document 的 target；trace、可见动作、业务成功须分别验证。
+- 后续独立扩展方向：统一真实浏览器会话、通用网站覆盖和跨 surface orchestration；须重新取得 E4/E5，不通过扩张 legacy shim 实现。
 
-OpenDesk 当前公开的是桌面自动化能力。源码仍含历史 Browser/Context 容器和
-upgraded/playwright shim，但它们已从用户 API catalog、类型和示例中隔离；保留实现只是避免
-未经审计的破坏性删除。
-
-禁止用以下措辞描述当前产品：
-
-- full Playwright support / Playwright parity；
-- production-ready browser runtime；
-- DOM、tab、browser context 或真实 locator 支持；
-- 已验证的 cookie、profile 或 browser storage。
-
-真实 browser/DOM workload 出现后，应选择独立成熟的 browser driver，并为目标、权限、页面状态、
-失败模式和 E2E fixture 建立新的契约；不应继续扩展现有 shim。
+关联：[正式 BrowserDOM Reference](../../api/browser-dom.md)、
+[Desktop UI Reference](../../api/desktop-ui.md)、
+[现有 Runtime Stack](stack.md)、
+[旧兼容边界](legacy-compatibility.md)。

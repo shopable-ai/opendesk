@@ -60,7 +60,7 @@ semanticRevision 不可拼接或改写。导航、刷新、DOM replacement、Tab
 Query 采用已验证 Core 语义：`{kind:'role', role, name}`、
 `{kind:'label'|'text'|'testId', value}`、`{kind:'attribute', attribute, value}` 或
 `{kind:'relation', axis:'descendant', within, target}`。attribute 仅限
-id/name/data-testid/data-action/data-order-role；relation 是有限关系，不是递归 selector engine。
+id/name/data-testid/data-action/data-order-role；relation 的 `within` 与 `target` 必须是非 relation 基础查询，不是递归 selector engine。每种 query 仅允许其正式字段；**附加字段（如 `index`、`css`、额外 `testId`）即使不影响底层查询，也必须拒绝**，不能悄悄忽略额外条件。字符串不能是纯空白。MCP `tm_browser_locate` 提供同源字段形状提示，最终语义及唯一性仍以 Browser Core 为准。
 
 Condition 为 `{kind:'equals', field:'text'|'value', expected:string}` 或
 `{kind:'nonEmpty', field:'text'|'value'}`。预期值只作验证，不能替代 DOM 实际读取值。
@@ -81,7 +81,8 @@ Condition 为 `{kind:'equals', field:'text'|'value', expected:string}` 或
 
 ## BrowserDOM.locate(args)
 
-在明确 scope 中唯一定位一个真实元素。
+在明确 scope 中唯一定位一个真实元素。与 Playwright 的懒 `Locator` 不同，当前是立即执行的同步 Core 查询，不支持 `getByRole()`、CSS、完整 ARIA、自动多次点击或 Playwright Page。
+
 
 **签名** `BrowserDOM.locate({scope, query, timeoutMs?}): BrowserDOMResponse`
 

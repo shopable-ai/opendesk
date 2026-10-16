@@ -53,6 +53,10 @@
     if (own(v,'image')) { if (ks.length !== 1) bad(op, 'image target cannot mix with text or semantic fields'); return Object.freeze({ kind:'image', public:Object.freeze({image:str(v.image,'target.image',op)}) }); }
     const pub = {}; for (const k of ks) { pub[k] = str(v[k], 'target.'+k, op); if (k === 'role' && !roles.has(pub[k])) bad(op, 'target.role is not a normalized Accessibility role'); }
     const semantic = own(pub,'role') || own(pub,'name') || own(pub,'identifier');
+    // text is a spelling alias for the native name, not a second independent
+    // native predicate. Refuse conflicting constraints rather than dropping one.
+    if (semantic && own(pub,'text') && own(pub,'name') && pub.text !== pub.name)
+      bad(op, 'target.text and target.name conflict; use one exact native name');
     if (!semantic) { if (ks.length !== 1 || !own(pub,'text')) bad(op, 'text target must contain only target.text'); return Object.freeze({ kind:'text', public:Object.freeze(pub) }); }
     const selector = {}; if (pub.role) selector.role = pub.role; if (pub.name) selector.name = pub.name; else if (pub.text) selector.name = pub.text; if (pub.identifier) selector.identifier = pub.identifier;
     return Object.freeze({ kind:'semantic', public:Object.freeze(pub), selector:Object.freeze(selector) });
@@ -88,6 +92,12 @@
       ref=await A.find(t.selector,fo); canceled(o.signal,op); if(Date.now()>=deadline)throw E('TIMEOUT',op,'target observation exceeded deadline',{phase:'observation',actionState:'not_started'}); if(!ref)return null;
       const r=await A.read(ref,{timeout:Math.max(1,Math.min(30000,deadline-Date.now())),properties:['role','name','identifier','enabled','focused','selected','checked','expanded','bounds']}); canceled(o.signal,op);
       if(Date.now()>deadline)throw E('TIMEOUT',op,'target observation exceeded deadline',{phase:'observation',actionState:'not_started'}); if(!r||!r.properties)throw E('SEARCH_INCOMPLETE',op,'native target observation returned no readable properties',{phase:'observation',actionState:'not_started'});
+      // A retained ref may point at a control whose properties changed after
+      // find. Verify every requested identity constraint on the current read.
+      for (const k of Object.keys(t.selector)) {
+        if (typeof r.properties[k] !== 'string') throw E('SEARCH_INCOMPLETE',op,'native target identity could not be read',{phase:'observation',actionState:'not_started'});
+        if (r.properties[k] !== t.selector[k]) throw E('STALE_TARGET',op,'native target identity changed during observation',{phase:'observation',actionState:'not_started'});
+      }
       const c={}; for(const k of ['role','name','identifier'])if(typeof r.properties[k]==='string'&&r.properties[k])c[k]=r.properties[k]; for(const k of ['enabled','focused','selected','checked','expanded'])if(typeof r.properties[k]==='boolean')c[k]=r.properties[k]; if(r.properties.bounds)c.bounds=r.properties.bounds;
       return match(t,w,c,'accessibility');
     } catch(e) { primary=e; throw e; } finally { await release(ref,primary,op); }

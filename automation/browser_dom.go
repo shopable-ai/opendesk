@@ -140,9 +140,13 @@ func browserAdapterHash() string {
 func (b *BrowserDOMRuntime) Call(operation string, args map[string]any) map[string]any {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	metadata := b.start()
-	if metadata["error"] != nil {
-		return metadata
+	// Preserve disabled/closed failures, but reject malformed calls before
+	// starting the Browser Core client or creating execution trace resources.
+	if !b.enabled {
+		return browserFailure("BROWSER_DISABLED", "NOT_DISPATCHED")
+	}
+	if b.closed.Load() || b.ctx.Err() != nil {
+		return browserFailure("BROWSER_EXECUTION_CLOSED", "NOT_DISPATCHED")
 	}
 	if args == nil {
 		args = map[string]any{}
@@ -171,6 +175,10 @@ func (b *BrowserDOMRuntime) Call(operation string, args map[string]any) map[stri
 		if operation != "fill" && operation != "click" {
 			return browserFailure("UNSUPPORTED_OPERATION", "NOT_DISPATCHED")
 		}
+	}
+	metadata := b.start()
+	if metadata["error"] != nil {
+		return metadata
 	}
 	input := map[string]any{"requestId": browserRequestID(), "operation": operation, "params": params,
 		"caller": map[string]any{"transport": b.source, "capability": "BrowserDOM", "executionId": b.executionID}}

@@ -132,6 +132,29 @@ async function expectCode(promise, code) {
     assert(h.calls.some(c => c[0] === 'Accessibility.release'));
   });
 
+  await test('conflicting native name/text constraints are rejected before any action', async () => {
+    const h = harness();
+    const scope = h.UI.within(clone(WIN));
+    assert.throws(() => scope.locator({ role: 'button', name: 'Save', text: 'Delete' }), { code: 'INVALID_ARGUMENT' });
+    const compatible = scope.locator({ role: 'button', name: 'Save', text: 'Save' });
+    assert.strictEqual(typeof compatible.tap, 'function');
+    assert.deepStrictEqual(h.calls, []);
+  });
+
+  await test('semantic read rejects identity drift and still releases the ref', async () => {
+    const h = harness({ Accessibility: {
+      find: async () => ({kind: 'AccessibilityElementRef', id: 'changed'}),
+      read: async () => ({properties: {role: 'button', name: 'Delete'}}),
+    }});
+    await expectCode(h.UI.within(clone(WIN)).locator({role: 'button', name: 'Save'}).find(), 'STALE_TARGET');
+    assert.strictEqual(h.calls.some(c => c[0] === 'Accessibility.release'), true);
+    const missing = harness({ Accessibility: {
+      find: async () => ({kind: 'AccessibilityElementRef', id: 'incomplete'}),
+      read: async () => ({properties: {role: 'button'}}),
+    }});
+    await expectCode(missing.UI.within(clone(WIN)).locator({role: 'button', name: 'Save'}).find(), 'SEARCH_INCOMPLETE');
+  });
+
   await test('semantic zero, ambiguous and incomplete stay distinct', async () => {
     let h = harness();
     assert.strictEqual(await h.UI.within(clone(WIN)).locator({ role: 'button', name: 'Save' }).find(), null);
