@@ -135,6 +135,8 @@ OPENDESK_RUNTIME_API_RUN_ID="$run_id" OPENDESK_ACCESSIBILITY_TARGET_PID="$fixtur
 ./dist/opendesk -script tests/runtime-api/ui-taptexts-native-macos.js -console-mode script -timeout 300
 ```
 
+如需覆盖证据目录，`OPENDESK_UI_TAPTEXTS_EVIDENCE_DIR` 必须使用绝对路径，避免 fixture 进程与 Runtime 的工作目录不同。旧立即查找场景保持确认按钮在整个观察预算内缺失，不能假定 900ms 大于实际 OCR 耗时。
+
 结果、fixture 状态、开始/中间/完成截图与 Runtime 日志写入
 `.runtime/tests/ui-taptexts-macos/<executionId>/`。只有 `result.json` 为 `passed`、每个场景的
 `fixtureStopped` 为 true，且 Runtime cleanup event 的 timer、listener、subscription、worker、
@@ -269,3 +271,5 @@ gate 会同时运行它。全部仍由唯一正式入口启动。
 已删除的兼容包装器 `scripts/test_runtime_apis.sh` 与 `scripts/test_host_apis.sh` 不再使用；
 `schemas/runtime-api/*.schema.json`、相关 Makefile/README/AGENTS、
 以及 `docs/api/`、`types/` 修订。`.runtime/tests/runtime-api/` 中的任何文件都是本地运行产物。
+
+macOS Locator smoke 还覆盖真实 OCR 后取消、真实窗口刷新后总预算耗尽、image signal 在观察前拒绝及 `timeout: 0` 的真实单次观察；这些场景独立核对 fixture 零点击。受控延时只用于耗尽预算，不替换真实观察结果。

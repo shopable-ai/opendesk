@@ -105,9 +105,9 @@ func DefaultDiscoveryRoots(options DiscoveryOptions) ([]DiscoveryRoot, error) {
 	executable := strings.TrimSpace(options.ExecutablePath)
 	if executable == "" {
 		var err error
-		executable, err = os.Executable()
+		executable, err = resolveCurrentExecutable()
 		if err != nil {
-			return nil, fmt.Errorf("resolve OpenDesk executable: %w", err)
+			return nil, err
 		}
 	}
 	publisherRoot, err := publisherRootForExecutable(runtime.GOOS, executable)

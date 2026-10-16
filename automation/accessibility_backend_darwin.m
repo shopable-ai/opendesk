@@ -454,6 +454,14 @@ int32_t opendesk_ax_inspect_json(
 
         present = 0;
         status = opendesk_ax_copy_optional_string(element, kAXSubroleAttribute, &subrole, &present);
+        // SwiftUI Calculator's toolbar AXButtons advertise AXSubrole but return
+        // kAXErrorFailure for it (including in a multiple-attribute read). On a
+        // button this optional metadata is not a secure-text discriminator.
+        // Keep every other role, attribute, and provider error strict; mutation
+        // preconditions below still perform their own native checks.
+        if (status == kAXErrorFailure && native_role != NULL && CFEqual(native_role, kAXButtonRole)) {
+            status = kAXErrorSuccess;
+        }
         if (status != kAXErrorSuccess) goto cleanup;
         result[@"subrole"] = present ? (__bridge id)subrole : [NSNull null];
         secure = present && CFEqual(subrole, kAXSecureTextFieldSubrole);

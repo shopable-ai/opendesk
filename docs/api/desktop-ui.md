@@ -169,7 +169,7 @@ locator.waitFor(options?: OpenDeskUILocatorWaitOptions): Promise<void>;
 
 **行为与错误**
 
-每轮都是一次新只读观察，且不会重置总 deadline。暂时零匹配会在剩余预算内重试；`STALE_TARGET`、权限/backend failure、`AMBIGUOUS_TARGET`、`SEARCH_INCOMPLETE`、取消和明确不支持立即结束。视觉 target 的存在即为当前可见证据；semantic `visible` 仅在 native backend 能可靠证明时支持，否则为 `NOT_SUPPORTED`。
+每轮都是一次新只读观察，且不会重置总 deadline；观察返回后仍检查取消与剩余预算，迟到匹配不能作为成功。`timeout: 0` 保留单次探测、不轮询的语义；该次观察沿用 `find` 默认的 3000ms 有界 owner 预算，不把 OCR 压成 1ms。暂时零匹配会在剩余预算内重试；`STALE_TARGET`、权限/backend failure、`AMBIGUOUS_TARGET`、`SEARCH_INCOMPLETE`、取消和明确不支持立即结束。视觉 target 的存在即为当前可见证据；semantic `visible` 仅在 native backend 能可靠证明时支持，否则为 `NOT_SUPPORTED`。
 
 **示例**
 
@@ -195,7 +195,7 @@ locator.tap(options?: OpenDeskUILocatorTapOptions): Promise<
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `options` | `OpenDeskUILocatorTapOptions` | 否 | `{}` | 可传现有 action timeout；semantic action 也把 `signal` 交给 `UI.tapTargets()`。 |
+| `options` | `OpenDeskUILocatorTapOptions` | 否 | `{}` | 可传现有 action timeout；semantic/text action 将 `signal` 传给对应 owner。image action 当前不支持非空 `signal`。 |
 
 **返回值**
 
@@ -204,6 +204,8 @@ locator.tap(options?: OpenDeskUILocatorTapOptions): Promise<
 **行为与错误**
 
 semantic target 委托 `UI.tapTargets()`；text target 委托 `UI.tapText()`；image target 委托 `UI.tapImage()`。image Locator 在不要求调用方公开 strategy 参数的前提下，向既有 image owner 传入高置信度阈值 `0.95`，避免近似视觉结果变成任意点击。Locator 不建立第二套点击器，也不会在 submitted/unknown 动作后改用 OCR、image 或其它 backend 再点一次。既有 `actionState`、completed prefix、diagnostics、cancellation 和 cleanup 语义原样保留。
+
+semantic/text 在观察和输入前检查取消，并把同一 signal 交给现有 owner；取消不能撤销已提交的原生输入。image owner 尚无 per-call cancellation：有效非空 `signal` 在任何观察或输入前返回 `NOT_SUPPORTED`（`phase: 'capability'`、`actionState: 'not_started'`）；已取消的 signal 返回 `CANCELED`。省略或传 `null` 保持原有 image 行为。
 
 **示例**
 
@@ -884,7 +886,7 @@ UI.tapText(text: OpenDeskUITextQuery, options?: OpenDeskUITextLocateOptions): Pr
 
 **返回值**
 
-`Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>`，包含实际 candidate、输入 backend 与可用点击点。Accessibility invoke 的 acknowledgement 只证明 native submission，不证明业务成功。
+`Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>`，包含实际 candidate、输入 backend 与可用点击点。Accessibility invoke 会保留底层原生动作的 `requestId`，可与原生回执关联；pointer 输入不填造该字段。Accessibility invoke 的 acknowledgement 只证明 native submission，不证明业务成功。
 
 **行为与错误**
 

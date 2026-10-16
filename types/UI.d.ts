@@ -161,6 +161,8 @@ declare global {
     action: "tapText" | "tapImage";
     target: T;
     point: OpenDeskScreenPoint;
+    /** Original native request identity when a text action uses Accessibility; absent for pointer input. */
+    requestId?: string;
   }
 
   interface OpenDeskUITapTextsResult {
@@ -603,7 +605,7 @@ declare global {
 
   interface OpenDeskUILocatorTapOptions {
     timeout?: number;
-    /** Semantic actions forward this signal to UI.tapTargets; visual owners keep their existing cancellation contract. */
+    /** Semantic/text actions forward cancellation; image actions reject a non-null signal before observation/input. */
     signal?: AbortSignal | null;
   }
 

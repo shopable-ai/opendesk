@@ -117,8 +117,20 @@ int tm_get_current_display_mode(uint32_t displayID, tm_display_mode_meta *out) {
 	return 0;
 }
 
+CFArrayRef tm_copy_display_modes(uint32_t displayID) {
+	// Include HiDPI modes, including the active mode, in every mode lookup.
+	const void *keys[] = { kCGDisplayShowDuplicateLowResolutionModes };
+	const void *values[] = { kCFBooleanTrue };
+	CFDictionaryRef options = CFDictionaryCreate(kCFAllocatorDefault, keys, values, 1,
+		&kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+	if (options == NULL) return NULL;
+	CFArrayRef modes = CGDisplayCopyAllDisplayModes((CGDirectDisplayID)displayID, options);
+	CFRelease(options);
+	return modes;
+}
+
 int tm_get_display_mode_count(uint32_t displayID) {
-	CFArrayRef modes = CGDisplayCopyAllDisplayModes((CGDirectDisplayID)displayID, NULL);
+	CFArrayRef modes = tm_copy_display_modes(displayID);
 	if (modes == NULL) return -1;
 	CFIndex count = CFArrayGetCount(modes);
 	CFRelease(modes);
@@ -127,7 +139,7 @@ int tm_get_display_mode_count(uint32_t displayID) {
 
 int tm_list_display_modes(uint32_t displayID, tm_display_mode_meta *out, int max) {
 	if (out == NULL || max <= 0) return 0;
-	CFArrayRef modes = CGDisplayCopyAllDisplayModes((CGDirectDisplayID)displayID, NULL);
+	CFArrayRef modes = tm_copy_display_modes(displayID);
 	if (modes == NULL) return -1;
 	CFIndex count = CFArrayGetCount(modes);
 	if (count > max) count = max;
@@ -140,7 +152,7 @@ int tm_list_display_modes(uint32_t displayID, tm_display_mode_meta *out, int max
 }
 
 int tm_set_display_mode(uint32_t displayID, tm_display_mode_meta target) {
-	CFArrayRef modes = CGDisplayCopyAllDisplayModes((CGDirectDisplayID)displayID, NULL);
+	CFArrayRef modes = tm_copy_display_modes(displayID);
 	if (modes == NULL) return -1000;
 	CGDisplayModeRef selected = NULL;
 	CFIndex count = CFArrayGetCount(modes);

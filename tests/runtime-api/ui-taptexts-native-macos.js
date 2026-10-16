@@ -33,7 +33,12 @@ async function expectCode(promise, code, phase, index) {
   let caught = null;
   try { await promise; } catch (error) { caught = error; }
   assert(caught, `expected ${code}`);
-  assert(caught.code === code, `expected ${code}, received ${caught.code}: ${String(caught.message || caught)}`);
+  if (caught.code !== code) {
+    const mismatch = new Error(`expected ${code}, received ${caught.code}: ${String(caught.message || caught)}`);
+    mismatch.cause = { code: caught.code, candidateCount: caught.candidateCount, candidates: caught.candidates,
+      failedIndex: caught.failedIndex, failedPhase: caught.failedPhase, actionState: caught.actionState, completed: caught.completed };
+    throw mismatch;
+  }
   assert(caught.operation === 'UI.tapTexts', `unexpected operation: ${caught.operation}`);
   if (phase !== undefined) assert(caught.failedPhase === phase, `expected phase ${phase}, received ${caught.failedPhase}`);
   if (index !== undefined) assert(caught.failedIndex === index, `expected index ${index}, received ${caught.failedIndex}`);
@@ -74,6 +79,17 @@ async function runScenario(name, mode, delayMs, body) {
   } catch (error) {
     row.status = 'failed';
     row.error = { code: error && error.code, message: String(error && error.message || error) };
+    for (const key of ['candidateCount', 'candidates', 'failedIndex', 'failedPhase', 'actionState', 'completed', 'cause']) {
+      if (error && error[key] !== undefined) row.error[key] = error[key];
+    }
+    if (session) {
+      row.failureState = await fixture.readState(session);
+      try {
+        row.failureWindow = await window.get({ id: session.win.id });
+        row.failureScreenshot = File.join(paths.outputRoot, `${name}-failure.png`);
+        await capture(session.win, row.failureScreenshot);
+      } catch (captureError) { row.captureError = String(captureError.message || captureError); }
+    }
     throw error;
   } finally {
     try {
@@ -118,11 +134,18 @@ try {
     await capture(session.win, startPath);
 
     // The exact public call under acceptance: no options and no test-only facade.
-    const pending = UI.tapTexts(['下一步', '确认']);
-    const middle = await fixture.waitForState(session, state => Number(state.nextClicks) === 1);
+    // Screenshot capture can outlast foreground changes; verify the exact
+    // owned fixture immediately before the public default-scope call.
+    await window.activate(session.win, { timeout: 5000 });
+    await fixture.waitForActive(session.win);
+    let pendingError = null;
+    const pending = UI.tapTexts(['下一步', '确认']).catch(error => { pendingError = error; return null; });
+    const middle = await fixture.waitForState(session, state => pendingError || Number(state.nextClicks) === 1);
+    if (pendingError) throw pendingError;
     assert(Number(middle.confirmShownAtMs) === 0, `confirmation appeared before middle evidence: ${JSON.stringify(middle)}`);
     await capture(session.win, middlePath);
     const result = await pending;
+    if (pendingError) throw pendingError;
     const final = await fixture.waitForState(session, state => state.phase === 'complete');
     const fresh = await window.get({ id: session.win.id });
     await capture(fresh, completePath);
@@ -150,11 +173,14 @@ try {
     return { result, state: stateFacts(final), clickIntervalMs: elapsed };
   });
 
-  if (wants('legacy')) await runScenario('legacy', 'flow', 900, async session => {
+  // Keep confirmation absent for longer than both bounded immediate probes.
+  // A 900ms delay races real screenshot/OCR latency and can legitimately succeed.
+  if (wants('legacy')) await runScenario('legacy', 'flow', 60000, async session => {
     const error = await expectCode(UI.tapTexts(['下一步', '确认'], {
       within: session.win, intervalMs: 0, waitForEach: false,
     }), 'TARGET_NOT_FOUND', 'locate', 1);
-    const final = await fixture.waitForState(session, state => Number(state.confirmShownAtMs) > 0);
+    const final = await fixture.readState(session);
+    assert(final.phase === 'waiting' && Number(final.confirmShownAtMs) === 0, JSON.stringify(final));
     assert(Array.isArray(error.completed) && error.completed.length === 1, JSON.stringify(error));
     assert(Number(final.nextClicks) === 1 && Number(final.confirmClicks) === 0, JSON.stringify(final));
     return { error: { code: error.code, failedIndex: error.failedIndex, failedPhase: error.failedPhase,

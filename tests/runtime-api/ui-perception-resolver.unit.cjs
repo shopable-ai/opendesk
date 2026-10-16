@@ -33,11 +33,11 @@ function harness(settings = {}) {
   const state = {window: clone(WIN)};
   const UI = {
     getCapabilities: () => ({text: {backend: 'Vision.runOCR'}}),
-    findTexts: async () => {
+    findTexts: async (_query, options) => {
       calls.ocr += 1;
       if (settings.moveDuringOCR && calls.ocr === 1) state.window.x += 200;
       if (settings.ocrError) throw settings.ocrError;
-      return clone(typeof settings.ocr === 'function' ? settings.ocr(calls, state) : settings.ocr || []);
+      return clone(typeof settings.ocr === 'function' ? await settings.ocr(calls, state, options) : settings.ocr || []);
     },
     findText: async () => null,
     hasText: async () => false,
@@ -50,19 +50,20 @@ function harness(settings = {}) {
       calls.nativeInput += 1;
       calls.nativeOptions = options;
       if (settings.nativeInputError) throw settings.nativeInputError;
+      if (settings.nativeInput) return settings.nativeInput(options);
       return {ok: true, action: 'tapTargets', completed: [{action: 'invoke', actionState: 'acknowledged'}]};
     },
   };
   const sandbox = {
     UI,
-    window: {getActiveWindow: async () => clone(state.window)},
+    window: {getActiveWindow: async () => settings.activeWindow ? settings.activeWindow(state) : clone(state.window)},
     mouse: {clickPoint: async () => { calls.mouse += 1; if (settings.mouseError) throw settings.mouseError; }},
     page: {
-      screenshot: async () => { calls.screenshot += 1; return 'ZmFrZQ=='; },
-      waitForTimeout: async () => {},
+      screenshot: async () => { calls.screenshot += 1; if (settings.screenshot) await settings.screenshot(); return 'ZmFrZQ=='; },
+      waitForTimeout: async milliseconds => { if (settings.wait) await settings.wait(milliseconds); },
     },
     setTimeout,
-    Date,
+    Date: settings.Date || Date,
     Promise,
     RegExp,
     Object,
@@ -75,18 +76,20 @@ function harness(settings = {}) {
   if (settings.ax !== false) {
     sandbox.Accessibility = {
       getCapabilities: () => ({available: true}),
-      snapshot: async () => {
+      snapshot: async options => {
         calls.ax += 1;
         if (settings.axError) throw settings.axError;
-        return clone(settings.snapshot || {complete: true, truncated: false, backend: 'fixture-ax', root: null});
+        return clone(typeof settings.snapshot === 'function' ? await settings.snapshot(options) :
+          settings.snapshot || {complete: true, truncated: false, backend: 'fixture-ax', root: null});
       },
     };
   }
   if (settings.vlm) {
     sandbox.DesktopVision = {
       getCapabilities: () => Object.assign({policyAllowed: true, configured: true, sharedMultimodal: true}, settings.vlmCapabilities || {}),
-      observe: async () => {
+      observe: async options => {
         calls.vlm += 1;
+        if (settings.observeVLM) await settings.observeVLM(options);
         if (settings.moveDuringVLM) state.window.width += 1;
         if (settings.vlmError) throw settings.vlmError;
         return {transport: 'fixture-vlm', perception: settings.vlm};
@@ -120,6 +123,7 @@ async function rejects(run, code) {
     assert.strictEqual(result.target.source, 'ocr');
     assert.strictEqual(h.calls.vlm, 0);
     assert.strictEqual(h.calls.mouse, 1);
+    assert.strictEqual(result.requestId, undefined, 'OCR pointer input must not invent a native request id');
   });
 
   await test('B Apple/OCR provider failure is not converted to target-not-found', async () => {
@@ -129,7 +133,8 @@ async function rejects(run, code) {
   });
 
   await test('C OCR miss uses unique Accessibility target without VLM', async () => {
-    const h = harness({ocr: [], vlm: perception([element('Save', [0.1, 0.1, 0.2, 0.2])]), snapshot: {
+    const h = harness({ocr: [], vlm: perception([element('Save', [0.1, 0.1, 0.2, 0.2])]),
+      nativeInput: () => ({ok: true, completed: [{action: 'invoke', actionState: 'acknowledged', requestId: 'native-request-C'}]}), snapshot: {
       complete: true, truncated: false, backend: 'fixture-ax', root: {
         role: 'button', name: 'Save', identifier: 'save', enabled: true, actions: ['invoke'],
         // macOS global display points are the documented native coordinate
@@ -140,10 +145,13 @@ async function rejects(run, code) {
     }});
     const result = await h.UI.tapText('Save', {within: clone(WIN)});
     assert.strictEqual(result.backend, 'accessibility');
+    assert.strictEqual(result.requestId, 'native-request-C');
     assert.strictEqual(h.calls.nativeInput, 1);
-    assert.strictEqual(h.calls.nativeOptions.timeout, 10000);
+    assert(h.calls.nativeOptions.timeout > 0 && h.calls.nativeOptions.timeout <= 10000);
     assert.strictEqual(h.calls.nativeOptions.polling, 200);
     assert.strictEqual(h.calls.vlm, 0);
+    const sequence = await h.UI.tapTexts(['Save'], {within: clone(WIN)});
+    assert.strictEqual(sequence.completed[0].requestId, 'native-request-C');
   });
 
   await test('C1 only a two-point macOS native frame edge drift is clipped into the current scope', async () => {
@@ -242,6 +250,18 @@ async function rejects(run, code) {
     assert.strictEqual(h.calls.ocr, 0);
   });
 
+  await test('waiting sequence rejects a foreground switch during observation in locate before input', async () => {
+    const h = harness({ax: false, ocr: (_calls, state) => {
+      state.window.id = 'replacement'; state.window.handle = 100;
+      return [ocr('Save', 150, 250)];
+    }});
+    const caught = await rejects(() => h.UI.tapTexts(['Save'], {within: clone(WIN)}), 'STALE_TARGET');
+    assert.strictEqual(caught.failedPhase, 'locate');
+    assert.strictEqual(caught.failedIndex, 0);
+    assert.strictEqual(caught.completed.length, 0);
+    assert.strictEqual(h.calls.mouse, 0);
+    assert.strictEqual(h.calls.nativeInput, 0);
+  });
   await test('local source disagreement is ambiguous rather than first-result-wins', async () => {
     const h = harness({ocr: [ocr('Save', 150, 250)], snapshot: {
       complete: true, truncated: false, backend: 'fixture-ax', root: {
@@ -314,6 +334,171 @@ async function rejects(run, code) {
     assert.strictEqual(caught.actionState, 'unknown');
     assert.strictEqual(h.calls.ocr, 1);
     assert.strictEqual(h.calls.mouse, 1);
+  });
+
+  await test('waitText and waitTextGone reject observations that finish after the total deadline', async () => {
+    for (const method of ['waitText', 'waitTextGone']) {
+      let now = 0;
+      const h = harness({ ax: false, Date: { now: () => now }, ocr: () => {
+        now += 11;
+        return method === 'waitText' ? [ocr('Save', 150, 250)] : [];
+      } });
+      const caught = await rejects(() => h.UI[method]('Save', { within: clone(WIN), timeout: 10 }), 'TIMEOUT');
+      assert.strictEqual(caught.actionState, 'not_started');
+      assert.strictEqual(h.calls.ocr, 1);
+    }
+  });
+
+  await test('polling observations receive the remaining total budget rather than a renewed timeout', async () => {
+    let now = 0;
+    const budgets = [];
+    const h = harness({ ax: false, Date: { now: () => now },
+      wait: milliseconds => { now += milliseconds; },
+      ocr: (calls, _state, options) => {
+        budgets.push(options.timeout);
+        now += calls.ocr === 1 ? 30 : 5;
+        return calls.ocr === 1 ? [] : [ocr('Save', 150, 250)];
+      },
+    });
+    assert.strictEqual((await h.UI.waitText('Save', { within: clone(WIN), timeout: 100, polling: 10 })).text, 'Save');
+    assert.deepStrictEqual(budgets, [100, 60]);
+  });
+
+  await test('OCR, AX and native input share one budget and preserve the original cancellation signal', async () => {
+    let now = 0;
+    const controller = new AbortController();
+    const h = harness({ Date: { now: () => now },
+      ocr: () => { now += 35; return []; },
+      snapshot: options => {
+        assert.strictEqual(options.timeout, 65);
+        now += 20;
+        return { complete: true, truncated: false, root: { role: 'button', name: 'Save', enabled: true,
+          actions: ['invoke'], bounds: { x: 150, y: 250, width: 40, height: 20 } } };
+      },
+      nativeInput: options => {
+        assert.strictEqual(options.timeout, 45);
+        assert.strictEqual(options.signal, controller.signal);
+        return { ok: true, completed: [{ actionState: 'acknowledged' }] };
+      },
+    });
+    const result = await h.UI.tapText('Save', { within: clone(WIN), timeout: 100, signal: controller.signal });
+    assert.strictEqual(result.actionState, 'acknowledged');
+    assert.strictEqual(h.calls.nativeInput, 1);
+    assert.strictEqual(h.calls.mouse, 0);
+  });
+
+  await test('cancellation or deadline expiry after AX observation prevents all input', async () => {
+    for (const failure of ['cancel', 'timeout']) {
+      let now = 0;
+      const controller = new AbortController();
+      const h = harness({ Date: { now: () => now }, snapshot: () => {
+        if (failure === 'cancel') controller.abort(); else now += 11;
+        return { complete: true, truncated: false, root: { role: 'button', name: 'Save', enabled: true,
+          actions: ['invoke'], bounds: { x: 150, y: 250, width: 40, height: 20 } } };
+      } });
+      await rejects(() => h.UI.tapText('Save', { within: clone(WIN), timeout: 10, signal: controller.signal }),
+        failure === 'cancel' ? 'CANCELED' : 'TIMEOUT');
+      assert.strictEqual(h.calls.nativeInput, 0);
+      assert.strictEqual(h.calls.mouse, 0);
+    }
+  });
+
+  await test('per-step timeout stops a late sequence before input, retaining its acknowledged prefix', async () => {
+    let now = 0;
+    const budgets = [];
+    const h = harness({ ax: false, Date: { now: () => now }, wait: milliseconds => { now += milliseconds; },
+      ocr: (calls, _state, options) => {
+        budgets.push(options.timeout);
+        now += calls.ocr === 1 ? 1 : 11;
+        return [ocr(calls.ocr === 1 ? 'Save' : 'Next', 150, 250)];
+      },
+    });
+    const caught = await rejects(() => h.UI.tapTexts(['Save', 'Next'], {
+      within: clone(WIN), timeout: 10, intervalMs: 5,
+    }), 'TIMEOUT');
+    assert.strictEqual(caught.failedIndex, 1);
+    assert.strictEqual(caught.actionState, 'not_started');
+    assert.strictEqual(caught.completed.length, 1);
+    assert.strictEqual(h.calls.mouse, 1);
+    assert.deepStrictEqual(budgets, [10, 10]);
+  });
+
+  await test('cancellation observed after acknowledged native input never changes that receipt or replays it', async () => {
+    const controller = new AbortController();
+    const h = harness({ snapshot: { complete: true, truncated: false, root: {
+      role: 'button', name: 'Save', enabled: true, actions: ['invoke'],
+      bounds: { x: 150, y: 250, width: 40, height: 20 },
+    } }, nativeInput: () => {
+      controller.abort();
+      return { ok: true, completed: [{ actionState: 'acknowledged' }] };
+    } });
+    const result = await h.UI.tapText('Save', { within: clone(WIN), signal: controller.signal });
+    assert.strictEqual(result.actionState, 'acknowledged');
+    assert.strictEqual(h.calls.nativeInput, 1);
+    assert.strictEqual(h.calls.mouse, 0);
+  });
+
+  await test('safe pre-input OCR reacquisition keeps the original deadline', async () => {
+    let now = 0;
+    const budgets = [];
+    const h = harness({ ax: false, Date: { now: () => now }, moveDuringOCR: true,
+      ocr: (calls, state, options) => {
+        budgets.push(options.timeout);
+        now += calls.ocr === 1 ? 6 : 5;
+        return [ocr('Save', state.window.x + 40, 250)];
+      } });
+    const caught = await rejects(() => h.UI.tapText('Save', { timeout: 10 }), 'TIMEOUT');
+    assert.strictEqual(caught.actionState, 'not_started');
+    assert.deepStrictEqual(budgets, [10, 4]);
+    assert.strictEqual(h.calls.mouse, 0);
+    assert.strictEqual(h.calls.nativeInput, 0);
+  });
+
+  await test('window revalidation cannot submit input after cancellation or deadline expiry', async () => {
+    for (const cancel of [true, false]) {
+      let now = 0, reads = 0;
+      const controller = new AbortController();
+      const h = harness({ ax: false, Date: { now: () => now }, ocr: [ocr('Save', 150, 250)],
+        activeWindow: state => {
+          reads += 1;
+          if (reads === 2) { if (cancel) controller.abort(); else now = 11; }
+          return clone(state.window);
+        } });
+      const caught = await rejects(() => h.UI.tapText('Save', { timeout: 10, signal: controller.signal }), cancel ? 'CANCELED' : 'TIMEOUT');
+      assert.strictEqual(caught.actionState, 'not_started');
+      assert.strictEqual(h.calls.mouse, 0);
+      assert.strictEqual(h.calls.nativeInput, 0);
+    }
+  });
+
+  await test('VLM capture and provider share the deadline and recheck cancellation before dispatch', async () => {
+    for (const cancel of [true, false]) {
+      let now = 0;
+      const controller = new AbortController();
+      const h = harness({ ax: false, Date: { now: () => now }, vlm: perception([element('Save', [0.1, 0.1, 0.2, 0.2])]),
+        ocr: () => { now += 3; return []; },
+        screenshot: () => { now += 2; if (cancel) controller.abort(); },
+        observeVLM: options => { assert.strictEqual(options.timeoutMs, 5); now += 6; } });
+      const caught = await rejects(() => h.UI.tapText('Save', { within: clone(WIN), timeout: 10, signal: controller.signal }), cancel ? 'CANCELED' : 'TIMEOUT');
+      assert.strictEqual(caught.actionState, 'not_started');
+      assert.strictEqual(h.calls.vlm, cancel ? 0 : 1);
+      assert.strictEqual(h.calls.mouse, 0);
+      assert.strictEqual(h.calls.nativeInput, 0);
+    }
+  });
+
+  await test('text sequences preserve legacy ambiguity diagnostics without submitting input', async () => {
+    const h = harness({ax: false, ocr: [ocr('Save', 120, 230), ocr('Save', 320, 430)]});
+    const caught = await rejects(() => h.UI.tapTexts(['Save'], {within: clone(WIN)}), 'AMBIGUOUS_TARGET');
+    assert.strictEqual(caught.candidateCount, 2);
+    assert.strictEqual(caught.candidateCount, caught.cause.candidateCount);
+    assert.strictEqual(caught.candidates, caught.cause.candidates);
+    assert.strictEqual(caught.failedIndex, 0);
+    assert.strictEqual(caught.failedPhase, 'locate');
+    assert.strictEqual(caught.actionState, 'not_started');
+    assert.strictEqual(caught.completed.length, 0);
+    assert.strictEqual(h.calls.mouse, 0);
+    assert.strictEqual(h.calls.nativeInput, 0);
   });
 
   console.log(`PASS ${count} UI Perception Resolver deterministic tests`);

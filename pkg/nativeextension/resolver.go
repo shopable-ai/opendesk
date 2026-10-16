@@ -19,6 +19,15 @@ func ResolveDefaultExecutable(name string) (string, error) {
 		return "", fmt.Errorf("extension must be a safe basename without path separators or traversal")
 	}
 
+	currentExecutable, err := resolveCurrentExecutable()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(filepath.Dir(currentExecutable), defaultExecutableDirectory, name), nil
+}
+
+// Resolve executable symlinks before selecting either deployment layout.
+func resolveCurrentExecutable() (string, error) {
 	currentExecutable, err := os.Executable()
 	if err != nil {
 		return "", fmt.Errorf("resolve current OpenDesk executable: %w", err)
@@ -27,8 +36,12 @@ func ResolveDefaultExecutable(name string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve absolute OpenDesk executable path: %w", err)
 	}
+	currentExecutable, err = filepath.EvalSymlinks(currentExecutable)
+	if err != nil {
+		return "", fmt.Errorf("resolve OpenDesk executable symlinks: %w", err)
+	}
 
-	return filepath.Join(filepath.Dir(currentExecutable), defaultExecutableDirectory, name), nil
+	return currentExecutable, nil
 }
 
 func isSafeExecutableBasename(name string) bool {

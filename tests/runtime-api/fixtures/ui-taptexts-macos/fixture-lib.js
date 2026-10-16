@@ -104,9 +104,13 @@
         Number(row.pid) === ready.pid && Number(row.handle) === ready.windowNumber &&
         row.exePath === paths.executable && Number(row.width) > 0 && Number(row.height) > 0);
       if (matches.length === 1) {
-        observed = matches[0];
-        stable += 1;
-        if (stable >= 2) return observed;
+        const next = matches[0];
+        // An identity can be visible while AppKit is still placing its window.
+        // Require the same geometry before allowing a screenshot/AX pair.
+        const sameBounds = observed && ['x', 'y', 'width', 'height'].every(key => observed[key] === next[key]);
+        stable = sameBounds ? stable + 1 : 1;
+        observed = next;
+        if (stable >= 3) return observed;
       } else {
         stable = 0;
       }

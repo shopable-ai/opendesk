@@ -51,6 +51,12 @@
   function checkCanceled(value, operation) {
     if (value && value.aborted) fail('CANCELED', operation, 'operation was canceled');
   }
+  function remaining(deadline, value, operation) {
+    checkCanceled(value, operation);
+    const budget = deadline - Date.now();
+    if (budget <= 0) fail('TIMEOUT', operation, 'target observation exceeded deadline');
+    return budget;
+  }
   function timeout(raw, operation) {
     const value = raw.timeout === undefined ? DEFAULT_TIMEOUT : raw.timeout;
     if (!Number.isInteger(value) || value < 1 || value > 300000) {
@@ -395,7 +401,7 @@
       return !!caps && caps.policyAllowed === true && caps.configured === true && caps.sharedMultimodal === true;
     } catch (_) { return false; }
   }
-  async function observeVLM(query, options, win, operation) {
+  async function observeVLM(query, options, win, operation, deadline) {
     const bridge = g.DesktopVision;
     if (!g.page || typeof g.page.screenshot !== 'function') {
       throw error('NOT_SUPPORTED', operation, 'screen capture is unavailable for approved VLM observation', { phase: 'capability' });
@@ -420,16 +426,18 @@
         targetText: typeof query === 'string' ? query : '',
         purpose: 'ui-perception-resolver',
         capturedAtMs: capturedAt,
-        timeoutMs: Math.min(options.timeout, 30000),
+        timeoutMs: Math.min(remaining(deadline, options.signal, operation), 30000),
       });
     } catch (caught) {
-      if (caught && caught.code === 'TIMEOUT') throw caught;
+      if (caught && (caught.code === 'TIMEOUT' || caught.code === 'CANCELED')) throw caught;
       throw error('VLM_FAILED', operation, 'approved VLM observation failed', { cause: caught && caught.message ? caught.message : '' });
     }
+    remaining(deadline, options.signal, operation);
     if (Date.now() - capturedAt > MAX_VLM_AGE_MS) {
       throw error('STALE_TARGET', operation, 'VLM observation exceeded the screenshot freshness limit');
     }
     await currentWindow(win, operation, true);
+    remaining(deadline, options.signal, operation);
     const perception = result && result.perception;
     if (!perception || !Array.isArray(perception.elements) || !perception.image ||
         !Array.isArray(perception.window && perception.window.bounds_screen)) {
@@ -491,12 +499,13 @@
   function nonWindowScope(options) {
     return options.within !== undefined && !validWindow(options.within);
   }
-  async function observeText(query, rawOptions, operation) {
+  async function observeText(query, rawOptions, operation, deadline) {
     const options = textOptions(rawOptions, operation, false);
+    if (deadline === undefined) deadline = Date.now() + options.timeout;
     if (typeof query !== 'string' || query.length === 0) {
       fail('INVALID_ARGUMENT', operation, 'text must be a non-empty string', { phase: 'arguments' });
     }
-    checkCanceled(signal(options.signal, operation), operation);
+    options.timeout = remaining(deadline, options.signal, operation);
     // Positioned/relative contracts already have a same-frame anchor protocol
     // in 006-ui.js. Preserve that stronger contract until a shared multi-source
     // region provenance contract is available.
@@ -511,6 +520,7 @@
     }
     const win = options.within === undefined ? await activeWindow(operation) : options.within;
     if (!validWindow(win)) fail('STALE_TARGET', operation, 'within must be a resolved window');
+    options.timeout = remaining(deadline, options.signal, operation);
     const local = localOptions(options, win);
     const failures = [];
     let ocr = [];
@@ -522,21 +532,22 @@
       if (['INVALID_ARGUMENT', 'TARGET_SCOPE_NOT_VISIBLE', 'STALE_TARGET', 'CANCELED'].indexOf(failure.code) >= 0) throw failure;
       failures.push(failure);
     }
-    checkCanceled(signal(options.signal, operation), operation);
+    options.timeout = remaining(deadline, options.signal, operation);
     const ax = await observeAccessibility(query, options, win, operation);
+    remaining(deadline, options.signal, operation);
     if (ax.failure) failures.push(ax.failure);
     const fused = fuse([].concat(ocr || [], ax.candidates || []));
-    if (fused.length) return { options: options, window: win, candidates: fused, failures: failures };
+    if (fused.length) return { options: options, window: win, candidates: fused, failures: failures, deadline: deadline };
     if (isVLMEnabled(options) && typeof query === 'string') {
-      const vlm = await observeVLM(query, options, win, operation);
+      const vlm = await observeVLM(query, options, win, operation, deadline);
       const resolved = fuse(vlm);
-      if (resolved.length) return { options: options, window: win, candidates: resolved, failures: failures };
+      if (resolved.length) return { options: options, window: win, candidates: resolved, failures: failures, deadline: deadline };
     }
     if (failures.length) throw failures[0];
-    return { options: options, window: win, candidates: [], failures: [] };
+    return { options: options, window: win, candidates: [], failures: failures, deadline: deadline };
   }
-  async function resolveText(query, rawOptions, operation) {
-    const observed = await observeText(query, rawOptions, operation);
+  async function resolveText(query, rawOptions, operation, deadline) {
+    const observed = await observeText(query, rawOptions, operation, deadline);
     const result = unique(observed.candidates, operation);
     if (!result) fail('TARGET_NOT_FOUND', operation, 'target was not found in the visible scope');
     return { candidate: result, observed: observed };
@@ -545,18 +556,20 @@
     const observed = resolution.observed;
     const candidateValue = resolution.candidate;
     const win = await currentWindow(observed.window, operation, candidateValue.source !== 'accessibility');
-    checkCanceled(signal(observed.options.signal, operation), operation);
+    const budget = remaining(observed.deadline, observed.options.signal, operation);
     if (candidateValue.selector && candidateValue.actionable === true) {
       // Accessibility remains the native input owner. Its own actionState is
       // terminal: failures never fall through to mouse/VLM/OCR replay.
       const result = await base.tapTargets([candidateValue.selector], {
-        within: win, timeout: Math.min(observed.options.timeout, 30000), polling: Math.min(observed.options.polling, 10000), intervalMs: 0,
+        within: win, timeout: Math.min(budget, 30000), polling: Math.min(observed.options.polling, 10000), intervalMs: 0,
+        signal: observed.options.signal,
       });
       const completed = result && Array.isArray(result.completed) ? result.completed[0] : null;
       return {
         ok: true, action: 'tapText', target: candidateValue,
         backend: 'accessibility', point: candidateValue.center,
         actionState: completed && completed.actionState ? completed.actionState : 'acknowledged',
+        requestId: completed && completed.requestId,
       };
     }
     try {
@@ -597,6 +610,8 @@
     result.completed = completed.slice();
     result.cause = caught;
     result.actionState = caught && caught.actionState ? caught.actionState : (phase === 'input' ? 'unknown' : 'not_started');
+    if (caught && Number.isInteger(caught.candidateCount)) result.candidateCount = caught.candidateCount;
+    if (caught && Array.isArray(caught.candidates)) result.candidates = caught.candidates;
     return result;
   }
   async function tapTexts(texts, rawOptions) {
@@ -628,7 +643,11 @@
           delete stepOptions.waitForEach;
           stepOptions.within = pinned === undefined ? undefined : pinned;
           try {
-            resolution = await resolveText(sequence[index], stepOptions, operation);
+            // Waiting sequences stay in the same active window, including when
+            // a foreground change happens during a successful OCR/AX observation.
+            if (each && pinned !== undefined) stepOptions.within = await currentWindow(pinned, operation, false);
+            resolution = await resolveText(sequence[index], stepOptions, operation, deadline);
+            if (each) await currentWindow(resolution.observed.window, operation, false);
             if (pinned === undefined) pinned = resolution.observed.window;
             else if (!sameWindow(identity(pinned), identity(resolution.observed.window), false)) {
               fail('STALE_TARGET', operation, 'sequence window identity changed');
@@ -779,7 +798,7 @@
           sameWindow(identity(previous), identity(fresh), true)) throw caught;
       const retry = copy(checked);
       retry.within = fresh;
-      return sendInput(await resolveText(query, retry, operation), retry, operation);
+      return sendInput(await resolveText(query, retry, operation, resolution.observed.deadline), retry, operation);
     }
   };
   UI.tapTexts = async function (texts, options) {
@@ -805,7 +824,7 @@
     const deadline = Date.now() + options.timeout;
     while (true) {
       checkCanceled(signal(options.signal, operation), operation);
-      try { return (await resolveText(query, options, operation)).candidate; }
+      try { return (await resolveText(query, options, operation, deadline)).candidate; }
       catch (caught) {
         if (!caught || caught.code !== 'TARGET_NOT_FOUND') throw caught;
         if (Date.now() >= deadline) fail('TIMEOUT', operation, 'timed out waiting for text to appear', { timeout: options.timeout });
@@ -822,7 +841,7 @@
     while (true) {
       checkCanceled(signal(options.signal, operation), operation);
       try {
-        const observed = await observeText(query, options, operation);
+        const observed = await observeText(query, options, operation, deadline);
         if (!observed.candidates.length) return true;
       } catch (caught) {
         if (!caught || caught.code !== 'TARGET_NOT_FOUND') throw caught;
