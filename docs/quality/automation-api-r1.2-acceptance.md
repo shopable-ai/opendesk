@@ -31,6 +31,26 @@
 
 任何缺失 E5 的维度不可评分 ≥95；CI 通过不升级为真实 GUI 或 Agent 成功。
 
+### 3.1 Calculator 既有黄金业务 JS：作为 R1.2 桌面回归参照，不重复造引擎
+
+此处的“黄金”指有**历史限定资格**的普通 OpenDesk JavaScript，不代表本次 R1.2 的运行结果。必须区分三类入口：
+
+| 范围 | 当前源码 | 作用与证据边界 |
+|---|---|---|
+| 历史 Agent-to-Recipe r009 黄金脚本 | [calculator-current.js](../../examples/agent-to-recipe/calculator-current.js)、[说明](../../examples/agent-to-recipe/README.md) | 固定业务：按钮完成 `25 × 4 + 10`，从本次 UI 读取 `firstResult`，再按 `6 × ...firstResult`，重新读实际 `finalResult`；历史两次 Fresh Run 有限定 PASS，环境为 macOS 12.7.6、Basic 232×321、中文 AX 名称。改动 Runtime、版本、布局、依赖后**不能继承**旧 PASS。 |
+| 历史 r003（只用于历史对照） | [calculator.js](../../examples/agent-to-recipe/calculator.js)、[qualify.cjs](../../tests/workflows/calculator/qualify.cjs) | `qualify.cjs` 绑定旧 r003 冻结资产，`--check` 仅静态核对；不得拿它为 r009 或本轮 R1.2 颁发资格。 |
+| R1.2 Runtime Resolver 当前真机入口 | [公开示例](../../examples/desktop/ui-resolver-calculator-macos.js)、[正式测试](../../tests/runtime-api/ui-perception-resolver-calculator-macos.js) | 现有 `UI.findText/tapText/tapTexts/readText`、AX/OCR、当前窗口身份与读值，期望 110/660 只作独立 Oracle；测试另保存 OCR 原文、AX 观察、截图和失败结果。 |
+
+**执行顺序：** 先用 AppKit fixture 测窗口／按钮／输入框（Calculator 不能覆盖中文、Emoji 输入框），再在获准清空 Calculator 且取得权限和输入独占时运行当前 R1.2 正式测试。需要核对旧业务兼容性时，**另开独立 run** 执行 r009 公开命令，不在一次 unknown/partial 输入后自动切换脚本或重放。r009 的旧独立观察结果是历史对照，不是本轮 R1.2 的独立 observer；后置 UI 值、源头、窗口身份、动作回执和原始截图需重新采集。若 macOS 版本／布局／AX 本地化与 r009 限定条件不同，将 r009 标记“资格不适用”，而不是强制调整系统 Calculator 来凑旧证据。
+
+r009 的公开执行命令（仓库根目录、真实用户授权后）：
+
+```bash
+./dist/opendesk -script examples/agent-to-recipe/calculator-current.js -console-mode script
+```
+
+旧 qualification 工件在可清理的 `.runtime/` 下；缺失时记为“历史附件不可复核”，不得手工修改 hash、复制旧 PASS 或在 Git 仓库补造执行截图。
+
 ## 4. 本地 Mac Codex — 完整执行手册
 
 在用户既有 macOS 上、正式仓库中执行。**仅限 master，先安全同步；不创建 branch/worktree，禁止 reset/clean/force，不覆盖其他 Agent 未提交内容。**
