@@ -1308,6 +1308,23 @@
       "requiredEnv": [],
       "launch": {"kind": "script", "ui": false, "consoleMode": "script"}
     },
+    "desktop/ui-locator-safe.js": {
+      "title": "Safe Native UI Locator",
+      "description": "Read an actual native textField in a strictly selected disposable window; opt-in single setValue with independent readback.",
+      "category": "Desktop",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "platforms": ["darwin"],
+      "prerequisites": [
+        "Use a disposable visible native text field; Accessibility permission must be granted; specify exact title, PID and field identifier. Writes require a separate explicit environment opt-in."
+      ],
+      "expected": "Default observation reads a real native text value with zero writes; opted-in input submits at most once and verifies by a separate read.",
+      "tags": ["UI", "Locator", "Accessibility", "textField", "native-value", "readback"],
+      "legacyNames": [],
+      "docs": "docs/api/desktop-ui.md",
+      "requiredEnv": ["OPENDESK_EXAMPLE_WINDOW_TITLE", "OPENDESK_EXAMPLE_WINDOW_PID", "OPENDESK_EXAMPLE_INPUT_IDENTIFIER"],
+      "launch": {"kind": "script", "ui": false, "consoleMode": "script"}
+    },
     "desktop/ui-relative-target.js": {
       "title": "UI Relative Text Target",
       "description": "Resolve one text target relative to another text inside the active disposable window and click it once.",
