@@ -317,6 +317,32 @@ for (const method of RuntimeAPIObjects.window.methods) {
   }
 }
 
+
+/*
+ * BrowserDOM routes through an authorized, installed Core client, not the
+ * in-memory legacy browser compatibility shim. The standalone Browser Core
+ * and browser_dom.js tests do not yet qualify as a full Runtime catalog unit
+ * or native-live tier. Keep each contract-only entry risk-gated until a
+ * dedicated execution-scoped CI/live suite is registered.
+ */
+const browserDOMRisks = {
+  status: 'may initialize a trusted local Browser Core client and expose connection/session diagnostics; no real installed Chrome tier is registered in the Runtime catalog',
+  tabs: 'enumerates tabs within the authorized origin/session, potentially revealing navigation metadata; live Chrome must independently confirm scope enforcement',
+  observe: 'can expose DOM text and page structure from an authorized frame; bounded/redacted live evidence and permission checks are required',
+  locate: 'creates an execution-scoped opaque target from exact DOM semantics; uniqueness, frame/document identity and invalidation require live fixture evidence',
+  read: 'may return sensitive DOM text or form value from an authorized target; no cross-document/stale reference reuse is permitted',
+  act: 'submits a potentially non-idempotent browser fill or click; transport ACK does not prove business success, and uncertain actions must not be retried',
+  wait: 'performs bounded observation on a real DOM target; navigation, staleness and timeout need installed Core lifecycle evidence',
+  verify: 'reports only the requested DOM predicate; independent business success and sensitive data handling need live evidence',
+  close: 'changes the execution-scoped Browser Core client lifecycle; resource release and race behavior need installed Core evidence',
+};
+for (const method of RuntimeAPIObjects.BrowserDOM.methods) {
+  if (!Object.prototype.hasOwnProperty.call(browserDOMRisks, method)) {
+    throw new Error('BrowserDOM contract-only risk rationale missing: ' + method);
+  }
+  restricted['BrowserDOM.' + method] = browserDOMRisks[method];
+}
+
 globalThis.RuntimeAPIManifest = [];
 for (const [family, definition] of Object.entries(RuntimeAPIObjects)) {
   for (const method of definition.methods) {

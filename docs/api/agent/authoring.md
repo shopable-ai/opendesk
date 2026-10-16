@@ -62,7 +62,7 @@ docType: index
 维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
 
 
-- `docs/api/recorder-runtime.md` SHA-256 `6b2bf94fdd036745915bebeb3f9472ee2abecc29034b9a96ac70c2407a990354`
+- `docs/api/recorder-runtime.md` SHA-256 `1423caebd670f14b4fd994edf88fe853fb308f87ceced422054a3ae91efdcac5`
 
 - `types/recorder.d.ts` SHA-256 `30a4958671a9baabd8c665ad3624e7d078e17c98394799e623d69a63d2575795`
 
