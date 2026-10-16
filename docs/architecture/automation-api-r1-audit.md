@@ -113,3 +113,10 @@ test-architecture audit (`_test.go` count 358 vs reviewed expectation 298),
 and the Recorder generation contract workflow failed a Windows assertion.
 None is a `RUNTIME-API-UNIT` failure; passing Runtime unit does not make
 the aggregate repository CI green.
+
+## R1.2 — 2026-10-16 BrowserDOM envelope hardening (source finding)
+
+- 最新 `master` 初始 HEAD 为 `0ad514ebd10fabc948a3387d998a6407f06f99f2`；正式 [macOS CI 38893699701](https://github.com/shopable-ai/opendesk/actions/runs/38893699701) 中 Runtime contract 412/0、unit 836/0、selected 52/0。
+- 源码缺陷：`BrowserDOMRuntime.Call` 过去只拒绝非法操作/未知顶层参数；缺少 scope/target/field/condition/value 或基本类型错误可能先启动 Node Client 再到 Core；Go 的 `exchange` 对 JSON `null` 可产生 nil map，后续写 `browserExecution` 存在 panic 风险。
+- 修复：在 Native owner 增加仅限 envelope 的 preflight；Adapter null/empty/configure/correlation 异常均 fail-closed，未确认副作用维持 `OUTCOME_UNKNOWN`，不重试。语义 selector、opaque target、Browser Core 动作与 MCP transport 保持原 owner。
+- 回归：`automation/browser_dom_preflight_test.go` 的 Go transport/lifecycle seam 验证精确拒绝错误及 Client 未启动；这不是公开 JS Runtime、真实 Chrome 或 MCP Agent live 通过证明。完整实际证据分层和 Mac 交接在 [R1.2 acceptance](../quality/automation-api-r1.2-acceptance.md)。

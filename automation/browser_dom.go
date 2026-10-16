@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
+	"math"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -82,7 +83,7 @@ func (b *BrowserDOMRuntime) exchange(input map[string]any) map[string]any {
 		return browserFailure("BROWSER_CLIENT_DISCONNECTED", "OUTCOME_UNKNOWN")
 	}
 	var response map[string]any
-	if json.Unmarshal(b.stdout.Bytes(), &response) != nil {
+	if json.Unmarshal(b.stdout.Bytes(), &response) != nil || len(response) == 0 {
 		return browserFailure("BROWSER_ADAPTER_RESPONSE_INVALID", "OUTCOME_UNKNOWN")
 	}
 	return response
@@ -129,12 +130,115 @@ func (b *BrowserDOMRuntime) start() map[string]any {
 		"executionId": b.executionID, "source": b.source,
 		"bridgeCodeSha256": browserAdapterHash(),
 	}})
+	if b.metadata["error"] == nil && b.metadata["configured"] != true {
+		b.metadata = browserFailure("BROWSER_ADAPTER_RESPONSE_INVALID", "OUTCOME_UNKNOWN")
+	}
 	return b.metadata
 }
 
 func browserAdapterHash() string {
 	value := sha256.Sum256([]byte(browserCoreAdapter))
 	return hex.EncodeToString(value[:])
+}
+
+// browserDOMIntegerAtLeast accepts Goja-exported and MCP JSON integers while
+// rejecting fractional, non-finite and out-of-range browser identities.
+func browserDOMIntegerAtLeast(value any, minimum float64) bool {
+	var number float64
+	switch typed := value.(type) {
+	case int:
+		number = float64(typed)
+	case int64:
+		number = float64(typed)
+	case float64:
+		number = typed
+	default:
+		return false
+	}
+	return number >= minimum && number <= 9007199254740991 && math.Trunc(number) == number
+}
+
+// Reject malformed envelopes before starting Node. Browser Core remains the
+// sole owner of selector semantics, opaque target identity and actionability.
+func browserDOMBasicArgsValid(operation string, params map[string]any) bool {
+	if timeout, present := params["timeoutMs"]; present && !browserDOMIntegerAtLeast(timeout, 1) {
+		return false
+	}
+	object := func(key string) (map[string]any, bool) {
+		value, ok := params[key].(map[string]any)
+		return value, ok && len(value) > 0
+	}
+	optionalString := func(key string) bool {
+		value, present := params[key]
+		if !present {
+			return true
+		}
+		_, ok := value.(string)
+		return ok
+	}
+	switch operation {
+	case "status", "tabs":
+		return true
+	case "observe", "locate":
+		scope, ok := object("scope")
+		if !ok || !browserDOMIntegerAtLeast(scope["tab"], 0) || !browserDOMIntegerAtLeast(scope["frame"], 0) {
+			return false
+		}
+		for key := range scope {
+			if key != "tab" && key != "frame" && key != "document" {
+				return false
+			}
+		}
+		if document, present := scope["document"]; present {
+			value, valid := document.(string)
+			if !valid || strings.TrimSpace(value) == "" {
+				return false
+			}
+		}
+		if operation == "observe" {
+			return true
+		}
+		query, ok := object("query")
+		if !ok {
+			return false
+		}
+		kind, valid := query["kind"].(string)
+		return valid && strings.TrimSpace(kind) != ""
+	case "read":
+		_, ok := object("target")
+		return ok && (params["field"] == "text" || params["field"] == "value")
+	case "click", "fill":
+		_, ok := object("target")
+		if !ok || !optionalString("value") || !optionalString("sourceReadRequestId") {
+			return false
+		}
+		if operation == "fill" {
+			_, provided := params["value"].(string)
+			return provided
+		}
+		return true
+	case "wait", "verify":
+		_, ok := object("target")
+		if !ok {
+			return false
+		}
+		condition, ok := object("condition")
+		if !ok || (condition["field"] != "text" && condition["field"] != "value") {
+			return false
+		}
+		switch condition["kind"] {
+		case "equals":
+			_, provided := condition["expected"].(string)
+			return provided
+		case "nonEmpty":
+			_, provided := condition["expected"]
+			return !provided
+		default:
+			return false
+		}
+	default:
+		return false
+	}
 }
 
 func (b *BrowserDOMRuntime) Call(operation string, args map[string]any) map[string]any {
@@ -176,6 +280,9 @@ func (b *BrowserDOMRuntime) Call(operation string, args map[string]any) map[stri
 			return browserFailure("UNSUPPORTED_OPERATION", "NOT_DISPATCHED")
 		}
 	}
+	if !browserDOMBasicArgsValid(operation, params) {
+		return browserFailure("INVALID_ARGUMENT", "NOT_DISPATCHED")
+	}
 	metadata := b.start()
 	if metadata["error"] != nil {
 		return metadata
@@ -187,6 +294,12 @@ func (b *BrowserDOMRuntime) Call(operation string, args map[string]any) map[stri
 		delete(params, "timeoutMs")
 	}
 	response := b.exchange(input)
+	if response["error"] == nil && (response["outcome"] != "SUCCEEDED" || response["requestId"] != input["requestId"]) {
+		response = browserFailure("BROWSER_ADAPTER_RESPONSE_INVALID", "OUTCOME_UNKNOWN")
+	}
+	if response["requestId"] == nil {
+		response["requestId"] = input["requestId"]
+	}
 	response["browserExecution"] = metadata
 	return response
 }

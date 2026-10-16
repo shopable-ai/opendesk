@@ -33,7 +33,10 @@ description: 对已安装 Browser Core 的真实 Tab、Frame、Document 和 DOM 
 安装与普通启动见 [Core 使用说明](../../lab/browser-automation-core/README.md)。
 
 八项操作是同步、有限期限的原生调用。它们返回完整结构化响应，不把 Core 错误压成普通
-异常。业务脚本须检查 `error` 和 `outcome`，有错误时停止依赖动作。整个 execution 取消会
+异常。已知的缺失字段、基础类型错误、无效 scope/condition、缺少 fill value 等在启动
+Client 前返回 `INVALID_ARGUMENT` / `NOT_DISPATCHED`；更深的语义查询、opaque target
+身份及动作可执行性仍由 Browser Core 最终判断。无效或缺失的 Adapter 响应按
+`BROWSER_ADAPTER_RESPONSE_INVALID` / `OUTCOME_UNKNOWN` 安全停止，不自动补发。业务脚本须检查 `error` 和 `outcome`，有错误时停止依赖动作。整个 execution 取消会
 关闭所属 Client；关闭不撤回已经产生的 DOM 输入或服务端提交。
 
 响应包含 `requestId`、`result` 或 `error: {code, outcome}`、`outcome`、`executionId`、
