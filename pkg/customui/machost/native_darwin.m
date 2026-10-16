@@ -1849,7 +1849,7 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 	NSDictionary *toolbarSpec = [spec[@"toolbar"] isKindOfClass:NSDictionary.class] ? spec[@"toolbar"] : nil;
 	BOOL isNativeToolbar = toolbarSpec != nil;
 	BOOL toolbarNeedsKeyboard = isNativeToolbar && [CDToolbarView requiresKeyboardActivationForSpec:toolbarSpec];
-	if (isNativeToolbar) bounds = [CDToolbarView outerBoundsForSpec:toolbarSpec position:bounds];
+	if (isNativeToolbar) bounds = [CDToolbarView contentBoundsForSpec:toolbarSpec position:bounds];
     NSString *kind = spec[@"kind"] ?: @"normal";
 	// Host-owned Dialog frames deliberately keep the compact, non-resizable
 	// AppKit alert shape. Public Custom UI windows retain their existing normal
@@ -1908,8 +1908,21 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 		Class windowClass = isHostDialog ? CDDialogWindow.class : NSWindow.class;
 		window = [[windowClass alloc] initWithContentRect:frame styleMask:style backing:NSBackingStoreBuffered defer:NO];
 	}
+	window.title = (isMeasurement || isReferenceSelection) ? @"" : (spec[@"title"] ?: @"");
+	// FloatingWindow paints a near-black native toolbar surface regardless of
+	// the user's system appearance. Scope Dark Aqua to that window so standard
+	// AppKit controls keep readable foregrounds, tracks, and disabled states.
+	if (isNativeToolbar) window.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
 	// Public bounds describe the outer native window. initWithContentRect treats
 	// the input as content size, so normalize the actual frame explicitly.
+	if (isNativeToolbar) {
+		// The toolbar layout owns content padding; AppKit owns titlebar height.
+		// Preserve the requested outer top edge while fitting the content to the
+		// actual panel chrome before placement and fixed-size constraints.
+		CGFloat chromeHeight = NSHeight(window.frame) - NSHeight([window contentRectForFrameRect:window.frame]);
+		frame.origin.y -= chromeHeight;
+		frame.size.height += chromeHeight;
+	}
     [window setFrame:frame display:NO];
 	NSDictionary *placement = [spec[@"placement"] isKindOfClass:NSDictionary.class] ? spec[@"placement"] : nil;
 	if (placement) {
@@ -1928,11 +1941,6 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 		[window setMaxSize:frame.size];
 	}
 	window.releasedWhenClosed = NO;
-	window.title = (isMeasurement || isReferenceSelection) ? @"" : (spec[@"title"] ?: @"");
-	// FloatingWindow paints a near-black native toolbar surface regardless of
-	// the user's system appearance. Scope Dark Aqua to that window so standard
-	// AppKit controls keep readable foregrounds, tracks, and disabled states.
-	if (isNativeToolbar) window.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
 
 	CDWindowController *controller = [CDWindowController new];
     controller.sessionID = sessionID;

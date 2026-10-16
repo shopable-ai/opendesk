@@ -68,9 +68,8 @@
       await clipboard.copy(replies.resolved);
     });
 
-    let shown = await toolbar.show();
+    let shown = await helper.show(toolbar);
     equal(shown.bounds.width, 60, 'vertical five-button width changed');
-    equal(shown.bounds.height, 273, 'vertical five-button height changed');
     assert(shown.visible && shown.onScreen && shown.alpha > 0 && shown.hostPid > 0, 'vertical toolbar is not visibly native');
 
     const primary = Screen.getPrimaryDisplay();
@@ -124,6 +123,7 @@
       equal(state.screenBounds.height, 40, 'vertical screen button height changed');
       states.push(state);
     }
+    helper.assertNativeHeight(shown, states, 273, 'vertical five-button height changed');
     for (let index = 1; index < states.length; index += 1) {
       equal(states[index].localBounds.x, states[index - 1].localBounds.x, 'vertical buttons do not share x');
       equal(states[index].localBounds.y - states[index - 1].localBounds.y, 48, 'vertical gap is not 8pt');

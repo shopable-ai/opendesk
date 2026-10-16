@@ -28,7 +28,6 @@ static const CGFloat CDToolbarHorizontalPadding = 10.0;
 static const CGFloat CDToolbarVerticalPadding = 8.0;
 static const CGFloat CDToolbarMinOuterWidth = 60.0;
 static const CGFloat CDToolbarMaxOuterWidth = 960.0;
-static const CGFloat CDToolbarChromeHeight = 25.0;
 static const NSUInteger CDToolbarMaxColumns = 19;
 static const NSUInteger CDToolbarMaxVerticalButtons = 5;
 static const NSUInteger CDToolbarMaxItems = 63;
@@ -1214,7 +1213,7 @@ static NSDictionary *CDToolbarLayoutForSpec(NSDictionary *spec, NSString **messa
 		return nil;
 	}
 	if (vertical) {
-		CGFloat height = CDToolbarChromeHeight + CDToolbarVerticalPadding * 2;
+		CGFloat height = CDToolbarVerticalPadding * 2;
 		CGFloat contentWidth = 0;
 		for (NSUInteger index = 0; index < items.count; index++) {
 			if (index && ![items[index - 1][@"type"] isEqualToString:@"spacer"]) height += CDToolbarContentItemGap;
@@ -1279,7 +1278,7 @@ static NSDictionary *CDToolbarLayoutForSpec(NSDictionary *spec, NSString **messa
 	for (NSArray *plannedRow in rows) contentWidth = MAX(contentWidth, CDToolbarRowWidth(plannedRow));
 	CGFloat width = MAX(CDToolbarMinOuterWidth, contentWidth + CDToolbarHorizontalPadding * 2);
 	if (!requestedMaxWidth && !structural && labelCount == 0 && controlCount == 0 && buttonCount > CDToolbarMaxColumns) width = CDToolbarMaxOuterWidth;
-	CGFloat height = CDToolbarChromeHeight + CDToolbarVerticalPadding * 2 + rows.count * CDToolbarContentItemHeight + (rows.count > 1 ? (rows.count - 1) * CDToolbarContentItemGap : 0);
+	CGFloat height = CDToolbarVerticalPadding * 2 + rows.count * CDToolbarContentItemHeight + (rows.count > 1 ? (rows.count - 1) * CDToolbarContentItemGap : 0);
 	return @{@"rows": rows.copy, @"width": @(width), @"height": @(height), @"structural": @(structural)};
 }
 
@@ -1314,7 +1313,7 @@ static NSDictionary *CDToolbarLayoutForSpec(NSDictionary *spec, NSString **messa
 	return YES;
 }
 
-+ (NSDictionary *)outerBoundsForSpec:(NSDictionary *)spec position:(NSDictionary *)position {
++ (NSDictionary *)contentBoundsForSpec:(NSDictionary *)spec position:(NSDictionary *)position {
 	NSString *message = nil;
 	NSDictionary *layout = CDToolbarLayoutForSpec(spec, &message);
 	CGFloat width = [layout[@"width"] doubleValue];
@@ -1323,7 +1322,7 @@ static NSDictionary *CDToolbarLayoutForSpec(NSDictionary *spec, NSString **messa
 		// Create will report the strict structural error from init below; this
 		// fallback only keeps AppKit construction safe long enough to do so.
 		width = CDToolbarMinOuterWidth;
-		height = CDToolbarChromeHeight + CDToolbarVerticalPadding * 2 + CDToolbarContentItemHeight;
+		height = CDToolbarVerticalPadding * 2 + CDToolbarContentItemHeight;
 	}
 	return @{@"x": position[@"x"] ?: @0, @"y": position[@"y"] ?: @0, @"width": @(width), @"height": @(height)};
 }

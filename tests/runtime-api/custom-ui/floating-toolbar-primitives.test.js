@@ -98,9 +98,10 @@
     vertical.addButton('middle', '中间', 'doc.text.fill', () => {});
     vertical.addSpacer('vertical-space');
     vertical.addButton('bottom', '底部', 'stop.fill', () => {});
-    const verticalShown = await vertical.show();
+	    const verticalShown = await helper.show(vertical);
     equal(verticalShown.bounds.width, 60, 'vertical primitive toolbar width changed');
-	    equal(verticalShown.bounds.height, 186, 'vertical separator/spacer height changed');
+    const verticalStates = await Promise.all(['top', 'middle', 'bottom'].map(id => helper.state(vertical, id)));
+    helper.assertNativeHeight(verticalShown, verticalStates, 186, 'vertical separator/spacer height changed');
     const verticalVisual = await capture('vertical-separator-spacer', verticalShown.bounds);
     await vertical.close();
 

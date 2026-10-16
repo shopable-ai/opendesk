@@ -55,6 +55,22 @@ globalThis.FloatingToolbarTest = (() => {
     return value;
   }
 
+  function assertNativeHeight(shown, states, nominalHeight, message) {
+    const first = states[0];
+    const chrome = first.screenBounds.y - shown.bounds.y - first.localBounds.y;
+    equal(first.localBounds.y, 8, message + ': top padding changed');
+    equal(shown.bounds.height, nominalHeight - 25 + chrome, message);
+    const bottom = Math.max(...states.map(value => value.screenBounds.y + value.screenBounds.height));
+    equal(shown.bounds.y + shown.bounds.height - bottom, 8, message + ': bottom padding changed');
+  }
+
+  async function show(toolbar) {
+    await toolbar.show();
+    // Read the first layout after WindowServer has published its geometry.
+    await System.delay(150);
+    return toolbar.getState();
+  }
+
   async function pointer(toolbar, id) {
     const value = await state(toolbar, id);
     await mouse.click(value.screenBounds.x + 20, value.screenBounds.y + 20);
@@ -79,7 +95,7 @@ globalThis.FloatingToolbarTest = (() => {
     return caught;
   }
 
-  return { assert, equal, root, evidence, persist, waitFor, toolbar, screenshot, state, pointer, axPress, expectUIError };
+  return { assert, equal, root, evidence, persist, waitFor, toolbar, screenshot, state, show, assertNativeHeight, pointer, axPress, expectUIError };
 })();
 
 const floatingToolbarTestFiles = [

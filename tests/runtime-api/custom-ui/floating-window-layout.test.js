@@ -60,13 +60,13 @@
         ...item,
         labelFor: index => item.count === 1 && index === 0 ? longLabel : 'Button ' + index,
       });
-      const shown = await toolbar.show();
+      const shown = await helper.show(toolbar);
       equal(shown.bounds.x, item.x, item.count + ' buttons changed x');
       equal(shown.bounds.y, item.y, item.count + ' buttons changed y');
       equal(shown.bounds.width, item.width, item.count + ' buttons changed window width');
-      equal(shown.bounds.height, item.height, item.count + ' buttons changed window height');
       const states = [];
       for (let index = 0; index < item.count; index += 1) states.push(await helper.state(toolbar, 'button' + index));
+      helper.assertNativeHeight(shown, states, item.height, item.count + ' buttons changed window height');
       for (let index = 1; index < states.length; index += 1) {
         const previous = states[index - 1].localBounds;
         const current = states[index].localBounds;
@@ -118,9 +118,8 @@
     const layouts = {};
     for (const item of cases) {
       const toolbar = helper.toolbar(item.count, { toolbar: item.toolbar });
-      const shown = await toolbar.show();
+      const shown = await helper.show(toolbar);
       equal(shown.bounds.width, item.width, item.name + ' native width changed');
-      equal(shown.bounds.height, item.height, item.name + ' native height changed');
       const states = [];
       for (let index = 0; index < item.count; index += 1) {
         const state = await helper.state(toolbar, 'button' + index);
@@ -129,6 +128,7 @@
         equal(state.localBounds.y, 8 + row * 48, item.name + ' y/wrap changed');
         states.push(state);
       }
+      helper.assertNativeHeight(shown, states, item.height, item.name + ' native height changed');
       const visual = await helper.screenshot(item.name, shown.bounds);
       layouts[item.name] = { constraint: item.toolbar, shown, states, visual };
       await toolbar.close();

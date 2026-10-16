@@ -20,7 +20,7 @@ BOOL CDIsTrustedToolbarSymbol(NSString *symbol);
 @interface CDToolbarView : NSView
 @property(nonatomic, weak) id<CDFloatingToolbarDelegate> eventDelegate;
 @property(nonatomic, weak) id<CDFileDropDelegate> fileDropDelegate;
-+ (NSDictionary *)outerBoundsForSpec:(NSDictionary *)spec position:(NSDictionary *)position;
++ (NSDictionary *)contentBoundsForSpec:(NSDictionary *)spec position:(NSDictionary *)position;
 + (BOOL)requiresKeyboardActivationForSpec:(NSDictionary *)spec;
 - (instancetype)initWithFrame:(NSRect)frame spec:(NSDictionary *)spec error:(NSError **)error;
 - (NSDictionary *)stateForButtonID:(NSString *)targetID window:(NSWindow *)window;
