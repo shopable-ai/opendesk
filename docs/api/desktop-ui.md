@@ -40,6 +40,8 @@ Cloud visual observation 默认关闭。即使本地 OCR 没有候选或 provide
 
 视觉或原生动作成功只表示目标已读取或输入已提交，不证明保存、提交、导出等业务结果已经完成。自动化脚本仍应验证业务后置条件。
 
+**R1.1 查询与输入安全。** 字符串文本查询支持 `exact`、`contains`、`startsWith`、`endsWith`；`RegExp` 使用已有的单行本地 OCR 匹配语义，不重置调用方的 `lastIndex`，也不被伪装成原生 AX 属性查询。只读文本调用保留旧版未知选项的 OCR 兼容路径，输入动作仍拒绝未知选项。普通 `UI.tapText()` 使用 OCR 坐标时会在提交前核对窗口 identity 与 geometry；省略 `within` 且仅同一原生窗口移动/缩放时，可以在输入**尚未提交**的前提下重新观察一次。显式 `within`、替换窗口、已开始/未知结果的输入和 Accessibility 动作都不会自动重定向或重放。不要把点击 ACK 当作业务验证。
+
 本页示例用于从仓库根目录运行的普通 OpenDesk JavaScript。引用 `win` 的示例要求先取得并核对目标窗口，例如 `const win = await window.getActiveWindow();`；目标必须可见且具备当前平台所需权限。菜单和素材示例还需对应应用菜单与实际模板文件，不能直接对未知业务窗口尝试。
 
 ## UI.within(win)
@@ -695,14 +697,14 @@ console.log(receipt.actionState, receipt.verified);
 **签名**
 
 ```ts
-UI.findTexts(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITextTarget[]>;
+UI.findTexts(text: OpenDeskUITextQuery, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITextTarget[]>;
 ```
 
 **参数**
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `text` | `string` | 是 | 无 | 非空目标文本。 |
+| `text` | `OpenDeskUITextQuery` | 是 | 无 | 非空字符串或无状态 RegExp；正则匹配当前 OCR 行。 |
 | `options` | `OpenDeskUITextLocateOptions` | 否 | `{}` | 文本和定位选项，见 [文本选项](#文本选项)。 |
 
 **返回值**
@@ -766,14 +768,14 @@ console.log(groups.map(group => group.matches.length));
 **签名**
 
 ```ts
-UI.findText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITextTarget | null>;
+UI.findText(text: OpenDeskUITextQuery, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITextTarget | null>;
 ```
 
 **参数**
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `text` | `string` | 是 | 无 | 目标文本。 |
+| `text` | `OpenDeskUITextQuery` | 是 | 无 | 非空字符串或无状态 RegExp。 |
 | `options` | `OpenDeskUITextLocateOptions` | 否 | `{}` | 文本选项，见 [文本选项](#文本选项)。 |
 
 **返回值**
@@ -798,14 +800,14 @@ if (target) console.log(target.center);
 **签名**
 
 ```ts
-UI.hasText(text: string, options?: OpenDeskUITextLocateOptions): Promise<boolean>;
+UI.hasText(text: OpenDeskUITextQuery, options?: OpenDeskUITextLocateOptions): Promise<boolean>;
 ```
 
 **参数**
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `text` | `string` | 是 | 无 | 目标文本。 |
+| `text` | `OpenDeskUITextQuery` | 是 | 无 | 非空字符串或无状态 RegExp。 |
 | `options` | `OpenDeskUITextLocateOptions` | 否 | `{}` | 文本选项，见 [文本选项](#文本选项)。 |
 
 **返回值**
@@ -870,14 +872,14 @@ console.log({ firstResult, finalResult });
 **签名**
 
 ```ts
-UI.tapText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>;
+UI.tapText(text: OpenDeskUITextQuery, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>;
 ```
 
 **参数**
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `text` | `string` | 是 | 无 | 要点击的目标文本。 |
+| `text` | `OpenDeskUITextQuery` | 是 | 无 | 非空字符串或无状态 RegExp；正则只按 OCR 匹配。 |
 | `options` | `OpenDeskUITextLocateOptions` | 否 | `{}` | 文本选项；`options.click` 转发给 `mouse.clickPoint()`。 |
 
 **返回值**
@@ -1055,14 +1057,14 @@ await UI.tapTargets([
 **签名**
 
 ```ts
-UI.waitText(text: string, options?: OpenDeskUITextOptions): Promise<OpenDeskUITextTarget>;
+UI.waitText(text: OpenDeskUITextQuery, options?: OpenDeskUITextOptions): Promise<OpenDeskUITextTarget>;
 ```
 
 **参数**
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `text` | `string` | 是 | 无 | 等待出现的文本。 |
+| `text` | `OpenDeskUITextQuery` | 是 | 无 | 非空字符串或无状态 RegExp。 |
 | `options` | `OpenDeskUITextOptions` | 否 | `{}` | 文本选项；使用 `timeout` 与 `polling`，不支持 `region` / `relativeTo`。 |
 
 **返回值**
@@ -1086,14 +1088,14 @@ const target = await UI.waitText('完成', { within: win, timeout: 5000, polling
 **签名**
 
 ```ts
-UI.waitTextGone(text: string, options?: OpenDeskUITextOptions): Promise<true>;
+UI.waitTextGone(text: OpenDeskUITextQuery, options?: OpenDeskUITextOptions): Promise<true>;
 ```
 
 **参数**
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `text` | `string` | 是 | 无 | 等待消失的文本。 |
+| `text` | `OpenDeskUITextQuery` | 是 | 无 | 非空字符串或无状态 RegExp。 |
 | `options` | `OpenDeskUITextOptions` | 否 | `{}` | 文本选项；使用 `timeout` 与 `polling`，不支持 `region` / `relativeTo`。 |
 
 **返回值**

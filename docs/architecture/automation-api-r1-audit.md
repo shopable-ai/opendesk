@@ -90,3 +90,26 @@ it must not be counted among these eleven or repaired by changing runtime API se
 
 The production API contracts remain in `docs/api/`; this is a dated engineering
 record, not a parallel API Reference.
+
+### R1.1 formal macOS CI result (first fix commit)
+
+The follow-up [CI run 38891485582](https://github.com/shopable-ai/opendesk/actions/runs/38891485582)
+at commit `dea11890ac2f40a0da926b117cd1c05810b95d7a` executed the
+actual OpenDesk Runtime on macOS and reported:
+
+- Runtime contract: **412 passed / 0 failed**.
+- Runtime unit: **836 passed / 0 failed**, including all eleven previously failing cases.
+- Selected Runtime unit: **52 passed / 0 failed**.
+- Canonical API docs contract and layered Agent API reading: **PASS**.
+- BrowserDOM startup/MCP fail-closed seam: **PASS** within the macOS Runtime workflow.
+
+This is not a full host-integrated macOS AppKit/Accessibility click test,
+installed Chrome BrowserDOM proof, or Browser MCP end-to-end proof.
+
+**Separate pre-existing workflow failures still require their own owners:** the
+Agent-to-Recipe capability-chain job has 15 failures around a missing ignored
+`candidate.json` fixture. The Windows Core workflow failed its unrelated
+test-architecture audit (`_test.go` count 358 vs reviewed expectation 298),
+and the Recorder generation contract workflow failed a Windows assertion.
+None is a `RUNTIME-API-UNIT` failure; passing Runtime unit does not make
+the aggregate repository CI green.

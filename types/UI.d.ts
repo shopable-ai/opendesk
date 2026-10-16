@@ -3,6 +3,9 @@ export {};
 declare global {
   type OpenDeskUIScope = OpenDeskWindowInfo | OpenDeskDisplayInfo | OpenDeskScreenRegion;
 
+  /** String searches normalize whitespace by default; RegExp searches raw OCR lines. */
+  type OpenDeskUITextQuery = string | RegExp;
+
   interface OpenDeskUIBaseOptions {
     /** Defaults to the current active window when omitted. */
     within?: OpenDeskUIScope;
@@ -16,7 +19,7 @@ declare global {
   }
 
   interface OpenDeskUITextOptions extends OpenDeskUIBaseOptions {
-    match?: "exact" | "contains";
+    match?: "exact" | "contains" | "startsWith" | "endsWith";
     caseSensitive?: boolean;
     normalizeWhitespace?: boolean;
     minConfidence?: number;
@@ -627,12 +630,12 @@ declare global {
 
   interface OpenDeskUIWindowScope {
     locator(target: OpenDeskUILocatorTarget): OpenDeskUILocator;
-    findTexts(text: string, options?: OpenDeskUIWindowTextOptions): Promise<OpenDeskUITextTarget[]>;
+    findTexts(text: OpenDeskUITextQuery, options?: OpenDeskUIWindowTextOptions): Promise<OpenDeskUITextTarget[]>;
     findTextMatches(queries: Array<string | RegExp>, options?: Omit<OpenDeskUITextMatchOptions, "within">): Promise<OpenDeskUITextMatchGroup[]>;
-    findText(text: string, options?: OpenDeskUIWindowTextOptions): Promise<OpenDeskUITextTarget | null>;
-    hasText(text: string, options?: OpenDeskUIWindowTextOptions): Promise<boolean>;
+    findText(text: OpenDeskUITextQuery, options?: OpenDeskUIWindowTextOptions): Promise<OpenDeskUITextTarget | null>;
+    hasText(text: OpenDeskUITextQuery, options?: OpenDeskUIWindowTextOptions): Promise<boolean>;
     readText(options?: OpenDeskUIWindowReadTextOptions): Promise<string>;
-    tapText(text: string, options?: OpenDeskUIWindowTextOptions): Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>;
+    tapText(text: OpenDeskUITextQuery, options?: OpenDeskUIWindowTextOptions): Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>;
     tapTexts(texts: string[], options?: OpenDeskUIWindowTapTextsOptions): Promise<OpenDeskUITapTextsResult>;
     tapTargets(targets: OpenDeskUISemanticTapTarget[], options?: OpenDeskUIWindowSemanticTapOptions): Promise<OpenDeskUISemanticTapResult>;
     tapTargets(targets: OpenDeskUITapTargetStep[], options?: OpenDeskUIWindowLegacyTapTargetsOptions): Promise<OpenDeskUITapTargetsResult>;
@@ -658,22 +661,22 @@ declare global {
     getValue(target: OpenDeskAccessibilitySelector, options: OpenDeskUIValueOptions): Promise<string>;
     /** Sets one complete native string value once and verifies it by reading the same ref. */
     setValue(target: OpenDeskAccessibilitySelector, value: string, options: OpenDeskUIValueOptions): Promise<OpenDeskUISetValueResult>;
-    findTexts(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITextTarget[]>;
+    findTexts(text: OpenDeskUITextQuery, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITextTarget[]>;
     /** Evaluates 1..32 string or RegExp queries against one shared OCR observation. */
     findTextMatches(queries: Array<string | RegExp>, options?: OpenDeskUITextMatchOptions): Promise<OpenDeskUITextMatchGroup[]>;
-    findText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITextTarget | null>;
-    hasText(text: string, options?: OpenDeskUITextLocateOptions): Promise<boolean>;
+    findText(text: OpenDeskUITextQuery, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITextTarget | null>;
+    hasText(text: OpenDeskUITextQuery, options?: OpenDeskUITextLocateOptions): Promise<boolean>;
     /** Reads current native value/text, then local OCR only when no unique native value exists. */
     readText(options?: OpenDeskUIReadTextOptions): Promise<string>;
-    tapText(text: string, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>;
+    tapText(text: OpenDeskUITextQuery, options?: OpenDeskUITextLocateOptions): Promise<OpenDeskUITapResult<OpenDeskUITextTarget>>;
     /** The required first argument is the ordered action sequence; options.within only scopes it to a resolved window. */
     tapTexts(texts: string[], options?: OpenDeskUITapTextsOptions): Promise<OpenDeskUITapTextsResult>;
     /** Text delegates to tapTexts; native constraints are resolved fresh per step and never weakened to OCR. */
     tapTargets(targets: OpenDeskUISemanticTapTarget[], options?: OpenDeskUISemanticTapOptions): Promise<OpenDeskUISemanticTapResult>;
     /** Compatibility: preflights every distinct legacy locator, then invokes fixed refs in order. */
     tapTargets(targets: OpenDeskUITapTargetStep[], options: OpenDeskUITapTargetsOptions): Promise<OpenDeskUITapTargetsResult>;
-    waitText(text: string, options?: OpenDeskUITextOptions): Promise<OpenDeskUITextTarget>;
-    waitTextGone(text: string, options?: OpenDeskUITextOptions): Promise<true>;
+    waitText(text: OpenDeskUITextQuery, options?: OpenDeskUITextOptions): Promise<OpenDeskUITextTarget>;
+    waitTextGone(text: OpenDeskUITextQuery, options?: OpenDeskUITextOptions): Promise<true>;
     findImages(template: OpenDeskImageTemplate, options?: OpenDeskUIImageOptions): Promise<OpenDeskUIImageTarget[]>;
     findImage(template: OpenDeskImageTemplate, options?: OpenDeskUIImageOptions): Promise<OpenDeskUIImageTarget | null>;
     tapImage(template: OpenDeskImageTemplate, options?: OpenDeskUIImageOptions): Promise<OpenDeskUITapResult<OpenDeskUIImageTarget>>;

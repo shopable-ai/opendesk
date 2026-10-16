@@ -100,6 +100,17 @@ Recipe / 部署参数
 
 运行会真实清空和操作系统 Calculator，预检、实际 `110`/`660` 值及截图写入 `.runtime/examples/ui-perception-resolver-calculator/<execution-id>/`。如果焦点切换、候选歧义或输入状态未知，脚本停止，不会切换 backend 或重放输入。
 
+## 安全的 UI Locator 文本框示例
+
+```bash
+OPENDESK_EXAMPLE_WINDOW_TITLE='OpenDesk input test' \
+OPENDESK_EXAMPLE_WINDOW_PID=12345 \
+OPENDESK_EXAMPLE_INPUT_IDENTIFIER='fixture-input' \
+./dist/opendesk -script examples/desktop/ui-locator-safe.js -console-mode script
+```
+
+默认**只读**：等待具有精确标题和 PID 的窗口，使用 `UI.within(win).locator({role:'textField', identifier})` 读取实际 native value。只有在一次性、可丢弃测试窗口中额外设置 `OPENDESK_EXAMPLE_ALLOW_WRITE=1` 与 `OPENDESK_EXAMPLE_TEXT` 时，才执行一次原生 `setValue`，随后独立回读验证。未知 actionState 不自动重试，也不修改其他窗口。该示例是 `manual`，不放入一键 Run。
+
 ## Mouse 与 Page 固定坐标
 
 ```bash
