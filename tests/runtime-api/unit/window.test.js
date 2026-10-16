@@ -18,8 +18,18 @@
     }
   });
 
-  test({ name: 'window.list returns normalized window rows', tier: 'unit', covers: ['window.list'] }, async () => {
-    const list = await window.list();
+  test({ name: 'window.list returns normalized rows or a structured backend failure', tier: 'unit', covers: ['window.list'] }, async () => {
+    let list;
+    try {
+      list = await window.list();
+    } catch (error) {
+      // An unattended macOS runner may deny WindowServer enumeration.
+      // The public API must expose this failure, not return a synthetic [].
+      assert(error && error.name === 'WindowError' &&
+        error.code === 'BACKEND_FAILED' && error.operation === 'window.list' &&
+        typeof error.platform === 'string', JSON.stringify(error));
+      return;
+    }
     assert(Array.isArray(list), `window.list=${JSON.stringify(list)}`);
     if (list.length > 0) {
       assert(typeof list[0].title === 'string' && typeof list[0].pid === 'number', JSON.stringify(list[0]));

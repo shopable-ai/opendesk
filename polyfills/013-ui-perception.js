@@ -78,14 +78,42 @@
     Object.keys(raw).forEach(function (key) { result[key] = raw[key]; });
     return result;
   }
+  const textOptionKeys = Object.freeze([
+    'within', 'index', 'timeout', 'polling', 'click', 'intervalMs', 'match',
+    'caseSensitive', 'normalizeWhitespace', 'minConfidence', 'provider',
+    'providerChain', 'lang', 'region', 'relativeTo', 'signal',
+  ]);
+  // Historical read-only queries ignored unknown options. Delegate only those
+  // to the original OCR facade; multi-source actions remain strictly validated.
+  function legacyReadOptions(raw) {
+    return plain(raw) && Object.getOwnPropertySymbols(raw).length === 0 &&
+      Object.keys(raw).some(function (key) { return textOptionKeys.indexOf(key) < 0; });
+  }
   function textOptions(raw, operation, sequence) {
-    const allowed = [
-      'within', 'index', 'timeout', 'polling', 'click', 'intervalMs', 'match',
-      'caseSensitive', 'normalizeWhitespace', 'minConfidence', 'provider',
-      'providerChain', 'lang', 'region', 'relativeTo', 'signal',
-    ];
+    const allowed = textOptionKeys.slice();
     if (sequence) allowed.push('waitForEach');
     const result = assertOptions(raw, operation, allowed);
+    if (result.match !== undefined && ['exact', 'contains', 'startsWith', 'endsWith'].indexOf(result.match) < 0) {
+      fail('INVALID_ARGUMENT', operation, 'match must be exact, contains, startsWith, or endsWith', { phase: 'arguments' });
+    }
+    for (const key of ['caseSensitive', 'normalizeWhitespace']) {
+      if (result[key] !== undefined && typeof result[key] !== 'boolean') {
+        fail('INVALID_ARGUMENT', operation, key + ' must be boolean', { phase: 'arguments' });
+      }
+    }
+    if (result.minConfidence !== undefined && !finite(result.minConfidence)) {
+      fail('INVALID_ARGUMENT', operation, 'minConfidence must be finite', { phase: 'arguments' });
+    }
+    if (result.provider !== undefined && typeof result.provider !== 'string') {
+      fail('INVALID_ARGUMENT', operation, 'provider must be a string', { phase: 'arguments' });
+    }
+    if (result.providerChain !== undefined && (!Array.isArray(result.providerChain) ||
+        result.providerChain.some(function (value) { return typeof value !== 'string'; }))) {
+      fail('INVALID_ARGUMENT', operation, 'providerChain must be a string array', { phase: 'arguments' });
+    }
+    if (result.lang !== undefined && typeof result.lang !== 'string') {
+      fail('INVALID_ARGUMENT', operation, 'lang must be a string', { phase: 'arguments' });
+    }
     result.timeout = timeout(result, operation);
     result.polling = polling(result, operation);
     signal(result.signal, operation);
@@ -114,8 +142,7 @@
   }
   function matches(query, value, options) {
     if (query instanceof RegExp) {
-      query.lastIndex = 0;
-      return query.test(String(value == null ? '' : value));
+      return new RegExp(query.source, query.flags).test(String(value == null ? '' : value));
     }
     const expected = normalized(query, options);
     const actual = normalized(value, options);
@@ -253,6 +280,18 @@
       });
     }
     return rows[0];
+  }
+  function callerFailure(caught, operation) {
+    if (caught && caught.operation === operation) return caught;
+    if (!caught || typeof caught.code !== 'string') {
+      return error('OCR_FAILED', operation, 'local OCR observation failed', { cause: caught });
+    }
+    const wrapped = error(caught.code, operation, String(caught.message || caught.code), { cause: caught });
+    for (const key of ['phase', 'actionState', 'backend', 'requestId', 'capability', 'platform',
+      'candidateCount', 'candidates', 'timeout']) {
+      if (caught[key] !== undefined) wrapped[key] = caught[key];
+    }
+    return wrapped;
   }
   function availability() {
     const A = g.Accessibility;
@@ -454,6 +493,9 @@
   }
   async function observeText(query, rawOptions, operation) {
     const options = textOptions(rawOptions, operation, false);
+    if (typeof query !== 'string' || query.length === 0) {
+      fail('INVALID_ARGUMENT', operation, 'text must be a non-empty string', { phase: 'arguments' });
+    }
     checkCanceled(signal(options.signal, operation), operation);
     // Positioned/relative contracts already have a same-frame anchor protocol
     // in 006-ui.js. Preserve that stronger contract until a shared multi-source
@@ -473,7 +515,13 @@
     const failures = [];
     let ocr = [];
     try { ocr = normalizedOCR(await base.findTexts(query, local), win); }
-    catch (caught) { failures.push(caught && caught.code ? caught : error('OCR_FAILED', operation, 'native OCR observation failed')); }
+    catch (caught) {
+      const failure = callerFailure(caught, operation);
+      // Invalid scope/identity/arguments and cancellation cannot be rescued
+      // by switching from OCR to a different observation source.
+      if (['INVALID_ARGUMENT', 'TARGET_SCOPE_NOT_VISIBLE', 'STALE_TARGET', 'CANCELED'].indexOf(failure.code) >= 0) throw failure;
+      failures.push(failure);
+    }
     checkCanceled(signal(options.signal, operation), operation);
     const ax = await observeAccessibility(query, options, win, operation);
     if (ax.failure) failures.push(ax.failure);
@@ -496,7 +544,7 @@
   async function sendInput(resolution, rawOptions, operation) {
     const observed = resolution.observed;
     const candidateValue = resolution.candidate;
-    const win = await currentWindow(observed.window, operation, candidateValue.source === 'vlm');
+    const win = await currentWindow(observed.window, operation, candidateValue.source !== 'accessibility');
     checkCanceled(signal(observed.options.signal, operation), operation);
     if (candidateValue.selector && candidateValue.actionable === true) {
       // Accessibility remains the native input owner. Its own actionState is
@@ -511,7 +559,6 @@
         actionState: completed && completed.actionState ? completed.actionState : 'acknowledged',
       };
     }
-    await currentWindow(observed.window, operation, candidateValue.source === 'vlm');
     try {
       await g.mouse.clickPoint(candidateValue.center, observed.options.click);
     } catch (caught) {
@@ -527,6 +574,13 @@
     checkCanceled(value, operation);
     if (g.page && typeof g.page.waitForTimeout === 'function') {
       await g.page.waitForTimeout(milliseconds, value ? { signal: value } : undefined);
+      checkCanceled(value, operation);
+      return;
+    }
+    // Older hosts expose the numeric wait through page.waitFor rather than
+    // waitForTimeout; use the existing documented wait owner, not a timer spin.
+    if (g.page && typeof g.page.waitFor === 'function') {
+      await g.page.waitFor(milliseconds);
       checkCanceled(value, operation);
       return;
     }
@@ -569,6 +623,9 @@
         while (!resolution) {
           checkCanceled(signal(options.signal, operation), operation);
           const stepOptions = copy(options);
+          // Sequence policy is not a per-observation text option. Never leak
+          // waitForEach into a single resolveText() contract.
+          delete stepOptions.waitForEach;
           stepOptions.within = pinned === undefined ? undefined : pinned;
           try {
             resolution = await resolveText(sequence[index], stepOptions, operation);
@@ -682,11 +739,13 @@
     return result;
   };
   UI.findTexts = async function (query, options) {
+    if (query instanceof RegExp || legacyReadOptions(options)) return base.findTexts(query, options);
     const checked = textOptions(options, 'UI.findTexts', false);
     if (advanced(checked) || nonWindowScope(checked)) return base.findTexts(query, options);
     return (await observeText(query, checked, 'UI.findTexts')).candidates;
   };
   UI.findText = async function (query, options) {
+    if (query instanceof RegExp || legacyReadOptions(options)) return base.findText(query, options);
     const checked = textOptions(options, 'UI.findText', false);
     if (advanced(checked) || nonWindowScope(checked)) return base.findText(query, options);
     // Keep the established observation contract: a successful search with no
@@ -695,15 +754,33 @@
     return unique((await observeText(query, checked, 'UI.findText')).candidates, 'UI.findText');
   };
   UI.hasText = async function (query, options) {
+    if (query instanceof RegExp || legacyReadOptions(options)) return base.hasText(query, options);
     const checked = textOptions(options, 'UI.hasText', false);
     if (advanced(checked) || nonWindowScope(checked)) return base.hasText(query, options);
     return (await observeText(query, checked, 'UI.hasText')).candidates.length > 0;
   };
   UI.tapText = async function (query, options) {
-    const checked = textOptions(options, 'UI.tapText', false);
+    if (query instanceof RegExp) return base.tapText(query, options);
+    const operation = 'UI.tapText';
+    const checked = textOptions(options, operation, false);
     if (advanced(checked) || nonWindowScope(checked)) return base.tapText(query, options);
-    const resolution = await resolveText(query, checked, 'UI.tapText');
-    return sendInput(resolution, checked, 'UI.tapText');
+    const resolution = await resolveText(query, checked, operation);
+    try {
+      return await sendInput(resolution, checked, operation);
+    } catch (caught) {
+      // Only a moved unbound OCR window may be reacquired, exactly once,
+      // before any input. Never replay unknown actions or retarget a new window.
+      if (!caught || caught.code !== 'STALE_TARGET' || checked.within !== undefined ||
+          resolution.candidate.source !== 'ocr' ||
+          (caught.actionState !== undefined && caught.actionState !== 'not_started')) throw caught;
+      const previous = resolution.observed.window;
+      const fresh = await activeWindow(operation);
+      if (!sameWindow(identity(previous), identity(fresh), false) ||
+          sameWindow(identity(previous), identity(fresh), true)) throw caught;
+      const retry = copy(checked);
+      retry.within = fresh;
+      return sendInput(await resolveText(query, retry, operation), retry, operation);
+    }
   };
   UI.tapTexts = async function (texts, options) {
     const checked = textOptions(options, 'UI.tapTexts', true);
@@ -721,6 +798,7 @@
     return base.tapTargets(targets, options);
   };
   UI.waitText = async function (query, rawOptions) {
+    if (query instanceof RegExp || legacyReadOptions(rawOptions)) return base.waitText(query, rawOptions);
     const operation = 'UI.waitText';
     const options = textOptions(rawOptions, operation, false);
     if (advanced(options) || nonWindowScope(options)) return base.waitText(query, rawOptions);
@@ -736,6 +814,7 @@
     }
   };
   UI.waitTextGone = async function (query, rawOptions) {
+    if (query instanceof RegExp || legacyReadOptions(rawOptions)) return base.waitTextGone(query, rawOptions);
     const operation = 'UI.waitTextGone';
     const options = textOptions(rawOptions, operation, false);
     if (advanced(options) || nonWindowScope(options)) return base.waitTextGone(query, rawOptions);

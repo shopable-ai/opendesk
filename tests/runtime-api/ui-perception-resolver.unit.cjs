@@ -35,8 +35,9 @@ function harness(settings = {}) {
     getCapabilities: () => ({text: {backend: 'Vision.runOCR'}}),
     findTexts: async () => {
       calls.ocr += 1;
+      if (settings.moveDuringOCR && calls.ocr === 1) state.window.x += 200;
       if (settings.ocrError) throw settings.ocrError;
-      return clone(settings.ocr || []);
+      return clone(typeof settings.ocr === 'function' ? settings.ocr(calls, state) : settings.ocr || []);
     },
     findText: async () => null,
     hasText: async () => false,
@@ -55,7 +56,7 @@ function harness(settings = {}) {
   const sandbox = {
     UI,
     window: {getActiveWindow: async () => clone(state.window)},
-    mouse: {clickPoint: async () => { calls.mouse += 1; }},
+    mouse: {clickPoint: async () => { calls.mouse += 1; if (settings.mouseError) throw settings.mouseError; }},
     page: {
       screenshot: async () => { calls.screenshot += 1; return 'ZmFrZQ=='; },
       waitForTimeout: async () => {},
@@ -251,6 +252,68 @@ async function rejects(run, code) {
     await rejects(() => h.UI.tapText('Save', {within: clone(WIN)}), 'AMBIGUOUS_TARGET');
     assert.strictEqual(h.calls.mouse, 0);
     assert.strictEqual(h.calls.nativeInput, 0);
+  });
+
+  await test('read-only unknown options retain established OCR facade behavior', async () => {
+    const h = harness({ax: true, ocr: [ocr('Save', 150, 250)]});
+    // Old read-only calls tolerated unknown fields. No extra AX identity may
+    // be fabricated for an OCR-only legacy request.
+    assert.strictEqual(await h.UI.findText('Save', {within: clone(WIN), preexistingUnknownOption: true}), null);
+    assert.strictEqual(h.calls.ocr, 0);
+    assert.strictEqual(h.calls.ax, 0);
+  });
+
+  await test('string matchers reject invalid options before any observation', async () => {
+    const h = harness({ocr: [ocr('Save', 150, 250)]});
+    const caught = await rejects(() => h.UI.findText('Save', {within: clone(WIN), match: 'prefix'}), 'INVALID_ARGUMENT');
+    assert.strictEqual(caught.operation, 'UI.findText');
+    assert.strictEqual(h.calls.ocr, 0);
+    assert.strictEqual(h.calls.ax, 0);
+  });
+
+  await test('OCR terminal scope errors cannot silently fall through to Accessibility', async () => {
+    const h = harness({ocrError: structured('TARGET_SCOPE_NOT_VISIBLE', 'offscreen fixture', {operation: 'UI.findTexts'})});
+    const caught = await rejects(() => h.UI.findText('Save', {within: clone(WIN)}), 'TARGET_SCOPE_NOT_VISIBLE');
+    assert.strictEqual(caught.operation, 'UI.findText');
+    assert.strictEqual(caught.cause.operation, 'UI.findTexts');
+    assert.strictEqual(h.calls.ocr, 1);
+    assert.strictEqual(h.calls.ax, 0);
+  });
+
+  await test('moved unbound OCR window triggers one new observation and one click', async () => {
+    const h = harness({
+      ax: false,
+      moveDuringOCR: true,
+      ocr: (_, state) => [ocr('Save', state.window.x + 40, 250)],
+    });
+    const result = await h.UI.tapText('Save');
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.target.bounds.x, 340);
+    assert.strictEqual(h.calls.ocr, 2);
+    assert.strictEqual(h.calls.mouse, 1);
+  });
+
+  await test('caller-pinned OCR window never retargets itself after movement', async () => {
+    const h = harness({
+      ax: false,
+      moveDuringOCR: true,
+      ocr: (_, state) => [ocr('Save', state.window.x + 40, 250)],
+    });
+    const caught = await rejects(() => h.UI.tapText('Save', {within: clone(WIN)}), 'STALE_TARGET');
+    assert.strictEqual(caught.actionState, 'not_started');
+    assert.strictEqual(h.calls.ocr, 1);
+    assert.strictEqual(h.calls.mouse, 0);
+  });
+
+  await test('unknown mouse completion never replays a non-idempotent click', async () => {
+    const h = harness({
+      ax: false, ocr: [ocr('Save', 150, 250)],
+      mouseError: structured('BACKEND_FAILED', 'mouse input outcome is unknown', { actionState: 'unknown' }),
+    });
+    const caught = await rejects(() => h.UI.tapText('Save', { within: clone(WIN) }), 'BACKEND_FAILED');
+    assert.strictEqual(caught.actionState, 'unknown');
+    assert.strictEqual(h.calls.ocr, 1);
+    assert.strictEqual(h.calls.mouse, 1);
   });
 
   console.log(`PASS ${count} UI Perception Resolver deterministic tests`);

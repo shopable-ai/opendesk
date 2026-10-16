@@ -54,3 +54,39 @@
 2. P1：需要正式的真实浏览器能力时由既有 Browser Core/独立 Browser SDK owner 提供，不把 legacy `playwright` 变成假驱动。
 3. P2：用真实 Inspector 使用流程与屏幕证据评估选择器生成、匹配数和局部调试；不要为 R1 盲目建第二个面板。
 4. Windows/macOS 平台能力和原生 UI 的真实工作流要分别验收；没有证据的评分不得标 95。
+
+## R1.1 — 2026-10-16 Runtime failure attribution and remediation
+
+Source: [macOS CI run 38883495804](https://github.com/shopable-ai/opendesk/actions/runs/38883495804)
+at commit `5b432850847528f944189c2a8f4fc8a3787d3a04`:
+`RUNTIME-API-UNIT` = 825 passed / 11 failed. These are 11 **test cases**,
+not necessarily 11 independent implementation bugs.
+
+| Failing contract | Root-cause classification | R1.1 response |
+| --- | --- | --- |
+| `window.list` window rows | macOS CI native enumeration returned `BACKEND_FAILED`; no fabricated rows are valid | Test the structured failure as an explicit environment limitation while preserving successful-row assertions |
+| `Audio.getCapabilities` patternWatch | Historical unit assumption was fixed `unsupported`; ScreenCaptureKit can be supported and permission-verified | Assert capability-source consistency and fail-closed invariants, not a fixed platform result |
+| UI text normalization, string matchers, RegExp, polling (4 tests) | OCR-only synthetic `WindowInfo` was accidentally sent to native AX by the R1.0 resolver | Isolate fake AX inside legacy OCR harness; retain separate AX+OCR resolver tests |
+| UI mixed-DPI and invalid capture (2 tests) | Wrapper surfaced internal `UI.findTexts` as error operation instead of caller `UI.findText` | Preserve caller operation, cause, and terminal scope errors |
+| UI click/sequence (1 test) | Unit stub intercepted `mouse.click`, not current `mouse.clickPoint` owner | Intercept the existing point executor in the fake; no production mouse system added |
+| UI moved/resized window (1 test) | OCR coordinate could remain stale after a same-window layout change | Check geometry before input; reacquire one fresh OCR observation **only before input** and only for the same unbound native window |
+| UI historical unknown read options (1 test) | Read-only OCR facade previously ignored unknown fields, but the resolver rejected them | Delegate this **read-only** compatibility path to the existing facade; keep mutations strict |
+
+The resolver also validates text-match options before capture and avoids mutating
+caller-owned regular expressions. Unknown mouse input completion stays terminal;
+a native action or explicitly pinned WindowInfo is never auto-replayed/re-targeted.
+The BrowserDOM → Browser Core → Extension and MCP owners are unchanged; no
+Playwright engine or competing selector tree was introduced.
+
+**Verification boundary.** Before the R1.1 commit, a source-backed V8 test harness
+ran the nine previously failing UI contract cases with isolated fake owners and
+they passed; the separate Perception Resolver source suite exercised 20 mock-owner
+cases and passed. This is **not** an OpenDesk Goja Runtime, macOS native AX,
+Chrome, Browser Core, or MCP live pass. The two Window/Audio cases require the
+next macOS CI run to establish fresh evidence. The same historical workflow run
+also has a separate Agent-to-Recipe job failure (missing ignored
+`.runtime/tests/agent-to-recipe/revision-20260929/repeat-candidate/candidate.json`);
+it must not be counted among these eleven or repaired by changing runtime API semantics.
+
+The production API contracts remain in `docs/api/`; this is a dated engineering
+record, not a parallel API Reference.

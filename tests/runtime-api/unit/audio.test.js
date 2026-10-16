@@ -28,20 +28,31 @@
 
     const patternWatch = capabilities.patternWatch;
     assert(patternWatch && typeof patternWatch === 'object', 'patternWatch capability must be present');
-    equal(patternWatch.supported, false, 'default product pattern backend must remain unavailable');
-    equal(patternWatch.status, 'unsupported', 'default product pattern backend status');
+    // ScreenCaptureKit capability is environment-dependent: a supported,
+    // permission-verified native capture must not be reported as unavailable.
+    assert(typeof patternWatch.supported === 'boolean', 'patternWatch.supported must be explicit');
+    equal(patternWatch.status, patternWatch.supported ? 'experimental' : 'unsupported',
+      'patternWatch status must reflect the reported native capability');
     assert(typeof patternWatch.platform === 'string' && patternWatch.platform.length > 0, 'patternWatch platform must be explicit');
     equal(
       patternWatch.backend,
       patternWatch.platform === 'darwin' ? 'screencapturekit-system-mix' : 'unavailable',
       'default product pattern backend identity',
     );
-    equal(patternWatch.verified, false, 'default product pattern backend must remain unverified');
+    assert(typeof patternWatch.verified === 'boolean', 'patternWatch.verified must be explicit');
+    if (patternWatch.supported) equal(patternWatch.verified, true,
+      'supported capture requires a verified native backend');
     assert(['screenRecording', 'none'].includes(patternWatch.permission), 'patternWatch permission must be bounded');
     assert(patternWatch.sources && typeof patternWatch.sources === 'object', 'patternWatch sources must be present');
-    equal(patternWatch.sources.system.supported, false, 'default system pattern source must be unavailable');
+    assert(typeof patternWatch.sources.system.supported === 'boolean', 'system source support must be explicit');
     assert(['screenRecording', 'none'].includes(patternWatch.sources.system.permission), 'system pattern source permission must be bounded');
-    equal(patternWatch.sources.process.supported, false, 'default process pattern source must be unavailable');
+    assert(typeof patternWatch.sources.process.supported === 'boolean', 'process source support must be explicit');
+    equal(patternWatch.supported,
+      patternWatch.sources.system.supported || patternWatch.sources.process.supported,
+      'aggregate support must match its native sources');
+    if (patternWatch.sources.system.supported) {
+      equal(patternWatch.verified, true, 'system audio source requires a verified backend');
+    }
     assert(['screenRecording', 'none'].includes(patternWatch.sources.process.permission), 'process pattern source permission must be bounded');
     equal(patternWatch.sources.process.selector, 'pid', 'process source selector');
     assert(Array.isArray(patternWatch.formats), 'reference formats must be an array');
@@ -52,7 +63,12 @@
     assert(Number.isInteger(patternWatch.minReferenceDurationMs) && patternWatch.minReferenceDurationMs > 0, 'minimum reference duration must be bounded');
     assert(Number.isInteger(patternWatch.maxReferenceDurationMs) && patternWatch.maxReferenceDurationMs >= patternWatch.minReferenceDurationMs, 'maximum reference duration must be bounded');
     assert(Number.isInteger(patternWatch.maxConcurrentWatchers) && patternWatch.maxConcurrentWatchers > 0, 'watcher limit must be bounded');
-    equal(patternWatch.selfPlaybackExclusion, 'unavailable', 'default self-playback exclusion must fail closed');
+    assert(['native', 'unavailable'].includes(patternWatch.selfPlaybackExclusion),
+      'self-playback exclusion must use a documented evidence state');
+    if (patternWatch.sources.system.supported) {
+      equal(patternWatch.selfPlaybackExclusion, 'native',
+        'supported system-mix capture must exclude in-process playback');
+    }
     equal(patternWatch.rawAudioExposed, false, 'raw audio must not be exposed');
     equal(patternWatch.rawAudioPersisted, false, 'raw audio must not be persisted');
     equal(capabilities.devices.setDefaultOutput, false, 'default-output mutation must not be advertised');

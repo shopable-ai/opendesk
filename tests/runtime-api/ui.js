@@ -85,6 +85,7 @@
       Vision: globalThis.Vision,
       ImageColor: globalThis.ImageColor,
       mouse: globalThis.mouse,
+      Accessibility: globalThis.Accessibility,
     };
     const records = {
       screenshots: [], clicks: [], ocrRequests: [], imageRequests: [], waits: [],
@@ -105,9 +106,16 @@
         throw error;
       }
     };
-    const nativeClickPoint = original.mouse.clickPoint;
 
     globalThis.window = { getActiveWindow: currentWindow };
+    // These tests own isolated OCR / screenshot fixtures. A fabricated WindowInfo
+    // cannot be sent to the real Accessibility host (and doing so hides OCR
+    // behavior behind a native permission or identity error). Dedicated
+    // resolver tests exercise AX+OCR fusion with explicit fake owners.
+    globalThis.Accessibility = {
+      getCapabilities: function () { return { available: false }; },
+      snapshot: async function () { throw new Error('unexpected native Accessibility snapshot in OCR fixture'); },
+    };
     globalThis.Screen = {
       getVirtualBounds: function () { return options.virtual || { x: 0, y: 0, width: 1920, height: 1080 }; },
       getDisplays: function () { return options.displays || [displayInfo()]; },
@@ -152,7 +160,12 @@
         records.events.push({ type: 'click', index: records.clicks.length - 1, click: click });
         if (options.onClick) return options.onClick(x, y, clickOptions, records.clicks.length - 1, records);
       },
-      clickPoint: nativeClickPoint,
+      clickPoint: async function (point, clickOptions) {
+        const click = { x: point.x, y: point.y, options: clickOptions };
+        records.clicks.push(click);
+        records.events.push({ type: 'click', index: records.clicks.length - 1, click: click });
+        if (options.onClick) return options.onClick(point.x, point.y, clickOptions, records.clicks.length - 1, records);
+      },
     };
     try {
       return await fn(records);
@@ -163,6 +176,7 @@
       globalThis.Vision = original.Vision;
       globalThis.ImageColor = original.ImageColor;
       globalThis.mouse = original.mouse;
+      globalThis.Accessibility = original.Accessibility;
     }
   }
 
