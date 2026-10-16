@@ -115,7 +115,7 @@ test('Agent-to-Recipe consumers use one short API entry with valid links', () =>
   }
   const discovery = text('workflows/agent-to-recipe/design/capability-discovery.md');
   assert.doesNotMatch(discovery, /源码核验基线为\s+[0-9a-f]{7,40}/);
-  for (const rule of ['S1', 'S2', 'S7', 'S8', 'S10', 'S12', '执行时', '实际读值', '跨 Execution', 'ai schema']) assert.ok(discovery.includes(rule), rule);
+  // This document owns task-first capability decisions, not the full S1–S12\n  // stage protocol. Verify its actual semantic contract, not stale stage labels.\n  for (const rule of ['Capability Discovery', 'Method Selection', 'Contract Reading', 'Runtime Validation', 'Capability Decision', 'S10', 'S12', 'partial', 'unknown', '权限', '副作用', '当前 Runtime', '真实证据']) assert.ok(discovery.includes(rule), rule);
   for (const rel of [
     'AGENTS.md',
     'docs/api/agent/README.md',
