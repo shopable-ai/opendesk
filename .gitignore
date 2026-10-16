@@ -1,6 +1,9 @@
 temp/
 __debug*
 
+# Local generated reference image
+/ChatGPT 图像 2026年10月2日 01_48_50.png
+
 # macOS / editor noise
 .DS_Store
 
