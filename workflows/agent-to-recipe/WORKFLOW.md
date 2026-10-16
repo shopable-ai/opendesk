@@ -59,6 +59,7 @@ order: 10
 | --- | --- | --- |
 | 这个任务有哪些可选解法，怎样选择 | [自动化求解策略空间](../../docs/frameworks/automation-problem-solving-framework.md#strategy-space) | 生命周期横向调用的方法总地图，不是新阶段或第二套 Workflow |
 | OpenDesk 有哪些能力，为什么选这个方法 | [能力发现与决策](design/capability-discovery.md) | 发现、选择、契约阅读和当前 Runtime 验证分别留依据 |
+| 当前 JS API 的正式入口与签名 | [Agent API 阅读入口](../../docs/api/agent/README.md) | 按实际业务步骤定位 API，再核对 Reference、类型、授权及真实 Runtime |
 | 当前应用怎样可靠定位、读取、操作与停止 | [应用操作与策略](design/application-operations.md#operation-strategy) | 落实到既有 AppProfile、规则与必要 helper；切换和兼容不能靠猜 |
 
 总地图按需展开，不要求每个任务使用全部方法；Calculator 是一条简单路径，复杂案例只在其声明范围内补充验证。正文不在 WORKFLOW 重复维护，真实执行仍遵守各阶段输入与退出条件。

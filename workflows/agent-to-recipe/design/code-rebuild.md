@@ -10,7 +10,7 @@ order: 60
 
 > **已有普通 JavaScript 怎样按真实需求和应用规则进行必要改进，同时避免无依据重写？**
 
-code-rebuild 是**可选、独立**的代码质量作业，不替代 recipe-build，也不负责补造上游业务事实。
+code-rebuild 是**可选、独立**的代码质量作业，不替代 recipe-build，也不负责补造上游业务事实。需要核对现有 JS 接口时，从 [Agent API 阅读入口](../../../docs/api/agent/README.md) 选择相关能力与完整 Reference；不凭旧代码示例推断当前授权或执行能力。
 
 ## 30 秒总览
 

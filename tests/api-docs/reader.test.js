@@ -112,7 +112,7 @@ test('plan CLI produces actual range ledger without returning Reference bodies',
 test('generated catalogs, local links and independent inventories remain covered', () => {
   const report = reader.check(root);
   fs.writeFileSync(path.join(out,'coverage.json'),JSON.stringify(report,null,2)+'\n');
-  assert.deepEqual(report.errors, []); assert.equal(report.groups,10);
+  assert.deepEqual(report.errors, []); assert.equal(report.groups,config.groups.length);
   assert.ok(report.declaredReferenceDocs > 0); assert.ok(report.declaredTypeGlobals > 0);
   assert.ok(report.sourceContractGaps.some(x=>x.name==='page.ensureMacPermissions'));
 });

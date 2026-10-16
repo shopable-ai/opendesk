@@ -87,9 +87,9 @@ function walk(c) {
   return packets;
 }
 
-test('ten catalogs and short entry are tracked regular repository files', () => {
+test('all configured catalogs and the short entry are tracked regular repository files', () => {
   const expected = ['README', ...config.groups.map(g => g.id)].map(id => `docs/api/agent/${id}.md`).sort();
-  assert.equal(config.groups.length, 10);
+  assert.ok(config.groups.some(group => group.id === 'browser'), 'BrowserDOM must remain discoverable');
   const lines = cp.execFileSync('git', ['ls-files', '--stage', '--', 'docs/api/agent'], {cwd: root, encoding: 'utf8'}).trim().split('\n');
   const tracked = lines.map(line => {
     const m = /^(100644) [0-9a-f]+ 0\t(.+)$/.exec(line);
