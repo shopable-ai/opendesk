@@ -43,9 +43,9 @@ var allowedRPC = map[string]bool{
 
 // A schema field gate alone cannot prove future startup/tool-registration
 // behavior. Extend this reviewed list only with source and real CLI evidence.
-var auditedCodexVersions = map[string]bool{"codex-cli 0.159.2": true}
+var auditedCodexVersions = map[string]bool{"codex-cli 0.159.2": true, "codex-cli 0.162.1": true}
 
-// This list follows Codex rust-v0.159.2's own isolated structured-request
+// This list follows Codex rust-v0.159.2 and rust-v0.162.1's isolated structured-request
 // implementation, with additional browser/desktop entry points disabled.
 // See docs/integrations/browser/workflow-codex-app-server-r16.zh-CN.md.
 var disabledFeatures = []string{
@@ -53,6 +53,7 @@ var disabledFeatures = []string{
 	"deferred_executor", "enable_fanout", "goals", "hooks", "image_generation", "memories",
 	"multi_agent", "multi_agent_v2", "plugins", "request_permissions_tool", "shell_snapshot",
 	"shell_tool", "standalone_web_search", "token_budget", "tool_suggest", "unified_exec", "view_image",
+	"stable_environment_tools",
 	"browser_use", "browser_use_external", "browser_use_full_cdp_access", "computer_use", "js_repl",
 	"in_app_browser", "in_app_local_automation",
 }
@@ -60,8 +61,8 @@ var disabledFeatures = []string{
 func fixedConfig() map[string]any {
 	v := map[string]any{
 		"model_provider": "openai", "web_search": "disabled", "default_permissions": ":read-only",
-		"openai_base_url": "", "chatgpt_base_url": "https://chatgpt.com/backend-api/",
-		"instructions": planningInstructions(), "developer_instructions": planningInstructions(), "compact_prompt": planningInstructions(),
+		"chatgpt_base_url": "https://chatgpt.com/backend-api/",
+		"instructions":     planningInstructions(), "developer_instructions": planningInstructions(), "compact_prompt": planningInstructions(),
 		"history.persistence": "none", "include_environment_context": false,
 		"cloud.skills.enabled": false, "skills.include_instructions": false, "skills.bundled.enabled": false,
 		"features.skip_host_skill_discovery": true, "tools.experimental_request_user_input.enabled": false,
@@ -121,7 +122,7 @@ func minimalEnvironment() []string {
 			env = append(env, name+"="+v)
 		}
 	}
-	// Audited Codex 0.159.2 consumes this marker before worker threads and
+	// Both audited versions consume this marker before worker threads and
 	// selects DisabledEphemeral. A planning process must not resolve or honor
 	// persisted remote-control enrollment, even for the same CLI account.
 	env = append(env, "CODEX_INTERNAL_APP_SERVER_REMOTE_CONTROL_DISABLED=1")
@@ -259,10 +260,38 @@ func prependExecutableDir(env []string, executable string) []string {
 	return append(env, "PATH="+dir)
 }
 
+// macOS GUI launches omit Homebrew from PATH even when an npm Codex launcher
+// lives in ~/.local/bin. Reuse an installed Node from a fixed standard slot;
+// never source shell profiles, scan user trees, or replace an existing Node.
+func withNodeFallback(env []string, candidates []string) []string {
+	for i, value := range env {
+		if !strings.HasPrefix(value, "PATH=") {
+			continue
+		}
+		executable := func(path string) bool {
+			info, err := os.Stat(path)
+			return err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0111 != 0
+		}
+		for _, dir := range filepath.SplitList(strings.TrimPrefix(value, "PATH=")) {
+			if dir != "" && executable(filepath.Join(dir, "node")) {
+				return env
+			}
+		}
+		for _, node := range candidates {
+			if executable(node) {
+				env[i] += string(os.PathListSeparator) + filepath.Dir(node)
+				return env
+			}
+		}
+		return env
+	}
+	return env
+}
+
 func ownedCommand(ctx context.Context, path, workspace string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Dir = workspace
-	cmd.Env = prependExecutableDir(minimalEnvironment(), path)
+	cmd.Env = withNodeFallback(prependExecutableDir(minimalEnvironment(), path), []string{"/opt/homebrew/bin/node", "/usr/local/bin/node"})
 	cmd.Stderr = io.Discard
 	configureProcess(cmd)
 	cmd.Cancel = func() error {
@@ -306,9 +335,10 @@ func inspectExecutable(ctx context.Context, path, workspace string) (string, boo
 	}
 	resumeSupported := false
 	for file, fields := range map[string][]string{
-		"ThreadStartParams.json":  {"environments", "runtimeWorkspaceRoots", "selectedCapabilityRoots", "dynamicTools", "config"},
-		"TurnStartParams.json":    {"environments", "runtimeWorkspaceRoots", "sandboxPolicy", "outputSchema"},
-		"ThreadResumeParams.json": {"threadId", "runtimeWorkspaceRoots", "config"},
+		"ThreadStartParams.json":   {"environments", "runtimeWorkspaceRoots", "selectedCapabilityRoots", "dynamicTools", "config"},
+		"TurnStartParams.json":     {"environments", "runtimeWorkspaceRoots", "sandboxPolicy", "outputSchema"},
+		"ThreadResumeParams.json":  {"threadId", "runtimeWorkspaceRoots", "config"},
+		"ThreadStartResponse.json": {"thread", "sandbox", "approvalPolicy", "approvalsReviewer", "modelProvider", "runtimeWorkspaceRoots", "instructionSources"},
 	} {
 		f, err := os.Open(filepath.Join(schemaDir, "v2", file))
 		if err != nil {
@@ -358,6 +388,10 @@ func launchServer(ctx context.Context, path, workspace string) (*appServer, erro
 	if err := verifyNoEnvironmentRegistry(); err != nil {
 		return nil, err
 	}
+	home, err := preparePlanningHome(workspace)
+	if err != nil {
+		return nil, err
+	}
 	for _, name := range []string{"instructions.txt", "compact.txt"} {
 		if err := os.WriteFile(filepath.Join(workspace, name), []byte(planningInstructions()), 0600); err != nil {
 			return nil, failure("E_PROVIDER")
@@ -365,6 +399,12 @@ func launchServer(ctx context.Context, path, workspace string) (*appServer, erro
 	}
 	procCtx, cancel := context.WithCancel(ctx)
 	cmd := ownedCommand(procCtx, path, workspace, processArgs(workspace)...)
+	for i := len(cmd.Env) - 1; i >= 0; i-- {
+		if strings.HasPrefix(cmd.Env[i], "CODEX_HOME=") {
+			cmd.Env = append(cmd.Env[:i], cmd.Env[i+1:]...)
+		}
+	}
+	cmd.Env = append(cmd.Env, "CODEX_HOME="+home)
 	in, err := cmd.StdinPipe()
 	if err != nil {
 		cancel()
@@ -387,20 +427,58 @@ func launchServer(ctx context.Context, path, workspace string) (*appServer, erro
 	return p, nil
 }
 
-func verifyNoEnvironmentRegistry() error {
-	// Codex 0.159.2 connects environments.toml entries before initialize. They
-	// can contain stdio executables, so per-thread environments:[] is too late
-	// to disable that startup path. Check existence only; never read or alter it.
+func configuredCodexHome() (string, error) {
 	root := os.Getenv("CODEX_HOME")
 	if root == "" {
 		home, err := os.UserHomeDir()
-		if err != nil || !filepath.IsAbs(home) {
-			return failure("E_CODEX_POLICY")
+		if err != nil {
+			return "", failure("E_CODEX_POLICY")
 		}
 		root = filepath.Join(home, ".codex")
 	}
 	if !filepath.IsAbs(root) {
-		return failure("E_CODEX_POLICY")
+		return "", failure("E_CODEX_POLICY")
+	}
+	return root, nil
+}
+
+// 0.162.1 loads global AGENTS independently of project_doc_max_bytes. Use a
+// private home with only the existing user's config and file-auth references;
+// never copy/read credentials, discover host skills, or inherit instructions.
+// Codex's audited FileAuthStorage opens auth.json with write/truncate, so its
+// own normal token refresh still updates the original credential store.
+func preparePlanningHome(workspace string) (string, error) {
+	root, err := configuredCodexHome()
+	if err != nil {
+		return "", err
+	}
+	home := filepath.Join(workspace, "codex-home")
+	if err = os.Mkdir(home, 0700); err != nil {
+		return "", failure("E_PROVIDER")
+	}
+	for _, name := range []string{"config.toml", "auth.json"} {
+		source := filepath.Join(root, name)
+		info, err := os.Stat(source)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil || !info.Mode().IsRegular() {
+			return "", failure("E_CODEX_POLICY")
+		}
+		if err = os.Symlink(source, filepath.Join(home, name)); err != nil {
+			return "", failure("E_PROVIDER")
+		}
+	}
+	return home, nil
+}
+
+func verifyNoEnvironmentRegistry() error {
+	// Codex 0.159.2 connects environments.toml entries before initialize. They
+	// can contain stdio executables, so per-thread environments:[] is too late
+	// to disable that startup path. Check existence only; never read or alter it.
+	root, err := configuredCodexHome()
+	if err != nil {
+		return err
 	}
 	if _, err := os.Lstat(filepath.Join(root, "environments.toml")); !os.IsNotExist(err) {
 		return failure("E_CODEX_POLICY")

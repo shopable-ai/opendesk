@@ -1,12 +1,34 @@
 # R16 Go Codex Provider：实施与验证记录
 
-日期：2026-10-10。源码分支：`master`。实施基线：`a02fe4810393b334526e1692b9d1d872b0956888`。候选提交由跨仓负责人串行记录；本页不把基线 SHA 当作本轮完成提交。
+历史基线日期：2026-10-10；最新增量：2026-10-24。源码分支：`master`。实施基线：`a02fe4810393b334526e1692b9d1d872b0956888`。候选提交由跨仓负责人串行记录；本页不把基线 SHA 当作本轮完成提交。
 
 ## 已实现与验收边界
 
 `internal/browserai` 已运行真实 `codex app-server --listen stdio://`。不是 `codex exec` 包装，也没有把 MCP Server 当模型接口。已有受信任 Go Native Host 接收独立 `opendesk.workflow-ai.v1` 消息；原 Browser 十个 RPC、Controller、RunHost、Authority 和结果存储保持原 owner。
 
-本轮已审计并实测的 CLI 为 **`codex-cli 0.159.2`**。版本 allowlist、实际生成的协议 Schema、初始化握手、授权类型、有效配置和线程策略均须通过。其他版本返回 `E_CODEX_UNSUPPORTED`，没有跳过核验开关。后续扩大版本表必须补相应官方源码与真实二进制证据，不能只因字段名字仍存在就推断隔离语义不变。
+2026-10-10 的已审计并实测 CLI 为 **`codex-cli 0.159.2`**；2026-10-24 的增量支持见下节。版本 allowlist、实际生成的协议 Schema、初始化握手、授权类型、有效配置和线程策略均须通过。未审计版本返回 `E_CODEX_UNSUPPORTED`，没有跳过核验开关。后续扩大版本表必须补相应官方源码与真实二进制证据，不能只因字段名字仍存在就推断隔离语义不变。
+
+## 2026-10-24：0.162.1 核心发送修复
+
+实际 CLI 0.162.1 被旧版本门禁拒绝；解除这一项后，真实线程又报告一条全局指令来源，原安全检查继续正确拒绝。新版 [global instructions provider](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/codex-home/src/instructions/mod.rs) 独立加载 `CODEX_HOME/AGENTS.md`，`project_doc_max_bytes=0` 不能阻止这条路径。
+
+- 每个规划进程使用会话私有 `codex-home`，只引用原 `config.toml` / `auth.json`，不复制或读取认证正文、不挂载全局 instructions/skills/history。官方 [FileAuthStorage](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/login/src/auth/storage.rs) 的正常文件刷新跟随 auth 符号链接；Keyring 模式未验证，不能宣称全认证模式兼容。
+- 固定关闭新增 `stable_environment_tools`；[官方工具注册](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/core/src/tools/spec_plan.rs#L1220) 显示它可能在空环境中暴露 `apply_patch`。保留其余工具禁用、启动前 environment registry 拒绝、remote-control 禁用标记、权限与取消/撤权路径。
+- 不再清空用户已配置的 `openai_base_url`。只接受官方端点或 CLI 有效配置中已存在的无凭据、无 query/fragment、IP loopback HTTP `/v1` 路由，并将读回的非空路由固定到 thread config。Browser 不能指定端点，原模型、账户及本机 10100 路由不变。
+- Chrome 的 GUI PATH 缺少 Node 时，仅在自有进程追加已安装的 `/opt/homebrew/bin/node` 或 `/usr/local/bin/node` 所在目录；已有 Node（含选中 NVM 的同目录 Node）优先，不加载 shell 配置、不扫描任意用户树。真实 GUI PATH 下的 CLI Probe 与最终 App doctor 均通过。
+- 版本仍精确限制为已审计的 0.159.2 / 0.162.1，同时检查实际 Schema 和线程回执；缺失、null 或非空 `instructionSources` / `runtimeWorkspaceRoots` 均拒绝。真实 0.162.1 Probe 已证实空来源/空环境、read-only、network denied、never/user、原 ChatGPT 认证；Probe 不证明模型回复。安全冷恢复继续拒绝。
+
+定向验证覆盖账户引用/清理、路由拒绝及冻结、协议、权限、取消与撤权；真实 CLI 合成全局 AGENTS、开启工具开关及 MCP canary 均未进入受限线程。原始本机证据保存在 `.runtime/tests/browser-ai/shared-chat-01621/`；不以本轮核心发送修复代替 production、全量矩阵或正式发布验收。
+
+实际 macOS ARM64 CGO App 已构建、签名核验，并通过原 `browser update` 更新当前 Native 入口；保留扩展 ID、原授权、Socket、manifest 与其他实例。当前执行文件为 `~/.opendesk-browser/native-agent-r1/build-shared-ai-01621-node/OpenDesk.app/Contents/MacOS/opendesk`，SHA256 `6bd1dd42746822aaae799bc256d9e9595acf5febb884527c06660ada3b6e79b7`。构建基线 `b64bcd425ddeed28a794360ab044b5ef6651e957` 为 modified 源树，overlay 排除另一 owner 的 `internal/browserbridge/source_contract.go` 未提交修改；任务源码与补丁 SHA 记在上述本机证据目录，不声称干净提交构建。
+
+日常 Chrome 的真实「工作流」选择本机 Codex 后，第一条中文请求得到 **“收到测试消息”**，同一对话第二条得到 **“中文续聊正常”**；均已结束并恢复发送状态，没有创建或执行网页任务。Browser 补充严格的纯文本 JSON 分支，真实网页任务仍走原观察、编译和 Authority。截图位于 sibling Browser 的 `artifacts/shared-ai-r231-local-20261024/incremental-send-codex-01621-continuation.png`。这是本机连续中文模型回复证据，不代表生产验收、网页任务执行或安全冷恢复通过。
+
+本轮最小验证：账户引用/清理、端点拒绝及冻结、协议与缺失策略字段拒绝、取消/撤权；真实 CLI Probe 与合成全局指令/MCP canary；真实 GUI PATH 的 Node 发现与 Probe；最终 App 的 GUI PATH doctor；Browser 五项定向聊天/观察/取消检查。HTTPS 来源、Keyring 认证及 production 验收均 **NOT_TESTED**。独立静态复审未发现本次 Node/纯文本分支的阻塞项，没有重复全量回归。
+
+## 2026-10-10 历史验证记录
+
+以下 Linux、旧候选、macOS 尚未验证等结论保留其原时间与范围；本机中文发送与当前安装状态以 2026-10-24 增量节为准。
 
 | 项目 | 本轮证据与状态 |
 | --- | --- |
@@ -88,7 +110,7 @@ Chrome Native Host 不一定继承用户终端 shell 的 `PATH`。Go 先按已�
 
 `readOnly` 本身不表示 HOME 不可读。本集成依靠**没有执行环境**、固定工具注册和启动配置，配合实际回包核验。启动前还仅 `Lstat` 当前 Codex home 中 `environments.toml` 的存在性：此配置可能在 initialize 前启动 stdio 命令或远端连接，因此存在或无法判定时拒绝启动，不读取内容、不改配置，也不复制凭据去另一个 home。
 
-启动时固定官方 provider 与官方 ChatGPT base，清空用户 OpenAI base override；遥测出口、notify、个人模型/compact instruction 文件入口均在启动前覆盖为自有临时工作区的静态文件。持久历史写入策略为 `history.persistence:"none"`，禁止额外环境上下文。CLI 的原官方授权存储仍由 CLI 自己管理，OpenDesk 不读取 token/auth 正文、不复制授权到 Chrome、日志或服务器。
+2026-10-10 候选固定官方 provider 与官方 ChatGPT base，并清空用户 OpenAI base override；2026-10-24 已改为核验并保留原有效配置中的合法路由，见最新增量节。其余遥测出口、notify、个人模型/compact instruction 文件入口均在启动前覆盖为自有临时工作区的静态文件。持久历史写入策略为 `history.persistence:"none"`，禁止额外环境上下文。CLI 的原官方授权存储仍由 CLI 自己管理，OpenDesk 不读取 token/auth 正文、不复制授权到 Chrome、日志或服务器。
 
 本机规划子进程还固定注入 `CODEX_INTERNAL_APP_SERVER_REMOTE_CONTROL_DISABLED=1`。已审核的官方 0.159.2 在工作线程启动前消费此标志，选用 `DisabledEphemeral`，不会因当前账号此前的 remote-control enrollment 自动启用远端控制传输。该设置只作用于自有子进程，不修改用户持久偏好；固定启动参数不含 `--remote-control`，内部 RPC 白名单也不包含 `remoteControl/enable`。
 

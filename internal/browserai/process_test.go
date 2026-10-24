@@ -90,6 +90,34 @@ func TestOwnedNvmCodexLauncherResolvesItsNodeWithoutShellPATH(t *testing.T) {
 	}
 }
 
+func TestNodeFallbackPreservesExistingRuntimeAndUsesOnlyKnownSlot(t *testing.T) {
+	root := t.TempDir()
+	empty := filepath.Join(root, "empty")
+	known := filepath.Join(root, "known")
+	for _, dir := range []string{empty, known} {
+		if err := os.Mkdir(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	node := filepath.Join(known, "node")
+	if err := os.WriteFile(node, []byte("synthetic, never executed"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	original := "PATH=" + empty
+	if got := withNodeFallback([]string{original}, []string{node})[0]; got != original+string(os.PathListSeparator)+known {
+		t.Fatal("installed Node fallback was not appended")
+	}
+	if got := withNodeFallback([]string{"PATH=" + known}, []string{node})[0]; got != "PATH="+known {
+		t.Fatal("existing Node precedence changed")
+	}
+	if err := os.Chmod(node, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := withNodeFallback([]string{original}, []string{node})[0]; got != original {
+		t.Fatal("non-executable Node was accepted")
+	}
+}
+
 func TestAmbientSecretsAndExecutableOverridesAreNotInherited(t *testing.T) {
 	for _, key := range []string{"OPENAI_API_KEY", "OPENAI_BASE_URL", "NODE_OPTIONS", "LD_PRELOAD", "HTTP_PROXY", "ANTHROPIC_API_KEY", "CODEX_REMOTE_URL"} {
 		t.Setenv(key, "sensitive-value")
@@ -105,10 +133,13 @@ func TestAmbientSecretsAndExecutableOverridesAreNotInherited(t *testing.T) {
 			t.Fatal("unsupported or unsafe launch")
 		}
 	}
-	for _, required := range []string{"features.shell_tool=false", "features.unified_exec=false", "features.hooks=false", "features.plugins=false", "features.apps=false", "notify=[]", "openai_base_url=\"\"", "model_instructions_file=\"/safe/owned-workspace/instructions.txt\"", "otel.exporter=\"none\""} {
+	for _, required := range []string{"features.shell_tool=false", "features.unified_exec=false", "features.stable_environment_tools=false", "features.hooks=false", "features.plugins=false", "features.apps=false", "notify=[]", "model_instructions_file=\"/safe/owned-workspace/instructions.txt\"", "otel.exporter=\"none\""} {
 		if !strings.Contains(args, required) {
 			t.Fatalf("missing launch boundary: %s", required)
 		}
+	}
+	if strings.Contains(args, "openai_base_url=") {
+		t.Fatal("owned process silently replaced the user's configured model route")
 	}
 }
 
@@ -194,6 +225,49 @@ func TestEnvironmentRegistryIsRejectedBeforeProcessStart(t *testing.T) {
 	t.Setenv("CODEX_HOME", filepath.Join(root, "environments.toml"))
 	if err := verifyNoEnvironmentRegistry(); err == nil {
 		t.Fatal("unresolvable environment registry location accepted")
+	}
+}
+
+func TestPlanningHomeReferencesSameAccountWithoutAmbientInstructions(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("CODEX_HOME", root)
+	for _, name := range []string{"config.toml", "auth.json", "AGENTS.md", "AGENTS.override.md"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("synthetic-"+name), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	workspace := t.TempDir()
+	home, err := preparePlanningHome(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(home)
+	if err != nil || info.Mode().Perm() != 0700 {
+		t.Fatal("planning home is not private")
+	}
+	entries, err := os.ReadDir(home)
+	if err != nil || len(entries) != 2 {
+		t.Fatal("ambient home entries inherited")
+	}
+	for _, name := range []string{"config.toml", "auth.json"} {
+		target, err := os.Readlink(filepath.Join(home, name))
+		if err != nil || target != filepath.Join(root, name) {
+			t.Fatal("account or configuration reference changed")
+		}
+	}
+	// Match audited FileAuthStorage's open/write/truncate behavior. Only this
+	// synthetic credential is touched; production never reads credential bytes.
+	if err := os.WriteFile(filepath.Join(home, "auth.json"), []byte("synthetic-refresh"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if content, err := os.ReadFile(filepath.Join(root, "auth.json")); err != nil || string(content) != "synthetic-refresh" {
+		t.Fatal("token refresh detached from original store")
+	}
+	if err := os.RemoveAll(workspace); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "auth.json")); err != nil {
+		t.Fatal("session cleanup removed original account")
 	}
 }
 
@@ -335,7 +409,13 @@ func TestInstalledCodexProbe(t *testing.T) {
 	if os.Getenv("OPENDESK_TEST_REAL_CODEX") != "1" {
 		t.Skip("opt-in actual installed CLI probe; no model turn or login is performed")
 	}
-	m := NewManager(Options{})
+	m := NewManager(Options{Factory: func(ctx context.Context, workspace string) (Agent, Capabilities, error) {
+		agent, caps, err := defaultFactory(ctx, workspace)
+		if err != nil {
+			return agent, caps, err
+		}
+		return &safePolicyEvidenceAgent{Agent: agent, t: t}, caps, nil
+	}})
 	defer m.Close()
 	caps, err := m.Probe(context.Background())
 	if err != nil {
@@ -349,8 +429,8 @@ func TestInstalledCodexProbe(t *testing.T) {
 	if !caps.CLIInstalled {
 		t.Fatal("opt-in CLI was not discovered")
 	}
-	if caps.State == "CODEX_INITIALIZING" {
-		t.Fatal("probe omitted terminal diagnostic state")
+	if !caps.ReadyForTurn || !caps.AppServerCompatible || caps.State != "READY_FOR_TURN" {
+		t.Fatalf("installed CLI did not verify a restricted session: state=%s reason=%s", caps.State, caps.Reason)
 	}
 }
 
@@ -454,7 +534,7 @@ type safePolicyEvidenceAgent struct {
 
 func (a *safePolicyEvidenceAgent) Call(ctx context.Context, method string, params any) (json.RawMessage, error) {
 	raw, err := a.Agent.Call(ctx, method, params)
-	if method == "thread/resume" && err == nil {
+	if (method == "thread/resume" || method == "thread/start") && err == nil {
 		var v struct {
 			Thread struct {
 				Environments json.RawMessage `json:"environments"`
@@ -470,7 +550,7 @@ func (a *safePolicyEvidenceAgent) Call(ctx context.Context, method string, param
 			InstructionSources    []string `json:"instructionSources"`
 		}
 		_ = json.Unmarshal(raw, &v)
-		a.t.Logf("actual resume policy: noEnvironments=%t readOnly=%t networkDenied=%t approvalNever=%t reviewerUser=%t officialProvider=%t rootsCount=%d instructionCount=%d", string(v.Thread.Environments) == "[]", v.Sandbox.Type == "readOnly", !v.Sandbox.NetworkAccess, v.ApprovalPolicy == "never", v.ApprovalsReviewer == "user", v.ModelProvider == "openai", len(v.RuntimeWorkspaceRoots), len(v.InstructionSources))
+		a.t.Logf("actual %s policy: noEnvironments=%t readOnly=%t networkDenied=%t approvalNever=%t reviewerUser=%t officialProvider=%t rootsCount=%d instructionCount=%d", method, string(v.Thread.Environments) == "[]", v.Sandbox.Type == "readOnly", !v.Sandbox.NetworkAccess, v.ApprovalPolicy == "never", v.ApprovalsReviewer == "user", v.ModelProvider == "openai", len(v.RuntimeWorkspaceRoots), len(v.InstructionSources))
 	}
 	return raw, err
 }
@@ -485,8 +565,11 @@ func TestInstalledCodexAmbientMCPIsNotStarted(t *testing.T) {
 	}
 	fixture := t.TempDir()
 	marker := filepath.Join(fixture, "mcp-was-started")
-	config := fmt.Sprintf("[mcp_servers.ambient_canary]\ncommand = '/bin/sh'\nargs = ['-c', 'echo unexpected > %s']\n", marker)
+	config := fmt.Sprintf("[features]\nstable_environment_tools = true\nhooks = true\nplugins = true\nshell_tool = true\n[mcp_servers.ambient_canary]\ncommand = '/bin/sh'\nargs = ['-c', 'echo unexpected > %s']\n", marker)
 	if err = os.WriteFile(filepath.Join(fixture, "config.toml"), []byte(config), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(fixture, "AGENTS.md"), []byte("Synthetic ambient instruction that must not enter planning."), 0600); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("CODEX_HOME", fixture)
@@ -503,6 +586,23 @@ func TestInstalledCodexAmbientMCPIsNotStarted(t *testing.T) {
 	}
 	if err = agent.write(map[string]any{"method": "initialized"}); err != nil {
 		t.Fatal(err)
+	}
+	raw, err := agent.Call(ctx, "config/read", map[string]any{"includeLayers": false, "cwd": workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var effective struct {
+		Config struct {
+			Features map[string]any `json:"features"`
+		} `json:"config"`
+	}
+	if json.Unmarshal(raw, &effective) != nil {
+		t.Fatal("invalid effective config")
+	}
+	for _, feature := range []string{"stable_environment_tools", "hooks", "plugins", "shell_tool"} {
+		if effective.Config.Features[feature] != false {
+			t.Fatalf("ambient %s was not disabled", feature)
+		}
 	}
 	if _, err = startThread(ctx, agent, workspace, "", "", false, true); err != nil {
 		t.Fatal(err)

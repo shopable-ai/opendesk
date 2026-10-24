@@ -484,8 +484,62 @@ func TestPrivilegedServerRequestAndExecutionAreBlocked(t *testing.T) {
 	}
 }
 
+func TestConfiguredModelRouteRetainsIsolation(t *testing.T) {
+	for _, row := range []struct {
+		name     string
+		endpoint any
+		allowed  bool
+	}{
+		{"official", "https://api.openai.com/v1", true},
+		{"configured_loopback", "http://127.0.0.1:10100/v1", true},
+		{"ipv6_loopback", "http://[::1]:10100/v1", true},
+		{"remote_http", "http://example.test:10100/v1", false},
+		{"private_network", "http://192.168.1.10:10100/v1", false},
+		{"userinfo", "http://secret@127.0.0.1:10100/v1", false},
+		{"query", "http://127.0.0.1:10100/v1?token=secret", false},
+		{"fragment", "http://127.0.0.1:10100/v1#secret", false},
+		{"other_service", "http://127.0.0.1:10100/admin", false},
+		{"wrong_type", []any{}, false},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			agent := newFakeAgent()
+			agent.config["openai_base_url"] = row.endpoint
+			_, err := startThread(context.Background(), agent, t.TempDir(), "", "", false, true)
+			if row.allowed {
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, call := range agent.calls {
+					if call.Method != "thread/start" {
+						continue
+					}
+					config := call.Params["config"].(map[string]any)
+					if config["openai_base_url"] != row.endpoint {
+						t.Fatal("validated configured route was not frozen for the thread")
+					}
+					if call.Params["sandbox"] != "read-only" || call.Params["approvalPolicy"] != "never" ||
+						config["features.shell_tool"] != false || config["features.hooks"] != false ||
+						config["mcp_servers"].(map[string]any)["user_tool"].(map[string]any)["enabled"] != false {
+						t.Fatal("local route widened planning authority")
+					}
+				}
+			} else if err == nil || publicError(err).Code != "E_CODEX_POLICY" {
+				t.Fatal("unapproved model endpoint accepted")
+			}
+			if agent.turns != 0 {
+				t.Fatal("route check started inference")
+			}
+		})
+	}
+}
+
 func TestPolicyWideningIsRejectedBeforeInference(t *testing.T) {
-	for _, mutation := range []func(map[string]any){func(p map[string]any) { p["sandbox"] = map[string]any{"type": "dangerFullAccess"} }, func(p map[string]any) { p["thread"].(map[string]any)["environments"] = []any{"local"} }, func(p map[string]any) { p["approvalPolicy"] = "on-request" }, func(p map[string]any) { p["approvalsReviewer"] = "auto_review" }, func(p map[string]any) { p["instructionSources"] = []string{"/private/prompt"} }} {
+	for _, mutation := range []func(map[string]any){func(p map[string]any) { p["sandbox"] = map[string]any{"type": "dangerFullAccess"} }, func(p map[string]any) { p["thread"].(map[string]any)["environments"] = []any{"local"} }, func(p map[string]any) { p["approvalPolicy"] = "on-request" }, func(p map[string]any) { p["approvalsReviewer"] = "auto_review" }, func(p map[string]any) { p["instructionSources"] = []string{"/private/prompt"} },
+		func(p map[string]any) { delete(p, "instructionSources") },
+		func(p map[string]any) { p["instructionSources"] = nil },
+		func(p map[string]any) { delete(p, "runtimeWorkspaceRoots") },
+		func(p map[string]any) { p["runtimeWorkspaceRoots"] = nil },
+	} {
 		fake := newFakeAgent()
 		fake.policyMutation = mutation
 		m := NewManager(Options{Factory: func(context.Context, string) (Agent, Capabilities, error) { return fake, initialCapabilities(), nil }})
