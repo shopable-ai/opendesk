@@ -7,6 +7,8 @@ package automation
 #cgo darwin LDFLAGS: -framework ApplicationServices -framework CoreGraphics
 #include <stdint.h>
 #include <stdlib.h>
+#include <limits.h>
+#include <math.h>
 #include <CoreGraphics/CoreGraphics.h>
 
 typedef struct {
@@ -77,6 +79,25 @@ int tm_list_displays(tm_display_meta *out, int max) {
 		CGRect b = CGDisplayBounds(did);
 		size_t pw = CGDisplayPixelsWide(did);
 		size_t ph = CGDisplayPixelsHigh(did);
+		CGDisplayModeRef mode = CGDisplayCopyDisplayMode(did);
+		if (mode != NULL) {
+			size_t mw = CGDisplayModeGetWidth(mode), mh = CGDisplayModeGetHeight(mode);
+			size_t mpw = CGDisplayModeGetPixelWidth(mode), mph = CGDisplayModeGetPixelHeight(mode);
+			if (mw > 0 && mh > 0 && mpw > 0 && mph > 0) {
+				// Legacy PixelsWide/High can report points on Retina displays.
+				// Apply the current mode's backing ratios to logical bounds so
+				// their desktop orientation is preserved, without changing modes.
+				double sx = (double)mpw / (double)mw, sy = (double)mph / (double)mh;
+				double bw = b.size.width * sx, bh = b.size.height * sy;
+				if (isfinite(sx) && isfinite(sy) && fabs(sx - sy) < 0.000001 &&
+					isfinite(bw) && isfinite(bh) && bw > 0 && bh > 0 &&
+					bw <= INT_MAX - 0.5 && bh <= INT_MAX - 0.5) {
+					pw = (size_t)(bw + 0.5);
+					ph = (size_t)(bh + 0.5);
+				}
+			}
+			CGDisplayModeRelease(mode);
+		}
 
 		out[i].id = (uint32_t)did;
 		out[i].vendor = CGDisplayVendorNumber(did);

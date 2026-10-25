@@ -950,7 +950,7 @@ func TestToolsCallFindTargetReturnsStructuredExternalBlockerForDetectUIProviderF
 	srv := NewServer(fake)
 	resp := srv.Handle(Request{
 		JSONRPC: "2.0",
-		ID:      json.RawMessage(`4036.1`),
+		ID:      json.RawMessage(`"4036.1"`),
 		Method:  "tools/call",
 		Params: mustRawMap(t, map[string]any{
 			"name":      "tm_find_target",
@@ -983,7 +983,7 @@ func TestToolsCallFindTargetReturnsStructuredExternalBlockerForHybridOCRFailure(
 	srv := NewServer(fake)
 	resp := srv.Handle(Request{
 		JSONRPC: "2.0",
-		ID:      json.RawMessage(`4036.2`),
+		ID:      json.RawMessage(`"4036.2"`),
 		Method:  "tools/call",
 		Params: mustRawMap(t, map[string]any{
 			"name":      "tm_find_target",
@@ -1010,7 +1010,7 @@ func TestToolsCallOCRReturnsStructuredExternalBlockerForProviderFailure(t *testi
 	srv := NewServer(fake)
 	resp := srv.Handle(Request{
 		JSONRPC: "2.0",
-		ID:      json.RawMessage(`4036.3`),
+		ID:      json.RawMessage(`"4036.3"`),
 		Method:  "tools/call",
 		Params: mustRawMap(t, map[string]any{
 			"name":      "tm_ocr",
@@ -1043,7 +1043,7 @@ func TestToolsCallDetectUIReturnsStructuredExternalBlockerForProviderFailure(t *
 	srv := NewServer(fake)
 	resp := srv.Handle(Request{
 		JSONRPC: "2.0",
-		ID:      json.RawMessage(`4036.4`),
+		ID:      json.RawMessage(`"4036.4"`),
 		Method:  "tools/call",
 		Params: mustRawMap(t, map[string]any{
 			"name":      "tm_detect_ui",
@@ -1114,7 +1114,7 @@ func TestToolsCallActOnTargetRevalidatesStaleCandidateBeforeBlocking(t *testing.
 	}
 	resp := srv.Handle(Request{
 		JSONRPC: "2.0",
-		ID:      json.RawMessage(`4037.1`),
+		ID:      json.RawMessage(`"4037.1"`),
 		Method:  "tools/call",
 		Params: mustRawMap(t, map[string]any{
 			"name":      "tm_act_on_target",
@@ -1155,7 +1155,7 @@ func TestToolsCallActOnTargetReturnsStructuredRevalidationFailure(t *testing.T) 
 	}
 	resp := srv.Handle(Request{
 		JSONRPC: "2.0",
-		ID:      json.RawMessage(`4037.2`),
+		ID:      json.RawMessage(`"4037.2"`),
 		Method:  "tools/call",
 		Params: mustRawMap(t, map[string]any{
 			"name":      "tm_act_on_target",

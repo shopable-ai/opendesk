@@ -176,6 +176,7 @@ class MCPRequestError extends Error {
 class MCPStdioClient {
   constructor(options) {
     this.binary = options.binary;
+    this.args = options.args || [];
     this.cwd = options.cwd;
     this.timeoutMs = options.timeoutMs;
     this.runName = options.runName;
@@ -193,7 +194,7 @@ class MCPStdioClient {
 
   async start() {
     const detached = process.platform !== "win32";
-    this.child = spawn(this.binary, [], {
+    this.child = spawn(this.binary, this.args, {
       cwd: this.cwd,
       env: process.env,
       stdio: ["pipe", "pipe", "pipe"],
@@ -308,6 +309,13 @@ class MCPStdioClient {
       return;
     }
 
+    if (typeof message.id !== "string" && !(typeof message.id === "number" && Number.isInteger(message.id))) {
+      const violation = { reason: "invalid_response_id" };
+      this.protocolViolations.push(violation);
+      this.recorder.append({ run: this.runName, event: "protocol_violation", ...violation });
+      this._rejectPending(new Error("invalid JSON-RPC response id"));
+      return;
+    }
     const key = String(message.id);
     const pending = this.pending.get(key);
     if (!pending) {
@@ -682,7 +690,9 @@ async function main() {
   }
 }
 
-main().catch((error) => {
+module.exports = { MCPStdioClient, EvidenceRecorder, inspectPNG };
+
+if (require.main === module) main().catch((error) => {
   process.stderr.write(`${serializeError(error).stack || error.message || String(error)}\n`);
   process.stderr.write(`${usage()}\n`);
   process.exitCode = 1;

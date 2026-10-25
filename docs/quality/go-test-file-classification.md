@@ -448,3 +448,9 @@ OPENDESK_LIVE_CLIPBOARD_TEST=1 go test ./automation -run '^TestDarwinRichClipboa
 | 文件 | 分类 | 私有访问 | 业务边界 | 依赖 | 断言价值 | 保留理由 |
 |---|---|---|---|---|---|---|
 | `examples/desktop-reset-clock/internal/desktop/hero_art_test.go` | `KEEP_PACKAGE` | 是：内嵌 WebP 解码、平台图像字节与私有卡片高度函数 | PNG 尺寸、BGRA 透明边缘及 0/1/2/3 条动态高度 | 纯内存内嵌图像，不启动桌面窗口 | 防止图像全透明、尺寸变化和紧凑卡片高度倒退 | 独立模块图像/布局内部白盒，不替代 AppKit/Win32 实窗、DPI 或物理输入验收。 |
+
+### OpenDesk MCP Secure Tunnel R1 协议增量
+
+| 文件 | 分类 | 私有访问 | 业务边界 | 依赖 | 断言价值 | 保留理由 |
+|---|---|---|---|---|---|---|
+| `pkg/mcpserver/protocol_policy_test.go` | `KEEP_PACKAGE` | 是：协议解析、私有工具注册与只读 policy | MCP 版本协商、合法 ID、通知无副作用、工具错误、annotations 与只读发现/调用拒绝 | 内存流、同包 fake Runtime；不连接桌面或云端 | 防止遗漏 ID 执行输入、只过滤发现而漏掉调用、截图路径绕过只读模式 | MCP adapter 白盒，不替代 `tests/mcp/tools/desktop-control/main.js` 的真实 AppKit 输入和独立状态验证。 |

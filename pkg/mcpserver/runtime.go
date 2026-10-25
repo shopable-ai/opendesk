@@ -137,6 +137,11 @@ func (r *AutomationRuntime) Type(args map[string]any) error {
 	if text == "" {
 		return fmt.Errorf("text is required")
 	}
+	if _, scoped := numberArg(args, "processId"); scoped && (boolArg(args, "pressEnter") || boolArg(args, "press_return")) {
+		// There is no PID-scoped Enter primitive. Reject before typing instead
+		// of sending a global key to a potentially different foreground app.
+		return fmt.Errorf("PID-scoped typing does not support pressEnter; no input was sent")
+	}
 	keyboard := automation.NewKeyboard()
 	var err error
 	if processID, ok := numberArg(args, "processId"); ok {

@@ -13,7 +13,12 @@ import (
 	"time"
 )
 
+// ProtocolVersion retains the original exported value for existing callers.
 const ProtocolVersion = "2024-11-05"
+
+// LatestProtocolVersion is the newest initialize-based revision implemented here.
+// 2026-07-28 uses a different discovery/per-request metadata contract.
+const LatestProtocolVersion = "2025-11-25"
 
 const (
 	ErrCodeParseError     = -32700
@@ -44,9 +49,10 @@ type ResponseError struct {
 }
 
 type Tool struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	InputSchema map[string]any `json:"inputSchema"`
+	Name        string           `json:"name"`
+	Description string           `json:"description,omitempty"`
+	InputSchema map[string]any   `json:"inputSchema"`
+	Annotations *ToolAnnotations `json:"annotations,omitempty"`
 }
 
 type Runtime interface {
@@ -70,21 +76,32 @@ type Runtime interface {
 }
 
 type Server struct {
-	runtime      Runtime
-	tools        map[string]Tool
-	recorder     *recorder.Manager
-	recorderOnce sync.Once
-	recorderErr  error
+	runtime         Runtime
+	readOnly        bool
+	protocolVersion string
+	tools           map[string]Tool
+	recorder        *recorder.Manager
+	recorderOnce    sync.Once
+	recorderErr     error
+}
+
+// ServerOptions controls the tool surface for the lifetime of one stdio server.
+type ServerOptions struct {
+	ReadOnly bool
 }
 
 func NewServer(runtime Runtime) *Server {
-	s := &Server{runtime: runtime}
+	return NewServerWithOptions(runtime, ServerOptions{})
+}
+
+func NewServerWithOptions(runtime Runtime, options ServerOptions) *Server {
+	s := &Server{runtime: runtime, readOnly: options.ReadOnly, protocolVersion: LatestProtocolVersion}
 	s.tools = map[string]Tool{}
 	for _, tool := range builtinTools() {
-		s.tools[tool.Name] = tool
+		s.tools[tool.Name] = policyTool(tool, options.ReadOnly)
 	}
 	for _, tool := range browserTools() {
-		s.tools[tool.Name] = tool
+		s.tools[tool.Name] = policyTool(tool, options.ReadOnly)
 	}
 	return s
 }
@@ -96,11 +113,23 @@ func NewServerWithRecorder(runtime Runtime, manager *recorder.Manager) *Server {
 }
 
 func (s *Server) Handle(req Request) Response {
+	if len(req.ID) > 0 && !validRequestID(req.ID) {
+		return s.errorResponse(json.RawMessage("null"), ErrCodeInvalidRequest, "id must be a string or integer", nil)
+	}
 	if req.JSONRPC != "2.0" {
 		return s.errorResponse(req.ID, ErrCodeInvalidRequest, "jsonrpc must be 2.0", nil)
 	}
 	if strings.TrimSpace(req.Method) == "" {
 		return s.errorResponse(req.ID, ErrCodeInvalidRequest, "method is required", nil)
+	}
+
+	// Notifications, including unknown methods and tools/call without an ID,
+	// must never dispatch request handlers or cause tool side effects.
+	if len(req.ID) == 0 {
+		return Response{}
+	}
+	if len(req.Params) > 0 && !isJSONObject(req.Params) {
+		return s.errorResponse(req.ID, ErrCodeInvalidParams, "params must be an object", nil)
 	}
 
 	switch req.Method {
@@ -160,8 +189,22 @@ func (s *Server) ServeStream(in io.Reader, out io.Writer) error {
 }
 
 func (s *Server) handleInitialize(req Request) Response {
+	var params struct {
+		ProtocolVersion string `json:"protocolVersion"`
+	}
+	if err := json.Unmarshal(req.Params, &params); err != nil || params.ProtocolVersion == "" {
+		return s.errorResponse(req.ID, ErrCodeInvalidParams, "protocolVersion is required", nil)
+	}
+	version := LatestProtocolVersion
+	switch params.ProtocolVersion {
+	// 2025-03-26 mandated batching, which this line-oriented server does not
+	// implement. Its clients can negotiate a mutually supported revision.
+	case ProtocolVersion, "2025-06-18", LatestProtocolVersion:
+		version = params.ProtocolVersion
+	}
+	s.protocolVersion = version
 	result := map[string]any{
-		"protocolVersion": ProtocolVersion,
+		"protocolVersion": version,
 		"serverInfo": map[string]any{
 			"name":    "opendesk-mcp",
 			"title":   "OpenDesk MCP Server",
@@ -177,7 +220,10 @@ func (s *Server) handleInitialize(req Request) Response {
 func (s *Server) handleToolsList(req Request) Response {
 	tools := make([]Tool, 0, len(s.tools))
 	for _, name := range toolOrder() {
-		if tool, ok := s.tools[name]; ok {
+		if tool, ok := s.tools[name]; ok && (!s.readOnly || readOnlyTool(name)) {
+			if s.protocolVersion == "2024-11-05" {
+				tool.Annotations = nil
+			}
 			tools = append(tools, tool)
 		}
 	}
@@ -201,16 +247,22 @@ func (s *Server) handleToolsCall(req Request) Response {
 		params.Arguments = map[string]any{}
 	}
 	tool, ok := s.tools[params.Name]
-	if !ok {
+	if !ok || (s.readOnly && !readOnlyTool(params.Name)) {
 		return s.errorResponse(req.ID, ErrCodeInvalidParams, "tool not found", map[string]any{"name": params.Name})
 	}
 	if err := validateToolArguments(tool, params.Arguments); err != nil {
 		return s.errorResponse(req.ID, ErrCodeInvalidParams, "invalid tool arguments: "+err.Error(), map[string]any{"name": params.Name, "reason": err.Error()})
 	}
 
+	if s.readOnly && params.Name == "tm_screenshot" && params.Arguments["returnType"] == nil {
+		params.Arguments["returnType"] = "base64"
+	}
 	payload, err := s.callTool(params.Name, params.Arguments)
 	if err != nil {
-		return s.errorResponse(req.ID, ErrCodeInternal, err.Error(), map[string]any{"name": params.Name})
+		return s.resultResponse(req.ID, map[string]any{
+			"content": []map[string]any{{"type": "text", "text": err.Error()}},
+			"isError": true,
+		})
 	}
 	result := map[string]any{
 		"content": []map[string]any{{
@@ -218,7 +270,7 @@ func (s *Server) handleToolsCall(req Request) Response {
 			"text": mustJSONString(payload),
 		}},
 	}
-	if strings.HasPrefix(params.Name, "tm_browser_") && payload["error"] != nil {
+	if payload["error"] != nil || !payloadOK(payload) {
 		result["isError"] = true
 	}
 	return s.resultResponse(req.ID, result)
