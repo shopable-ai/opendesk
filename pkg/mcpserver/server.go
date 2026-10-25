@@ -76,6 +76,7 @@ type Runtime interface {
 }
 
 type Server struct {
+	webFileTest     *webFileTest
 	runtime         Runtime
 	readOnly        bool
 	protocolVersion string
@@ -170,6 +171,13 @@ func (s *Server) ServeStream(in io.Reader, out io.Writer) error {
 			}
 			continue
 		}
+		if s.webFileTest != nil && !validWebFileEnvelope(raw) {
+			resp := s.errorResponse(json.RawMessage("null"), ErrCodeInvalidRequest, "invalid or duplicate jsonrpc envelope fields", nil)
+			if encodeErr := encoder.Encode(resp); encodeErr != nil {
+				return encodeErr
+			}
+			continue
+		}
 		if err := json.Unmarshal(raw, &req); err != nil {
 			resp := s.errorResponse(json.RawMessage("null"), ErrCodeInvalidRequest, "invalid jsonrpc request", err.Error())
 			if encodeErr := encoder.Encode(resp); encodeErr != nil {
@@ -219,7 +227,11 @@ func (s *Server) handleInitialize(req Request) Response {
 
 func (s *Server) handleToolsList(req Request) Response {
 	tools := make([]Tool, 0, len(s.tools))
-	for _, name := range toolOrder() {
+	order := toolOrder()
+	if s.webFileTest != nil {
+		order = []string{"tm_status", "tm_test_write_nonce", "tm_test_read_nonce"}
+	}
+	for _, name := range order {
 		if tool, ok := s.tools[name]; ok && (!s.readOnly || readOnlyTool(name)) {
 			if s.protocolVersion == "2024-11-05" {
 				tool.Annotations = nil
@@ -231,6 +243,9 @@ func (s *Server) handleToolsList(req Request) Response {
 }
 
 func (s *Server) handleToolsCall(req Request) Response {
+	if s.webFileTest != nil && (len(req.ID) == 0 || !validRequestID(req.ID) || !validWebFileCall(req.Params)) {
+		return s.errorResponse(req.ID, ErrCodeInvalidParams, "expected name, optional arguments object and optional _meta object", nil)
+	}
 	var params struct {
 		Name      string         `json:"name"`
 		Arguments map[string]any `json:"arguments"`
@@ -277,6 +292,9 @@ func (s *Server) handleToolsCall(req Request) Response {
 }
 
 func (s *Server) callTool(name string, args map[string]any) (map[string]any, error) {
+	if s.webFileTest != nil {
+		return s.webFileTest.call(name, args)
+	}
 	if strings.HasPrefix(name, "tm_browser_") {
 		return s.callBrowserTool(name, args)
 	}
@@ -290,6 +308,9 @@ func (s *Server) callTool(name string, args map[string]any) (map[string]any, err
 }
 
 func (s *Server) callToolCore(name string, args map[string]any) (map[string]any, error) {
+	if s.webFileTest != nil {
+		return s.webFileTest.call(name, args)
+	}
 	switch name {
 	case "tm_status":
 		return s.runtime.Status()

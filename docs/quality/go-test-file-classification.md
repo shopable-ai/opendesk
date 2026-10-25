@@ -454,3 +454,9 @@ OPENDESK_LIVE_CLIPBOARD_TEST=1 go test ./automation -run '^TestDarwinRichClipboa
 | 文件 | 分类 | 私有访问 | 业务边界 | 依赖 | 断言价值 | 保留理由 |
 |---|---|---|---|---|---|---|
 | `pkg/mcpserver/protocol_policy_test.go` | `KEEP_PACKAGE` | 是：协议解析、私有工具注册与只读 policy | MCP 版本协商、合法 ID、通知无副作用、工具错误、annotations 与只读发现/调用拒绝 | 内存流、同包 fake Runtime；不连接桌面或云端 | 防止遗漏 ID 执行输入、只过滤发现而漏掉调用、截图路径绕过只读模式 | MCP adapter 白盒，不替代 `tests/mcp/tools/desktop-control/main.js` 的真实 AppKit 输入和独立状态验证。 |
+
+### OpenDesk MCP 受限网页文件测试 adapter
+
+| 文件 | 分类 | 私有访问 | 业务边界 | 依赖 | 断言价值 | 保留理由 |
+|---|---|---|---|---|---|---|
+| `pkg/mcpserver/web_file_test.go` | `KEEP_PACKAGE` | 是：独立 MCP adapter、工具注册/派发、os.Root 与持有文件身份 | 仅三个工具、nonce 独占创建/读取、严格参数与通知拒绝、目录/链接/内容替换、并发与跨实例隔离、关闭生命周期 | 仓库 `.runtime/tests/mcp-chatgpt-web/adapter-development/` 专用临时目录，无桌面/Browser | 防止受限模式越权、覆盖文件、读取替换内容或跨实例泄漏；保留 full/read-only 原契约 | Go 私有 adapter seam；不替代公共 Runtime JavaScript API、云端 Tunnel 或 ChatGPT 网页验收。 |
