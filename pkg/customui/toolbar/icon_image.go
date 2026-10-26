@@ -6,11 +6,14 @@ import (
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
+	"unicode"
+	"unicode/utf8"
 )
 
 const (
 	IconKindBuiltIn = "builtIn"
 	IconKindImage   = "image"
+	IconKindText    = "text"
 	IconKindWindows = "windowsGlyph"
 
 	IconRenderingOriginal = "original"
@@ -53,7 +56,26 @@ func ValidIconImage(value *IconImage) bool {
 	return format == "png" && value.MediaType == "image/png" || format == "jpeg" && value.MediaType == "image/jpeg"
 }
 
+// ValidButtonText accepts 1–4 Unicode scalars without whitespace or control/format characters.
+func ValidButtonText(text string) bool {
+	if !utf8.ValidString(text) || utf8.RuneCountInString(text) < 1 || utf8.RuneCountInString(text) > 4 {
+		return false
+	}
+	for _, scalar := range text {
+		if unicode.IsSpace(scalar) || unicode.IsControl(scalar) || unicode.Is(unicode.Cf, scalar) {
+			return false
+		}
+	}
+	return true
+}
+
 func IconPresentationForButton(button ButtonSpec) (IconPresentation, bool) {
+	if button.Text != "" {
+		if button.Icon != "" || button.IconImage != nil || !ValidButtonText(button.Text) {
+			return IconPresentation{}, false
+		}
+		return IconPresentation{Kind: IconKindText}, true
+	}
 	if button.IconImage != nil {
 		if button.Icon != "" || !ValidIconImage(button.IconImage) {
 			return IconPresentation{}, false

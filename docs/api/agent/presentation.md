@@ -23,7 +23,7 @@ docType: index
 | `control.on(type: EventType \| '*', listener: UIEventListener): () => void` | 监听当前控件事件。 事件类型与 listener。 取消订阅函数。 只接收该控件关联事件。 | 等待/订阅；回调副作用由调用方决定，须清理；继承本节限制 | [ControlHandle.on](../ui.md#controlhandleontype-listener)；`read ui ControlHandle.on` |
 | `control.update(patch: ControlPatch): Promise<ControlState>` | 更新允许的非结构控件状态。 按控件类型允许 `text`、内置 `icon`、`active`、`busy`、`error`、`value`、`checked`、`dis…（摘要） | 有：输入/应用或系统状态改变；继承本节限制 | [ControlHandle.update](../ui.md#controlhandleupdatepatch)；`read ui ControlHandle.update` |
 | `new FloatingWindow(options?: FloatingWindowOptions): FloatingWindow` | 创建 compact typed native toolbar；只有当前 execution 已授权 UI 时可用。 核心选项： `FloatingWindow` 实例。…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [FloatingWindow](../ui.md#new-floatingwindowoptions)；`read ui FloatingWindow` |
-| `FloatingWindow.addButton(id: string, label: string, icon: ClawdeskFloatingIconSource, callback?: ClawdeskFloatingButtonCallback): void;` | 显示前增加 icon-only native Button。 `id` 稳定且唯一；`label` 同时是 tooltip 和 Accessibility name。`i…（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [FloatingWindow.addButton](../ui.md#floatingwindowaddbuttonid-label-icon-callback)；`read ui FloatingWindow.addButton` |
+| `FloatingWindow.addButton(id: string, label: string, icon: ClawdeskFloatingIconSource, callback?: ClawdeskFloatingButtonCallback): void;` | 显示前增加 40×40pt native Button，可显示内置图标、图片或显式短文本。 `id` 稳定且唯一；`label` 同时是 tooltip 和 Access…（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [FloatingWindow.addButton](../ui.md#floatingwindowaddbuttonid-label-icon-callback)；`read ui FloatingWindow.addButton` |
 | `FloatingWindow.addCheckbox(id: string, label: string, options?: ClawdeskFloatingToggleOptions, callback?: ClawdeskFloatingToggleCallback): void;` | 增加独立选择 Checkbox。 `value` 默认 false；Checkbox 之间不自动互斥。 `undefined`。 互斥选择请使用 `addSegmente…（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [FloatingWindow.addCheckbox](../ui.md#floatingwindowaddcheckboxid-label-options-callback)；`read ui FloatingWindow.addCheckbox` |
 | `FloatingWindow.addInput(id: string, label: string, options?: ClawdeskFloatingInputOptions, callback?: ClawdeskFloatingInputCallback): void;` | 增加单行原生输入。 `maxLength` 默认 256；width 默认 180。Input 不支持 autofocus。 `undefined`。 `show()` …（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [FloatingWindow.addInput](../ui.md#floatingwindowaddinputid-label-options-callback)；`read ui FloatingWindow.addInput` |
 | `FloatingWindow.addLabel(id: string, text: string, options?: ClawdeskFloatingLabelOptions): void;` | 显示前增加固定宽度 native status text。 宽度默认 120、范围 48–240；固定 40pt 高。 `undefined`。 显示后可更新文字/对齐/…（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [FloatingWindow.addLabel](../ui.md#floatingwindowaddlabelid-text-options)；`read ui FloatingWindow.addLabel` |
@@ -132,11 +132,11 @@ docType: index
 维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
 
 
-- `docs/api/ui.md` SHA-256 `40789cc6bd1b7eed8a1953b1d84e84068e8ffabc73cedae2f5e646651d597029`
+- `docs/api/ui.md` SHA-256 `616ae2d73f58188fec3b6913205f4bd280a95c1a2c2a23fd5fcc7525644632ad`
 
 - `types/CustomUI.d.ts` SHA-256 `5cb41cd5f40b5b2f1ef906e0bb4ff6aeca3c408aa0efbd04fa495953faab2e60`
 
-- `types/FloatingWindow.d.ts` SHA-256 `aa142586b322bb35f62f9e37c59f4ec0cfe9cbd3633533cb1fe6e39106192a43`
+- `types/FloatingWindow.d.ts` SHA-256 `0a213a8ae34d7be3d5ced015999c00a426e9013640e8671b91f034640c507304`
 
 - `docs/api/dialog.md` SHA-256 `ad59fcfadd105b1177f349d082e0d77e782de49566564d1d98198d5431ceac45`
 

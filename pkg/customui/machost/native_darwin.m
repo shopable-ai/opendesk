@@ -1909,6 +1909,13 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 		window = [[windowClass alloc] initWithContentRect:frame styleMask:style backing:NSBackingStoreBuffered defer:NO];
 	}
 	window.title = (isMeasurement || isReferenceSelection) ? @"" : (spec[@"title"] ?: @"");
+	if (isNativeToolbar && [toolbarSpec[@"orientation"] isEqualToString:@"vertical"]) {
+		// A 60pt one-column toolbar cannot fit a title beside the close button.
+		// Keep the native drag/close area without clipped text or inactive buttons.
+		window.titleVisibility = NSWindowTitleHidden;
+		[[window standardWindowButton:NSWindowMiniaturizeButton] setHidden:YES];
+		[[window standardWindowButton:NSWindowZoomButton] setHidden:YES];
+	}
 	// FloatingWindow paints a near-black native toolbar surface regardless of
 	// the user's system appearance. Scope Dark Aqua to that window so standard
 	// AppKit controls keep readable foregrounds, tracks, and disabled states.

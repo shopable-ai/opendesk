@@ -183,7 +183,7 @@ type Bounds struct {
 	Height float64 `json:"height"`
 }
 
-// IconPresentation is generated from the versioned reviewed icon registry.
+// IconPresentation describes a validated built-in, raster, or compact text surface.
 type IconPresentation struct {
 	Kind          string  `json:"kind,omitempty"`
 	Glyph         string  `json:"glyph,omitempty"`
@@ -216,6 +216,7 @@ type ButtonSpec struct {
 	Badge     string      `json:"badge,omitempty"`
 	Icon      string      `json:"icon,omitempty"`
 	IconImage *IconImage  `json:"iconImage,omitempty"`
+	Text      string      `json:"text,omitempty"`
 	State     ButtonState `json:"state"`
 }
 

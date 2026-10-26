@@ -134,6 +134,23 @@ static NSDictionary *CDToolbarIconForButtonSpec(NSDictionary *spec, NSImage **cu
 	NSUInteger *customImageBytes, NSString **message) {
 	if (customImage) *customImage = nil;
 	if (customImageBytes) *customImageBytes = 0;
+	// Text is an explicit, bounded alternative to both built-in and raster icons.
+	// Keep the semantic label separate for tooltip and Accessibility clients.
+	id rawText = spec[@"text"];
+	if (rawText && rawText != NSNull.null) {
+		NSString *text = [rawText isKindOfClass:NSString.class] ? rawText : nil;
+		NSString *icon = [spec[@"icon"] isKindOfClass:NSString.class] ? spec[@"icon"] : @"";
+		NSCharacterSet *invalid = [NSCharacterSet whitespaceAndNewlineCharacterSet];
+		BOOL valid = text.length && CDToolbarUnicodeScalarCount(text) <= 4 &&
+			[text rangeOfCharacterFromSet:invalid].location == NSNotFound &&
+			[text rangeOfCharacterFromSet:NSCharacterSet.controlCharacterSet].location == NSNotFound &&
+			!icon.length && (!spec[@"iconImage"] || spec[@"iconImage"] == NSNull.null);
+		if (!valid) {
+			if (message) *message = @"toolbar text must contain 1 to 4 compact characters without an icon";
+			return nil;
+		}
+		return @{@"kind": @"text"};
+	}
 	id rawImage = spec[@"iconImage"];
 	if (rawImage && rawImage != NSNull.null) {
 		NSDictionary *imageSpec = [rawImage isKindOfClass:NSDictionary.class] ? rawImage : nil;
@@ -197,6 +214,7 @@ static NSDictionary *CDToolbarIconForButtonSpec(NSDictionary *spec, NSImage **cu
 @interface CDToolbarButton : NSButton
 @property(nonatomic, copy) NSString *targetID;
 @property(nonatomic, copy) NSString *semanticLabel;
+@property(nonatomic, copy) NSString *buttonText;
 @property(nonatomic, copy) NSString *iconName;
 @property(nonatomic, copy) NSDictionary *iconPresentation;
 @property(nonatomic, strong) NSImage *customIconImage;
@@ -209,6 +227,7 @@ static NSDictionary *CDToolbarIconForButtonSpec(NSDictionary *spec, NSImage **cu
 @property(nonatomic) BOOL toolbarBusy;
 @property(nonatomic) BOOL pointerInside;
 @property(nonatomic) BOOL toolbarPressed;
+@property(nonatomic) BOOL verticalToolbar;
 @property(nonatomic) uint64_t revision;
 @property(nonatomic, strong) NSProgressIndicator *busyIndicator;
 @property(nonatomic, strong) NSTextField *badgeLabel;
@@ -366,6 +385,17 @@ static NSDictionary *CDToolbarIconForButtonSpec(NSDictionary *spec, NSImage **cu
 	CGFloat x = NSMidX(buttonOnScreen) - panelSize.width / 2.0;
 	CGFloat y = NSMinY(buttonOnScreen) - panelSize.height - 7.0;
 	if (y < NSMinY(visible)) y = NSMaxY(buttonOnScreen) + 7.0;
+	if (self.verticalToolbar) {
+		// A narrow vertical toolbar must keep the other actions visible while
+		// a tooltip is open. Prefer the side with room; retain the edge fallback.
+		CGFloat right = NSMaxX(buttonOnScreen) + 10.0;
+		CGFloat left = NSMinX(buttonOnScreen) - panelSize.width - 10.0;
+		if (right + panelSize.width <= NSMaxX(visible) - 4.0) {
+			x = right; y = NSMidY(buttonOnScreen) - panelSize.height / 2.0;
+		} else if (left >= NSMinX(visible) + 4.0) {
+			x = left; y = NSMidY(buttonOnScreen) - panelSize.height / 2.0;
+		}
+	}
 	x = MIN(MAX(x, NSMinX(visible) + 4.0), NSMaxX(visible) - panelSize.width - 4.0);
 	y = MIN(MAX(y, NSMinY(visible) + 4.0), NSMaxY(visible) - panelSize.height - 4.0);
 	[panel setFrameOrigin:NSMakePoint(round(x), round(y))];
@@ -406,6 +436,7 @@ static NSDictionary *CDToolbarIconForButtonSpec(NSDictionary *spec, NSImage **cu
 	NSDictionary *state = [spec[@"state"] isKindOfClass:NSDictionary.class] ? spec[@"state"] : @{};
 	self.targetID = spec[@"id"];
 	self.semanticLabel = spec[@"label"];
+	self.buttonText = [spec[@"text"] isKindOfClass:NSString.class] ? spec[@"text"] : @"";
 	self.iconName = [spec[@"icon"] isKindOfClass:NSString.class] ? spec[@"icon"] : @"";
 	self.iconPresentation = presentation;
 	self.customIconImage = customImage;
@@ -433,7 +464,7 @@ static NSDictionary *CDToolbarIconForButtonSpec(NSDictionary *spec, NSImage **cu
 	self.badgeLabel.stringValue = self.badgeText;
 	[self layoutBadge];
 	self.badgeLabel.hidden = !self.badgeText.length || self.toolbarBusy;
-	if (self.toolbarBusy) {
+	if (self.toolbarBusy && !self.buttonText.length) {
 		self.busyIndicator.hidden = NO;
 		[self.busyIndicator startAnimation:nil];
 	} else {
@@ -466,7 +497,30 @@ static NSDictionary *CDToolbarIconForButtonSpec(NSDictionary *spec, NSImage **cu
 	}
 	[background setFill]; [path fill];
 	[border setStroke]; path.lineWidth = 1.0; [path stroke];
-	if (self.toolbarBusy) return;
+	if (self.window.firstResponder == self) {
+		NSBezierPath *focus = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds, 2, 2) xRadius:6 yRadius:6];
+		[NSColor.keyboardFocusIndicatorColor setStroke]; focus.lineWidth = 2; [focus stroke];
+	}
+	if (self.toolbarBusy && !self.buttonText.length) return;
+	if (self.buttonText.length) {
+		NSString *text = self.toolbarBusy ? @"稍候" : self.buttonText;
+		NSFont *font = [NSFont systemFontOfSize:13 weight:NSFontWeightRegular];
+		NSColor *color = self.toolbarDisabled ? CDToolbarColor(0.56, 0.60, 0.67) : NSColor.whiteColor;
+		NSDictionary *attributes = @{NSFontAttributeName:font, NSForegroundColorAttributeName:color};
+		NSSize size = [text sizeWithAttributes:attributes];
+		// A Unicode scalar can shape to a very wide ligature. Fit the measured
+		// glyph run with no minimum-font floor that could overflow the hit target.
+		CGFloat scale = MIN(1, 32 / MAX(1, MAX(size.width, size.height)));
+		[NSGraphicsContext saveGraphicsState];
+		NSRectClip(NSInsetRect(self.bounds, 4, 4));
+		NSAffineTransform *transform = [NSAffineTransform transform];
+		[transform translateXBy:(NSWidth(self.bounds) - size.width * scale) / 2
+			yBy:(NSHeight(self.bounds) - size.height * scale) / 2];
+		[transform scaleBy:scale]; [transform concat];
+		[text drawAtPoint:NSZeroPoint withAttributes:attributes];
+		[NSGraphicsContext restoreGraphicsState];
+		return;
+	}
 	if (self.customIconImage) {
 		CGFloat pixelWidth = [self.iconPresentation[@"pixelWidth"] doubleValue];
 		CGFloat pixelHeight = [self.iconPresentation[@"pixelHeight"] doubleValue];
@@ -1420,6 +1474,7 @@ static NSDictionary *CDToolbarLayoutForSpec(NSDictionary *spec, NSString **messa
 					return nil;
 				}
 				CDToolbarButton *button = [[CDToolbarButton alloc] initWithFrame:NSZeroRect];
+				button.verticalToolbar = vertical;
 				button.target = self;
 				button.action = @selector(buttonActivated:);
 				[button applySpec:buttonSpec presentation:presentation customImage:customImage customImageBytes:customImageBytes];
@@ -1542,7 +1597,8 @@ static NSDictionary *CDToolbarLayoutForSpec(NSDictionary *spec, NSString **messa
 	};
 	return @{
 		@"id": button.targetID, @"label": button.semanticLabel ?: @"", @"icon": button.iconName ?: @"", @"badge": button.badgeText ?: @"",
-		@"state": state, @"renderedText": @"", @"tooltip": button.semanticLabel ?: @"",
+		@"text": button.buttonText ?: @"", @"state": state,
+		@"renderedText": button.toolbarBusy && button.buttonText.length ? @"稍候" : (button.buttonText ?: @""), @"tooltip": button.semanticLabel ?: @"",
 		@"tooltipVisible": @(button.tooltipPanel.visible),
 		@"iconPresentation": button.iconPresentation ?: @{},
 		@"accessibilityName": button.accessibilityLabel ?: @"",

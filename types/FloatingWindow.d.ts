@@ -18,10 +18,18 @@ declare global {
   interface ClawdeskFloatingImageIcon {
     path: string;
     renderingMode?: ClawdeskFloatingImageRenderingMode;
+    text?: never;
   }
 
-  /** Built-in registry key or a validated script-local raster image. */
-  type ClawdeskFloatingIconSource = ClawdeskFloatingIconKey | ClawdeskFloatingImageIcon;
+  /** Explicit 1–4 compact Unicode scalars; no whitespace or control characters. */
+  interface ClawdeskFloatingTextIcon {
+    text: string;
+    path?: never;
+    renderingMode?: never;
+  }
+
+  /** Built-in registry key, validated script-local image, or compact visible text. */
+  type ClawdeskFloatingIconSource = ClawdeskFloatingIconKey | ClawdeskFloatingImageIcon | ClawdeskFloatingTextIcon;
   /** Native toolbar lifecycle notifications; button activation stays on addButton/onButtonClick. */
   type ClawdeskFloatingLifecycleEventType = "move" | "close";
 
@@ -160,6 +168,7 @@ declare global {
   type ClawdeskFloatingIconPresentation =
     | ClawdeskFloatingBuiltInIconPresentation
     | ClawdeskFloatingImageIconPresentation
+    | { kind: "text" }
     | { kind: "windowsGlyph"; systemSymbol: ""; glyph: string; fontFamily: "Segoe UI Symbol"; scale: number; offsetX: number; offsetY: number };
 
   interface ClawdeskFloatingButtonState {
@@ -174,14 +183,14 @@ declare global {
     badge: string;
     /** Monotonic EventLoop-owned state revision confirmed by the native host. */
     revision: number;
-    /** Always empty for the native icon-only toolbar; label remains semantic metadata. */
+    /** Actual visible text: “稍候” while a text button is busy; empty for icons/images. */
     renderedText: string;
-    /** Native tooltip readback. For icon-only buttons this always mirrors label. */
+    /** Native tooltip readback. Always mirrors label. */
     tooltip: string;
     /** Whether the native tooltip panel is currently visible. */
     tooltipVisible: boolean;
     iconPresentation: ClawdeskFloatingIconPresentation;
-    /** Native Accessibility name. For icon-only buttons this always mirrors label. */
+    /** Native Accessibility name. Always mirrors label. */
     accessibilityName: string;
     /** Badge announcement when present; otherwise the native active-state value. */
     accessibilityValue: string | boolean | null;
@@ -382,7 +391,7 @@ declare global {
 
   interface ClawdeskFloatingWindow {
     readonly id: string;
-    /** Adds ordered icon-only buttons before first show. label supplies both the native tooltip and Accessibility name. Horizontal accepts 1-32 unless toolbar.maxRows imposes a smaller capacity; vertical accepts 1-5. */
+    /** Adds ordered 40×40 buttons with a built-in icon, image, or explicit {text} before first show. label supplies both the native tooltip and Accessibility name. Horizontal accepts 1-32 unless toolbar.maxRows imposes a smaller capacity; vertical accepts 1-5. */
     addButton(id: string, label: string, icon: ClawdeskFloatingIconSource, callback?: ClawdeskFloatingButtonCallback): void;
     /** Adds bounded visible native status text before first show. Width stays fixed across updates. */
     addLabel(id: string, text: string, options?: ClawdeskFloatingLabelOptions): void;

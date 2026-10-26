@@ -1035,7 +1035,7 @@ const toolbar = new FloatingWindow({
 
 ## FloatingWindow.addButton(id, label, icon, callback?)
 
-显示前增加 icon-only native Button。
+显示前增加 40×40pt native Button，可显示内置图标、图片或显式短文本。
 
 **签名**
 
@@ -1045,7 +1045,9 @@ addButton(id: string, label: string, icon: IconSource, callback?: ButtonCallback
 
 **参数**
 
-`id` 稳定且唯一；`label` 同时是 tooltip 和 Accessibility name。`icon` 可以是审核过的内置 key，或 `{path, renderingMode?}` 的脚本目录内 PNG/JPEG。bare string 永远解释为内置 icon key。
+`id` 稳定且唯一；`label` 同时是 tooltip 和 Accessibility name。`icon` 可以是审核过的内置 key、`{path, renderingMode?}` 的脚本目录内 PNG/JPEG，或仅含 `text` 的 `{text:'继续'}`。bare string 永远解释为内置 icon key。
+
+`text` 必须包含 1–4 个紧凑 Unicode scalar，禁止任何空白或控制字符（包括格式控制字符）。内置 icon、image、text 三选一；空文本、过长文本、`text` 与 `path`/`renderingMode` 混用及未知字段均返回 `INVALID_SPEC`。`label` 始终独立提供 tooltip 与 Accessibility name，不被可见 text 替换。
 
 内置目录见 [图标图鉴](../custom-ui/icon-list.html)。`ai.*` 与 `automation.*` 语义键用于业务意图，不要求业务代码知道 macOS SF Symbol / Windows glyph 映射。
 
@@ -1061,6 +1063,7 @@ addButton(id: string, label: string, icon: IconSource, callback?: ButtonCallback
 
 ```js
 toolbar.addButton('run', '运行', 'automation.run', async () => runRecipe());
+toolbar.addButton('next', '继续当前任务', {text:'继续'}, async () => runRecipe());
 ```
 
 ## FloatingWindow.addLabel(id, text, options?)
@@ -1460,7 +1463,7 @@ native readback `ButtonState`。
 
 **行为与错误**
 
-更新不改变 40×40pt 外框；未知字段或非法资源 fail closed。
+更新不改变 40×40pt 外框；未知字段或非法资源 fail closed。`patch.icon` 使用与 [addButton](#floatingwindowaddbuttonid-label-icon-callback) 相同的 `IconSource`，可用 `{text:'继续'}` 在内置图标、图片和短文本之间切换；替换完整显示源，保留独立 `label`，除非同时更新它。
 
 **示例**
 
@@ -1540,7 +1543,7 @@ Button id。
 
 **返回值**
 
-包含 label/icon/active/disabled/busy/error/badge/revision/tooltip/Accessibility/localBounds/screenBounds 等。
+包含 label/icon/active/disabled/busy/error/badge/revision/tooltip/Accessibility/localBounds/screenBounds 等。text 按钮的 `icon` 回读 `{text:'继续'}`，`iconPresentation` 仅为 `{kind:'text'}`，`renderedText` 是实际可见文字：busy 时为“稍候”，完成后恢复声明文字；内置图标/图片的 `renderedText` 为空。tooltip 与 Accessibility name 仍来自独立的 `label`。
 
 **行为与错误**
 
@@ -2037,7 +2040,7 @@ Custom UI 常见结构化错误：
 - `pkg/customui/assets/toolbar-icons-v1.json`：内置 icon registry 的源码事实源
 - `types/FloatingWindowIconKey.generated.d.ts`：由同一 registry 生成的类型补全
 
-FloatingWindow 的 string icon 只表示内置 key；自定义 PNG/JPEG 必须使用 `{path, renderingMode?}` 对象形式，并被限制在执行脚本目录内。`original` 保留原色，`template` 使用 native state tint。
+FloatingWindow 的 `{text}` 显式显示 1–4 个紧凑 Unicode scalar，保持 40×40pt 外框与独立 label；string icon 只表示内置 key；自定义 PNG/JPEG 必须使用 `{path, renderingMode?}` 对象形式，并被限制在执行脚本目录内。`original` 保留原色，`template` 使用 native state tint。
 
 ## 生命周期与实现边界
 

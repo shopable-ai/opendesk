@@ -23,6 +23,9 @@ type floatingButton struct {
 	spec     toolbar.ButtonSpec
 	inFlight bool
 	callback goja.Callable
+	// Native readback omits image source. Retain only public descriptors by
+	// revision; keeping old raster payloads would bypass the window byte limit.
+	images map[uint64]floatingImageIconDeclaration
 }
 
 type floatingLabel struct {
@@ -370,7 +373,7 @@ func (f *floatingWindow) jsObject() *goja.Object {
 				}
 				button.callback = callback
 			}
-			button.spec.State.Revision = f.nextRevision()
+			button.setRevision(f.nextRevision())
 			f.items = append(f.items, floatingToolbarItem{typeName: toolbar.ItemButton, id: id, button: &button})
 			return goja.Undefined()
 		},
@@ -462,7 +465,7 @@ func (f *floatingWindow) jsObject() *goja.Object {
 				if current == nil {
 					return goja.Undefined()
 				}
-				return f.ui.runtime.ToValue(jsonCompatible(publicFloatingButtonState(current.spec, value.(toolbar.ButtonResult))))
+				return f.ui.runtime.ToValue(jsonCompatible(current.publicState(value.(toolbar.ButtonResult))))
 			})
 		},
 		"getLabelState": func(call goja.FunctionCall) goja.Value {
@@ -997,6 +1000,29 @@ func publicFloatingLabelState(spec toolbar.LabelSpec, native toolbar.LabelResult
 	}
 }
 
+func (button *floatingButton) setRevision(revision uint64) {
+	button.spec.State.Revision = revision
+	if button.spec.IconImage != nil {
+		if button.images == nil {
+			button.images = make(map[uint64]floatingImageIconDeclaration)
+		}
+		button.images[revision] = floatingImageIconDeclaration{
+			Path: button.spec.IconImage.Source, RenderingMode: button.spec.IconImage.RenderingMode,
+		}
+	}
+}
+
+func (button *floatingButton) publicState(native toolbar.ButtonResult) floatingButtonPublicState {
+	state := publicFloatingButtonState(native.ButtonSpec, native)
+	if native.IconPresentation.Kind == toolbar.IconKindImage {
+		// Match the response revision, not the request or latest logical spec:
+		// monotonic native apply may return a newer revision to an older update.
+		image := button.images[native.State.Revision]
+		state.Icon = map[string]any{"path": image.Path, "renderingMode": image.RenderingMode}
+	}
+	return state
+}
+
 func publicFloatingButtonState(spec toolbar.ButtonSpec, native toolbar.ButtonResult) floatingButtonPublicState {
 	presentation, _ := toolbar.IconPresentationForButton(spec)
 	if native.IconPresentation.Kind != "" || native.IconPresentation.SystemSymbol != "" {
@@ -1035,6 +1061,9 @@ func publicFloatingButtonState(spec toolbar.ButtonSpec, native toolbar.ButtonRes
 }
 
 func publicFloatingIconPresentation(presentation toolbar.IconPresentation) any {
+	if presentation.Kind == toolbar.IconKindText {
+		return map[string]any{"kind": toolbar.IconKindText}
+	}
 	if presentation.Kind == toolbar.IconKindImage {
 		return map[string]any{
 			"kind": presentation.Kind, "mediaType": presentation.MediaType,
@@ -1056,6 +1085,9 @@ func publicFloatingIconPresentation(presentation toolbar.IconPresentation) any {
 }
 
 func publicFloatingIcon(spec toolbar.ButtonSpec) any {
+	if spec.Text != "" {
+		return map[string]any{"text": spec.Text}
+	}
 	if spec.IconImage == nil {
 		return spec.Icon
 	}
@@ -1091,7 +1123,7 @@ func (f *floatingWindow) updateButton(call goja.FunctionCall) goja.Value {
 		if current == nil {
 			return goja.Undefined()
 		}
-		return f.ui.runtime.ToValue(jsonCompatible(publicFloatingButtonState(current.spec, value.(toolbar.ButtonResult))))
+		return f.ui.runtime.ToValue(jsonCompatible(current.publicState(value.(toolbar.ButtonResult))))
 	})
 }
 
@@ -1189,12 +1221,13 @@ func (f *floatingWindow) applyButtonPatch(button *floatingButton, value goja.Val
 		}
 	}
 	if raw, exists := patch["icon"]; exists {
-		icon, iconImage, err := f.resolveFloatingButtonIcon(f.ui.runtime.ToValue(raw), "FloatingWindow.updateButton", button.spec.ID)
+		icon, iconImage, text, err := f.resolveFloatingButtonIcon(f.ui.runtime.ToValue(raw), "FloatingWindow.updateButton", button.spec.ID)
 		if err != nil {
 			return err
 		}
 		candidate.Icon = icon
 		candidate.IconImage = iconImage
+		candidate.Text = text
 		if f.customIconBytesExcept(button.spec.ID)+customIconBytes(candidate) > toolbar.MaxToolbarImageBytes {
 			return &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.updateButton", WindowID: f.windowID, TargetID: button.spec.ID, Capability: "icon", Message: fmt.Sprintf("custom toolbar icon data exceeds the %d-byte window limit", toolbar.MaxToolbarImageBytes)}
 		}
@@ -1245,8 +1278,8 @@ func (f *floatingWindow) applyButtonPatch(button *floatingButton, value goja.Val
 	if err := validateFloatingButtonSpec(candidate); err != nil {
 		return withFloatingOperation(err, "FloatingWindow.updateButton", f.windowID, button.spec.ID)
 	}
-	candidate.State.Revision = f.nextRevision()
 	button.spec = candidate
+	button.setRevision(f.nextRevision())
 	return nil
 }
 
@@ -1365,8 +1398,8 @@ func validateFloatingButtonSpec(button toolbar.ButtonSpec) error {
 	}
 	if _, ok := toolbar.IconPresentationForButton(button); !ok {
 		message := "unknown built-in toolbar icon " + button.Icon
-		if button.IconImage != nil {
-			message = "custom toolbar icon payload is invalid"
+		if button.IconImage != nil || button.Text != "" {
+			message = "toolbar icon must be exactly one valid built-in, image, or compact text source"
 		}
 		return &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.addButton", TargetID: id, Capability: "icon", Message: message}
 	}
@@ -1377,11 +1410,11 @@ func validateFloatingButtonSpec(button toolbar.ButtonSpec) error {
 }
 
 func (f *floatingWindow) newFloatingButtonFromValue(id, label string, value goja.Value, operation string) (floatingButton, error) {
-	icon, iconImage, err := f.resolveFloatingButtonIcon(value, operation, id)
+	icon, iconImage, text, err := f.resolveFloatingButtonIcon(value, operation, id)
 	if err != nil {
 		return floatingButton{}, err
 	}
-	button := toolbar.ButtonSpec{ID: id, Label: label, Icon: icon, IconImage: iconImage}
+	button := toolbar.ButtonSpec{ID: id, Label: label, Icon: icon, IconImage: iconImage, Text: text}
 	if f.customIconBytesExcept("")+customIconBytes(button) > toolbar.MaxToolbarImageBytes {
 		return floatingButton{}, &customui.Error{Code: customui.CodeInvalidSpec, Operation: operation, WindowID: f.windowID, TargetID: id, Capability: "icon", Message: fmt.Sprintf("custom toolbar icon data exceeds the %d-byte window limit", toolbar.MaxToolbarImageBytes)}
 	}
@@ -1408,24 +1441,34 @@ func (f *floatingWindow) customIconBytesExcept(buttonID string) int {
 	return total
 }
 
-func (f *floatingWindow) resolveFloatingButtonIcon(value goja.Value, operation, targetID string) (string, *toolbar.IconImage, error) {
+func (f *floatingWindow) resolveFloatingButtonIcon(value goja.Value, operation, targetID string) (string, *toolbar.IconImage, string, error) {
 	if value != nil && !goja.IsUndefined(value) && !goja.IsNull(value) {
 		if icon, ok := value.Export().(string); ok {
 			if _, trusted := toolbar.IconToken(icon); trusted {
-				return icon, nil, nil
+				return icon, nil, "", nil
 			}
-			return "", nil, &customui.Error{Code: customui.CodeInvalidSpec, Operation: operation, WindowID: f.windowID, TargetID: targetID, Capability: "icon", Message: "unknown built-in toolbar icon " + icon}
+			return "", nil, "", &customui.Error{Code: customui.CodeInvalidSpec, Operation: operation, WindowID: f.windowID, TargetID: targetID, Capability: "icon", Message: "unknown built-in toolbar icon " + icon}
+		}
+	}
+	var fields map[string]any
+	if err := exportCustomUIValue(value, &fields); err == nil {
+		if raw, exists := fields["text"]; exists {
+			text, ok := raw.(string)
+			if !ok || len(fields) != 1 || !toolbar.ValidButtonText(text) {
+				return "", nil, "", &customui.Error{Code: customui.CodeInvalidSpec, Operation: operation, WindowID: f.windowID, TargetID: targetID, Capability: "icon", Message: "text icon must contain only text with 1 to 4 compact Unicode scalars without whitespace or control characters"}
+			}
+			return "", nil, text, nil
 		}
 	}
 	var declaration floatingImageIconDeclaration
 	if err := exportCustomUIValue(value, &declaration); err != nil {
-		return "", nil, &customui.Error{Code: customui.CodeInvalidSpec, Operation: operation, WindowID: f.windowID, TargetID: targetID, Capability: "icon", Message: `icon must be a built-in name or {path, renderingMode?}`, Cause: err}
+		return "", nil, "", &customui.Error{Code: customui.CodeInvalidSpec, Operation: operation, WindowID: f.windowID, TargetID: targetID, Capability: "icon", Message: `icon must be a built-in name, {path, renderingMode?}, or {text}`, Cause: err}
 	}
 	image, err := customui.LoadToolbarIconImage(f.ui.baseDir, declaration.Path, declaration.RenderingMode)
 	if err != nil {
-		return "", nil, withFloatingOperationCapability(err, operation, f.windowID, targetID, "icon")
+		return "", nil, "", withFloatingOperationCapability(err, operation, f.windowID, targetID, "icon")
 	}
-	return "", image, nil
+	return "", image, "", nil
 }
 
 func (f *floatingWindow) dispatch(event customui.Event, argument goja.Value) {
@@ -1465,7 +1508,7 @@ func (f *floatingWindow) dispatch(event customui.Event, argument goja.Value) {
 	button.inFlight = true
 	button.spec.State.Busy = true
 	button.spec.State.Error = ""
-	button.spec.State.Revision = f.nextRevision()
+	button.setRevision(f.nextRevision())
 	f.syncButtonState(button.spec, nil)
 	result, err := button.callback(goja.Undefined(), argument)
 	if err != nil {
@@ -1540,7 +1583,7 @@ func (f *floatingWindow) finishCallback(button *floatingButton, callbackErr erro
 		}
 		button.spec.State.Error = structured.Error()
 	}
-	button.spec.State.Revision = f.nextRevision()
+	button.setRevision(f.nextRevision())
 	if structured != nil {
 		// Logical busy/error state is already authoritative on the owner loop.
 		// Notify the JavaScript error listener in this same turn so a native

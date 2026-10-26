@@ -494,8 +494,8 @@ func normalizeToolbarWindow(spec WindowSpec) (WindowSpec, error) {
 		}
 		if _, ok := toolbar.IconPresentationForButton(button); !ok {
 			message := "unknown built-in toolbar icon " + button.Icon
-			if button.IconImage != nil {
-				message = "custom toolbar icon payload is invalid"
+			if button.IconImage != nil || button.Text != "" {
+				message = "toolbar icon must be exactly one valid built-in, image, or compact text source"
 			}
 			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", TargetID: button.ID, Capability: "icon", Message: message}
 		}

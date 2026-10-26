@@ -39,6 +39,7 @@ internal sealed class ToolbarSurface : Surface
                 var line=new Panel{BackColor=Color.FromArgb(85,85,88),TabStop=false};peers[id]=line;kinds[id]=kind;Form.Controls.Add(line);continue;
             }
             JsonObject declaration=J.Copy(J.O(item,kind=="button"?"button":kind=="label"?"label":"control"));
+            if(kind=="button")Icons.ValidateButton(declaration);
             declarations[id]=declaration;kinds[id]=kind;
             Control peer=CreatePeer(id,kind,declaration);peers[id]=peer;
             peer.AccessibleName=J.S(declaration,kind=="label"?"text":"label");
@@ -160,7 +161,7 @@ internal sealed class ToolbarSurface : Surface
         result["screenBounds"]=J.Rect(peer.RectangleToScreen(peer.ClientRectangle));
         result["accessibilityName"]=peer.AccessibleName??"";
         if(kind=="button"){
-            result.Remove("iconImage");result["renderedText"]="";result["tooltip"]=tips.GetToolTip(peer);result["tooltipVisible"]=ReferenceEquals(tooltipPeer,peer)&&Native.VisibleTooltip();
+            result.Remove("iconImage");result["renderedText"]=d.ContainsKey("text")&&J.B(J.O(d,"state"),"busy")?"稍候":J.S(d,"text");result["tooltip"]=tips.GetToolTip(peer);result["tooltipVisible"]=ReferenceEquals(tooltipPeer,peer)&&Native.VisibleTooltip();
             result["iconPresentation"]=Icons.Presentation(d);
             result["accessibilityValue"]=J.S(d,"badge");
         }else if(kind=="label"){
@@ -187,7 +188,7 @@ internal sealed class ToolbarSurface : Surface
         if(!declarations.TryGetValue(id,out var current))throw new HostError("NOT_FOUND","toolbar item was not found");
         if((family=="button"&&kinds[id]!="button")||(family=="label"&&kinds[id]!="label")||(family=="control"&&kinds[id] is "button" or "label"))throw new HostError("INVALID_SPEC","toolbar item family mismatch");
         if(operation.StartsWith("apply")){
-            var next=J.Copy(J.O(payload,family));double rev=family=="button"?J.N(J.O(next,"state"),"revision"):J.N(next,"revision");
+            var next=J.Copy(J.O(payload,family));if(family=="button")Icons.ValidateButton(next);double rev=family=="button"?J.N(J.O(next,"state"),"revision"):J.N(next,"revision");
             double previous=family=="button"?J.N(J.O(current,"state"),"revision"):J.N(current,"revision");
             if(rev>=previous){
                 if(family!="button"&&J.N(current,"width")!=J.N(next,"width"))throw new HostError("INVALID_SPEC","toolbar width cannot change after show");
@@ -217,7 +218,21 @@ internal sealed class IconButton : Button
         var d=spec();var state=J.O(d,"state");bool active=J.B(state,"active"),busy=J.B(state,"busy");
         e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;e.Graphics.Clear(active?Color.FromArgb(55,95,135):Color.FromArgb(35,35,39));
         float scale=DeviceDpi/96f;Color foreground=Enabled?Color.White:Color.Gray;
-        if(busy){using var pen=new Pen(Color.LightSkyBlue,2*scale);e.Graphics.DrawArc(pen,10*scale,10*scale,20*scale,20*scale,(float)(Stopwatch.GetTimestamp()/(double)Stopwatch.Frequency*240%360),260);}
+        if(d.ContainsKey("text")){
+            string text=busy?"稍候":J.S(d,"text");
+            using var font=new Font("Segoe UI",12,FontStyle.Regular);
+            using var format=(StringFormat)StringFormat.GenericTypographic.Clone();
+            format.FormatFlags|=StringFormatFlags.NoWrap;
+            SizeF size=e.Graphics.MeasureString(text,font,int.MaxValue,format);
+            float factor=Math.Min(1,Math.Min((Width-8*scale)/Math.Max(1,size.Width),(Height-8*scale)/Math.Max(1,size.Height)));
+            var saved=e.Graphics.Save();
+            e.Graphics.SetClip(new RectangleF(4*scale,4*scale,Width-8*scale,Height-8*scale));
+            e.Graphics.TranslateTransform((Width-size.Width*factor)/2,(Height-size.Height*factor)/2);
+            e.Graphics.ScaleTransform(factor,factor);
+            using var brush=new SolidBrush(busy?Color.White:foreground);
+            e.Graphics.DrawString(text,font,brush,PointF.Empty,format);
+            e.Graphics.Restore(saved);
+        }else if(busy){using var pen=new Pen(Color.LightSkyBlue,2*scale);e.Graphics.DrawArc(pen,10*scale,10*scale,20*scale,20*scale,(float)(Stopwatch.GetTimestamp()/(double)Stopwatch.Frequency*240%360),260);}
         else if(d["iconImage"] is JsonObject raster){
             string key=J.S(raster,"dataBase64");
             if(key!=imageKey){image?.Dispose();using var bytes=new MemoryStream(Convert.FromBase64String(key));using var decoded=Image.FromStream(bytes);image=new Bitmap(decoded);imageKey=key;}
@@ -242,7 +257,37 @@ internal static class Icons
     private static readonly Dictionary<string,JsonObject> registry=Load();
     private static Dictionary<string,JsonObject> Load(){using var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("OpenDesk.UIHost.icons.json")??throw new InvalidDataException("Windows icon registry missing");var root=JsonNode.Parse(stream)!.AsObject();return root.ToDictionary(p=>p.Key,p=>p.Value!.AsObject());}
     internal static string Glyph(string name)=>registry.TryGetValue(name,out var v)?J.S(v,"glyph"):throw new HostError("INVALID_SPEC","unknown toolbar icon");
+    internal static void ValidateButton(JsonObject d){
+        foreach(var field in d)
+            if(field.Key is not ("id" or "label" or "badge" or "icon" or "iconImage" or "text" or "state"))
+                throw new HostError("INVALID_SPEC","unknown toolbar button field");
+        bool hasText=d.ContainsKey("text"),hasImage=d["iconImage"]!=null;
+        if(d.ContainsKey("icon")&&(d["icon"] is not JsonValue iconValue||!iconValue.TryGetValue<string>(out _)))
+            throw new HostError("INVALID_SPEC","toolbar icon must be a string");
+        string icon=J.S(d,"icon");
+        if((hasText?1:0)+(hasImage?1:0)+(icon.Length>0?1:0)!=1)
+            throw new HostError("INVALID_SPEC","toolbar button requires exactly one icon, image, or text source");
+        if(hasText){
+            if(d["text"] is not JsonValue value||!value.TryGetValue<string>(out var text)||string.IsNullOrEmpty(text))
+                throw new HostError("INVALID_SPEC","toolbar text must be a nonempty string");
+            int count=0;
+            for(int i=0;i<text.Length;i++){
+                if(char.IsSurrogate(text[i])){
+                    if(!char.IsHighSurrogate(text[i])||i+1>=text.Length||!char.IsLowSurrogate(text[i+1]))
+                        throw new HostError("INVALID_SPEC","toolbar text must contain valid Unicode scalars");
+                    i++;
+                }
+            }
+            foreach(var scalar in text.EnumerateRunes()){
+                count++;
+                if(Rune.IsWhiteSpace(scalar)||Rune.IsControl(scalar)||Rune.GetUnicodeCategory(scalar)==System.Globalization.UnicodeCategory.Format)
+                    throw new HostError("INVALID_SPEC","toolbar text cannot contain whitespace or control characters");
+            }
+            if(count>4)throw new HostError("INVALID_SPEC","toolbar text must contain 1 to 4 Unicode scalars");
+        }else if(!hasImage)Glyph(icon);
+    }
     internal static JsonObject Presentation(JsonObject d){
+        if(d.ContainsKey("text"))return new JsonObject { ["kind"]="text" };
         if(d["iconImage"] is JsonObject image)return new JsonObject { ["kind"]="image",["mediaType"]=J.S(image,"mediaType"),["pixelWidth"]=J.I(image,"pixelWidth"),["pixelHeight"]=J.I(image,"pixelHeight"),["renderingMode"]=J.S(image,"renderingMode") };
         var icon=registry[J.S(d,"icon")];return new JsonObject { ["kind"]="windowsGlyph",["systemSymbol"]="",["scale"]=1,["offsetX"]=0,["offsetY"]=0,["glyph"]=J.S(icon,"glyph"),["fontFamily"]="Segoe UI Symbol" };
     }
