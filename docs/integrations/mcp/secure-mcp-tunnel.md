@@ -1,8 +1,17 @@
 # OpenDesk 与官方 Secure MCP Tunnel
 
-核对日期：2026-10-25。本文说明官方 Tunnel 的接入边界，以及已经完成的无密钥本地兼容检查。
+核对日期：2026-10-26（Asia/Shanghai）。本文说明官方 Tunnel 的接入边界、本地兼容检查和可维护的受限运行入口。
 
 ## 当前结论
+
+**当前正式维护工具版本核心验收 PASS；完整安全交付未完成。**
+专用三工具模式已有两轮历史闭环；第三轮使用本指南正式入口完成真实官方 ChatGPT 网页写入、
+同实例读取、独立磁盘核对及所属进程停止，三对实际 RPC 完整、写入准确一次。
+网页显示仅 Write 1 / Read 2；本轮未收到 `tools/list`，不将缓存 schema 显示称为实时重新发现。
+完整 A–G 及取消审计边界见[验收报告](../../quality/mcp/2026-10-25-chatgpt-web-file-proof.md#第三轮当前正式工具版本-ag)。
+最新续接已核实官方候选 key 的完整权限和精确到期时间；与保存 key 的对应关系及历史暴露恢复仍为 NOT_VERIFIED。
+前续接 Goal 最后记录为 blocked，本次续接没有活跃 Goal；完整安全交付仍未完成。
+下文无密钥 `--read-only` probe 是较早的独立兼容证据，不能替代上述网页验收，也不扩大当前三工具范围。
 
 官方 `tunnel-client` 支持启动 stdio MCP 子进程，因此可以直接组合
 `dist/opendesk-mcp --read-only`。无需为 OpenDesk 增加 HTTP 服务或第二个 Host。
@@ -33,7 +42,15 @@
 **Pro 套餐说明：**本次 fetch 的两篇当前官方页面没有给出 Pro 专属的读写权限矩阵，
 也没有证实“Pro 固定只读”的限制。不能据此宣称 Pro 一定支持或禁止某个工具、账户一定有 Tunnel 权限，
 或把 OpenDesk 的 `--read-only` 归因于 Pro 套餐。通用工具读写规则、套餐可用性、
-Platform Tunnel RBAC 与 OpenDesk 自身能力限制是不同层面；实际账户授权尚未检查。
+Platform Tunnel RBAC 与 OpenDesk 自身能力限制是不同层面；专用 Tunnel 已实际认证成功，
+认证成功本身不能证明 key 没有其他权限或到期日。
+最新官方详情另行核实 `OpenDesk Browser Tunnel Runtime 1025`（Tracking ID `key_AL7gua4bfxBSdHtv`）
+为 Active，Key-level permissions 完整列表仅含 Tunnels Read + Use，精确到期为北京时间
+`2026-11-25 00:21:45`；尚未证明它与本地保存文件或历史暴露 key 相同。
+只读元数据见[较早续接证据](../../quality/mcp/2026-10-25-chatgpt-web-file-proof.md#2026-10-26-较早续接官方-key-元数据与本地项目入口)。
+用户最新要求将轮换草稿改为 **30 天**，仅 Tunnels Read + Use；最终创建、实际到期时间、安全保存与消费者切换仍待核实。
+用户已确认完成创建；隐藏保存及创建后的官方元数据仍待核验，安全恢复尚未闭环。
+当前证据和接管边界见[当前续接](../../quality/mcp/2026-10-25-chatgpt-web-file-proof.md#2026-10-26-当前续接30-天草稿与本地项目结果核验)。
 
 官方 Tunnel 面向私有连接；公共插件提交仍要求符合其公开 HTTPS 端点要求，不能将本地测试当作发布资格。
 
@@ -176,12 +193,84 @@ env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin XDG_CONFIG_HOME="$TUNNEL_ROOT/isolated
 
 上述是官方上游实现补证，不替代云服务文档或实际账户授权。本轮无需第三方教程或其他 OSS 实现。
 
-## 后续在线操作（本轮未执行）
+## 受限文件证明的长期复用入口
 
-以下是后续在线接入步骤，本次仅补充说明，没有执行这些操作或读取任何现有密钥。
-步骤依据前述已取得的官方页面与 v0.0.18 CLI 帮助；没有实测当前账户的网页 UI。
+维护源码位于 `tests/mcp/tools/secure-tunnel/`，使用 POSIX Python 3.11+，无额外 Python 依赖。
+它只支持 `tm_status`、`tm_test_write_nonce`、`tm_test_read_nonce`；不支持通用 MCP 录制或桌面操作。
+配置索引默认是 `~/.opendesk/tunnels/opendesk-web-file.json`，仅记录 `keyFile` 路径、
+`tunnelId`、`organizationId`、`client`、`binary`、`binaryProvenance` 等非秘密元数据。
+索引为 0600、父目录 0700；key 仍在原用户 secrets 目录，普通文件 0600、父目录 0700。
+不要把 key 正文写进索引、仓库、命令参数、聊天或证据。
+
+从仓库根目录 `/Users/shopme/Documents/workspace/opendesk` 执行一行本地诊断：
+
+```sh
+python3 tests/mcp/tools/secure-tunnel/prepare-run.py --doctor-only
+```
+
+命令读取已有索引，验证已有客户端和受限二进制与指定 provenance 的 SHA-256，复制受限二进制，
+在 `.runtime/tests/mcp-chatgpt-web/<UTC-time>-<random>/` 独占准备新 run、fixture、profile 和 manifest，
+随后通过 `file:` 引用执行官方 doctor。它不启动在线轮询或 MCP；stdio 等 SKIP 不算在线通过。
+只准备、不启动客户端时，去掉 `--doctor-only`。可用 `--index`、`--binary`、`--client`、`--provenance`
+显式选择已有本地产物；哈希不匹配即停止，不自动构建、下载或创建 key/Tunnel。
+
+需要一次前台在线会话时，仍从仓库根目录执行：
+
+```sh
+python3 tests/mcp/tools/secure-tunnel/prepare-run.py --online
+```
+
+该命令先 doctor，再启动最长 30 分钟的官方轮询；Ctrl+C 只回收本次创建的进程组。
+它不是登录自启服务，也不自动发送网页请求。第三轮已实际使用该入口与命令级 localhost 代理，
+在全新 run 中完成一条网页请求的核心验收；具体原样命令与证据见上面报告。
+共享 key 的历史安全恢复仍需完成；不能用 doctor 成功抵销该缺口。
+代理仅继承命令环境中的 HTTP(S)/ALL_PROXY 配置，不修改全局代理。
+
+### Browser 本地项目的日常入口
+
+Browser 项目连接与上述受限三工具 Tunnel 是各自独立的链路。
+本地源码开发优先使用既有侧栏 **开发 → 本地项目**：从已授权目录选择源码，按现场连接诊断和
+“首次使用：连接方法”连接原目录，再使用源码关联、实时开发预览、运行和运行结果入口。
+无需手动打开 `native-agent/workspace.html`，不另建工作台。
+Native 已连接并不表示源码 Provider 就绪，本地测试网页可用也不能替代项目连接证据。
+较早实窗的 `chatgpt-send-queue` 目录曾离线；当前实窗 Native 已连接、Provider 已注册，
+所选 `local-project-core-check` 只读源码就绪。已通过既有结果入口查询并下载历史 v2 JSON，SHA 与界面一致，未重跑业务。
+侧栏“实时开发预览”能打开既有文件工作区，README/Markdown 实窗可读；该 Controller 目录的自定义 UI 预览显示
+`E_FILES_NOT_FOUND`，完整自定义 UI 预览仍未通过。扩展加载目录已核对为 `dist/development`，与当前 HEAD 的完整构建对应关系未核实。
+具体 source/run 身份、截图、下载哈希与历史执行证据边界见上述当前续接，不把入口连通推广为完整端到端通过。
+
+启动器在读取 key 前检查准备产物及源码哈希，使用排他 run 锁，在线启动前独占创建 `.online-used`。
+已有 proof、RPC trace、在线残留或未知状态的 run 均拒绝再用；不要删除标记后重试。
+doctor-only 的已停止 run 可继续由 `start-online.py --run-dir <absolute-run> --key-file <absolute-key-file>`
+启动一次在线会话；通常直接用上述准备入口生成新 run 更清晰。
+临时 profile 退出后删除；MCP command 以 `env -i` 启动，不继承 runtime key。
+RPC trace 独占创建，写盘前递归省略 `_meta`，保留工具名、参数、返回、ID、时间和顺序。
+输入线程采用可停止读写并在 `audit_end` 前 join；取消或审计失败非零退出并标记不完整。
+在线日志原子独占创建，doctor 日志允许在核验打开文件为当前用户 0600 普通文件后追加。
+终端输出管道饱和时允许丢弃显示内容，脱敏日志为完整记录；取消和进程回收不会等待终端恢复。
+如系统拒绝向所属进程组发信号，启动器有限退出并记录 `cleanup_failed` 和所属 PID/group，不能据此认为进程已停止。
+
+`binaryProvenance` 是已有构建的来源记录，不等于在当前 HEAD 重新构建；manifest 分别记录
+原构建信息、当前准备 HEAD、已登记源文件是否一致及当前工具哈希。源码变化后必须重新准备。
+`.runtime/` 中的已下载客户端和旧二进制可被清理；入口源码会保留，但缺失产物需要按本文安装/构建说明重新准备 provenance。
+当前 manifest 及本地哈希以可信本机操作员为边界，不防御同用户修改源码、索引或 key 路径的攻击。
+
+最小合成检查均从仓库根目录执行，不读取真实 key、不连接云端、不写现有 proof：
+
+```sh
+python3 tests/mcp/tools/secure-tunnel/check-relay.py
+python3 tests/mcp/tools/secure-tunnel/check-launcher.py
+python3 tests/mcp/tools/secure-tunnel/check-prepare.py
+```
+
+结果分别写入 `.runtime/tests/mcp-chatgpt-web/relay-regression/`、`launcher-regression/`、`prepare-regression/`。
+
+## 首次在线接入步骤（通用说明）
+
+以下保留首次接入的通用步骤；已有上述专用资源时应复用，不重复创建 Tunnel/key。
+步骤依据前述官方页面与 v0.0.18 CLI 帮助；本节七工具只读流程并非已验收的三工具文件证明流程。
 官方页面确认的入口和选项列在下文，未确认的按钮名称、字段布局不作推断。
-**Pro 账户能否使用这些入口、创建或选择 Tunnel，仍未验证；本地兼容不能证明账户可用性。**
+本项目专用资源已有真实网页成功证据；这不代表所有 Pro 账户均有相同权限，本地兼容也不能证明其他账户可用性。
 
 正式接入使用 profile + `doctor` + `run`，不要把 `dev proxy` 的随机 URL、开发占位 token
 或示例 tunnel ID 用于 ChatGPT 正式连接。以下终端命令均从仓库根目录执行。
@@ -281,7 +370,7 @@ key 通过隐藏输入进入子 shell 的环境，客户端读取 profile 中的
 4. 阅读风险提示，选择 **I understand and want to continue**，再选 **Create as a plugin**。
    在个人插件或目标工作区中找到创建的插件，并按官方流程安装后用于会话。
 
-上述英文入口与认证选项由已取得的官方文档确认；本次未操作实际网页，不能据此确认当前账户显示相同 UI 或具备访问资格。
+上述英文入口与认证选项来自官方文档；三工具专用插件另有真实网页证据，但不证明所有账户均显示相同 UI 或具备访问资格。
 
 ### 5. 首次只验证 tm_status 和 7 个只读工具
 
@@ -300,5 +389,7 @@ key 通过隐藏输入进入子 shell 的环境，客户端读取 profile 中的
 替代真实云端调用证据。7 个只读工具的列表核验不要求逐一调用；首次不要截图、读取私人窗口或执行桌面输入。
 只有正式客户端轮询、插件发现与这次 `tm_status` 云端调用均实际成功，才能报告该在线路径接入成功。
 
-当前没有核验账户套餐权限、真实 Tunnel、runtime key、官方控制面连通性、ChatGPT 插件发现或云端工具调用。
-因此当前结论仍为：**官方客户端与指定 OpenDesk stdio 二进制在受限本地环境下兼容；Pro 账户可用性与云端接入尚未验证。**
+早先无密钥本地 probe 没有验证任何云端接入；其结论仅为本地兼容。
+之后本项目专用三工具 Tunnel 已完成真实网页验收，当前正式工具版本也已通过，见本文顶部。
+七工具 `--read-only` 的本地证据与三工具在线证据分别成立；未据此推广到所有 Pro 账户，
+官方候选 key 的权限/到期日已有独立页面证据；与保存文件的对应关系及历史暴露恢复仍待核验。

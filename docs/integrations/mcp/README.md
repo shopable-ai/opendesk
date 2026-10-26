@@ -44,6 +44,19 @@ runtime key。profile 的 MCP command 应使用 `/usr/bin/env -i PATH=/usr/bin:/
 该模式的状态查询和本地测试都不证明网页调用成功；验收需要网页实际发出写、读工具调用，
 再由宿主独立读取文件内容与 SHA-256，不能只采信模型回复。
 
+已有受限索引和验收产物时，从仓库根目录执行一行本地配置诊断：
+
+```bash
+python3 tests/mcp/tools/secure-tunnel/prepare-run.py --doctor-only
+```
+
+该入口始终准备新 run，复用已保存 key 的文件引用，不重复创建凭证或重放旧 proof。
+显式 `--online` 才启动一次前台轮询；缺省只准备。
+所需索引字段、合成检查、一次性运行与历史安全恢复限制见
+[长期复用入口](secure-mcp-tunnel.md#受限文件证明的长期复用入口)。
+当前正式工具已完成真实网页三工具闭环与所属清理；核心 PASS，历史凭证恢复仍 NOT_VERIFIED。
+具体版本、A–G 证据及限制见[验收报告](../../quality/mcp/2026-10-25-chatgpt-web-file-proof.md)。
+
 ## 无密钥真实桌面验收
 
 从仓库根目录，构建本轮程序后执行一行：
