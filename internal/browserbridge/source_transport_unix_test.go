@@ -141,7 +141,7 @@ func TestModernFrozenSourceResolveAndReadValidateTransport(t *testing.T) {
 		"format": "opendesk.local-source.v1", "version": 1, "transferId": "transfer-1",
 		"chunkBytes": localSourceChunkBytes, "artifactId": strings.Repeat("1", 64),
 		"inputHash": strings.Repeat("2", 64), "sourceHash": strings.Repeat("3", 64),
-		"sourceBytes":      482238,
+		"sourceBytes":      4220252,
 		"transferIdentity": map[string]any{"bindingId": rawID, "providerEpoch": provider.providerEpoch},
 	}
 	if err := host.handleChrome(MustEncode(map[string]any{"v": 1, "kind": "dev.request",
@@ -157,7 +157,7 @@ func TestModernFrozenSourceResolveAndReadValidateTransport(t *testing.T) {
 	deliverProviderResult(t, host, provider, "resolve-large", map[string]any{
 		"bindingId": rawID, "projectId": rawID, "runtimeKind": "controller",
 		"entryFormat": "async-main", "managedUI": false, "sourceHash": strings.Repeat("3", 64),
-		"sourceBytes": 482238, "inputHash": strings.Repeat("2", 64), "artifactId": strings.Repeat("1", 64),
+		"sourceBytes": 4220252, "inputHash": strings.Repeat("2", 64), "artifactId": strings.Repeat("1", 64),
 		"sourceRef": sourceRef,
 	})
 	reply := readChromeDevResponse(t, out)
@@ -183,7 +183,7 @@ func TestModernFrozenSourceResolveAndReadValidateTransport(t *testing.T) {
 
 	readParams := map[string]any{"bindingId": scopedID, "transferId": "transfer-1",
 		"artifactId": strings.Repeat("1", 64), "inputHash": strings.Repeat("2", 64),
-		"sourceHash": strings.Repeat("3", 64), "sourceBytes": 482238, "offset": 0}
+		"sourceHash": strings.Repeat("3", 64), "sourceBytes": 4220252, "offset": 0}
 	if err := host.handleChrome(MustEncode(map[string]any{"v": 1, "kind": "dev.request",
 		"requestId": "read-0", "providerEpoch": aggregateEpoch, "method": "project.source.read", "params": readParams})); err != nil {
 		t.Fatal(err)
@@ -198,7 +198,7 @@ func TestModernFrozenSourceResolveAndReadValidateTransport(t *testing.T) {
 	deliverProviderResult(t, host, provider, "read-0", map[string]any{
 		"bindingId": rawID, "transferId": "transfer-1", "artifactId": strings.Repeat("1", 64),
 		"inputHash": strings.Repeat("2", 64), "sourceHash": strings.Repeat("3", 64),
-		"sourceBytes": 482238, "offset": 0, "byteLength": len(chunk),
+		"sourceBytes": 4220252, "offset": 0, "byteLength": len(chunk),
 		"dataBase64": base64.StdEncoding.EncodeToString(chunk), "done": false,
 	})
 	reply = readChromeDevResponse(t, out)
@@ -213,7 +213,7 @@ func TestModernFrozenSourceResolveAndReadValidateTransport(t *testing.T) {
 
 	validateParams := map[string]any{"bindingId": scopedID, "transferId": "transfer-1",
 		"artifactId": strings.Repeat("1", 64), "inputHash": strings.Repeat("2", 64),
-		"sourceHash": strings.Repeat("3", 64), "sourceBytes": 482238}
+		"sourceHash": strings.Repeat("3", 64), "sourceBytes": 4220252}
 	if err := host.handleChrome(MustEncode(map[string]any{"v": 1, "kind": "dev.request",
 		"requestId": "validate-final", "providerEpoch": aggregateEpoch, "method": "project.source.validate", "params": validateParams})); err != nil {
 		t.Fatal(err)
@@ -226,7 +226,7 @@ func TestModernFrozenSourceResolveAndReadValidateTransport(t *testing.T) {
 	deliverProviderResult(t, host, provider, "validate-final", map[string]any{
 		"bindingId": rawID, "transferId": "transfer-1", "artifactId": strings.Repeat("1", 64),
 		"inputHash": strings.Repeat("2", 64), "sourceHash": strings.Repeat("3", 64),
-		"sourceBytes": 482238, "validated": true,
+		"sourceBytes": 4220252, "validated": true,
 	})
 	reply = readChromeDevResponse(t, out)
 	result, _ = Decode(reply["result"])
@@ -243,7 +243,7 @@ func TestFrozenSourceUnsupportedAndStrictBounds(t *testing.T) {
 		"requestId": "unsupported-read", "providerEpoch": aggregateEpoch, "method": "project.source.read",
 		"params": map[string]any{"bindingId": scopedID, "transferId": "transfer-1",
 			"artifactId": strings.Repeat("1", 64), "inputHash": strings.Repeat("2", 64),
-			"sourceHash": strings.Repeat("3", 64), "sourceBytes": 482238, "offset": 0}}))
+			"sourceHash": strings.Repeat("3", 64), "sourceBytes": 4220252, "offset": 0}}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -316,7 +316,7 @@ func TestFrozenSourceEpochDisconnectAndRevocationRejectPending(t *testing.T) {
 	defer cleanup()
 	sourceParams := map[string]any{"bindingId": scopedID, "transferId": "transfer-1",
 		"artifactId": strings.Repeat("1", 64), "inputHash": strings.Repeat("2", 64),
-		"sourceHash": strings.Repeat("3", 64), "sourceBytes": 482238, "offset": 0}
+		"sourceHash": strings.Repeat("3", 64), "sourceBytes": 4220252, "offset": 0}
 	if err := host.handleChrome(MustEncode(map[string]any{"v": 1, "kind": "dev.request",
 		"requestId": "stale-epoch", "providerEpoch": aggregateEpoch, "method": "project.source.read", "params": sourceParams})); err != nil {
 		t.Fatal(err)
@@ -326,7 +326,7 @@ func TestFrozenSourceEpochDisconnectAndRevocationRejectPending(t *testing.T) {
 	deliverProviderResult(t, host, provider, "stale-epoch", map[string]any{
 		"bindingId": rawID, "transferId": "transfer-1", "artifactId": strings.Repeat("1", 64),
 		"inputHash": strings.Repeat("2", 64), "sourceHash": strings.Repeat("3", 64),
-		"sourceBytes": 482238, "offset": 0, "byteLength": localSourceChunkBytes,
+		"sourceBytes": 4220252, "offset": 0, "byteLength": localSourceChunkBytes,
 		"dataBase64": base64.StdEncoding.EncodeToString(bytes.Repeat([]byte("x"), localSourceChunkBytes)), "done": false,
 	})
 	reply := readChromeDevResponse(t, out)
@@ -348,7 +348,7 @@ func TestFrozenSourceEpochDisconnectAndRevocationRejectPending(t *testing.T) {
 	deliverProviderResult(t, host, provider, "revoked-lease", map[string]any{
 		"bindingId": rawID, "transferId": "transfer-1", "artifactId": strings.Repeat("1", 64),
 		"inputHash": strings.Repeat("2", 64), "sourceHash": strings.Repeat("3", 64),
-		"sourceBytes": 482238, "offset": 0, "byteLength": localSourceChunkBytes,
+		"sourceBytes": 4220252, "offset": 0, "byteLength": localSourceChunkBytes,
 		"dataBase64": base64.StdEncoding.EncodeToString(bytes.Repeat([]byte("x"), localSourceChunkBytes)), "done": false,
 	})
 	reply = readChromeDevResponse(t, out)
@@ -401,18 +401,18 @@ func TestFrozenSourceBadProviderResultIsConservativeError(t *testing.T) {
 	defer cleanup()
 	sourceParams := map[string]any{"bindingId": scopedID, "transferId": "transfer-1",
 		"artifactId": strings.Repeat("1", 64), "inputHash": strings.Repeat("2", 64),
-		"sourceHash": strings.Repeat("3", 64), "sourceBytes": 482238, "offset": 0}
+		"sourceHash": strings.Repeat("3", 64), "sourceBytes": 4220252, "offset": 0}
 	validateParams := cloneWithoutFrozenParam(sourceParams, "offset")
 	goodRead := map[string]any{
 		"bindingId": rawID, "transferId": "transfer-1", "artifactId": strings.Repeat("1", 64),
 		"inputHash": strings.Repeat("2", 64), "sourceHash": strings.Repeat("3", 64),
-		"sourceBytes": 482238, "offset": 0, "byteLength": localSourceChunkBytes,
+		"sourceBytes": 4220252, "offset": 0, "byteLength": localSourceChunkBytes,
 		"dataBase64": base64.StdEncoding.EncodeToString(bytes.Repeat([]byte("x"), localSourceChunkBytes)), "done": false,
 	}
 	goodValidate := map[string]any{
 		"bindingId": rawID, "transferId": "transfer-1", "artifactId": strings.Repeat("1", 64),
 		"inputHash": strings.Repeat("2", 64), "sourceHash": strings.Repeat("3", 64),
-		"sourceBytes": 482238, "validated": true,
+		"sourceBytes": 4220252, "validated": true,
 	}
 	cases := []struct {
 		name   string
@@ -489,7 +489,7 @@ func TestFrozenSourceFullPayloadAcrossProviderRoutes(t *testing.T) {
 					bindingID, epoch = legacyBinding(provider.providerEpoch, rawID), aggregate
 				}
 			}
-			source := bytes.Repeat([]byte("x"), 482238)
+			source := bytes.Repeat([]byte("x"), 4220252)
 			hash := sha256.Sum256(source)
 			identity := map[string]any{"bindingId": bindingID, "transferId": "frozen-transfer", "artifactId": strings.Repeat("1", 64), "inputHash": strings.Repeat("2", 64), "sourceHash": hex.EncodeToString(hash[:]), "sourceBytes": len(source)}
 			forward := func(id, method string, params map[string]any) {
