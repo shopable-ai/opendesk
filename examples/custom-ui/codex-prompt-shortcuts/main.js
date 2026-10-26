@@ -122,7 +122,7 @@ const managerHTML='<!doctype html><html><head><meta charset="utf-8"></head><body
 File.ensureDir(DIR);
 let data=verified(await File.readJSON(FILE,{defaultValue:empty()}));
 let baseline=JSON.stringify(data),bar=null,manager=null,originalWin=null;
-let barId=0,managerId=0,expectedPosition=null,dragTimer=null,writing=false;
+let barId=0,managerId=0,expectedPosition=null,dragTimer=null,writing=false,lastProgrammaticMove=0;
 let editId=null,editDirty=false,page=0,stopping=false,subscribers=[];
 function logError(e){console.error('CODEX_SHORTCUT_ERROR='+JSON.stringify({
   code:e?.code||'ERROR',message:String(e?.message||e)}));}
@@ -199,7 +199,9 @@ async function synchronize(){
     const pos=frame(win,barHeight(data),data.settings,Screen.getDisplays());
     const before=(await bar.getState()).bounds;
     if(Math.abs(before.x-pos.x)>1||Math.abs(before.y-pos.y)>1){
-      expectedPosition=pos;await bar.setPosition(pos.x,pos.y);
+      if(dragTimer){clearTimeout(dragTimer);dragTimer=null;}
+      expectedPosition=pos;lastProgrammaticMove=Date.now();
+      await bar.setPosition(pos.x,pos.y);
     }
     if(!(await bar.getState()).visible)await bar.show();
   }catch(e){logError(e);}
@@ -213,6 +215,9 @@ async function drag(event,epoch){
   if(epoch!==barId||!event?.bounds||!originalWin||stopping)return;
   const b=event.bounds;
   if(!Number.isFinite(b.x)||!Number.isFinite(b.y))return;
+  // Polling can deliver an older programmatic move after a newer target position.
+  // Such events must never overwrite the user's saved relative offset.
+  if(Date.now()-lastProgrammaticMove<750)return;
   if(expectedPosition&&Math.abs(b.x-expectedPosition.x)<2&&
       Math.abs(b.y-expectedPosition.y)<2){expectedPosition=null;return;}
   if(dragTimer)clearTimeout(dragTimer);
