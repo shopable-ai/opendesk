@@ -14,6 +14,7 @@ import { expectedLoaded } from '../../lab/browser-automation-core/candidate.mjs'
 import { runLiveResources } from './live-resources.mjs';
 import { scanOutputs } from './redaction-scan.mjs';
 import { setup } from '../../lab/browser-automation-core/setup.mjs';
+import { installationReport } from '../../lab/browser-automation-core/installation.mjs';
 import { provenance } from './component-check.mjs';
 
 export async function runDOMGates({visualCheckpoint = false} = {}) {
@@ -243,7 +244,7 @@ export async function runDOMGates({visualCheckpoint = false} = {}) {
       assert.ok(events.some(event => event.type === 'disconnected' && event.reason === 'EXTENSION_NOT_ALLOWED'));
       scope = await observeReady(client, mainTab);
       assert.deepEqual(await actionCounts(), pageCountsBefore);
-      const installation = JSON.parse(fs.readFileSync(path.join(EVIDENCE, 'latest-installation.json'))); assert.equal(installation.nativeHost.checks.allowedOrigins, true);
+      const installation = installationReport(); assert.equal(installation.nativeHost.checks.allowedOrigins, true);
       return {pageCountsBefore, pageCountsAfter: await actionCounts(), wrongCredential: 'UNAUTHORIZED', missingCredential: 'UNAUTHORIZED', pinnedOrigin: true, fault, before, after, events,
         identityFaultScope: 'actual pinned Chrome Extension deliberately sends an unapproved declared hello identity; Broker rejects it before execution'};
     });

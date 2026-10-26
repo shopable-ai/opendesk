@@ -7,6 +7,13 @@
   get('order-id').addEventListener('input', () => { get('app-order-value').textContent = get('order-id').value; });
   get('confirmation').addEventListener('input', () => { get('app-confirmation-value').textContent = get('confirmation').value; });
   get('hide-checks').addEventListener('click', () => { document.querySelector('details').open = false; });
+  get('slow-safe-action').addEventListener('click', () => {
+    const counter = get('slow-safe-count');
+    counter.textContent = String(Number(counter.textContent) + 1);
+    // Local counter only. Core's synchronous click ACK waits; a 100ms MCP deadline expires after dispatch.
+    const deadline = performance.now() + 400;
+    while (performance.now() < deadline) { /* Bounded, deliberate main-thread delay for live safety coverage. */ }
+  });
   get('frame-replace').addEventListener('click', () => { const frame = document.querySelector('iframe'); const fresh = frame.cloneNode(); fresh.src = `/frame.html?generation=${++frameGeneration}`; frame.replaceWith(fresh); });
   const matrix = count => {
     get('matrix-panel').replaceChildren();
