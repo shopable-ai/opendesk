@@ -58,6 +58,7 @@ File 是运行时注入的文件系统对象。原有 `read()`、`write()` 等�
 | File.getSimplifiedPath(path) | 路径规范化 |
 | File.join(parent, ...children) | 拼路径 |
 | File.open(path, mode) | 按模式打开文件 |
+| FileHandle.tryLock() | 对已打开的普通文件尝试非阻塞独占锁 |
 
 ## File：常用方法
 
@@ -215,9 +216,9 @@ File.writeNew(path: string, text: string, encoding?: string): void
 
 - 同步执行；相对路径继续以不可变的 `Execution.workdir` 为基准。
 - 父目录必须已经存在。该方法不会隐式创建目录。
-- 使用父目录 `os.Root` 和独占创建语义；只要最终目标已经存在（包括普通文件或符号链接），就失败，不会截断或替换。
+- 使用父目录 `os.Root`，先完整写入、flush 并关闭同目录私有临时文件，再通过不覆盖的硬链接原子发布；最终目标已经存在（包括普通文件或符号链接）就失败，不会截断或替换。文件系统需支持同目录硬链接，否则拒绝，不退回非原子的写入。
 - 打开父目录句柄后，Runtime 会重新解析父目录的 symlink / Windows reparse-point 目标并核对目录文件身份；父目录是别名、被重定向，或授权检查期间被替换时失败。
-- 写入、flush 或 close 在提交前失败时，Runtime 会尽力通过已打开的父目录句柄清理本次新建的半文件。
+- 写入、flush 或 close 在发布前失败时，最终目标不可见；Runtime 尽力清理私有临时文件。发布后绝不因临时文件清理失败删除最终目标。进程异常退出可能遗留 `.opendesk-new-*` 私有临时文件，它不代表已发布的业务文件。
 - 它只保证“新文件独占创建”，**不**是对已有文件的 compare-and-swap，也不提供目录级多文件事务。需要修改已有 JSON 时仍按 `File.writeJSON` 的平台支持语义处理。
 - 因为不会覆盖已有内容，适合保存需人工审阅的候选、不可变 revision 和证据文件；不能用“先 `exists` 再 `write`”替代它。
 
@@ -379,12 +380,55 @@ File.open(path: string, mode: 'r' | 'w' | 'a'): FileHandle
 | `seek(offset, whence?)` | 定位，`whence` 为 `start`（默认）、`current` 或 `end` |
 | `truncate(size)` | 调整文件长度 |
 | `sync()` | 请求操作系统刷新文件内容 |
+| `tryLock()` | 尝试非阻塞独占锁；详见下面的独立合同 |
 
 - `r` 为只读；`w` 会创建或截断文件；`a` 会创建文件并始终从末尾追加。父目录不会自动创建。
 - `read` 与 `readBytes` 的默认和最大 `maxBytes` 都是 8 MiB；必须是 1 到 8 MiB 的整数。超过限制会报错并保持原句柄位置。
 - `File.open()` 只接受普通文件；目录、设备、管道等特殊文件会被拒绝。
 - 句柄不暴露宿主 `os.File` 或文件描述符等未文档化能力。请使用 `try/finally` 显式关闭；Runtime teardown 也会自动关闭忘记关闭的句柄。
 - 非法 mode 会报：`invalid file mode`。
+
+## FileHandle.tryLock()
+
+对 `File.open()` 返回的句柄尝试取得操作系统的非阻塞独占 advisory lock，用于遵循同一协议的本地进程协调。
+
+**签名**
+
+```ts
+file.tryLock(): boolean
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+`true` 表示当前句柄持有锁；`false` 表示另一个句柄持有锁，当前调用没有等待、写入或抢占。同一句柄再次调用是幂等的。
+
+**行为与错误**
+
+- macOS/Linux 使用非阻塞 `flock`。Windows 和其他平台目前抛出 unsupported 错误；Linux 仅有源码实现，不能据此声称目标系统 live 验证。
+- 锁随 `file.close()`、execution teardown 或进程退出释放，不靠文件年龄或 PID 推断存活。应在 `finally` 显式关闭。
+- 已关闭句柄、权限或文件系统不支持锁时抛错；不把错误压缩成“无人持锁”。
+- 锁是 advisory：忽略该协议的进程仍可能修改文件。它不提供权限隔离、文件内容事务、原子 CAS 或网络文件系统保证。
+- 所有参与者须打开同一个稳定文件；持锁期间及释放后均不要删除、重命名、替换或截断重建锁路径，否则新旧 inode 可以各自被锁定。更新元数据可通过已持锁句柄原位写入。
+- `File.open(path, 'w')` 会在取得锁前截断，不能用作锁文件入口。锁文件应保持独立于原子替换的业务 JSON，使用 `a` 打开；它不是第二份业务数据源。
+
+**示例**
+
+从仓库根目录的本地脚本调用；产物在 `.runtime/`：
+
+```js
+File.ensureDir('.runtime/examples/file-lock');
+const lease = File.open('.runtime/examples/file-lock/writer.lock', 'a');
+try {
+  if (!lease.tryLock()) throw new Error('另一实例正在保存，请稍后再操作');
+  // 在此读取并核验业务版本，再写入；所有写入者必须遵守同一锁协议。
+} finally {
+  lease.close();
+}
+```
 
 ## File：实战示例
 

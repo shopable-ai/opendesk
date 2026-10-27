@@ -60,6 +60,7 @@ docType: index
 | `FileHandle.seek(offset: number, whence?: 'start' \| 'current' \| 'end'): number;` | `File.open()` 返回受控的同步 `FileHandle`，适用于需要维护当前位置、截断或请求落盘的场景；普通完整文件读写优先使用 `File.read()`、…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.seek](../file.md#fileopenpath-mode)；`read file FileHandle.seek` |
 | `FileHandle.sync(): void;` | `File.open()` 返回受控的同步 `FileHandle`，适用于需要维护当前位置、截断或请求落盘的场景；普通完整文件读写优先使用 `File.read()`、…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.sync](../file.md#fileopenpath-mode)；`read file FileHandle.sync` |
 | `FileHandle.truncate(size: number): void;` | `File.open()` 返回受控的同步 `FileHandle`，适用于需要维护当前位置、截断或请求落盘的场景；普通完整文件读写优先使用 `File.read()`、…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.truncate](../file.md#fileopenpath-mode)；`read file FileHandle.truncate` |
+| `FileHandle.tryLock(): boolean;` | 对已打开的普通文件尝试非阻塞独占锁 | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.tryLock](../file.md#filehandletrylock)；`read file FileHandle.tryLock` |
 | `FileHandle.write(text: string): void;` | `File.open()` 返回受控的同步 `FileHandle`，适用于需要维护当前位置、截断或请求落盘的场景；普通完整文件读写优先使用 `File.read()`、…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.write](../file.md#fileopenpath-mode)；`read file FileHandle.write` |
 | `FileHandle.writeBytes(bytes: OpenDeskByteInput): void;` | `File.open()` 返回受控的同步 `FileHandle`，适用于需要维护当前位置、截断或请求落盘的场景；普通完整文件读写优先使用 `File.read()`、…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.writeBytes](../file.md#fileopenpath-mode)；`read file FileHandle.writeBytes` |
 
@@ -139,9 +140,9 @@ Runtime 默认预加载的第三方库；按库级能力发现，不把第三方
 维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
 
 
-- `docs/api/file.md` SHA-256 `3e370158c9523503b9f3dc0f9517fb773d97ab4a3f84aedd248c7386effe0b48`
+- `docs/api/file.md` SHA-256 `891cbbea5d3dd0c4559c9fde1ca3f59441f52663da72f74e7d53afc3387f0eb2`
 
-- `types/File.d.ts` SHA-256 `867b93bc051f2f21ae08e7c240d2c39432d891b4d835091909409adec364c3e1`
+- `types/File.d.ts` SHA-256 `9b9351e485d2bf28e2c7c9bad0a724ba3530608b4ac363aa884fcb6907ed7fbf`
 
 - `docs/api/path.md` SHA-256 `a247eae9631b28fa8062d5a9cbc8fbe347c6f6b4ae470da08b75ff63dadab1df`
 

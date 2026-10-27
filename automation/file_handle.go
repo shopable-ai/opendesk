@@ -19,6 +19,7 @@ type FileHandle struct {
 	mu     sync.Mutex
 	file   *os.File
 	closed bool
+	locked bool
 }
 
 func newFileHandle(fs *FileSystem, file *os.File) *FileHandle {
@@ -170,4 +171,24 @@ func (h *FileHandle) Truncate(size int64) error {
 // Sync requests that the operating system flush buffered file contents.
 func (h *FileHandle) Sync() error {
 	return h.withFile("sync", func(file *os.File) error { return file.Sync() })
+}
+
+// TryLock acquires an exclusive, non-blocking advisory lock on this open file.
+// Closing the handle (including execution teardown) releases the kernel lock.
+// Callers must keep the pathname/inode stable while coordinating writers.
+func (h *FileHandle) TryLock() (bool, error) {
+	var acquired bool
+	err := h.withFile("tryLock", func(file *os.File) error {
+		if h.locked {
+			acquired = true
+			return nil
+		}
+		var err error
+		acquired, err = fileHandleTryLock(file)
+		if acquired {
+			h.locked = true
+		}
+		return err
+	})
+	return acquired, err
 }

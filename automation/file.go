@@ -1,6 +1,7 @@
 package automation
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -222,15 +223,21 @@ func (fs *FileSystem) WriteNew(path string, text string, encoding ...string) err
 	if !os.SameFile(pathInfo, rootInfo) {
 		return errors.New("File.writeNew parent directory changed during authorization")
 	}
-	file, err := root.OpenFile(base, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	// Write and close a private inode before publishing the final pathname.
+	// Publishing via an exclusive hard link prevents another reader from locking
+	// a half-initialized file that a later failure cleanup could unlink.
+	var nonce [16]byte
+	if _, err := rand.Read(nonce[:]); err != nil { return err }
+	temporary := fmt.Sprintf(".opendesk-new-%x", nonce)
+	file, err := root.OpenFile(temporary, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil { return err }
-	cleanup := func() {
-		_ = file.Close()
-		_ = root.Remove(base)
-	}
-	if _, err := io.WriteString(file, text); err != nil { cleanup(); return err }
-	if err := file.Sync(); err != nil { cleanup(); return err }
-	if err := file.Close(); err != nil { _ = root.Remove(base); return err }
+	defer func() { _ = file.Close(); _ = root.Remove(temporary) }()
+	if _, err := io.WriteString(file, text); err != nil { return err }
+	if err := file.Sync(); err != nil { return err }
+	if err := file.Close(); err != nil { return err }
+	// Link fails if base already exists. Never unlink base, including on errors
+	// after publication: it may already be open and locked by another process.
+	if err := root.Link(temporary, base); err != nil { return err }
 	return nil
 }
 

@@ -58,6 +58,8 @@ declare global {
     truncate(size: number): void;
     /** Requests that the OS flush buffered file data. */
     sync(): void;
+    /** Non-blocking exclusive advisory lock (macOS/Linux). False means another handle owns it; close releases it. */
+    tryLock(): boolean;
   }
 
   interface OpenDeskFileSystem {
