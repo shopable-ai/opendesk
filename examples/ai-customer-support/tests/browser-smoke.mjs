@@ -34,6 +34,14 @@ try {
     const labels = ['推荐回复', '知识库', '客户档案', '商品', '图片', '订单'];
     const ids = ['reply', 'knowledge', 'customer', 'products', 'images', 'orders'];
     assert.equal(await page.locator('#odiv-tabs [role="tab"]').count(), 6);
+    assert.equal(await page.locator('#od-contacts .contactbtn .avatar').count(), 3, 'R1.9.1 contact cards and avatars');
+    assert.equal(await page.locator('#od-messages .bubble .bubble-text').count(), 1, 'R1.9.1 message bubbles');
+    const messageStyle = await page.locator('#od-messages .bubble-text').first().evaluate(node => {
+      const style = getComputedStyle(node);
+      return { backgroundColor:style.backgroundColor, borderRadius:style.borderTopRightRadius };
+    });
+    assert.notEqual(messageStyle.backgroundColor, 'rgba(0, 0, 0, 0)', 'chat bubble must not be transparent');
+    assert.notEqual(messageStyle.borderRadius, '0px', 'chat bubble must keep rounded styling');
     for (let i=0; i<labels.length; i++) {
       await page.getByRole('tab', { name:labels[i], exact:true }).click();
       assert.equal(await page.locator('#odiv-' + ids[i]).isVisible(), true, labels[i] + ' active panel');
@@ -141,7 +149,7 @@ try {
     await page.getByRole('textbox', { name:'自定义客户提问' }).fill('测试长文本：' + 'A'.repeat(1000));
     await page.getByRole('button', { name:'发送问题' }).click();
     assert.equal(await page.locator('#od-messages .bubble.outgoing').count(), 1, 'new customer question does not duplicate agent send');
-    const last = await page.locator('.chatbubble').last().innerText();
+    const last = await page.locator('#od-messages .bubble').last().innerText();
     assert.ok(last.length <= 400, 'new customer text bounded safely');
   });
   await scenario('responsive-and-zoom', async page => {
