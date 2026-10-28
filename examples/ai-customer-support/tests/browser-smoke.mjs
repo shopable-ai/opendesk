@@ -149,7 +149,7 @@ try {
     await page.getByRole('textbox', { name:'自定义客户提问' }).fill('测试长文本：' + 'A'.repeat(1000));
     await page.getByRole('button', { name:'发送问题' }).click();
     assert.equal(await page.locator('#od-messages .bubble.outgoing').count(), 1, 'new customer question does not duplicate agent send');
-    const last = await page.locator('#od-messages .bubble').last().innerText();
+    const last = await page.locator('#od-messages .bubble .bubble-text').last().innerText();
     assert.ok(last.length <= 400, 'new customer text bounded safely');
   });
   await scenario('responsive-and-zoom', async page => {
