@@ -6,7 +6,7 @@ import { chromium } from 'playwright';
 
 const root = resolve(import.meta.dirname, '..');
 const url = pathToFileURL(join(root, 'preview', 'index.html')).href;
-const screenshots = join(root, '.runtime', 'tests', 'ai-customer-support');
+const screenshots = resolve(root, '..', '..', '.runtime', 'tests', 'ai-customer-support');
 await mkdir(screenshots, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 let passed = 0;
@@ -157,6 +157,23 @@ try {
     const last = await page.locator('#od-messages .bubble .bubble-text').last().innerText();
     assert.ok(last.length <= 400, 'new customer text bounded safely');
   });
+  await scenario('short-window-keeps-navigation-visible', async page => {
+    await page.getByRole('textbox', {name:'自定义客户提问'}).fill('长文本：'+'售后说明'.repeat(100));
+    await page.getByRole('button', {name:'发送问题',exact:true}).click();
+    for (const size of [{width:320,height:640},{width:960,height:408}]) {
+      await page.setViewportSize(size);
+      await page.getByRole('button', {name:'编辑选中回复'}).click();
+      const bounds = await page.locator('#odiv-tabs').boundingBox();
+      assert.ok(bounds.y >= 0 && bounds.y + bounds.height <= size.height, 'tabs remain in viewport after focusing a bottom action');
+      assert.ok(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 2), 'long content must not scroll the outer page');
+      await page.getByRole('button', {name:'打开设置'}).click();
+      await page.getByRole('button', {name:'重置跟随位置'}).click();
+      const back = await page.getByRole('button', {name:'← 返回'}).boundingBox();
+      assert.ok(back.y >= 0 && back.y + back.height <= size.height, 'settings return stays visible after scrolling settings');
+      await page.getByRole('button', {name:'← 返回'}).click();
+      await page.screenshot({path:join(screenshots,`short-${size.width}x${size.height}.png`)});
+    }
+  });
   await scenario('responsive-and-zoom', async page => {
     for (const width of [320,360,380,400,440,520,1280]) {
       await page.setViewportSize({ width, height: 880 });
@@ -175,7 +192,7 @@ try {
     assert.ok(width <= 2, '200% zoom body overflow: ' + width);
     await page.screenshot({path:join(screenshots,'preview-200pct.png'),fullPage:true});
   });
-  console.log('BROWSER_SMOKE_PASSED=' + passed + '/7; environment=CI headless Chromium (not local Mac Chrome)');
+  console.log('BROWSER_SMOKE_PASSED=' + passed + '/8; environment=CI headless Chromium (not local Mac Chrome; CSS zoom is not browser zoom)');
 } finally {
   await browser.close();
 }

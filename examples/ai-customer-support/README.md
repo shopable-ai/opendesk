@@ -74,7 +74,7 @@
 - **唯一生成 HTML：** `node scripts/build-preview.mjs` 在 bundle 完整性检查通过后原子替换 `preview/index.html`；错误时原有正常预览不被覆盖；无 CDN、无开发服务器、无第二份 Mock。
 - **本地命令：** 从仓库根目录执行 `cd examples/ai-customer-support && npm ci && npm run typecheck && node --test tests/domain.test.mjs tests/import-safety.test.mjs tests/knowledge-conflict.test.mjs && npm run build && node --test tests/preview.test.mjs`。需浏览器自动检查时执行 `npx playwright install chromium && npm run test:browser`。
 - **CI 回归：** `.github/workflows/ai-customer-support-preview.yml` 按以上顺序执行并在全部通过后将正式 HTML 和依赖锁定文件安全提交 `master`；截图等运行证据保留在 Actions artifact，不作为项目源码提交。
-- **安全边界：** 填入草稿不等于发送，客户和订单不跨会话，任何托管仅发生于左侧虚构聊天窗口。**浏览器 React 预览不等于 Desktop 原生 Custom UI 已接入。** 真正 Mac Chrome 及微信/企业微信联调：`NOT_TESTED`。
+- **安全边界：** 填入草稿不等于发送，客户和订单不跨会话，任何托管仅发生于左侧虚构聊天窗口。**浏览器 React 预览不等于 Desktop 原生 Custom UI 已接入。** Mac Chrome 分项结果见下节；微信/企业微信联调仍为 `NOT_TESTED`。
 
 > 本节描述源码与验证协议。是否实际通过以对应提交和 CI / 本地测试日志为准；历史 R1.5/R1.6 测试数字不是 R2.0 React 的合格证明。
 
@@ -83,6 +83,12 @@
 - 并发知识导入由现有 reducer 在提交时分配唯一 ID，并按最新状态检查 150 条总数上限；超限整份拒绝。
 - 重置使此前的知识、历史文件读取失效；清空客户档案使此前尚未完成的整份历史导入失效，避免旧读取恢复已清空数据。导入结果和错误提示也由同一状态 owner 管理。
 - 最高置信度知识存在不同答案时降级为澄清或人工核实，不继续自动模拟发送；相同答案及停用、范围不符的条目不制造冲突。
-- 本机 macOS 的 TypeScript、领域与安全回归 **19/19**、正式离线 HTML 构建及结构契约 **1/1** 已通过。新增回归已加入原有 CI 领域测试步骤；这不是该提交已通过 CI 的声明。
-- 本轮真实 Google Chrome 的 `file://` 打开请求被浏览器工具 URL 安全策略拒绝，未绕过限制。六页真实交互、系统剪贴板、320–520px、200% 浏览器缩放、深浅主题与实窗截图仍为 **NOT_TESTED**；现有 headless 回归本轮也未执行。没有修改视觉布局，不能据此宣称视觉验收通过。
-- 仍须在允许本地文件验收的环境完成真实 Chrome 检查后才能收口；不使用历史 CI、源码检查或模拟发送替代该证据。
+- 本机 macOS 的 TypeScript、领域与安全回归 **19/19**、正式离线 HTML 构建及结构契约 **1/1** 已通过。修复提交 `fc92ac85` 的 GitHub Actions [40744701808](https://github.com/shopable-ai/opendesk/actions/runs/40744701808) 另有 Linux headless Chromium **7/7**；正式 HTML artifact 与该提交本机产物逐字节一致。
+- 用户批准后，已用本机静态 HTTP 服务读取同一个正式 HTML，在已连接的 Mac Chrome 中验收六 Tab、键盘、设置返回、三客户订单/档案/草稿隔离、商品图片双向跳转、知识筛选、档案确认/忽略/Markdown、回复编辑、撤权/暂停、模拟发送去重及回读。复制按钮的成功提示不作为系统剪贴板成功证明。
+- 320/360/380/400/440/520px、深浅主题、六页共 **72 次实际尺寸切换**通过。另发现短窗口保留 738px 最小高度，访问底部操作时会把 Tab 滚出屏幕；改为按可用视口分配窗口高度，长内容在原面板内部滚动。320×640、960×408 已在真实 Chrome 重验；后者只是短高度测试，不等于真实 200% 浏览器缩放。现有截图风格、380px 宽度、联系人卡片与消息气泡保留。
+- `file://`、扩展设置 URL 受当前工具安全策略限制；系统剪贴板、真实 200% Chrome 缩放，以及尚未完成的文件导入/拖拽、草稿覆盖确认分支仍为 **NOT_TESTED**。本轮未运行本机 headless 浏览器；新增短窗口场景已加入原回归脚本，是否通过 CI 以对应提交的 Actions 结果为准。
+- 全部运行证据放在仓库根目录 `.runtime/tests/ai-customer-support/`，不提交截图、日志或临时文件。仍未满足全部核心验收的收口条件。
+
+### 可选本机 HTTP 访问
+
+从仓库根目录执行 `python3 -m http.server 4173 --bind 127.0.0.1 --directory examples/ai-customer-support/preview`，再打开 `http://127.0.0.1:4173/`。该静态服务只改变访问方式，仍使用唯一的 `preview/index.html`，不启动 React 开发服务器或创建平行预览；退出终端中的服务即可停止。

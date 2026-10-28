@@ -44,7 +44,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ai-customer-react-browser-evidence
-          path: examples/ai-customer-support/.runtime/tests/ai-customer-support/
+          path: .runtime/tests/ai-customer-support/
           if-no-files-found: ignore
       - name: Upload verified standalone React HTML
         uses: actions/upload-artifact@v4
