@@ -46,7 +46,7 @@
 <div class="receipt" id="odiv-receipt">操作状态 · 尚未发送</div>
 </footer></section>
 <section class="view" id="odiv-knowledge"><div class="scroll"><div class="searchbar"><input id="odiv-search" type="search" placeholder="⌕ 搜索知识、答案、来源" aria-label="搜索知识库"><button class="tool" id="odiv-filter" title="筛选知识">☷</button><button class="tool" id="odiv-upload" title="导入知识">↥</button><div class="pop hidden" id="odiv-pop"><b>状态</b><div class="pills"><button class="on" data-filter="all">全部</button><button data-filter="enabled">已启用</button><button data-filter="disabled">已停用</button></div><b>来源</b><select id="odiv-source"><option value="all">所有文件</option></select><b class="scope-label">适用范围</b><select id="odiv-scope" aria-label="适用范围"><option value="all">全部</option><option value="general">通用</option><option value="scoped">限定范围</option></select><button class="tool" id="odiv-clear" style="width:auto;padding:0 8px;margin-top:9px;font-size:11px">清除筛选</button></div></div><div class="import hidden" id="odiv-import">拖入 JSON / Markdown 文件<br>仅当前页面内存，不上传<br><label for="odiv-file">选择本地文件</label><input id="odiv-file" type="file" accept=".json,.md,.markdown"></div><div class="between tiny grey" style="margin:11px 0 0"><span id="odiv-kb-count">5 条知识</span><span id="odiv-import-msg"></span></div><div id="odiv-kb-list"></div><button class="kb-more hidden" type="button" id="odiv-kb-more">显示更多</button></div></section>
-<section class="view" id="odiv-settings"><div class="scroll"><b class="tiny grey">工作方式</b><div class="setting"><div><b>自动回复</b><small>关闭时提供推荐，由人工发送</small></div><label class="switch"><input type="checkbox" id="odiv-auto" aria-label="智能托管"></label></div><div class="consent hidden" id="odiv-consent"><b>确认开启模拟自动回复</b><p>仅后续精确命中的演示消息自动发送；未知或风险消息转人工。接管当前会话后仍继续推荐回复；不会操作真实微信。</p><button class="primary" id="odiv-confirm" style="padding:5px 10px;min-height:28px">理解并启用</button><button class="tool" id="odiv-cancel" style="width:auto;padding:0 9px;margin-left:7px">取消</button></div><p class="setting-note" id="odiv-auto-info">自动回复已关闭，AI 继续提供推荐答案。</p><b class="tiny grey" style="display:block;margin-top:25px">窗口与权限</b><div class="setting"><div><b>模拟窗口授权</b><small>关闭后停止读取和填入</small></div><label class="switch"><input type="checkbox" id="odiv-permission" checked aria-label="模拟授权"></label></div><div class="setting"><div><b>继续观察新消息</b><small>停止后保留现有草稿</small></div><label class="switch"><input type="checkbox" id="odiv-observe" checked aria-label="观察"></label></div><div class="setting"><div><b>跟随聊天窗口</b><small>原生窗口跟随仍需真实 Mac 验收</small></div><label class="switch"><input type="checkbox" id="odiv-follow" checked aria-label="跟随"></label></div><p class="setting-note">这是离线交互原型，自动回复与回执只发生在模拟聊天窗口；未连接真实微信或云模型。</p></div></section>
+<section class="view" id="odiv-settings"><div class="scroll"><b class="tiny grey">工作方式</b><div class="setting"><div><b>自动回复</b><small>关闭时提供推荐，由人工发送</small></div><label class="switch"><input type="checkbox" id="odiv-auto" aria-label="智能托管"></label></div><div class="consent hidden" id="odiv-consent"><b>确认开启当前会话的模拟自动回复</b><p>仅后续精确命中的演示消息自动发送；未知或风险消息转人工。接管当前会话后仍继续推荐回复；不会操作真实微信。</p><button class="primary" id="odiv-confirm" style="padding:5px 10px;min-height:28px">理解并启用</button><button class="tool" id="odiv-cancel" style="width:auto;padding:0 9px;margin-left:7px">取消</button></div><p class="setting-note" id="odiv-auto-info">自动回复已关闭，AI 继续提供推荐答案。</p><b class="tiny grey" style="display:block;margin-top:25px">窗口与权限</b><div class="setting"><div><b>模拟窗口授权</b><small>关闭后停止读取和填入</small></div><label class="switch"><input type="checkbox" id="odiv-permission" checked aria-label="模拟授权"></label></div><div class="setting"><div><b>继续观察新消息</b><small>停止后保留现有草稿</small></div><label class="switch"><input type="checkbox" id="odiv-observe" checked aria-label="观察"></label></div><div class="setting"><div><b>跟随聊天窗口</b><small>原生窗口跟随仍需真实 Mac 验收</small></div><label class="switch"><input type="checkbox" id="odiv-follow" checked aria-label="跟随"></label></div><p class="setting-note">这是离线交互原型，自动回复与回执只发生在模拟聊天窗口；未连接真实微信或云模型。</p></div></section>
 <section class="view" id="odiv-chat"><div class="chatpane"><div class="contacts" id="odiv-contacts"></div><div class="chatlog" id="odiv-chatlog"></div><textarea id="odiv-chatdraft" placeholder="模拟聊天软件草稿……" style="height:75px;min-height:65px" aria-label="模拟聊天草稿"></textarea><button class="primary" id="odiv-send">发送（仅模拟）</button><div class="tiny grey">客户模拟发问：</div><div class="tests"><button data-question="refund">退款</button><button data-question="invoice">发票 · 精确</button><button data-question="shipping">物流</button><button data-question="unknown">未知问题</button><button data-question="two">连续两条</button></div></div></section>
 </div><div class="toast hidden" id="odiv-toast" role="status"></div></div></div>
 <script>
@@ -56,9 +56,9 @@ const R=document.getElementById('od-compact-inline');
 if(!R||R.dataset.ready)return;R.dataset.ready='true';
 const $=q=>R.querySelector(q), $$=q=>Array.from(R.querySelectorAll(q));
 const initialThreads=()=>[
- {id:'t1',name:'林女士',msgs:[{id:'m1',who:'customer',text:'签收后 7 天内还能申请退款吗？'}],sent:new Set(),draft:''},
- {id:'t2',name:'陈先生',msgs:[{id:'m2',who:'customer',text:'物流怎么查询？'}],sent:new Set(),draft:''},
- {id:'t3',name:'周女士',msgs:[{id:'m3',who:'customer',text:'商品如何选尺码？'}],sent:new Set(),draft:''}
+ {id:'t1',name:'林女士',msgs:[{id:'m1',who:'customer',text:'签收后 7 天内还能申请退款吗？'}],sent:new Set(),draft:'',auto:false,consented:false},
+ {id:'t2',name:'陈先生',msgs:[{id:'m2',who:'customer',text:'物流怎么查询？'}],sent:new Set(),draft:'',auto:false,consented:false},
+ {id:'t3',name:'周女士',msgs:[{id:'m3',who:'customer',text:'商品如何选尺码？'}],sent:new Set(),draft:'',auto:false,consented:false}
 ];
 const initialKb=()=>[
  {id:'k1',q:'退款申请时效',question:'签收后几天内可以申请退款？',a:'符合售后政策的订单，签收后 7 天内可申请退货退款。具体资格以订单详情和商品规则为准。',keys:['退款','退货','签收'],source:'售后政策.json',enabled:true,scope:null},
@@ -68,7 +68,7 @@ const initialKb=()=>[
  {id:'k5',q:'旧版活动',question:'活动是否继续？',a:'历史活动已结束，不参与当前回复。',keys:['活动'],source:'历史活动.md',enabled:false,scope:null}
 ];
 let counter=7,threads=initialThreads(),kb=initialKb();
-const s={tid:'t1',tab:'reply',paused:false,permission:true,auto:false,consented:false,takeover:new Set(),chosen:new Map(),edits:new Map(),editing:null,filter:'all',source:'all',scope:'all',showAll:false,expanded:new Set(),receipt:'尚未发送',importVisible:false};
+const s={tid:'t1',tab:'reply',paused:false,permission:true,pendingConsentTid:null,takeover:new Set(),chosen:new Map(),edits:new Map(),editing:null,filter:'all',source:'all',scope:'all',showAll:false,expanded:new Set(),receipt:'尚未发送',importVisible:false};
 const thread=()=>threads.find(t=>t.id===s.tid),message=()=>thread().msgs.filter(m=>m.who==='customer').at(-1),msgKey=()=>`${s.tid}:${message()?.id||'none'}`,canObserve=()=>!s.paused&&s.permission;
 const normalize=x=>String(x||'').toLowerCase().replace(/[\s，。！？?!.,]/g,'');
 function match(){
@@ -102,12 +102,14 @@ function record(t){s.receipt=t;$('#odiv-receipt').textContent='操作状态 · '
 function renderReply(){
  const t=thread(),m=match(),opts=variants(),mid=message()?.id,selected=chosenVariant(),txt=replyText(),taken=s.takeover.has(t.id),can=canObserve(),replied=t.sent.has(mid);
  if(s.editing&&s.editing!==replyKey())s.editing=null;
- $('#odiv-subtitle').textContent=t.name+' · '+(!can?'观察已停止':taken?'人工接管中':s.auto?'模拟自动回复中':'辅助回复中');
- $('#odiv-status').textContent=!can?'观察已停止':taken?'人工接管 · AI 继续推荐':s.auto?'自动回复 · 模拟':'AI 推荐 · 人工发送';
+ $('#odiv-subtitle').textContent=t.name+' · '+(!can?'观察已停止':taken?'人工接管中':t.auto?'模拟自动回复中':'辅助回复中');
+ $('#odiv-status').textContent=!can?'观察已停止':taken?'人工接管 · AI 继续推荐':t.auto?'自动回复 · 模拟':'AI 推荐 · 人工发送';
  $('#odiv-status').classList.toggle('warn',!can||taken);
- $('#odiv-takeover').classList.toggle('hidden',!s.auto&&!taken);
- $('#odiv-takeover-text').textContent=taken?'恢复托管':'人工接管';
+ $('#odiv-takeover').classList.toggle('hidden',!t.auto&&!taken);
+ $('#odiv-takeover-text').textContent=taken?'退出接管':'人工接管';
  $('#odiv-takeover').classList.toggle('active',taken);
+ $('#odiv-auto').checked=!!t.auto;
+ $('#odiv-auto-info').textContent=taken?'当前会话已人工接管；退出后仍需手动开启自动回复。':t.auto?'仅当前会话的后续精确知识命中会模拟自动发送。':'自动回复已关闭，AI 继续提供推荐答案。';
  $('#odiv-latest').textContent=can?(message()?.text||'暂无消息'):'未授权或观察已暂停';
  $('#odiv-msg-id').textContent=can?'#'+mid:'未读取';
  $('#odiv-hit-title').textContent=m?'匹配到 · '+m.k.q:'暂无可靠知识匹配';
@@ -190,7 +192,7 @@ function sendDraft({automatic=false,expectedThread=s.tid,expectedMessage=message
  if(!canObserve()||!m||!text){record('未发送：无有效草稿或观察停止');return false}
  if(t.id!==expectedThread||m.id!==expectedMessage){record('未发送：会话已变化');return false}
  if(t.sent.has(m.id)){record('已阻止同一客户消息的重复回复');return false}
- if(automatic&&(!s.auto||!s.consented||s.takeover.has(t.id))){record('托管已停止，未发送');return false}
+ if(automatic&&(!t.auto||!t.consented||s.takeover.has(t.id))){record('托管已停止，未发送');return false}
  const rid='r'+(++counter);
  t.msgs.push({id:rid,who:'agent',text,replyTo:m.id});t.sent.add(m.id);t.draft='';
  const verified=t.msgs.filter(x=>x.id===rid&&x.replyTo===m.id&&x.text===text).length===1;
@@ -203,13 +205,13 @@ function receive(text){
  const t=thread(),id='m'+(++counter);t.msgs.push({id,who:'customer',text});s.editing=null;
  renderChat();renderReply();
  if(!canObserve()){record('收到模拟消息，观察已停止');return}
- if(s.auto&&s.consented&&!s.takeover.has(t.id)){
+ if(t.auto&&t.consented&&!s.takeover.has(t.id)){
   const h=match();
   if(h&&h.exact&&!/赔偿|承诺|密码|身份证/.test(text)){
    t.draft='您好，'+h.k.a;
    sendDraft({automatic:true,expectedThread:t.id,expectedMessage:id});
   }else{
-   s.takeover.add(t.id);renderReply();
+   t.auto=false;s.takeover.add(t.id);renderReply();
    record('未精确命中或含风险内容，当前会话转人工；AI 推荐继续可用');
    toast('已转人工 · 没有自动发送');
   }
@@ -217,7 +219,7 @@ function receive(text){
 }
 function switchTab(tab){s.tab=tab;$('#odiv-tabs').classList.toggle('hidden',tab==='chat');$$('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));$$('.view').forEach(v=>v.classList.toggle('on',v.id==='odiv-'+tab));if(tab==='knowledge')renderKb();$('#odiv-heading').textContent=tab==='chat'?'聊天模拟器':'AI 客服'}
 function reset(){
- counter=7;threads=initialThreads();kb=initialKb();s.tid='t1';s.paused=false;s.permission=true;s.auto=false;s.consented=false;s.takeover.clear();s.chosen.clear();s.edits.clear();s.editing=null;s.filter='all';s.source='all';s.scope='all';s.showAll=false;s.expanded.clear();s.receipt='尚未发送';
+ counter=7;threads=initialThreads();kb=initialKb();s.tid='t1';s.paused=false;s.permission=true;s.pendingConsentTid=null;s.takeover.clear();s.chosen.clear();s.edits.clear();s.editing=null;s.filter='all';s.source='all';s.scope='all';s.showAll=false;s.expanded.clear();s.receipt='尚未发送';
  $('#odiv-search').value='';$('#odiv-scope').value='all';$('#odiv-pop').classList.add('hidden');$('#odiv-import').classList.add('hidden');$('#odiv-permission').checked=true;$('#odiv-observe').checked=true;$('#odiv-auto').checked=false;$('#odiv-consent').classList.add('hidden');$('#odiv-auto-info').textContent='自动回复已关闭，AI 继续提供推荐答案。';
  $$('[data-filter]').forEach(b=>b.classList.toggle('on',b.dataset.filter==='all'));$('#odiv-import-msg').textContent='';
  renderReply();renderChat();renderKb();switchTab('reply');$('#odiv-tabs').classList.remove('hidden');toast('演示已重置');
@@ -227,7 +229,7 @@ R.addEventListener('click',e=>{
  if(b.dataset.tab)return switchTab(b.dataset.tab);
  if(b.dataset.choice){const o=variants().find(x=>x.id===b.dataset.choice);if(!o)return;s.chosen.set(msgKey(),o.id);s.editing=null;renderReply();return}
  if(b.dataset.finishEdit){s.editing=null;renderReply();toast('已完成此条回复的编辑');return}
- if(b.dataset.contact){s.tid=b.dataset.contact;s.editing=null;renderChat();renderReply();return}
+ if(b.dataset.contact){s.tid=b.dataset.contact;s.editing=null;s.pendingConsentTid=null;$('#odiv-consent').classList.add('hidden');renderChat();renderReply();return}
  if(b.dataset.question){if(b.dataset.question==='two'){receive('我想咨询退款问题。');return receive('另外，请问电子发票怎么申请？')}return receive({refund:'签收后 7 天内还能申请退款吗？',invoice:'请问能开发票吗？',shipping:'物流怎么查询？',unknown:'可以立即给我赔偿承诺吗？'}[b.dataset.question])}
  if(b.dataset.filter){s.filter=b.dataset.filter;s.showAll=false;$$('[data-filter]').forEach(x=>x.classList.toggle('on',x.dataset.filter===s.filter));renderKb();return}
  if(b.id==='odiv-kb-more'){s.showAll=!s.showAll;renderKb();return}
@@ -245,9 +247,9 @@ $('#odiv-theme').addEventListener('click',()=>R.classList.toggle('dark'));
 $('#odiv-reset').addEventListener('click',reset);
 $('#odiv-pause').addEventListener('click',()=>{s.paused=!s.paused;$('#odiv-observe').checked=!s.paused;renderReply();record(s.paused?'已暂停消息观察':'已恢复消息观察')});
 $('#odiv-takeover').addEventListener('click',()=>{
- if(!s.auto&&!s.takeover.has(s.tid))return;
- if(s.takeover.has(s.tid)){s.takeover.delete(s.tid);record('已恢复当前会话托管，历史消息不会补发')}
- else{s.takeover.add(s.tid);record('已接管当前会话：暂停自动发送，AI 推荐保持可用')}
+ if(!thread().auto&&!s.takeover.has(s.tid))return;
+ if(s.takeover.has(s.tid)){s.takeover.delete(s.tid);record('已退出人工接管，恢复人工辅助；需手动开启托管')}
+ else{thread().auto=false;s.takeover.add(s.tid);record('已接管当前会话：自动发送已停止，AI 推荐保持可用')}
  renderReply();
 });
 $('#odiv-hit').addEventListener('click',()=>{const m=match();switchTab('knowledge');if(m){$('#odiv-search').value=m.k.q;renderKb()}});
@@ -294,15 +296,24 @@ async function readFile(file){
  }catch(e){$('#odiv-import-msg').textContent='导入失败';toast('导入失败：'+e.message)}
 }
 $('#odiv-auto').addEventListener('change',e=>{
- if(!e.target.checked){s.auto=false;$('#odiv-auto-info').textContent='自动回复已关闭，AI 继续提供推荐答案。';renderReply();return}
- if(!s.consented){e.target.checked=false;$('#odiv-consent').classList.remove('hidden')}
- else{s.auto=true;$('#odiv-auto-info').textContent='仅对后续精确命中的演示消息自动回复。';renderReply()}
+ const t=thread();
+ if(!e.target.checked){t.auto=false;s.pendingConsentTid=null;$('#odiv-consent').classList.add('hidden');renderReply();return}
+ if(!canObserve()){e.target.checked=false;toast('请先恢复授权和消息观察');return}
+ if(!t.consented){e.target.checked=false;s.pendingConsentTid=t.id;$('#odiv-consent').classList.remove('hidden')}
+ else{t.auto=true;s.takeover.delete(t.id);renderReply()}
 });
 $('#odiv-confirm').addEventListener('click',()=>{
- s.consented=true;s.auto=true;$('#odiv-auto').checked=true;$('#odiv-consent').classList.add('hidden');$('#odiv-auto-info').textContent='仅对后续精确命中的演示消息自动回复，人工接管后继续推荐。';renderReply();toast('模拟自动回复已启用');
+ const t=thread();
+ if(!canObserve()||s.pendingConsentTid!==t.id){s.pendingConsentTid=null;$('#odiv-consent').classList.add('hidden');toast('会话或授权已变化，请重新开启');return}
+ t.consented=true;t.auto=true;s.takeover.delete(t.id);s.pendingConsentTid=null;
+ $('#odiv-consent').classList.add('hidden');renderReply();toast('当前会话模拟自动回复已开启');
 });
-$('#odiv-cancel').addEventListener('click',()=>$('#odiv-consent').classList.add('hidden'));
-$('#odiv-permission').addEventListener('change',e=>{s.permission=e.target.checked;renderReply();record(s.permission?'模拟授权已恢复':'模拟授权已撤销 · 停止观察')});
+$('#odiv-cancel').addEventListener('click',()=>{s.pendingConsentTid=null;$('#odiv-consent').classList.add('hidden')});
+$('#odiv-permission').addEventListener('change',e=>{
+ s.permission=e.target.checked;
+ if(!s.permission){threads.forEach(t=>t.auto=false);s.pendingConsentTid=null;$('#odiv-consent').classList.add('hidden')}
+ renderReply();record(s.permission?'模拟授权已恢复':'已撤销授权 · 所有会话自动回复停止');
+});
 $('#odiv-observe').addEventListener('change',e=>{s.paused=!e.target.checked;renderReply();record(s.paused?'已暂停观察':'已恢复观察')});
 renderReply();renderChat();renderKb();switchTab('reply');
 })();
