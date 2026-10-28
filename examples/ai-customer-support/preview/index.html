@@ -149,6 +149,7 @@
     </div>
     <div class="demo-strip"><span class="hint">模拟客户新消息</span>
       <button class="scenario" data-scenario="refund" type="button">退款政策</button>
+      <button class="scenario" data-scenario="invoice" type="button" title="用于智能托管的精确命中验证">发票 · 精确</button>
       <button class="scenario" data-scenario="shipping" type="button">物流查询</button>
       <button class="scenario" data-scenario="product" type="button">商品咨询</button>
       <button class="scenario" data-scenario="unknown" type="button">未知问题</button>
@@ -247,7 +248,7 @@ var seedThreads=function(){return [
 {id:'demo-shipping',name:'陈先生',topic:'物流查询',avatar:'陈',theme:'green',messages:[{id:'m-011',from:'customer',text:'我的物流一直没有更新，能帮我查询一下吗？',time:'09:45'}],sentFor:[],takeover:false},
 {id:'demo-product',name:'周女士',topic:'商品咨询',avatar:'周',theme:'orange',messages:[{id:'m-021',from:'customer',text:'这款商品的尺码如何选择？',time:'09:47'}],sentFor:[],takeover:false}];};
 var state={threads:seedThreads(),cid:'demo-refund',knowledge:initialKnowledge.slice(),authorized:true,paused:false,follow:true,receipt:true,minimized:false,smallChat:false,recorder:true,mobile:'assistant',tab:'reply',style:'accurate',replyText:'',drafts:{},lastAction:'',lastDetail:'',logs:[],offset:{x:0,y:0},frame:{x:50,y:57,w:690,h:655},dockSide:'右侧跟随',dragging:false,replyMode:'review',autoConsent:false,knowledgeShowAll:false,nicknameMode:'original'};
-var scenarios={refund:'您好，签收后几天内可以申请退款？',shipping:'请问我的快递物流怎么查询？',product:'这款商品的尺寸与规格能帮忙介绍吗？',unknown:'请帮我确认能否马上获得特殊赔偿承诺？'};
+var scenarios={refund:'您好，签收后几天内可以申请退款？',invoice:'如何申请发票',shipping:'请问我的快递物流怎么查询？',product:'这款商品的尺寸与规格能帮忙介绍吗？',unknown:'请帮我确认能否马上获得特殊赔偿承诺？'};
 var icon=function(name){var s=document.createElementNS('http://www.w3.org/2000/svg','svg');s.setAttribute('class','icon sm');var u=document.createElementNS('http://www.w3.org/2000/svg','use');u.setAttribute('href','#ic-'+name);s.appendChild(u);return s};
 var toastTimer=null;
 function notify(msg){var el=$('toast');el.textContent=msg;el.classList.add('show');if(toastTimer)clearTimeout(toastTimer);toastTimer=setTimeout(function(){el.classList.remove('show')},2700)}
