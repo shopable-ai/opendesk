@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 1,
+  "format": "opendesk.ai-customer-support.orders-demo",
+  "demo": true,
+  "provider": "local-demo",
+  "description": "只读完全虚构的订单，金额、支付、物流、售后不代表真实状态。",
+  "orders": [
+    {
+      "orderId": "OD-DEMO-1001",
+      "customerId": "t1",
+      "items": [
+        {
+          "productId": "demo-jacket",
+          "sku": "OD-JK-101",
+          "quantity": 1,
+          "specification": "海军蓝 / M"
+        }
+      ],
+      "status": "运输中",
+      "amount": 299,
+      "paymentStatus": "已支付（演示）",
+      "shippingStatus": "运输中（演示）",
+      "afterSalesStatus": "暂无售后记录",
+      "updatedAt": "2026-10-28",
+      "source": "demo/orders-demo.json"
+    },
+    {
+      "orderId": "OD-DEMO-1002",
+      "customerId": "t1",
+      "items": [
+        {
+          "productId": "demo-bottle",
+          "sku": "OD-CU-303",
+          "quantity": 1,
+          "specification": "雾蓝 / 480mL"
+        }
+      ],
+      "status": "已完成",
+      "amount": 129,
+      "paymentStatus": "已支付（演示）",
+      "shippingStatus": "已签收（演示）",
+      "afterSalesStatus": "暂无售后记录",
+      "updatedAt": "2026-10-26",
+      "source": "demo/orders-demo.json"
+    },
+    {
+      "orderId": "OD-DEMO-1003",
+      "customerId": "t1",
+      "items": [
+        {
+          "productId": "demo-shoes",
+          "sku": "OD-SN-202",
+          "quantity": 1,
+          "specification": "岩灰 / 39"
+        }
+      ],
+      "status": "售后中",
+      "amount": 359,
+      "paymentStatus": "已支付（演示）",
+      "shippingStatus": "已签收（演示）",
+      "afterSalesStatus": "申请待人工核实",
+      "updatedAt": "2026-10-27",
+      "source": "demo/orders-demo.json"
+    },
+    {
+      "orderId": "OD-DEMO-2001",
+      "customerId": "t2",
+      "items": [
+        {
+          "productId": "demo-speaker",
+          "sku": "OD-SP-404",
+          "quantity": 1,
+          "specification": "石墨黑"
+        }
+      ],
+      "status": "待发货",
+      "amount": 239,
+      "paymentStatus": "已支付（演示）",
+      "shippingStatus": "待出库（演示）",
+      "afterSalesStatus": "暂无售后记录",
+      "updatedAt": "2026-10-27",
+      "source": "demo/orders-demo.json"
+    },
+    {
+      "orderId": "OD-DEMO-2002",
+      "customerId": "t2",
+      "items": [
+        {
+          "productId": "demo-bag",
+          "sku": "OD-BG-505",
+          "quantity": 2,
+          "specification": "燕麦米"
+        }
+      ],
+      "status": "待付款",
+      "amount": 318,
+      "paymentStatus": "未支付（演示）",
+      "shippingStatus": "暂无物流",
+      "afterSalesStatus": "不适用",
+      "updatedAt": "2026-10-28",
+      "source": "demo/orders-demo.json"
+    },
+    {
+      "orderId": "OD-DEMO-2003",
+      "customerId": "t2",
+      "items": [
+        {
+          "productId": "demo-shoes",
+          "sku": "OD-SN-202",
+          "quantity": 1,
+          "specification": "岩灰 / 42"
+        }
+      ],
+      "status": "运输中",
+      "amount": 359,
+      "paymentStatus": "已支付（演示）",
+      "shippingStatus": "运输中（演示）",
+      "afterSalesStatus": "暂无售后记录",
+      "updatedAt": "2026-10-25",
+      "source": "demo/orders-demo.json"
+    },
+    {
+      "orderId": "OD-DEMO-3001",
+      "customerId": "t3",
+      "items": [
+        {
+          "productId": "demo-shirt",
+          "sku": "OD-SH-606",
+          "quantity": 1,
+          "specification": "浅蓝 / M"
+        }
+      ],
+      "status": "已完成",
+      "amount": 189,
+      "paymentStatus": "已支付（演示）",
+      "shippingStatus": "已签收（演示）",
+      "afterSalesStatus": "暂无售后记录",
+      "updatedAt": "2026-10-24",
+      "source": "demo/orders-demo.json"
+    },
+    {
+      "orderId": "OD-DEMO-3002",
+      "customerId": "t3",
+      "items": [
+        {
+          "productId": "demo-jacket",
+          "sku": "OD-JK-101",
+          "quantity": 1,
+          "specification": "海军蓝 / L"
+        },
+        {
+          "productId": "demo-bottle",
+          "sku": "OD-CU-303",
+          "quantity": 1,
+          "specification": "雾蓝 / 480mL"
+        }
+      ],
+      "status": "待发货",
+      "amount": 428,
+      "paymentStatus": "已支付（演示）",
+      "shippingStatus": "待出库（演示）",
+      "afterSalesStatus": "暂无售后记录",
+      "updatedAt": "2026-10-28",
+      "source": "demo/orders-demo.json"
+    }
+  ]
+}

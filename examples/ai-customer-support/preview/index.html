@@ -402,6 +402,37 @@
 #od-compact-inline .product-disclaimer{color:var(--muted);font-size:10px;line-height:1.65;margin:14px 1px 2px}
 #od-compact-inline .product-empty{font-size:11px;color:var(--muted);padding:24px 3px;text-align:center}
 @container (max-width:360px){#od-compact-inline .product-scroll{padding:10px 11px 14px}#od-compact-inline .product-row{gap:8px}#od-compact-inline .product-thumb{width:58px;height:58px}#od-compact-inline .product-searchrow{gap:6px}#od-compact-inline .product-searchrow select{min-width:76px;max-width:94px}#od-compact-inline .product-segments button{padding:6px 9px}}
+
+/* R1.9 six independent business tabs, gallery and read-only orders */
+#od-compact-inline #odiv-tabs{overflow-x:auto;overflow-y:hidden;max-width:100%;min-width:0;flex-wrap:nowrap;gap:5px!important;white-space:nowrap;scrollbar-width:thin;scrollbar-color:var(--line) transparent;scroll-padding-inline:10px}
+#od-compact-inline #odiv-tabs [role="tab"]{flex:0 0 auto;white-space:nowrap;min-width:max-content;font-size:12px!important;padding:0 5px!important}
+#od-compact-inline .view{min-width:0}
+#od-compact-inline .order-list{display:grid}
+#od-compact-inline .order-row{display:grid;gap:6px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:transparent;padding:12px 1px}
+#od-compact-inline .order-row:hover{background:var(--soft)}
+#od-compact-inline .order-line{display:flex;justify-content:space-between;align-items:center;gap:9px;min-width:0}
+#od-compact-inline .order-id{font-size:11.7px;font-weight:740}
+#od-compact-inline .order-status{font-size:10px;border:1px solid var(--accent-line);color:var(--accent);background:var(--accent-soft);border-radius:30px;padding:2px 7px;flex:none}
+#od-compact-inline .order-status.alert{color:var(--warn);background:var(--warning);border-color:transparent}
+#od-compact-inline .order-status.neutral{color:var(--muted);background:var(--soft);border-color:var(--line)}
+#od-compact-inline .order-date{font-size:10px;color:var(--muted)}
+#od-compact-inline .order-money{font-size:11px;font-weight:740}
+#od-compact-inline .order-hint{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:10.5px}
+#od-compact-inline .order-item{display:flex;gap:10px;align-items:flex-start;border-bottom:1px solid var(--line);padding:10px 0}
+#od-compact-inline .order-item img{width:56px;height:56px;flex:none;border:1px solid var(--line);border-radius:9px;object-fit:cover}
+#od-compact-inline .order-item-info{flex:1;min-width:0;display:grid;gap:3px}
+#od-compact-inline .order-item-info strong{font-size:11.5px}
+#od-compact-inline .order-item-info small{font-size:10px;color:var(--muted);overflow-wrap:anywhere}
+#od-compact-inline .order-open-product{border:0;background:transparent;padding:0;justify-self:start;text-align:left;color:var(--accent);font-size:10.5px}
+#od-compact-inline .order-total{display:flex;justify-content:space-between;font-size:12px;font-weight:740;padding:12px 0}
+#od-compact-inline .order-field{display:flex;justify-content:space-between;align-items:flex-start;gap:9px;padding:9px 0;border-bottom:1px solid var(--line);font-size:11px}
+#od-compact-inline .order-field span:first-child{color:var(--muted);flex:none}
+#od-compact-inline .order-field strong{text-align:right;overflow-wrap:anywhere;font-weight:580}
+#od-compact-inline .media-note{color:var(--muted);font-size:10px;line-height:1.6;margin:12px 1px}
+#od-compact-inline .image-meta{display:grid;gap:6px;font-size:11px;margin:10px 0}
+#od-compact-inline .image-meta strong{font-size:13px}
+#od-compact-inline .image-meta small{font-size:10px;color:var(--muted)}
+@media(max-width:360px){#od-compact-inline #odiv-tabs{padding:0 9px;gap:4px!important}#od-compact-inline #odiv-tabs [role="tab"]{font-size:12px!important;padding:0 5px!important}}
 </style><header class="preview-top"><div class="brand">OD</div><div><div class="ptitle">OpenDesk Desktop · AI 客服助手</div><div class="pmeta">双窗口工作台 · 右侧 Compact Copilot 380px</div></div><div class="push"></div><div class="preview-tools"><div aria-label="预览视图" class="seg" role="group"><button data-view="chat" type="button">聊天</button><button class="on" data-view="assistant" type="button">助手</button></div><button aria-label="切换明暗主题" class="iconbtn" id="od-theme" title="切换明暗主题"><svg class="ico"><use href="#od-i-moon"></use></svg></button><button aria-label="重置模拟数据" class="iconbtn" id="od-reset" title="重置模拟数据"><svg class="ico"><use href="#od-i-rotate"></use></svg></button></div></header>
 <main class="stage"><div class="minimized-bar hidden" id="od-minimized"><span>聊天模拟窗口已最小化 · AI 助手暂时隐藏</span><button id="od-restore" type="button">恢复工作台</button></div><div class="stage-inner" data-show="assistant" id="od-stage-inner"><section aria-label="模拟聊天软件" class="window chat"><header class="window-header"><div class="macdots"><i></i><i></i><i></i></div><span class="windowname">客户沟通台</span><div class="push"></div><span class="muted" style="font-size:10px">仅演示</span><button aria-label="最小化模拟聊天窗口" class="window-mini" id="od-minimize" title="模拟最小化" type="button">−</button></header><div class="chat-body"><nav aria-label="聊天会话" class="contactlist"><strong>会话列表</strong><label class="contact-search"><span aria-hidden="true">⌕</span><input aria-label="搜索模拟聊天联系人" id="od-contact-search" placeholder="搜索联系人" type="search"/></label><div id="od-contacts"></div></nav><section class="conversation"><header class="conversation-head"><strong id="od-chat-name">林女士</strong><small id="od-chat-id">#demo-01 · 模拟</small></header><div class="messages" id="od-messages" role="log"></div><div class="chat-send"><textarea aria-label="模拟聊天草稿" id="od-chat-draft" placeholder="客服输入草稿…"></textarea><button class="primary" id="od-chat-send" type="button"><svg class="ico sm"><use href="#od-i-send"></use></svg>发送</button></div></section></div><section class="demo-tray"><span>模拟客户发送消息</span><div class="demo-chips"><button data-ask="refund">退款</button><button data-ask="invoice">发票 · 精确</button><button data-ask="shipping">物流</button><button data-ask="product">商品</button><button data-ask="unknown">未知问题</button></div><div class="demo-input"><input aria-label="自定义客户提问" id="od-customer-question" placeholder="输入任意测试问题…" type="text"/><button class="smallbtn" id="od-ask-custom">发送问题</button></div></section></section>
 <section aria-label="Compact Copilot · 380 像素右侧助手" class="merge-assistant"><div id="od-compact-inline"><div class="wrap"><div class="preview-control"><div class="od-mark">OD</div><div class="preview-title">AI 客服 · Compact Copilot <span class="tiny grey">· 380px</span></div><div class="flex"></div><button class="tool" id="odiv-view" title="切换聊天模拟器 / AI 助手">☷</button><button class="tool" id="odiv-theme" title="深浅色切换">◐</button><button class="tool" id="odiv-reset" title="重置模拟数据">↻</button></div>
@@ -410,6 +441,8 @@
   <button type="button" id="odiv-tab-knowledge" role="tab" aria-controls="odiv-knowledge" aria-selected="false" tabindex="-1" data-tab="knowledge">知识库</button>
   <button type="button" id="odiv-tab-customer" role="tab" aria-controls="odiv-customer" aria-selected="false" tabindex="-1" data-tab="customer">客户档案</button>
   <button type="button" id="odiv-tab-products" role="tab" aria-controls="odiv-products" aria-selected="false" tabindex="-1" data-tab="products">商品</button>
+  <button type="button" id="odiv-tab-images" role="tab" aria-controls="odiv-images" aria-selected="false" tabindex="-1" data-tab="images">图片</button>
+  <button type="button" id="odiv-tab-orders" role="tab" aria-controls="odiv-orders" aria-selected="false" tabindex="-1" data-tab="orders">订单</button>
 </nav>
 <section class="view on" id="odiv-reply"><div class="scroll"><div class="between"><span class="connected" id="odiv-status">已连接 · 模拟</span><button class="takeover hidden" id="odiv-takeover" title="只暂停当前会话的自动回复，AI 仍继续推荐">♧ <span id="odiv-takeover-text">人工接管</span></button></div><div class="message"><div class="between"><span>最新客户消息</span><span id="odiv-msg-id">#m-001</span></div><p id="odiv-latest">签收后还能退款吗？</p></div><button class="hit" id="odiv-hit"><span class="check">✓</span><span class="flex"><b id="odiv-hit-title">匹配到 · 退款申请时效</b><small id="odiv-hit-source">售后政策.json</small></span><span class="grey">›</span></button><div class="section">推荐回复 <span id="odiv-answer-count">3 条 · 点击选用</span></div><div class="recommend" id="odiv-options"></div><div class="notice hidden" id="odiv-notice"></div></div><footer class="bottom compact-actions">
 <div class="between"><span class="chosen-label" id="odiv-selected">已选：准确答复</span><span class="small" id="odiv-answer-length">0 字</span></div>
@@ -492,7 +525,16 @@
     </section>
   </div>
 </section>
-<section class="view" id="odiv-products" role="tabpanel" aria-labelledby="odiv-tab-products" aria-label="商品与图片"><div class="product-switchbar" id="odiv-products-switch" role="group" aria-label="商品页面子视图"><div class="product-segments"><button type="button" id="odiv-product-mode-list" data-product-mode="list" class="on" aria-pressed="true">商品列表</button><button type="button" id="odiv-product-mode-gallery" data-product-mode="gallery" aria-pressed="false">图片图库</button></div><span class="product-demo-badge">演示资料</span></div><div class="scroll product-scroll"><div id="odiv-products-finder" class="product-searchrow"><label class="product-searchbox"><svg class="lucide-line" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input type="search" id="odiv-products-search" autocomplete="off" placeholder="搜索商品 / SKU / 规格" aria-label="搜索商品名称型号和规格"/></label><select id="odiv-products-category" aria-label="筛选商品分类"><option value="all">全部分类</option></select></div><div class="product-summary" id="odiv-products-summary" role="status"></div><div id="odiv-products-list" class="product-list"></div><div id="odiv-products-gallery" class="product-gallery hidden"></div><div id="odiv-products-detail" class="hidden"></div><p id="odiv-products-disclaimer" class="product-disclaimer">价格仅为演示参考价，图片为 SVG 示意图。库存、配送与实际商品信息均需人工核实。</p></div><script type="application/json" id="odiv-product-seed">{"schemaVersion":1,"format":"opendesk.ai-customer-support.products-demo","demo":true,"description":"完全虚构的商品与图片示例数据；价格仅为演示参考价，图片为程序绘制 SVG 示意图，不反映实时售价、库存或承诺。","provider":"local-demo","products":[{"id":"demo-jacket","sku":"OD-JK-101","name":"轻量连帽外套","category":"服饰","price":"¥299","model":"JK-101","summary":"轻量日常外套，展示可参考的颜色与尺码信息。","specs":[{"label":"颜色","value":"海军蓝"},{"label":"尺码","value":"S / M / L / XL"},{"label":"面料","value":"演示聚酯纤维"}],"imageType":"jacket","color":"#426894","images":[{"id":"front","label":"正面示意图"},{"id":"detail","label":"材质细节示意"}],"source":"demo/products-demo.json","updated":"2026-10-28"},{"id":"demo-shoes","sku":"OD-SN-202","name":"轻量运动鞋","category":"鞋靴","price":"¥359","model":"SN-202","summary":"适合日常出行的运动鞋演示款，具体脚感与尺码需实物核实。","specs":[{"label":"颜色","value":"岩灰"},{"label":"尺码","value":"36–44（演示）"},{"label":"鞋面","value":"透气织物（演示）"}],"imageType":"shoe","color":"#728491","images":[{"id":"side","label":"侧面示意图"},{"id":"detail","label":"鞋面细节示意"}],"source":"demo/products-demo.json","updated":"2026-10-28"},{"id":"demo-bottle","sku":"OD-CU-303","name":"便携保温杯","category":"家居","price":"¥129","model":"CU-303","summary":"轻便杯型与基础容量演示，保温时长不作真实承诺。","specs":[{"label":"容量","value":"480 mL（演示）"},{"label":"颜色","value":"雾蓝"},{"label":"杯身","value":"双层结构示意"}],"imageType":"bottle","color":"#619ab2","images":[{"id":"front","label":"外观示意图"},{"id":"detail","label":"杯盖细节示意"}],"source":"demo/products-demo.json","updated":"2026-10-28"},{"id":"demo-speaker","sku":"OD-SP-404","name":"迷你蓝牙音箱","category":"数码","price":"¥239","model":"SP-404","summary":"便携音箱外观与控制区示意，续航和连接参数需进一步核实。","specs":[{"label":"连接","value":"蓝牙（演示）"},{"label":"配色","value":"石墨黑"},{"label":"接口","value":"USB-C 示意"}],"imageType":"speaker","color":"#4f606f","images":[{"id":"front","label":"正面示意图"},{"id":"detail","label":"按键细节示意"}],"source":"demo/products-demo.json","updated":"2026-10-28"},{"id":"demo-bag","sku":"OD-BG-505","name":"简约帆布托特包","category":"配饰","price":"¥159","model":"BG-505","summary":"日常通勤包型示意，尺寸和实际承重应以核验资料为准。","specs":[{"label":"颜色","value":"燕麦米"},{"label":"结构","value":"单主袋（演示）"},{"label":"面料","value":"帆布示意"}],"imageType":"bag","color":"#b69b7c","images":[{"id":"front","label":"正面示意图"},{"id":"detail","label":"提手细节示意"}],"source":"demo/products-demo.json","updated":"2026-10-28"},{"id":"demo-shirt","sku":"OD-SH-606","name":"基础短袖衬衫","category":"服饰","price":"¥189","model":"SH-606","summary":"简洁通勤版型演示，尺寸表和具体库存需人工确认。","specs":[{"label":"颜色","value":"浅蓝"},{"label":"尺码","value":"S / M / L（演示）"},{"label":"领型","value":"翻领"}],"imageType":"shirt","color":"#8bacc9","images":[{"id":"front","label":"正面示意图"},{"id":"detail","label":"领口细节示意"}],"source":"demo/products-demo.json","updated":"2026-10-28"}]}</script></section>
+<section class="view" id="odiv-products" role="tabpanel" aria-labelledby="odiv-tab-products" aria-label="商品"><div class="product-switchbar" id="odiv-products-switch" role="group" aria-label="商品页面子视图"><span class="product-demo-badge">演示资料</span></div><div class="scroll product-scroll"><div id="odiv-products-finder" class="product-searchrow"><label class="product-searchbox"><svg class="lucide-line" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input type="search" id="odiv-products-search" autocomplete="off" placeholder="搜索商品 / SKU / 规格" aria-label="搜索商品名称型号和规格"/></label><select id="odiv-products-category" aria-label="筛选商品分类"><option value="all">全部分类</option></select></div><div class="product-summary" id="odiv-products-summary" role="status"></div><div id="odiv-products-list" class="product-list"></div><div id="odiv-products-gallery" class="product-gallery hidden"></div><div id="odiv-products-detail" class="hidden"></div><p id="odiv-products-disclaimer" class="product-disclaimer">价格仅为演示参考价，图片为 SVG 示意图。库存、配送与实际商品信息均需人工核实。</p></div><script type="application/json" id="odiv-product-seed">{"schemaVersion":1,"format":"opendesk.ai-customer-support.products-demo","demo":true,"description":"完全虚构的商品与图片示例数据；价格仅为演示参考价，图片为程序绘制 SVG 示意图，不反映实时售价、库存或承诺。","provider":"local-demo","products":[{"id":"demo-jacket","sku":"OD-JK-101","name":"轻量连帽外套","category":"服饰","price":"¥299","model":"JK-101","summary":"轻量日常外套，展示可参考的颜色与尺码信息。","specs":[{"label":"颜色","value":"海军蓝"},{"label":"尺码","value":"S / M / L / XL"},{"label":"面料","value":"演示聚酯纤维"}],"imageType":"jacket","color":"#426894","images":[{"id":"front","label":"正面示意图"},{"id":"detail","label":"材质细节示意"}],"source":"demo/products-demo.json","updated":"2026-10-28"},{"id":"demo-shoes","sku":"OD-SN-202","name":"轻量运动鞋","category":"鞋靴","price":"¥359","model":"SN-202","summary":"适合日常出行的运动鞋演示款，具体脚感与尺码需实物核实。","specs":[{"label":"颜色","value":"岩灰"},{"label":"尺码","value":"36–44（演示）"},{"label":"鞋面","value":"透气织物（演示）"}],"imageType":"shoe","color":"#728491","images":[{"id":"side","label":"侧面示意图"},{"id":"detail","label":"鞋面细节示意"}],"source":"demo/products-demo.json","updated":"2026-10-28"},{"id":"demo-bottle","sku":"OD-CU-303","name":"便携保温杯","category":"家居","price":"¥129","model":"CU-303","summary":"轻便杯型与基础容量演示，保温时长不作真实承诺。","specs":[{"label":"容量","value":"480 mL（演示）"},{"label":"颜色","value":"雾蓝"},{"label":"杯身","value":"双层结构示意"}],"imageType":"bottle","color":"#619ab2","images":[{"id":"front","label":"外观示意图"},{"id":"detail","label":"杯盖细节示意"}],"source":"demo/products-demo.json","updated":"2026-10-28"},{"id":"demo-speaker","sku":"OD-SP-404","name":"迷你蓝牙音箱","category":"数码","price":"¥239","model":"SP-404","summary":"便携音箱外观与控制区示意，续航和连接参数需进一步核实。","specs":[{"label":"连接","value":"蓝牙（演示）"},{"label":"配色","value":"石墨黑"},{"label":"接口","value":"USB-C 示意"}],"imageType":"speaker","color":"#4f606f","images":[{"id":"front","label":"正面示意图"},{"id":"detail","label":"按键细节示意"}],"source":"demo/products-demo.json","updated":"2026-10-28"},{"id":"demo-bag","sku":"OD-BG-505","name":"简约帆布托特包","category":"配饰","price":"¥159","model":"BG-505","summary":"日常通勤包型示意，尺寸和实际承重应以核验资料为准。","specs":[{"label":"颜色","value":"燕麦米"},{"label":"结构","value":"单主袋（演示）"},{"label":"面料","value":"帆布示意"}],"imageType":"bag","color":"#b69b7c","images":[{"id":"front","label":"正面示意图"},{"id":"detail","label":"提手细节示意"}],"source":"demo/products-demo.json","updated":"2026-10-28"},{"id":"demo-shirt","sku":"OD-SH-606","name":"基础短袖衬衫","category":"服饰","price":"¥189","model":"SH-606","summary":"简洁通勤版型演示，尺寸表和具体库存需人工确认。","specs":[{"label":"颜色","value":"浅蓝"},{"label":"尺码","value":"S / M / L（演示）"},{"label":"领型","value":"翻领"}],"imageType":"shirt","color":"#8bacc9","images":[{"id":"front","label":"正面示意图"},{"id":"detail","label":"领口细节示意"}],"source":"demo/products-demo.json","updated":"2026-10-28"}]}</script></section>
+
+<section class="view" id="odiv-images" role="tabpanel" aria-labelledby="odiv-tab-images"><div class="scroll product-scroll" id="odiv-images-scroll">
+ <div class="product-searchrow" id="odiv-images-finder"><label class="product-searchbox"><svg class="lucide-line" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input type="search" id="odiv-images-search" placeholder="图片 / 商品 / SKU" aria-label="搜索商品图片" autocomplete="off"/></label><select id="odiv-images-product" aria-label="筛选关联商品"><option value="all">全部商品</option></select></div>
+ <div class="product-summary" id="odiv-images-summary" role="status"></div><div class="product-gallery" id="odiv-images-grid"></div><div class="hidden" id="odiv-images-detail"></div><p class="media-note">复用商品资料，12 张 SVG 演示图；不是商品实拍或微信附件。</p>
+</div></section>
+<section class="view" id="odiv-orders" role="tabpanel" aria-labelledby="odiv-tab-orders"><div class="scroll product-scroll" id="odiv-orders-scroll">
+ <div class="product-searchrow" id="odiv-orders-finder"><label class="product-searchbox"><svg class="lucide-line" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input type="search" id="odiv-orders-search" placeholder="订单号 / 商品 / SKU" aria-label="搜索当前客户订单" autocomplete="off"/></label><select id="odiv-orders-filter" aria-label="订单状态筛选"><option value="all">全部状态</option><option>待付款</option><option>待发货</option><option>运输中</option><option>已完成</option><option>售后中</option></select></div>
+ <div class="product-summary" id="odiv-orders-summary" role="status"></div><div class="order-list" id="odiv-orders-list"></div><div class="hidden" id="odiv-orders-detail"></div><p class="media-note">只读虚构订单。金额、付款、物流和售后均非实时结果，不执行退款、取消、发货。</p>
+</div><script type="application/json" id="odiv-orders-seed">{"schemaVersion":1,"format":"opendesk.ai-customer-support.orders-demo","demo":true,"provider":"local-demo","description":"只读完全虚构的订单，金额、支付、物流、售后不代表真实状态。","orders":[{"orderId":"OD-DEMO-1001","customerId":"t1","items":[{"productId":"demo-jacket","sku":"OD-JK-101","quantity":1,"specification":"海军蓝 / M"}],"status":"运输中","amount":299,"paymentStatus":"已支付（演示）","shippingStatus":"运输中（演示）","afterSalesStatus":"暂无售后记录","updatedAt":"2026-10-28","source":"demo/orders-demo.json"},{"orderId":"OD-DEMO-1002","customerId":"t1","items":[{"productId":"demo-bottle","sku":"OD-CU-303","quantity":1,"specification":"雾蓝 / 480mL"}],"status":"已完成","amount":129,"paymentStatus":"已支付（演示）","shippingStatus":"已签收（演示）","afterSalesStatus":"暂无售后记录","updatedAt":"2026-10-26","source":"demo/orders-demo.json"},{"orderId":"OD-DEMO-1003","customerId":"t1","items":[{"productId":"demo-shoes","sku":"OD-SN-202","quantity":1,"specification":"岩灰 / 39"}],"status":"售后中","amount":359,"paymentStatus":"已支付（演示）","shippingStatus":"已签收（演示）","afterSalesStatus":"申请待人工核实","updatedAt":"2026-10-27","source":"demo/orders-demo.json"},{"orderId":"OD-DEMO-2001","customerId":"t2","items":[{"productId":"demo-speaker","sku":"OD-SP-404","quantity":1,"specification":"石墨黑"}],"status":"待发货","amount":239,"paymentStatus":"已支付（演示）","shippingStatus":"待出库（演示）","afterSalesStatus":"暂无售后记录","updatedAt":"2026-10-27","source":"demo/orders-demo.json"},{"orderId":"OD-DEMO-2002","customerId":"t2","items":[{"productId":"demo-bag","sku":"OD-BG-505","quantity":2,"specification":"燕麦米"}],"status":"待付款","amount":318,"paymentStatus":"未支付（演示）","shippingStatus":"暂无物流","afterSalesStatus":"不适用","updatedAt":"2026-10-28","source":"demo/orders-demo.json"},{"orderId":"OD-DEMO-2003","customerId":"t2","items":[{"productId":"demo-shoes","sku":"OD-SN-202","quantity":1,"specification":"岩灰 / 42"}],"status":"运输中","amount":359,"paymentStatus":"已支付（演示）","shippingStatus":"运输中（演示）","afterSalesStatus":"暂无售后记录","updatedAt":"2026-10-25","source":"demo/orders-demo.json"},{"orderId":"OD-DEMO-3001","customerId":"t3","items":[{"productId":"demo-shirt","sku":"OD-SH-606","quantity":1,"specification":"浅蓝 / M"}],"status":"已完成","amount":189,"paymentStatus":"已支付（演示）","shippingStatus":"已签收（演示）","afterSalesStatus":"暂无售后记录","updatedAt":"2026-10-24","source":"demo/orders-demo.json"},{"orderId":"OD-DEMO-3002","customerId":"t3","items":[{"productId":"demo-jacket","sku":"OD-JK-101","quantity":1,"specification":"海军蓝 / L"},{"productId":"demo-bottle","sku":"OD-CU-303","quantity":1,"specification":"雾蓝 / 480mL"}],"status":"待发货","amount":428,"paymentStatus":"已支付（演示）","shippingStatus":"待出库（演示）","afterSalesStatus":"暂无售后记录","updatedAt":"2026-10-28","source":"demo/orders-demo.json"}]}</script></section>
 <section class="view" id="odiv-settings" aria-label="设置"><div class="settings-subhead"><button type="button" id="odiv-settings-back" class="settings-back" aria-label="返回之前的业务页面">← 返回</button><strong>设置</strong></div><div class="scroll full-settings">
 <div class="settings-group-title">目标与授权</div>
 <div class="setting"><div><b>目标聊天软件</b><small>本轮只连接左侧的模拟窗口</small></div><select aria-label="目标聊天软件" id="odiv-target"><option value="demo">模拟聊天软件</option><option disabled="">微信 · 未接入</option><option disabled="">企业微信 · 未接入</option></select></div>
@@ -538,7 +580,11 @@ const initialKb=()=>[
  {id:'k7',q:'人工客服在线时间',question:'人工客服什么时候在线？',a:'演示规则：人工客服服务时间为工作日 09:00–18:00，非工作时段可留言等待回复。',keys:['客服','人工','服务时间'],aliases:['人工几点上班','怎么转人工'],source:'demo/service.json',enabled:true,category:'服务',scope:null,eligible:true,eligibility:'预设演示知识（仍需精确匹配）'}
 ];
 let counter=7,threads=initialThreads(),kb=initialKb();
-let settingsOriginTab='reply',settingsOriginScrollTop=0;let productMode='list',productSelected=null,productLightbox=null,productScrollSaved=0;const products=JSON.parse($('#odiv-product-seed').textContent).products;
+let settingsOriginTab='reply',settingsOriginScrollTop=0;let productMode='list',productSelected=null,productLightbox=null,productScrollSaved=0,imageSelected=null,imageScrollSaved=0,orderSelected=null,orderScrollSaved=0;const products=JSON.parse($('#odiv-product-seed').textContent).products;
+ const ordersSeed=JSON.parse($('#odiv-orders-seed').textContent).orders,knownCustomers=new Set(['t1','t2','t3']);
+ const orders=Array.isArray(ordersSeed)?ordersSeed.filter(o=>o&&knownCustomers.has(o.customerId)&&typeof o.orderId==='string'&&Array.isArray(o.items)&&o.items.length&&o.items.every(i=>products.some(p=>p.id===i.productId&&p.sku===i.sku)&&Number.isInteger(i.quantity)&&i.quantity>0)&&Number.isFinite(o.amount)):[];
+ const orderProvider=Object.freeze({list(id){return knownCustomers.has(id)?orders.filter(o=>o.customerId===id):[]},get(id,oid){return this.list(id).find(o=>o.orderId===oid)||null}});
+ const tabScrolls=new Map();
 const s={tid:'t1',tab:'reply',paused:false,permission:true,auto:false,consented:false,takeover:new Set(),chosen:new Map(),edits:new Map(),editing:null,filter:'all',source:'all',scope:'all',expanded:new Set(),receipt:'尚未发送',importVisible:false,follow:true,verify:true,nicknameMode:'original',logHistory:[]};
 
 // Customer history is strictly demo/browser-local and scoped by current customer identity.
@@ -720,19 +766,19 @@ function receive(text){
   }
  }else{record('客户新消息 '+id+' · 等待人工处理');toast('已收到模拟消息')}
 }
-function switchTab(tab,opts={}){if(tab==='settings'&&s.tab!=='settings'){settingsOriginTab=s.tab;settingsOriginScrollTop=$('#odiv-'+s.tab+' .scroll')?.scrollTop||0;}if(tab!=='settings'&&tab!=='chat'&&!['reply','knowledge','customer','products'].includes(tab))return;s.tab=tab;$('#odiv-tabs').classList.toggle('hidden',tab==='chat'||tab==='settings');$('#odiv-menu').setAttribute('aria-expanded',String(tab==='settings'));$$('[data-tab]').forEach(b=>{const active=b.dataset.tab===tab;b.classList.toggle('on',active);b.setAttribute('aria-selected',String(active));b.tabIndex=active?0:-1});$$('.view').forEach(v=>v.classList.toggle('on',v.id==='odiv-'+tab));if(tab==='knowledge')renderKb();if(tab==='customer'){if(!opts.keepCustomer){profilePage='detail';profileDocView='render';profileCustomerId=s.tid;profileBoundId=s.tid;}renderProfile()}if(tab==='products')renderProducts();if(tab==='settings')renderSettings();if(opts.keepCustomer&&tab===settingsOriginTab){const originScroll=$('#odiv-'+tab+' .scroll');if(originScroll)originScroll.scrollTop=settingsOriginScrollTop;}$('#odiv-heading').textContent=tab==='chat'?'聊天模拟器':'AI 客服'}
+function switchTab(tab,opts={}){if(tab==='settings'&&s.tab!=='settings'){settingsOriginTab=s.tab;settingsOriginScrollTop=$('#odiv-'+s.tab+' .scroll')?.scrollTop||0;}if(tab!=='settings'&&tab!=='chat'&&!['reply','knowledge','customer','products','images','orders'].includes(tab))return;s.tab=tab;$('#odiv-tabs').classList.toggle('hidden',tab==='chat'||tab==='settings');$('#odiv-menu').setAttribute('aria-expanded',String(tab==='settings'));$$('[data-tab]').forEach(b=>{const active=b.dataset.tab===tab;b.classList.toggle('on',active);b.setAttribute('aria-selected',String(active));b.tabIndex=active?0:-1});$$('.view').forEach(v=>v.classList.toggle('on',v.id==='odiv-'+tab));if(tab==='knowledge')renderKb();if(tab==='customer'){if(!opts.keepCustomer){profilePage='detail';profileDocView='render';profileCustomerId=s.tid;profileBoundId=s.tid;}renderProfile()}if(tab==='products')renderProducts();if(tab==='images')renderImages();if(tab==='orders')renderOrders();if(tab==='settings')renderSettings();if(opts.keepCustomer&&tab===settingsOriginTab){const originScroll=$('#odiv-'+tab+' .scroll');if(originScroll)originScroll.scrollTop=settingsOriginScrollTop;}if(tab!=='settings'&&tab!=='chat')$('#odiv-tab-'+tab)?.scrollIntoView({block:'nearest',inline:'nearest'});$('#odiv-heading').textContent=tab==='chat'?'聊天模拟器':'AI 客服'}
 function reset(){
- counter=7;threads=initialThreads();kb=initialKb();settingsOriginTab='reply';settingsOriginScrollTop=0;productMode='list';productSelected=null;productLightbox=null;productScrollSaved=0;$('#odiv-products-search').value='';$('#odiv-products-category').value='all';profileHistory=demoHistorySeed();profileFacts=[];profileExpanded.clear();profileFilter='all';profilePage='detail';profileCustomerId='t1';profileBoundId='t1';profileDirectoryFilter='all';profileDocView='render';closeDirectoryFilter();for(const key of Object.keys(profileExternalLinks))delete profileExternalLinks[key];$('#odiv-profile-filter').value='all';$('#odiv-profile-search').value='';$('#odiv-profile-directory-search').value='';$('#odiv-history-zone').classList.add('hidden');$('#odiv-history-status').textContent='导入后点击 ✦ 提取可审查的关键语料。';addProfileFacts();s.tid='t1';s.paused=false;s.permission=true;s.auto=false;s.consented=false;s.takeover.clear();s.chosen.clear();s.edits.clear();s.editing=null;s.filter='all';s.source='all';s.scope='all';s.expanded.clear();s.receipt='尚未发送';s.follow=true;s.verify=true;s.nicknameMode='original';s.logHistory=[];
+ counter=7;threads=initialThreads();kb=initialKb();settingsOriginTab='reply';settingsOriginScrollTop=0;productMode='list';productSelected=null;productLightbox=null;productScrollSaved=0;imageSelected=null;imageScrollSaved=0;orderSelected=null;orderScrollSaved=0;tabScrolls.clear();$('#odiv-products-search').value='';$('#odiv-products-category').value='all';$('#odiv-images-search').value='';$('#odiv-images-product').value='all';$('#odiv-orders-search').value='';$('#odiv-orders-filter').value='all';profileHistory=demoHistorySeed();profileFacts=[];profileExpanded.clear();profileFilter='all';profilePage='detail';profileCustomerId='t1';profileBoundId='t1';profileDirectoryFilter='all';profileDocView='render';closeDirectoryFilter();for(const key of Object.keys(profileExternalLinks))delete profileExternalLinks[key];$('#odiv-profile-filter').value='all';$('#odiv-profile-search').value='';$('#odiv-profile-directory-search').value='';$('#odiv-history-zone').classList.add('hidden');$('#odiv-history-status').textContent='导入后点击 ✦ 提取可审查的关键语料。';addProfileFacts();s.tid='t1';s.paused=false;s.permission=true;s.auto=false;s.consented=false;s.takeover.clear();s.chosen.clear();s.edits.clear();s.editing=null;s.filter='all';s.source='all';s.scope='all';s.expanded.clear();s.receipt='尚未发送';s.follow=true;s.verify=true;s.nicknameMode='original';s.logHistory=[];
  $('#odiv-search').value='';$('#odiv-scope').value='all';$('#odiv-pop').classList.add('hidden');$('#odiv-import').classList.add('hidden');$('#odiv-permission').checked=true;$('#odiv-observe').checked=true;$('#odiv-auto').checked=false;$('#odiv-consent').classList.add('hidden');$('#odiv-auto-info').textContent='自动回复已关闭，AI 继续提供推荐答案。';
  $$('[data-filter]').forEach(b=>b.classList.toggle('on',b.dataset.filter==='all'));$('#odiv-import-msg').textContent='';
- renderReply();renderChat();renderKb();renderProducts();switchTab('reply');$('#odiv-tabs').classList.remove('hidden');renderSettings();window.dispatchEvent(new Event('od-workbench-reset'));toast('演示已重置');
+ renderReply();renderChat();renderKb();renderProfile();renderProducts();renderImages();renderOrders();switchTab('reply');$('#odiv-tabs').classList.remove('hidden');renderSettings();window.dispatchEvent(new Event('od-workbench-reset'));toast('演示已重置');
 }
 R.addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b)return;
  if(b.dataset.tab)return switchTab(b.dataset.tab);
  if(b.dataset.choice){const o=variants().find(x=>x.id===b.dataset.choice);if(!o)return;s.chosen.set(msgKey(),o.id);s.editing=null;renderReply();return}
  if(b.dataset.finishEdit){s.editing=null;renderReply();toast('已完成此条回复的编辑');return}
- if(b.dataset.contact){s.tid=b.dataset.contact;s.editing=null;renderChat();renderReply();return}
+ if(b.dataset.contact){if(!threads.some(t=>t.id===b.dataset.contact))return;const old=s.tid;s.tid=b.dataset.contact;s.editing=null;onCustomerChange(old);renderChat();renderReply();return}
  if(b.dataset.question){if(b.dataset.question==='two'){receive('我想咨询退款问题。');return receive('另外，请问电子发票怎么申请？')}return receive({refund:'签收后 7 天内还能申请退款吗？',invoice:'请问能开发票吗？',shipping:'物流怎么查询？',unknown:'可以立即给我赔偿承诺吗？'}[b.dataset.question])}
  if(b.dataset.filter){s.filter=b.dataset.filter;$$('[data-filter]').forEach(x=>x.classList.toggle('on',x.dataset.filter===s.filter));renderKb();return}
  if(b.dataset.kb!==undefined){const id=b.dataset.kb;s.expanded.has(id)?s.expanded.delete(id):s.expanded.add(id);renderKb()}
@@ -794,7 +840,7 @@ function renderProducts(){
   const price=prodEl('div','product-detail-price',p.price),note=prodEl('span','product-detail-sub','演示参考价 · 非实时售价 / 库存'),desc=prodEl('p','product-detail-desc',p.summary);
   const specs=prodEl('div','product-specs');p.specs.forEach(x=>{const r=prodEl('div','product-spec');r.append(prodEl('span','',x.label),prodEl('span','',x.value));specs.append(r)});
   const smalls=prodEl('div','product-altimages');p.images.forEach((x,i)=>{const b=prodEl('button');b.type='button';b.title='查看'+x.label;b.setAttribute('aria-label','查看'+x.label);b.dataset.productImage=p.id;b.dataset.productImageIndex=String(i);b.append(prodImage(p,i));smalls.append(b)});
-  const actions=prodEl('div','product-actions');actions.append(productAction('填入聊天草稿','fill',true),productAction('复制资料','copyProduct'));
+  const actions=prodEl('div','product-actions');actions.append(productAction('填入聊天草稿','fill',true),productAction('查看关联图片','viewImages'),productAction('复制资料','copyProduct'));
   detail.append(head,heroButton,smalls,name,sub,price,note,desc,specs,prodEl('span','product-detail-sub','资料来源：'+p.source+' · 更新：'+p.updated),actions);return;
  }
  const arr=visibleProducts();
@@ -827,17 +873,103 @@ $('#odiv-products').addEventListener('click',async e=>{
  const b=e.target.closest('button');if(!b)return;
  if(b.dataset.productMode){productMode=b.dataset.productMode;productSelected=null;productLightbox=null;renderProducts();$('#odiv-products .product-scroll').scrollTop=0;return}
  if(b.dataset.openProduct){productScrollSaved=$('#odiv-products .product-scroll').scrollTop;productSelected=b.dataset.openProduct;renderProducts();$('#odiv-products .product-scroll').scrollTop=0;return}
- if(b.dataset.productImage){productScrollSaved=$('#odiv-products .product-scroll').scrollTop;productLightbox={id:b.dataset.productImage,index:Number(b.dataset.productImageIndex)||0,from:productSelected?'detail':'gallery'};renderProducts();$('#odiv-products .product-scroll').scrollTop=0;return}
+ if(b.dataset.productImage){const p=findProduct(b.dataset.productImage),im=p?.images[Number(b.dataset.productImageIndex)||0];if(p&&im)openImageDetail(p.id,im.id);return}
  if(b.dataset.productBack){if(productLightbox){const from=productLightbox.from;productLightbox=null;if(from!=='detail')productSelected=null;}else productSelected=null;renderProducts();$('#odiv-products .product-scroll').scrollTop=productScrollSaved;return}
  const p=findProduct(productLightbox?.id||productSelected);if(!p)return;
  if(b.dataset.productAction==='viewProduct'){productSelected=p.id;productLightbox=null;renderProducts();$('#odiv-products .product-scroll').scrollTop=0;return}
- if(b.dataset.productAction==='fill'){productFillDraft(p);return}
+ if(b.dataset.productAction==='viewImages'){openImageDetail(p.id,p.images[0].id);return}if(b.dataset.productAction==='fill'){productFillDraft(p);return}
  if(b.dataset.productAction==='copyProduct'||b.dataset.productAction==='copyImage'){
   const copy=b.dataset.productAction==='copyImage'?p.name+' · '+p.sku+' · '+p.images[productLightbox.index].label+' · SVG 演示示意图（非真实商品图片）':productCopyText(p);
   try{await navigator.clipboard.writeText(copy);toast('商品信息已复制')}catch(_){toast('剪贴板权限不可用，请使用详情页手动复制')}
  }
 });
 
+
+function openImageDetail(pid,iid){
+ const p=findProduct(pid);if(!p||!p.images.some(im=>im.id===iid))return;imageSelected={pid,iid};renderImages();switchTab('images');$('#odiv-images-scroll').scrollTop=0;
+}
+function renderImages(){
+ const finder=$('#odiv-images-finder'),summary=$('#odiv-images-summary'),grid=$('#odiv-images-grid'),detail=$('#odiv-images-detail');
+ grid.replaceChildren();detail.replaceChildren();
+ if(imageSelected){
+  const p=findProduct(imageSelected.pid),i=p?.images.findIndex(im=>im.id===imageSelected.iid)??-1;
+  if(!p||i<0){imageSelected=null;return renderImages()}
+  finder.classList.add('hidden');summary.classList.add('hidden');grid.classList.add('hidden');detail.classList.remove('hidden');
+  const im=p.images[i],head=prodEl('div','product-detail-head'),back=prodEl('button','product-back','← 返回图库');back.type='button';back.dataset.imageBack='1';head.append(back,prodEl('span','product-detail-tag','SVG 示意图'));
+  const hero=prodImage(p,i,'product-lightbox-image');hero.loading='eager';
+  const meta=prodEl('div','image-meta');meta.append(prodEl('strong','',im.label),prodEl('span','',p.name+' · '+p.sku),prodEl('small','','图片 ID：'+p.id+'/'+im.id),prodEl('small','','来源：'+p.source+' · '+p.updated));
+  const thumbs=prodEl('div','product-altimages');p.images.forEach((v,j)=>{const b=prodEl('button');b.type='button';b.dataset.imageProduct=p.id;b.dataset.imageId=v.id;b.setAttribute('aria-label','查看'+v.label);b.append(prodImage(p,j));thumbs.append(b)});
+  const actions=prodEl('div','product-actions');actions.append(productAction('查看关联商品','toProduct',true),productAction('复制图片信息','copyImage'));
+  detail.append(head,hero,meta,thumbs,actions);return;
+ }
+ finder.classList.remove('hidden');summary.classList.remove('hidden');grid.classList.remove('hidden');detail.classList.add('hidden');
+ const f=$('#odiv-images-product').value,q=normalize($('#odiv-images-search').value);
+ const arr=products.flatMap(p=>p.images.map((im,i)=>({p,im,i}))).filter(({p,im})=>(f==='all'||p.id===f)&&normalize(p.name+' '+p.sku+' '+p.model+' '+im.label+' '+im.id).includes(q));
+ summary.textContent='图片图库 · '+arr.length+' 张演示图片';
+ arr.forEach(({p,im,i})=>{const b=prodEl('button','product-gallery-tile');b.type='button';b.dataset.imageProduct=p.id;b.dataset.imageId=im.id;b.setAttribute('aria-label','查看'+p.name+' '+im.label);b.append(prodImage(p,i),prodEl('strong','',p.name),prodEl('small','',im.label+' · '+p.sku));grid.append(b)});
+ if(!arr.length)grid.append(prodEl('p','product-empty','没有匹配的图片。'));
+}
+products.forEach(p=>{const option=prodEl('option','',p.name);option.value=p.id;$('#odiv-images-product').append(option)});
+$('#odiv-images-search').addEventListener('input',renderImages);$('#odiv-images-product').addEventListener('change',renderImages);
+$('#odiv-images').addEventListener('click',async e=>{
+ const b=e.target.closest('button');if(!b)return;
+ if(b.dataset.imageBack){imageSelected=null;renderImages();$('#odiv-images-scroll').scrollTop=imageScrollSaved;return}
+ if(b.dataset.imageProduct){if(!imageSelected)imageScrollSaved=$('#odiv-images-scroll').scrollTop;openImageDetail(b.dataset.imageProduct,b.dataset.imageId);return}
+ if(!imageSelected)return;const p=findProduct(imageSelected.pid),im=p?.images.find(i=>i.id===imageSelected.iid);if(!p||!im)return;
+ if(b.dataset.productAction==='toProduct'){productSelected=p.id;renderProducts();switchTab('products');$('#odiv-products .product-scroll').scrollTop=0;return}
+ if(b.dataset.productAction==='copyImage'){try{await navigator.clipboard.writeText('图片：'+im.label+'\n商品：'+p.name+' · '+p.sku+'\n图片 ID：'+p.id+'/'+im.id+'\n来源：'+p.source+' · '+p.updated+'\nSVG 示意图');toast('图片信息已复制')}catch(_){toast('剪贴板不可用，请手动复制')}}
+});
+const money=n=>'¥'+Number(n).toLocaleString('zh-CN',{maximumFractionDigits:2}),productName=i=>findProduct(i.productId)?.name||'商品资料缺失';
+function orderSummary(o){return '演示订单：'+o.orderId+'\n商品：'+o.items.map(i=>productName(i)+'（'+i.sku+'）×'+i.quantity+' · '+i.specification).join('；')+'\n演示金额：'+money(o.amount)+'\n状态：'+o.status+'\n付款：'+o.paymentStatus+'\n物流：'+o.shippingStatus+'\n售后：'+o.afterSalesStatus+'\n来源：'+o.source+' · '+o.updatedAt+'\n非实时数据，请人工核实。'}
+function statusBadge(o){return prodEl('span','order-status '+(o.status==='售后中'?'alert':o.status==='已完成'?'neutral':''),o.status)}
+function onCustomerChange(old){
+ if(old===s.tid)return;orderSelected=null;orderScrollSaved=0;
+ if(profilePage==='detail'&&profileCustomerId===old){profileCustomerId=s.tid;profileBoundId=s.tid}
+ renderOrders();if(s.tab==='customer')renderProfile();
+}
+function renderOrders(){
+ const finder=$('#odiv-orders-finder'),summary=$('#odiv-orders-summary'),list=$('#odiv-orders-list'),detail=$('#odiv-orders-detail'),c=threads.find(t=>t.id===s.tid),allowed=!!c&&s.permission;
+ const selected=allowed&&orderSelected?orderProvider.get(s.tid,orderSelected):null;if(orderSelected&&!selected)orderSelected=null;
+ finder.classList.toggle('hidden',!!selected);summary.classList.toggle('hidden',!!selected);list.classList.toggle('hidden',!!selected);detail.classList.toggle('hidden',!selected);list.replaceChildren();detail.replaceChildren();
+ if(!allowed){summary.textContent='当前身份或模拟授权不可用';list.append(prodEl('p','product-empty','已停止引用订单，请先确认客户身份和授权。'));return}
+ if(selected){
+  const h=prodEl('div','product-detail-head'),back=prodEl('button','product-back','← 返回订单');back.type='button';back.dataset.orderBack='1';h.append(back,statusBadge(selected));
+  detail.append(h,prodEl('h3','product-detail-name',selected.orderId),prodEl('span','product-detail-sub',c.name+' · 演示订单 · '+selected.updatedAt));
+  selected.items.forEach(i=>{const p=findProduct(i.productId),row=prodEl('div','order-item'),info=prodEl('div','order-item-info'),btn=prodEl('button','order-open-product','查看商品 ›');btn.type='button';btn.dataset.orderProduct=p.id;info.append(prodEl('strong','',p.name),prodEl('small','',i.sku+' · '+i.specification+' · 数量 '+i.quantity),btn);row.append(prodImage(p,0),info);detail.append(row)});
+  const total=prodEl('div','order-total');total.append(prodEl('span','','演示订单金额'),prodEl('strong','',money(selected.amount)));detail.append(total);
+  [['关联客户',c.name],['付款状态',selected.paymentStatus],['发货 / 物流',selected.shippingStatus],['售后状态',selected.afterSalesStatus],['资料来源',selected.source],['更新时间',selected.updatedAt]].forEach(([k,v])=>{const row=prodEl('div','order-field');row.append(prodEl('span','',k),prodEl('strong','',v));detail.append(row)});
+  const actions=prodEl('div','product-actions'),fill=productAction('填入聊天草稿','fillOrder',true);fill.disabled=!canObserve()||thread().sent.has(message()?.id);actions.append(fill,productAction('复制订单摘要','copyOrder'));detail.append(actions);return;
+ }
+ const q=normalize($('#odiv-orders-search').value),filter=$('#odiv-orders-filter').value,all=orderProvider.list(s.tid);
+ const arr=all.filter(o=>(filter==='all'||o.status===filter)&&normalize([o.orderId,o.status,...o.items.flatMap(i=>[i.sku,productName(i)])].join(' ')).includes(q));
+ summary.textContent=c.name+' · '+arr.length+' / '+all.length+' 笔演示订单';
+ arr.forEach(o=>{const b=prodEl('button','order-row');b.type='button';b.dataset.orderId=o.orderId;b.setAttribute('aria-label','查看订单 '+o.orderId);
+  const top=prodEl('div','order-line');top.append(prodEl('strong','order-id',o.orderId),statusBadge(o));
+  const bottom=prodEl('div','order-line');bottom.append(prodEl('span','order-date',o.updatedAt+' · 演示资料'),prodEl('strong','order-money',money(o.amount)));
+  b.append(top,prodEl('div','order-hint',o.items.map(i=>productName(i)+' ×'+i.quantity).join('、')),bottom);list.append(b)});
+ if(!arr.length)list.append(prodEl('p','product-empty','当前客户无符合条件的订单。'));
+}
+function fillOrderDraft(o){
+ if(o.customerId!==s.tid||!canObserve()){record('未填入：客户身份或模拟授权不匹配');toast('客户身份或授权无法核实');return}
+ const t=thread(),m=message();if(!t||t.id!==o.customerId||!m||t.sent.has(m.id)){toast('当前消息无法安全填入订单');return}
+ const value='您好，以下为当前客户的演示订单资料，请以实际平台核对为准：\n'+orderSummary(o);
+ if(t.draft&&t.draft!==value&&!window.confirm('已有未发送草稿，确定替换为订单资料吗？'))return;
+ const original=t.draft,id=t.id,mid=m.id;t.draft=value;renderChat();
+ if(s.tid!==id||message()?.id!==mid||t.draft!==$('#odiv-chatdraft').value||t.draft!==document.getElementById('od-chat-draft').value){
+  t.draft=original;renderChat();record('订单草稿回读不一致，已恢复原草稿');toast('回读未通过，原草稿已保留');return
+ }
+ record('订单资料已填入并回读模拟草稿 · 未发送');toast('订单已填入草稿 · 未发送');
+}
+$('#odiv-orders-search').addEventListener('input',renderOrders);$('#odiv-orders-filter').addEventListener('change',renderOrders);
+$('#odiv-orders').addEventListener('click',async e=>{
+ const b=e.target.closest('button');if(!b)return;
+ if(b.dataset.orderId){const o=orderProvider.get(s.tid,b.dataset.orderId);if(!o||!s.permission)return;orderScrollSaved=$('#odiv-orders-scroll').scrollTop;orderSelected=o.orderId;renderOrders();$('#odiv-orders-scroll').scrollTop=0;return}
+ if(b.dataset.orderBack){orderSelected=null;renderOrders();$('#odiv-orders-scroll').scrollTop=orderScrollSaved;return}
+ const o=orderSelected&&s.permission?orderProvider.get(s.tid,orderSelected):null;if(!o)return;
+ if(b.dataset.orderProduct){if(o.items.some(i=>i.productId===b.dataset.orderProduct)){productSelected=b.dataset.orderProduct;renderProducts();switchTab('products');$('#odiv-products .product-scroll').scrollTop=0}return}
+ if(b.dataset.productAction==='fillOrder'){fillOrderDraft(o);return}
+ if(b.dataset.productAction==='copyOrder'){try{await navigator.clipboard.writeText(orderSummary(o));toast('当前客户订单摘要已复制')}catch(_){toast('剪贴板不可用，请手动复制')}}
+});
 $('#odiv-view').addEventListener('click',()=>{const chat=s.tab!=='chat';$('#odiv-tabs').classList.toggle('hidden',chat);switchTab(chat?'chat':'reply')});
 $('#odiv-menu').addEventListener('click',()=>switchTab('settings'));
 $('#odiv-settings-back').addEventListener('click',()=>switchTab(settingsOriginTab,{keepCustomer:true}));
@@ -1106,7 +1238,7 @@ R.addEventListener('click',e=>{
 });
 $('#odiv-profile-directory-search').addEventListener('input',renderProfileDirectory);
 
-// Four left-aligned, full-hit-area tabs: keyboard support follows mainstream Tabs behavior.
+// Six business tabs: preserve keyboard navigation and reveal selected item on overflow.
 $('#odiv-tabs').addEventListener('keydown',e=>{
  if(!['ArrowRight','ArrowLeft','Home','End'].includes(e.key))return;
  const buttons=$$('#odiv-tabs [role="tab"]');const index=buttons.indexOf(document.activeElement);
@@ -1183,7 +1315,7 @@ $('#odiv-profile-clear').addEventListener('click',()=>{
 R.__previewBridge=Object.freeze({
   snapshot(){return {current:s.tid,paused:s.paused,permission:s.permission,auto:s.auto,follow:s.follow,verify:s.verify,nicknameMode:s.nicknameMode,
     threads:threads.map(t=>({id:t.id,name:displayName(t),draft:t.draft,messages:t.msgs.map(m=>({...m})),sent:[...t.sent]}))};},
-  selectThread(id){if(!threads.some(t=>t.id===id))return;s.tid=id;s.editing=null;renderChat();renderReply();},
+  selectThread(id){if(!threads.some(t=>t.id===id))return;const old=s.tid;s.tid=id;s.editing=null;onCustomerChange(old);renderChat();renderReply();},
   receive(text){if(typeof text!=='string'||!text.trim())return;receive(text.trim().slice(0,400));},
   setDraft(text){thread().draft=String(text).slice(0,2000);$('#odiv-chatdraft').value=thread().draft;},
   send(){return sendDraft();},
@@ -1191,7 +1323,7 @@ R.__previewBridge=Object.freeze({
   show(tab){switchTab(tab);},
   theme(dark){R.classList.toggle('dark',dark);}
 });
-addProfileFacts();renderReply();renderChat();renderKb();renderProfile();renderProducts();switchTab('reply');
+addProfileFacts();renderReply();renderChat();renderKb();renderProfile();renderProducts();renderImages();renderOrders();switchTab('reply');
 })();
 </script>
 <script>
