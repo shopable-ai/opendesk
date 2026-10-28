@@ -1,5 +1,7 @@
 # AI 客服助手 · Desktop · Compact Copilot（R1.3 主原型）
 
+> **产品设计基线：** [DESIGN.md](./DESIGN.md) 集中记录客服主链路、P0/P1/P2 范围、知识/商品/SKU/链接/图片匹配、交互架构和安全准入。本 README 继续记录当前 R1.3 代码与实际验收状态。
+
 > 2026-10-28 · `master` · **当前唯一主原型为 `preview/index.html`（Compact Copilot R1.3）。浏览器演示已做交互回归；原生 Execution、真实聊天识别、微信发送与 Mac 实窗验收仍未完成。**
 
 ## 原始目标
