@@ -1,0 +1,53 @@
+# AI 客服助手 · Desktop R1.0
+
+> 2026-10-28 · `master` · **设计与单文件交互原型已提交；OpenDesk 原生执行、真实聊天识别和 Mac 实窗验收均未完成。**
+
+## 原始目标
+
+在 OpenDesk Desktop 主窗口、Recorder 和其他快捷栏继续运行的同时，给被用户明确授权的聊天软件窗口（优先模拟客户端，其后才是微信/企业微信）附加独立的 AI 客服面板：识别正确会话的新消息，匹配本地知识，生成推荐回复，允许编辑、一键填入草稿，由用户人工发送；后续经专项授权和回读后才考虑受控自动回复。
+
+## 本轮唯一正式设计预览
+
+- `preview/index.html`：离线、单文件、浏览器可执行的视觉与交互原型。
+- 左侧是模拟聊天软件，右侧是模拟跟随 AI 助手；支持三会话切换、四类客户消息、知识库 JSON/Markdown 导入、推荐回复编辑、填入草稿、模拟发送及内存回读、重复回复阻止、窗口拖动、缩放、最小化恢复、授权/暂停、移动视图和深浅色。
+- **不连接真实微信、不调用 OpenDesk Runtime、不调用任何 LLM API、不上传知识文件、不持久保存真实消息。** 顶部并行应用状态、窗口几何、会话身份、发送回执全部是浏览器模拟值。预览里的 `<script>` 不是 Runtime 原生 Custom UI 可执行内容。
+
+浏览器可直接打开 `preview/index.html`；不得把这份含内联脚本的文件直接交给 `ui.createWindow({content:{file:...}})`。
+
+## master 已有可复用能力（源码核查，不等于客服实现）
+
+| 能力 | 当前源码/API | 使用边界 |
+| --- | --- | --- |
+| 独立 Custom UI | `docs/api/ui.md` 的 `ui.createWindow`, `WindowHandle`, `FloatingWindow` | `ui` execution-owned；受限 HTML 没有内联 JS；绑定控制事件须放在外层 Runtime JS |
+| 目标窗口身份与几何 | `docs/api/window.md` 的 `window.get/list/current` | 同一 PID/native handle；关闭重建必须停止旧绑定 |
+| Accessibility | `docs/api/accessibility.md`、`docs/api/desktop-ui.md` | 显式 scope、唯一匹配、读取失败 fail closed；无法可靠读回时不写入 |
+| 模型生成 | `docs/api/llm.md` 的 `LLM.generate` | 仅在 profile、凭据、用户授权和最小必要数据范围具备时启用 |
+| 窗口跟随参考 | `examples/custom-ui/codex-prompt-shortcuts/main.js` | 源码具有身份复核、Events 触发重算、拖动偏移、失败隐藏；仍为复制模式，Codex 实窗输入未验证 |
+| 多 UI 产品框架 | `apps/opendesk/main.js`、`apps/opendesk/README.md` | Recorder 有已实现的独立 Execution 集成；客服独立长期运行 Execution 的正式宿主入口仍需验证 |
+| Endpoint | `docs/architecture/runtime-endpoint-allocation.md` | 不将固定 HTTP 端口或新 Runtime 作为每个客服工具的必需依赖 |
+
+**推荐 A：原 OpenDesk App Shell 内独立 Execution + 独立 Custom UI。** 一旦真实审计证明该执行入口不能独立于 Flow Runner 生命周期，则优先做最小宿主级增量；不得无验证强行复用私有 `__opendeskRecipeExecution`，不得为了视觉演示开发第二套 Runtime。B（App Mode）只作为单独发行备选，C（内嵌主窗口）不采用。
+
+## 下一阶段单一 Codex 任务（R1.1）
+
+**目标：实现可在真实 Mac 上运行的“模拟聊天客户端 → 正确会话 → 本地知识匹配 → 推荐回复 → 一键填入模拟草稿”的最小闭环。不要先接微信，也不要自动发送。**
+
+1. **审计并行入口（P0）**：先 `git status --short`、核对最新 master、AGENTS 与正式 API；检查现有主窗口/Recorder/快捷栏与 App-owned Execution 的并发约束。提交一张复用/差量表；禁止覆盖未提交修改。
+2. **最小原生双窗口（P0）**：将原型视觉视为设计合同，按 `ui.createWindow()` 的受限 HTML + 独立 JS 控制器重构；实现模拟聊天窗口和 AI 面板，必须使用真实 Runtime owner，不把预览的 DOM 脚本移入原生 HTML。脚本保持可从仓库根目录执行的一行真实命令。
+3. **绑定与跟随（P0）**：由 `window.get/list/current` 获取唯一目标，记录 app/pid/native handle/window id；监听现有 Events 后重新观察与定位；手动移动偏移、同执行窗口焦点例外、最小化隐藏、左/右避让、目标变化撤销。所有位置写入后核对 WindowState；不假定 `setRelativeTo` 是持续约束。
+4. **知识与回复（P0）**：本地 demo JSON/Markdown 文件 + 确定性匹配与来源；未命中只推荐转人工；明确不调用云模型的基础闭环。若已配置 LLM，可作为后续独立可选增量，且不可编造配置、网络或发送成功。
+5. **草稿填入（P0）**：仅针对自有模拟聊天窗口实施，填入后独立回读 text + 同一会话；切换会话时旧异步结果必须丢弃，不可写入。用户手动发送后执行独立回读，结果不明不重试。
+6. **并行验收（P0）**：同一 Mac 上同时启动主窗口、Recorder、Codex 快捷栏（可用时）及 AI 客服；验证各自 UI/Execution id、正常停止/关闭、跨应用焦点、错误隔离。缺任何一项实窗证据记 `NOT_TESTED`。
+7. **视觉回归（P1）**：在真实 Mac 同源原生 UI 中实测 320/360/400/440/520px、200% 缩放、深浅色、两个显示器、窗口移动/缩放/最小化恢复、拖动偏移与按钮可访问性；保存截图到 `.runtime/tests/ai-customer-support/`，不得把浏览器原型截图冒充原生截图。
+8. **交付（P1）**：报告“已修改/已加载/视觉已确认/功能已验证”，列出真实命令、日志路径、证据、八项独立百分制评分及算术平均分；未验不打分。只在 master 安全提交，提供 SHA 和下一轮未完成任务。
+
+## 安全与反方审计验收
+
+- **会话错位**：每次填入或发送前复核 app、pid、native handle、会话 identity 和最后消息 id；任何 stale 即停止。
+- **焦点争抢**：AI 自有面板临时获得焦点不应导致重绑定到其他聊天窗口；Recorder 与客服不可同时控制同一 target。
+- **重复发送**：以会话与消息的关联键去重；输入可能已发生或回执未知时不可自动重试。
+- **OCR 不确定**：当 AX 不充分时只能展示有标记的候选；没有证据不生成交易承诺，更不能自动发送。
+- **权限/隐私**：必须由用户明确授权聊天窗口；最小化采集、脱敏日志、默认不传模型、停止/撤权后释放 listener/ref/窗口。
+- **降级**：读取能力缺失时保持推荐工具/复制工具的安全降级，不伪报已读取、已填入或已发送。
+
+参考：`AGENTS.md`、`docs/api/ui.md`、`docs/api/window.md`、`docs/api/accessibility.md`、`docs/api/llm.md` 与 `examples/custom-ui/codex-prompt-shortcuts/README.zh-CN.md`。
