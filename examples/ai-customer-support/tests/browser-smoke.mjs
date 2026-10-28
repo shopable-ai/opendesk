@@ -94,6 +94,54 @@ try {
     await page.getByRole('button', { name:'切换明暗主题' }).click();
     assert.equal(await page.locator('#od-r12').getAttribute('data-theme'), 'dark');
   });
+  await scenario('auth-pause-invalid-file-empty-and-refresh', async page => {
+    await page.getByRole('button', { name:'打开设置' }).click();
+    const granted = page.getByRole('checkbox', { name:'模拟窗口授权' });
+    await granted.uncheck();
+    await page.getByRole('button', { name:'← 返回' }).click();
+    await page.getByRole('tab', { name:'订单' }).click();
+    assert.equal(await page.locator('#odiv-orders .order-row').count(), 0, 'permission revoked hides customer orders');
+    await page.getByRole('tab', { name:'推荐回复' }).click();
+    assert.equal(await page.locator('#odiv-reply .compact-actions button.primary').isDisabled(), true);
+    await page.getByRole('button', { name:'打开设置' }).click();
+    await granted.check();
+    await page.getByRole('checkbox', { name:'继续观察新消息' }).uncheck();
+    await page.getByRole('button', { name:'← 返回' }).click();
+    assert.equal(await page.locator('#odiv-reply .compact-actions button.primary').isDisabled(), true, 'pause gates fill');
+    await page.getByRole('button', { name:'打开设置' }).click();
+    await page.getByRole('checkbox', { name:'继续观察新消息' }).check();
+    await page.getByRole('button', { name:'← 返回' }).click();
+    await page.getByRole('tab', { name:'知识库' }).click();
+    await page.getByRole('button', { name:'导入知识' }).click();
+    await page.locator('#odiv-knowledge input[type="file"]').setInputFiles({
+      name:'invalid.json', mimeType:'application/json', buffer:Buffer.from('{"entries":[')
+    });
+    assert.equal(await page.locator('#odiv-knowledge').isVisible(), true, 'invalid file does not blank panel');
+    assert.match(await page.getByRole('status').last().innerText(), /导入失败/);
+    await page.getByRole('tab', { name:'商品' }).click();
+    await page.getByRole('searchbox', { name:'搜索商品名称型号和规格' }).fill('THIS-DOES-NOT-EXIST');
+    assert.equal(await page.locator('#odiv-products .product-row').count(), 0);
+    await page.reload();
+    await page.locator('#od-r12').waitFor({state:'visible'});
+    assert.equal(await page.locator('#odiv-tabs [role="tab"]').count(), 6, 'refresh reinitializes a valid app');
+  });
+  await scenario('manual-send-readback-and-idempotence', async page => {
+    await page.locator('#odiv-reply .compact-actions button.primary').click();
+    const send = page.locator('.chat-send button.primary');
+    assert.equal(await send.isEnabled(), true);
+    await send.click();
+    assert.equal(await page.locator('.chatbubble.me').count(), 1);
+    assert.equal(await send.isDisabled(), true, 'same customer message cannot be resent');
+    await page.locator('#od-contacts button').filter({ hasText:'陈先生' }).click();
+    assert.equal(await page.locator('.chatbubble.me').count(), 0, 'other customer still has no agent reply');
+    await page.locator('#od-contacts button').filter({ hasText:'林女士' }).click();
+    assert.equal(await page.locator('.chatbubble.me').count(), 1, 'reply belongs only to original customer');
+    await page.getByRole('textbox', { name:'自定义客户提问' }).fill('测试长文本：' + 'A'.repeat(1000));
+    await page.getByRole('button', { name:'发送问题' }).click();
+    assert.equal(await page.locator('.chatbubble.me').count(), 1, 'new customer question does not duplicate agent send');
+    const last = await page.locator('.chatbubble').last().innerText();
+    assert.ok(last.length <= 400, 'new customer text bounded safely');
+  });
   await scenario('responsive-and-zoom', async page => {
     for (const width of [320,360,380,400,440,520,1280]) {
       await page.setViewportSize({ width, height: 880 });
@@ -112,7 +160,7 @@ try {
     assert.ok(width <= 2, '200% zoom body overflow: ' + width);
     await page.screenshot({path:join(screenshots,'preview-200pct.png'),fullPage:true});
   });
-  console.log('BROWSER_SMOKE_PASSED=' + passed + '/5; environment=CI headless Chromium (not local Mac Chrome)');
+  console.log('BROWSER_SMOKE_PASSED=' + passed + '/7; environment=CI headless Chromium (not local Mac Chrome)');
 } finally {
   await browser.close();
 }
