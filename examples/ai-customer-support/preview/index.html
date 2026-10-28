@@ -32,6 +32,11 @@
 #od-compact-inline .takeover.hidden{display:none}
 #od-compact-inline .kb-trigger:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 @media(max-width:360px){#od-compact-inline .kb-line{font-size:11px}#od-compact-inline .compact-actions{padding:9px 11px 11px}}
+/* R1.3 incremental review: two-line variants and bounded knowledge list. */
+#od-compact-inline .option .answer{-webkit-line-clamp:2}
+#od-compact-inline .kb-more{display:block;width:100%;margin-top:10px;padding:8px;border:1px solid var(--line);border-radius:9px;background:var(--card);font-size:11px}
+#od-compact-inline .kb-more.hidden{display:none}
+#od-compact-inline .pop .scope-label{display:block;margin-top:8px}
 </style>
 <div class="wrap"><div class="preview-control"><div class="od-mark">OD</div><div class="preview-title">AI 客服 · Compact Copilot <span class="tiny grey">· 380px</span></div><div class="flex"></div><button class="tool" id="odiv-view" title="切换聊天模拟器 / AI 助手">☷</button><button class="tool" id="odiv-theme" title="深浅色切换">◐</button><button class="tool" id="odiv-reset" title="重置模拟数据">↻</button></div>
 <div class="window"><header class="windowhead"><div class="spark">✦</div><div class="identity flex"><b id="odiv-heading">AI 客服</b><small id="odiv-subtitle">林女士 · 模拟会话已连接</small></div><button class="icon" id="odiv-pause" title="暂停观察">Ⅱ</button><button class="icon" id="odiv-menu" title="设置">···</button></header><nav class="tabs" id="odiv-tabs"><button data-tab="reply" class="on">推荐回复</button><button data-tab="knowledge">知识库</button><button data-tab="settings">设置</button></nav>
@@ -40,7 +45,7 @@
 <div class="btn-row"><button class="primary" id="odiv-fill">→ &nbsp;填入聊天草稿</button><button class="tool" id="odiv-edit" title="编辑选中的回复" aria-label="编辑选中的回复">✎</button><button class="tool" id="odiv-copy" title="复制所选回复" aria-label="复制所选回复">▢</button></div>
 <div class="receipt" id="odiv-receipt">操作状态 · 尚未发送</div>
 </footer></section>
-<section class="view" id="odiv-knowledge"><div class="scroll"><div class="searchbar"><input id="odiv-search" type="search" placeholder="⌕ 搜索知识、答案、来源" aria-label="搜索知识库"><button class="tool" id="odiv-filter" title="筛选知识">☷</button><button class="tool" id="odiv-upload" title="导入知识">↥</button><div class="pop hidden" id="odiv-pop"><b>状态</b><div class="pills"><button class="on" data-filter="all">全部</button><button data-filter="enabled">已启用</button><button data-filter="disabled">已停用</button></div><b>来源</b><select id="odiv-source"><option value="all">所有文件</option></select><button class="tool" id="odiv-clear" style="width:auto;padding:0 8px;margin-top:9px;font-size:11px">清除筛选</button></div></div><div class="import hidden" id="odiv-import">拖入 JSON / Markdown 文件<br>仅当前页面内存，不上传<br><label for="odiv-file">选择本地文件</label><input id="odiv-file" type="file" accept=".json,.md,.markdown"></div><div class="between tiny grey" style="margin:11px 0 0"><span id="odiv-kb-count">5 条知识</span><span id="odiv-import-msg"></span></div><div id="odiv-kb-list"></div></div></section>
+<section class="view" id="odiv-knowledge"><div class="scroll"><div class="searchbar"><input id="odiv-search" type="search" placeholder="⌕ 搜索知识、答案、来源" aria-label="搜索知识库"><button class="tool" id="odiv-filter" title="筛选知识">☷</button><button class="tool" id="odiv-upload" title="导入知识">↥</button><div class="pop hidden" id="odiv-pop"><b>状态</b><div class="pills"><button class="on" data-filter="all">全部</button><button data-filter="enabled">已启用</button><button data-filter="disabled">已停用</button></div><b>来源</b><select id="odiv-source"><option value="all">所有文件</option></select><b class="scope-label">适用范围</b><select id="odiv-scope" aria-label="适用范围"><option value="all">全部</option><option value="general">通用</option><option value="scoped">限定范围</option></select><button class="tool" id="odiv-clear" style="width:auto;padding:0 8px;margin-top:9px;font-size:11px">清除筛选</button></div></div><div class="import hidden" id="odiv-import">拖入 JSON / Markdown 文件<br>仅当前页面内存，不上传<br><label for="odiv-file">选择本地文件</label><input id="odiv-file" type="file" accept=".json,.md,.markdown"></div><div class="between tiny grey" style="margin:11px 0 0"><span id="odiv-kb-count">5 条知识</span><span id="odiv-import-msg"></span></div><div id="odiv-kb-list"></div><button class="kb-more hidden" type="button" id="odiv-kb-more">显示更多</button></div></section>
 <section class="view" id="odiv-settings"><div class="scroll"><b class="tiny grey">工作方式</b><div class="setting"><div><b>自动回复</b><small>关闭时提供推荐，由人工发送</small></div><label class="switch"><input type="checkbox" id="odiv-auto" aria-label="智能托管"></label></div><div class="consent hidden" id="odiv-consent"><b>确认开启模拟自动回复</b><p>仅后续精确命中的演示消息自动发送；未知或风险消息转人工。接管当前会话后仍继续推荐回复；不会操作真实微信。</p><button class="primary" id="odiv-confirm" style="padding:5px 10px;min-height:28px">理解并启用</button><button class="tool" id="odiv-cancel" style="width:auto;padding:0 9px;margin-left:7px">取消</button></div><p class="setting-note" id="odiv-auto-info">自动回复已关闭，AI 继续提供推荐答案。</p><b class="tiny grey" style="display:block;margin-top:25px">窗口与权限</b><div class="setting"><div><b>模拟窗口授权</b><small>关闭后停止读取和填入</small></div><label class="switch"><input type="checkbox" id="odiv-permission" checked aria-label="模拟授权"></label></div><div class="setting"><div><b>继续观察新消息</b><small>停止后保留现有草稿</small></div><label class="switch"><input type="checkbox" id="odiv-observe" checked aria-label="观察"></label></div><div class="setting"><div><b>跟随聊天窗口</b><small>原生窗口跟随仍需真实 Mac 验收</small></div><label class="switch"><input type="checkbox" id="odiv-follow" checked aria-label="跟随"></label></div><p class="setting-note">这是离线交互原型，自动回复与回执只发生在模拟聊天窗口；未连接真实微信或云模型。</p></div></section>
 <section class="view" id="odiv-chat"><div class="chatpane"><div class="contacts" id="odiv-contacts"></div><div class="chatlog" id="odiv-chatlog"></div><textarea id="odiv-chatdraft" placeholder="模拟聊天软件草稿……" style="height:75px;min-height:65px" aria-label="模拟聊天草稿"></textarea><button class="primary" id="odiv-send">发送（仅模拟）</button><div class="tiny grey">客户模拟发问：</div><div class="tests"><button data-question="refund">退款</button><button data-question="invoice">发票 · 精确</button><button data-question="shipping">物流</button><button data-question="unknown">未知问题</button><button data-question="two">连续两条</button></div></div></section>
 </div><div class="toast hidden" id="odiv-toast" role="status"></div></div></div>
@@ -63,7 +68,7 @@ const initialKb=()=>[
  {id:'k5',q:'旧版活动',question:'活动是否继续？',a:'历史活动已结束，不参与当前回复。',keys:['活动'],source:'历史活动.md',enabled:false,scope:null}
 ];
 let counter=7,threads=initialThreads(),kb=initialKb();
-const s={tid:'t1',tab:'reply',paused:false,permission:true,auto:false,consented:false,takeover:new Set(),chosen:new Map(),edits:new Map(),editing:null,filter:'all',source:'all',expanded:new Set(),receipt:'尚未发送',importVisible:false};
+const s={tid:'t1',tab:'reply',paused:false,permission:true,auto:false,consented:false,takeover:new Set(),chosen:new Map(),edits:new Map(),editing:null,filter:'all',source:'all',scope:'all',showAll:false,expanded:new Set(),receipt:'尚未发送',importVisible:false};
 const thread=()=>threads.find(t=>t.id===s.tid),message=()=>thread().msgs.filter(m=>m.who==='customer').at(-1),msgKey=()=>`${s.tid}:${message()?.id||'none'}`,canObserve=()=>!s.paused&&s.permission;
 const normalize=x=>String(x||'').toLowerCase().replace(/[\s，。！？?!.,]/g,'');
 function match(){
@@ -106,7 +111,7 @@ function renderReply(){
  $('#odiv-latest').textContent=can?(message()?.text||'暂无消息'):'未授权或观察已暂停';
  $('#odiv-msg-id').textContent=can?'#'+mid:'未读取';
  $('#odiv-hit-title').textContent=m?'匹配到 · '+m.k.q:'暂无可靠知识匹配';
- $('#odiv-hit-source').textContent=m?(m.exact?'精确匹配':'关键词匹配')+' · 点此查看知识':'仅提供安全澄清与人工核实';
+ $('#odiv-hit-source').textContent=m?'来源：'+m.k.source+' · '+(m.exact?'精确匹配':'关键词候选'):'仅提供安全澄清与人工核实';
  $('#odiv-answer-count').textContent=opts.length+' 条 · 选择后填入草稿';
  const list=$('#odiv-options');list.replaceChildren();
  opts.forEach(o=>{
@@ -149,7 +154,7 @@ function renderChat(){
 }
 function visibleKnowledge(){
  const q=$('#odiv-search').value.toLowerCase().trim();
- return kb.filter(x=>(x.q+' '+x.question+' '+x.a+' '+x.source+' '+(x.aliases||[]).join(' ')).toLowerCase().includes(q)&&(s.filter==='all'||(s.filter==='enabled')===x.enabled)&&(s.source==='all'||s.source===x.source));
+ return kb.filter(x=>(x.q+' '+x.question+' '+x.a+' '+x.source+' '+(x.aliases||[]).join(' ')).toLowerCase().includes(q)&&(s.filter==='all'||(s.filter==='enabled')===x.enabled)&&(s.source==='all'||s.source===x.source)&&(s.scope==='all'||(s.scope==='general'?!x.scope:!!x.scope)));
 }
 function renderKb(){
  const source=$('#odiv-source'),old=s.source;
@@ -158,7 +163,7 @@ function renderKb(){
  if(![...source.options].some(x=>x.value===old))s.source='all';source.value=s.source;
  const arr=visibleKnowledge();$('#odiv-kb-count').textContent=`找到 ${arr.length} 条 · 共 ${kb.length} 条`;
  const list=$('#odiv-kb-list');list.replaceChildren();
- arr.forEach(x=>{
+ arr.slice(0,s.showAll?arr.length:5).forEach(x=>{
   const row=document.createElement('div');row.className='kb-row'+(x.enabled?'':' is-disabled');
   const button=document.createElement('button');button.type='button';button.className='kb-trigger';button.dataset.kb=x.id;button.setAttribute('aria-expanded',String(s.expanded.has(x.id)));button.setAttribute('aria-label',(x.enabled?'已启用':'已停用')+'知识：'+x.q+'。'+x.a);button.title=x.enabled?'已启用知识 · 点击展开':'已停用 · 不参与回复 · 点击展开';
   const line=document.createElement('span');line.className='kb-line';
@@ -176,6 +181,9 @@ function renderKb(){
   }
   list.append(row);
  });
+ const more=$('#odiv-kb-more');
+ more.classList.toggle('hidden',arr.length<=5);
+ more.textContent=s.showAll?'收起列表':'显示其余 '+(arr.length-5)+' 条';
 }
 function sendDraft({automatic=false,expectedThread=s.tid,expectedMessage=message()?.id}={}){
  const t=thread(),m=message(),text=t.draft.trim();
@@ -209,8 +217,8 @@ function receive(text){
 }
 function switchTab(tab){s.tab=tab;$('#odiv-tabs').classList.toggle('hidden',tab==='chat');$$('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));$$('.view').forEach(v=>v.classList.toggle('on',v.id==='odiv-'+tab));if(tab==='knowledge')renderKb();$('#odiv-heading').textContent=tab==='chat'?'聊天模拟器':'AI 客服'}
 function reset(){
- counter=7;threads=initialThreads();kb=initialKb();s.tid='t1';s.paused=false;s.permission=true;s.auto=false;s.consented=false;s.takeover.clear();s.chosen.clear();s.edits.clear();s.editing=null;s.filter='all';s.source='all';s.expanded.clear();s.receipt='尚未发送';
- $('#odiv-search').value='';$('#odiv-pop').classList.add('hidden');$('#odiv-import').classList.add('hidden');$('#odiv-permission').checked=true;$('#odiv-observe').checked=true;$('#odiv-auto').checked=false;$('#odiv-consent').classList.add('hidden');$('#odiv-auto-info').textContent='自动回复已关闭，AI 继续提供推荐答案。';
+ counter=7;threads=initialThreads();kb=initialKb();s.tid='t1';s.paused=false;s.permission=true;s.auto=false;s.consented=false;s.takeover.clear();s.chosen.clear();s.edits.clear();s.editing=null;s.filter='all';s.source='all';s.scope='all';s.showAll=false;s.expanded.clear();s.receipt='尚未发送';
+ $('#odiv-search').value='';$('#odiv-scope').value='all';$('#odiv-pop').classList.add('hidden');$('#odiv-import').classList.add('hidden');$('#odiv-permission').checked=true;$('#odiv-observe').checked=true;$('#odiv-auto').checked=false;$('#odiv-consent').classList.add('hidden');$('#odiv-auto-info').textContent='自动回复已关闭，AI 继续提供推荐答案。';
  $$('[data-filter]').forEach(b=>b.classList.toggle('on',b.dataset.filter==='all'));$('#odiv-import-msg').textContent='';
  renderReply();renderChat();renderKb();switchTab('reply');$('#odiv-tabs').classList.remove('hidden');toast('演示已重置');
 }
@@ -221,7 +229,8 @@ R.addEventListener('click',e=>{
  if(b.dataset.finishEdit){s.editing=null;renderReply();toast('已完成此条回复的编辑');return}
  if(b.dataset.contact){s.tid=b.dataset.contact;s.editing=null;renderChat();renderReply();return}
  if(b.dataset.question){if(b.dataset.question==='two'){receive('我想咨询退款问题。');return receive('另外，请问电子发票怎么申请？')}return receive({refund:'签收后 7 天内还能申请退款吗？',invoice:'请问能开发票吗？',shipping:'物流怎么查询？',unknown:'可以立即给我赔偿承诺吗？'}[b.dataset.question])}
- if(b.dataset.filter){s.filter=b.dataset.filter;$$('[data-filter]').forEach(x=>x.classList.toggle('on',x.dataset.filter===s.filter));renderKb();return}
+ if(b.dataset.filter){s.filter=b.dataset.filter;s.showAll=false;$$('[data-filter]').forEach(x=>x.classList.toggle('on',x.dataset.filter===s.filter));renderKb();return}
+ if(b.id==='odiv-kb-more'){s.showAll=!s.showAll;renderKb();return}
  if(b.dataset.kb!==undefined){const id=b.dataset.kb;s.expanded.has(id)?s.expanded.delete(id):s.expanded.add(id);renderKb()}
 });
 R.addEventListener('input',e=>{
@@ -257,11 +266,12 @@ $('#odiv-fill').addEventListener('click',()=>{
 $('#odiv-copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(replyText());toast('已复制所选回复')}catch(e){toast('未获得剪贴板权限，请先点击编辑并手动复制')}});
 $('#odiv-send').addEventListener('click',()=>sendDraft());
 $('#odiv-chatdraft').addEventListener('input',e=>{thread().draft=e.target.value});
-$('#odiv-search').addEventListener('input',renderKb);
+$('#odiv-search').addEventListener('input',()=>{s.showAll=false;renderKb()});
 $('#odiv-filter').addEventListener('click',()=>$('#odiv-pop').classList.toggle('hidden'));
 $('#odiv-upload').addEventListener('click',()=>$('#odiv-import').classList.toggle('hidden'));
-$('#odiv-source').addEventListener('change',e=>{s.source=e.target.value;renderKb()});
-$('#odiv-clear').addEventListener('click',()=>{s.filter='all';s.source='all';$$('[data-filter]').forEach(b=>b.classList.toggle('on',b.dataset.filter==='all'));renderKb()});
+$('#odiv-source').addEventListener('change',e=>{s.source=e.target.value;s.showAll=false;renderKb()});
+$('#odiv-scope').addEventListener('change',e=>{s.scope=e.target.value;s.showAll=false;renderKb()});
+$('#odiv-clear').addEventListener('click',()=>{s.filter='all';s.source='all';s.scope='all';s.showAll=false;$('#odiv-scope').value='all';$$('[data-filter]').forEach(b=>b.classList.toggle('on',b.dataset.filter==='all'));renderKb()});
 const zone=$('#odiv-import');zone.addEventListener('dragover',e=>e.preventDefault());
 zone.addEventListener('drop',e=>{e.preventDefault();readFile(e.dataTransfer.files?.[0])});
 $('#odiv-file').addEventListener('change',e=>{readFile(e.target.files?.[0]);e.target.value=''});
@@ -280,7 +290,7 @@ async function readFile(file){
    const keys=Array.isArray(x.keywords)?x.keywords.filter(y=>typeof y==='string').slice(0,20):question.split(/[\s，。？！?]/).filter(w=>w.length>1).slice(0,10);
    return {id:'k'+(++counter),q:question,question,a:answer,keys,aliases,source:file.name,enabled:x.enabled!==false,scope:x.scope||null};
   });
-  kb.push(...added);$('#odiv-import-msg').textContent='导入 '+added.length+' 条';zone.classList.add('hidden');renderKb();renderReply();toast('已导入 '+added.length+' 条 · 仅当前页面内存');
+  kb.unshift(...added);s.filter='all';s.source='all';s.scope='all';s.showAll=false;$('#odiv-search').value='';$('#odiv-scope').value='all';$$('[data-filter]').forEach(b=>b.classList.toggle('on',b.dataset.filter==='all'));$('#odiv-import-msg').textContent='导入 '+added.length+' 条';zone.classList.add('hidden');renderKb();renderReply();toast('已导入 '+added.length+' 条 · 仅当前页面内存');
  }catch(e){$('#odiv-import-msg').textContent='导入失败';toast('导入失败：'+e.message)}
 }
 $('#odiv-auto').addEventListener('change',e=>{
