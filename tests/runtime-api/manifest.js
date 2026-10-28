@@ -57,8 +57,8 @@ globalThis.RuntimeAPIObjects = {
     'list', 'waitFor', 'dismiss', 'getCapabilities',
   ] },
   touchscreen: { docs: 'docs/api/input.md', types: 'types/touchscreen.d.ts', source: 'automation/touchscreen.go', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: ['tap'] },
-  window: { docs: 'docs/api/window.md', types: 'types/window.d.ts', source: 'automation/window_manager_core.go + automation/window_manager*.go + polyfills/003-window.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
-    'getCapabilities', 'getActiveWindow', 'getWindowByTitle', 'getFocusWindow', 'focus', 'setWindowBounds',
+  window: { docs: 'docs/api/window.md', types: 'types/window.d.ts', source: 'automation/window_manager_core.go + automation/window_manager*.go + automation/window_app_watch*.go + polyfills/003-window.js', status: 'stable', platforms: ['darwin', 'linux', 'windows'], methods: [
+    'getCapabilities', 'getActiveWindow', 'getAppWindow', 'watchAppWindow', 'getWindowByTitle', 'getFocusWindow', 'focus', 'setWindowBounds',
     'setWidth', 'setHeight', 'maximize', 'minimize', 'restore', 'restoreByPID',
     'minimizeByPID', 'maximizeByPID', 'closeWindow', 'closeActiveWindow', 'kill',
     'title', 'getTitle', 'content', 'getContent', 'list', 'get', 'wait', 'current', 'activate', 'setAlwaysOnTop',
@@ -67,6 +67,8 @@ globalThis.RuntimeAPIObjects = {
     list: { status: 'stable-with-experimental-target-query' },
     get: { status: 'experimental' },
     wait: { status: 'experimental' },
+    getAppWindow: { status: 'experimental', platforms: ['darwin'] },
+    watchAppWindow: { status: 'experimental', platforms: ['darwin'] },
     current: { status: 'experimental', platforms: ['darwin', 'windows'] },
     activate: { status: 'experimental', platforms: ['darwin', 'windows'] },
   } },
@@ -207,7 +209,7 @@ const unitBehavior = new Set([
 	...RuntimeAPIObjects.automation.handle.methods.map((method) => 'automation.app.' + method),
   ...RuntimeAPIObjects.Accessibility.methods.map((method) => 'Accessibility.' + method),
   ...RuntimeAPIObjects.Notifications.methods.map((method) => 'Notifications.' + method),
-  'window.getCapabilities', 'window.list', 'window.get', 'window.wait', 'window.current', 'window.activate', 'window.setAlwaysOnTop', 'window.unsetTopMost', 'window.js_beautify',
+  'window.getAppWindow', 'window.watchAppWindow', 'window.getCapabilities', 'window.list', 'window.get', 'window.wait', 'window.current', 'window.activate', 'window.setAlwaysOnTop', 'window.unsetTopMost', 'window.js_beautify',
   ...RuntimeAPIObjects.Screen.methods.filter((method) => method !== 'screenshot').map((method) => 'Screen.' + method),
   ...RuntimeAPIObjects.System.methods.filter((method) => !['killProcess', 'shutdown', 'restart', 'sleep'].includes(method)).map((method) => 'System.' + method),
   ...RuntimeAPIObjects.System.properties.map((property) => 'System.' + property),
@@ -298,6 +300,7 @@ for (const method of ['watchSound', 'waitForSound']) {
 for (const method of ['snapshot', 'find', 'read', 'perform', 'release']) {
   restricted['Accessibility.' + method] = 'local execution-only native Accessibility access; unit coverage is limited to validation and local authorization/capability behavior until a dedicated native fixture supplies live evidence';
 }
+restricted['window.watchAppWindow'] = 'unit coverage validates arguments without native subscription; live KVO/AX delivery requires a coordinated exact-process fixture and independent revalidation';
 restricted['UI.getMenuItems'] = 'local execution-only native menu observation; no native live tier is claimed without a dedicated application fixture';
 restricted['UI.findMenuItem'] = 'local execution-only native menu observation; no native live tier is claimed without a dedicated application fixture';
 restricted['UI.tapMenuItem'] = 'submits a native application menu action at most once and requires a dedicated foreground fixture for live evidence';
@@ -471,6 +474,7 @@ globalThis.RuntimeAPITestFiles = {
     'tests/runtime-api/dialog-ax-controller.js',
   ],
   unit: [
+    'tests/runtime-api/window-app-watch.js',
     'tests/runtime-api/unit/page.test.js',
     'tests/runtime-api/unit/mouse.test.js',
     'tests/runtime-api/unit/keyboard.test.js',

@@ -21,7 +21,7 @@ var accessibilityPropertySet = map[string]bool{
 	"role": true, "nativeRole": true, "nativeSubrole": true, "name": true, "identifier": true,
 	"enabled": true, "focused": true, "selected": true, "checked": true,
 	"expanded": true, "actions": true, "nativeBounds": true, "bounds": true,
-	"value": true,
+	"value": true, "textInputState": true,
 }
 
 var accessibilityDefaultProperties = []string{
@@ -78,6 +78,11 @@ func (a *AccessibilityRuntime) snapshot(call goja.FunctionCall) goja.Value {
 	options, err := a.parseLocateOptions(call.Argument(0), operation, true, true)
 	if err != nil {
 		return a.rejected(operation, err)
+	}
+	for _, property := range options.limits.Properties {
+		if property == "textInputState" {
+			return a.rejected(operation, accessibilityError(AccessibilityInvalidArgument, "arguments", "textInputState is available only through explicit read", nil))
+		}
 	}
 	if err := a.authorizeProperties(operation, options.limits.Properties); err != nil {
 		return a.rejected(operation, err)
@@ -247,6 +252,9 @@ func (a *AccessibilityRuntime) perform(call goja.FunctionCall) goja.Value {
 	if err != nil {
 		return a.rejected(operation, err)
 	}
+	if action.Action == "prepareTextAppend" && a.policy.DenyValue {
+		return a.rejected(operation, accessibilityError(AccessibilityCapabilityDisabled, "authorization", "prepareTextAppend requires value access", nil))
+	}
 	timeout, err := parseAccessibilityTimeoutOnly(call.Argument(2), operation)
 	if err != nil {
 		return a.rejected(operation, err)
@@ -273,6 +281,18 @@ func (a *AccessibilityRuntime) perform(call goja.FunctionCall) goja.Value {
 			return nil, accessibilityError(AccessibilityBackendFailed, "action", "native backend returned an invalid action state", nil)
 		}
 		progress.update(func(p *accessibilityProgress) { p.actionState = data.State })
+		if action.Action == "prepareTextAppend" {
+			// Revalidate full execution-owned process/window identity after the
+			// fused native check, preserving uncertainty after a caret mutation.
+			if _, err := a.resolveScope(ctx, spec, false); err != nil {
+				typed := normalizeAccessibilityError(operation, a.backendName(), "", err)
+				if data.State != AccessibilityActionNotNeeded {
+					typed.ActionState = AccessibilityActionUnknown
+				}
+				progress.update(func(p *accessibilityProgress) { p.actionState = typed.ActionState })
+				return nil, typed
+			}
+		}
 		return data, nil
 	}, func(value interface{}, requestID string) (interface{}, error) {
 		data, ok := value.(AccessibilityActionData)
@@ -291,7 +311,7 @@ func (a *AccessibilityRuntime) authorizeProperties(operation string, properties 
 		return nil
 	}
 	for _, property := range properties {
-		if property == "value" {
+		if property == "value" || property == "textInputState" {
 			return accessibilityError(AccessibilityCapabilityDisabled, "authorization", operation+" cannot read value in this restricted execution", nil)
 		}
 	}
@@ -542,13 +562,13 @@ func parseAccessibilityAction(value goja.Value, operation string, menuFinal bool
 		if menuFinal && name != "invoke" && name != "select" {
 			return action, accessibilityError(AccessibilityInvalidArgument, "action", "menu finalAction supports only invoke, select, or setChecked", nil)
 		}
-	case "setValue":
+	case "setValue", "prepareTextAppend":
 		if menuFinal {
-			return action, accessibilityError(AccessibilityInvalidArgument, "action", "menu finalAction does not support setValue", nil)
+			return action, accessibilityError(AccessibilityInvalidArgument, "action", "menu finalAction does not support text actions", nil)
 		}
 		allowed = append(allowed, "value")
 		if !accessibilityHasOwn(object, "value") {
-			return action, accessibilityError(AccessibilityInvalidArgument, "action", "setValue requires action.value", nil)
+			return action, accessibilityError(AccessibilityInvalidArgument, "action", "text action requires action.value", nil)
 		}
 		text, ok := accessibilityString(object.Get("value"))
 		if !ok {
@@ -585,7 +605,7 @@ func parseAccessibilityProperties(value goja.Value, name string) ([]string, erro
 	}
 	length := int(array.Get("length").ToInteger())
 	if length <= 0 || length > len(accessibilityPropertySet) {
-		return nil, accessibilityError(AccessibilityInvalidArgument, "arguments", name+" must contain 1 to 13 properties", nil)
+		return nil, accessibilityError(AccessibilityInvalidArgument, "arguments", name+" has an invalid property count", nil)
 	}
 	result := make([]string, 0, length)
 	seen := map[string]bool{}

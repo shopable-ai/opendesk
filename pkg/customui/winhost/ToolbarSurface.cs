@@ -30,6 +30,12 @@ internal sealed class ToolbarSurface : Surface
     internal override Task Initialize()
     {
         if(J.I(toolbar,"schemaVersion")!=4)throw new HostError("INVALID_SPEC","unsupported toolbar schema");
+        if(toolbar.ContainsKey("tooltipPosition")) {
+            if(toolbar["tooltipPosition"] is not JsonValue position || !position.TryGetValue<string>(out var side) ||
+                side is not ("auto" or "right" or "left" or "top" or "bottom"))
+                throw new HostError("INVALID_SPEC","invalid tooltipPosition");
+            throw new HostError("UNSUPPORTED_CAPABILITY","explicit tooltipPosition is not supported on Windows; omit it for native tooltips");
+        }
         Plan();
         foreach(var item in J.A(toolbar,"items").OfType<JsonObject>()) {
             string id=J.S(item,"id"),kind=J.S(item,"type");

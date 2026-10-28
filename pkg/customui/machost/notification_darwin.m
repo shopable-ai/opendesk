@@ -10,10 +10,18 @@ static const CGFloat CDNotificationMaximumHeight = 124;
 static const NSInteger CDNotificationMessageLines = 3;
 static const NSInteger CDNotificationCaptionLines = 2;
 
+static CGFloat CDNotificationTextInset(NSFont *font) {
+    // Match the wrapping label's cell chrome, then allow for pixel rounding.
+    NSTextField *label = [NSTextField wrappingLabelWithString:@"M"];
+    label.font = font;
+    CGFloat glyphWidth = [@"M" sizeWithAttributes:@{NSFontAttributeName:font}].width;
+    return MAX(0, ceil(label.cell.cellSize.width - glyphWidth)) + 2;
+}
+
 static CGFloat CDNotificationTextHeight(NSString *text, NSFont *font, CGFloat width, NSInteger maximumLines) {
     CGFloat lineHeight = ceil(font.ascender - font.descender + font.leading);
     if (!text.length) return lineHeight;
-    NSRect measured = [text boundingRectWithSize:NSMakeSize(width, CGFLOAT_MAX)
+    NSRect measured = [text boundingRectWithSize:NSMakeSize(MAX(1, width - CDNotificationTextInset(font)), CGFLOAT_MAX)
         options:NSStringDrawingUsesLineFragmentOrigin|NSStringDrawingUsesFontLeading
         attributes:@{NSFontAttributeName:font}];
     CGFloat lines = MAX(1, ceil(NSHeight(measured) / MAX(1, lineHeight)));
@@ -28,11 +36,12 @@ static CGFloat CDNotificationTextWidth(NSString *text, NSFont *font) {
             attributes:@{NSFontAttributeName:font}];
         width = MAX(width, NSWidth(measured));
     }
-    return ceil(width);
+    return ceil(width) + CDNotificationTextInset(font);
 }
 
 @interface CDNotificationView ()
 @property(nonatomic, copy) NSDictionary *spec;
+@property(nonatomic, strong) NSImageView *imageView;
 @property(nonatomic, strong) NSTextField *messageLabel;
 @property(nonatomic, strong) NSTextField *captionLabel;
 @property(nonatomic, strong) NSButton *closeButton;
@@ -43,11 +52,31 @@ static CGFloat CDNotificationTextWidth(NSString *text, NSFont *font) {
 
 @implementation CDNotificationView
 - (BOOL)isFlipped { return YES; }
++ (NSImage *)imageForSpec:(NSDictionary *)spec {
+    NSDictionary *asset = [spec[@"imageAsset"] isKindOfClass:NSDictionary.class] ? spec[@"imageAsset"] : nil;
+    if (!asset) return nil;
+    NSString *encoded = [asset[@"dataBase64"] isKindOfClass:NSString.class] ? asset[@"dataBase64"] : nil;
+    if (!encoded || encoded.length > 699052) return nil;
+    NSData *data = [[NSData alloc] initWithBase64EncodedString:encoded options:0];
+    if (!data.length || data.length > 512*1024 || data.length != [asset[@"byteLength"] unsignedIntegerValue]) return nil;
+    NSBitmapImageRep *rep = [NSBitmapImageRep imageRepWithData:data];
+    if (!rep || rep.pixelsWide < 1 || rep.pixelsHigh < 1 || rep.pixelsWide > 1024 || rep.pixelsHigh > 1024 ||
+        rep.pixelsWide != [asset[@"pixelWidth"] integerValue] || rep.pixelsHigh != [asset[@"pixelHeight"] integerValue]) return nil;
+    NSImage *image = [[NSImage alloc] initWithSize:NSMakeSize(rep.pixelsWide, rep.pixelsHigh)];
+    [image addRepresentation:rep];
+    return image;
+}
++ (BOOL)validateImageForSpec:(NSDictionary *)spec {
+    BOOL declared = [spec[@"image"] isKindOfClass:NSDictionary.class];
+    BOOL supplied = [spec[@"imageAsset"] isKindOfClass:NSDictionary.class];
+    return declared == supplied && (!declared || [self imageForSpec:spec] != nil);
+}
 + (NSSize)preferredSizeForSpec:(NSDictionary *)spec {
     BOOL closable = [spec[@"closable"] boolValue];
     NSFont *messageFont = [NSFont systemFontOfSize:14 weight:NSFontWeightMedium];
     NSFont *captionFont = [NSFont systemFontOfSize:11];
-    CGFloat chromeWidth = closable ? 60 : 32;
+    BOOL hasImage = [spec[@"imageAsset"] isKindOfClass:NSDictionary.class];
+    CGFloat chromeWidth = (closable ? 60 : 32) + (hasImage ? 68 : 0);
     CGFloat width = MAX(CDNotificationTextWidth(spec[@"message"] ?: @"", messageFont),
         CDNotificationTextWidth(spec[@"caption"] ?: @"", captionFont)) + chromeWidth;
     width = MIN(CDNotificationMaximumWidth, MAX(CDNotificationMinimumWidth, ceil(width)));
@@ -56,6 +85,7 @@ static CGFloat CDNotificationTextWidth(NSString *text, NSFont *font) {
     NSString *caption = spec[@"caption"] ?: @"";
     if (caption.length) height += 3 + CDNotificationTextHeight(caption, captionFont, textWidth, CDNotificationCaptionLines);
     if ([spec[@"progress"] isKindOfClass:NSDictionary.class]) height += 10;
+    if (hasImage) height = MAX(height, 76 + ([spec[@"progress"] isKindOfClass:NSDictionary.class] ? 10 : 0));
     height = MIN(CDNotificationMaximumHeight, MAX(CDNotificationMinimumHeight, ceil(height)));
     return NSMakeSize(width, height);
 }
@@ -89,7 +119,14 @@ static CGFloat CDNotificationTextWidth(NSString *text, NSFont *font) {
     self.closeButton = [NSButton buttonWithTitle:@"×" target:self action:@selector(closeClicked:)];
     self.closeButton.bezelStyle = NSBezelStyleInline;
     self.closeButton.font = [NSFont systemFontOfSize:19];
+    NSColor *closeColor = [NSColor colorWithWhite:0.8 alpha:1];
+    self.closeButton.contentTintColor = closeColor;
+    self.closeButton.attributedTitle = [[NSAttributedString alloc] initWithString:@"×"
+        attributes:@{NSFontAttributeName:self.closeButton.font, NSForegroundColorAttributeName:closeColor}];
     self.closeButton.accessibilityLabel = @"Close notification";
+    self.imageView = [[NSImageView alloc] initWithFrame:NSZeroRect];
+    self.imageView.imageScaling = NSImageScaleProportionallyUpOrDown;
+    [self addSubview:self.imageView];
     [self addSubview:self.messageLabel];
     [self addSubview:self.captionLabel];
     [self addSubview:self.closeButton];
@@ -106,7 +143,11 @@ static CGFloat CDNotificationTextWidth(NSString *text, NSFont *font) {
     BOOL hasProgress = [spec[@"progress"] isKindOfClass:NSDictionary.class];
     self.messageLabel.stringValue = spec[@"message"] ?: @"";
     self.messageLabel.accessibilityLabel = self.messageLabel.stringValue;
-    CGFloat textWidth = NSWidth(self.bounds) - (closable ? 60 : 32);
+    self.imageView.image = [CDNotificationView imageForSpec:spec];
+    BOOL hasImage = self.imageView.image != nil;
+    self.imageView.hidden = !hasImage;
+    CGFloat imageOffset = hasImage ? 68 : 0;
+    CGFloat textWidth = NSWidth(self.bounds) - (closable ? 60 : 32) - imageOffset;
     CGFloat messageHeight = CDNotificationTextHeight(self.messageLabel.stringValue, self.messageLabel.font, textWidth, CDNotificationMessageLines);
     self.captionLabel.stringValue = spec[@"caption"] ?: @"";
     self.captionLabel.accessibilityLabel = self.captionLabel.stringValue;
@@ -115,8 +156,9 @@ static CGFloat CDNotificationTextWidth(NSString *text, NSFont *font) {
     CGFloat contentHeight = messageHeight + (captionHeight > 0 ? 3 + captionHeight : 0);
     CGFloat contentAreaHeight = NSHeight(self.bounds) - (hasProgress ? 10 : 0);
     CGFloat contentTop = MAX(10, floor((contentAreaHeight - contentHeight) / 2));
-    self.messageLabel.frame = NSMakeRect(16, contentTop, textWidth, messageHeight);
-    self.captionLabel.frame = NSMakeRect(16, NSMaxY(self.messageLabel.frame) + 3, textWidth, captionHeight);
+    self.imageView.frame = NSMakeRect(16, floor((contentAreaHeight - 56) / 2), 56, 56);
+    self.messageLabel.frame = NSMakeRect(16 + imageOffset, contentTop, textWidth, messageHeight);
+    self.captionLabel.frame = NSMakeRect(16 + imageOffset, NSMaxY(self.messageLabel.frame) + 3, textWidth, captionHeight);
     self.captionLabel.hidden = !self.captionLabel.stringValue.length;
     BOOL compactSingleLine = captionHeight == 0 && !hasProgress && contentTop > 10;
     CGFloat closeTop = compactSingleLine ? floor((NSHeight(self.bounds) - 26) / 2) : 8;
@@ -150,6 +192,7 @@ static CGFloat CDNotificationTextWidth(NSString *text, NSFont *font) {
 }
 - (NSDictionary *)state {
     NSMutableDictionary *state = [self.spec mutableCopy];
+    [state removeObjectForKey:@"imageAsset"];
     state[@"remainingMs"] = self.deadline > 0 ? @(MAX(0, ceil((self.deadline - NSProcessInfo.processInfo.systemUptime) * 1000))) : @0;
     if (self.positionAdjustment.length) state[@"positionAdjustment"] = self.positionAdjustment;
     if (self.closeReason.length) state[@"closeReason"] = self.closeReason;

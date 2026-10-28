@@ -108,9 +108,7 @@ func (w *darwinWindowManager) resolveAccessibilityWindow(
 	ctx context.Context,
 	expected AccessibilityWindowIdentity,
 ) (map[string]interface{}, error) {
-	current, err := w.currentExact(ctx, WindowInfo{
-		ID: expected.ID, ProcessID: uint32(expected.PID), Handle: expected.Handle,
-	})
+	current, err := macScopedAccessibilityWindow(ctx, expected)
 	if err != nil {
 		return nil, err
 	}
@@ -132,23 +130,12 @@ func (w *darwinWindowManager) currentExact(ctx context.Context, expected WindowI
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	items, err := listMacWindowsCoreGraphics()
+	matched, err := currentMacWindowCoreGraphics(expected.ProcessID, expected.Handle)
 	if err != nil {
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
-	}
-	var matched *macWindow
-	for index := range items {
-		item := &items[index]
-		if item.PID != expected.ProcessID || uint64(item.Handle) != expected.Handle {
-			continue
-		}
-		if matched != nil {
-			return nil, fmt.Errorf("CoreGraphics returned duplicate window identity pid=%d handle=%d", expected.ProcessID, expected.Handle)
-		}
-		matched = item
 	}
 	if matched == nil {
 		return nil, nil
@@ -158,16 +145,8 @@ func (w *darwinWindowManager) currentExact(ctx context.Context, expected WindowI
 	if current.ID != expected.ID {
 		return nil, nil
 	}
-	// CoreGraphics marks the front process, not the exact key window. Compare
-	// the front-most row's native identity so two windows in one process do not
-	// both claim focus.
-	current.IsForeground = false
-	current.HasFocus = false
-	if active, activeErr := getActiveMacWindowCoreGraphics(); activeErr == nil && active != nil &&
-		active.PID == current.ProcessID && uint64(active.Handle) == current.Handle {
-		current.IsForeground = true
-		current.HasFocus = true
-	}
+	// The exact refresh compares the front-most normal native identity in the
+	// same CG snapshot; sibling windows in the front process do not claim focus.
 	return current, nil
 }
 

@@ -12,7 +12,7 @@ const (
 	accessibilityDefaultTimeout  = 3 * time.Second
 	accessibilityMaximumTimeout  = 30 * time.Second
 	accessibilityDefaultMaxDepth = 8
-	accessibilityMaximumMaxDepth = 32
+	accessibilityMaximumMaxDepth = 64
 	accessibilityDefaultMaxNodes = 1000
 	accessibilityMaximumMaxNodes = 5000
 	accessibilityMaximumRefs     = 256
@@ -329,7 +329,7 @@ func defaultAccessibilityBackendCapabilities(name string) AccessibilityBackendCa
 	return AccessibilityBackendCapabilities{
 		Platform: runtime.GOOS, Backend: name, Status: "unsupported",
 		Actions: map[string]bool{
-			"invoke": false, "setValue": false, "expand": false,
+			"invoke": false, "setValue": false, "prepareTextAppend": false, "expand": false,
 			"collapse": false, "select": false, "setChecked": false,
 		},
 		Permission: AccessibilityPermissionStatus{State: "unsupported"},

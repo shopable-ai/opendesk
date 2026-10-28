@@ -9,15 +9,44 @@ package automation
 
 int32_t opendesk_app_terminate(int32_t pid, int force);
 char *opendesk_app_bundle_identifier(const char *path);
+char *opendesk_app_by_pid_json(int32_t pid);
 */
 import "C"
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"unsafe"
 )
 
 func applicationNativeIdentityAvailable() bool { return true }
+
+// ByPID refreshes one process identity without enumerating applications or processes.
+func (b *defaultAppBackend) ByPID(ctx context.Context, pid int64) (desktopApplicationState, error) {
+	if err := ctx.Err(); err != nil {
+		return desktopApplicationState{}, err
+	}
+	if pid <= 0 || pid > 1<<31-1 {
+		return desktopApplicationState{}, appOperationError("", AppInvalidArgument, "pid must be a positive 32-bit integer", nil)
+	}
+	raw := C.opendesk_app_by_pid_json(C.int32_t(pid))
+	if raw == nil {
+		return desktopApplicationState{}, fmt.Errorf("native identity for PID %d is unavailable or changed", pid)
+	}
+	defer C.free(unsafe.Pointer(raw))
+	if err := ctx.Err(); err != nil {
+		return desktopApplicationState{}, err
+	}
+	var app desktopApplicationState
+	if err := json.Unmarshal([]byte(C.GoString(raw)), &app); err != nil {
+		return desktopApplicationState{}, fmt.Errorf("parse native identity for PID %d: %w", pid, err)
+	}
+	if app.PID != pid || app.Terminated || app.LaunchTimeMS <= 0 || app.ExecutablePath == "" {
+		return desktopApplicationState{}, fmt.Errorf("native identity for PID %d is incomplete", pid)
+	}
+	return app, nil
+}
 
 func terminateApplicationPlatform(ctx context.Context, pid int64, force bool) error {
 	if err := ctx.Err(); err != nil {

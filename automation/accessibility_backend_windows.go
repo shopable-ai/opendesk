@@ -54,7 +54,7 @@ func (b *windowsAccessibilityBackend) Capabilities() AccessibilityBackendCapabil
 		Status:      "experimental",
 		Menus:       true,
 		Actions: map[string]bool{
-			"invoke": true, "setValue": true, "expand": true,
+			"invoke": true, "setValue": true, "prepareTextAppend": false, "expand": true,
 			"collapse": true, "select": true, "setChecked": true,
 		},
 		Permission: AccessibilityPermissionStatus{
@@ -1406,7 +1406,7 @@ func (b *windowsAccessibilityBackend) Read(ctx context.Context, handle uint64, p
 			} else {
 				result[property] = native
 			}
-		case "nativeSubrole":
+		case "nativeSubrole", "textInputState":
 			result[property] = nil
 		case "name":
 			result[property], err = b.propertyString(entry.element, uiaNameProperty)
@@ -1481,6 +1481,9 @@ func (b *windowsAccessibilityBackend) Perform(ctx context.Context, handle uint64
 	entry, err := b.validatedHandle(ctx, handle, true)
 	if err != nil {
 		return AccessibilityActionData{}, err
+	}
+	if action.Action == "prepareTextAppend" {
+		return AccessibilityActionData{}, accessibilityError(AccessibilityActionUnsupported, "action", "prepareTextAppend is unavailable on this backend", nil)
 	}
 	enabled, err := b.propertyBool(entry.element, uiaIsEnabledProperty)
 	if err != nil {

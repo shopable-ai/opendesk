@@ -85,6 +85,6 @@ Experimental/可信本地授权；AX/UIA、ref 生命周期与坐标映射限制
 
 - `types/UI.d.ts` SHA-256 `63d0fc774cdd69de49f5c316b6f981c9294d87dafef8572e4eeb0b9ff154f5d2`
 
-- `docs/api/accessibility.md` SHA-256 `ddbabb31c1226afe8795a902408a49deb38faae4314453055c995aa9b4bce324`
+- `docs/api/accessibility.md` SHA-256 `74b09aa341582d8737d70bee24d52211cb7e149eb393950d54c46598f75bda06`
 
-- `types/Accessibility.d.ts` SHA-256 `6f47b859b86761f5a1f904d518d65482c9fe32b29169e6448d406e13878b49fa`
+- `types/Accessibility.d.ts` SHA-256 `19aaaaaccbfc55fdadf8f05857293ec906aac8ed66eedb1ccdf67a1dd4d192ad`

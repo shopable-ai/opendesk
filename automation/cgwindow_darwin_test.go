@@ -9,10 +9,3 @@ func TestCStringBytesStopsAtNull(t *testing.T) {
 		t.Fatalf("cStringBytes = %q, want ab", got)
 	}
 }
-
-func TestLSAppInfoPIDPattern(t *testing.T) {
-	match := lsappinfoPIDPattern.FindStringSubmatch(`"pid"=53703`)
-	if len(match) != 2 || match[1] != "53703" {
-		t.Fatalf("unexpected match: %#v", match)
-	}
-}

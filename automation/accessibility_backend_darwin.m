@@ -2,10 +2,33 @@
 
 #import <ApplicationServices/ApplicationServices.h>
 #import <Foundation/Foundation.h>
+#import <AppKit/NSAccessibilityConstants.h>
 
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
+
+// AX geometry is encoded as AXValue, not a CFData byte buffer or an
+// Objective-C NSValue whose objCType can be assumed to match CGPoint/CGSize.
+// Missing attributes are handled by the caller; supplied malformed geometry
+// must not masquerade as a provider that exposes no geometry.
+static int32_t opendesk_ax_decode_bounds(CFTypeRef position_value, CFTypeRef size_value, CGRect *bounds) {
+    if (position_value == NULL || size_value == NULL || bounds == NULL ||
+        CFGetTypeID(position_value) != AXValueGetTypeID() ||
+        CFGetTypeID(size_value) != AXValueGetTypeID() ||
+        AXValueGetType((AXValueRef)position_value) != kAXValueCGPointType ||
+        AXValueGetType((AXValueRef)size_value) != kAXValueCGSizeType) return OPENDESK_AX_STATUS_TYPE_MISMATCH;
+    CGPoint position = CGPointZero;
+    CGSize size = CGSizeZero;
+    if (!AXValueGetValue((AXValueRef)position_value, kAXValueCGPointType, &position) ||
+        !AXValueGetValue((AXValueRef)size_value, kAXValueCGSizeType, &size) ||
+        !isfinite(position.x) || !isfinite(position.y) ||
+        !isfinite(size.width) || !isfinite(size.height) ||
+        size.width < 0 || size.height < 0) return OPENDESK_AX_STATUS_TYPE_MISMATCH;
+    *bounds = CGRectMake(position.x, position.y, size.width, size.height);
+    return kAXErrorSuccess;
+}
 
 static AXUIElementRef opendesk_ax_element(uintptr_t token) {
     return (AXUIElementRef)(void *)token;
@@ -45,6 +68,8 @@ static CFStringRef opendesk_ax_element_attribute(int32_t attribute) {
         case OPENDESK_AX_ELEMENT_ATTRIBUTE_WINDOWS: return kAXWindowsAttribute;
         case OPENDESK_AX_ELEMENT_ATTRIBUTE_PARENT: return kAXParentAttribute;
         case OPENDESK_AX_ELEMENT_ATTRIBUTE_FOCUSED_UI_ELEMENT: return kAXFocusedUIElementAttribute;
+        case OPENDESK_AX_ELEMENT_ATTRIBUTE_FOCUSED_WINDOW: return kAXFocusedWindowAttribute;
+        case OPENDESK_AX_ELEMENT_ATTRIBUTE_WINDOW: return kAXWindowAttribute;
         default: return NULL;
     }
 }
@@ -402,10 +427,11 @@ void opendesk_ax_free_element_array(uintptr_t *elements) {
     if (elements != NULL) free(elements);
 }
 
-int32_t opendesk_ax_inspect_json(
+static int32_t opendesk_ax_inspect_json_fields(
     uintptr_t token,
     double timeout_seconds,
     int32_t include_value,
+    uint32_t properties,
     char **json_result) {
     AXUIElementRef element = opendesk_ax_element(token);
     if (element == NULL || json_result == NULL) return kAXErrorIllegalArgument;
@@ -445,50 +471,77 @@ int32_t opendesk_ax_inspect_json(
         int32_t value_present = 0;
         int32_t number = 0;
         BOOL secure = NO;
-        CGPoint position = CGPointZero;
-        CGSize size = CGSizeZero;
+        BOOL menu_item = NO;
+        BOOL wants_actions = (properties & OPENDESK_AX_SNAPSHOT_ACTIONS) != 0;
+        CGRect bounds = CGRectZero;
 
         status = opendesk_ax_copy_optional_string(element, kAXRoleAttribute, &native_role, &present);
         if (status != kAXErrorSuccess) goto cleanup;
         result[@"nativeRole"] = present ? (__bridge id)native_role : [NSNull null];
 
-        present = 0;
-        status = opendesk_ax_copy_optional_string(element, kAXSubroleAttribute, &subrole, &present);
-        // SwiftUI Calculator's toolbar AXButtons advertise AXSubrole but return
-        // kAXErrorFailure for it (including in a multiple-attribute read). On a
-        // button this optional metadata is not a secure-text discriminator.
-        // Keep every other role, attribute, and provider error strict; mutation
-        // preconditions below still perform their own native checks.
-        if (status == kAXErrorFailure && native_role != NULL && CFEqual(native_role, kAXButtonRole)) {
-            status = kAXErrorSuccess;
-        }
-        if (status != kAXErrorSuccess) goto cleanup;
-        result[@"subrole"] = present ? (__bridge id)subrole : [NSNull null];
-        secure = present && CFEqual(subrole, kAXSecureTextFieldSubrole);
-        result[@"secure"] = [NSNumber numberWithBool:secure];
+        menu_item = native_role != NULL &&
+            (CFEqual(native_role, kAXMenuItemRole) || CFEqual(native_role, kAXMenuBarItemRole));
 
-        present = 0;
-        status = opendesk_ax_copy_optional_string(element, kAXTitleAttribute, &title, &present);
-        if (status != kAXErrorSuccess) goto cleanup;
-        if (!present) {
-            status = opendesk_ax_copy_optional_string(element, kAXDescriptionAttribute, &description, &present);
+        if ((properties & OPENDESK_AX_SNAPSHOT_SUBROLE) || wants_actions || include_value) {
+            present = 0;
+            status = opendesk_ax_copy_optional_string(element, kAXSubroleAttribute, &subrole, &present);
+            // SwiftUI Calculator's toolbar AXButtons advertise AXSubrole but return
+            // kAXErrorFailure for it (including in a multiple-attribute read). On a
+            // button this optional metadata is not a secure-text discriminator.
+            // Keep every other role, attribute, and provider error strict; mutation
+            // preconditions below still perform their own native checks.
+            if (status == kAXErrorFailure && native_role != NULL && CFEqual(native_role, kAXButtonRole)) {
+                status = kAXErrorSuccess;
+            }
+            if (status != kAXErrorSuccess) goto cleanup;
+            result[@"subrole"] = present ? (__bridge id)subrole : [NSNull null];
+            secure = present && CFEqual(subrole, kAXSecureTextFieldSubrole);
+            result[@"secure"] = [NSNumber numberWithBool:secure];
+        }
+
+        if (properties & OPENDESK_AX_SNAPSHOT_NAME) {
+            present = 0;
+            status = opendesk_ax_copy_optional_string(element, kAXTitleAttribute, &title, &present);
+            if (status != kAXErrorSuccess) goto cleanup;
+            if (!present || title == NULL || CFStringGetLength(title) == 0) {
+                status = opendesk_ax_copy_optional_string(element, kAXDescriptionAttribute, &description, &present);
+                if (status != kAXErrorSuccess) goto cleanup;
+            }
+            if (title != NULL && CFStringGetLength(title) > 0) {
+                result[@"name"] = (__bridge id)title;
+            } else if (present && description != NULL) {
+                result[@"name"] = (__bridge id)description;
+            } else {
+                // Preserve an actual empty AXTitle when no description exists.
+                result[@"name"] = title != NULL ? (__bridge id)title : [NSNull null];
+            }
+        }
+
+        if ((properties & OPENDESK_AX_SNAPSHOT_IDENTIFIER)) {
+            status = opendesk_ax_add_optional_string(result, @"identifier", element, kAXIdentifierAttribute, NULL);
             if (status != kAXErrorSuccess) goto cleanup;
         }
-        result[@"name"] = present ? (__bridge id)(title != NULL ? title : description) : [NSNull null];
-
-        status = opendesk_ax_add_optional_string(result, @"identifier", element, kAXIdentifierAttribute, NULL);
-        if (status != kAXErrorSuccess) goto cleanup;
-        status = opendesk_ax_add_optional_bool(result, @"enabled", element, kAXEnabledAttribute);
-        if (status != kAXErrorSuccess) goto cleanup;
-        status = opendesk_ax_add_optional_bool(result, @"focused", element, kAXFocusedAttribute);
-        if (status != kAXErrorSuccess) goto cleanup;
-        status = opendesk_ax_add_optional_bool(result, @"selected", element, kAXSelectedAttribute);
-        if (status != kAXErrorSuccess) goto cleanup;
-        status = opendesk_ax_add_optional_bool(result, @"expanded", element, kAXExpandedAttribute);
-        if (status != kAXErrorSuccess) goto cleanup;
+        if ((properties & OPENDESK_AX_SNAPSHOT_ENABLED)) {
+            status = opendesk_ax_add_optional_bool(result, @"enabled", element, kAXEnabledAttribute);
+            if (status != kAXErrorSuccess) goto cleanup;
+        }
+        if ((properties & OPENDESK_AX_SNAPSHOT_FOCUSED)) {
+            status = opendesk_ax_add_optional_bool(result, @"focused", element, kAXFocusedAttribute);
+            if (status != kAXErrorSuccess) goto cleanup;
+        }
+        if ((properties & OPENDESK_AX_SNAPSHOT_SELECTED) || menu_item || wants_actions) {
+            status = opendesk_ax_add_optional_bool(result, @"selected", element, kAXSelectedAttribute);
+            if (status != kAXErrorSuccess) goto cleanup;
+        }
+        if ((properties & OPENDESK_AX_SNAPSHOT_EXPANDED) || menu_item || wants_actions) {
+            status = opendesk_ax_add_optional_bool(result, @"expanded", element, kAXExpandedAttribute);
+            if (status != kAXErrorSuccess) goto cleanup;
+        }
 
         if (native_role != NULL &&
-            (CFEqual(native_role, kAXCheckBoxRole) || CFEqual(native_role, kAXRadioButtonRole))) {
+            ((CFEqual(native_role, kAXCheckBoxRole) && (properties & OPENDESK_AX_SNAPSHOT_CHECKED)) ||
+             (CFEqual(native_role, kAXRadioButtonRole) &&
+              ((properties & OPENDESK_AX_SNAPSHOT_SELECTED) || wants_actions)))) {
             status = opendesk_ax_copy_optional(element, kAXValueAttribute, &raw_checked, &checked_present);
             if (status != kAXErrorSuccess) goto cleanup;
             if (checked_present && CFGetTypeID(raw_checked) == CFNumberGetTypeID()) {
@@ -514,7 +567,8 @@ int32_t opendesk_ax_inspect_json(
                 CFRelease(raw_checked);
                 raw_checked = NULL;
             }
-        } else if (native_role != NULL && CFEqual(native_role, kAXMenuItemRole)) {
+        } else if ((properties & OPENDESK_AX_SNAPSHOT_CHECKED) &&
+                   native_role != NULL && CFEqual(native_role, kAXMenuItemRole)) {
             status = opendesk_ax_copy_optional_string(element, kAXMenuItemMarkCharAttribute, &mark, &mark_present);
             if (status != kAXErrorSuccess) goto cleanup;
             if (mark_present) checked = [NSNumber numberWithBool:(CFStringGetLength(mark) > 0)];
@@ -525,63 +579,66 @@ int32_t opendesk_ax_inspect_json(
         }
         result[@"checked"] = checked;
 
-        status = opendesk_ax_copy_actions(element, &native_actions);
-        if (status != kAXErrorSuccess) goto cleanup;
-        if (native_actions != NULL) {
-            CFIndex action_count = CFArrayGetCount(native_actions);
-            for (CFIndex index = 0; index < action_count; index++) {
-                CFTypeRef action = CFArrayGetValueAtIndex(native_actions, index);
-                if (action == NULL || CFGetTypeID(action) != CFStringGetTypeID()) {
-                    status = OPENDESK_AX_STATUS_TYPE_MISMATCH;
-                    goto cleanup;
-                }
-                [actions addObject:(__bridge id)action];
-            }
+        if (wants_actions || menu_item) {
+            status = opendesk_ax_copy_actions(element, &native_actions);
+            if (status != kAXErrorSuccess) goto cleanup;
             if (native_actions != NULL) {
-                CFRelease(native_actions);
-                native_actions = NULL;
+                CFIndex action_count = CFArrayGetCount(native_actions);
+                for (CFIndex index = 0; index < action_count; index++) {
+                    CFTypeRef action = CFArrayGetValueAtIndex(native_actions, index);
+                    if (action == NULL || CFGetTypeID(action) != CFStringGetTypeID()) {
+                        status = OPENDESK_AX_STATUS_TYPE_MISMATCH;
+                        goto cleanup;
+                    }
+                    [actions addObject:(__bridge id)action];
+                }
+                if (native_actions != NULL) {
+                    CFRelease(native_actions);
+                    native_actions = NULL;
+                }
             }
+            result[@"nativeActions"] = actions;
         }
-        result[@"nativeActions"] = actions;
 
-        status = opendesk_ax_is_settable(element, kAXValueAttribute, &value_settable);
-        if (status != kAXErrorSuccess) goto cleanup;
-        status = opendesk_ax_is_settable(element, kAXExpandedAttribute, &expanded_settable);
-        if (status != kAXErrorSuccess) goto cleanup;
-        status = opendesk_ax_is_settable(element, kAXSelectedAttribute, &selected_settable);
-        if (status != kAXErrorSuccess) goto cleanup;
+        if (wants_actions) {
+            status = opendesk_ax_is_settable(element, kAXValueAttribute, &value_settable);
+            if (status != kAXErrorSuccess) goto cleanup;
+        }
+        if (wants_actions || menu_item) {
+            status = opendesk_ax_is_settable(element, kAXExpandedAttribute, &expanded_settable);
+            if (status != kAXErrorSuccess) goto cleanup;
+        }
+        if (wants_actions) {
+            status = opendesk_ax_is_settable(element, kAXSelectedAttribute, &selected_settable);
+            if (status != kAXErrorSuccess) goto cleanup;
+        }
         result[@"valueSettable"] = [NSNumber numberWithBool:(value_settable != 0)];
         result[@"expandedSettable"] = [NSNumber numberWithBool:(expanded_settable != 0)];
         result[@"selectedSettable"] = [NSNumber numberWithBool:(selected_settable != 0)];
 
-        status = opendesk_ax_copy_optional(element, kAXPositionAttribute, &position_value, &position_present);
-        if (status != kAXErrorSuccess) goto cleanup;
-        status = opendesk_ax_copy_optional(element, kAXSizeAttribute, &size_value, &size_present);
-        if (status != kAXErrorSuccess) goto cleanup;
-        if (position_present && size_present &&
-            CFGetTypeID(position_value) == AXValueGetTypeID() &&
-            CFGetTypeID(size_value) == AXValueGetTypeID() &&
-            AXValueGetType((AXValueRef)position_value) == kAXValueCGPointType &&
-            AXValueGetType((AXValueRef)size_value) == kAXValueCGSizeType) {
-            if (AXValueGetValue((AXValueRef)position_value, kAXValueCGPointType, &position) &&
-                AXValueGetValue((AXValueRef)size_value, kAXValueCGSizeType, &size)) {
+        if (properties & OPENDESK_AX_SNAPSHOT_BOUNDS) {
+            status = opendesk_ax_copy_optional(element, kAXPositionAttribute, &position_value, &position_present);
+            if (status != kAXErrorSuccess) goto cleanup;
+            status = opendesk_ax_copy_optional(element, kAXSizeAttribute, &size_value, &size_present);
+            if (status != kAXErrorSuccess) goto cleanup;
+            if (position_present && size_present) {
+                status = opendesk_ax_decode_bounds(position_value, size_value, &bounds);
+                if (status != kAXErrorSuccess) goto cleanup;
                 result[@"nativeBounds"] = @{
-                    @"x": @(position.x), @"y": @(position.y),
-                    @"width": @(size.width), @"height": @(size.height)
+                    @"x": @(bounds.origin.x), @"y": @(bounds.origin.y),
+                    @"width": @(bounds.size.width), @"height": @(bounds.size.height)
                 };
             } else {
                 result[@"nativeBounds"] = [NSNull null];
             }
-        } else {
-            result[@"nativeBounds"] = [NSNull null];
-        }
-        if (position_value != NULL) {
-            CFRelease(position_value);
-            position_value = NULL;
-        }
-        if (size_value != NULL) {
-            CFRelease(size_value);
-            size_value = NULL;
+            if (position_value != NULL) {
+                CFRelease(position_value);
+                position_value = NULL;
+            }
+            if (size_value != NULL) {
+                CFRelease(size_value);
+                size_value = NULL;
+            }
         }
 
         result[@"valueIncluded"] = [NSNumber numberWithBool:(include_value != 0)];
@@ -636,6 +693,199 @@ cleanup:
         if (description != NULL) CFRelease(description);
         return status;
     }
+}
+
+// Keep the existing all-field bridge for find/read/perform and native callers.
+int32_t opendesk_ax_inspect_json(
+    uintptr_t token, double timeout_seconds, int32_t include_value, char **json_result) {
+    return opendesk_ax_inspect_json_fields(token, timeout_seconds, include_value,
+                                         OPENDESK_AX_SNAPSHOT_ALL, json_result);
+}
+
+// Read-only snapshot inspection: native role and menu traversal dependencies
+// remain internal even when the final public projection omits them.
+int32_t opendesk_ax_inspect_snapshot_json(
+    uintptr_t token, double timeout_seconds, int32_t include_value,
+    uint32_t properties, char **json_result) {
+    return opendesk_ax_inspect_json_fields(token, timeout_seconds, include_value,
+                                         properties, json_result);
+}
+
+// Accept only real AXValue CFRange data, with no inferred selection/IME state.
+static int opendesk_ax_get_range(CFTypeRef raw, CFRange *range) {
+    return raw != NULL && CFGetTypeID(raw) == AXValueGetTypeID() &&
+        AXValueGetType((AXValueRef)raw) == kAXValueCFRangeType &&
+        AXValueGetValue((AXValueRef)raw, kAXValueCFRangeType, range);
+}
+
+static int opendesk_ax_valid_text_range(CFRange range) {
+    // Bound to exact JavaScript integers and reject NSNotFound/overflow.
+    const int64_t maximum = 9007199254740991LL;
+    return range.location >= 0 && range.length >= 0 &&
+        range.location <= maximum && range.length <= maximum - range.location;
+}
+
+static int32_t opendesk_ax_text_role(AXUIElementRef element, int32_t *is_text) {
+    CFStringRef role = NULL;
+    int32_t present = 0;
+    int32_t status = opendesk_ax_copy_optional_string(element, kAXRoleAttribute, &role, &present);
+    *is_text = present && (CFEqual(role, kAXTextFieldRole) || CFEqual(role, kAXTextAreaRole));
+    if (role != NULL) CFRelease(role);
+    return status;
+}
+
+static int32_t opendesk_ax_text_input_state_impl(
+    AXUIElementRef element, opendesk_ax_text_input_state *result) {
+    memset(result, 0, sizeof(*result));
+    int32_t is_text = 0, secure = 0;
+    int32_t status = opendesk_ax_is_secure(element, &secure);
+    if (status != kAXErrorSuccess) return status;
+    if (secure) return OPENDESK_AX_STATUS_PROTECTED_VALUE;
+    status = opendesk_ax_text_role(element, &is_text);
+    if (status != kAXErrorSuccess || !is_text) return status;
+    result->available = 1;
+
+    CFTypeRef raw = NULL;
+    CFRange selected = CFRangeMake(0, 0);
+    int32_t present = 0;
+    status = opendesk_ax_copy_optional(element, kAXSelectedTextRangeAttribute, &raw, &present);
+    if (status != kAXErrorSuccess) return status;
+    int single = present && opendesk_ax_get_range(raw, &selected) && opendesk_ax_valid_text_range(selected);
+    if (raw != NULL) CFRelease(raw);
+    raw = NULL;
+    // Missing plural metadata is not a proof of single selection: the actual
+    // singular CFRange must still have been read. Exposed plural metadata must
+    // contain exactly that one range; malformed/empty/multiple is unsafe.
+    status = opendesk_ax_copy_optional(element, kAXSelectedTextRangesAttribute, &raw, &present);
+    if (status != kAXErrorSuccess) return status;
+    if (present) {
+        CFRange plural = CFRangeMake(0, 0);
+        single = single && CFGetTypeID(raw) == CFArrayGetTypeID() &&
+            CFArrayGetCount((CFArrayRef)raw) == 1 &&
+            opendesk_ax_get_range(CFArrayGetValueAtIndex((CFArrayRef)raw, 0), &plural) &&
+            plural.location == selected.location && plural.length == selected.length;
+    }
+    if (raw != NULL) CFRelease(raw);
+    raw = NULL;
+    if (single) {
+        result->selection_present = 1;
+        result->location = selected.location;
+        result->length = selected.length;
+    }
+
+    status = opendesk_ax_refresh_timeout(element);
+    if (status != kAXErrorSuccess) return status;
+    status = (int32_t)AXUIElementCopyAttributeValue(element,
+        (__bridge CFStringRef)NSAccessibilityTextInputMarkedRangeAttribute, &raw);
+    if (status == kAXErrorAttributeUnsupported || status == kAXErrorNotImplemented) result->composition_reason = 1;
+    else if (status == kAXErrorNoValue) result->composition_reason = 2;
+    else if (status != kAXErrorSuccess) {
+        if (raw != NULL) CFRelease(raw);
+        return status;
+    } else if (raw == NULL || CFGetTypeID(raw) == CFNullGetTypeID()) result->composition_reason = 3;
+    else {
+        CFRange marked = CFRangeMake(0, 0);
+        if (!opendesk_ax_get_range(raw, &marked)) result->composition_reason = 4;
+        else {
+            // Preserve exact raw CFRange when representable by JavaScript.
+            if (marked.location >= -9007199254740991LL && marked.location <= 9007199254740991LL &&
+                marked.length >= -9007199254740991LL && marked.length <= 9007199254740991LL) {
+                result->marked_present = 1;
+                result->marked_location = marked.location;
+                result->marked_length = marked.length;
+            }
+            // The AX constant has no documented no-composition sentinel.
+            // NSTextInputClient's markedRange contract belongs to another
+            // protocol. Preserve the observation without promoting it to an
+            // input permission until this specific provider is qualified.
+            if ((marked.location == -1 && marked.length == 0) || opendesk_ax_valid_text_range(marked))
+                result->composition_reason = 6;
+            else result->composition_reason = 5;
+        }
+    }
+    // Unsupported, NoValue, null, wrong type, and invalid ranges stay unknown.
+    if (raw != NULL) CFRelease(raw);
+    return kAXErrorSuccess;
+}
+
+int32_t opendesk_ax_read_text_input_state(
+    uintptr_t token, double timeout_seconds, opendesk_ax_text_input_state *result) {
+    AXUIElementRef element = opendesk_ax_element(token);
+    if (element == NULL || result == NULL) return kAXErrorIllegalArgument;
+    int32_t status = opendesk_ax_set_timeout(element, timeout_seconds);
+    if (status != kAXErrorSuccess) return status;
+    return opendesk_ax_text_input_state_impl(element, result);
+}
+
+static int32_t opendesk_ax_check_text_append(
+    AXUIElementRef element, CFStringRef expected, opendesk_ax_text_input_state *state) {
+    int32_t status = opendesk_ax_text_input_state_impl(element, state);
+    if (status != kAXErrorSuccess) return status;
+    if (!state->available) return OPENDESK_AX_STATUS_ACTION_UNSUPPORTED;
+    if (!state->selection_present || state->composition != 1) return OPENDESK_AX_STATUS_STATE_UNKNOWN;
+    CFIndex length = CFStringGetLength(expected);
+    if (state->location > length || state->length > length - state->location) return OPENDESK_AX_STATUS_STATE_UNKNOWN;
+    status = opendesk_ax_check_not_disabled(element);
+    if (status != kAXErrorSuccess) return status;
+    int32_t focused = 0, present = 0;
+    status = opendesk_ax_copy_optional_bool(element, kAXFocusedAttribute, &focused, &present);
+    if (status != kAXErrorSuccess) return status;
+    if (!present || !focused) return OPENDESK_AX_STATUS_STATE_UNKNOWN;
+    int32_t writable = 0;
+    status = opendesk_ax_is_settable(element, kAXValueAttribute, &writable);
+    if (status != kAXErrorSuccess) return status;
+    if (!writable) return OPENDESK_AX_STATUS_ACTION_UNSUPPORTED;
+    status = opendesk_ax_is_settable(element, kAXSelectedTextRangeAttribute, &writable);
+    if (status != kAXErrorSuccess) return status;
+    if (!writable) return OPENDESK_AX_STATUS_ACTION_UNSUPPORTED;
+    CFStringRef current = NULL;
+    status = opendesk_ax_copy_optional_string(element, kAXValueAttribute, &current, &present);
+    if (status != kAXErrorSuccess) return status;
+    // Zero flags select literal comparison (including exact Unicode form).
+    int equal = present && CFStringCompare(current, expected, 0) == kCFCompareEqualTo;
+    if (current != NULL) CFRelease(current);
+    return equal ? kAXErrorSuccess : OPENDESK_AX_STATUS_STATE_UNKNOWN;
+}
+
+int32_t opendesk_ax_prepare_text_append(
+    uintptr_t token, double timeout_seconds, const char *expected,
+    int64_t expected_length, int32_t *attempted, int32_t *already_satisfied) {
+    AXUIElementRef element = opendesk_ax_element(token);
+    if (element == NULL || expected == NULL || expected_length < 0 || expected_length > 1024 * 1024 ||
+        attempted == NULL || already_satisfied == NULL) return kAXErrorIllegalArgument;
+    *attempted = 0;
+    *already_satisfied = 0;
+    int32_t status = opendesk_ax_set_timeout(element, timeout_seconds);
+    if (status != kAXErrorSuccess) return status;
+    CFStringRef desired = CFStringCreateWithBytes(kCFAllocatorDefault, (const UInt8 *)expected,
+        (CFIndex)expected_length, kCFStringEncodingUTF8, false);
+    if (desired == NULL) return kAXErrorIllegalArgument;
+    opendesk_ax_text_input_state state;
+    status = opendesk_ax_check_text_append(element, desired, &state);
+    if (status == kAXErrorSuccess) {
+        CFRange end = CFRangeMake(CFStringGetLength(desired), 0);
+        if (state.location == end.location && state.length == 0) {
+            *already_satisfied = 1;
+        } else {
+            AXValueRef range = AXValueCreate(kAXValueCFRangeType, &end);
+            if (range == NULL) status = kAXErrorFailure;
+            else {
+                status = opendesk_ax_refresh_timeout(element);
+                if (status == kAXErrorSuccess) {
+                    *attempted = 1;
+                    status = (int32_t)AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute, range);
+                }
+                CFRelease(range);
+            }
+        }
+        if (status == kAXErrorSuccess) {
+            status = opendesk_ax_check_text_append(element, desired, &state);
+            if (status == kAXErrorSuccess && (state.location != end.location || state.length != 0))
+                status = OPENDESK_AX_STATUS_STATE_UNKNOWN;
+        }
+    }
+    CFRelease(desired);
+    return status;
 }
 
 int32_t opendesk_ax_set_string_value(

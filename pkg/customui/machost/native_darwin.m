@@ -13,6 +13,7 @@
 static NSString *const CDProtocolVersion = @"1.14.0";
 static NSMutableDictionary<NSString *, id> *CDWindows;
 static NSMutableDictionary<NSString *, NSDictionary *> *CDClosedNotifications;
+static void CDReflowBottomNotifications(NSString *session);
 
 static BOOL CDDragDebugEnabled(void) {
 	const char *value = getenv("OPENDESK_UI_DEBUG_DRAG");
@@ -1441,14 +1442,15 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
 }
 
 - (void)windowDidMove:(NSNotification *)notification {
+    [self.floatingToolbarView invalidateTooltips];
     if (!self.dragActive && !self.closed) {
-        [self.floatingToolbarView invalidateTooltips];
         self.revision += 1;
         [self emitType:@"move" target:nil body:@{} reason:nil];
     }
 }
 
 - (void)windowDidResize:(NSNotification *)notification {
+    [self.floatingToolbarView invalidateTooltips];
     if (!self.closed && !self.dialogLayoutFitting) {
         self.revision += 1;
         [self emitType:@"resize" target:nil body:@{} reason:nil];
@@ -1475,6 +1477,7 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
 	self.dragOverlay.dragDelegate = nil;
 	[self.floatingToolbarView releaseResources];
 	[self.notificationView dispose];
+    if (self.notificationView) CDReflowBottomNotifications(self.sessionID);
 	for (CDWebAccessibilityButtonProxy *button in self.webAccessibilityButtons.allValues) button.eventDelegate = nil;
 	for (CDWebAccessibilityInputProxy *input in self.webAccessibilityInputs.allValues) input.eventDelegate = nil;
 	self.contentView.nativeAccessibilityChildren = @[];
@@ -1703,6 +1706,48 @@ static void CDRespondWhenSessionClosed(NSArray<CDWindowController *> *controller
 }
 
 
+// Bottom anchors form independent, session/screen/placement-scoped groups.
+static BOOL CDBottomNotificationAnchor(NSDictionary *p) {
+    return [p[@"mode"] isEqual:@"anchor"] && [p[@"vertical"] isEqual:@"bottom"];
+}
+static BOOL CDPlaceBottomNotificationStack(CDWindowController *c, NSDictionary *p, NSRect work, NSSize size, NSString **error) {
+    NSMutableArray<CDWindowController *> *group = [NSMutableArray arrayWithObject:c];
+    for (CDWindowController *other in CDWindows.allValues) {
+        if (other != c && other.notificationView && !other.closed && [other.sessionID isEqual:c.sessionID] &&
+            other.notificationScreen == c.notificationScreen && [other.notificationPosition isEqual:p]) [group addObject:other];
+    }
+    [group sortUsingComparator:^NSComparisonResult(CDWindowController *a, CDWindowController *b) {
+        return a.notificationSlot < b.notificationSlot ? NSOrderedAscending : a.notificationSlot > b.notificationSlot ? NSOrderedDescending : NSOrderedSame;
+    }];
+    NSMutableArray<NSValue *> *frames = [NSMutableArray array];
+    CGFloat offset = 0, margin = p[@"margin"] ? [p[@"margin"] doubleValue] : 24;
+    NSString *horizontal = p[@"horizontal"];
+    for (CDWindowController *member in group) {
+        NSSize measured = member == c ? size : member.window.frame.size;
+        CGFloat x = [horizontal isEqual:@"left"] ? NSMinX(work)+margin : [horizontal isEqual:@"right"] ? NSMaxX(work)-measured.width-margin : NSMidX(work)-measured.width/2;
+        NSRect frame = NSMakeRect(x, NSMinY(work)+margin+offset, measured.width, measured.height);
+        if (!NSContainsRect(work,frame)) { if (error) *error=@"notification stack cannot fit display work area"; return NO; }
+        [frames addObject:[NSValue valueWithRect:frame]];
+        offset += measured.height + 8;
+    }
+    // Commit only after every measured rectangle fits; failed updates move none.
+    for (NSUInteger i=0; i<group.count; i++) {
+        CDWindowController *member = group[i];
+        member.notificationView.positionAdjustment = @"";
+        NSRect frame = frames[i].rectValue;
+        if (!NSEqualRects(member.window.frame,frame)) [member.window setFrame:frame display:member.window.visible];
+    }
+    return YES;
+}
+static void CDReflowBottomNotifications(NSString *session) {
+    for (CDWindowController *member in CDWindows.allValues) {
+        if (!member.closed && member.notificationView && [member.sessionID isEqual:session] && CDBottomNotificationAnchor(member.notificationPosition)) {
+            NSRect work = (member.notificationScreen ?: CDPrimaryScreen()).visibleFrame;
+            CDPlaceBottomNotificationStack(member,member.notificationPosition,work,member.window.frame.size,nil);
+        }
+    }
+}
+
 // Notification positions are resolved from native screen work areas. An auto
 // target is chosen once, never reselected by a subsequent message update.
 static BOOL CDPlaceNotification(CDWindowController *c, NSDictionary *p, BOOL resolve, NSSize size, NSString **error) {
@@ -1727,6 +1772,7 @@ static BOOL CDPlaceNotification(CDWindowController *c, NSDictionary *p, BOOL res
     if (NSWidth(work) < size.width + 32 || NSHeight(work) < size.height + 32) {
         if (error) *error = @"display work area cannot fit notification"; return NO;
     }
+    if (CDBottomNotificationAnchor(p)) return CDPlaceBottomNotificationStack(c,p,work,size,error);
     CGFloat stackOffset = 0;
     if ([mode isEqual:@"auto"]) {
         for (CDWindowController *existing in CDWindows.allValues) {
@@ -1783,6 +1829,9 @@ static BOOL CDPlaceNotification(CDWindowController *c, NSDictionary *p, BOOL res
 
 static void CDCreateNotification(NSDictionary *request, NSString *requestID) {
     NSDictionary *spec=request[@"payload"], *notice=spec[@"notification"];
+    if (![CDNotificationView validateImageForSpec:notice]) {
+        CDFail(requestID,@"INVALID_SPEC",@"create",request[@"windowId"],nil,@"notification image could not be decoded"); return;
+    }
     NSSize preferredSize = [CDNotificationView preferredSizeForSpec:notice];
     CDWindowController *c=[CDWindowController new];
     c.sessionID=request[@"sessionId"]; c.windowID=request[@"windowId"]; c.kind=@"notification";
@@ -1795,6 +1844,8 @@ static void CDCreateNotification(NSDictionary *request, NSString *requestID) {
     NSPanel *panel=[[NSPanel alloc] initWithContentRect:NSMakeRect(0,0,preferredSize.width,preferredSize.height)
         styleMask:NSWindowStyleMaskBorderless|NSWindowStyleMaskNonactivatingPanel backing:NSBackingStoreBuffered defer:NO];
     panel.releasedWhenClosed=NO; panel.hidesOnDeactivate=NO; panel.floatingPanel=YES;
+    // A transient panel must report its placed geometry without AppKit's zoom.
+    panel.animationBehavior=NSWindowAnimationBehaviorNone;
     panel.becomesKeyOnlyIfNeeded=YES; panel.level=NSStatusWindowLevel;
     panel.collectionBehavior=NSWindowCollectionBehaviorCanJoinAllSpaces|NSWindowCollectionBehaviorFullScreenAuxiliary;
     // Treat the transparent frame as composited even when the panel is wholly
@@ -1820,8 +1871,12 @@ static void CDCreateNotification(NSDictionary *request, NSString *requestID) {
         CDWindowController *strong=weak;
         if (!strong || strong.closed || !strong.window.visible) return;
         NSDictionary *position=strong.notificationPosition;
-        if ([position[@"mode"] isEqual:@"auto"] || ([position[@"mode"] isEqual:@"relative"] && [position[@"follow"] boolValue])) {
-            CDPlaceNotification(strong,position,NO,strong.window.frame.size,nil);
+        if (CDBottomNotificationAnchor(position) || [position[@"mode"] isEqual:@"auto"] || ([position[@"mode"] isEqual:@"relative"] && [position[@"follow"] boolValue])) {
+            NSString *error=nil;
+            if (!CDPlaceNotification(strong,position,NO,strong.window.frame.size,&error) && CDBottomNotificationAnchor(position)) {
+                strong.notificationView.closeReason=@"placement-unavailable";
+                [strong.window close];
+            }
         }
     };
     panel.delegate=c;
@@ -1923,6 +1978,9 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 	// Public bounds describe the outer native window. initWithContentRect treats
 	// the input as content size, so normalize the actual frame explicitly.
 	if (isNativeToolbar) {
+		// Fixed toolbar geometry is already verified against WindowServer. The
+		// default zoom animation exposes inset heights and delays focus switches.
+		window.animationBehavior = NSWindowAnimationBehaviorNone;
 		// The toolbar layout owns content padding; AppKit owns titlebar height.
 		// Preserve the requested outer top edge while fitting the content to the
 		// actual panel chrome before placement and fixed-size constraints.
@@ -2289,6 +2347,16 @@ static void CDHandleRequest(NSDictionary *request) {
 		CDRespondWhenClosed(controller, requestID, 0);
 	} else if ([operation isEqualToString:@"setBounds"]) {
 		NSDictionary *expected = request[@"payload"];
+		if (controller.floatingToolbarView) {
+			// The toolbar layout fixes its outer size. WindowServer can report a
+			// scaled presentation frame during show/hide; setPosition must not
+			// turn that observed animation size into a permanent resize.
+			NSMutableDictionary *position = [expected mutableCopy];
+			NSSize fixedSize = controller.window.minSize;
+			position[@"width"] = @(fixedSize.width);
+			position[@"height"] = @(fixedSize.height);
+			expected = position;
+		}
         [controller.floatingToolbarView invalidateTooltips];
 		[controller.window setFrame:CDNativeRect(expected) display:YES];
         controller.revision += 1;
@@ -2347,6 +2415,9 @@ static void CDHandleRequest(NSDictionary *request) {
             CDFail(requestID,@"UNSUPPORTED_CAPABILITY",operation,controller.windowID,nil,@"window is not a notification"); return;
         }
         NSDictionary *payload=request[@"payload"], *next=payload[@"spec"];
+        if (![CDNotificationView validateImageForSpec:next]) {
+            CDFail(requestID,@"INVALID_SPEC",operation,controller.windowID,nil,@"notification image could not be decoded"); return;
+        }
         BOOL reposition = [payload[@"reposition"] boolValue];
         NSString *error=nil;
         NSDictionary *previousPosition=controller.notificationPosition;
@@ -2360,6 +2431,7 @@ static void CDHandleRequest(NSDictionary *request) {
         }
         NSDictionary *expected = CDBoundsFromNativeRect(controller.window.frame);
         [controller.notificationView applySpec:next resetTimeout:[payload[@"resetTimeout"] boolValue]];
+        if (reposition) CDReflowBottomNotifications(controller.sessionID);
         controller.window.ignoresMouseEvents=![next[@"closable"] boolValue];
         controller.revision+=1;
         CDRespondWhenBoundsMatch(controller,requestID,operation,expected,0);

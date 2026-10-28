@@ -61,8 +61,27 @@ func (u *CustomUIRuntime) exportNotification(value goja.Value, destination any) 
 	plain := map[string]any{}
 	for _, key := range object.Keys() {
 		value := object.Get(key)
-		if goja.IsUndefined(value) || (goja.IsNull(value) && key != "progress") {
+		if goja.IsUndefined(value) || (goja.IsNull(value) && key != "progress" && key != "image") {
 			return fmt.Errorf("notification %s cannot be null or undefined", key)
+		}
+		if key == "imageAsset" {
+			return fmt.Errorf("notification imageAsset is internal")
+		}
+		if key == "image" && !goja.IsNull(value) {
+			image, ok := value.(*goja.Object)
+			if !ok || image.ClassName() != "Object" || len(image.Keys()) != 1 || image.Keys()[0] != "path" {
+				return fmt.Errorf("notification image must contain only path")
+			}
+			path := image.Get("path")
+			if path == nil || goja.IsNull(path) || goja.IsUndefined(path) {
+				return fmt.Errorf("notification image.path must be a string")
+			}
+			text, ok := path.Export().(string)
+			if !ok {
+				return fmt.Errorf("notification image.path must be a string")
+			}
+			plain[key] = map[string]any{"path": text}
+			continue
 		}
 		if key != "position" {
 			plain[key] = value.Export()

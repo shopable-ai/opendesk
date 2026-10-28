@@ -47,6 +47,11 @@ const (
 	ChromeHeight          = 25
 	OrientationHorizontal = "horizontal"
 	OrientationVertical   = "vertical"
+	TooltipPositionAuto   = "auto"
+	TooltipPositionRight  = "right"
+	TooltipPositionLeft   = "left"
+	TooltipPositionTop    = "top"
+	TooltipPositionBottom = "bottom"
 
 	ItemButton    = "button"
 	ItemLabel     = "label"
@@ -96,6 +101,10 @@ func IsValidLabelVerticalAlignment(value string) bool {
 
 func IsValidLabelTone(value string) bool {
 	return value == LabelTonePrimary || value == LabelToneSecondary || value == LabelToneSuccess || value == LabelToneWarning || value == LabelToneError
+}
+
+func IsValidTooltipPosition(value string) bool {
+	return value == TooltipPositionAuto || value == TooltipPositionRight || value == TooltipPositionLeft || value == TooltipPositionTop || value == TooltipPositionBottom
 }
 
 func MaxButtonsForOrientation(orientation string) int {
@@ -306,6 +315,9 @@ type ToolbarSpec struct {
 	SchemaVersion int    `json:"schemaVersion"`
 	Revision      uint64 `json:"revision"`
 	Orientation   string `json:"orientation"`
+	// Empty preserves omission (auto on macOS, native WinForms on Windows).
+	// Explicit values, including auto, are unsupported on Windows.
+	TooltipPosition string `json:"tooltipPosition,omitempty"`
 	// MaxColumns is the EventLoop-derived per-row cap for content items.
 	// It is not a caller-selected frame or arbitrary layout primitive.
 	MaxColumns int `json:"maxColumns,omitempty"`

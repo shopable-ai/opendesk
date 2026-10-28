@@ -711,9 +711,23 @@ func accessibilityIdentity(app desktopApplicationState) (AccessibilityTargetIden
 	return AccessibilityTargetIdentity{PID: app.PID, LaunchTimeMS: app.LaunchTimeMS, BundleIdentifier: app.BundleIdentifier, Path: app.Path, ExecutablePath: app.ExecutablePath}, nil
 }
 
+type accessibilityApplicationIdentityResolver interface {
+	ByPID(context.Context, int64) (desktopApplicationState, error)
+}
+
 func (a *AccessibilityRuntime) currentApplication(ctx context.Context, pid int64) (desktopApplicationState, error) {
 	if a.app == nil || a.app.backend == nil {
 		return desktopApplicationState{}, accessibilityError(AccessibilityBackendFailed, "identity", "App target resolver is unavailable", nil)
+	}
+	if resolver, ok := a.app.backend.(accessibilityApplicationIdentityResolver); ok {
+		app, err := resolver.ByPID(ctx, pid)
+		if err != nil {
+			return desktopApplicationState{}, accessibilityError(AccessibilityBackendFailed, "identity", "could not refresh target process identity", err)
+		}
+		if pid <= 0 || app.PID != pid || app.Terminated || app.LaunchTimeMS <= 0 || app.ExecutablePath == "" {
+			return desktopApplicationState{}, accessibilityError(AccessibilityStaleTarget, "identity", "target process identity is unavailable", nil)
+		}
+		return app, nil
 	}
 	apps, err := a.app.backend.List(ctx)
 	if err != nil {

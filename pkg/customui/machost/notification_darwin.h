@@ -8,6 +8,7 @@
 @property(nonatomic, copy) void (^followPosition)(void);
 @property(nonatomic, copy) NSString *positionAdjustment;
 @property(nonatomic, copy) NSString *closeReason;
++ (BOOL)validateImageForSpec:(NSDictionary *)spec;
 + (NSSize)preferredSizeForSpec:(NSDictionary *)spec;
 - (instancetype)initWithSpec:(NSDictionary *)spec;
 - (void)applySpec:(NSDictionary *)spec resetTimeout:(BOOL)reset;

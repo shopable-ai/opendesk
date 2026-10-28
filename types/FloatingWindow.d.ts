@@ -4,6 +4,7 @@ export {};
 
 declare global {
   type ClawdeskFloatingWindowOrientation = "horizontal" | "vertical";
+  type ClawdeskFloatingTooltipPosition = "auto" | "right" | "left" | "top" | "bottom";
   type ClawdeskFloatingImageRenderingMode = "original" | "template";
   type ClawdeskFloatingLabelAlignment = "leading" | "center" | "trailing";
   type ClawdeskFloatingLabelVerticalAlignment = "top" | "center" | "bottom";
@@ -61,6 +62,20 @@ declare global {
 	interactionGroup?: string;
     /** Defaults to horizontal. Vertical toolbars accept at most five native content items. */
     orientation?: ClawdeskFloatingWindowOrientation;
+    /**
+     * Immutable tooltip side preference. Omission defaults to auto: right for
+     * vertical and bottom for horizontal macOS toolbars. Tries the opposite
+     * side, then the remaining axis (bottom/top or right/left), keeping an 8pt
+     * gap from the whole bar and a 6pt visible-screen inset. Tries all sides
+     * at normal measured size (up to 328pt wide), then all reflowed sizes;
+     * suppresses the tooltip if no complete fit avoids the bar or glyph ink
+     * exceeds the native text field's safe line box. Keeps the full AX label. Uses the
+     * screen containing the anchor center, or nearest screen. Move, resize,
+     * hide and close cancel the tooltip.
+     * Windows rejects any explicit value, including auto, with
+     * UNSUPPORTED_CAPABILITY; omit to retain native WinForms behavior.
+     */
+    tooltipPosition?: ClawdeskFloatingTooltipPosition;
     /**
      * Horizontal automatic-wrap constraints. Not supported with orientation:
      * "vertical", which remains a one-column toolbar for compatibility.

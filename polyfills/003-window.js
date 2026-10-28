@@ -28,6 +28,7 @@ const originalGetFocusWindow = window.getFocusWindow;
 window.getFocusWindow = function() {
     return normalizeWindowResult(originalGetFocusWindow.call(window));
 };
+const originalGetAppWindow = window.getAppWindow;
 const originalCurrentWindow = window.current;
 const originalActivateWindow = window.activate;
 
@@ -196,6 +197,47 @@ const originalActivateWindow = window.activate;
     };
     facade.get = async function(value) {
         return unique(target(value, 'window.get', false), 'window.get');
+    };
+    facade.getAppWindow = async function(value) {
+        const operation = 'window.getAppWindow';
+        function scopedFailure(code, message, cause) {
+            const error = failure(code, operation, message, cause);
+            error.capability = 'window.appScoped';
+            return error;
+        }
+        function bad(message) { throw scopedFailure('INVALID_ARGUMENT', message); }
+        if (arguments.length !== 1 || !plain(value)) bad('Use exactly one {pid, exePath} object');
+        const keys = Object.getOwnPropertyNames(value);
+        if (keys.length !== 2 || !own(value, 'pid') || !own(value, 'exePath') ||
+            Object.getOwnPropertySymbols(value).length) bad('target must contain exactly pid and exePath');
+        const descriptors = Object.getOwnPropertyDescriptors(value);
+        if (!own(descriptors.pid, 'value') || !own(descriptors.exePath, 'value')) {
+            bad('target fields must be data properties');
+        }
+        const targetPID = descriptors.pid.value;
+        const executable = descriptors.exePath.value;
+        if (!Number.isInteger(targetPID) || targetPID < 1 || targetPID > 2147483647 ||
+            typeof executable !== 'string' || executable.charAt(0) !== '/' || executable.indexOf('\0') !== -1) {
+            bad('target requires a positive int32 pid and absolute executable path without NUL');
+        }
+        const expected = Object.freeze({ pid: targetPID, exePath: executable });
+        try {
+            const result = normalizeWindowResult(await originalGetAppWindow.call(facade, expected));
+            if (result === null) return null;
+            if (!result || result.pid !== expected.pid || result.exePath !== expected.exePath ||
+                !Number.isSafeInteger(result.handle) || result.handle <= 0 ||
+                typeof result.id !== 'string' || !result.id || /:unresolved$/.test(result.id) ||
+                typeof result.title !== 'string' || result.isForeground !== true || result.hasFocus !== true ||
+                ![result.x, result.y, result.width, result.height].every(Number.isInteger) ||
+                result.width <= 0 || result.height <= 0) {
+                throw scopedFailure('VERIFICATION_FAILED', 'Invalid app-scoped window observation');
+            }
+            return result;
+        } catch (cause) {
+            if (cause && cause.name === 'WindowError' && cause.operation === operation) throw cause;
+            throw scopedFailure(cause && typeof cause.code === 'string' ? cause.code : 'BACKEND_FAILED',
+                'App-scoped window observation failed', cause);
+        }
     };
     facade.current = async function(value) {
         const operation = 'window.current';

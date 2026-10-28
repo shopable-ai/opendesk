@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"opendesk/pkg/customui/toolbar"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -21,9 +22,14 @@ const (
 	MaxNotifications          = 3
 )
 
-// NotificationSpec is a bounded native surface, not an HTML window or an OS
-// notification. Timers and rendering belong to the UI host, not the JS loop.
+type NotificationImage struct {
+	Path string `json:"path"`
+}
+
+// NotificationSpec is a bounded native surface. The UI host owns rendering and timers.
 type NotificationSpec struct {
+	Image           *NotificationImage    `json:"image,omitempty"`
+	ImageAsset      *toolbar.IconImage    `json:"imageAsset,omitempty"`
 	Message         string                `json:"message"`
 	Caption         string                `json:"caption"`
 	Level           string                `json:"level"`
@@ -78,6 +84,7 @@ type NotificationPosition struct {
 }
 
 type NotificationPatch struct {
+	Image           json.RawMessage       `json:"image,omitempty"`
 	Message         *string               `json:"message,omitempty"`
 	Caption         *string               `json:"caption,omitempty"`
 	Level           *string               `json:"level,omitempty"`
@@ -218,6 +225,18 @@ func normalizeNotificationPosition(p NotificationPosition) (NotificationPosition
 
 func MergeNotification(current NotificationSpec, patch NotificationPatch) (NotificationSpec, error) {
 	next := current
+	if len(patch.Image) != 0 {
+		next.Image, next.ImageAsset = nil, nil
+		if !bytes.Equal(bytes.TrimSpace(patch.Image), []byte("null")) {
+			var image NotificationImage
+			decoder := json.NewDecoder(bytes.NewReader(patch.Image))
+			decoder.DisallowUnknownFields()
+			if err := decoder.Decode(&image); err != nil {
+				return next, invalidSpec("invalid notification image: " + err.Error())
+			}
+			next.Image = &image
+		}
+	}
 	if patch.Message != nil {
 		next.Message = *patch.Message
 	}
@@ -264,6 +283,9 @@ func NotificationPreferredSize(spec NotificationSpec) Bounds {
 	if spec.Closable {
 		chromeWidth = 60
 	}
+	if spec.Image != nil {
+		chromeWidth += 68
+	}
 	width := math.Max(
 		notificationEstimatedTextWidth(spec.Message, 14),
 		notificationEstimatedTextWidth(spec.Caption, 11),
@@ -278,6 +300,13 @@ func NotificationPreferredSize(spec NotificationSpec) Bounds {
 	}
 	if spec.Progress != nil {
 		height += 10
+	}
+	if spec.Image != nil {
+		imageHeight := 76.0
+		if spec.Progress != nil {
+			imageHeight += 10
+		}
+		height = math.Max(height, imageHeight)
 	}
 	height = math.Max(NotificationMinimumHeight, math.Min(NotificationMaximumHeight, math.Ceil(height)))
 	return Bounds{Width: width, Height: height}
@@ -338,6 +367,11 @@ func (w *Window) UpdateNotification(ctx context.Context, patch NotificationPatch
 	if err != nil {
 		return NotificationUpdateResult{}, withUIErrorContext(err, "notification.update", w.ID(), "")
 	}
+	if len(patch.Image) != 0 {
+		if err := loadNotificationImage(&next, w.session.baseDir); err != nil {
+			return NotificationUpdateResult{}, withUIErrorContext(err, "notification.update", w.ID(), "")
+		}
+	}
 	if err := w.session.validateNotificationTarget(next.Position); err != nil {
 		return NotificationUpdateResult{}, err
 	}
@@ -374,12 +408,15 @@ func (s *Session) validateNotificationTarget(position NotificationPosition) erro
 	return nil
 }
 
-func normalizeNotificationWindow(spec WindowSpec) (WindowSpec, error) {
+func normalizeNotificationWindow(spec WindowSpec, baseDir string) (WindowSpec, error) {
 	if spec.Kind != "notification" || spec.Toolbar != nil || spec.Content.HTML != "" || spec.Content.File != "" || spec.Placement != nil {
 		return WindowSpec{}, invalidSpec("notification is a dedicated host-owned native surface")
 	}
 	notification, err := NormalizeNotification(*spec.Notification)
 	if err != nil {
+		return WindowSpec{}, err
+	}
+	if err := loadNotificationImage(&notification, baseDir); err != nil {
 		return WindowSpec{}, err
 	}
 	spec.Notification = &notification
@@ -479,4 +516,19 @@ func NotificationRectangle(position NotificationPosition, workArea Bounds, paren
 		return bottom(), "work-area-fallback", nil
 	}
 	return frame, "", fmt.Errorf("notification position is not normalized")
+}
+
+// Reuse the canonical local raster loader, including symlink containment and
+// byte/dimension limits. Native hosts consume bytes, never open the source path.
+func loadNotificationImage(spec *NotificationSpec, baseDir string) error {
+	spec.ImageAsset = nil
+	if spec.Image == nil {
+		return nil
+	}
+	asset, err := LoadToolbarIconImage(baseDir, spec.Image.Path, toolbar.IconRenderingOriginal)
+	if err != nil {
+		return err
+	}
+	spec.ImageAsset = asset
+	return nil
 }

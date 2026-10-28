@@ -147,6 +147,7 @@ ui.toast(messageOrOptions: string | ToastOptions): Promise<ToastHandle>
 | --- | --- | --- | --- | --- |
 | `message` | string | 是 | 无 | 1–1024 个 Unicode 字符，不能全空白或包含 NUL。 |
 | `caption` | string | 否 | `""` | 次要说明，最多 2048 字符。 |
+| `image` | `{path:string}` / `null` | 否 | 无 | 执行脚本目录内的本地 PNG/JPEG；更新时 `null` 清除。 |
 | `level` | `info \| success \| warning \| error` | 否 | `info` | 语义级别。 |
 | `timeoutMs` | integer | 否 | `3000` | `0..86400000`；0 表示持续显示并保证可关闭。 |
 | `timeoutProgress` | boolean | 否 | `false` | 显示剩余展示时间，不代表业务进度。 |
@@ -163,6 +164,10 @@ ui.toast(messageOrOptions: string | ToastOptions): Promise<ToastHandle>
 - 沿用当前 execution 的 UI capability；未授权抛 `UI_DISABLED`。
 - 不激活应用、不抢键盘焦点，也不代表业务成功。
 - 每个 execution 最多同时存在 3 个 Toast；长任务应更新同一个句柄。
+- `image.path` 相对执行脚本目录解析，也接受该目录内的绝对路径；真实路径（含符号链接）必须留在该目录内。复用本地图片资源校验：PNG/JPEG 扩展名与内容一致、普通文件、1–524288 字节、宽高均为 1–1024px；拒绝 URL、远程图片和越界路径。读取或原生解码失败明确返回 `INVALID_SPEC`，更新失败保留原状态。
+- 图片按原比例容纳在左侧约 56×56 逻辑像素区域，右侧为 message/caption；不修改应用正式 logo。无图时保留原布局。沿用 message 最多 3 行、caption 最多 2 行的有界展示，超长文字省略。
+- `position:{mode:"anchor",horizontal:"right",vertical:"bottom",display:"active",margin:24}` 的 Toast 向上堆叠。同 execution、同实际屏幕且规范化 placement 完全相同的 bottom anchor 共用一组，按原生实测高度保持 8 个逻辑像素间距；关闭、尺寸更新或位置更新后重排。整组放不进工作区时创建/更新失败，不覆盖已有成员或越出工作区；显示器工作区变化后无法继续容纳的 Toast 以 `placement-unavailable` 关闭。
+- 堆叠支持范围限于 bottom anchor（left/center/right）；不同 placement 或 execution 不参与彼此重排。其他 anchor 及原有 auto/relative 定位语义保持。
 - Toast 本身不独立延长已经完成的业务脚本；需要等待展示结束时显式 `await toast.waitUntilClosed()`。
 - 关闭 Toast 不取消业务任务。
 - `relative` target 必须属于同一 execution；非法字段、位置和进度返回 `INVALID_SPEC`。
@@ -187,6 +192,19 @@ await toast.update({
 await toast.waitUntilClosed();
 ```
 
+在执行脚本目录已存在 `assets/preview.png` 时，可创建图片 Toast；路径基准为脚本目录，启动命令从仓库根目录执行（例如 `./dist/opendesk -ui -script path/to/script.js`）。
+
+```js
+const preview = await ui.toast({
+  message: '图片已准备好',
+  caption: '本地预览',
+  image: { path: 'assets/preview.png' },
+  position: { mode: 'anchor', horizontal: 'right', vertical: 'bottom', display: 'active', margin: 24 }
+});
+await preview.update({ image: null });
+await preview.close();
+```
+
 ## ToastHandle.update(patch)
 
 原位更新 Toast，不创建第二个提示。
@@ -203,7 +221,7 @@ toast.update(patch: Partial<ToastOptions>): Promise<{
 
 **参数**
 
-`patch` 至少包含一个受支持字段。`progress` 与 `position` 完整替换，不深层 merge；`progress:null` 清除进度。只有显式更新 `timeoutMs` 才重新计时。
+`patch` 至少包含一个受支持字段。`image`、`progress` 与 `position` 完整替换，不深层 merge；`image:null` 清除图片，`progress:null` 清除进度。只有显式更新 `timeoutMs` 才重新计时。
 
 **返回值**
 
@@ -1012,6 +1030,7 @@ new FloatingWindow(options?: FloatingWindowOptions): FloatingWindow
 | `alwaysOnTop` | `true` | native 置顶。 |
 | `draggable` | `true` | 是否允许 native dragging。 |
 | `orientation` | `horizontal` | horizontal 最多 32 个 content item；vertical 最多 5 个。 |
+| `tooltipPosition` | `auto`（省略） | 不可变窗口选项：`'auto' \| 'right' \| 'left' \| 'top' \| 'bottom'`；macOS tooltip 首选方向。Windows 不接受显式字段，包括 `'auto'`。 |
 | `toolbar.maxWidth` | `960` | horizontal 最大 outer width，60–960。 |
 | `toolbar.maxColumns` | `19` | 每行最大 content item 数。 |
 | `toolbar.maxRows` | 自动 | 1–32；与其他限制共同计算 capacity。 |
@@ -1023,6 +1042,12 @@ new FloatingWindow(options?: FloatingWindowOptions): FloatingWindow
 **行为与错误**
 
 Button/Label/control 固定 40pt 高，结构项不占 content quota；布局超限或冲突 position 返回 `INVALID_SPEC`。显示前声明结构，显示后只允许非结构状态更新。
+
+`tooltipPosition` 只在构造时指定，没有运行时 setter。空字符串、`null`、显式 `undefined`、未知枚举或非字符串均返回 `INVALID_SPEC`。Windows 对五个合法显式值（包括 `'auto'`）返回 `UNSUPPORTED_CAPABILITY`；省略字段保留原生 WinForms tooltip 行为。
+
+macOS 省略或 `'auto'` 时，vertical 按 right、left、bottom、top 顺序尝试，horizontal 按 bottom、top、right、left 顺序尝试。显式方向先尝试首选侧，再尝试相反侧；首选 right/left 时余下依次为 bottom、top，首选 top/bottom 时余下依次为 right、left。先按正常测量尺寸（panel 宽度不超过 328pt）尝试全部方向，再按各侧可用空间重新换行并尝试全部方向。tooltip 始终与整个 toolbar 外框保持 8pt 间距，并完整位于屏幕可见区域内缩 6pt 的范围内；所有方向均无法完整容纳时抑制显示，不覆盖 toolbar。选择包含锚点中心的屏幕；中心不在任何屏幕时选择最近屏幕。窗口 move、resize、hide、close 均取消 tooltip。
+
+方向选择不改变按钮的 `label`、tooltip 文本或 Accessibility name；`updateButton({label:...})` 仍同步更新这三者，可见 text/icon 保持独立。测量同时检查不可分割字形簇的实际墨迹边界；叠加音标等字形超出原生文本框安全行盒、无法完整呈现时抑制提示，完整 label 与 Accessibility name 仍保留。
 
 **示例**
 

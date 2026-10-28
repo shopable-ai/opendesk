@@ -663,6 +663,36 @@
         "consoleMode": "script"
       }
     },
+    "custom-ui/codex-prompt-shortcuts/main.js": {
+      "title": "Codex Prompt Shortcuts",
+      "description": "Manage local prompts and copy their complete text from a native toolbar with the official OpenDesk logo.",
+      "category": "Custom UI",
+      "level": "intermediate",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "examples/custom-ui/codex-prompt-shortcuts/README.zh-CN.md",
+      "platforms": ["darwin"],
+      "prerequisites": ["Requires the paired macOS build, Custom UI capability, and a visible desktop. Prompt clicks replace the clipboard. Codex access is optional and explicit; composer insertion remains a candidate without live qualification."],
+      "requiredEnv": [],
+      "expected": "The official logo opens prompt management; three prompt slots copy full text with readback feedback, and the fifth button pages through enabled prompts.",
+      "tags": ["ui", "FloatingWindow", "clipboard", "prompts"],
+      "launch": {"kind": "script", "ui": true, "consoleMode": "script"}
+    },
+    "custom-ui/codex-prompt-shortcuts/preview.js": {
+      "title": "Codex Prompt Shortcuts Preview",
+      "description": "Preview five native text buttons and tooltip placement without accessing Codex, the prompt library, or clipboard.",
+      "category": "Custom UI",
+      "level": "beginner",
+      "runPolicy": "manual",
+      "legacyNames": [],
+      "docs": "examples/custom-ui/codex-prompt-shortcuts/README.zh-CN.md",
+      "platforms": ["darwin"],
+      "prerequisites": ["Requires the paired macOS build, Custom UI capability, and a visible desktop session. Close an existing preview before launching another."],
+      "requiredEnv": [],
+      "expected": "Five native text buttons stay open for hover and dragging until the user closes the window; button clicks have no business action.",
+      "tags": ["ui", "FloatingWindow", "text", "tooltip", "preview"],
+      "launch": {"kind": "script", "ui": true, "consoleMode": "script"}
+    },
     "custom-ui/five-button-toolbar.js": {
       "title": "Five Button Toolbar",
       "description": "Build a compact native FloatingWindow toolbar with five direct button actions.",

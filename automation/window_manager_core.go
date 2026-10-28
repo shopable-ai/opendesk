@@ -189,6 +189,24 @@ func (w *WindowManager) GetWindowByTitle(title string) (*WindowInfo, error) {
 	return normalizeWindowInfo(result), nil
 }
 
+// GetAppWindow observes only the explicitly identified foreground process.
+func (w *WindowManager) GetAppWindow(raw map[string]interface{}) (*WindowInfo, error) {
+	const operation = "window.getAppWindow"
+	if len(raw) != 2 {
+		return nil, windowOperationError(operation, WindowInvalidArgument, "target must contain exactly pid and exePath", nil)
+	}
+	pid, validPID := exactWindowInteger(raw["pid"], 1, math.MaxInt32)
+	exePath, validPath := raw["exePath"].(string)
+	if !validPID || !validPath || !strings.HasPrefix(exePath, "/") || strings.ContainsRune(exePath, 0) || strings.TrimSpace(exePath) == "" {
+		return nil, windowOperationError(operation, WindowInvalidArgument, "target requires a positive int32 pid and absolute executable path without NUL", nil)
+	}
+	result, err := getAppScopedWindow(uint32(pid), exePath)
+	if err != nil {
+		return nil, wrapWindowError(operation, err, false)
+	}
+	return normalizeWindowInfo(result), nil
+}
+
 // Current refreshes one already-resolved native window identity without
 // performing an all-window title query. The JavaScript facade validates and
 // snapshots the complete WindowInfo before calling this native owner; this
@@ -677,6 +695,8 @@ func windowCapabilityForOperation(operation string) string {
 		return "window.findByTitle"
 	case "window.focus":
 		return "window.focus"
+	case "window.getAppWindow":
+		return "window.appScoped"
 	case "window.current", "window.activate":
 		return "window.exactLifecycle"
 	case "window.setWindowBounds", "window.setWidth", "window.setHeight":

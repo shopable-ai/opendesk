@@ -170,6 +170,8 @@ type RuntimeLifecycle struct {
 	UI             *CustomUIRuntime
 	GlobalShortcut *GlobalShortcutRuntime
 	Events         *DesktopEventsRuntime
+	AppWindowWatch *AppWindowWatchRuntime
+	AppWindowQuery *AppWindowQueryRuntime
 	ScreenCapture  *ScreenCaptureRuntime
 	App            *AppRuntime
 	AppShell       *AppShellRuntime
@@ -204,6 +206,12 @@ func (l *RuntimeLifecycle) Wait() {
 	}
 	if l != nil && l.Events != nil {
 		l.Events.Wait()
+	}
+	if l != nil && l.AppWindowWatch != nil {
+		l.AppWindowWatch.Wait()
+	}
+	if l != nil && l.AppWindowQuery != nil {
+		l.AppWindowQuery.Wait()
 	}
 	if l != nil && l.ScreenCapture != nil {
 		l.ScreenCapture.Wait()
@@ -257,6 +265,12 @@ func (l *RuntimeLifecycle) CancelAsync() {
 	}
 	if l != nil && l.Events != nil {
 		l.Events.Close()
+	}
+	if l != nil && l.AppWindowWatch != nil {
+		l.AppWindowWatch.Close()
+	}
+	if l != nil && l.AppWindowQuery != nil {
+		l.AppWindowQuery.Close()
 	}
 	if l != nil && l.ScreenCapture != nil {
 		l.ScreenCapture.Close()
@@ -321,6 +335,16 @@ func (l *RuntimeLifecycle) AsyncCounts() (timers int, workers int64, callbacks i
 	if l.Events != nil {
 		subscriptions, pending := l.Events.ResourceCounts()
 		callbacks += subscriptions + pending
+	}
+	if l.AppWindowWatch != nil {
+		subscriptions, pending := l.AppWindowWatch.ResourceCounts()
+		callbacks += subscriptions + pending
+		workers += l.AppWindowWatch.NativeWorkers()
+	}
+	if l.AppWindowQuery != nil {
+		queryWorkers, queryPending := l.AppWindowQuery.ResourceCounts()
+		workers += queryWorkers
+		callbacks += queryPending
 	}
 	if l.ScreenCapture != nil {
 		captureWorkers, capturePending, _ := l.ScreenCapture.ResourceCounts()
@@ -426,6 +450,13 @@ type RuntimeResourceCounts struct {
 	RecorderBackendLeases int
 	RecorderWriters       int
 
+	AppWindowWatchSubscriptions int
+	AppWindowWatchPending       int
+	AppWindowWatchWorkers       int64
+
+	AppWindowQueryWorkers int64
+	AppWindowQueryPending int
+
 	AccessibilityWorkers         int64
 	AccessibilityPending         int
 	AccessibilityQueued          int
@@ -461,6 +492,13 @@ func (l *RuntimeLifecycle) ResourceCounts() RuntimeResourceCounts {
 	}
 	if l.Events != nil {
 		counts.EventSubscriptions, counts.EventPending = l.Events.ResourceCounts()
+	}
+	if l.AppWindowWatch != nil {
+		counts.AppWindowWatchSubscriptions, counts.AppWindowWatchPending = l.AppWindowWatch.ResourceCounts()
+		counts.AppWindowWatchWorkers = l.AppWindowWatch.NativeWorkers()
+	}
+	if l.AppWindowQuery != nil {
+		counts.AppWindowQueryWorkers, counts.AppWindowQueryPending = l.AppWindowQuery.ResourceCounts()
 	}
 	if l.ScreenCapture != nil {
 		counts.CaptureWorkers, counts.CapturePending, counts.CaptureSessions = l.ScreenCapture.ResourceCounts()
@@ -511,7 +549,7 @@ func (c RuntimeResourceCounts) IsZero() bool {
 		c.UIWorkers == 0 && c.UIPending == 0 && c.UIQueued == 0 && c.UIWindows == 0 &&
 		c.UIListeners == 0 && c.UIDriverSinks == 0 && c.UIHostProcesses == 0 &&
 		c.ShortcutBindings == 0 && c.ShortcutPending == 0 &&
-		c.EventSubscriptions == 0 && c.EventPending == 0 &&
+		c.EventSubscriptions == 0 && c.EventPending == 0 && c.AppWindowWatchSubscriptions == 0 && c.AppWindowWatchPending == 0 && c.AppWindowWatchWorkers == 0 && c.AppWindowQueryWorkers == 0 && c.AppWindowQueryPending == 0 &&
 		c.CaptureWorkers == 0 && c.CapturePending == 0 && c.CaptureSessions == 0 &&
 		c.AppWorkers == 0 && c.AppPending == 0 && c.AppShellRunning == 0 && c.AppShellWorkers == 0 &&
 		c.AppShellPending == 0 && c.AppShellQueued == 0 && c.AppShellListeners == 0 &&
@@ -527,10 +565,10 @@ func (c RuntimeResourceCounts) IsZero() bool {
 }
 
 func (c RuntimeResourceCounts) String() string {
-	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d httpTemps=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d appShellRunning=%d appShellWorkers=%d appShellPending=%d appShellQueued=%d appShellListeners=%d accessibilityWorkers=%d accessibilityPending=%d accessibilityQueued=%d accessibilityRefs=%d accessibilityNativeResources=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d commandWorkers=%d commandCallbacks=%d commandProcesses=%d audioPatternWorkers=%d audioPatternPending=%d audioPatternWatches=%d audioPatternSessions=%d fileJSONWorkers=%d fileJSONCallbacks=%d fileJSONTemps=%d fileHandles=%d sqliteWorkers=%d sqliteCallbacks=%d sqliteHandles=%d recorderWorkers=%d recorderPending=%d recorderSessions=%d recorderBackendLeases=%d recorderWriters=%d",
+	return fmt.Sprintf("timers=%d httpWorkers=%d httpCallbacks=%d httpTemps=%d uiWorkers=%d uiPending=%d uiQueued=%d uiWindows=%d uiListeners=%d uiDriverSinks=%d uiHostProcesses=%d shortcutBindings=%d shortcutPending=%d eventSubscriptions=%d eventPending=%d appWindowWatchSubscriptions=%d appWindowWatchPending=%d appWindowWatchWorkers=%d appWindowQueryWorkers=%d appWindowQueryPending=%d captureWorkers=%d capturePending=%d captureSessions=%d appWorkers=%d appPending=%d appShellRunning=%d appShellWorkers=%d appShellPending=%d appShellQueued=%d appShellListeners=%d accessibilityWorkers=%d accessibilityPending=%d accessibilityQueued=%d accessibilityRefs=%d accessibilityNativeResources=%d soundWorkers=%d soundPending=%d soundPlaybacks=%d notificationWorkers=%d notificationPending=%d commandWorkers=%d commandCallbacks=%d commandProcesses=%d audioPatternWorkers=%d audioPatternPending=%d audioPatternWatches=%d audioPatternSessions=%d fileJSONWorkers=%d fileJSONCallbacks=%d fileJSONTemps=%d fileHandles=%d sqliteWorkers=%d sqliteCallbacks=%d sqliteHandles=%d recorderWorkers=%d recorderPending=%d recorderSessions=%d recorderBackendLeases=%d recorderWriters=%d",
 		c.Timers, c.HTTPWorkers, c.HTTPCallbacks, c.HTTPTemps, c.UIWorkers, c.UIPending, c.UIQueued,
 		c.UIWindows, c.UIListeners, c.UIDriverSinks, c.UIHostProcesses, c.ShortcutBindings, c.ShortcutPending,
-		c.EventSubscriptions, c.EventPending, c.CaptureWorkers, c.CapturePending, c.CaptureSessions,
+		c.EventSubscriptions, c.EventPending, c.AppWindowWatchSubscriptions, c.AppWindowWatchPending, c.AppWindowWatchWorkers, c.AppWindowQueryWorkers, c.AppWindowQueryPending, c.CaptureWorkers, c.CapturePending, c.CaptureSessions,
 		c.AppWorkers, c.AppPending, c.AppShellRunning, c.AppShellWorkers, c.AppShellPending, c.AppShellQueued, c.AppShellListeners,
 		c.AccessibilityWorkers, c.AccessibilityPending, c.AccessibilityQueued,
 		c.AccessibilityRefs, c.AccessibilityNativeResources, c.SoundWorkers, c.SoundPending, c.SoundPlaybacks,
@@ -732,7 +770,7 @@ var jsMethodAllowlist = map[reflect.Type][]string{
 	reflect.TypeOf((*Console)(nil)):        {"Log", "Info", "Warn", "Error", "Debug", "Table", "Group", "GroupEnd", "Time", "TimeEnd", "Clear"},
 	reflect.TypeOf((*HTTPClient)(nil)):     {"Request", "Get", "Post", "Download"},
 	reflect.TypeOf((*System)(nil)):         {"Delay", "GetPlatformInfo", "GetSystemInfo", "GetProcessList", "KillProcess", "GetNetworkInterfaces", "GetNetworkConnections", "GetPowerInfo", "Shutdown", "Restart", "Sleep", "GetDirectoryContents", "GetExecutablePath", "GetWorkingDirectory", "GetUserInfo", "IsAdministrator", "GetSystemMetrics", "GetFingerprint", "ToJSON"},
-	reflect.TypeOf((*WindowManager)(nil)):  {"GetCapabilities", "GetActiveWindow", "GetWindowByTitle", "GetFocusWindow", "Current", "Activate", "Focus", "SetWindowBounds", "SetWidth", "SetHeight", "Maximize", "Minimize", "Restore", "RestoreByPID", "MinimizeByPID", "MaximizeByPID", "CloseWindow", "CloseActiveWindow", "Kill", "Title", "GetTitle", "Content", "GetContent", "List", "SetAlwaysOnTop", "UnsetTopMost", "BringToTop"},
+	reflect.TypeOf((*WindowManager)(nil)):  {"GetCapabilities", "GetActiveWindow", "GetAppWindow", "GetWindowByTitle", "GetFocusWindow", "Current", "Activate", "Focus", "SetWindowBounds", "SetWidth", "SetHeight", "Maximize", "Minimize", "Restore", "RestoreByPID", "MinimizeByPID", "MaximizeByPID", "CloseWindow", "CloseActiveWindow", "Kill", "Title", "GetTitle", "Content", "GetContent", "List", "SetAlwaysOnTop", "UnsetTopMost", "BringToTop"},
 	reflect.TypeOf((*FileSystem)(nil)):     {"Path", "RealPath", "Cwd", "Create", "CreateIfNotExists", "CreateWithDirs", "Exists", "EnsureDir", "Read", "ReadBytes", "Write", "WriteNew", "Append", "WriteBytes", "AppendBytes", "Copy", "RenameWithoutExtension", "Rename", "Move", "GetExtension", "GetName", "GetNameWithoutExtension", "Remove", "RemoveDir", "ListDir", "IsFile", "IsDir", "IsEmptyDir", "GetHumanReadableSize", "GetSimplifiedPath", "Join", "Open"},
 	reflect.TypeOf((*FileHandle)(nil)):     {"Close", "Read", "ReadBytes", "Write", "WriteBytes", "Seek", "Truncate", "Sync", "TryLock"},
 	reflect.TypeOf((*AppStorage)(nil)):     {"GetItem", "SetItem", "RemoveItem", "Clear", "GetLength", "Key"},
@@ -1052,6 +1090,7 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 
 	windowManager := NewWindowManager()
 	windowMethods := AutoMapObject(runtime, windowManager)
+	appWindowQuery := registerAppWindowQuery(runtime, opts, windowManager, windowMethods)
 	runtime.Set("window", windowMethods)
 
 	registerClipboard(runtime, opts)
@@ -1240,8 +1279,12 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	if err != nil {
 		return fmt.Errorf("failed to register automation.app: %w", err)
 	}
+	appWindowWatch, err := RegisterAppWindowWatch(runtime, opts)
+	if err != nil {
+		return fmt.Errorf("failed to register window.watchAppWindow: %w", err)
+	}
 	if opts.OnReady != nil {
-		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, ScreenCapture: screenCapture, App: appRuntime, AppShell: appShellRuntime, Accessibility: accessibilityRuntime, Notifications: notificationsRuntime, Command: commandRuntime, AudioPatterns: audioPatterns, FileJSON: fileJSON, FileSystem: fileSystem, SQLite: sqliteRuntime, Recorder: recorderRuntime, BrowserDOM: browserDOMRuntime})
+		opts.OnReady(&RuntimeLifecycle{Timers: timer, HTTP: httpClient, Sound: sound, UI: uiRuntime, GlobalShortcut: globalShortcut, Events: events, AppWindowWatch: appWindowWatch, AppWindowQuery: appWindowQuery, ScreenCapture: screenCapture, App: appRuntime, AppShell: appShellRuntime, Accessibility: accessibilityRuntime, Notifications: notificationsRuntime, Command: commandRuntime, AudioPatterns: audioPatterns, FileJSON: fileJSON, FileSystem: fileSystem, SQLite: sqliteRuntime, Recorder: recorderRuntime, BrowserDOM: browserDOMRuntime})
 	}
 	recorderReady = true
 	return nil

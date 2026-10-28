@@ -35,6 +35,55 @@ declare global {
     | { title: string; id?: never; pid?: never; app?: never; exePath?: never; exeName?: never }
   );
 
+  /** Exact executable file identity; no app aliases, bundle paths or extra fields. */
+  interface OpenDeskAppWindowTarget {
+    /** Positive int32 process ID (1..2147483647). */
+    pid: number;
+    /** Absolute executable file path, matched byte-for-byte; no NUL. Watch limit: 4095 UTF-8 bytes. */
+    exePath: string;
+  }
+
+  interface OpenDeskAppWindowWatchCapabilities {
+    platform: 'darwin';
+    backend: 'per-pid-kvo-ax';
+    registrations: Record<'appActive' | 'appTerminated' | 'axObserver' | 'focusedWindow' |
+      'windowCreated' | 'mainWindow' | 'focusedUIElement' | 'layoutChanged' | 'windowMoved' | 'windowResized' | 'windowDestroyed' | 'axAppActivated' | 'axAppDeactivated', {
+      supported: boolean;
+      state: 'registered' | 'not_registered' | 'failed';
+      /** 0: registered; -1: not registered; otherwise native AXError. */
+      status: number;
+    }>;
+    fallback: boolean;
+    fallbackMode: 'caller-revalidation';
+    /** Registration is not live delivery verification or foreground qualification. */
+    verified: false;
+  }
+
+  type OpenDeskAppWindowHintReason = 'subscribed' | 'app-active-changed' | 'app-terminated-changed' |
+    'focused-window-changed' | 'window-moved' | 'window-resized' | 'window-destroyed' |
+    'target-invalidated' | 'capabilities-changed' | 'app-activated' | 'app-deactivated' |
+    'focused-ui-element-changed' | 'layout-changed' | 'window-created' | 'main-window-changed';
+
+  interface OpenDeskAppWindowHint {
+    reason: OpenDeskAppWindowHintReason | 'coalesced';
+    /** Union of all pending transitions; coalescing never drops deactivation/window-change hints. */
+    reasons: OpenDeskAppWindowHintReason[];
+    /** Latest target-local KVO/AX activation hint, null when unknown; never foreground authorization. */
+    active: boolean | null;
+    /** Subscription-local sequence; gaps are expected when hints coalesce. */
+    sequence: number;
+    /** Monotonic elapsed milliseconds since subscription, not wall time. */
+    monotonicMs: number;
+    capabilities: OpenDeskAppWindowWatchCapabilities;
+  }
+
+  interface OpenDeskAppWindowSubscription {
+    /** Idempotent. Native teardown completes when the execution lifecycle joins workers. */
+    unsubscribe(): void;
+    /** Initial registration snapshot; later snapshots arrive in hints. */
+    readonly capabilities: OpenDeskAppWindowWatchCapabilities;
+  }
+
   interface OpenDeskWindowWaitOptions {
     /** Total milliseconds, 0..300000; default 10000. Zero makes one immediate observation. */
     timeout?: number;
@@ -80,6 +129,11 @@ declare global {
   interface OpenDeskWindowManager {
     getCapabilities(): OpenDeskWindowCapabilities;
     getActiveWindow(): Promise<OpenDeskWindowInfo>;
+    /** macOS only: observe the target's AX focused window if its PID is frontmost; otherwise null. */
+    getAppWindow(target: OpenDeskAppWindowTarget): Promise<OpenDeskWindowInfo | null>;
+    /** macOS: invalidation hints only; independently revalidate before any action. */
+    watchAppWindow(target: OpenDeskAppWindowTarget,
+      callback: (hint: OpenDeskAppWindowHint) => void | Promise<void>): OpenDeskAppWindowSubscription;
     getWindowByTitle(title: string): Promise<OpenDeskWindowInfo>;
     /** Read-only unique query; no implicit launch, focus, fallback or first-match selection. */
     get(target: OpenDeskWindowTarget): Promise<OpenDeskWindowInfo>;

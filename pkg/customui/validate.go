@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"unicode/utf8"
 
@@ -79,7 +80,7 @@ func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
 		spec.Placement = &placement
 	}
 	if spec.Notification != nil {
-		return normalizeNotificationWindow(spec)
+		return normalizeNotificationWindow(spec, baseDir)
 	}
 	if spec.Toolbar != nil {
 		if spec.KeyEvents {
@@ -319,6 +320,14 @@ func normalizeToolbarWindow(spec WindowSpec) (WindowSpec, error) {
 		return WindowSpec{}, invalidSpec("native toolbar declarations cannot contain HTML, CSS, assets, URLs, or paths")
 	}
 	declaration := *spec.Toolbar
+	if declaration.TooltipPosition != "" {
+		if !toolbar.IsValidTooltipPosition(declaration.TooltipPosition) {
+			return WindowSpec{}, &Error{Code: CodeInvalidSpec, Operation: "createWindow", Capability: "tooltipPosition", Message: "native toolbar tooltipPosition must be auto, right, left, top, or bottom"}
+		}
+		if runtime.GOOS == "windows" {
+			return WindowSpec{}, &Error{Code: CodeUnsupportedCapability, Operation: "createWindow", Capability: "tooltipPosition", Message: "explicit tooltipPosition is not supported on Windows"}
+		}
+	}
 	// Schema v1 was button-only. Accept it at the core boundary so persisted
 	// internal declarations can be normalized safely, then send only the current
 	// typed Items shape to the native host. Public JavaScript has always used

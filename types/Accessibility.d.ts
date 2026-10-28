@@ -76,7 +76,7 @@ declare global {
   interface OpenDeskAccessibilityTraversalOptions {
     /** One total deadline including queue time. Default 3000; maximum 30000. */
     timeout?: number;
-    /** Default 8; maximum 32. */
+    /** Default 8; maximum 64. Node and total deadline limits still apply. */
     maxDepth?: number;
     /** Default 1000; maximum 5000. */
     maxNodes?: number;
@@ -86,7 +86,7 @@ declare global {
     /** Required: Accessibility never defaults to a whole-desktop traversal. */
     within: OpenDeskAccessibilityScope;
     /** A strict allowlist. Value is omitted unless "value" is explicitly included. */
-    properties?: OpenDeskAccessibilityProperty[];
+    properties?: Exclude<OpenDeskAccessibilityProperty, "textInputState">[];
   }
 
   interface OpenDeskAccessibilityFindOptions extends OpenDeskAccessibilityTraversalOptions {
@@ -108,7 +108,8 @@ declare global {
     | "actions"
     | "nativeBounds"
     | "bounds"
-    | "value";
+    | "value"
+    | "textInputState";
 
   interface OpenDeskAccessibilityReadOptions {
     /** One total deadline including queue time. Default 3000; maximum 30000. */
@@ -125,6 +126,8 @@ declare global {
   type OpenDeskAccessibilityAction =
     | { action: "invoke" }
     | { action: "setValue"; value: string }
+    /** Expected full draft, never inserted; macOS only, currently unavailable (unqualified composition provider). Maximum 1 MiB UTF-8. Does not grant directed insertion. */
+    | { action: "prepareTextAppend"; value: string }
     | { action: "expand" }
     | { action: "collapse" }
     | { action: "select" }
@@ -178,6 +181,23 @@ declare global {
     stats: OpenDeskAccessibilityStats;
   }
 
+  interface OpenDeskAccessibilityTextRange {
+    location: number;
+    length: number;
+  }
+
+  /** A native observation only; does not qualify a provider or lock future paste. */
+  interface OpenDeskAccessibilityTextInputState {
+    unit: "utf16";
+    selection: OpenDeskAccessibilityTextRange | null;
+    composition: "inactive" | "active" | "unknown";
+    /** Raw native marked range; null if absent or not exactly representable. */
+    markedRange: OpenDeskAccessibilityTextRange | null;
+    source: "AXTextInputMarkedRange";
+    /** Why composition is unknown; null for a known native observation. */
+    reason: "attribute_unsupported" | "no_value" | "null_value" | "not_cf_range" | "invalid_range" | "provider_unqualified" | null;
+  }
+
   interface OpenDeskAccessibilityReadProperties {
     role?: OpenDeskAccessibilityRole;
     nativeRole?: string;
@@ -192,6 +212,8 @@ declare global {
     actions?: string[];
     nativeBounds?: OpenDeskAccessibilityNativeBounds | null;
     bounds?: OpenDeskScreenRegion | null;
+    /** Explicit read only; protected fields reject; unsupported backends return null. */
+    textInputState?: OpenDeskAccessibilityTextInputState | null;
     value?: string | number | boolean | null;
   }
 
@@ -223,6 +245,7 @@ declare global {
       /** Backend-level implementation summary; each element is checked again before action. */
       actions: Record<string, boolean>;
       /** True only when native bounds can be reliably converted to OpenDesk screen coordinates. */
+      /** Conditional support; macOS requires exact WindowInfo scope and fresh AX/CG anchor calibration. */
       coordinateMapping: boolean;
       notes: string;
     };

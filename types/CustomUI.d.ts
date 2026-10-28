@@ -126,6 +126,8 @@ declare global {
       };
 
   interface ClawdeskUIToastOptions {
+    /** Local PNG/JPEG under the execution script directory; null clears on update. */
+    image?: { path: string } | null;
     message: string;
     caption?: string;
     level?: "info" | "success" | "warning" | "error";

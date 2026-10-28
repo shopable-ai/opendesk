@@ -4,7 +4,7 @@ package machost
 
 /*
 #cgo CFLAGS: -fobjc-arc
-#cgo LDFLAGS: -framework Cocoa -framework WebKit
+#cgo LDFLAGS: -framework Cocoa -framework WebKit -framework CoreText
 #include <stdlib.h>
 #include "native_darwin.h"
 #include "edit_menu_darwin.h"

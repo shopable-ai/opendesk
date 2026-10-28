@@ -3,12 +3,24 @@
 package automation
 
 /*
-#cgo LDFLAGS: -framework CoreGraphics -framework CoreFoundation
+#cgo LDFLAGS: -framework CoreGraphics -framework CoreFoundation -framework ApplicationServices
 #include <CoreGraphics/CoreGraphics.h>
 #include <CoreFoundation/CoreFoundation.h>
+#include <ApplicationServices/ApplicationServices.h>
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
+
+// NSWorkspace's frontmostApplication can be stale in a CLI without an AppKit
+// runloop. This legacy Process Manager query is retained for unscoped window
+// discovery; it can also lag in long-lived processes. Scoped foreground/input
+// guards must use macScopedForegroundPID instead. Fail closed if unavailable.
+static int frontmost_application_pid(void) {
+	ProcessSerialNumber psn = {0, 0};
+	pid_t pid = 0;
+	if (GetFrontProcess(&psn) != noErr || GetProcessPID(&psn, &pid) != noErr) return 0;
+	return pid;
+}
 
 #define CGWINDOW_OWNER_CAPACITY 512
 #define CGWINDOW_TITLE_CAPACITY 1024
@@ -90,7 +102,8 @@ static int window_for_pid(
 // parent document window remains visible; returning every normal, visible
 // window preserves the parent identity needed by callers to use relative
 // geometry safely.  The caller owns filtering and process enrichment.
-static int list_on_screen_windows(cgwindow_row *out, int capacity) {
+static int list_on_screen_windows(cgwindow_row *out, int capacity,
+	int expected_pid, int64_t expected_id, int front_pid, int64_t *front_id) {
 	if (out == NULL || capacity <= 0) return 0;
 	CFArrayRef rows = CGWindowListCopyWindowInfo(
 		kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
@@ -99,6 +112,7 @@ static int list_on_screen_windows(cgwindow_row *out, int capacity) {
 	if (rows == NULL) return 0;
 	CFIndex count = CFArrayGetCount(rows);
 	int written = 0;
+	int normal_index = 0;
 	for (CFIndex i = 0; i < count && written < capacity; i++) {
 		CFDictionaryRef row = (CFDictionaryRef)CFArrayGetValueAtIndex(rows, i);
 		int64_t owner_pid = 0;
@@ -111,15 +125,21 @@ static int list_on_screen_windows(cgwindow_row *out, int capacity) {
 		if (bounds == NULL || !CGRectMakeWithDictionaryRepresentation(bounds, &rect)) continue;
 		if (rect.size.width <= 0 || rect.size.height <= 0) continue;
 
+		int64_t number = 0;
+		if (!copy_number(row, kCGWindowNumber, &number) || number <= 0) continue;
+		int index = normal_index++;
+		if (front_id != NULL && *front_id == 0 && owner_pid == front_pid) *front_id = number;
+		if (expected_pid > 0 && (owner_pid != expected_pid || number != expected_id)) continue;
+
 		cgwindow_row *item = &out[written];
 		memset(item, 0, sizeof(*item));
-		copy_number(row, kCGWindowNumber, &item->window_id);
+		item->window_id = number;
 		item->pid = owner_pid;
 		item->x = rect.origin.x;
 		item->y = rect.origin.y;
 		item->width = rect.size.width;
 		item->height = rect.size.height;
-		item->index = written;
+		item->index = index;
 		copy_cf_string((CFStringRef)CFDictionaryGetValue(row, kCGWindowOwnerName), item->owner, sizeof(item->owner));
 		copy_cf_string((CFStringRef)CFDictionaryGetValue(row, kCGWindowName), item->title, sizeof(item->title));
 		written++;
@@ -171,14 +191,8 @@ import "C"
 import (
 	"bytes"
 	"fmt"
-	"os/exec"
-	"regexp"
-	"strconv"
-	"strings"
 	"unsafe"
 )
-
-var lsappinfoPIDPattern = regexp.MustCompile(`"pid"=([0-9]+)`)
 
 func getActiveMacWindowCoreGraphics() (*macWindow, error) {
 	pid, err := frontmostApplicationPID()
@@ -235,7 +249,7 @@ func listMacWindowsCoreGraphics() ([]macWindow, error) {
 	// above the number of ordinary desktop windows while avoiding an unbounded
 	// C allocation on a degraded desktop session.
 	rows := make([]C.cgwindow_row, 128)
-	written := int(C.list_on_screen_windows((*C.cgwindow_row)(unsafe.Pointer(&rows[0])), C.int(len(rows))))
+	written := int(C.list_on_screen_windows((*C.cgwindow_row)(unsafe.Pointer(&rows[0])), C.int(len(rows)), 0, 0, 0, nil))
 	if written <= 0 {
 		return nil, fmt.Errorf("CoreGraphics returned no visible normal windows")
 	}
@@ -270,6 +284,38 @@ func listMacWindowsCoreGraphics() ([]macWindow, error) {
 	return items, nil
 }
 
+// Refresh only the resolved owner/handle. Do not enrich every desktop process
+// or make a second foreground/window-list observation for the same refresh.
+func currentMacWindowCoreGraphics(pid uint32, handle uint64) (*macWindow, error) {
+	frontPID, err := frontmostApplicationPID()
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]C.cgwindow_row, 2) // Retain duplicate-identity rejection.
+	var frontID C.int64_t
+	written := int(C.list_on_screen_windows(&rows[0], C.int(len(rows)), C.int(pid), C.int64_t(handle), C.int(frontPID), &frontID))
+	if written == 0 {
+		return nil, nil
+	}
+	if written != 1 {
+		return nil, fmt.Errorf("CoreGraphics returned duplicate window identity pid=%d handle=%d", pid, handle)
+	}
+	row := &rows[0]
+	owner := unsafe.Slice((*byte)(unsafe.Pointer(&row.owner[0])), len(row.owner))
+	title := unsafe.Slice((*byte)(unsafe.Pointer(&row.title[0])), len(row.title))
+	foreground := int(row.pid) == frontPID && row.window_id == frontID
+	item := &macWindow{
+		Title: cStringBytes(title), PID: uint32(row.pid), Handle: int64(row.window_id),
+		X: int32(row.x), Y: int32(row.y), Width: int32(row.width), Height: int32(row.height),
+		AppName: cStringBytes(owner), Index: int(row.index), IsForeground: foreground, HasFocus: foreground,
+	}
+	enrichMacWindow(item)
+	if !normalizeMacWindowTitle(item) {
+		return nil, nil
+	}
+	return item, nil
+}
+
 func getMacWindowIDForPIDAndBounds(pid uint32, x, y, width, height int32) (int64, error) {
 	if pid == 0 || width <= 0 || height <= 0 {
 		return 0, fmt.Errorf("invalid macOS window identity input")
@@ -290,25 +336,9 @@ func getMacWindowIDForPIDAndBounds(pid uint32, x, y, width, height int32) (int64
 }
 
 func frontmostApplicationPID() (int, error) {
-	front, err := exec.Command("lsappinfo", "front").Output()
-	if err != nil {
-		return 0, fmt.Errorf("resolve frontmost application: %w", err)
-	}
-	asn := strings.TrimSpace(string(front))
-	if asn == "" {
-		return 0, fmt.Errorf("resolve frontmost application: empty ASN")
-	}
-	info, err := exec.Command("lsappinfo", "info", "-only", "pid", asn).Output()
-	if err != nil {
-		return 0, fmt.Errorf("resolve frontmost application pid: %w", err)
-	}
-	match := lsappinfoPIDPattern.FindSubmatch(info)
-	if len(match) != 2 {
-		return 0, fmt.Errorf("resolve frontmost application pid: unexpected lsappinfo output")
-	}
-	pid, err := strconv.Atoi(string(match[1]))
-	if err != nil || pid <= 0 {
-		return 0, fmt.Errorf("resolve frontmost application pid: invalid pid")
+	pid := int(C.frontmost_application_pid())
+	if pid <= 0 {
+		return 0, fmt.Errorf("resolve frontmost application pid: Process Manager returned no live process")
 	}
 	return pid, nil
 }

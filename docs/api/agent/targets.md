@@ -47,6 +47,7 @@ WindowTarget 与 WindowInfo 不混用；唯一性/新鲜度/坐标按公共约�
 | `window.focus(title: string): void;` | 聚焦唯一标题窗口。 | 有：输入/应用或系统状态改变；继承本节限制 | [window.focus](../window.md#windowfocustitle)；`read window window.focus` |
 | `window.get(target: OpenDeskWindowTarget): Promise<OpenDeskWindowInfo>;` | 取得唯一、身份与几何有效的窗口快照。 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [window.get](../window.md#windowgettarget)；`read window window.get` |
 | `window.getActiveWindow(): Promise<OpenDeskWindowInfo>;` | 返回活动窗口信息。 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [window.getActiveWindow](../window.md#windowgetactivewindow)；`read window window.getActiveWindow` |
+| `window.getAppWindow(target: OpenDeskAppWindowTarget): Promise<OpenDeskWindowInfo \| null>;` | 仅观察指定 PID 与 executable 的前台 AX 焦点窗口（macOS）。 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [window.getAppWindow](../window.md#windowgetappwindowtarget)；`read window window.getAppWindow` |
 | `window.getCapabilities(): OpenDeskWindowCapabilities;` | 返回当前平台的窗口能力矩阵。 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [window.getCapabilities](../window.md#windowgetcapabilities)；`read window window.getCapabilities` |
 | `window.getContent(selector: string): string;` | 读取指定窗口可访问文本。 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [window.getContent](../window.md#windowgetcontentselector)；`read window window.getContent` |
 | `window.getFocusWindow(): OpenDeskWindowInfo \| null;` | 同步返回当前焦点窗口。 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [window.getFocusWindow](../window.md#windowgetfocuswindow)；`read window window.getFocusWindow` |
@@ -67,6 +68,7 @@ WindowTarget 与 WindowInfo 不混用；唯一性/新鲜度/坐标按公共约�
 | `window.title(): string;` | 同步返回活动窗口标题。 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [window.title](../window.md#windowtitle)；`read window window.title` |
 | `window.unsetTopMost(title: string): void;` | 取消置顶。 | 需核对正文；不能假定无副作用；继承本节限制 | [window.unsetTopMost](../window.md#windowunsettopmosttitle)；`read window window.unsetTopMost` |
 | `window.wait(target: OpenDeskWindowTarget, options?: OpenDeskWindowWaitOptions): Promise<OpenDeskWindowInfo>;` | 等待唯一窗口出现，支持超时和取消。 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [window.wait](../window.md#windowwaittarget-options)；`read window window.wait` |
+| `window.watchAppWindow(target: OpenDeskAppWindowTarget, callback: (hint: OpenDeskAppWindowHint) => void \| Promise<void>): OpenDeskAppWindowSubscription;` | 监听精确进程的窗口失效提示（macOS）。 | 需核对正文；不能假定无副作用；继承本节限制 | [window.watchAppWindow](../window.md#windowwatchappwindowtarget-callback)；`read window window.watchAppWindow` |
 
 
 ## page
@@ -133,9 +135,9 @@ WindowTarget 与 WindowInfo 不混用；唯一性/新鲜度/坐标按公共约�
 
 - `types/App.d.ts` SHA-256 `e4220ee0659274e619c693a36a6e581af7c7f346304f0cf4879432f9309fc0ef`
 
-- `docs/api/window.md` SHA-256 `019f35f85057bc7c9161cb0f2e166740411e63f55f79ba41ba993d6c953960c0`
+- `docs/api/window.md` SHA-256 `a1bda3a0b3041c546274887e588d2f7ba7a5021f88ef36a8294543a92b515594`
 
-- `types/window.d.ts` SHA-256 `3dfd6c0c84d7f4ef1341efbcb5cd82f022f01dd63d7df7322e6c0eb8078fc7ae`
+- `types/window.d.ts` SHA-256 `7e3d6adf9dcdde9271616dbc289e480c6e4d4a4c8273cc1747fc16748b705101`
 
 - `docs/api/page.md` SHA-256 `97bce04f6f4bd2f6e20ed2a46bdf86972db7c5cae880bee5feea6c8fcc9d98c7`
 

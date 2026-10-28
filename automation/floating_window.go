@@ -8,6 +8,7 @@ import (
 	"opendesk/pkg/customui"
 	"opendesk/pkg/customui/toolbar"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -84,6 +85,7 @@ type floatingWindowOptionsDeclaration struct {
 	InteractionGroup string                             `json:"interactionGroup,omitempty"`
 	Placement        *customui.WindowPlacement          `json:"placement,omitempty"`
 	Orientation      string                             `json:"orientation,omitempty"`
+	TooltipPosition  string                             `json:"tooltipPosition,omitempty"`
 	Toolbar          *floatingToolbarOptionsDeclaration `json:"toolbar,omitempty"`
 }
 
@@ -159,6 +161,7 @@ type floatingWindow struct {
 	interactionGroup      string
 	placement             *customui.WindowPlacement
 	orientation           string
+	tooltipPosition       string
 	layout                floatingToolbarLayout
 	revision              uint64
 	errorHandler          goja.Callable
@@ -200,6 +203,7 @@ func newFloatingToolbar(ui *CustomUIRuntime, windowID string, options floatingWi
 		value.draggable = *options.Draggable
 	}
 	value.interactionGroup = options.InteractionGroup
+	value.tooltipPosition = options.TooltipPosition
 	if options.Orientation != "" {
 		value.orientation = options.Orientation
 	}
@@ -243,8 +247,38 @@ func (u *CustomUIRuntime) jsFloatingWindowConstructor() *goja.Object {
 func (u *CustomUIRuntime) parseFloatingWindowOptions(value goja.Value) (floatingWindowOptionsDeclaration, error) {
 	var options floatingWindowOptionsDeclaration
 	if value != nil && !goja.IsUndefined(value) && !goja.IsNull(value) {
+		// Snapshot own option values once: accessors cannot change a validated
+		// preference during the later structured export.
+		if object, ok := value.(*goja.Object); ok {
+			snapshot := u.runtime.NewObject()
+			for _, key := range object.Keys() {
+				candidate := object.Get(key)
+				if candidate == nil {
+					return options, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.constructor", Capability: key, Message: "toolbar option was removed while reading options"}
+				}
+				if key == "tooltipPosition" {
+					_, boxed := candidate.(*goja.Object)
+					position, primitive := candidate.Export().(string)
+					if boxed || !primitive || !toolbar.IsValidTooltipPosition(position) {
+						return options, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.constructor", Capability: "tooltipPosition", Message: "tooltipPosition must be auto, right, left, top, or bottom"}
+					}
+				}
+				if err := snapshot.DefineDataProperty(key, candidate, goja.FLAG_TRUE, goja.FLAG_TRUE, goja.FLAG_TRUE); err != nil {
+					return options, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.constructor", Capability: "ui", Message: "toolbar options are invalid", Cause: err}
+				}
+			}
+			value = snapshot
+		}
 		if err := exportCustomUIValue(value, &options); err != nil {
 			return options, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.constructor", Capability: "ui", Message: "toolbar options are invalid", Cause: err}
+		}
+	}
+	if options.TooltipPosition != "" {
+		if !toolbar.IsValidTooltipPosition(options.TooltipPosition) {
+			return options, &customui.Error{Code: customui.CodeInvalidSpec, Operation: "FloatingWindow.constructor", Capability: "tooltipPosition", Message: "tooltipPosition must be auto, right, left, top, or bottom"}
+		}
+		if runtime.GOOS == "windows" {
+			return options, &customui.Error{Code: customui.CodeUnsupportedCapability, Operation: "FloatingWindow.constructor", Capability: "tooltipPosition", Message: "explicit tooltipPosition is not supported on Windows; omit it to use native WinForms tooltips"}
 		}
 	}
 	options.ID = strings.TrimSpace(options.ID)
@@ -806,7 +840,8 @@ func (f *floatingWindow) toolbarSpec() toolbar.ToolbarSpec {
 	}
 	return toolbar.ToolbarSpec{
 		SchemaVersion: toolbar.SchemaVersion, Revision: f.revision, Orientation: orientation,
-		MaxColumns: columns, MaxRows: f.layout.maxRows, MaxWidth: f.layout.maxWidth, Items: items,
+		TooltipPosition: f.tooltipPosition,
+		MaxColumns:      columns, MaxRows: f.layout.maxRows, MaxWidth: f.layout.maxWidth, Items: items,
 	}
 }
 

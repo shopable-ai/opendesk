@@ -23,7 +23,9 @@ enum {
     OPENDESK_AX_ELEMENT_ATTRIBUTE_CHILDREN = 2,
     OPENDESK_AX_ELEMENT_ATTRIBUTE_WINDOWS = 3,
     OPENDESK_AX_ELEMENT_ATTRIBUTE_PARENT = 4,
-    OPENDESK_AX_ELEMENT_ATTRIBUTE_FOCUSED_UI_ELEMENT = 5
+    OPENDESK_AX_ELEMENT_ATTRIBUTE_FOCUSED_UI_ELEMENT = 5,
+    OPENDESK_AX_ELEMENT_ATTRIBUTE_FOCUSED_WINDOW = 6,
+    OPENDESK_AX_ELEMENT_ATTRIBUTE_WINDOW = 7
 };
 
 enum {
@@ -69,11 +71,53 @@ int32_t opendesk_ax_copy_element_array_attribute(
 
 void opendesk_ax_free_element_array(uintptr_t *elements);
 
+/* Snapshot-only projection bits. Role is always read for traversal. */
+enum {
+    OPENDESK_AX_SNAPSHOT_SUBROLE = 1u << 0,
+    OPENDESK_AX_SNAPSHOT_NAME = 1u << 1,
+    OPENDESK_AX_SNAPSHOT_IDENTIFIER = 1u << 2,
+    OPENDESK_AX_SNAPSHOT_ENABLED = 1u << 3,
+    OPENDESK_AX_SNAPSHOT_FOCUSED = 1u << 4,
+    OPENDESK_AX_SNAPSHOT_SELECTED = 1u << 5,
+    OPENDESK_AX_SNAPSHOT_CHECKED = 1u << 6,
+    OPENDESK_AX_SNAPSHOT_EXPANDED = 1u << 7,
+    OPENDESK_AX_SNAPSHOT_ACTIONS = 1u << 8,
+    OPENDESK_AX_SNAPSHOT_BOUNDS = 1u << 9,
+    OPENDESK_AX_SNAPSHOT_ALL = (1u << 10) - 1
+};
+
+int32_t opendesk_ax_inspect_snapshot_json(
+    uintptr_t element,
+    double timeout_seconds,
+    int32_t include_value,
+    uint32_t properties,
+    char **json_result);
+
 int32_t opendesk_ax_inspect_json(
     uintptr_t element,
     double timeout_seconds,
     int32_t include_value,
     char **json_result);
+
+/* composition: 0 unknown, 1 inactive, 2 active. No text content crosses here. */
+typedef struct {
+    int32_t available;
+    int32_t selection_present;
+    int64_t location;
+    int64_t length;
+    int32_t composition;
+    int32_t marked_present;
+    int64_t marked_location;
+    int64_t marked_length;
+    int32_t composition_reason;
+} opendesk_ax_text_input_state;
+
+int32_t opendesk_ax_read_text_input_state(
+    uintptr_t element, double timeout_seconds, opendesk_ax_text_input_state *result);
+
+int32_t opendesk_ax_prepare_text_append(
+    uintptr_t element, double timeout_seconds, const char *expected,
+    int64_t expected_length, int32_t *attempted, int32_t *already_satisfied);
 
 int32_t opendesk_ax_set_string_value(
     uintptr_t element,

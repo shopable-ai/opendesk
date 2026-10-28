@@ -60,7 +60,7 @@ docType: index
 | `FloatingWindow.waitUntilClosed(): Promise<ClawdeskUIWindowState>;` | 等待 toolbar 关闭并保持当前 execution 的这段异步工作存活。 无。 关闭终态。 推荐的生命周期等待方法。 | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [FloatingWindow.waitUntilClosed](../ui.md#floatingwindowwaituntilclosed)；`read ui FloatingWindow.waitUntilClosed` |
 | `toast.close(): Promise<WindowState>` | 幂等关闭 Toast，不取消业务任务。 无。 关闭后的 `WindowState`。 与 timeout/用户关闭竞争时返回最终状态；真实 driver 故障仍明确报错。 | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [ToastHandle.close](../ui.md#toasthandleclose)；`read ui ToastHandle.close` |
 | `toast.getState(): Promise<WindowState>` | 读取当前 Toast 与 native 窗口状态。 无。 `WindowState`；首选读取 `state.toast`。`state.notification` 是 …（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [ToastHandle.getState](../ui.md#toasthandlegetstate)；`read ui ToastHandle.getState` |
-| `toast.update(patch: Partial<ToastOptions>): Promise<{ applied: boolean; reason?: 'closed'; state: WindowState; }>` | 原位更新 Toast，不创建第二个提示。 `patch` 至少包含一个受支持字段。`progress` 与 `position` 完整替换，不深层 merge；`prog…（摘要） | 有：输入/应用或系统状态改变；继承本节限制 | [ToastHandle.update](../ui.md#toasthandleupdatepatch)；`read ui ToastHandle.update` |
+| `toast.update(patch: Partial<ToastOptions>): Promise<{ applied: boolean; reason?: 'closed'; state: WindowState; }>` | 原位更新 Toast，不创建第二个提示。 `patch` 至少包含一个受支持字段。`image`、`progress` 与 `position` 完整替换，不深层 mer…（摘要） | 有：输入/应用或系统状态改变；继承本节限制 | [ToastHandle.update](../ui.md#toasthandleupdatepatch)；`read ui ToastHandle.update` |
 | `toast.waitUntilClosed(): Promise<WindowState>` | 显式等待 Toast 被脚本、用户或 timeout 关闭。 无。 关闭终态；execution 被取消时拒绝并清理资源。 只有明确观察这个 Promise 才让该等待参…（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [ToastHandle.waitUntilClosed](../ui.md#toasthandlewaituntilclosed)；`read ui ToastHandle.waitUntilClosed` |
 | `window.close(): Promise<WindowState>` | 终止窗口并释放其资源。 无。 关闭终态。 关闭后原 WindowHandle/ControlHandle 不再可用于重新显示或更新；同 execution 的 windo…（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [WindowHandle.close](../ui.md#windowhandleclose)；`read ui WindowHandle.close` |
 | `window.control(id: string): ControlHandle` | 获取一个稳定控件句柄。 `id` 为公开控件 id。 `ControlHandle`。 未知 id 返回 `NOT_FOUND`。 | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [WindowHandle.control](../ui.md#windowhandlecontrolid)；`read ui WindowHandle.control` |
@@ -132,11 +132,11 @@ docType: index
 维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
 
 
-- `docs/api/ui.md` SHA-256 `616ae2d73f58188fec3b6913205f4bd280a95c1a2c2a23fd5fcc7525644632ad`
+- `docs/api/ui.md` SHA-256 `66e64e0407fd1d847ff7db8738961ca86f946ed88b5d8c0bb9d7cf9e2b93e8ee`
 
-- `types/CustomUI.d.ts` SHA-256 `5cb41cd5f40b5b2f1ef906e0bb4ff6aeca3c408aa0efbd04fa495953faab2e60`
+- `types/CustomUI.d.ts` SHA-256 `8fb1424cd1ce5ce7c73101fc74b197bb7e811549c5b5be43e415a7d262fd61ed`
 
-- `types/FloatingWindow.d.ts` SHA-256 `0a213a8ae34d7be3d5ced015999c00a426e9013640e8671b91f034640c507304`
+- `types/FloatingWindow.d.ts` SHA-256 `42303a4eeaad0feb5ad33828d3a7ec7be9f94bf1480d687652c286cda0d77947`
 
 - `docs/api/dialog.md` SHA-256 `ad59fcfadd105b1177f349d082e0d77e782de49566564d1d98198d5431ceac45`
 

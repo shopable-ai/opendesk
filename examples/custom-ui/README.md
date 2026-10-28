@@ -1,5 +1,15 @@
 # Custom UI examples
 
+## 提示词快捷栏
+
+从仓库根目录 `/Users/shopme/Documents/workspace/opendesk` 使用本地配套构建运行：
+
+```bash
+./dist/OpenDesk.app/Contents/MacOS/opendesk -ui -script examples/custom-ui/codex-prompt-shortcuts/main.js -console-mode script -log-dir .runtime/examples/custom-ui/codex-prompt-shortcuts
+```
+
+打开真实提示词快捷栏：首位正式 logo 进入管理，三个提示词槽位检查追加条件，未满足时复制完整正文并核验反馈，保留翻页。默认跟随已知 Codex 标识；限定 OpenCode 或 Claude Code 的运行使用说明中的显式范围配置。当前安全追加关闭。旧 `preview.js` 无业务回调。运行与验收边界见 [使用说明](codex-prompt-shortcuts/README.zh-CN.md)。
+
 ## Reusable UI component states
 
 `ui-components.js` 是面向组件作者的 HTML/CSS 状态画廊：它用一个真实的 Select 和一个

@@ -3,7 +3,7 @@
 package automation
 
 /*
-#cgo LDFLAGS: -framework ApplicationServices -framework CoreGraphics -framework CoreFoundation -framework Foundation
+#cgo LDFLAGS: -framework ApplicationServices -framework CoreGraphics -framework CoreFoundation -framework Foundation -framework AppKit
 #include <ApplicationServices/ApplicationServices.h>
 #include <stdlib.h>
 #include "accessibility_backend_darwin.h"
@@ -25,6 +25,14 @@ const darwinAccessibilityBackendName = "macos-ax"
 type darwinAccessibilityHandle struct {
 	element C.uintptr_t
 	pid     int64
+	mapping *darwinAXWindowMapping
+}
+
+// Only a WindowInfo-scoped search can establish this calibration. Keep the
+// original geometry: moved/resized windows require a fresh scoped find.
+type darwinAXWindowMapping struct {
+	window AccessibilityWindowIdentity
+	native AccessibilityNativeBounds
 }
 
 // darwinAccessibilityBackend is used only by AccessibilityRuntime's locked
@@ -72,15 +80,17 @@ type darwinAXRoot struct {
 }
 
 type darwinAXTraversal struct {
-	backend      *darwinAccessibilityBackend
-	ctx          context.Context
-	limits       AccessibilityLimits
-	includeValue bool
-	nodes        int
-	maxDepth     int
-	complete     bool
-	truncated    bool
-	reason       string
+	backend            *darwinAccessibilityBackend
+	ctx                context.Context
+	limits             AccessibilityLimits
+	includeValue       bool
+	snapshotProperties uint32
+	mapping            *darwinAXWindowMapping
+	nodes              int
+	maxDepth           int
+	complete           bool
+	truncated          bool
+	reason             string
 }
 
 func newDefaultAccessibilityBackend() AccessibilityBackend {
@@ -104,15 +114,15 @@ func (b *darwinAccessibilityBackend) Capabilities() AccessibilityBackendCapabili
 		Status:      status,
 		Menus:       true,
 		Actions: map[string]bool{
-			"invoke": true, "setValue": true, "expand": true,
+			"invoke": true, "setValue": true, "prepareTextAppend": false, "expand": true,
 			"collapse": true, "select": true, "setChecked": true,
 		},
 		Permission: AccessibilityPermissionStatus{
 			Required: true, State: map[bool]string{true: "granted", false: "denied"}[granted],
 			Granted: granted, Cached: false,
 		},
-		CoordinateMapping: false,
-		Notes:             "element actions remain conditional on current AX actions, writable attributes, and readable state; native bounds are macOS display points and are not projected as OpenDesk screen regions",
+		CoordinateMapping: true,
+		Notes:             "screen bounds are conditional on exact WindowInfo scope and AX/CG window geometry matching within one point; refs revalidate calibration and become stale on movement or resize; application/menu scopes have no mapping; prepareTextAppend remains unavailable and does not provide directed insertion",
 	}
 }
 
@@ -336,6 +346,11 @@ func (b *darwinAccessibilityBackend) copyElementArray(ctx context.Context, eleme
 }
 
 func (b *darwinAccessibilityBackend) inspect(ctx context.Context, element C.uintptr_t, includeValue bool) (darwinAXInspection, error) {
+	return b.inspectProperties(ctx, element, includeValue, nil)
+}
+
+// A nil mask preserves the full inspection used by find/perform.
+func (b *darwinAccessibilityBackend) inspectProperties(ctx context.Context, element C.uintptr_t, includeValue bool, snapshotProperties *uint32) (darwinAXInspection, error) {
 	timeout, err := darwinAXRemainingTimeout(ctx)
 	if err != nil {
 		return darwinAXInspection{}, err
@@ -345,7 +360,12 @@ func (b *darwinAccessibilityBackend) inspect(ctx context.Context, element C.uint
 	if includeValue {
 		include = 1
 	}
-	status := C.opendesk_ax_inspect_json(element, timeout, include, &raw)
+	var status C.int32_t
+	if snapshotProperties == nil {
+		status = C.opendesk_ax_inspect_json(element, timeout, include, &raw)
+	} else {
+		status = C.opendesk_ax_inspect_snapshot_json(element, timeout, include, C.uint32_t(*snapshotProperties), &raw)
+	}
 	if raw != nil {
 		defer C.opendesk_ax_free(unsafe.Pointer(raw))
 	}
@@ -431,6 +451,21 @@ func (b *darwinAccessibilityBackend) resolveWindowRoot(ctx context.Context, scop
 		return darwinAXRoot{}, err
 	}
 	defer b.releaseNative(application)
+	// A foreground WindowInfo resolves through that process's focused window,
+	// without enumerating sibling UI or associating geometry globally.
+	if scope.Window.IsForeground {
+		focused, err := b.copyElementAttribute(ctx, application, C.OPENDESK_AX_ELEMENT_ATTRIBUTE_FOCUSED_WINDOW)
+		if err != nil {
+			return darwinAXRoot{}, err
+		}
+		identity, err := macScopedAXWindowID(uintptr(focused))
+		if err != nil || identity != scope.Window.Handle {
+			b.releaseNative(focused)
+			return darwinAXRoot{}, darwinAXTypedError(AccessibilityStaleTarget, "scope", "focused AX window identity changed", err, AccessibilityActionNotStarted)
+		}
+		return darwinAXRoot{element: focused, pid: pid, owned: true}, nil
+	}
+
 	windows, materialized, err := b.copyElementArray(ctx, application, C.OPENDESK_AX_ELEMENT_ATTRIBUTE_WINDOWS)
 	if err != nil {
 		return darwinAXRoot{}, err
@@ -441,21 +476,14 @@ func (b *darwinAccessibilityBackend) resolveWindowRoot(ctx context.Context, scop
 	}
 	matched := -1
 	for index, window := range windows {
-		inspection, inspectErr := b.inspect(ctx, window, false)
-		if inspectErr != nil {
-			return darwinAXRoot{}, inspectErr
+		if err := darwinAXContextError(ctx, "scope", false); err != nil {
+			return darwinAXRoot{}, err
 		}
-		bounds := inspection.NativeBounds
-		if bounds == nil || bounds.Width <= 0 || bounds.Height <= 0 ||
-			bounds.X < math.MinInt32 || bounds.X > math.MaxInt32 || bounds.Y < math.MinInt32 || bounds.Y > math.MaxInt32 ||
-			bounds.Width > math.MaxInt32 || bounds.Height > math.MaxInt32 {
-			continue
+		windowID, identityErr := macScopedAXWindowID(uintptr(window))
+		if identityErr != nil {
+			return darwinAXRoot{}, darwinAXTypedError(AccessibilityBackendFailed, "scope", "could not resolve scoped AX window identity", identityErr, AccessibilityActionNotStarted)
 		}
-		windowID, identityErr := getMacWindowIDForPIDAndBounds(
-			uint32(pid), int32(math.Round(bounds.X)), int32(math.Round(bounds.Y)),
-			int32(math.Round(bounds.Width)), int32(math.Round(bounds.Height)),
-		)
-		if identityErr != nil || uint64(windowID) != scope.Window.Handle {
+		if windowID != scope.Window.Handle {
 			continue
 		}
 		if matched >= 0 {
@@ -557,6 +585,40 @@ func normalizeDarwinAccessibilityLimits(limits AccessibilityLimits) Accessibilit
 	return limits
 }
 
+// Only explicit snapshot properties narrow native reads. Internal callers with
+// no properties retain the historical default (all safe fields, no value).
+func darwinAXSnapshotProperties(properties []string) uint32 {
+	if len(properties) == 0 {
+		return uint32(C.OPENDESK_AX_SNAPSHOT_ALL)
+	}
+	var mask uint32
+	for _, property := range properties {
+		switch property {
+		case "nativeSubrole":
+			mask |= uint32(C.OPENDESK_AX_SNAPSHOT_SUBROLE)
+		case "name":
+			mask |= uint32(C.OPENDESK_AX_SNAPSHOT_NAME)
+		case "identifier":
+			mask |= uint32(C.OPENDESK_AX_SNAPSHOT_IDENTIFIER)
+		case "enabled":
+			mask |= uint32(C.OPENDESK_AX_SNAPSHOT_ENABLED)
+		case "focused":
+			mask |= uint32(C.OPENDESK_AX_SNAPSHOT_FOCUSED)
+		case "selected":
+			mask |= uint32(C.OPENDESK_AX_SNAPSHOT_SELECTED)
+		case "checked":
+			mask |= uint32(C.OPENDESK_AX_SNAPSHOT_CHECKED)
+		case "expanded":
+			mask |= uint32(C.OPENDESK_AX_SNAPSHOT_EXPANDED)
+		case "actions":
+			mask |= uint32(C.OPENDESK_AX_SNAPSHOT_ACTIONS)
+		case "nativeBounds", "bounds":
+			mask |= uint32(C.OPENDESK_AX_SNAPSHOT_BOUNDS)
+		}
+	}
+	return mask
+}
+
 func newDarwinAXTraversal(backend *darwinAccessibilityBackend, ctx context.Context, limits AccessibilityLimits) *darwinAXTraversal {
 	limits = normalizeDarwinAccessibilityLimits(limits)
 	includeValue := false
@@ -566,7 +628,7 @@ func newDarwinAXTraversal(backend *darwinAccessibilityBackend, ctx context.Conte
 			break
 		}
 	}
-	return &darwinAXTraversal{backend: backend, ctx: ctx, limits: limits, includeValue: includeValue, complete: true}
+	return &darwinAXTraversal{backend: backend, ctx: ctx, limits: limits, includeValue: includeValue, snapshotProperties: darwinAXSnapshotProperties(limits.Properties), complete: true}
 }
 
 func (t *darwinAXTraversal) markIncomplete(reason string, truncated bool) {
@@ -705,6 +767,165 @@ func (inspection darwinAXInspection) node() AccessibilityNode {
 	return node
 }
 
+func darwinAXMappingStale() error {
+	return darwinAXTypedError(AccessibilityStaleTarget, "geometry", "window coordinate calibration is no longer current; find again within a fresh WindowInfo", nil, AccessibilityActionNotStarted)
+}
+
+func (b *darwinAccessibilityBackend) calibrateWindow(ctx context.Context, expected AccessibilityWindowIdentity) (*darwinAXWindowMapping, error) {
+	current, err := macScopedAccessibilityWindow(ctx, expected)
+	if err != nil {
+		return nil, err
+	}
+	if current == nil || int64(current.X) != expected.X || int64(current.Y) != expected.Y ||
+		int64(current.Width) != expected.Width || int64(current.Height) != expected.Height {
+		return nil, darwinAXMappingStale()
+	}
+	window := expected
+	window.IsForeground = current.IsForeground
+	root, err := b.resolveWindowRoot(ctx, AccessibilityScope{Window: &window}, expected.PID)
+	if err != nil {
+		return nil, err
+	}
+	defer b.releaseRoot(root)
+	inspection, err := b.inspect(ctx, root.element, false)
+	if err != nil {
+		return nil, err
+	}
+	native := inspection.node().NativeBounds
+	if !finitePositiveAccessibilityBounds(native) || expected.Width <= 0 || expected.Height <= 0 {
+		return nil, nil
+	}
+	for _, pair := range [][2]float64{{native.X, float64(expected.X)}, {native.Y, float64(expected.Y)},
+		{native.Width, float64(expected.Width)}, {native.Height, float64(expected.Height)}} {
+		if math.Abs(pair[0]-pair[1]) > 1 {
+			return nil, nil
+		}
+	}
+	return &darwinAXWindowMapping{window: window, native: *native}, nil
+}
+
+// Snapshot owns this exact AX window for the whole traversal. Keep both
+// anchors even when AX/CG disagreement prevents projecting screen bounds.
+type darwinAXSnapshotCalibration struct {
+	mapping *darwinAXWindowMapping
+	cg      AccessibilityNativeBounds
+	native  *AccessibilityNativeBounds
+}
+
+func (b *darwinAccessibilityBackend) calibrateSnapshotWindow(ctx context.Context, root darwinAXRoot, expected AccessibilityWindowIdentity) (*darwinAXSnapshotCalibration, error) {
+	if root.pid != expected.PID || expected.Handle == 0 {
+		return nil, darwinAXMappingStale()
+	}
+	if err := b.verifyPID(ctx, root.element, expected.PID); err != nil {
+		return nil, err
+	}
+	id, err := macScopedAXWindowID(uintptr(root.element))
+	if err != nil || id != expected.Handle {
+		return nil, darwinAXMappingStale()
+	}
+	cg, err := macScopedWindowBounds(ctx, expected.PID, expected.Handle)
+	if err != nil {
+		return nil, err
+	}
+	// WindowInfo uses integer coordinates. Preserve that comparison while also
+	// retaining the unrounded CG anchor for the post-traversal equality check.
+	if int64(cg.X) != expected.X || int64(cg.Y) != expected.Y ||
+		int64(cg.Width) != expected.Width || int64(cg.Height) != expected.Height {
+		return nil, darwinAXMappingStale()
+	}
+	mask := uint32(C.OPENDESK_AX_SNAPSHOT_BOUNDS)
+	inspection, err := b.inspectProperties(ctx, root.element, false, &mask)
+	if err != nil {
+		return nil, err
+	}
+	native := inspection.node().NativeBounds
+	calibration := &darwinAXSnapshotCalibration{cg: *cg, native: native}
+	if !finitePositiveAccessibilityBounds(native) || expected.Width <= 0 || expected.Height <= 0 {
+		return calibration, nil
+	}
+	for _, pair := range [][2]float64{{native.X, float64(expected.X)}, {native.Y, float64(expected.Y)},
+		{native.Width, float64(expected.Width)}, {native.Height, float64(expected.Height)}} {
+		if math.Abs(pair[0]-pair[1]) > 1 {
+			return calibration, nil
+		}
+	}
+	calibration.mapping = &darwinAXWindowMapping{window: expected, native: *native}
+	return calibration, nil
+}
+
+func (b *darwinAccessibilityBackend) revalidateMapping(ctx context.Context, mapping *darwinAXWindowMapping) error {
+	if mapping == nil {
+		return nil
+	}
+	current, err := b.calibrateWindow(ctx, mapping.window)
+	if err != nil {
+		return err
+	}
+	if current == nil || current.native != mapping.native {
+		return darwinAXMappingStale()
+	}
+	return nil
+}
+
+func (b *darwinAccessibilityBackend) mappingForScope(ctx context.Context, scope AccessibilityScope) (*darwinAXWindowMapping, error) {
+	if scope.Kind == AccessibilityScopeWindow && scope.Window != nil {
+		return b.calibrateWindow(ctx, *scope.Window)
+	}
+	if scope.Kind == AccessibilityScopeElement {
+		entry, err := b.lookupHandle(ctx, scope.ElementHandle)
+		if err != nil {
+			return nil, err
+		}
+		if entry.mapping == nil {
+			return nil, nil
+		}
+		inspection, err := b.inspect(ctx, entry.element, false)
+		if err != nil {
+			return nil, err
+		}
+		return entry.mapping, b.verifyMappedElement(ctx, entry, darwinAXString(inspection.NativeRole))
+	}
+	return nil, nil
+}
+
+func (mapping *darwinAXWindowMapping) project(node *AccessibilityNode) {
+	if mapping == nil {
+		return
+	}
+	w := mapping.window
+	window := &WindowInfo{X: int32(w.X), Y: int32(w.Y), Width: int32(w.Width), Height: int32(w.Height)}
+	if bounds, ok := accessibilityNodeLogicalBounds(*node, &mapping.native, window,
+		mapping.native.Width/float64(w.Width), mapping.native.Height/float64(w.Height)); ok {
+		for _, value := range []float64{bounds.X, bounds.Y, bounds.Width, bounds.Height} {
+			if math.IsNaN(value) || math.IsInf(value, 0) {
+				return
+			}
+		}
+		bounds.CoordinateSpace = "screen"
+		node.Bounds = &bounds
+	}
+}
+
+func (b *darwinAccessibilityBackend) verifyMappedElement(ctx context.Context, entry darwinAccessibilityHandle, nativeRole string) error {
+	if entry.mapping == nil {
+		return nil
+	}
+	element := entry.element
+	if nativeRole != "AXWindow" {
+		window, err := b.copyElementAttribute(ctx, element, C.OPENDESK_AX_ELEMENT_ATTRIBUTE_WINDOW)
+		if err != nil {
+			return darwinAXMappingStale()
+		}
+		defer b.releaseNative(window)
+		element = window
+	}
+	id, err := macScopedAXWindowID(uintptr(element))
+	if err != nil || id != entry.mapping.window.Handle {
+		return darwinAXMappingStale()
+	}
+	return b.revalidateMapping(ctx, entry.mapping)
+}
+
 func (inspection darwinAXInspection) mayHaveUnmaterializedChildren() bool {
 	nativeRole := darwinAXString(inspection.NativeRole)
 	role := normalizeDarwinAXRole(nativeRole)
@@ -750,7 +971,7 @@ func (t *darwinAXTraversal) buildNode(element C.uintptr_t, depth int) (Accessibi
 		t.markIncomplete("maxNodes", true)
 		return AccessibilityNode{}, false, nil
 	}
-	inspection, err := t.backend.inspect(t.ctx, element, t.includeValue)
+	inspection, err := t.backend.inspectProperties(t.ctx, element, t.includeValue, &t.snapshotProperties)
 	if err != nil {
 		return AccessibilityNode{}, false, err
 	}
@@ -759,6 +980,7 @@ func (t *darwinAXTraversal) buildNode(element C.uintptr_t, depth int) (Accessibi
 		t.maxDepth = depth
 	}
 	node := inspection.node()
+	t.mapping.project(&node)
 	if inspection.deferCollapsedMenuChildren() {
 		node.Children = []AccessibilityNode{}
 		t.markIncomplete("unmaterialized", false)
@@ -834,6 +1056,7 @@ func (t *darwinAXTraversal) find(
 		t.maxDepth = depth
 	}
 	node := inspection.node()
+	t.mapping.project(&node)
 	if darwinAccessibilitySelectorMatches(node, selector) {
 		*matchCount++
 		if *matchCount == 1 {
@@ -888,12 +1111,36 @@ func (b *darwinAccessibilityBackend) Snapshot(ctx context.Context, scope Accessi
 	}
 	defer b.releaseRoot(root)
 	traversal := newDarwinAXTraversal(b, ctx, limits)
+	var calibration *darwinAXSnapshotCalibration
+	if scope.Kind == AccessibilityScopeWindow && scope.Window != nil {
+		calibration, err = b.calibrateSnapshotWindow(ctx, root, *scope.Window)
+		if err == nil {
+			traversal.mapping = calibration.mapping
+		}
+	} else {
+		traversal.mapping, err = b.mappingForScope(ctx, scope)
+	}
+	if err != nil {
+		return AccessibilitySnapshotData{}, err
+	}
 	node, visited, err := traversal.buildNode(root.element, 0)
 	if err != nil {
 		return AccessibilitySnapshotData{}, err
 	}
 	if !visited {
 		return AccessibilitySnapshotData{}, darwinAXTypedError(AccessibilitySearchIncomplete, "snapshot", "accessibility snapshot reached its node limit before reading the root", nil, AccessibilityActionNotStarted)
+	}
+	if calibration != nil {
+		current, err := b.calibrateSnapshotWindow(ctx, root, *scope.Window)
+		if err != nil {
+			return AccessibilitySnapshotData{}, err
+		}
+		if current.cg != calibration.cg || (current.native == nil) != (calibration.native == nil) ||
+			(current.native != nil && *current.native != *calibration.native) {
+			return AccessibilitySnapshotData{}, darwinAXMappingStale()
+		}
+	} else if err := b.revalidateMapping(ctx, traversal.mapping); err != nil {
+		return AccessibilitySnapshotData{}, err
 	}
 	return AccessibilitySnapshotData{
 		Root: &node, Complete: traversal.complete, Truncated: traversal.truncated,
@@ -908,6 +1155,10 @@ func (b *darwinAccessibilityBackend) Find(ctx context.Context, scope Accessibili
 	}
 	defer b.releaseRoot(root)
 	traversal := newDarwinAXTraversal(b, ctx, limits)
+	traversal.mapping, err = b.mappingForScope(ctx, scope)
+	if err != nil {
+		return AccessibilityFindData{}, err
+	}
 	matchCount := 0
 	var matchedElement C.uintptr_t
 	var matchedNode AccessibilityNode
@@ -932,10 +1183,17 @@ func (b *darwinAccessibilityBackend) Find(ctx context.Context, scope Accessibili
 	if matchCount == 0 {
 		return AccessibilityFindData{Found: false, Complete: true}, nil
 	}
+	if err := b.verifyMappedElement(ctx, darwinAccessibilityHandle{element: matchedElement, pid: root.pid, mapping: traversal.mapping}, matchedNode.NativeRole); err != nil {
+		b.releaseNative(matchedElement)
+		return AccessibilityFindData{}, err
+	}
 	handle, err := b.storeRetainedHandle(matchedElement, root.pid)
 	if err != nil {
 		return AccessibilityFindData{}, err
 	}
+	entry := b.handles[handle]
+	entry.mapping = traversal.mapping
+	b.handles[handle] = entry
 	return AccessibilityFindData{Found: true, Handle: handle, Node: matchedNode, Complete: true}, nil
 }
 
@@ -960,11 +1218,55 @@ func defaultDarwinReadProperties() []string {
 	return []string{"role", "nativeRole", "nativeSubrole", "name", "identifier", "enabled", "focused", "selected", "checked", "expanded", "actions", "nativeBounds", "bounds"}
 }
 
+// Read validates the element's own window, without rediscovering foreground
+// state. The caller retains this root until both read calibrations finish.
+func (b *darwinAccessibilityBackend) calibrateReadWindow(ctx context.Context, entry darwinAccessibilityHandle, nativeRole string) (darwinAXRoot, *darwinAXSnapshotCalibration, error) {
+	if entry.mapping == nil {
+		return darwinAXRoot{}, nil, nil
+	}
+	if err := b.verifyPID(ctx, entry.element, entry.pid); err != nil {
+		return darwinAXRoot{}, nil, err
+	}
+	if nativeRole == "" {
+		mask := uint32(0) // The bridge always reads nativeRole, even with no fields.
+		inspection, err := b.inspectProperties(ctx, entry.element, false, &mask)
+		if err != nil {
+			return darwinAXRoot{}, nil, err
+		}
+		nativeRole = darwinAXString(inspection.NativeRole)
+	}
+	var window C.uintptr_t
+	var err error
+	if nativeRole == "AXWindow" {
+		window, err = b.retain(entry.element)
+	} else {
+		window, err = b.copyElementAttribute(ctx, entry.element, C.OPENDESK_AX_ELEMENT_ATTRIBUTE_WINDOW)
+	}
+	if err != nil {
+		return darwinAXRoot{}, nil, err
+	}
+	root := darwinAXRoot{element: window, pid: entry.pid, owned: true}
+	calibration, err := b.calibrateSnapshotWindow(ctx, root, entry.mapping.window)
+	if err == nil && (calibration.mapping == nil || calibration.mapping.native != entry.mapping.native) {
+		err = darwinAXMappingStale()
+	}
+	if err != nil {
+		b.releaseRoot(root)
+		return darwinAXRoot{}, nil, err
+	}
+	return root, calibration, nil
+}
+
 func (b *darwinAccessibilityBackend) Read(ctx context.Context, handle uint64, properties []string) (AccessibilityReadData, error) {
 	entry, err := b.lookupHandle(ctx, handle)
 	if err != nil {
 		return AccessibilityReadData{}, err
 	}
+	root, calibration, err := b.calibrateReadWindow(ctx, entry, "")
+	if err != nil {
+		return AccessibilityReadData{}, err
+	}
+	defer b.releaseRoot(root)
 	if len(properties) == 0 {
 		properties = defaultDarwinReadProperties()
 	}
@@ -974,11 +1276,13 @@ func (b *darwinAccessibilityBackend) Read(ctx context.Context, handle uint64, pr
 			includeValue = true
 		}
 	}
-	inspection, err := b.inspect(ctx, entry.element, includeValue)
+	mask := darwinAXSnapshotProperties(properties)
+	inspection, err := b.inspectProperties(ctx, entry.element, includeValue, &mask)
 	if err != nil {
 		return AccessibilityReadData{}, err
 	}
 	node := inspection.node()
+	entry.mapping.project(&node)
 	result := make(map[string]interface{}, len(properties))
 	for _, property := range properties {
 		switch property {
@@ -1004,17 +1308,102 @@ func (b *darwinAccessibilityBackend) Read(ctx context.Context, handle uint64, pr
 			result[property] = pointerValue(node.Expanded)
 		case "actions":
 			result[property] = node.Actions
+		case "textInputState":
+			state, err := b.readTextInputState(ctx, entry.element)
+			if err != nil {
+				return AccessibilityReadData{}, err
+			}
+			result[property] = state
 		case "value":
 			result[property] = node.Value
 		case "nativeBounds":
 			result[property] = accessibilityNativeBoundsValue(node.NativeBounds)
 		case "bounds":
-			result[property] = nil
+			result[property] = accessibilityScreenBoundsProjection(node.Bounds)
 		default:
 			return AccessibilityReadData{}, darwinAXTypedError(AccessibilityInvalidArgument, "read", "unknown accessibility property", nil, AccessibilityActionNotStarted)
 		}
 	}
+	currentRoot, current, err := b.calibrateReadWindow(ctx, entry, node.NativeRole)
+	if err != nil {
+		return AccessibilityReadData{}, err
+	}
+	defer b.releaseRoot(currentRoot)
+	if calibration != nil && (current.cg != calibration.cg ||
+		C.CFEqual(C.CFTypeRef(root.element), C.CFTypeRef(currentRoot.element)) == 0) {
+		return AccessibilityReadData{}, darwinAXMappingStale()
+	}
 	return AccessibilityReadData{Properties: result}, nil
+}
+
+// This dedicated bridge is never called by snapshot/find/default inspection.
+func (b *darwinAccessibilityBackend) readTextInputState(ctx context.Context, element C.uintptr_t) (interface{}, error) {
+	timeout, err := darwinAXRemainingTimeout(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var state C.opendesk_ax_text_input_state
+	status := C.opendesk_ax_read_text_input_state(element, timeout, &state)
+	if err := darwinAXStatusError(ctx, status, "read", false); err != nil {
+		return nil, err
+	}
+	if state.available == 0 {
+		return nil, nil
+	}
+	var selection interface{}
+	if state.selection_present != 0 {
+		selection = map[string]interface{}{"location": int64(state.location), "length": int64(state.length)}
+	}
+	composition := "unknown"
+	if state.composition == 1 {
+		composition = "inactive"
+	} else if state.composition == 2 {
+		composition = "active"
+	}
+	var markedRange interface{}
+	if state.marked_present != 0 {
+		markedRange = map[string]interface{}{"location": int64(state.marked_location), "length": int64(state.marked_length)}
+	}
+	var reason interface{}
+	switch state.composition_reason {
+	case 1:
+		reason = "attribute_unsupported"
+	case 2:
+		reason = "no_value"
+	case 3:
+		reason = "null_value"
+	case 4:
+		reason = "not_cf_range"
+	case 5:
+		reason = "invalid_range"
+	case 6:
+		reason = "provider_unqualified"
+	}
+	return map[string]interface{}{"unit": "utf16", "selection": selection, "composition": composition,
+		"markedRange": markedRange, "source": "AXTextInputMarkedRange", "reason": reason}, nil
+}
+
+func (b *darwinAccessibilityBackend) prepareTextAppend(ctx context.Context, entry darwinAccessibilityHandle, expected string) (AccessibilityActionData, error) {
+	timeout, err := darwinAXRemainingTimeout(ctx)
+	if err != nil {
+		return AccessibilityActionData{}, err
+	}
+	value := C.CString(expected)
+	defer C.free(unsafe.Pointer(value))
+	var attempted, already C.int32_t
+	status := C.opendesk_ax_prepare_text_append(entry.element, timeout, value, C.int64_t(len(expected)), &attempted, &already)
+	result, err := b.finishMutation(ctx, status, attempted, already, "action")
+	if err != nil {
+		return AccessibilityActionData{}, err
+	}
+	if err := b.verifyPID(ctx, entry.element, entry.pid); err != nil {
+		typed := normalizeAccessibilityError("", b.Name(), "", err)
+		if attempted != 0 {
+			typed.ActionState = AccessibilityActionUnknown
+		}
+		return AccessibilityActionData{}, typed
+	}
+	return result, nil
 }
 
 func (b *darwinAccessibilityBackend) finishMutation(ctx context.Context, status C.int32_t, attempted, already C.int32_t, phase string) (AccessibilityActionData, error) {
@@ -1129,6 +1518,8 @@ func (b *darwinAccessibilityBackend) Perform(ctx context.Context, handle uint64,
 		return AccessibilityActionData{}, err
 	}
 	switch action.Action {
+	case "prepareTextAppend":
+		return b.prepareTextAppend(ctx, entry, action.Value)
 	case "invoke":
 		if err := requireDarwinKnownEnabled(inspection); err != nil {
 			return AccessibilityActionData{}, err
