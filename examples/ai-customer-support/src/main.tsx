@@ -49,12 +49,22 @@ function ChatWindow({onMinimize}:{onMinimize:()=>void}){
         <label className="contact-search"><span aria-hidden="true">⌕</span>
           <input type="search" value={contactQuery} onChange={e=>setContactQuery(e.target.value)} placeholder="搜索联系人" aria-label="搜索模拟聊天联系人"/></label>
         <div id="od-contacts">{state.threads.filter(t=>t.name.includes(contactQuery.trim())||t.id.includes(contactQuery.trim())).map(t=>
-          <button type="button" key={t.id} className={t.id===state.threadId?'on':''} onClick={()=>dispatch({type:'SET_THREAD',id:t.id})}
-            aria-current={t.id===state.threadId?'true':undefined}>{t.name}</button>)}</div>
+          <button type="button" key={t.id} className={'contactbtn'+(t.id===state.threadId?' on active':'')}
+            onClick={()=>dispatch({type:'SET_THREAD',id:t.id})}
+            aria-current={t.id===state.threadId?'true':undefined}>
+            <span className={'avatar'+(t.id==='t2'?' b':t.id==='t3'?' c':'')}>{t.name[0]}</span>
+            <span className="contact-meta"><b>{t.name}</b>
+              <small>{t.id==='t1'?'售后咨询':t.id==='t2'?'物流咨询':'商品咨询'}</small>
+              <span className="contact-preview">{t.messages.at(-1)?.text.slice(0,26)}</span>
+            </span>
+          </button>)}</div>
       </nav>
       <section className="conversation"><header className="conversation-head"><strong>{thread.name}</strong><small>#{thread.id} · 模拟</small></header>
-        <div className="messages" role="log" aria-label="模拟聊天记录">
-          {thread.messages.map(m=><div className={'chatbubble'+(m.who==='agent'?' me':'')} key={m.id}>{m.text}</div>)}</div>
+        <div className="messages" id="od-messages" role="log" aria-label="模拟聊天记录">
+          {thread.messages.map(m=><div className={'bubble'+(m.who==='agent'?' outgoing':'')} key={m.id}>
+            <div className="bubble-text">{m.text}</div>
+            <small>{(m.who==='agent'?'客服 · ':'客户 · ')+m.id+(m.replyTo?' · 回执关联 '+m.replyTo:'')}</small>
+          </div>)}</div>
         <div className="chat-send"><textarea aria-label="模拟聊天草稿" placeholder="客服输入草稿…" value={thread.draft}
           onChange={e=>dispatch({type:'SET_DRAFT',id:thread.id,text:e.target.value})}/>
           <button className="primary" type="button" disabled={!state.permission||state.paused||!thread.draft.trim()||!message||!!sent}
