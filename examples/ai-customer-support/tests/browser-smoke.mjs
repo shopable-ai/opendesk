@@ -42,6 +42,11 @@ try {
     });
     assert.notEqual(messageStyle.backgroundColor, 'rgba(0, 0, 0, 0)', 'chat bubble must not be transparent');
     assert.notEqual(messageStyle.borderRadius, '0px', 'chat bubble must keep rounded styling');
+    const overlap = await page.evaluate(() =>
+      document.querySelector('.chat-body .contactlist').getBoundingClientRect().right -
+      document.querySelector('.chat-body .conversation').getBoundingClientRect().left
+    );
+    assert.ok(overlap <= 1, 'R1.9.1 contact cards must not overlap the message column: ' + overlap);
     for (let i=0; i<labels.length; i++) {
       await page.getByRole('tab', { name:labels[i], exact:true }).click();
       assert.equal(await page.locator('#odiv-' + ids[i]).isVisible(), true, labels[i] + ' active panel');
