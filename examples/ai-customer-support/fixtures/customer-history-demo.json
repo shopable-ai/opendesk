@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 1,
+  "format": "opendesk.ai-customer-support.customer-history-demo",
+  "demo": true,
+  "description": "完全虚构的历史会话。仅用于本地浏览器原型测试；不代表真实客户事实或已获客户授权。",
+  "customers": [
+    {
+      "customerId": "t1",
+      "displayName": "林女士（演示）",
+      "sessions": [
+        {
+          "sessionId": "demo-t1-20261020",
+          "messages": [
+            {
+              "messageId": "t1-a01",
+              "role": "customer",
+              "text": "我想看看上次那款蓝色的外套。",
+              "at": "2026-10-20"
+            },
+            {
+              "messageId": "t1-a02",
+              "role": "agent",
+              "text": "好的，请问需要什么尺码？",
+              "at": "2026-10-20"
+            },
+            {
+              "messageId": "t1-a03",
+              "role": "customer",
+              "text": "我平时穿 M 码，可以先发我尺码表吗？",
+              "at": "2026-10-20"
+            },
+            {
+              "messageId": "t1-a04",
+              "role": "customer",
+              "text": "我更喜欢蓝色的款式。",
+              "at": "2026-10-20"
+            },
+            {
+              "messageId": "t1-a05",
+              "role": "agent",
+              "text": "已经记录您的需求，商品尺码以详情页为准。",
+              "at": "2026-10-20"
+            }
+          ]
+        },
+        {
+          "sessionId": "demo-t1-20261026",
+          "messages": [
+            {
+              "messageId": "t1-b01",
+              "role": "customer",
+              "text": "我不方便接电话，今后优先短信通知就好。",
+              "at": "2026-10-26"
+            },
+            {
+              "messageId": "t1-b02",
+              "role": "agent",
+              "text": "收到，我们会核对支持的通知方式。",
+              "at": "2026-10-26"
+            },
+            {
+              "messageId": "t1-b03",
+              "role": "customer",
+              "text": "物流到货之前可以提醒我吗？",
+              "at": "2026-10-26"
+            },
+            {
+              "messageId": "t1-b04",
+              "role": "customer",
+              "text": "谢谢，还是发短信联系我。",
+              "at": "2026-10-26"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "customerId": "t2",
+      "displayName": "陈先生（演示）",
+      "sessions": [
+        {
+          "sessionId": "demo-t2-20261021",
+          "messages": [
+            {
+              "messageId": "t2-a01",
+              "role": "customer",
+              "text": "请问订单大概什么时候送到？",
+              "at": "2026-10-21"
+            },
+            {
+              "messageId": "t2-a02",
+              "role": "agent",
+              "text": "需要查一下物流状态。",
+              "at": "2026-10-21"
+            },
+            {
+              "messageId": "t2-a03",
+              "role": "customer",
+              "text": "我希望尽量安排周末配送。",
+              "at": "2026-10-21"
+            },
+            {
+              "messageId": "t2-a04",
+              "role": "customer",
+              "text": "如果物流有变化，请优先短信通知。",
+              "at": "2026-10-21"
+            }
+          ]
+        },
+        {
+          "sessionId": "demo-t2-20261025",
+          "messages": [
+            {
+              "messageId": "t2-b01",
+              "role": "customer",
+              "text": "我喜欢黑色，先看看有没有库存。",
+              "at": "2026-10-25"
+            },
+            {
+              "messageId": "t2-b02",
+              "role": "agent",
+              "text": "请以当前商品详情库存为准。",
+              "at": "2026-10-25"
+            },
+            {
+              "messageId": "t2-b03",
+              "role": "customer",
+              "text": "配送时间还是要先确认。",
+              "at": "2026-10-25"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "customerId": "t3",
+      "displayName": "周女士（演示）",
+      "sessions": [
+        {
+          "sessionId": "demo-t3-20261022",
+          "messages": [
+            {
+              "messageId": "t3-a01",
+              "role": "customer",
+              "text": "我更喜欢简洁的款式，不需要太多装饰。",
+              "at": "2026-10-22"
+            },
+            {
+              "messageId": "t3-a02",
+              "role": "customer",
+              "text": "我通常穿 L 码，想看尺码表再决定。",
+              "at": "2026-10-22"
+            },
+            {
+              "messageId": "t3-a03",
+              "role": "agent",
+              "text": "请参考商品对应的尺码表。",
+              "at": "2026-10-22"
+            }
+          ]
+        },
+        {
+          "sessionId": "demo-t3-20261027",
+          "messages": [
+            {
+              "messageId": "t3-b01",
+              "role": "customer",
+              "text": "商品什么时候可以安排配送？",
+              "at": "2026-10-27"
+            },
+            {
+              "messageId": "t3-b02",
+              "role": "customer",
+              "text": "我也希望周末送货，麻烦先确认支持的配送时间。",
+              "at": "2026-10-27"
+            },
+            {
+              "messageId": "t3-b03",
+              "role": "agent",
+              "text": "我们会根据实际物流条件确认，不预先承诺时间。",
+              "at": "2026-10-27"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
