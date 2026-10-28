@@ -1,6 +1,53 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OpenDesk Desktop · AI 客服助手 | Compact Copilot</title></head><body style="margin:0">
-<div id="od-compact-inline" data-theme="light">
-<style>
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/>
+<title>OpenDesk AI 客服助手 · Full Workbench</title><meta name="description" content="双窗口客服工作台、Compact Copilot、完整知识库、客户历史档案与模拟回复的离线交互原型">
+<meta content="保留 R1.2 左侧模拟聊天和知识库列表，右侧采用 Compact Copilot R1.3。纯离线浏览器交互演示。" name="description"/>
+</head>
+<body style="margin:0">
+<div data-theme="light" id="od-r12"><svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden" xmlns="http://www.w3.org/2000/svg">
+<symbol id="od-i-spark" viewbox="0 0 24 24"><path d="m12 3 1.8 6.2L20 11l-6.2 1.8L12 19l-1.8-6.2L4 11l6.2-1.8L12 3Z"></path><path d="m19 17 .7 2.3L22 20l-2.3.7L19 23l-.7-2.3L16 20l2.3-.7L19 17Z"></path></symbol>
+<symbol id="od-i-pause" viewbox="0 0 24 24"><path d="M9 5v14M15 5v14"></path></symbol>
+<symbol id="od-i-play" viewbox="0 0 24 24"><path d="m8 5 11 7-11 7V5Z"></path></symbol>
+<symbol id="od-i-more" viewbox="0 0 24 24"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></symbol>
+<symbol id="od-i-search" viewbox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.7"></circle><path d="m16 16 4.8 4.8"></path></symbol>
+<symbol id="od-i-filter" viewbox="0 0 24 24"><path d="M4 7h16M7 12h10M10 17h4"></path></symbol>
+<symbol id="od-i-upload" viewbox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 17v3h16v-3"></path></symbol>
+<symbol id="od-i-chevron" viewbox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></symbol>
+<symbol id="od-i-check" viewbox="0 0 24 24"><path d="m4 12 5 5L20 6"></path></symbol>
+<symbol id="od-i-user" viewbox="0 0 24 24"><circle cx="12" cy="8" r="4"></circle><path d="M4.8 20c.6-3.8 3.3-6 7.2-6s6.6 2.2 7.2 6"></path></symbol>
+<symbol id="od-i-copy" viewbox="0 0 24 24"><rect height="12" rx="2" width="12" x="8" y="8"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"></path></symbol>
+<symbol id="od-i-send" viewbox="0 0 24 24"><path d="m21 3-8 18-3-7-7-3L21 3ZM10 14 21 3"></path></symbol>
+<symbol id="od-i-arrow" viewbox="0 0 24 24"><path d="M5 12h13m-5-5 5 5-5 5"></path></symbol>
+<symbol id="od-i-info" viewbox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 7.5h.01"></path></symbol>
+<symbol id="od-i-close" viewbox="0 0 24 24"><path d="m5 5 14 14M19 5 5 19"></path></symbol>
+<symbol id="od-i-shield" viewbox="0 0 24 24"><path d="M12 2 21 6v5c0 6-3.5 9-9 11-5.5-2-9-5-9-11V6l9-4Z"></path><path d="m9 12 2 2 4-4"></path></symbol>
+<symbol id="od-i-hand" viewbox="0 0 24 24"><path d="M8 13V6a1.5 1.5 0 0 1 3 0v4-6a1.5 1.5 0 0 1 3 0v6-5a1.5 1.5 0 0 1 3 0v5-3a1.5 1.5 0 0 1 3 0v7c0 4-2.5 7-6 7h-3c-2.8 0-4.2-1-6-4l-2-3a1.6 1.6 0 0 1 2.7-1.7L8 15"></path></symbol>
+<symbol id="od-i-moon" viewbox="0 0 24 24"><path d="M20.5 15A8.7 8.7 0 0 1 9 3.5a8.7 8.7 0 1 0 11.5 11.5Z"></path></symbol>
+<symbol id="od-i-rotate" viewbox="0 0 24 24"><path d="M4 11a8 8 0 1 1 2 6M4 4v7h7"></path></symbol>
+<symbol id="od-i-message" viewbox="0 0 24 24"><path d="M20 11a8 8 0 0 1-8 8 8 8 0 0 1-4-.9L3 20l1.9-5A8 8 0 1 1 20 11Z"></path></symbol>
+<symbol id="od-i-book" viewbox="0 0 24 24"><path d="M4 5c3-1 5.5-.6 8 1 2.5-1.6 5-2 8-1v14c-3-1-5.5-.6-8 1-2.5-1.6-5-2-8-1V5ZM12 6v14"></path></symbol>
+<symbol id="od-i-settings" viewbox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path><circle cx="9" cy="6" fill="currentColor" r="2" stroke="none"></circle><circle cx="16" cy="12" fill="currentColor" r="2" stroke="none"></circle><circle cx="10" cy="18" fill="currentColor" r="2" stroke="none"></circle></symbol>
+<symbol id="od-i-file" viewbox="0 0 24 24"><path d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM14 3v5h5M9 13h6M9 17h6"></path></symbol>
+</svg><style>
+#od-r12{--stage:#f6f7f9;--surface:#fff;--surface2:#f8fafc;--ink:#18212f;--muted:#778296;--border:#e7eaf0;--border2:#dbe2ec;--blue:#2563eb;--bluebg:#f0f5ff;--bluebd:#8db2ff;--green:#168269;--greenbg:#e9f8f1;--orange:#ae711e;--orangebg:#fff5e7;--shadow:0 12px 40px rgba(30,49,85,.07),0 2px 6px rgba(30,49,85,.035);font:13px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","Inter","PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--stage);min-height:100vh;isolation:isolate}#od-r12[data-theme="dark"]{--stage:#121a25;--surface:#1c2736;--surface2:#223143;--ink:#f2f5fc;--muted:#a2afc2;--border:#334457;--border2:#40546d;--blue:#88a9ff;--bluebg:#283d62;--bluebd:#648de9;--green:#6bd2b0;--greenbg:#21433d;--orange:#f1c073;--orangebg:#4b3829;--shadow:0 20px 44px #0003}
+#od-r12 *{box-sizing:border-box}#od-r12 button,#od-r12 input,#od-r12 textarea,#od-r12 select{font:inherit;color:inherit}#od-r12 button{cursor:pointer}#od-r12 button:disabled{opacity:.42;cursor:not-allowed}#od-r12 button:focus-visible,#od-r12 input:focus-visible,#od-r12 textarea:focus-visible,#od-r12 select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}#od-r12 .ico{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}#od-r12 .ico.sm{width:15px;height:15px}#od-r12 .ico.lg{width:20px;height:20px}#od-r12 .muted{color:var(--muted)}#od-r12 .hidden{display:none!important}
+#od-r12 .preview-top{height:54px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;padding:0 18px}#od-r12 .brand{width:30px;height:30px;display:grid;place-items:center;border-radius:10px;background:#2457d5;color:#fff;font-size:11px;font-weight:750;letter-spacing:-.5px}#od-r12 .ptitle{font-size:13px;font-weight:740;letter-spacing:-.2px}#od-r12 .pmeta{font-size:11px;color:var(--muted)}#od-r12 .push{flex:1}#od-r12 .preview-tools{display:flex;gap:6px;align-items:center}#od-r12 .smallbtn{border:1px solid var(--border);background:var(--surface);border-radius:9px;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:33px;padding:0 10px;font-weight:560}#od-r12 .smallbtn:hover{background:var(--surface2)}#od-r12 .iconbtn{width:32px;height:32px;display:grid;place-items:center;border:1px solid transparent;border-radius:9px;color:var(--muted);background:transparent;padding:0}#od-r12 .iconbtn:hover{border-color:var(--border);background:var(--surface2);color:var(--ink)}#od-r12 .seg{background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:3px;display:flex;gap:2px}#od-r12 .seg button{border:0;background:transparent;border-radius:6px;padding:4px 8px;font-size:11px;color:var(--muted)}#od-r12 .seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 4px #10204013}
+#od-r12 .stage{padding:20px 15px 30px;container-type:inline-size}#od-r12 .stage-inner{display:flex;align-items:start;justify-content:center;gap:18px;max-width:950px;margin:0 auto}#od-r12 .window{border:1px solid var(--border);background:var(--surface);box-shadow:var(--shadow);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;min-width:0;height:738px}#od-r12 .chat{width:440px;flex:1 1 420px;max-width:470px}#od-r12 .assistant{width:380px;flex:0 0 380px}#od-r12 .window-header{height:54px;min-height:54px;display:flex;gap:9px;align-items:center;padding:0 15px;border-bottom:1px solid var(--border)}#od-r12 .macdots{display:flex;gap:7px;margin-right:3px}#od-r12 .macdots i{width:10px;height:10px;border-radius:100%;background:#ff665f}#od-r12 .macdots i:nth-child(2){background:#ffbd46}#od-r12 .macdots i:nth-child(3){background:#38ca69}#od-r12 .windowname{font-size:12px;font-weight:650;color:var(--muted)}#od-r12 .assistant-logo{width:30px;height:30px;display:grid;place-items:center;background:linear-gradient(145deg,#326cf1,#7c99fd);border-radius:10px;color:#fff;box-shadow:0 4px 12px #326cf128}#od-r12 .assistant-identity{min-width:0;flex:1}#od-r12 .assistant-identity strong{display:block;font-weight:720;font-size:13.5px;letter-spacing:-.35px}#od-r12 .assistant-identity small{display:block;color:var(--muted);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#od-r12 .appbar-actions{display:flex;gap:2px}
+#od-r12 .chat-body{flex:1;min-height:0;display:grid;grid-template-columns:115px minmax(0,1fr)}#od-r12 .contactlist{border-right:1px solid var(--border);background:var(--surface2);padding:12px 7px}#od-r12 .contactlist>strong{font-size:11px;display:block;margin:0 0 9px 6px}#od-r12 .contactbtn{border:1px solid transparent;border-radius:10px;background:transparent;padding:8px 6px;display:flex;gap:7px;align-items:center;text-align:left;width:100%;margin-bottom:4px}#od-r12 .contactbtn.active{background:var(--surface);border-color:var(--border);box-shadow:0 2px 4px #22314409}#od-r12 .avatar{width:27px;height:27px;border-radius:9px;background:#8ba2dc;color:white;display:grid;place-items:center;font-size:11px;font-weight:750;flex:none}#od-r12 .avatar.b{background:#75baa3}#od-r12 .avatar.c{background:#d2a270}#od-r12 .contactbtn span:last-child{min-width:0}#od-r12 .contactbtn b{font-size:10.5px;display:block;white-space:nowrap}#od-r12 .contactbtn small{font-size:9.5px;color:var(--muted);display:block;white-space:nowrap}#od-r12 .conversation{min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--surface2)}#od-r12 .conversation-head{height:50px;min-height:50px;background:var(--surface);padding:9px 13px;border-bottom:1px solid var(--border)}#od-r12 .conversation-head strong{font-size:12px;display:block}#od-r12 .conversation-head small{color:var(--muted);font-size:10px}#od-r12 .messages{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:16px 12px}#od-r12 .chat-msg{align-self:flex-start;max-width:90%;display:flex;flex-direction:column;align-items:start;gap:3px}#od-r12 .chat-msg.me{align-self:flex-end;align-items:flex-end}#od-r12 .chat-bubble{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--surface);border:1px solid var(--border);border-radius:4px 11px 11px 11px;padding:9px 11px;line-height:1.62;font-size:11.5px}#od-r12 .chat-msg.me .chat-bubble{background:#4177e9;border-color:#4177e9;color:white;border-radius:11px 4px 11px 11px}#od-r12 .chat-msg time{font-size:9.5px;color:var(--muted)}#od-r12 .chat-send{background:var(--surface);border-top:1px solid var(--border);padding:12px;display:flex;align-items:flex-end;gap:8px}#od-r12 .chat-send textarea{resize:none;height:72px;min-width:0;flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px;font-size:11px;outline:none}#od-r12 .primary{background:#316bea;border:1px solid #316bea;color:#fff!important;min-height:35px;border-radius:9px;font-weight:680;padding:0 12px;display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}#od-r12 .primary:hover:not(:disabled){background:#245ad0;border-color:#245ad0}#od-r12 .demo-tray{background:var(--surface);padding:11px 12px;border-top:1px solid var(--border)}#od-r12 .demo-tray>span{font-size:10px;color:var(--muted);display:block;margin-bottom:7px}#od-r12 .demo-chips{display:flex;flex-wrap:wrap;gap:6px}#od-r12 .demo-chips button{border:1px solid var(--border);background:var(--surface2);border-radius:7px;font-size:10.5px;padding:4px 8px;min-height:26px}#od-r12 .demo-chips button:hover{border-color:var(--blue)}#od-r12 .demo-input{display:flex;gap:6px;margin-top:8px}#od-r12 .demo-input input{min-width:0;flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px;font-size:11px}
+#od-r12 .tabs{height:42px;min-height:42px;border-bottom:1px solid var(--border);padding:0 16px;display:flex;gap:23px}#od-r12 .tabs button{background:transparent;border:0;border-bottom:2px solid transparent;padding:0 1px;font-size:12px;color:var(--muted);font-weight:570}#od-r12 .tabs button.on{border-color:var(--blue);color:var(--ink);font-weight:680}#od-r12 .page{display:none;min-height:0;flex:1}#od-r12 .page.on{display:flex;flex-direction:column}#od-r12 .page-scroll{overflow-y:auto;min-height:0;flex:1;padding:15px 16px}#od-r12 .statusrow{display:flex;align-items:center;justify-content:space-between;gap:7px;margin-bottom:13px}#od-r12 .status{display:flex;gap:7px;align-items:center;font-size:10.5px;color:var(--green);font-weight:600}#od-r12 .status:before{content:"";width:6px;height:6px;border-radius:100%;background:currentColor}#od-r12 .status.warn{color:var(--orange)}#od-r12 .takeover{font-size:10.5px;border:1px solid var(--border);border-radius:8px;padding:5px 8px;background:var(--surface);display:inline-flex;gap:5px;align-items:center}#od-r12 .takeover:hover{background:var(--surface2)}#od-r12 .takeover.active{color:var(--orange);background:var(--orangebg);border-color:transparent}#od-r12 .latest{background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:12px 13px}#od-r12 .hintline{display:flex;gap:9px;align-items:center;justify-content:space-between;color:var(--muted);font-size:10px}#od-r12 .latest p{font-size:13.5px;font-weight:650;margin:5px 0 0;line-height:1.55;overflow-wrap:anywhere}#od-r12 .knowledge-hit{border:0;background:none;width:100%;display:flex;align-items:center;gap:8px;text-align:left;padding:10px 2px;margin-top:4px;color:var(--ink)}#od-r12 .hit-icon{width:23px;height:23px;border-radius:8px;background:var(--greenbg);color:var(--green);display:grid;place-items:center;flex:none}#od-r12 .knowledge-hit .hit-txt{flex:1;min-width:0}#od-r12 .knowledge-hit b{font-size:11.5px;font-weight:610;display:block;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}#od-r12 .knowledge-hit small{color:var(--muted);font-size:10px;display:block;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}#od-r12 .sectitle{display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:720;margin:10px 0 8px;font-size:12px}#od-r12 .sectitle small{color:var(--muted);font-size:10px;font-weight:450}#od-r12 .rec-list{display:grid;gap:8px}#od-r12 .rec{display:flex;width:100%;align-items:flex-start;gap:10px;padding:11px;border:1px solid var(--border);background:var(--surface);border-radius:11px;text-align:left;position:relative;min-height:65px}#od-r12 .rec:hover{border-color:var(--bluebd);background:var(--surface2)}#od-r12 .rec.selected{background:var(--bluebg);border-color:var(--bluebd);box-shadow:0 0 0 1px #8db2ff25}#od-r12 .rec-icon{width:24px;height:24px;min-width:24px;border-radius:8px;background:var(--surface2);color:var(--muted);display:grid;place-items:center}#od-r12 .rec.selected .rec-icon{background:var(--surface);color:var(--blue)}#od-r12 .rec-copy{font-size:11.8px;line-height:1.6;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}#od-r12 .rec:hover .tooltip,#od-r12 .rec:focus-visible .tooltip{opacity:1;transform:translateY(0)}#od-r12 .tooltip{position:absolute;right:10px;top:-13px;transform:translateY(3px);opacity:0;pointer-events:none;background:#202c40;color:#fff;border-radius:6px;font-size:10px;padding:3px 8px;box-shadow:0 4px 14px #14253b33;transition:.1s}#od-r12 .manual-note{font-size:10.5px;color:var(--orange);margin-top:9px;background:var(--orangebg);border-radius:8px;padding:8px;line-height:1.5}
+#od-r12 .composer{flex:none;border-top:1px solid var(--border);padding:12px 16px 13px;background:var(--surface);box-shadow:0 -7px 15px #284b7807}#od-r12 .compose-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}#od-r12 .compose-title b{font-size:11.5px}#od-r12 .compose-title small{font-size:10px;color:var(--muted)}#od-r12 .composer textarea{display:block;width:100%;height:73px;resize:vertical;min-height:66px;max-height:130px;border:1px solid var(--border2);border-radius:10px;padding:9px 10px;background:var(--surface2);line-height:1.55;outline:none;font-size:11.5px}#od-r12 .composer-actions{display:flex;align-items:center;gap:8px;margin-top:9px}#od-r12 .composer-actions .primary{flex:1}#od-r12 .outline-icon{border:1px solid var(--border2);border-radius:9px;background:var(--surface);height:35px;width:36px;display:grid;place-items:center;color:var(--muted)}#od-r12 .outline-icon:hover{color:var(--ink);background:var(--surface2)}#od-r12 .receipt{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:8px}
+#od-r12 .search-row{display:flex;gap:7px;align-items:center;position:relative}#od-r12 .search-input{border:1px solid var(--border2);background:var(--surface2);border-radius:9px;display:flex;align-items:center;gap:7px;padding:0 10px;min-width:0;flex:1;height:36px;color:var(--muted)}#od-r12 .search-input input{background:transparent;border:0;outline:0;flex:1;min-width:0;font-size:11.5px}#od-r12 .toolbar-btn{border:1px solid var(--border2);background:var(--surface);border-radius:9px;width:36px;height:36px;display:grid;place-items:center;flex:none;position:relative}#od-r12 .toolbar-btn:hover,#od-r12 .toolbar-btn.active{background:var(--bluebg);color:var(--blue);border-color:var(--bluebd)}#od-r12 .filter-dot{position:absolute;width:6px;height:6px;background:var(--blue);border-radius:50%;right:5px;top:5px;display:none}#od-r12 .filter-dot.show{display:block}#od-r12 .kb-meta{display:flex;align-items:center;justify-content:space-between;min-height:32px;margin-top:8px;color:var(--muted);font-size:10.5px}#od-r12 .plain-link{border:0;background:transparent;padding:3px 0;color:var(--blue);font-size:10.5px}#od-r12 .filter-pop{position:absolute;right:0;top:42px;width:270px;max-width:100%;z-index:9;border:1px solid var(--border2);background:var(--surface);border-radius:12px;padding:13px;box-shadow:0 16px 38px #12244320}#od-r12 .filter-label{font-size:10.5px;font-weight:720;margin-bottom:7px}#od-r12 .filter-choice{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}#od-r12 .filter-choice button{border:1px solid var(--border);border-radius:8px;background:var(--surface2);padding:5px 9px;font-size:10.5px}#od-r12 .filter-choice button.on{background:var(--bluebg);border-color:var(--bluebd);color:var(--blue)}#od-r12 .filter-pop select{border:1px solid var(--border);background:var(--surface2);border-radius:8px;width:100%;padding:7px;margin-bottom:10px;font-size:11px}#od-r12 .kb-list{display:grid;gap:2px}#od-r12 .kb-entry{border-bottom:1px solid var(--border);padding:10px 1px}#od-r12 .kb-entry:last-child{border-bottom:0}#od-r12 .kb-row{border:0;background:transparent;display:flex;align-items:flex-start;text-align:left;width:100%;gap:9px;padding:0}#od-r12 .kb-state{width:19px;height:19px;display:grid;place-items:center;margin-top:1px;color:var(--green);flex:none}#od-r12 .kb-state.off{color:var(--muted)}#od-r12 .kb-title{font-size:11.5px;font-weight:660;display:block}#od-r12 .kb-sub{font-size:11px;line-height:1.45;color:var(--muted);margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}#od-r12 .kb-source{font-size:10px;color:var(--muted);margin-top:4px}#od-r12 .kb-chevron{color:var(--muted);margin-left:auto;margin-top:3px;flex:none;transition:.14s}#od-r12 .kb-entry.expanded .kb-chevron{transform:rotate(90deg)}#od-r12 .kb-detail{font-size:11px;line-height:1.6;padding:8px 10px;margin:9px 0 0 28px;border-radius:9px;background:var(--surface2);white-space:pre-wrap}#od-r12 .dropzone{border:1px dashed #aebed8;background:var(--surface2);border-radius:11px;padding:13px;text-align:center;margin:9px 0 8px}#od-r12 .dropzone.over{border-color:var(--blue);background:var(--bluebg)}#od-r12 .dropzone p{margin:5px 0;font-size:11px}#od-r12 .dropzone small{font-size:10px;color:var(--muted);display:block;margin-bottom:9px}#od-r12 .dropzone label{cursor:pointer;border:1px solid var(--border2);background:var(--surface);padding:6px 10px;border-radius:8px;display:inline-block;font-size:11px;font-weight:620}#od-r12 .dropzone input{display:none}#od-r12 .import-result{font-size:10px;color:var(--muted)}
+#od-r12 .settings-title{font-size:10px;font-weight:730;color:var(--muted);letter-spacing:.4px;margin:3px 0 9px}#od-r12 .setting{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}#od-r12 .setting strong{display:block;font-size:11.8px;font-weight:650}#od-r12 .setting small{display:block;color:var(--muted);font-size:10.5px;margin-top:3px;line-height:1.5}#od-r12 .switch{position:relative;display:inline-flex;align-items:center;width:39px;height:23px;border-radius:30px;background:#c4cdd9;cursor:pointer;flex:none;padding:3px;transition:background .15s}#od-r12 .switch input{position:absolute;opacity:0;width:1px;height:1px}#od-r12 .switch:has(input:checked){background:#316bea}#od-r12 .switch:has(input:focus-visible){outline:2px solid var(--blue);outline-offset:3px}#od-r12 .switch:after{content:"";height:17px;width:17px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #10213a30;transition:transform .16s}#od-r12 .switch:has(input:checked):after{transform:translateX(16px)}#od-r12 .setting-note{font-size:10.5px;color:var(--muted);line-height:1.65;margin-top:12px}#od-r12 .consent{background:var(--bluebg);border:1px solid var(--bluebd);border-radius:10px;margin:11px 0;padding:11px}#od-r12 .consent strong{font-size:11.5px}#od-r12 .consent p{font-size:10.5px;line-height:1.6;margin:5px 0 10px}#od-r12 .consent-actions{display:flex;gap:7px}#od-r12 .consent-actions button{font-size:11px;border-radius:8px;padding:6px 10px;border:1px solid var(--border2);background:var(--surface)}#od-r12 .consent-actions button.confirm{background:#316bea;color:white;border-color:#316bea}
+#od-r12 .toast{position:fixed;z-index:90;bottom:18px;left:50%;transform:translateX(-50%);border-radius:10px;background:#22314a;color:#fff;padding:9px 13px;font-size:11.5px;box-shadow:0 6px 26px #20314a40;max-width:calc(100% - 25px);text-align:center;pointer-events:none}#od-r12 .preview-foot{text-align:center;font-size:10px;color:var(--muted);margin:13px 0 0}
+@container(max-width:930px){#od-r12 .stage-inner{display:flex;justify-content:center}#od-r12 .window.chat{display:none}#od-r12 .window.assistant{display:flex;flex:0 1 380px;width:min(380px,100%)}#od-r12 .stage-inner[data-show="chat"] .window.chat{display:flex;flex:0 1 450px;width:100%}#od-r12 .stage-inner[data-show="chat"] .window.assistant{display:none}#od-r12 .preview-tools .seg{display:flex}}
+@container(min-width:931px){#od-r12 .preview-tools .seg{display:none}}
+@container(max-width:400px){#od-r12 .stage{padding:9px 5px 16px}#od-r12 .window{border-radius:13px;height:726px}#od-r12 .tabs{gap:20px}#od-r12 .page-scroll{padding:12px}#od-r12 .composer{padding:10px 12px}#od-r12 .rec{padding:9px}#od-r12 .chat-body{grid-template-columns:90px minmax(0,1fr)}#od-r12 .contactbtn{flex-direction:column;gap:2px}#od-r12 .contactbtn b{font-size:10px}#od-r12 .contactbtn small{display:none}}
+@media(max-width:420px){#od-r12 .preview-top{padding:0 10px;gap:7px}#od-r12 .pmeta{display:none}#od-r12 .ptitle{font-size:12px}#od-r12 .smallbtn{padding:0 6px}#od-r12 .seg button{padding:4px 6px}}
+@media(max-width:430px){#od-r12 .stage{padding:9px 5px 16px}}
+
+
 #od-compact-inline{--bg:#f5f7fa;--card:#fff;--soft:#f8fafc;--text:#17212f;--muted:#7a8799;--line:#e5eaf1;--accent:#2563eb;--accent-soft:#eff5ff;--accent-line:#86b0fc;--green:#16866a;--good:#e9f8f1;--warn:#9a711e;--warning:#fff7e6;font:13px/1.55 -apple-system,BlinkMacSystemFont,"Inter","PingFang SC",sans-serif;color:var(--text);background:var(--bg);padding:13px 8px 20px;min-height:765px;box-sizing:border-box}#od-compact-inline.dark{--bg:#15202c;--card:#1f2b3b;--soft:#263648;--text:#edf3fb;--muted:#a8b6c7;--line:#394b61;--accent:#8bacff;--accent-soft:#294067;--accent-line:#638ef0;--green:#77d3b2;--good:#24433d;--warn:#e5bd6b;--warning:#483b2a}
 #od-compact-inline *{box-sizing:border-box}#od-compact-inline button,#od-compact-inline textarea,#od-compact-inline input,#od-compact-inline select{font:inherit;color:inherit}#od-compact-inline button{cursor:pointer}#od-compact-inline button:focus-visible,#od-compact-inline input:focus-visible,#od-compact-inline textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}#od-compact-inline .wrap{max-width:380px;margin:auto}#od-compact-inline .preview-control{display:flex;align-items:center;gap:7px;margin-bottom:10px}#od-compact-inline .od-mark{display:grid;place-items:center;width:26px;height:26px;border-radius:9px;background:#2b5fdb;color:white;font-size:10px;font-weight:750}#od-compact-inline .flex{flex:1;min-width:0}#od-compact-inline .preview-title{font-size:11px;font-weight:720}#od-compact-inline .grey{color:var(--muted)}#od-compact-inline .tiny{font-size:10px}#od-compact-inline .tool{width:30px;height:30px;display:grid;place-items:center;border:1px solid var(--line);background:var(--card);border-radius:9px;font-size:14px;color:var(--muted);padding:0}#od-compact-inline .tool:hover{color:var(--text);border-color:var(--accent-line)}#od-compact-inline .window{background:var(--card);border:1px solid var(--line);border-radius:15px;overflow:hidden;box-shadow:0 8px 28px #20345015;min-height:702px;display:flex;flex-direction:column}#od-compact-inline .windowhead{height:53px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--line);padding:0 14px;flex:none}#od-compact-inline .spark{width:30px;height:30px;border-radius:10px;background:linear-gradient(145deg,#366ce9,#859dff);display:grid;place-items:center;color:white;font-size:18px}#od-compact-inline .identity b{font-size:13px;display:block;line-height:1.2}#od-compact-inline .identity small{font-size:10px;color:var(--muted);display:block;margin-top:3px}#od-compact-inline .windowhead .icon{border:0;background:transparent;color:var(--muted);border-radius:8px;padding:4px 6px}#od-compact-inline .windowhead .icon:hover{background:var(--soft)}#od-compact-inline .tabs{display:flex;gap:22px;padding:0 15px;height:42px;border-bottom:1px solid var(--line);flex:none}#od-compact-inline .tabs button{border:0;border-bottom:2px solid transparent;background:transparent;font-size:12px;color:var(--muted);padding:0 1px}#od-compact-inline .tabs button.on{border-color:var(--accent);font-weight:680;color:var(--text)}#od-compact-inline .view{display:none;flex-direction:column;min-height:0;flex:1;height:608px}#od-compact-inline .view.on{display:flex}#od-compact-inline .scroll{overflow-y:auto;flex:1;min-height:0;padding:12px 14px}#od-compact-inline .between{display:flex;gap:8px;align-items:center;justify-content:space-between}#od-compact-inline .connected{display:inline-flex;gap:6px;align-items:center;font-size:10px;color:var(--green);font-weight:650}#od-compact-inline .connected::before{content:"";width:6px;height:6px;background:currentColor;border-radius:100%}#od-compact-inline .connected.warn{color:var(--warn)}#od-compact-inline .takeover{display:flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-size:10px}#od-compact-inline .takeover.active{background:var(--warning);color:var(--warn);border-color:transparent}#od-compact-inline .message{background:var(--soft);border:1px solid var(--line);border-radius:11px;padding:11px 12px;margin-top:12px}#od-compact-inline .message .between{font-size:10px;color:var(--muted)}#od-compact-inline .message p{font-size:13px;font-weight:660;line-height:1.5;margin:6px 0 0}#od-compact-inline .hit{display:flex;width:100%;align-items:center;gap:9px;padding:10px 2px;border:0;background:transparent;text-align:left}#od-compact-inline .hit .check{display:grid;place-items:center;width:23px;height:23px;border-radius:7px;background:var(--good);color:var(--green)}#od-compact-inline .hit b{font-size:11px;font-weight:700;display:block}#od-compact-inline .hit small{font-size:10px;color:var(--muted);display:block}#od-compact-inline .section{margin:9px 0 8px;font-weight:730;font-size:12px}#od-compact-inline .section span{float:right;color:var(--muted);font-weight:400;font-size:10px}#od-compact-inline .recommend{display:grid;gap:8px}#od-compact-inline .option{display:flex;text-align:left;gap:10px;align-items:flex-start;width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);position:relative}#od-compact-inline .option.sel{background:var(--accent-soft);border-color:var(--accent-line)}#od-compact-inline .option:hover:not(:disabled){border-color:var(--accent-line)}#od-compact-inline .option:disabled{opacity:.5}#od-compact-inline .option .symbol{flex:none;width:24px;height:24px;display:grid;place-items:center;color:var(--muted);background:var(--soft);border-radius:8px;font-size:13px}#od-compact-inline .option.sel .symbol{color:var(--accent);background:var(--card)}#od-compact-inline .option .answer{font-size:11.7px;line-height:1.58;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}#od-compact-inline .option .tip{position:absolute;top:-11px;right:10px;opacity:0;background:#23354c;color:#fff;border-radius:6px;padding:2px 7px;font-size:10px;pointer-events:none}#od-compact-inline .option:hover .tip,#od-compact-inline .option:focus-visible .tip{opacity:1}#od-compact-inline .notice{background:var(--warning);color:var(--warn);border-radius:8px;font-size:10px;padding:8px;margin-top:8px}#od-compact-inline .bottom{border-top:1px solid var(--line);padding:10px 14px 12px;background:var(--card);flex:none}#od-compact-inline .bottom label{font-size:11px;font-weight:680}#od-compact-inline .bottom .small{font-size:10px;color:var(--muted)}#od-compact-inline textarea{display:block;width:100%;border:1px solid var(--line);background:var(--soft);border-radius:10px;padding:9px;outline:0;resize:vertical;font-size:11.6px;line-height:1.55}#od-compact-inline .bottom textarea{height:70px;min-height:60px;max-height:120px;margin-top:6px}#od-compact-inline .btn-row{display:flex;gap:8px;margin-top:8px}#od-compact-inline .primary{border:1px solid #346de8;background:#346de8;color:#fff!important;border-radius:9px;min-height:35px;padding:7px 10px;font-size:11.5px;font-weight:660}#od-compact-inline .primary:disabled{opacity:.4}#od-compact-inline .btn-row .primary{flex:1}#od-compact-inline .btn-row .tool{width:36px;height:35px}#od-compact-inline .receipt{font-size:10px;color:var(--muted);margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #od-compact-inline .searchbar{display:flex;gap:7px;position:relative}#od-compact-inline .searchbar input{flex:1;min-width:0;height:36px;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:8px 10px;font-size:11px}#od-compact-inline .searchbar .tool{height:36px;width:36px;flex:none}#od-compact-inline .kb-row{border-bottom:1px solid var(--line);padding:11px 0}#od-compact-inline .kb-row button{display:flex;align-items:start;gap:8px;border:0;background:transparent;padding:0;width:100%;text-align:left}#od-compact-inline .kb-row .kb-state{width:20px;height:20px;display:grid;place-items:center;color:var(--green);flex:none;font-size:13px}#od-compact-inline .kb-row .kb-state.disabled{color:var(--muted)}#od-compact-inline .kb-row b{display:block;font-size:11.5px}#od-compact-inline .kb-row .excerpt{display:block;color:var(--muted);font-size:10.5px;line-height:1.48;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}#od-compact-inline .kb-row small{display:block;color:var(--muted);font-size:10px;margin-top:3px}#od-compact-inline .detail{font-size:11px;background:var(--soft);padding:8px;border-radius:8px;margin:8px 0 0 28px}#od-compact-inline .pop{position:absolute;right:0;top:42px;background:var(--card);border:1px solid var(--line);box-shadow:0 12px 30px #10224425;border-radius:11px;padding:11px;z-index:4;width:min(258px,100%)}#od-compact-inline .pop b{font-size:10px}#od-compact-inline .pop select{display:block;width:100%;border:1px solid var(--line);background:var(--soft);border-radius:8px;padding:6px;margin-top:5px;font-size:11px}#od-compact-inline .pills{display:flex;gap:5px;margin:6px 0 12px;flex-wrap:wrap}#od-compact-inline .pills button{background:var(--soft);border:1px solid var(--line);border-radius:7px;font-size:10px;padding:4px 7px}#od-compact-inline .pills button.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent)}#od-compact-inline .import{margin:9px 0;border:1px dashed #b1bfd7;background:var(--soft);border-radius:10px;text-align:center;padding:12px;font-size:10.5px}#od-compact-inline .import input{display:none}#od-compact-inline .import label{display:inline-block;border:1px solid var(--line);border-radius:7px;padding:5px 9px;background:var(--card);font-weight:650;margin-top:7px;cursor:pointer}#od-compact-inline .setting{display:flex;align-items:center;justify-content:space-between;gap:9px;border-bottom:1px solid var(--line);padding:12px 0}#od-compact-inline .setting b{font-size:11.5px;display:block}#od-compact-inline .setting small{font-size:10px;display:block;color:var(--muted);margin-top:4px}#od-compact-inline .switch{display:inline-flex;position:relative;width:40px;height:24px;align-items:center;padding:3px;border-radius:20px;background:#c8d0dc;flex:none;cursor:pointer}#od-compact-inline .switch:has(input:checked){background:#336beb}#od-compact-inline .switch:after{content:"";width:18px;height:18px;background:white;border-radius:50%;box-shadow:0 1px 3px #12204433;transition:transform .15s}#od-compact-inline .switch:has(input:checked):after{transform:translateX(16px)}#od-compact-inline .switch input{position:absolute;opacity:0;width:1px;height:1px}#od-compact-inline .setting-note{font-size:10.5px;color:var(--muted);margin-top:12px}#od-compact-inline .consent{background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:9px;padding:10px;margin-top:9px}#od-compact-inline .consent p{margin:4px 0 9px;font-size:10.5px}#od-compact-inline .chatpane{padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-height:0;flex:1}#od-compact-inline .contacts{display:flex;gap:6px}#od-compact-inline .contacts button{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:5px 7px;font-size:10.5px}#od-compact-inline .contacts button.on{border-color:var(--accent-line);background:var(--accent-soft)}#od-compact-inline .chatlog{min-height:0;flex:1;overflow:auto;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:11px;display:flex;flex-direction:column;gap:9px}#od-compact-inline .chatbubble{align-self:flex-start;max-width:85%;padding:9px 10px;border:1px solid var(--line);border-radius:4px 11px 11px 11px;background:var(--card);font-size:11.5px}#od-compact-inline .chatbubble.me{align-self:flex-end;background:#4775e9;color:white;border:0;border-radius:11px 4px 11px 11px}#od-compact-inline .tests{display:flex;gap:5px;flex-wrap:wrap}#od-compact-inline .tests button{background:var(--soft);border:1px solid var(--line);border-radius:7px;font-size:10px;padding:5px 7px}#od-compact-inline .toast{font-size:11px;position:relative;background:#23354d;color:white;padding:8px;border-radius:9px;margin-top:8px;text-align:center}#od-compact-inline .hidden{display:none!important}
@@ -32,62 +79,250 @@
 #od-compact-inline .takeover.hidden{display:none}
 #od-compact-inline .kb-trigger:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 @media(max-width:360px){#od-compact-inline .kb-line{font-size:11px}#od-compact-inline .compact-actions{padding:9px 11px 11px}}
-/* R1.3 incremental review: two-line variants and bounded knowledge list. */
-#od-compact-inline .option .answer{-webkit-line-clamp:2}
-#od-compact-inline .kb-more{display:block;width:100%;margin-top:10px;padding:8px;border:1px solid var(--line);border-radius:9px;background:var(--card);font-size:11px}
-#od-compact-inline .kb-more.hidden{display:none}
-#od-compact-inline .pop .scope-label{display:block;margin-top:8px}
 
-/* Compact recommendation: independent expand control and full answer on demand. */
-#od-compact-inline .option-wrap{position:relative}
-#od-compact-inline .option{padding-right:40px}
-#od-compact-inline .option.expanded .answer{display:block;overflow:visible}
-#od-compact-inline .expand-reply{position:absolute;right:6px;top:7px;display:grid;place-items:center;width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:17px}
-#od-compact-inline .expand-reply:hover,#od-compact-inline .expand-reply:focus-visible{background:var(--soft);color:var(--accent)}
-#od-compact-inline .expand-reply[aria-expanded="true"]{transform:rotate(180deg)}
-@media(prefers-reduced-motion:reduce){#od-compact-inline .kb-chevron,#od-compact-inline .switch:after{transition:none}}
 
-/* 200% zoom / extremely narrow content container: preserve readable actions. */
-#od-compact-inline .wrap{container-type:inline-size}
-@container (max-width:260px){
- #od-compact-inline .preview-control{flex-wrap:wrap}
- #od-compact-inline .preview-control .preview-title{flex:1 1 calc(100% - 44px);min-width:0}
- #od-compact-inline .preview-control .flex{display:none}
- #od-compact-inline .tabs{gap:7px;padding:0 6px}
- #od-compact-inline .tabs button{font-size:10.5px;white-space:nowrap}
- #od-compact-inline .windowhead{padding:0 7px;gap:4px}
- #od-compact-inline .identity small{display:none}
- #od-compact-inline .scroll{padding:9px 8px}
- #od-compact-inline .bottom{padding:8px}
- #od-compact-inline .message{padding:8px;margin-top:9px}
- #od-compact-inline .section span{display:none}
- #od-compact-inline .hit .check{display:none}
- #od-compact-inline .option{display:block;padding:8px 25px 8px 8px}
- #od-compact-inline .option .symbol{display:none}
- #od-compact-inline .option .answer{font-size:11px}
- #od-compact-inline .expand-reply{right:1px;top:4px;width:24px;height:26px}
- #od-compact-inline .bottom .btn-row{flex-wrap:wrap}
- #od-compact-inline .bottom .btn-row .primary{flex:1 0 100%;white-space:nowrap}
- #od-compact-inline .bottom .btn-row .tool{width:36px}
- #od-compact-inline .searchbar{gap:3px}
- #od-compact-inline .searchbar .tool{width:29px}
- #od-compact-inline .pop{width:100%}
+/* R1.4 review composition: R1.2 desktop shell + R1.3 current Compact Copilot. */
+#od-r12{container-type:inline-size}
+#od-r12 .preview-top{height:56px}
+@container(max-width:280px){
+ #od-r12 .preview-top .ptitle{display:none}
+ #od-r12 .preview-tools>.iconbtn{display:none}
+ #od-r12 .preview-tools{gap:0}
 }
+#od-r12 .preview-top .ptitle{white-space:nowrap;font-size:12px}
+#od-r12 .preview-tools .seg{flex:none}
+#od-r12 .preview-tools .seg button{white-space:nowrap;min-width:36px;padding:5px 7px;flex:none}
+@media(max-width:520px){#od-r12 .preview-top .desktop-name{display:none}#od-r12 .preview-top{padding:0 9px;gap:7px}}
 
-#od-compact-inline .setting:has(#odiv-follow){opacity:.7}
-#od-compact-inline #odiv-follow:disabled{cursor:not-allowed}
-</style>
-<div class="wrap"><div class="preview-control"><div class="od-mark">OD</div><div class="preview-title">AI 客服 · Compact Copilot <span class="tiny grey">· 380px</span></div><div class="flex"></div><button class="tool" id="odiv-view" title="切换聊天模拟器 / AI 助手">☷</button><button class="tool" id="odiv-theme" title="深浅色切换">◐</button><button class="tool" id="odiv-reset" title="重置模拟数据">↻</button></div>
-<div class="window"><header class="windowhead"><div class="spark">✦</div><div class="identity flex"><b id="odiv-heading">AI 客服</b><small id="odiv-subtitle">林女士 · 模拟会话已连接</small></div><button class="icon" id="odiv-pause" title="暂停观察">Ⅱ</button><button class="icon" id="odiv-menu" title="设置">···</button></header><nav class="tabs" id="odiv-tabs"><button data-tab="reply" class="on">推荐回复</button><button data-tab="knowledge">知识库</button><button data-tab="settings">设置</button></nav>
+#od-r12 .stage-inner{max-width:890px;align-items:stretch;gap:18px}
+#od-r12 .window.chat{min-width:0;max-width:470px;flex:1 1 460px}
+#od-r12 .merge-assistant{flex:0 0 380px;width:380px;min-width:0;height:738px;display:flex;overflow:hidden;border-radius:16px;box-shadow:var(--shadow)}
+#od-compact-inline{padding:0!important;min-height:0!important;width:100%;height:100%;background:transparent}
+#od-compact-inline .wrap{max-width:none!important;margin:0!important;width:100%;height:100%;display:flex;flex-direction:column}
+#od-compact-inline .preview-control{display:none!important}
+#od-compact-inline .window{height:100%;min-height:0;border-radius:16px;box-shadow:none}
+#od-compact-inline .view{height:auto;min-height:0;flex:1}
+#od-compact-inline .scroll{padding:13px 15px}
+/* Restore R1.2's scannable knowledge rows: separate question, answer and source. */
+#od-compact-inline .kb-entry{border-bottom:1px solid var(--line);padding:0}
+#od-compact-inline .kb-entry:last-child{border-bottom:0}
+#od-compact-inline .kb-entry.is-disabled{opacity:.68}
+#od-compact-inline .kb-entry .kb-row{display:flex;align-items:flex-start;gap:9px;min-height:0;padding:11px 2px;border:0;border-radius:7px;background:transparent;width:100%;text-align:left}
+#od-compact-inline .kb-entry .kb-row:hover{background:var(--soft)}
+#od-compact-inline .kb-state{flex:none;width:18px;font-size:13px;line-height:19px;text-align:center;color:var(--green)}
+#od-compact-inline .kb-state.off{color:var(--muted)}
+#od-compact-inline .kb-content{display:block;min-width:0;flex:1}
+#od-compact-inline .kb-title{display:block;font-size:11.5px;font-weight:680;line-height:1.5;color:var(--text)}
+#od-compact-inline .kb-sub{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;line-height:1.47;font-size:10.9px;color:var(--muted);margin-top:3px}
+#od-compact-inline .kb-source{display:block;color:var(--muted);font-size:10px;margin-top:5px}
+#od-compact-inline .kb-chevron{flex:none;width:14px;color:var(--muted);font-size:16px;line-height:20px;text-align:right}
+#od-compact-inline .kb-entry .kb-detail{margin:0 0 10px 26px;background:var(--soft);padding:9px 10px;border-radius:9px;color:var(--text)}
+#od-compact-inline .kb-detail p{margin:0;font-size:11px;line-height:1.55}
+#od-compact-inline .kb-detail .kb-meta{display:block;font-size:10px;color:var(--muted);margin-top:7px}
+#od-r12 .merge-assistant .windowhead{height:54px}
+#od-r12 .merge-assistant .tabs{height:43px}
+#od-r12 .stage-inner[data-show="chat"] .merge-assistant{display:none}
+@container (max-width:930px){
+ #od-r12 .stage-inner{justify-content:center}
+ #od-r12 .stage-inner:not([data-show="chat"]) .window.chat{display:none}
+ #od-r12 .stage-inner:not([data-show="chat"]) .merge-assistant{display:flex;flex:0 1 380px;width:min(380px,100%)}
+ #od-r12 .stage-inner[data-show="chat"] .window.chat{display:flex;flex:0 1 470px;width:100%}
+ #od-r12 .preview-tools .seg{display:flex}
+}
+@container (min-width:931px){#od-r12 .preview-tools .seg{display:none}}
+@container (max-width:400px){#od-r12 .merge-assistant{height:726px}#od-r12 .window.chat{height:726px}#od-compact-inline .scroll{padding:10px 12px}}
+@media(max-width:430px){#od-r12 .stage{padding:9px 5px 16px}}
+
+
+/* OpenDesk AI Customer Support · Full merged workbench R1.4 */
+#od-r12 .stage-inner{max-width:1000px;gap:16px}
+#od-r12 .window.chat{max-width:520px;flex:1 1 495px}
+#od-r12 .merge-assistant{flex:0 0 380px;width:380px;min-height:738px}
+#od-r12 .window-header .window-mini{border:0;background:transparent;color:var(--muted);font-size:18px;line-height:1;border-radius:7px;width:26px;height:26px;display:grid;place-items:center}
+#od-r12 .window-header .window-mini:hover{background:var(--surface2)}
+#od-r12 .window.chat{transform:translate(var(--demo-shift-x,0px),var(--demo-shift-y,0px));transition:transform .06s linear}
+#od-r12[data-follow="true"] .merge-assistant{transform:translate(var(--demo-shift-x,0px),var(--demo-shift-y,0px));transition:transform .06s linear}
+#od-r12 .minimized-bar{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:0 auto 14px;padding:11px;max-width:890px;display:flex;gap:10px;justify-content:space-between;align-items:center;color:var(--muted);font-size:11px}
+#od-r12 .minimized-bar button{border:1px solid var(--border);background:var(--surface2);border-radius:8px;padding:6px 10px;white-space:nowrap;color:var(--text)}
+#od-r12 .stage-inner.sim-minimized .window.chat,#od-r12 .stage-inner.sim-minimized .merge-assistant{display:none!important}
+#od-r12 .contact-search{display:flex;gap:6px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin:7px 2px 12px;padding:7px 8px;color:var(--muted)}
+#od-r12 .contact-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font-size:10.5px}
+#od-r12 .contact-preview{display:block;color:var(--muted);font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;margin-top:2px}
+#od-r12 .contactbtn .contact-meta{overflow:hidden}
+#od-r12 .contactbtn .avatar{align-self:flex-start}
+#od-r12 .contactlist{width:140px;flex:0 0 140px}
+#od-r12 .contactbtn{padding:9px 6px}
+#od-r12 .chat-send textarea{min-height:67px}
+/* Preserve the 380px Copilot; restore detailed knowledge that the previous merge lost. */
+#od-compact-inline .kb-instruction{margin:10px 2px 4px;font-size:10px;line-height:1.5;color:var(--muted)}
+#od-compact-inline .kb-rich-entry{border-bottom:1px solid var(--line);margin:0}
+#od-compact-inline .kb-rich-entry:last-child{border-bottom:0}
+#od-compact-inline .kb-rich-entry.disabled{opacity:.67}
+#od-compact-inline .kb-rich-row{width:100%;padding:12px 1px 12px;display:flex;align-items:flex-start;gap:10px;text-align:left;background:transparent;border:0;cursor:pointer;border-radius:7px}
+#od-compact-inline .kb-rich-row:hover{background:var(--soft)}
+#od-compact-inline .kb-rich-main{flex:1;min-width:0}
+#od-compact-inline .kb-rich-title{display:block;color:var(--text);font-size:12px;font-weight:710;line-height:1.5}
+#od-compact-inline .kb-rich-summary{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;color:var(--muted);font-size:11px;line-height:1.5;margin:4px 0 6px}
+#od-compact-inline .kb-rich-tags{display:flex;flex-wrap:wrap;gap:5px}
+#od-compact-inline .kb-tag{font-size:9.5px;border-radius:5px;padding:1px 6px;line-height:1.7;display:inline-block}
+#od-compact-inline .kb-tag.enabled{color:var(--green);background:var(--greenbg)}
+#od-compact-inline .kb-tag.disabled{color:var(--muted);background:var(--soft);border:1px solid var(--line)}
+#od-compact-inline .kb-tag.muted-tag{color:var(--muted);background:var(--soft);border:1px solid var(--line)}
+#od-compact-inline .kb-rich-chevron{color:var(--muted);flex:none;font-size:17px;line-height:20px;width:12px;text-align:center}
+#od-compact-inline .kb-rich-detail{margin:0 0 12px;padding:10px 11px;background:var(--soft);border-radius:10px;border:1px solid var(--line)}
+#od-compact-inline .kb-rich-field+.kb-rich-field{margin-top:11px}
+#od-compact-inline .kb-rich-field strong{display:block;color:var(--text);font-size:10.5px;font-weight:700;margin-bottom:4px}
+#od-compact-inline .kb-rich-field p{font-size:10.8px;line-height:1.6;white-space:pre-line;color:var(--muted);margin:0;overflow-wrap:anywhere}
+#od-compact-inline .kb-empty{padding:15px 4px;text-align:center;color:var(--muted);font-size:11px}
+#od-compact-inline .full-settings .settings-group-title{font-size:10px;letter-spacing:.45px;color:var(--muted);font-weight:750;margin:0 0 6px}
+#od-compact-inline .full-settings .settings-group-title:not(:first-child){margin-top:21px}
+#od-compact-inline .full-settings .setting{padding:10px 0;gap:8px}
+#od-compact-inline .full-settings .setting small{max-width:235px}
+#od-compact-inline .full-settings .setting select{font-size:10px;max-width:128px;min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--soft);padding:6px;color:var(--text)}
+#od-compact-inline .full-settings .setting .setting-lock{font-size:18px;color:var(--muted)}
+#od-compact-inline .full-settings .setting-action,#od-compact-inline .full-settings .setting-actions button{font-size:10.5px;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 8px;white-space:nowrap;cursor:pointer}
+#od-compact-inline .full-settings .setting-action:hover,#od-compact-inline .full-settings .setting-actions button:hover{border-color:var(--blue)}
+#od-compact-inline .full-settings .privacy-note{display:flex;gap:9px;background:var(--soft);border-radius:9px;border:1px solid var(--line);padding:11px;font-size:10.5px;line-height:1.6;color:var(--muted)}
+#od-compact-inline .full-settings .privacy-icon{color:var(--blue);font-size:16px}
+#od-compact-inline .full-settings .setting-actions{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 16px}
+#od-compact-inline .full-settings .consent{margin:9px 0}
+#od-compact-inline .full-settings .consent .primary{padding:6px 10px;min-height:28px}
+/* Left simulated application must look like a real chat, not plain text on a blank canvas. */
+#od-r12 #od-messages .bubble{display:flex;flex-direction:column;align-items:flex-start;align-self:flex-start;gap:4px;max-width:89%;border:0;background:transparent;padding:0;margin:0}
+#od-r12 #od-messages .bubble .bubble-text{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px 12px 12px 12px;padding:10px 12px;font-size:11.5px;line-height:1.55;box-shadow:0 1px 2px #2439510b;overflow-wrap:anywhere}
+#od-r12 #od-messages .bubble.outgoing{align-self:flex-end;align-items:flex-end}
+#od-r12 #od-messages .bubble.outgoing .bubble-text{background:#3e72e9;border-color:#3e72e9;color:white;border-radius:12px 4px 12px 12px}
+#od-r12 #od-messages .bubble small{font-size:9.5px;color:var(--muted);padding:0 2px}
+#od-r12 .messages{background:var(--surface2)}
+@media(max-width:400px){#od-r12 .preview-top .ptitle,#od-r12 .preview-top .pmeta{display:none!important}#od-r12 .preview-top{gap:6px}#od-r12 .preview-tools{margin-left:auto}}
+@media(max-width:980px){#od-r12 .stage-inner .window.chat{max-width:530px}#od-r12 .contactlist{width:125px;flex-basis:125px}}
+@media(max-width:940px){#od-r12 .stage-inner:not([data-show="chat"]) .window.chat{display:none}#od-r12 .stage-inner[data-show="chat"] .merge-assistant{display:none}#od-r12 .stage-inner .window.chat{width:100%;max-width:580px;flex:1}#od-r12 .contactlist{flex-basis:118px;width:118px}}
+@media(max-width:370px){#od-r12 .contactlist{flex-basis:88px;width:88px}#od-r12 .contact-search{display:none}#od-r12 .contact-preview{display:none}#od-compact-inline .kb-rich-row{padding:10px 1px}}
+
+/* Compact Copilot R1.5: fourth narrow tab and consent-first, evidence-backed customer history. */
+#od-compact-inline .tabs{gap:0!important;padding:0 8px!important;justify-content:space-between;align-items:stretch;display:flex;overflow:visible}
+#od-compact-inline .tabs button{font-size:11.2px!important;white-space:nowrap;padding:0 5px!important;flex:0 1 auto;min-width:0}
+#od-compact-inline .profile-scroll{padding:13px 14px 18px;overflow-y:auto}
+#od-compact-inline .profile-head{display:flex;align-items:center;gap:9px}
+#od-compact-inline .profile-avatar{display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);border-radius:11px;width:36px;height:36px;flex:none;font-weight:800}
+#od-compact-inline .profile-who{flex:1;min-width:0}
+#od-compact-inline .profile-who b{display:block;font-size:13px;font-weight:740;line-height:1.45}
+#od-compact-inline .profile-who span{display:block;color:var(--muted);font-size:10px}
+#od-compact-inline .profile-demo{font-size:9.5px;white-space:nowrap;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:3px 7px;color:var(--muted)}
+#od-compact-inline .profile-intro{font-size:10.5px;color:var(--muted);margin:9px 1px 13px;line-height:1.65}
+#od-compact-inline .profile-tools{display:flex;align-items:center;gap:6px}
+#od-compact-inline .profile-search{display:flex;align-items:center;gap:6px;flex:1;min-width:0;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:0 9px;height:34px;color:var(--muted)}
+#od-compact-inline .profile-search input{width:100%;min-width:0;border:none!important;background:transparent!important;padding:0!important;outline:none;font-size:11px}
+#od-compact-inline .profile-tools .tool{flex:none;height:34px;width:34px}
+#od-compact-inline .profile-import{border:1px dashed var(--accent-line);border-radius:10px;padding:12px;margin-top:9px;background:var(--soft);font-size:10.5px}
+#od-compact-inline .profile-import p{margin:5px 0 8px;color:var(--muted);line-height:1.6}
+#od-compact-inline .profile-filelabel{display:inline-block;border:1px solid var(--line);border-radius:8px;background:var(--card);padding:6px 11px;font-weight:650;cursor:pointer}
+#od-compact-inline .profile-import input{display:none}
+#od-compact-inline .profile-import .profile-import-result{margin-bottom:0}
+#od-compact-inline .profile-bar{display:flex;align-items:center;justify-content:space-between;gap:6px;margin:16px 1px 8px;font-size:11px}
+#od-compact-inline .profile-stats{font-weight:450;color:var(--muted);font-size:10px;white-space:nowrap}
+#od-compact-inline .profile-filterbar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:3px}
+#od-compact-inline .profile-filterbar select{background:var(--soft);border:1px solid var(--line);font-size:10.5px;padding:5px 7px;border-radius:8px;min-width:0}
+#od-compact-inline .profile-localscope{font-size:10px;color:var(--muted)}
+#od-compact-inline .profile-item{border-bottom:1px solid var(--line);padding:10px 1px}
+#od-compact-inline .profile-item-head{display:flex;align-items:flex-start;gap:7px}
+#od-compact-inline .profile-item-trigger{flex:1;min-width:0;text-align:left;border:0;background:transparent;padding:0;display:block}
+#od-compact-inline .profile-item-trigger strong{font-size:11.5px;font-weight:680;display:block;line-height:1.5}
+#od-compact-inline .profile-item-trigger .profile-evidence-preview{font-size:10.4px;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:3px 0 4px;overflow-wrap:anywhere}
+#od-compact-inline .profile-state{flex:none;font-size:9.5px;border-radius:5px;padding:2px 6px;color:var(--muted);background:var(--soft)}
+#od-compact-inline .profile-state.confirmed{color:var(--green);background:var(--good)}
+#od-compact-inline .profile-state.dismissed{opacity:.65}
+#od-compact-inline .profile-detail{margin-top:8px;padding:10px;background:var(--soft);border-radius:9px;font-size:10.5px;line-height:1.6}
+#od-compact-inline .profile-detail .profile-field-label{display:block;font-size:9.8px;font-weight:700;color:var(--muted);margin:7px 0 3px}
+#od-compact-inline .profile-detail .profile-field-label:first-child{margin-top:0}
+#od-compact-inline .profile-detail p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+#od-compact-inline .profile-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+#od-compact-inline .profile-actions button{border:1px solid var(--line);border-radius:7px;padding:5px 9px;background:var(--card);font-size:10px}
+#od-compact-inline .profile-actions button.approve{border-color:var(--accent-line);background:var(--accent-soft);color:var(--accent);font-weight:660}
+#od-compact-inline .profile-history{margin:15px 1px 5px;border-top:1px solid var(--line);padding-top:12px}
+#od-compact-inline .profile-history summary{font-weight:690;font-size:11.5px;cursor:pointer}
+#od-compact-inline .profile-history summary span{float:right;font-size:10px;color:var(--muted);font-weight:450}
+#od-compact-inline .profile-excerpt{padding:9px 0;border-bottom:1px solid var(--line);font-size:10.5px;line-height:1.6}
+#od-compact-inline .profile-excerpt strong{font-size:10px;color:var(--muted);display:block;margin-bottom:3px}
+#od-compact-inline .profile-foot{color:var(--muted);font-size:10px;line-height:1.7;margin-top:15px}
+#od-compact-inline .profile-clear{display:block;border:0;background:transparent;color:var(--muted);padding:7px 0 0;text-decoration:underline;font-size:10px}
+#od-compact-inline .profile-empty{padding:20px 10px;text-align:center;color:var(--muted);font-size:11px}
+@container (max-width:360px){#od-compact-inline .tabs button{font-size:10.5px!important;padding:0 3px!important}#od-compact-inline .profile-scroll{padding:11px 11px 16px}}
+</style><header class="preview-top"><div class="brand">OD</div><div><div class="ptitle">OpenDesk Desktop · AI 客服助手</div><div class="pmeta">双窗口工作台 · 右侧 Compact Copilot 380px</div></div><div class="push"></div><div class="preview-tools"><div aria-label="预览视图" class="seg" role="group"><button data-view="chat" type="button">聊天</button><button class="on" data-view="assistant" type="button">助手</button></div><button aria-label="切换明暗主题" class="iconbtn" id="od-theme" title="切换明暗主题"><svg class="ico"><use href="#od-i-moon"></use></svg></button><button aria-label="重置模拟数据" class="iconbtn" id="od-reset" title="重置模拟数据"><svg class="ico"><use href="#od-i-rotate"></use></svg></button></div></header>
+<main class="stage"><div class="minimized-bar hidden" id="od-minimized"><span>聊天模拟窗口已最小化 · AI 助手暂时隐藏</span><button id="od-restore" type="button">恢复工作台</button></div><div class="stage-inner" data-show="assistant" id="od-stage-inner"><section aria-label="模拟聊天软件" class="window chat"><header class="window-header"><div class="macdots"><i></i><i></i><i></i></div><span class="windowname">客户沟通台</span><div class="push"></div><span class="muted" style="font-size:10px">仅演示</span><button aria-label="最小化模拟聊天窗口" class="window-mini" id="od-minimize" title="模拟最小化" type="button">−</button></header><div class="chat-body"><nav aria-label="聊天会话" class="contactlist"><strong>会话列表</strong><label class="contact-search"><span aria-hidden="true">⌕</span><input aria-label="搜索模拟聊天联系人" id="od-contact-search" placeholder="搜索联系人" type="search"/></label><div id="od-contacts"></div></nav><section class="conversation"><header class="conversation-head"><strong id="od-chat-name">林女士</strong><small id="od-chat-id">#demo-01 · 模拟</small></header><div class="messages" id="od-messages" role="log"></div><div class="chat-send"><textarea aria-label="模拟聊天草稿" id="od-chat-draft" placeholder="客服输入草稿…"></textarea><button class="primary" id="od-chat-send" type="button"><svg class="ico sm"><use href="#od-i-send"></use></svg>发送</button></div></section></div><section class="demo-tray"><span>模拟客户发送消息</span><div class="demo-chips"><button data-ask="refund">退款</button><button data-ask="invoice">发票 · 精确</button><button data-ask="shipping">物流</button><button data-ask="product">商品</button><button data-ask="unknown">未知问题</button></div><div class="demo-input"><input aria-label="自定义客户提问" id="od-customer-question" placeholder="输入任意测试问题…" type="text"/><button class="smallbtn" id="od-ask-custom">发送问题</button></div></section></section>
+<section aria-label="Compact Copilot · 380 像素右侧助手" class="merge-assistant"><div id="od-compact-inline"><div class="wrap"><div class="preview-control"><div class="od-mark">OD</div><div class="preview-title">AI 客服 · Compact Copilot <span class="tiny grey">· 380px</span></div><div class="flex"></div><button class="tool" id="odiv-view" title="切换聊天模拟器 / AI 助手">☷</button><button class="tool" id="odiv-theme" title="深浅色切换">◐</button><button class="tool" id="odiv-reset" title="重置模拟数据">↻</button></div>
+<div class="window"><header class="windowhead"><div class="spark">✦</div><div class="identity flex"><b id="odiv-heading">AI 客服</b><small id="odiv-subtitle">林女士 · 模拟会话已连接</small></div><button class="icon" id="odiv-pause" title="暂停观察">Ⅱ</button><button class="icon" id="odiv-menu" title="设置">···</button></header><nav class="tabs" id="odiv-tabs" aria-label="客服助手页面"><button class="on" data-tab="reply">推荐回复</button><button data-tab="knowledge">知识库</button><button data-tab="customer">客户档案</button><button data-tab="settings">设置</button></nav>
 <section class="view on" id="odiv-reply"><div class="scroll"><div class="between"><span class="connected" id="odiv-status">已连接 · 模拟</span><button class="takeover hidden" id="odiv-takeover" title="只暂停当前会话的自动回复，AI 仍继续推荐">♧ <span id="odiv-takeover-text">人工接管</span></button></div><div class="message"><div class="between"><span>最新客户消息</span><span id="odiv-msg-id">#m-001</span></div><p id="odiv-latest">签收后还能退款吗？</p></div><button class="hit" id="odiv-hit"><span class="check">✓</span><span class="flex"><b id="odiv-hit-title">匹配到 · 退款申请时效</b><small id="odiv-hit-source">售后政策.json</small></span><span class="grey">›</span></button><div class="section">推荐回复 <span id="odiv-answer-count">3 条 · 点击选用</span></div><div class="recommend" id="odiv-options"></div><div class="notice hidden" id="odiv-notice"></div></div><footer class="bottom compact-actions">
 <div class="between"><span class="chosen-label" id="odiv-selected">已选：准确答复</span><span class="small" id="odiv-answer-length">0 字</span></div>
-<div class="btn-row"><button class="primary" id="odiv-fill">→ &nbsp;填入聊天草稿</button><button class="tool" id="odiv-edit" title="编辑选中的回复" aria-label="编辑选中的回复">✎</button><button class="tool" id="odiv-copy" title="复制所选回复" aria-label="复制所选回复">▢</button></div>
+<div class="btn-row"><button class="primary" id="odiv-fill">→  填入聊天草稿</button><button aria-label="编辑选中的回复" class="tool" id="odiv-edit" title="编辑选中的回复">✎</button><button aria-label="复制所选回复" class="tool" id="odiv-copy" title="复制所选回复">▢</button></div>
 <div class="receipt" id="odiv-receipt">操作状态 · 尚未发送</div>
 </footer></section>
-<section class="view" id="odiv-knowledge"><div class="scroll"><div class="searchbar"><input id="odiv-search" type="search" placeholder="⌕ 搜索知识、答案、来源" aria-label="搜索知识库"><button class="tool" id="odiv-filter" title="筛选知识">☷</button><button class="tool" id="odiv-upload" title="导入知识">↥</button><div class="pop hidden" id="odiv-pop"><b>状态</b><div class="pills"><button class="on" data-filter="all">全部</button><button data-filter="enabled">已启用</button><button data-filter="disabled">已停用</button></div><b>来源</b><select id="odiv-source"><option value="all">所有文件</option></select><b class="scope-label">适用范围</b><select id="odiv-scope" aria-label="适用范围"><option value="all">全部</option><option value="general">通用</option><option value="scoped">限定范围</option></select><button class="tool" id="odiv-clear" style="width:auto;padding:0 8px;margin-top:9px;font-size:11px">清除筛选</button></div></div><div class="import hidden" id="odiv-import">拖入 JSON / Markdown 文件<br>仅当前页面内存，不上传<br><label for="odiv-file">选择本地文件</label><input id="odiv-file" type="file" accept=".json,.md,.markdown"></div><div class="between tiny grey" style="margin:11px 0 0"><span id="odiv-kb-count">5 条知识</span><span id="odiv-import-msg"></span></div><div id="odiv-kb-list"></div><button class="kb-more hidden" type="button" id="odiv-kb-more">显示更多</button></div></section>
-<section class="view" id="odiv-settings"><div class="scroll"><b class="tiny grey">工作方式</b><div class="setting"><div><b>自动回复</b><small>关闭时提供推荐，由人工发送</small></div><label class="switch"><input type="checkbox" id="odiv-auto" aria-label="智能托管"></label></div><div class="consent hidden" id="odiv-consent"><b>确认开启当前会话的模拟自动回复</b><p>仅后续精确命中的演示消息自动发送；未知或风险消息转人工。接管当前会话后仍继续推荐回复；不会操作真实微信。</p><button class="primary" id="odiv-confirm" style="padding:5px 10px;min-height:28px">理解并启用</button><button class="tool" id="odiv-cancel" style="width:auto;padding:0 9px;margin-left:7px">取消</button></div><p class="setting-note" id="odiv-auto-info">自动回复已关闭，AI 继续提供推荐答案。</p><b class="tiny grey" style="display:block;margin-top:25px">窗口与权限</b><div class="setting"><div><b>模拟窗口授权</b><small>关闭后停止读取和填入</small></div><label class="switch"><input type="checkbox" id="odiv-permission" checked aria-label="模拟授权"></label></div><div class="setting"><div><b>继续观察新消息</b><small>停止后保留现有草稿</small></div><label class="switch"><input type="checkbox" id="odiv-observe" checked aria-label="观察"></label></div><div class="setting"><div><b>跟随聊天窗口 · 待接入</b><small>此浏览器原型不提供真实窗口跟随</small></div><label class="switch"><input type="checkbox" id="odiv-follow" disabled aria-label="窗口跟随尚未实现" title="等待 OpenDesk 原生 Runtime"></label></div><p class="setting-note">这是离线交互原型，自动回复与回执只发生在模拟聊天窗口；未连接真实微信或云模型。</p></div></section>
-<section class="view" id="odiv-chat"><div class="chatpane"><div class="contacts" id="odiv-contacts"></div><div class="chatlog" id="odiv-chatlog"></div><textarea id="odiv-chatdraft" placeholder="模拟聊天软件草稿……" style="height:75px;min-height:65px" aria-label="模拟聊天草稿"></textarea><button class="primary" id="odiv-send">发送（仅模拟）</button><div class="tiny grey">客户模拟发问：</div><div class="tests"><button data-question="refund">退款</button><button data-question="invoice">发票 · 精确</button><button data-question="shipping">物流</button><button data-question="unknown">未知问题</button><button data-question="two">连续两条</button></div></div></section>
-</div><div class="toast hidden" id="odiv-toast" role="status"></div></div></div>
+<section class="view" id="odiv-knowledge"><div class="scroll"><div class="searchbar"><input aria-label="搜索知识库问题、答案、同义问题及数据来源" id="odiv-search" placeholder="搜索问题、答案、同义问题或来源" type="search"/><button class="tool" id="odiv-filter" title="筛选知识">☷</button><button class="tool" id="odiv-upload" title="导入知识">↥</button><div class="pop hidden" id="odiv-pop"><b>状态</b><div class="pills"><button class="on" data-filter="all">全部</button><button data-filter="enabled">已启用</button><button data-filter="disabled">已停用</button></div><b>来源</b><select id="odiv-source"><option value="all">所有文件</option></select>
+<b>适用范围</b><select aria-label="筛选适用范围" id="odiv-scope"><option value="all">全部范围</option><option value="通用">通用</option><option value="特定场景">特定场景</option></select><button class="tool" id="odiv-clear" style="width:auto;padding:0 8px;margin-top:9px;font-size:11px">清除筛选</button></div></div><div class="import hidden" id="odiv-import">拖入 JSON / Markdown 文件<br/>仅当前页面内存，不上传<br/><label for="odiv-file">选择本地文件</label><input accept=".json,.md,.markdown" id="odiv-file" type="file"/></div><div class="between tiny grey" style="margin:11px 0 0"><span id="odiv-kb-count">正在加载演示知识…</span><span id="odiv-import-msg"></span></div><p class="kb-instruction">点击条目可查看完整答案、同义问题、数据来源与托管资格</p><div id="odiv-kb-list"></div></div></section>
+<section class="view" id="odiv-customer" aria-label="当前客户档案">
+  <div class="scroll profile-scroll">
+    <div class="profile-head">
+      <div class="profile-avatar" id="odiv-profile-avatar">林</div>
+      <div class="profile-who"><b id="odiv-profile-name">林女士</b><span id="odiv-profile-id">当前会话 · t1</span></div>
+      <span class="profile-demo">演示记录</span>
+    </div>
+    <p class="profile-intro">只整理当前客户明确提过的偏好、历史需求和已确认信息。候选内容经人工确认后才可作为参考，不参与自动发送判断。</p>
+    <div class="profile-tools">
+      <label class="profile-search"><span aria-hidden="true">⌕</span><input id="odiv-profile-search" type="search" aria-label="搜索当前客户档案" placeholder="搜索客户偏好、证据"></label>
+      <button id="odiv-history-toggle" class="tool" title="导入历史会话 JSON" aria-label="导入历史会话">↥</button>
+      <button id="odiv-profile-extract" class="tool" title="重新提取关键信息（演示规则）" aria-label="提取关键信息">✦</button>
+    </div>
+    <div class="profile-import hidden" id="odiv-history-zone">
+      <b>导入当前客户历史对话</b>
+      <p>支持示例 JSON（customers → sessions → messages），仅在页面内存处理，不上传、不持久化。</p>
+      <label class="profile-filelabel" for="odiv-history-file">选择 JSON 文件</label>
+      <input id="odiv-history-file" type="file" accept=".json,application/json">
+      <p class="profile-import-result" id="odiv-history-status" role="status">导入后点击 ✦ 提取可审查的关键语料。</p>
+    </div>
+    <div class="profile-bar">
+      <b>关键信息</b><span class="profile-stats" id="odiv-profile-count">准备读取演示记录…</span>
+    </div>
+    <div class="profile-filterbar">
+      <select id="odiv-profile-filter" aria-label="筛选档案确认状态">
+        <option value="all">全部信息</option><option value="candidate">待确认</option><option value="confirmed">已确认</option><option value="dismissed">已忽略</option>
+      </select>
+      <span class="profile-localscope">仅此客户</span>
+    </div>
+    <div id="odiv-profile-list" class="profile-list" aria-live="polite"></div>
+    <details class="profile-history" id="odiv-profile-history-fold">
+      <summary>历史对话片段 <span id="odiv-profile-history-count">0 条</span></summary>
+      <div id="odiv-profile-history-list"></div>
+    </details>
+    <div class="profile-foot">
+      <span>本地演示提取基于关键词规则，并非真实 AI 记忆或客户身份验证。仅记录可追溯的客户原话，不推断敏感属性。</span>
+      <button class="profile-clear" id="odiv-profile-clear">清空此客户的演示档案</button>
+    </div>
+  </div>
+</section>
+<section class="view" id="odiv-settings"><div class="scroll full-settings">
+<div class="settings-group-title">目标与授权</div>
+<div class="setting"><div><b>目标聊天软件</b><small>本轮只连接左侧的模拟窗口</small></div><select aria-label="目标聊天软件" id="odiv-target"><option value="demo">模拟聊天软件</option><option disabled="">微信 · 未接入</option><option disabled="">企业微信 · 未接入</option></select></div>
+<div class="setting"><div><b>当前会话</b><small id="odiv-target-bound">模拟会话 · 林女士</small></div><span class="setting-lock" title="会话身份由宿主绑定">⌁</span></div>
+<div class="setting"><div><b>模拟窗口授权</b><small>关闭后停止读取和填入草稿</small></div><label class="switch"><input aria-label="模拟窗口授权" checked="" id="odiv-permission" type="checkbox"/></label></div>
+<div class="settings-group-title">自动化与跟随</div>
+<div class="setting"><div><b>智能托管</b><small>关闭后 AI 仍推荐，由人工发送</small></div><label class="switch"><input aria-label="智能托管" id="odiv-auto" type="checkbox"/></label></div>
+<div class="consent hidden" id="odiv-consent"><b>确认开启模拟自动回复</b><p>仅对后续精确匹配、具备托管资格的演示知识自动发送；未知、歧义或敏感问题转人工。不会连接真实微信。</p><button class="primary" id="odiv-confirm">理解并启用</button><button class="tool" id="odiv-cancel" style="width:auto;padding:0 9px">取消</button></div>
+<p class="setting-note" id="odiv-auto-info">智能托管已关闭，AI 继续提供推荐答案。</p>
+<div class="setting"><div><b>智能窗口跟随</b><small>移动聊天窗口时助手跟随；真实 Mac 待验收</small></div><label class="switch"><input aria-label="智能窗口跟随" checked="" id="odiv-follow" type="checkbox"/></label></div>
+<div class="setting"><div><b>发送后回读验证</b><small>检查消息正文及会话关联；关闭后不能确认为已送达</small></div><label class="switch"><input aria-label="发送后模拟回读验证" checked="" id="odiv-verify" type="checkbox"/></label></div>
+<div class="setting"><div><b>继续观察新消息</b><small>暂停观察不会删除已有草稿</small></div><label class="switch"><input aria-label="继续观察新消息" checked="" id="odiv-observe" type="checkbox"/></label></div>
+<div class="setting"><div><b>当前会话人工接管</b><small>仅停止该会话自动发送，继续生成推荐回复</small></div><button class="setting-action" id="odiv-takeover-settings" type="button">人工接管</button></div>
+<div class="settings-group-title">模拟对话</div>
+<div class="setting"><div><b>多段客户消息</b><small>连续两条消息，验证最新消息处理与会话隔离</small></div><button class="setting-action" id="odiv-multipart" type="button">模拟接收</button></div>
+<div class="setting"><div><b>昵称与演示地区</b><small>只使用构造的数据，不推断真实地址</small></div><select aria-label="昵称显示方式" id="odiv-nickname"><option value="original">仅昵称</option><option value="region">昵称 · 演示地区</option></select></div>
+<div class="settings-group-title">隐私与维护</div>
+<div class="privacy-note"><span class="privacy-icon">◈</span><span>本页面为离线模拟，不能读取真实聊天内容；知识文件只保存在当前页面内存。自动回复仅发生于左侧模拟聊天窗口，不调用云模型。</span></div>
+<div class="setting-actions"><button id="odiv-clear-log" type="button">清空操作记录</button><button id="odiv-reset-position" type="button">重置跟随位置</button></div>
+</div></section>
+<section class="view" id="odiv-chat"><div class="chatpane"><div class="contacts" id="odiv-contacts"></div><div class="chatlog" id="odiv-chatlog"></div><textarea aria-label="模拟聊天草稿" id="odiv-chatdraft" placeholder="模拟聊天软件草稿……" style="height:75px;min-height:65px"></textarea><button class="primary" id="odiv-send">发送（仅模拟）</button><div class="tiny grey">客户模拟发问：</div><div class="tests"><button data-question="refund">退款</button><button data-question="invoice">发票 · 精确</button><button data-question="shipping">物流</button><button data-question="unknown">未知问题</button><button data-question="two">连续两条</button></div></div></section>
+</div><div class="toast hidden" id="odiv-toast" role="status"></div></div></div></section></div>
+<div class="preview-foot">左侧：模拟聊天软件 · 右侧：380px AI 客服 · 单一会话状态 · 不连接真实平台</div></main>
+</div>
 <script>
 (()=>{
 'use strict';
@@ -95,19 +330,40 @@ const R=document.getElementById('od-compact-inline');
 if(!R||R.dataset.ready)return;R.dataset.ready='true';
 const $=q=>R.querySelector(q), $$=q=>Array.from(R.querySelectorAll(q));
 const initialThreads=()=>[
- {id:'t1',name:'林女士',msgs:[{id:'m1',who:'customer',text:'签收后 7 天内还能申请退款吗？'}],sent:new Set(),draft:'',auto:false,consented:false},
- {id:'t2',name:'陈先生',msgs:[{id:'m2',who:'customer',text:'物流怎么查询？'}],sent:new Set(),draft:'',auto:false,consented:false},
- {id:'t3',name:'周女士',msgs:[{id:'m3',who:'customer',text:'商品如何选尺码？'}],sent:new Set(),draft:'',auto:false,consented:false}
+ {id:'t1',name:'林女士',msgs:[{id:'m1',who:'customer',text:'签收后 7 天内还能申请退款吗？'}],sent:new Set(),draft:''},
+ {id:'t2',name:'陈先生',msgs:[{id:'m2',who:'customer',text:'物流怎么查询？'}],sent:new Set(),draft:''},
+ {id:'t3',name:'周女士',msgs:[{id:'m3',who:'customer',text:'商品如何选尺码？'}],sent:new Set(),draft:''}
 ];
 const initialKb=()=>[
- {id:'k1',q:'退款申请时效',question:'签收后几天内可以申请退款？',a:'符合售后政策的订单，签收后 7 天内可申请退货退款。具体资格以订单详情和商品规则为准。',keys:['退款','退货','签收'],source:'售后政策.json',enabled:true,scope:null},
- {id:'k2',q:'电子发票申请',question:'请问能开发票吗？',a:'支持申请电子发票，请提供订单号以核实开票信息。',keys:['发票','开票'],source:'财务问答.json',enabled:true,scope:null},
- {id:'k3',q:'物流进度查询',question:'物流怎么查询？',a:'请提供订单编号，以便查询物流轨迹；异常情况需要人工核实。',keys:['物流','快递'],source:'物流说明.md',enabled:true,scope:null},
- {id:'k4',q:'商品尺码',question:'商品如何选尺码？',a:'请提供商品型号与尺码需求，我们核对规格后回复。',keys:['商品','尺码','尺寸'],source:'商品资料.json',enabled:true,scope:null},
- {id:'k5',q:'旧版活动',question:'活动是否继续？',a:'历史活动已结束，不参与当前回复。',keys:['活动'],source:'历史活动.md',enabled:false,scope:null}
+ {id:'k1',q:'签收后几天可以申请退款',question:'签收后几天可以申请退款',a:'演示规则：符合条件的实物订单可在签收后 7 天内申请退款。具体资格需按订单售后政策核实。',keys:['退款','退货','签收','售后'],aliases:['退款期限是多少','几天内可以退款','签收后 7 天内还能申请退款吗？'],source:'demo/after-sales.json',enabled:true,category:'售后',scope:null,eligible:true,eligibility:'预设演示知识（仍需精确匹配）'},
+ {id:'k2',q:'如何申请电子发票',question:'请问能开发票吗？',a:'演示规则：符合开票条件的订单可以申请电子发票。请提供订单号，以便核实开票信息与具体流程。',keys:['发票','电子发票','开票'],aliases:['发票在哪里开','可以申请发票吗','能开发票吗'],source:'demo/finance.json',enabled:true,category:'财务',scope:null,eligible:true,eligibility:'预设演示知识（仍需精确匹配）'},
+ {id:'k3',q:'物流进度怎么查询',question:'物流怎么查询？',a:'演示规则：提供订单编号后，客服可以协助查询物流轨迹。物流长时间没有更新，需要人工进一步核实。',keys:['物流','快递','配送','发货'],aliases:['快递怎么查','物流到哪里了'],source:'demo/shipping.md',enabled:true,category:'物流',scope:null,eligible:true,eligibility:'预设演示知识（仍需精确匹配）'},
+ {id:'k4',q:'商品尺码如何选择',question:'商品如何选尺码？',a:'演示规则：请提供商品型号与尺码需求，由客服核对商品规格后给出建议，不承诺未核实的具体尺码。',keys:['商品','尺码','尺寸','规格'],aliases:['尺码推荐','这款商品多大码'],source:'demo/product.json',enabled:true,category:'商品',scope:null,eligible:false,eligibility:'需要商品上下文核实，暂不自动托管'},
+ {id:'k5',q:'旧版优惠活动是否继续',question:'活动是否继续？',a:'演示规则：历史促销活动已经结束，旧版活动说明不能作为当前业务承诺。',keys:['活动','优惠','折扣'],aliases:['旧优惠还有吗'],source:'demo/old-campaign.md',enabled:false,category:'活动',scope:null,eligible:false,eligibility:'已停用，不参与知识匹配或自动托管'},
+ {id:'k6',q:'A 方案支持多少成员',question:'A 方案支持几名成员？',a:'演示规则：A 方案最多支持 5 名成员，其他方案须按对应套餐说明确认。',keys:['A 方案','成员','人数'],aliases:['A 方案人数上限'],source:'demo/plans.json',enabled:true,category:'套餐',scope:'A 方案',eligible:false,eligibility:'限定适用范围，需明确确认套餐身份后才可使用'},
+ {id:'k7',q:'人工客服在线时间',question:'人工客服什么时候在线？',a:'演示规则：人工客服服务时间为工作日 09:00–18:00，非工作时段可留言等待回复。',keys:['客服','人工','服务时间'],aliases:['人工几点上班','怎么转人工'],source:'demo/service.json',enabled:true,category:'服务',scope:null,eligible:true,eligibility:'预设演示知识（仍需精确匹配）'}
 ];
 let counter=7,threads=initialThreads(),kb=initialKb();
-const s={tid:'t1',tab:'reply',paused:false,permission:true,pendingConsentTid:null,takeover:new Set(),chosen:new Map(),edits:new Map(),editing:null,filter:'all',source:'all',scope:'all',showAll:false,expanded:new Set(),expandedReply:new Set(),receipt:'尚未发送',importVisible:false};
+const s={tid:'t1',tab:'reply',paused:false,permission:true,auto:false,consented:false,takeover:new Set(),chosen:new Map(),edits:new Map(),editing:null,filter:'all',source:'all',scope:'all',expanded:new Set(),receipt:'尚未发送',importVisible:false,follow:true,verify:true,nicknameMode:'original',logHistory:[]};
+
+// Customer history is strictly demo/browser-local and scoped by current customer identity.
+const demoHistorySeed=()=>({
+ 't1':[{sessionId:'seed-t1',messages:[{messageId:'seed-t1-01',role:'customer',text:'我更喜欢蓝色的款式，有的话可以优先发蓝色。',at:'2026-10-23'},{messageId:'seed-t1-02',role:'customer',text:'以后优先短信通知我，我不太方便接电话。',at:'2026-10-24'}]}],
+ 't2':[{sessionId:'seed-t2',messages:[{messageId:'seed-t2-01',role:'customer',text:'我希望尽量安排周末配送。',at:'2026-10-23'},{messageId:'seed-t2-02',role:'customer',text:'物流进度有变动请优先短信通知。',at:'2026-10-24'}]}],
+ 't3':[{sessionId:'seed-t3',messages:[{messageId:'seed-t3-01',role:'customer',text:'我平时穿 M 码，买之前想看尺码表。',at:'2026-10-23'},{messageId:'seed-t3-02',role:'customer',text:'我更喜欢简洁的款式。',at:'2026-10-24'}]}]
+});
+let profileHistory=demoHistorySeed(),profileFacts=[],profileFilter='all',profileExpanded=new Set();
+const profileRules=[
+ {key:'blue',category:'商品偏好',value:'偏好蓝色',pattern:/更喜欢蓝色|喜欢蓝色|偏好蓝色/},
+ {key:'black',category:'商品偏好',value:'偏好黑色',pattern:/更喜欢黑色|喜欢黑色|偏好黑色/},
+ {key:'brief',category:'风格偏好',value:'倾向简洁款式',pattern:/喜欢简洁|偏好简洁|更喜欢简洁/},
+ {key:'sms',category:'沟通偏好',value:'优先短信联系',pattern:/优先短信|短信通知|短信联系/},
+ {key:'no-call',category:'沟通限制',value:'不方便接电话',pattern:/不(?:太)?方便接电话|不想接电话/},
+ {key:'weekend',category:'配送偏好',value:'希望周末配送',pattern:/周末配送|周末送货|周末安排配送/},
+ {key:'size-m',category:'尺码信息',value:'通常穿 M 码',pattern:/通常穿\s*M\s*码|平时穿\s*M\s*码/i},
+ {key:'size-l',category:'尺码信息',value:'通常穿 L 码',pattern:/通常穿\s*L\s*码|平时穿\s*L\s*码/i},
+ {key:'size-chart',category:'选购习惯',value:'购前希望看尺码表',pattern:/想看尺码表|先看尺码表|发我尺码表/}
+];
 const thread=()=>threads.find(t=>t.id===s.tid),message=()=>thread().msgs.filter(m=>m.who==='customer').at(-1),msgKey=()=>`${s.tid}:${message()?.id||'none'}`,canObserve=()=>!s.paused&&s.permission;
 const normalize=x=>String(x||'').toLowerCase().replace(/[\s，。！？?!.,]/g,'');
 function match(){
@@ -137,33 +393,31 @@ function chosenVariant(){const opts=variants();const id=s.chosen.get(msgKey());r
 function replyKey(){return msgKey()+':'+chosenVariant().id;}
 function replyText(){return s.edits.get(replyKey())??chosenVariant().text;}
 function toast(t){const node=$('#odiv-toast');node.textContent=t;node.classList.remove('hidden');clearTimeout(R.toastTimer);R.toastTimer=setTimeout(()=>node.classList.add('hidden'),2300)}
-function record(t){s.receipt=t;$('#odiv-receipt').textContent='操作状态 · '+t}
+function record(t){s.receipt=t;s.logHistory.unshift(t);s.logHistory=s.logHistory.slice(0,40);$('#odiv-receipt').textContent='操作状态 · '+t}
+function displayName(t){return t.name+(s.nicknameMode==='region'?' · 演示地区':'')};
 function renderReply(){
  const t=thread(),m=match(),opts=variants(),mid=message()?.id,selected=chosenVariant(),txt=replyText(),taken=s.takeover.has(t.id),can=canObserve(),replied=t.sent.has(mid);
  if(s.editing&&s.editing!==replyKey())s.editing=null;
- $('#odiv-subtitle').textContent=t.name+' · '+(!can?'观察已停止':taken?'人工接管中':t.auto?'模拟自动回复中':'辅助回复中');
- $('#odiv-status').textContent=!can?'观察已停止':taken?'人工接管 · AI 继续推荐':t.auto?'自动回复 · 模拟':'AI 推荐 · 人工发送';
+ $('#odiv-subtitle').textContent=displayName(t)+' · '+(!can?'观察已停止':taken?'人工接管中':s.auto?'模拟自动回复中':'辅助回复中');
+ $('#odiv-status').textContent=!can?'观察已停止':taken?'人工接管 · AI 继续推荐':s.auto?'自动回复 · 模拟':'AI 推荐 · 人工发送';
  $('#odiv-status').classList.toggle('warn',!can||taken);
- $('#odiv-takeover').classList.toggle('hidden',!t.auto&&!taken);
- $('#odiv-takeover-text').textContent=taken?'退出接管':'人工接管';
+ $('#odiv-takeover').classList.toggle('hidden',!s.auto&&!taken);
+ $('#odiv-takeover-text').textContent=taken?'恢复托管':'人工接管';
  $('#odiv-takeover').classList.toggle('active',taken);
- $('#odiv-auto').checked=!!t.auto;
- $('#odiv-auto-info').textContent=taken?'当前会话已人工接管；退出后仍需手动开启自动回复。':t.auto?'仅当前会话的后续精确知识命中会模拟自动发送。':'自动回复已关闭，AI 继续提供推荐答案。';
  $('#odiv-latest').textContent=can?(message()?.text||'暂无消息'):'未授权或观察已暂停';
  $('#odiv-msg-id').textContent=can?'#'+mid:'未读取';
  $('#odiv-hit-title').textContent=m?'匹配到 · '+m.k.q:'暂无可靠知识匹配';
- $('#odiv-hit-source').textContent=m?'来源：'+m.k.source+' · '+(m.exact?'精确匹配':'关键词候选'):'仅提供安全澄清与人工核实';
+ $('#odiv-hit-source').textContent=m?(m.exact?'精确匹配':'关键词匹配')+' · 点此查看知识':'仅提供安全澄清与人工核实';
  $('#odiv-answer-count').textContent=opts.length+' 条 · 选择后填入草稿';
  const list=$('#odiv-options');list.replaceChildren();
  opts.forEach(o=>{
   const id=msgKey()+':'+o.id, val=s.edits.get(id)??o.text;
   const shell=document.createElement('div');shell.className='option-wrap';
-  const b=document.createElement('button');b.type='button';b.className='option'+(selected.id===o.id?' sel':'')+(s.expandedReply.has(id)?' expanded':'');b.dataset.choice=o.id;b.title=o.name;b.setAttribute('aria-label',`${o.name}：${val}`);b.setAttribute('aria-pressed',String(selected.id===o.id));b.disabled=!can;
+  const b=document.createElement('button');b.type='button';b.className='option'+(selected.id===o.id?' sel':'');b.dataset.choice=o.id;b.title=o.name;b.setAttribute('aria-label',`${o.name}：${val}`);b.setAttribute('aria-pressed',String(selected.id===o.id));b.disabled=!can;
   const symbol=document.createElement('span');symbol.className='symbol';symbol.textContent=o.symbol;
   const body=document.createElement('span');body.className='answer';body.textContent=val;
   const tip=document.createElement('span');tip.className='tip';tip.textContent=o.name;
   b.append(symbol,body,tip);shell.appendChild(b);
-  const more=document.createElement('button');more.type='button';more.className='expand-reply';more.dataset.expandReply=o.id;more.textContent='⌄';more.title='展开或收起完整回复';more.setAttribute('aria-expanded',String(s.expandedReply.has(id)));more.setAttribute('aria-label',(s.expandedReply.has(id)?'收起':'展开')+o.name+'全文');shell.append(more);
   if(s.editing===id&&can){
    const edit=document.createElement('div');edit.className='inline-edit';
    const input=document.createElement('textarea');input.id='odiv-inline-editor';input.dataset.editKey=id;input.value=val;input.maxLength=2000;input.setAttribute('aria-label','编辑'+o.name);
@@ -185,7 +439,10 @@ function renderReply(){
  $('#odiv-edit').setAttribute('aria-label',s.editing?'完成编辑':'编辑选中的回复');
  $('#odiv-edit').textContent=s.editing?'✓':'✎';
  $('#odiv-pause').textContent=s.paused?'▶':'Ⅱ';
- record(s.receipt);
+ $('#odiv-target-bound').textContent='#'+t.id+' · '+displayName(t);
+ renderSettings();
+ $('#odiv-receipt').textContent='操作状态 · '+s.receipt;
+ renderProfile();
 }
 function renderChat(){
  const list=$('#odiv-contacts');list.replaceChildren();
@@ -193,87 +450,93 @@ function renderChat(){
  const log=$('#odiv-chatlog');log.replaceChildren();
  thread().msgs.forEach(m=>{const row=document.createElement('div');row.className='chatbubble'+(m.who==='agent'?' me':'');row.textContent=m.text;log.append(row)});
  log.scrollTop=log.scrollHeight;$('#odiv-chatdraft').value=thread().draft;
+  R.dispatchEvent(new CustomEvent('opendesk-preview-state'));
 }
 function visibleKnowledge(){
  const q=$('#odiv-search').value.toLowerCase().trim();
- return kb.filter(x=>(x.q+' '+x.question+' '+x.a+' '+x.source+' '+(x.aliases||[]).join(' ')).toLowerCase().includes(q)&&(s.filter==='all'||(s.filter==='enabled')===x.enabled)&&(s.source==='all'||s.source===x.source)&&(s.scope==='all'||(s.scope==='general'?!x.scope:!!x.scope)));
+ return kb.filter(x=>(x.q+' '+x.question+' '+x.a+' '+x.source+' '+(x.aliases||[]).join(' ')).toLowerCase().includes(q)&&(s.filter==='all'||(s.filter==='enabled')===x.enabled)&&(s.source==='all'||s.source===x.source)&&(s.scope==='all'||(s.scope==='通用'?!x.scope:!!x.scope)));
 }
 function renderKb(){
- const source=$('#odiv-source'),old=s.source;
- source.replaceChildren();const all=document.createElement('option');all.value='all';all.textContent='所有文件';source.append(all);
- [...new Set(kb.map(x=>x.source))].sort().forEach(file=>{const o=document.createElement('option');o.value=file;o.textContent=file;source.append(o)});
- if(![...source.options].some(x=>x.value===old))s.source='all';source.value=s.source;
- const arr=visibleKnowledge();$('#odiv-kb-count').textContent=`找到 ${arr.length} 条 · 共 ${kb.length} 条`;
+ const select=$('#odiv-source'),previous=s.source;
+ select.replaceChildren();const a=document.createElement('option');a.value='all';a.textContent='所有来源';select.append(a);
+ [...new Set(kb.map(x=>x.source))].sort().forEach(file=>{let opt=document.createElement('option');opt.value=file;opt.textContent=file;select.append(opt)});
+ if(![...select.options].some(x=>x.value===previous))s.source='all';select.value=s.source;
+ const arr=visibleKnowledge();$('#odiv-kb-count').textContent=`找到 ${arr.length} 条 · 共 ${kb.length} 条知识`;
  const list=$('#odiv-kb-list');list.replaceChildren();
- arr.slice(0,s.showAll?arr.length:5).forEach(x=>{
-  const row=document.createElement('div');row.className='kb-row'+(x.enabled?'':' is-disabled');
-  const button=document.createElement('button');button.type='button';button.className='kb-trigger';button.dataset.kb=x.id;button.setAttribute('aria-expanded',String(s.expanded.has(x.id)));button.setAttribute('aria-label',(x.enabled?'已启用':'已停用')+'知识：'+x.q+'。'+x.a);button.title=x.enabled?'已启用知识 · 点击展开':'已停用 · 不参与回复 · 点击展开';
-  const line=document.createElement('span');line.className='kb-line';
-  const question=document.createElement('strong');question.textContent=x.q;
-  const sep=document.createTextNode(' · ');
-  const answer=document.createElement('span');answer.className='kb-answer';answer.textContent=x.a;
-  line.append(question,sep,answer);
-  const chevron=document.createElement('span');chevron.className='kb-chevron';chevron.textContent=s.expanded.has(x.id)?'⌄':'›';
-  button.append(line,chevron);row.append(button);
-  if(s.expanded.has(x.id)){
-   const detail=document.createElement('div');detail.className='kb-detail';
-   const full=document.createElement('div');full.className='kb-full-answer';full.textContent=x.a;
-   const metadata=document.createElement('div');metadata.className='kb-meta';metadata.textContent=(x.enabled?'可参与知识匹配':'已停用 · 不参与回复')+' · 来源 '+x.source;
-   detail.append(full,metadata);row.append(detail);
+ if(!arr.length){const empty=document.createElement('p');empty.className='kb-empty';empty.textContent='没有符合当前搜索与筛选条件的知识。';list.append(empty);return}
+ for(const k of arr){
+  const open=s.expanded.has(k.id);
+  const entry=document.createElement('article');entry.className='kb-rich-entry'+(k.enabled?'':' disabled');entry.dataset.kbid=k.id;
+  const trigger=document.createElement('button');trigger.type='button';trigger.className='kb-rich-row';trigger.dataset.kb=k.id;trigger.setAttribute('aria-expanded',String(open));trigger.setAttribute('aria-label',`${k.q}，${k.enabled?'已启用':'已停用'}，${k.category||'未分类'}，${k.scope||'通用'}，点击${open?'收起':'展开'}知识详情`);
+  const content=document.createElement('span');content.className='kb-rich-main';
+  const title=document.createElement('strong');title.className='kb-rich-title';title.textContent=k.q;
+  const answer=document.createElement('span');answer.className='kb-rich-summary';answer.textContent=k.a;
+  const tags=document.createElement('span');tags.className='kb-rich-tags';
+  const state=document.createElement('span');state.className='kb-tag '+(k.enabled?'enabled':'disabled');state.textContent=k.enabled?'启用':'停用';tags.append(state);
+  for(const label of [k.category||'未分类',k.scope||'通用']){const tag=document.createElement('span');tag.className='kb-tag muted-tag';tag.textContent=label;tags.append(tag)}
+  content.append(title,answer,tags);const chevron=document.createElement('span');chevron.className='kb-rich-chevron';chevron.setAttribute('aria-hidden','true');chevron.textContent=open?'⌄':'›';trigger.append(content,chevron);entry.append(trigger);
+  if(open){
+   const details=document.createElement('div');details.className='kb-rich-detail';
+   const fields=[['完整答案',k.a],['同义问题',(k.aliases&&k.aliases.length)?k.aliases.join('、'):'暂无同义问题'],['数据来源',k.source],['托管资格',k.eligible&&k.enabled&&!k.scope?(k.eligibility||'预设演示知识，仍需精确匹配'):(k.eligibility||'暂不参与自动托管')]];
+   for(const [label,value] of fields){const group=document.createElement('div');group.className='kb-rich-field';const cap=document.createElement('strong');cap.textContent=label;const val=document.createElement('p');val.textContent=value;group.append(cap,val);details.append(group)}
+   entry.append(details)
   }
-  list.append(row);
- });
- const more=$('#odiv-kb-more');
- more.classList.toggle('hidden',arr.length<=5);
- more.textContent=s.showAll?'收起列表':'显示其余 '+(arr.length-5)+' 条';
+  list.append(entry)
+ }
+}
+function renderSettings(){
+ $('#odiv-auto').checked=s.auto;$('#odiv-permission').checked=s.permission;$('#odiv-observe').checked=!s.paused;
+ $('#odiv-follow').checked=s.follow;$('#odiv-verify').checked=s.verify;$('#odiv-nickname').value=s.nicknameMode;
+ const takeover=s.takeover.has(s.tid);$('#odiv-takeover-settings').textContent=takeover?'恢复托管':'人工接管';
+ $('#odiv-takeover-settings').disabled=!s.auto&&!takeover;
+ $('#odiv-auto-info').textContent=s.auto?'仅后续精确匹配且具托管资格的演示消息会自动回复；人工可随时接管。':'智能托管已关闭，AI 继续提供推荐答案。';
 }
 function sendDraft({automatic=false,expectedThread=s.tid,expectedMessage=message()?.id}={}){
  const t=thread(),m=message(),text=t.draft.trim();
  if(!canObserve()||!m||!text){record('未发送：无有效草稿或观察停止');return false}
  if(t.id!==expectedThread||m.id!==expectedMessage){record('未发送：会话已变化');return false}
  if(t.sent.has(m.id)){record('已阻止同一客户消息的重复回复');return false}
- if(automatic&&(!t.auto||!t.consented||s.takeover.has(t.id))){record('托管已停止，未发送');return false}
+ if(automatic&&(!s.auto||!s.consented||s.takeover.has(t.id))){record('托管已停止，未发送');return false}
  const rid='r'+(++counter);
  t.msgs.push({id:rid,who:'agent',text,replyTo:m.id});t.sent.add(m.id);t.draft='';
- const verified=t.msgs.filter(x=>x.id===rid&&x.replyTo===m.id&&x.text===text).length===1;
+ const verified=s.verify?t.msgs.filter(x=>x.id===rid&&x.replyTo===m.id&&x.text===text).length===1:null;
  renderChat();renderReply();
- if(verified){record((automatic?'智能托管':'人工')+'模拟发送 '+rid+' · 回读一致');toast('模拟发送已确认 · 非真实平台')}
+ if(verified===true){record((automatic?'智能托管':'人工')+'模拟发送 '+rid+' · 回读一致');toast('模拟发送已确认 · 非真实平台')}
+ else if(verified===null){record('模拟消息已提交，但未启用回读验证 · 发送状态未确认');toast('已模拟提交，未确认回读')}
  else{record('发送结果不确定 · 已停止重试');toast('模拟回读不确定，请人工核实')}
- return verified;
+ return verified===true;
 }
 function receive(text){
  const t=thread(),id='m'+(++counter);t.msgs.push({id,who:'customer',text});s.editing=null;
  renderChat();renderReply();
  if(!canObserve()){record('收到模拟消息，观察已停止');return}
- if(t.auto&&t.consented&&!s.takeover.has(t.id)){
+ if(s.auto&&s.consented&&!s.takeover.has(t.id)){
   const h=match();
-  if(h&&h.exact&&!/赔偿|承诺|密码|身份证/.test(text)){
+  if(h&&h.exact&&h.k.eligible===true&&h.k.enabled&&!h.k.scope&&!/赔偿|承诺|密码|身份证/.test(text)){
    t.draft='您好，'+h.k.a;
    sendDraft({automatic:true,expectedThread:t.id,expectedMessage:id});
   }else{
-   t.auto=false;s.takeover.add(t.id);renderReply();
+   s.takeover.add(t.id);renderReply();
    record('未精确命中或含风险内容，当前会话转人工；AI 推荐继续可用');
    toast('已转人工 · 没有自动发送');
   }
  }else{record('客户新消息 '+id+' · 等待人工处理');toast('已收到模拟消息')}
 }
-function switchTab(tab){s.tab=tab;$('#odiv-tabs').classList.toggle('hidden',tab==='chat');$$('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));$$('.view').forEach(v=>v.classList.toggle('on',v.id==='odiv-'+tab));if(tab==='knowledge')renderKb();$('#odiv-heading').textContent=tab==='chat'?'聊天模拟器':'AI 客服'}
+function switchTab(tab){s.tab=tab;$('#odiv-tabs').classList.toggle('hidden',tab==='chat');$$('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));$$('.view').forEach(v=>v.classList.toggle('on',v.id==='odiv-'+tab));if(tab==='knowledge')renderKb();if(tab==='customer')renderProfile();$('#odiv-heading').textContent=tab==='chat'?'聊天模拟器':'AI 客服'}
 function reset(){
- counter=7;threads=initialThreads();kb=initialKb();s.tid='t1';s.paused=false;s.permission=true;s.pendingConsentTid=null;s.takeover.clear();s.chosen.clear();s.edits.clear();s.editing=null;s.filter='all';s.source='all';s.scope='all';s.showAll=false;s.expanded.clear();s.expandedReply.clear();s.receipt='尚未发送';
+ counter=7;threads=initialThreads();kb=initialKb();profileHistory=demoHistorySeed();profileFacts=[];profileExpanded.clear();profileFilter='all';$('#odiv-profile-filter').value='all';$('#odiv-profile-search').value='';$('#odiv-history-zone').classList.add('hidden');$('#odiv-history-status').textContent='导入后点击 ✦ 提取可审查的关键语料。';addProfileFacts();s.tid='t1';s.paused=false;s.permission=true;s.auto=false;s.consented=false;s.takeover.clear();s.chosen.clear();s.edits.clear();s.editing=null;s.filter='all';s.source='all';s.scope='all';s.expanded.clear();s.receipt='尚未发送';s.follow=true;s.verify=true;s.nicknameMode='original';s.logHistory=[];
  $('#odiv-search').value='';$('#odiv-scope').value='all';$('#odiv-pop').classList.add('hidden');$('#odiv-import').classList.add('hidden');$('#odiv-permission').checked=true;$('#odiv-observe').checked=true;$('#odiv-auto').checked=false;$('#odiv-consent').classList.add('hidden');$('#odiv-auto-info').textContent='自动回复已关闭，AI 继续提供推荐答案。';
  $$('[data-filter]').forEach(b=>b.classList.toggle('on',b.dataset.filter==='all'));$('#odiv-import-msg').textContent='';
- renderReply();renderChat();renderKb();switchTab('reply');$('#odiv-tabs').classList.remove('hidden');toast('演示已重置');
+ renderReply();renderChat();renderKb();switchTab('reply');$('#odiv-tabs').classList.remove('hidden');renderSettings();window.dispatchEvent(new Event('od-workbench-reset'));toast('演示已重置');
 }
 R.addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b)return;
  if(b.dataset.tab)return switchTab(b.dataset.tab);
- if(b.dataset.expandReply){const style=b.dataset.expandReply,key=msgKey()+':'+style;s.expandedReply.has(key)?s.expandedReply.delete(key):s.expandedReply.add(key);const keyboardVisible=b.matches(':focus-visible');renderReply();if(keyboardVisible){const next=R.querySelector('[data-expand-reply="'+style+'"]');if(next)next.focus()}return}
  if(b.dataset.choice){const o=variants().find(x=>x.id===b.dataset.choice);if(!o)return;s.chosen.set(msgKey(),o.id);s.editing=null;renderReply();return}
  if(b.dataset.finishEdit){s.editing=null;renderReply();toast('已完成此条回复的编辑');return}
- if(b.dataset.contact){s.tid=b.dataset.contact;s.editing=null;s.pendingConsentTid=null;$('#odiv-consent').classList.add('hidden');renderChat();renderReply();return}
+ if(b.dataset.contact){s.tid=b.dataset.contact;s.editing=null;renderChat();renderReply();return}
  if(b.dataset.question){if(b.dataset.question==='two'){receive('我想咨询退款问题。');return receive('另外，请问电子发票怎么申请？')}return receive({refund:'签收后 7 天内还能申请退款吗？',invoice:'请问能开发票吗？',shipping:'物流怎么查询？',unknown:'可以立即给我赔偿承诺吗？'}[b.dataset.question])}
- if(b.dataset.filter){s.filter=b.dataset.filter;s.showAll=false;$$('[data-filter]').forEach(x=>x.classList.toggle('on',x.dataset.filter===s.filter));renderKb();return}
- if(b.id==='odiv-kb-more'){s.showAll=!s.showAll;renderKb();return}
+ if(b.dataset.filter){s.filter=b.dataset.filter;$$('[data-filter]').forEach(x=>x.classList.toggle('on',x.dataset.filter===s.filter));renderKb();return}
  if(b.dataset.kb!==undefined){const id=b.dataset.kb;s.expanded.has(id)?s.expanded.delete(id):s.expanded.add(id);renderKb()}
 });
 R.addEventListener('input',e=>{
@@ -288,9 +551,9 @@ $('#odiv-theme').addEventListener('click',()=>R.classList.toggle('dark'));
 $('#odiv-reset').addEventListener('click',reset);
 $('#odiv-pause').addEventListener('click',()=>{s.paused=!s.paused;$('#odiv-observe').checked=!s.paused;renderReply();record(s.paused?'已暂停消息观察':'已恢复消息观察')});
 $('#odiv-takeover').addEventListener('click',()=>{
- if(!thread().auto&&!s.takeover.has(s.tid))return;
- if(s.takeover.has(s.tid)){s.takeover.delete(s.tid);record('已退出人工接管，恢复人工辅助；需手动开启托管')}
- else{thread().auto=false;s.takeover.add(s.tid);record('已接管当前会话：自动发送已停止，AI 推荐保持可用')}
+ if(!s.auto&&!s.takeover.has(s.tid))return;
+ if(s.takeover.has(s.tid)){s.takeover.delete(s.tid);record('已恢复当前会话托管，历史消息不会补发')}
+ else{s.takeover.add(s.tid);record('已接管当前会话：暂停自动发送，AI 推荐保持可用')}
  renderReply();
 });
 $('#odiv-hit').addEventListener('click',()=>{const m=match();switchTab('knowledge');if(m){$('#odiv-search').value=m.k.q;renderKb()}});
@@ -303,19 +566,18 @@ $('#odiv-fill').addEventListener('click',()=>{
  if(t.sent.has(m.id)){record('此条消息已回复，避免重复填入');return}
  if(t.draft&&t.draft!==value&&!window.confirm('模拟聊天中已有尚未发送的草稿，确定覆盖吗？'))return;
  const oldKey=msgKey();t.draft=value;renderChat();
- const confirmed=oldKey===msgKey()&&t.draft===$('#odiv-chatdraft').value;
+ const confirmed=oldKey===msgKey()&&t.draft===$('#odiv-chatdraft').value&&t.draft===document.getElementById('od-chat-draft').value;
  record(confirmed?'已填入并回读模拟草稿 · 未发送':'草稿回读不一致，停止操作');toast(confirmed?'已填入聊天草稿 · 未发送':'无法确认草稿，请人工检查');
 });
 $('#odiv-copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(replyText());toast('已复制所选回复')}catch(e){toast('未获得剪贴板权限，请先点击编辑并手动复制')}});
 $('#odiv-send').addEventListener('click',()=>sendDraft());
 $('#odiv-chatdraft').addEventListener('input',e=>{thread().draft=e.target.value});
-$('#odiv-search').addEventListener('input',()=>{s.showAll=false;renderKb()});
-$('#odiv-filter').addEventListener('click',()=>{$('#odiv-import').classList.add('hidden');$('#odiv-pop').classList.toggle('hidden')});
-$('#odiv-upload').addEventListener('click',()=>{$('#odiv-pop').classList.add('hidden');$('#odiv-import').classList.toggle('hidden')});
-R.addEventListener('keydown',e=>{if(e.key==='Escape'){const active=!$('#odiv-pop').classList.contains('hidden')?'#odiv-filter':!$('#odiv-import').classList.contains('hidden')?'#odiv-upload':null;$('#odiv-pop').classList.add('hidden');$('#odiv-import').classList.add('hidden');if(active)$(active).focus()}});
-$('#odiv-source').addEventListener('change',e=>{s.source=e.target.value;s.showAll=false;renderKb()});
-$('#odiv-scope').addEventListener('change',e=>{s.scope=e.target.value;s.showAll=false;renderKb()});
-$('#odiv-clear').addEventListener('click',()=>{s.filter='all';s.source='all';s.scope='all';s.showAll=false;$('#odiv-scope').value='all';$$('[data-filter]').forEach(b=>b.classList.toggle('on',b.dataset.filter==='all'));renderKb()});
+$('#odiv-search').addEventListener('input',renderKb);
+$('#odiv-filter').addEventListener('click',()=>$('#odiv-pop').classList.toggle('hidden'));
+$('#odiv-upload').addEventListener('click',()=>$('#odiv-import').classList.toggle('hidden'));
+$('#odiv-source').addEventListener('change',e=>{s.source=e.target.value;renderKb()});
+$('#odiv-scope').addEventListener('change',e=>{s.scope=e.target.value;renderKb()});
+$('#odiv-clear').addEventListener('click',()=>{s.filter='all';s.source='all';s.scope='all';$('#odiv-scope').value='all';$$('[data-filter]').forEach(b=>b.classList.toggle('on',b.dataset.filter==='all'));renderKb()});
 const zone=$('#odiv-import');zone.addEventListener('dragover',e=>e.preventDefault());
 zone.addEventListener('drop',e=>{e.preventDefault();readFile(e.dataTransfer.files?.[0])});
 $('#odiv-file').addEventListener('change',e=>{readFile(e.target.files?.[0]);e.target.value=''});
@@ -332,33 +594,229 @@ async function readFile(file){
    if(!question||!answer||question.length>240||answer.length>2000)throw Error('第 '+(i+1)+' 条问答不符合要求');
    const aliases=Array.isArray(x.aliases)?x.aliases.filter(y=>typeof y==='string').slice(0,20):[];
    const keys=Array.isArray(x.keywords)?x.keywords.filter(y=>typeof y==='string').slice(0,20):question.split(/[\s，。？！?]/).filter(w=>w.length>1).slice(0,10);
-   return {id:'k'+(++counter),q:question,question,a:answer,keys,aliases,source:file.name,enabled:x.enabled!==false,scope:x.scope||null};
+   return {id:'k'+(++counter),q:question,question,a:answer,keys,aliases,source:file.name,enabled:x.enabled!==false,category:String(x.category||x.group||'导入').slice(0,24),scope:x.scope||null,eligible:false,eligibility:'导入数据尚未经过托管资格审核，默认只提供推荐'};
   });
-  kb.unshift(...added);s.filter='all';s.source='all';s.scope='all';s.showAll=false;$('#odiv-search').value='';$('#odiv-scope').value='all';$$('[data-filter]').forEach(b=>b.classList.toggle('on',b.dataset.filter==='all'));$('#odiv-import-msg').textContent='导入 '+added.length+' 条';zone.classList.add('hidden');renderKb();renderReply();toast('已导入 '+added.length+' 条 · 仅当前页面内存');
+  kb.push(...added);$('#odiv-import-msg').textContent='导入 '+added.length+' 条';zone.classList.add('hidden');renderKb();renderReply();toast('已导入 '+added.length+' 条 · 仅当前页面内存');
  }catch(e){$('#odiv-import-msg').textContent='导入失败';toast('导入失败：'+e.message)}
 }
 $('#odiv-auto').addEventListener('change',e=>{
- const t=thread();
- if(!e.target.checked){t.auto=false;s.pendingConsentTid=null;$('#odiv-consent').classList.add('hidden');renderReply();return}
- if(!canObserve()){e.target.checked=false;toast('请先恢复授权和消息观察');return}
- if(!t.consented){e.target.checked=false;s.pendingConsentTid=t.id;$('#odiv-consent').classList.remove('hidden')}
- else{t.auto=true;s.takeover.delete(t.id);renderReply()}
+ if(!e.target.checked){s.auto=false;$('#odiv-auto-info').textContent='自动回复已关闭，AI 继续提供推荐答案。';renderReply();return}
+ if(!s.consented){e.target.checked=false;$('#odiv-consent').classList.remove('hidden')}
+ else{s.auto=true;$('#odiv-auto-info').textContent='仅对后续精确命中的演示消息自动回复。';renderReply()}
 });
 $('#odiv-confirm').addEventListener('click',()=>{
- const t=thread();
- if(!canObserve()||s.pendingConsentTid!==t.id){s.pendingConsentTid=null;$('#odiv-consent').classList.add('hidden');toast('会话或授权已变化，请重新开启');return}
- t.consented=true;t.auto=true;s.takeover.delete(t.id);s.pendingConsentTid=null;
- $('#odiv-consent').classList.add('hidden');renderReply();toast('当前会话模拟自动回复已开启');
+ s.consented=true;s.auto=true;$('#odiv-auto').checked=true;$('#odiv-consent').classList.add('hidden');$('#odiv-auto-info').textContent='仅对后续精确命中的演示消息自动回复，人工接管后继续推荐。';renderReply();toast('模拟自动回复已启用');
 });
-$('#odiv-cancel').addEventListener('click',()=>{s.pendingConsentTid=null;$('#odiv-consent').classList.add('hidden')});
-$('#odiv-permission').addEventListener('change',e=>{
- s.permission=e.target.checked;
- if(!s.permission){threads.forEach(t=>t.auto=false);s.pendingConsentTid=null;$('#odiv-consent').classList.add('hidden')}
- renderReply();record(s.permission?'模拟授权已恢复':'已撤销授权 · 所有会话自动回复停止');
-});
+$('#odiv-cancel').addEventListener('click',()=>$('#odiv-consent').classList.add('hidden'));
+$('#odiv-permission').addEventListener('change',e=>{s.permission=e.target.checked;renderReply();record(s.permission?'模拟授权已恢复':'模拟授权已撤销 · 停止观察')});
 $('#odiv-observe').addEventListener('change',e=>{s.paused=!e.target.checked;renderReply();record(s.paused?'已暂停观察':'已恢复观察')});
-renderReply();renderChat();renderKb();switchTab('reply');
+
+$('#odiv-follow').addEventListener('change',e=>{s.follow=e.target.checked;document.getElementById('od-r12').dataset.follow=s.follow?'true':'false';record(s.follow?'已启用模拟智能跟随':'已关闭自动跟随，模拟助手保持当前位置')});
+$('#odiv-verify').addEventListener('change',e=>{s.verify=e.target.checked;record(s.verify?'已开启回读验证':'已关闭回读验证，后续模拟提交不会标记为确认送达')});
+$('#odiv-nickname').addEventListener('change',e=>{s.nicknameMode=e.target.value;renderChat();renderReply();record('昵称显示方式已切换')});
+$('#odiv-multipart').addEventListener('click',()=>{receive('我想咨询退款申请的时间。');receive('另外，请问电子发票如何申请？')});
+$('#odiv-takeover-settings').addEventListener('click',()=>$('#odiv-takeover').click());
+$('#odiv-clear-log').addEventListener('click',()=>{s.logHistory=[];s.receipt='操作记录已清空';record('操作记录已清空')});
+$('#odiv-reset-position').addEventListener('click',()=>{document.getElementById('od-r12').style.removeProperty('--demo-shift-x');document.getElementById('od-r12').style.removeProperty('--demo-shift-y');window.dispatchEvent(new Event('od-workbench-reset'));record('已重置模拟窗口的手动偏移')});
+
+
+function addProfileFacts(){
+ const seen=new Set(profileFacts.map(f=>f.id));let created=0;
+ for(const [customerId,sessions] of Object.entries(profileHistory)){
+  for(const session of sessions){
+   for(const m of session.messages){
+    if(m.role!=='customer'||!m.text||/身份证号|银行卡号|密码|验证码|宗教|政治立场|医疗诊断/.test(m.text))continue;
+    for(const rule of profileRules){
+     if(!rule.pattern.test(m.text))continue;
+     const id=[customerId,session.sessionId,m.messageId,rule.key].join('/');
+     if(seen.has(id))continue;
+     profileFacts.push({id,customerId,category:rule.category,value:rule.value,evidence:m.text,sessionId:session.sessionId,messageId:m.messageId,at:m.at||'日期未提供',status:'candidate',method:'演示规则匹配'});
+     seen.add(id);created++;
+    }
+   }
+  }
+ }
+ return created;
+}
+function renderProfile(){
+ const t=thread(),list=$('#odiv-profile-list'),query=$('#odiv-profile-search').value.trim().toLowerCase();
+ $('#odiv-profile-name').textContent=displayName(t);
+ $('#odiv-profile-avatar').textContent=t.name.slice(0,1);
+ $('#odiv-profile-id').textContent='仅当前会话 · #'+t.id;
+ const facts=profileFacts.filter(f=>f.customerId===t.id);
+ const confirmed=facts.filter(f=>f.status==='confirmed').length,candidates=facts.filter(f=>f.status==='candidate').length;
+ $('#odiv-profile-count').textContent=confirmed+' 已确认 · '+candidates+' 待确认';
+ const shown=facts.filter(f=>(profileFilter==='all'?f.status!=='dismissed':f.status===profileFilter)&&[f.category,f.value,f.evidence,f.sessionId].join(' ').toLowerCase().includes(query));
+ list.replaceChildren();
+ if(!shown.length){const empty=document.createElement('div');empty.className='profile-empty';empty.textContent='当前筛选下没有客户关键信息。可导入演示历史并点击 ✦ 提取。';list.append(empty)}
+ for(const f of shown){
+  const open=profileExpanded.has(f.id);
+  const article=document.createElement('article');article.className='profile-item';article.dataset.profileId=f.id;
+  const head=document.createElement('div');head.className='profile-item-head';
+  const trigger=document.createElement('button');trigger.type='button';trigger.className='profile-item-trigger';trigger.dataset.profileOpen=f.id;trigger.setAttribute('aria-expanded',String(open));trigger.setAttribute('aria-label',f.category+'：'+f.value+'，'+(f.status==='confirmed'?'已确认':f.status==='dismissed'?'已忽略':'待确认')+'，点击查看来源');
+  const title=document.createElement('strong');title.textContent=f.category+' · '+f.value;
+  const excerpt=document.createElement('span');excerpt.className='profile-evidence-preview';excerpt.textContent='“'+f.evidence+'”';trigger.append(title,excerpt);
+  const label=document.createElement('span');label.className='profile-state '+f.status;label.textContent=f.status==='confirmed'?'已确认':f.status==='dismissed'?'已忽略':'待确认';
+  head.append(trigger,label);article.append(head);
+  if(open){
+   const detail=document.createElement('div');detail.className='profile-detail';
+   for(const [cap,value] of [['客户原话',f.evidence],['可追溯来源',f.sessionId+' / '+f.messageId+' · '+f.at],['提取与权限',f.method+' · 仅供人工参考，不参与自动发送']]){
+    const b=document.createElement('span');b.className='profile-field-label';b.textContent=cap;
+    const val=document.createElement('p');val.textContent=value;detail.append(b,val)
+   }
+   const actions=document.createElement('div');actions.className='profile-actions';
+   for(const [key,txt] of f.status==='candidate'?[['confirm','确认有效'],['dismiss','忽略']]:f.status==='dismissed'?[['restore','恢复待确认']]:[['restore','改回待确认'],['dismiss','忽略']]){
+    const b=document.createElement('button');b.type='button';b.dataset.profileAction=key;b.dataset.profileFact=f.id;b.textContent=txt;if(key==='confirm')b.className='approve';actions.append(b)
+   }
+   detail.append(actions);article.append(detail)
+  }
+  list.append(article)
+ }
+ const sessions=profileHistory[t.id]||[],messages=sessions.flatMap(x=>x.messages.map(m=>({...m,sessionId:x.sessionId}))).filter(m=>m.role==='customer');
+ $('#odiv-profile-history-count').textContent=messages.length+' 条演示语句';
+ const hist=$('#odiv-profile-history-list');hist.replaceChildren();
+ for(const m of messages.slice(-12).reverse()){
+  const d=document.createElement('div');d.className='profile-excerpt';
+  const from=document.createElement('strong');from.textContent=(m.at||'日期未提供')+' · '+m.sessionId;
+  const text=document.createElement('span');text.textContent=m.text;d.append(from,text);hist.append(d)
+ }
+}
+function parseProfileImport(raw){
+ const doc=JSON.parse(raw);
+ if(!doc||doc.schemaVersion!==1||doc.format!=='opendesk.ai-customer-support.customer-history-demo'||doc.demo!==true||!Array.isArray(doc.customers)||!doc.customers.length||doc.customers.length>10)throw Error('需要 customer-history-demo v1 JSON，且必须标记 demo:true');
+ const known=new Set(threads.map(t=>t.id));let count=0;
+ const normalized=doc.customers.map(c=>{
+  if(!c||!known.has(c.customerId)||!Array.isArray(c.sessions)||!c.sessions.length||c.sessions.length>30)throw Error('未知客户或历史会话结构无效');
+  const sessions=c.sessions.map(session=>{
+   if(!session||typeof session.sessionId!=='string'||!/^[-_a-zA-Z0-9]{1,80}$/.test(session.sessionId)||!Array.isArray(session.messages)||session.messages.length>180)throw Error('会话标识或消息数量无效');
+   const messages=session.messages.map(m=>{
+    count++;
+    if(count>360||!m||typeof m.messageId!=='string'||!/^[-_a-zA-Z0-9]{1,80}$/.test(m.messageId)||!['customer','agent'].includes(m.role)||typeof m.text!=='string'||!m.text.trim()||m.text.length>600||m.text.includes('\0')||m.at!==undefined&&(typeof m.at!=='string'||m.at.length>32))throw Error('历史消息存在无效字段或超过容量上限');
+    return {messageId:m.messageId,role:m.role,text:m.text.trim(),at:m.at||''};
+   });
+   return {sessionId:session.sessionId,messages};
+  });
+  return {customerId:c.customerId,sessions};
+ });
+ return {normalized,count};
+}
+async function importProfileFile(file){
+ if(!file)return;
+ try{
+  if(file.size>524288||!file.name.toLowerCase().endsWith('.json'))throw Error('仅支持 512KB 以内的客户历史演示 JSON');
+  const parsed=parseProfileImport(await file.text());let added=0;
+  for(const c of parsed.normalized){
+   profileHistory[c.customerId]||=[];
+   for(const session of c.sessions){
+    let dest=profileHistory[c.customerId].find(x=>x.sessionId===session.sessionId);
+    if(!dest){dest={sessionId:session.sessionId,messages:[]};profileHistory[c.customerId].push(dest)}
+    const ids=new Set(dest.messages.map(m=>m.messageId));
+    for(const msg of session.messages){if(!ids.has(msg.messageId)){dest.messages.push(msg);ids.add(msg.messageId);added++}}
+   }
+  }
+  $('#odiv-history-status').textContent='导入 '+added+' 条新历史消息（不覆盖重复记录）。请点击 ✦ 提取关键信息。';
+  renderProfile();toast('历史演示导入 '+added+' 条 · 未上传');
+ }catch(e){$('#odiv-history-status').textContent='导入失败：'+e.message;toast('客户历史未导入：'+e.message)}
+}
+R.addEventListener('click',e=>{
+ const b=e.target.closest('button');if(!b)return;
+ if(b.dataset.profileOpen){profileExpanded.has(b.dataset.profileOpen)?profileExpanded.delete(b.dataset.profileOpen):profileExpanded.add(b.dataset.profileOpen);renderProfile();return}
+ if(b.dataset.profileAction){
+  const f=profileFacts.find(x=>x.id===b.dataset.profileFact&&x.customerId===s.tid);if(!f)return;
+  f.status=b.dataset.profileAction==='confirm'?'confirmed':b.dataset.profileAction==='dismiss'?'dismissed':'candidate';renderProfile();toast(f.status==='confirmed'?'已人工确认，仍不自动发送':f.status==='dismissed'?'已忽略此条记录':'已恢复待确认');return
+ }
+});
+$('#odiv-profile-search').addEventListener('input',renderProfile);
+$('#odiv-profile-filter').addEventListener('change',e=>{profileFilter=e.target.value;renderProfile()});
+$('#odiv-history-toggle').addEventListener('click',()=>$('#odiv-history-zone').classList.toggle('hidden'));
+$('#odiv-profile-extract').addEventListener('click',()=>{const added=addProfileFacts();renderProfile();toast('本地规则提取完成 · 新增 '+added+' 条候选（非模型推理）')});
+$('#odiv-history-file').addEventListener('change',e=>{void importProfileFile(e.target.files?.[0]);e.target.value=''});
+const historyDrop=$('#odiv-history-zone');historyDrop.addEventListener('dragover',e=>e.preventDefault());
+historyDrop.addEventListener('drop',e=>{e.preventDefault();void importProfileFile(e.dataTransfer.files?.[0])});
+$('#odiv-profile-clear').addEventListener('click',()=>{
+ const id=s.tid;
+ if(!window.confirm('确认清空 '+thread().name+' 的演示历史和提取信息？此操作不可撤销，但不影响其他客户或通用知识库。'))return;
+ profileHistory[id]=[];profileFacts=profileFacts.filter(x=>x.customerId!==id);profileExpanded.clear();renderProfile();toast('当前客户演示档案已清空');
+});
+
+// Browser-only view adapter: the right Copilot remains the sole message/knowledge owner.
+R.__previewBridge=Object.freeze({
+  snapshot(){return {current:s.tid,paused:s.paused,permission:s.permission,auto:s.auto,follow:s.follow,verify:s.verify,nicknameMode:s.nicknameMode,
+    threads:threads.map(t=>({id:t.id,name:displayName(t),draft:t.draft,messages:t.msgs.map(m=>({...m})),sent:[...t.sent]}))};},
+  selectThread(id){if(!threads.some(t=>t.id===id))return;s.tid=id;s.editing=null;renderChat();renderReply();},
+  receive(text){if(typeof text!=='string'||!text.trim())return;receive(text.trim().slice(0,400));},
+  setDraft(text){thread().draft=String(text).slice(0,2000);$('#odiv-chatdraft').value=thread().draft;},
+  send(){return sendDraft();},
+  reset(){reset();},
+  show(tab){switchTab(tab);},
+  theme(dark){R.classList.toggle('dark',dark);}
+});
+addProfileFacts();renderReply();renderChat();renderKb();renderProfile();switchTab('reply');
 })();
 </script>
-
-</body></html>
+<script>
+(()=>{
+ 'use strict';
+ const shell=document.getElementById('od-r12'),right=document.getElementById('od-compact-inline');
+ if(!shell||!right||!right.__previewBridge)return;
+ const bridge=right.__previewBridge, $=q=>shell.querySelector(q);
+ const chips={refund:'签收后 7 天内还能申请退款吗？',invoice:'请问能开发票吗？',shipping:'物流怎么查询？',product:'商品如何选尺码？',unknown:'可以立即给我赔偿承诺吗？'};
+ const labels={t1:'退货咨询',t2:'物流咨询',t3:'商品咨询'};let query='';
+ let lastSnapshot=null;
+ function draw(){
+   const state=bridge.snapshot();lastSnapshot=state;
+   const current=state.threads.find(t=>t.id===state.current);if(!current)return;
+   const contacts=$('#od-contacts');contacts.replaceChildren();
+   state.threads.filter(t=>!query||t.name.includes(query)||labels[t.id]?.includes(query)).forEach(t=>{
+      const b=document.createElement('button');b.type='button';b.className='contactbtn'+(t.id===current.id?' on':'');b.dataset.contact=t.id;
+      const face=document.createElement('span');face.className='avatar';face.textContent=t.name[0];
+      const meta=document.createElement('span');meta.className='contact-meta';
+      const name=document.createElement('b');name.textContent=t.name;const label=document.createElement('small');label.textContent=labels[t.id]||'客户咨询';
+      const preview=document.createElement('span');preview.className='contact-preview';preview.textContent=(t.messages.at(-1)?.text||'').slice(0,26);
+      meta.append(name,label,preview);b.append(face,meta);contacts.append(b);
+   });
+   $('#od-chat-name').textContent=current.name;
+   $('#od-chat-id').textContent='#'+current.id+' · 已绑定模拟窗口 · '+(state.auto?'托管可用':'人工辅助');
+   const list=$('#od-messages');list.replaceChildren();
+   current.messages.forEach(m=>{
+     const row=document.createElement('div');row.className='bubble'+(m.who==='agent'?' outgoing':'');
+     const body=document.createElement('div');body.className='bubble-text';body.textContent=m.text;
+     const time=document.createElement('small');time.textContent=(m.who==='agent'?'客服 · ':'客户 · ')+m.id+(m.replyTo?' · 回执关联 '+m.replyTo:'');
+     row.append(body,time);list.append(row);
+   });
+   list.scrollTop=list.scrollHeight;
+   const input=$('#od-chat-draft');if(input.value!==current.draft)input.value=current.draft;
+ }
+ right.addEventListener('opendesk-preview-state',draw);
+ shell.addEventListener('click',e=>{
+   const btn=e.target.closest('button');if(!btn)return;
+   if(btn.dataset.contact){bridge.selectThread(btn.dataset.contact);return}
+   if(btn.dataset.ask){bridge.receive(chips[btn.dataset.ask]||'');return}
+   if(btn.dataset.view){$('#od-stage-inner').dataset.show=btn.dataset.view;shell.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('on',x.dataset.view===btn.dataset.view));return}
+ });
+ $('#od-chat-draft').addEventListener('input',e=>bridge.setDraft(e.target.value));
+ $('#od-contact-search').addEventListener('input',e=>{query=e.target.value.trim();draw()});
+ $('#od-chat-send').addEventListener('click',()=>bridge.send());
+ $('#od-ask-custom').addEventListener('click',()=>{const input=$('#od-customer-question');if(!input.value.trim())return;bridge.receive(input.value);input.value=''})
+ $('#od-customer-question').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#od-ask-custom').click()}});
+ $('#od-theme').addEventListener('click',()=>{const dark=shell.getAttribute('data-theme')!=='dark';shell.setAttribute('data-theme',dark?'dark':'light');bridge.theme(dark)});
+ $('#od-reset').addEventListener('click',()=>{bridge.reset();$('#od-customer-question').value='';$('#od-stage-inner').dataset.show='assistant';shell.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('on',x.dataset.view==='assistant'));});
+ window.addEventListener('od-workbench-reset',()=>{const node=$('#od-contact-search');if(node){node.value='';query=''};draw()});
+ draw();
+})();
+</script>
+<script>
+(()=>{
+ const shell=document.getElementById('od-r12'),chat=shell?.querySelector('section.window.chat'),assist=shell?.querySelector('.merge-assistant'),head=chat?.querySelector('.window-header');
+ if(!shell||!chat||!assist||!head)return;
+ let pointer=null,minimized=false;
+ function reset(){pointer=null;shell.style.setProperty('--demo-shift-x','0px');shell.style.setProperty('--demo-shift-y','0px')}
+ head.addEventListener('pointerdown',e=>{if(e.target.closest('button')||e.button!==0||window.innerWidth<950)return;pointer={id:e.pointerId,x:e.clientX,y:e.clientY};head.setPointerCapture(e.pointerId)});
+ head.addEventListener('pointermove',e=>{if(!pointer||e.pointerId!==pointer.id)return;const dx=Math.max(-28,Math.min(28,e.clientX-pointer.x)),dy=Math.max(-20,Math.min(20,e.clientY-pointer.y));shell.style.setProperty('--demo-shift-x',dx+'px');shell.style.setProperty('--demo-shift-y',dy+'px')});
+ head.addEventListener('pointerup',()=>pointer=null);head.addEventListener('pointercancel',()=>pointer=null);
+ shell.querySelector('#od-minimize').addEventListener('click',()=>{minimized=true;document.getElementById('od-stage-inner').classList.add('sim-minimized');shell.querySelector('#od-minimized').classList.remove('hidden')});
+ shell.querySelector('#od-restore').addEventListener('click',()=>{minimized=false;document.getElementById('od-stage-inner').classList.remove('sim-minimized');shell.querySelector('#od-minimized').classList.add('hidden')});
+ window.addEventListener('od-workbench-reset',()=>{reset();if(minimized){minimized=false;document.getElementById('od-stage-inner').classList.remove('sim-minimized');shell.querySelector('#od-minimized').classList.add('hidden')}});
+ reset()
+})();
+</script></body></html>
