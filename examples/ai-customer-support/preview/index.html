@@ -2,7 +2,7 @@
 
 <html lang="zh-CN">
 <head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/>
-<title>OpenDesk AI 客服助手 · Full Workbench</title><meta name="description" content="双窗口客服工作台、Compact Copilot、完整知识库、客户历史档案与模拟回复的离线交互原型">
+<title>OpenDesk AI 客服助手 · Full Workbench R1.6</title><meta name="description" content="双窗口客服工作台、Compact Copilot、完整知识库、客户历史档案与模拟回复的离线交互原型">
 <meta content="保留 R1.2 左侧模拟聊天和知识库列表，右侧采用 Compact Copilot R1.3。纯离线浏览器交互演示。" name="description"/>
 </head>
 <body style="margin:0">
@@ -248,6 +248,59 @@
 #od-compact-inline .profile-clear{display:block;border:0;background:transparent;color:var(--muted);padding:7px 0 0;text-decoration:underline;font-size:10px}
 #od-compact-inline .profile-empty{padding:20px 10px;text-align:center;color:var(--muted);font-size:11px}
 @container (max-width:360px){#od-compact-inline .tabs button{font-size:10.5px!important;padding:0 3px!important}#od-compact-inline .profile-scroll{padding:11px 11px 16px}}
+/* R1.6 profile: one bound-customer markdown reader and one compact directory, never two competing managers. */
+#od-compact-inline .profile-scroll{padding:13px 14px 17px!important}
+#od-compact-inline .profile-screen.hidden{display:none!important}
+#od-compact-inline .profile-nav{display:flex;align-items:center;justify-content:space-between;gap:9px;min-height:28px;margin-bottom:11px}
+#od-compact-inline .profile-nav>b{font-size:13px}
+#od-compact-inline .profile-nav-link,#od-compact-inline .profile-nav-back{border:none;background:none;padding:4px 0;color:var(--accent);font-weight:640;font-size:11px;cursor:pointer}
+#od-compact-inline .profile-nav-back{color:var(--muted);font-weight:620}
+#od-compact-inline .profile-current-chip{background:var(--good);color:var(--green);border-radius:7px;padding:3px 7px;font-size:10px;white-space:nowrap}
+#od-compact-inline .profile-current-chip.other{background:var(--soft);color:var(--muted)}
+#od-compact-inline .profile-head{margin-top:1px}
+#od-compact-inline .profile-subline{margin:6px 0 12px;color:var(--muted);font-size:10.5px;line-height:1.6}
+#od-compact-inline .profile-directory-search{display:flex;gap:7px;align-items:center;height:35px;background:var(--soft);border:1px solid var(--line);border-radius:9px;padding:0 10px;color:var(--muted)}
+#od-compact-inline .profile-directory-search input{flex:1;width:100%;min-width:0;background:none;border:none;outline:none;font-size:11.5px}
+#od-compact-inline .profile-directory-count{margin:11px 2px 5px;font-size:10px;color:var(--muted)}
+#od-compact-inline .profile-directory-row{display:flex;gap:10px;width:100%;text-align:left;align-items:center;background:transparent;border:none;border-bottom:1px solid var(--line);padding:11px 3px;min-width:0}
+#od-compact-inline .profile-directory-row:hover,#od-compact-inline .profile-directory-row:focus-visible{background:var(--soft);border-radius:7px}
+#od-compact-inline .profile-directory-row .profile-directory-avatar{display:grid;place-items:center;border-radius:10px;width:32px;height:32px;flex:none;background:var(--accent-soft);color:var(--accent);font-weight:730}
+#od-compact-inline .profile-directory-row .profile-directory-main{display:block;flex:1;min-width:0}
+#od-compact-inline .profile-directory-row strong{font-size:12px;display:inline-block;margin-right:6px}
+#od-compact-inline .profile-directory-row .profile-directory-current{font-size:9px;color:var(--green);background:var(--good);border-radius:5px;padding:2px 5px}
+#od-compact-inline .profile-directory-row .profile-directory-sub{font-size:10px;color:var(--muted);display:block;margin:3px 0 2px}
+#od-compact-inline .profile-directory-row .profile-directory-excerpt{font-size:10.5px;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#od-compact-inline .profile-directory-row .profile-directory-arrow{font-size:17px;color:var(--muted)}
+#od-compact-inline .profile-markdown{font-size:11.7px;line-height:1.75;color:var(--text)}
+#od-compact-inline .profile-markdown h3{font-weight:720;font-size:12.5px;margin:18px 0 7px;line-height:1.5}
+#od-compact-inline .profile-markdown h3:first-child{margin-top:14px}
+#od-compact-inline .profile-markdown p{margin:0 0 8px;overflow-wrap:anywhere}
+#od-compact-inline .profile-markdown .profile-summary{color:var(--muted);font-size:11.5px}
+#od-compact-inline .profile-filterbar{margin:15px 0 5px;border-top:1px solid var(--line);padding-top:10px}
+#od-compact-inline .profile-filterbar select{font-size:10px;padding:5px 8px}
+#od-compact-inline .profile-facts-markdown ul{padding-left:18px;margin:5px 0 7px}
+#od-compact-inline .profile-facts-markdown li{padding:3px 0 5px;line-height:1.7}
+#od-compact-inline .profile-facts-markdown .profile-fact-heading{display:flex;align-items:baseline;gap:6px}
+#od-compact-inline .profile-fact-heading .profile-fact-value{flex:1;min-width:0;overflow-wrap:anywhere}
+#od-compact-inline .profile-fact-heading strong{font-weight:710}
+#od-compact-inline .profile-fact-status{font-size:9px;color:var(--muted);white-space:nowrap}
+#od-compact-inline .profile-fact-status.confirmed{color:var(--green)}
+#od-compact-inline .profile-fact-status.dismissed{opacity:.55}
+#od-compact-inline .profile-evidence-link{border:0;background:none;padding:0;color:var(--muted);font-size:10px;text-decoration:underline;text-underline-offset:2px}
+#od-compact-inline .profile-fact-source{margin:6px 0 2px;padding:8px 9px;border-left:2px solid var(--line);background:var(--soft);border-radius:0 8px 8px 0;font-size:10.5px}
+#od-compact-inline .profile-fact-source blockquote{margin:3px 0 6px;font-size:11px;line-height:1.6;overflow-wrap:anywhere}
+#od-compact-inline .profile-fact-source small{font-size:10px;color:var(--muted);overflow-wrap:anywhere}
+#od-compact-inline .profile-fact-source .profile-actions{margin:7px 0 0}
+#od-compact-inline .profile-history{margin:0;border-top:0;padding-top:0}
+#od-compact-inline .profile-history summary{font-weight:530;font-size:11px;color:var(--muted)}
+#od-compact-inline .profile-excerpt{padding:8px 0}
+#od-compact-inline .profile-excerpt span{display:block}
+#od-compact-inline .profile-privacy-note{color:var(--muted);font-size:10px;line-height:1.7;margin-top:12px!important}
+#od-compact-inline .profile-clear{margin-top:7px}
+#od-compact-inline .profile-tools{margin:9px 0 0}
+#od-compact-inline .profile-empty{padding:10px 4px;text-align:left;font-size:11px}
+@container (max-width:360px){#od-compact-inline .profile-scroll{padding:10px 11px 16px!important}}
+
 </style><header class="preview-top"><div class="brand">OD</div><div><div class="ptitle">OpenDesk Desktop · AI 客服助手</div><div class="pmeta">双窗口工作台 · 右侧 Compact Copilot 380px</div></div><div class="push"></div><div class="preview-tools"><div aria-label="预览视图" class="seg" role="group"><button data-view="chat" type="button">聊天</button><button class="on" data-view="assistant" type="button">助手</button></div><button aria-label="切换明暗主题" class="iconbtn" id="od-theme" title="切换明暗主题"><svg class="ico"><use href="#od-i-moon"></use></svg></button><button aria-label="重置模拟数据" class="iconbtn" id="od-reset" title="重置模拟数据"><svg class="ico"><use href="#od-i-rotate"></use></svg></button></div></header>
 <main class="stage"><div class="minimized-bar hidden" id="od-minimized"><span>聊天模拟窗口已最小化 · AI 助手暂时隐藏</span><button id="od-restore" type="button">恢复工作台</button></div><div class="stage-inner" data-show="assistant" id="od-stage-inner"><section aria-label="模拟聊天软件" class="window chat"><header class="window-header"><div class="macdots"><i></i><i></i><i></i></div><span class="windowname">客户沟通台</span><div class="push"></div><span class="muted" style="font-size:10px">仅演示</span><button aria-label="最小化模拟聊天窗口" class="window-mini" id="od-minimize" title="模拟最小化" type="button">−</button></header><div class="chat-body"><nav aria-label="聊天会话" class="contactlist"><strong>会话列表</strong><label class="contact-search"><span aria-hidden="true">⌕</span><input aria-label="搜索模拟聊天联系人" id="od-contact-search" placeholder="搜索联系人" type="search"/></label><div id="od-contacts"></div></nav><section class="conversation"><header class="conversation-head"><strong id="od-chat-name">林女士</strong><small id="od-chat-id">#demo-01 · 模拟</small></header><div class="messages" id="od-messages" role="log"></div><div class="chat-send"><textarea aria-label="模拟聊天草稿" id="od-chat-draft" placeholder="客服输入草稿…"></textarea><button class="primary" id="od-chat-send" type="button"><svg class="ico sm"><use href="#od-i-send"></use></svg>发送</button></div></section></div><section class="demo-tray"><span>模拟客户发送消息</span><div class="demo-chips"><button data-ask="refund">退款</button><button data-ask="invoice">发票 · 精确</button><button data-ask="shipping">物流</button><button data-ask="product">商品</button><button data-ask="unknown">未知问题</button></div><div class="demo-input"><input aria-label="自定义客户提问" id="od-customer-question" placeholder="输入任意测试问题…" type="text"/><button class="smallbtn" id="od-ask-custom">发送问题</button></div></section></section>
 <section aria-label="Compact Copilot · 380 像素右侧助手" class="merge-assistant"><div id="od-compact-inline"><div class="wrap"><div class="preview-control"><div class="od-mark">OD</div><div class="preview-title">AI 客服 · Compact Copilot <span class="tiny grey">· 380px</span></div><div class="flex"></div><button class="tool" id="odiv-view" title="切换聊天模拟器 / AI 助手">☷</button><button class="tool" id="odiv-theme" title="深浅色切换">◐</button><button class="tool" id="odiv-reset" title="重置模拟数据">↻</button></div>
@@ -259,44 +312,49 @@
 </footer></section>
 <section class="view" id="odiv-knowledge"><div class="scroll"><div class="searchbar"><input aria-label="搜索知识库问题、答案、同义问题及数据来源" id="odiv-search" placeholder="搜索问题、答案、同义问题或来源" type="search"/><button class="tool" id="odiv-filter" title="筛选知识">☷</button><button class="tool" id="odiv-upload" title="导入知识">↥</button><div class="pop hidden" id="odiv-pop"><b>状态</b><div class="pills"><button class="on" data-filter="all">全部</button><button data-filter="enabled">已启用</button><button data-filter="disabled">已停用</button></div><b>来源</b><select id="odiv-source"><option value="all">所有文件</option></select>
 <b>适用范围</b><select aria-label="筛选适用范围" id="odiv-scope"><option value="all">全部范围</option><option value="通用">通用</option><option value="特定场景">特定场景</option></select><button class="tool" id="odiv-clear" style="width:auto;padding:0 8px;margin-top:9px;font-size:11px">清除筛选</button></div></div><div class="import hidden" id="odiv-import">拖入 JSON / Markdown 文件<br/>仅当前页面内存，不上传<br/><label for="odiv-file">选择本地文件</label><input accept=".json,.md,.markdown" id="odiv-file" type="file"/></div><div class="between tiny grey" style="margin:11px 0 0"><span id="odiv-kb-count">正在加载演示知识…</span><span id="odiv-import-msg"></span></div><p class="kb-instruction">点击条目可查看完整答案、同义问题、数据来源与托管资格</p><div id="odiv-kb-list"></div></div></section>
-<section class="view" id="odiv-customer" aria-label="当前客户档案">
+<section class="view" id="odiv-customer" aria-label="客户档案">
   <div class="scroll profile-scroll">
-    <div class="profile-head">
-      <div class="profile-avatar" id="odiv-profile-avatar">林</div>
-      <div class="profile-who"><b id="odiv-profile-name">林女士</b><span id="odiv-profile-id">当前会话 · t1</span></div>
-      <span class="profile-demo">演示记录</span>
-    </div>
-    <p class="profile-intro">只整理当前客户明确提过的偏好、历史需求和已确认信息。候选内容经人工确认后才可作为参考，不参与自动发送判断。</p>
-    <div class="profile-tools">
-      <label class="profile-search"><span aria-hidden="true">⌕</span><input id="odiv-profile-search" type="search" aria-label="搜索当前客户档案" placeholder="搜索客户偏好、证据"></label>
-      <button id="odiv-history-toggle" class="tool" title="导入历史会话 JSON" aria-label="导入历史会话">↥</button>
-      <button id="odiv-profile-extract" class="tool" title="重新提取关键信息（演示规则）" aria-label="提取关键信息">✦</button>
-    </div>
-    <div class="profile-import hidden" id="odiv-history-zone">
-      <b>导入当前客户历史对话</b>
-      <p>支持示例 JSON（customers → sessions → messages），仅在页面内存处理，不上传、不持久化。</p>
-      <label class="profile-filelabel" for="odiv-history-file">选择 JSON 文件</label>
-      <input id="odiv-history-file" type="file" accept=".json,application/json">
-      <p class="profile-import-result" id="odiv-history-status" role="status">导入后点击 ✦ 提取可审查的关键语料。</p>
-    </div>
-    <div class="profile-bar">
-      <b>关键信息</b><span class="profile-stats" id="odiv-profile-count">准备读取演示记录…</span>
-    </div>
-    <div class="profile-filterbar">
-      <select id="odiv-profile-filter" aria-label="筛选档案确认状态">
-        <option value="all">全部信息</option><option value="candidate">待确认</option><option value="confirmed">已确认</option><option value="dismissed">已忽略</option>
-      </select>
-      <span class="profile-localscope">仅此客户</span>
-    </div>
-    <div id="odiv-profile-list" class="profile-list" aria-live="polite"></div>
-    <details class="profile-history" id="odiv-profile-history-fold">
-      <summary>历史对话片段 <span id="odiv-profile-history-count">0 条</span></summary>
-      <div id="odiv-profile-history-list"></div>
-    </details>
-    <div class="profile-foot">
-      <span>本地演示提取基于关键词规则，并非真实 AI 记忆或客户身份验证。仅记录可追溯的客户原话，不推断敏感属性。</span>
-      <button class="profile-clear" id="odiv-profile-clear">清空此客户的演示档案</button>
-    </div>
+    <section id="odiv-profile-directory" class="profile-screen hidden" aria-label="客户档案列表">
+      <div class="profile-nav"><b>全部客户</b><button class="profile-nav-link" id="odiv-profile-go-current" type="button">查看当前会话 ↗</button></div>
+      <p class="profile-subline">选择客户查看历史档案，不改变左侧正在聊天的会话。</p>
+      <label class="profile-directory-search"><span aria-hidden="true">⌕</span><input id="odiv-profile-directory-search" type="search" placeholder="搜索客户姓名、偏好与历史" aria-label="搜索全部客户档案"></label>
+      <p class="profile-directory-count" id="odiv-profile-directory-count">3 位演示客户</p>
+      <div id="odiv-profile-directory-list" class="profile-directory-list" aria-live="polite"></div>
+    </section>
+    <section id="odiv-profile-detail" class="profile-screen" aria-label="客户档案详情">
+      <div class="profile-nav"><button type="button" class="profile-nav-back" id="odiv-profile-back">← 客户列表</button><span id="odiv-profile-bound-state" class="profile-current-chip">当前会话</span></div>
+      <div class="profile-head">
+        <div class="profile-avatar" id="odiv-profile-avatar">林</div>
+        <div class="profile-who"><b id="odiv-profile-name">林女士</b><span id="odiv-profile-id">当前会话 · t1</span></div>
+        <span class="profile-demo">演示数据</span>
+      </div>
+      <p class="profile-subline" id="odiv-profile-scope-note">根据当前客户的历史原话整理；未经确认的信息仅供审核。</p>
+      <div class="profile-tools">
+        <label class="profile-search"><span aria-hidden="true">⌕</span><input id="odiv-profile-search" type="search" placeholder="查找档案内容" aria-label="搜索此客户档案"></label>
+        <button id="odiv-history-toggle" class="tool" type="button" title="导入历史会话 JSON" aria-label="导入历史会话">↥</button>
+        <button id="odiv-profile-extract" class="tool" type="button" title="根据演示规则提取关键语料" aria-label="提取关键信息">✦</button>
+      </div>
+      <div class="profile-import hidden" id="odiv-history-zone">
+        <b>导入历史会话 JSON</b>
+        <p>按 customerId 归入对应客户。仅在当前浏览器演示中处理，不上传、不持久化。</p>
+        <label class="profile-filelabel" for="odiv-history-file">选择 JSON 文件</label>
+        <input id="odiv-history-file" type="file" accept=".json,application/json">
+        <p class="profile-import-result" id="odiv-history-status" role="status">导入后点击 ✦ 提取可审查的关键语料。</p>
+      </div>
+      <article class="profile-markdown" aria-label="Markdown 风格客户档案正文">
+        <h3>客户摘要</h3>
+        <p class="profile-summary" id="odiv-profile-summary">正在读取演示历史…</p>
+        <div class="profile-filterbar"><span class="profile-stats" id="odiv-profile-count"></span><select id="odiv-profile-filter" aria-label="筛选档案确认状态"><option value="all">全部线索</option><option value="confirmed">已确认</option><option value="candidate">待确认</option><option value="dismissed">已忽略</option></select></div>
+        <div id="odiv-profile-list" class="profile-facts-markdown" aria-live="polite"></div>
+        <h3>历史对话</h3>
+        <details class="profile-history" id="odiv-profile-history-fold">
+          <summary>查看客户原话 <span id="odiv-profile-history-count">0 条</span></summary>
+          <div id="odiv-profile-history-list"></div>
+        </details>
+        <p class="profile-privacy-note">仅记录有原话依据的客户信息；候选线索不会自动用于发送，也不推断敏感属性。</p>
+      </article>
+      <button class="profile-clear" id="odiv-profile-clear" type="button">清空此客户的演示档案</button>
+    </section>
   </div>
 </section>
 <section class="view" id="odiv-settings"><div class="scroll full-settings">
@@ -353,6 +411,7 @@ const demoHistorySeed=()=>({
  't3':[{sessionId:'seed-t3',messages:[{messageId:'seed-t3-01',role:'customer',text:'我平时穿 M 码，买之前想看尺码表。',at:'2026-10-23'},{messageId:'seed-t3-02',role:'customer',text:'我更喜欢简洁的款式。',at:'2026-10-24'}]}]
 });
 let profileHistory=demoHistorySeed(),profileFacts=[],profileFilter='all',profileExpanded=new Set();
+let profilePage='detail',profileCustomerId='t1',profileBoundId='t1';
 const profileRules=[
  {key:'blue',category:'商品偏好',value:'偏好蓝色',pattern:/更喜欢蓝色|喜欢蓝色|偏好蓝色/},
  {key:'black',category:'商品偏好',value:'偏好黑色',pattern:/更喜欢黑色|喜欢黑色|偏好黑色/},
@@ -522,9 +581,9 @@ function receive(text){
   }
  }else{record('客户新消息 '+id+' · 等待人工处理');toast('已收到模拟消息')}
 }
-function switchTab(tab){s.tab=tab;$('#odiv-tabs').classList.toggle('hidden',tab==='chat');$$('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));$$('.view').forEach(v=>v.classList.toggle('on',v.id==='odiv-'+tab));if(tab==='knowledge')renderKb();if(tab==='customer')renderProfile();$('#odiv-heading').textContent=tab==='chat'?'聊天模拟器':'AI 客服'}
+function switchTab(tab){s.tab=tab;$('#odiv-tabs').classList.toggle('hidden',tab==='chat');$$('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));$$('.view').forEach(v=>v.classList.toggle('on',v.id==='odiv-'+tab));if(tab==='knowledge')renderKb();if(tab==='customer'){profilePage='detail';profileCustomerId=s.tid;profileBoundId=s.tid;renderProfile()}$('#odiv-heading').textContent=tab==='chat'?'聊天模拟器':'AI 客服'}
 function reset(){
- counter=7;threads=initialThreads();kb=initialKb();profileHistory=demoHistorySeed();profileFacts=[];profileExpanded.clear();profileFilter='all';$('#odiv-profile-filter').value='all';$('#odiv-profile-search').value='';$('#odiv-history-zone').classList.add('hidden');$('#odiv-history-status').textContent='导入后点击 ✦ 提取可审查的关键语料。';addProfileFacts();s.tid='t1';s.paused=false;s.permission=true;s.auto=false;s.consented=false;s.takeover.clear();s.chosen.clear();s.edits.clear();s.editing=null;s.filter='all';s.source='all';s.scope='all';s.expanded.clear();s.receipt='尚未发送';s.follow=true;s.verify=true;s.nicknameMode='original';s.logHistory=[];
+ counter=7;threads=initialThreads();kb=initialKb();profileHistory=demoHistorySeed();profileFacts=[];profileExpanded.clear();profileFilter='all';profilePage='detail';profileCustomerId='t1';profileBoundId='t1';$('#odiv-profile-filter').value='all';$('#odiv-profile-search').value='';$('#odiv-profile-directory-search').value='';$('#odiv-history-zone').classList.add('hidden');$('#odiv-history-status').textContent='导入后点击 ✦ 提取可审查的关键语料。';addProfileFacts();s.tid='t1';s.paused=false;s.permission=true;s.auto=false;s.consented=false;s.takeover.clear();s.chosen.clear();s.edits.clear();s.editing=null;s.filter='all';s.source='all';s.scope='all';s.expanded.clear();s.receipt='尚未发送';s.follow=true;s.verify=true;s.nicknameMode='original';s.logHistory=[];
  $('#odiv-search').value='';$('#odiv-scope').value='all';$('#odiv-pop').classList.add('hidden');$('#odiv-import').classList.add('hidden');$('#odiv-permission').checked=true;$('#odiv-observe').checked=true;$('#odiv-auto').checked=false;$('#odiv-consent').classList.add('hidden');$('#odiv-auto-info').textContent='自动回复已关闭，AI 继续提供推荐答案。';
  $$('[data-filter]').forEach(b=>b.classList.toggle('on',b.dataset.filter==='all'));$('#odiv-import-msg').textContent='';
  renderReply();renderChat();renderKb();switchTab('reply');$('#odiv-tabs').classList.remove('hidden');renderSettings();window.dispatchEvent(new Event('od-workbench-reset'));toast('演示已重置');
@@ -638,47 +697,82 @@ function addProfileFacts(){
  }
  return created;
 }
+function renderProfileDirectory(){
+ const q=$('#odiv-profile-directory-search').value.trim().toLowerCase();
+ const nodes=$('#odiv-profile-directory-list');nodes.replaceChildren();
+ const matches=threads.filter(t=>{
+   const facts=profileFacts.filter(f=>f.customerId===t.id);
+   const excerpts=(profileHistory[t.id]||[]).flatMap(session=>session.messages.map(m=>m.text)).join(' ');
+   return [displayName(t),t.name,t.id,...facts.map(f=>f.value),excerpts].join(' ').toLowerCase().includes(q);
+ });
+ $('#odiv-profile-directory-count').textContent='找到 '+matches.length+' 位 · 共 '+threads.length+' 位演示客户';
+ if(!matches.length){const empty=document.createElement('p');empty.className='profile-empty';empty.textContent='没有匹配的客户档案。';nodes.append(empty);return}
+ for(const t of matches){
+   const facts=profileFacts.filter(f=>f.customerId===t.id),approved=facts.filter(f=>f.status==='confirmed'),candidates=facts.filter(f=>f.status==='candidate');
+   const messages=(profileHistory[t.id]||[]).flatMap(session=>session.messages).filter(m=>m.role==='customer');
+   const b=document.createElement('button');b.className='profile-directory-row';b.type='button';b.dataset.profileSelect=t.id;b.setAttribute('aria-label','查看 '+displayName(t)+' 的客户档案');
+   const avatar=document.createElement('span');avatar.className='profile-directory-avatar';avatar.textContent=t.name.slice(0,1);
+   const text=document.createElement('span');text.className='profile-directory-main';
+   const title=document.createElement('strong');title.textContent=displayName(t);text.append(title);
+   if(t.id===s.tid){const chip=document.createElement('span');chip.className='profile-directory-current';chip.textContent='当前会话';text.append(chip)}
+   const sub=document.createElement('span');sub.className='profile-directory-sub';sub.textContent=approved.length+' 已确认 · '+candidates.length+' 待确认 · '+messages.length+' 条历史原话';
+   const hint=document.createElement('span');hint.className='profile-directory-excerpt';hint.textContent=approved[0]?.value||candidates[0]?.value||'暂无已整理的偏好信息';
+   text.append(sub,hint);const arrow=document.createElement('span');arrow.className='profile-directory-arrow';arrow.textContent='›';b.append(avatar,text,arrow);nodes.append(b);
+ }
+}
 function renderProfile(){
- const t=thread(),list=$('#odiv-profile-list'),query=$('#odiv-profile-search').value.trim().toLowerCase();
- $('#odiv-profile-name').textContent=displayName(t);
- $('#odiv-profile-avatar').textContent=t.name.slice(0,1);
- $('#odiv-profile-id').textContent='仅当前会话 · #'+t.id;
+ if(profileBoundId!==s.tid){profileBoundId=s.tid;profileCustomerId=s.tid;profilePage='detail';}
+ $('#odiv-profile-directory').classList.toggle('hidden',profilePage!=='directory');
+ $('#odiv-profile-detail').classList.toggle('hidden',profilePage!=='detail');
+ renderProfileDirectory();
+ if(profilePage!=='detail')return;
+ const t=threads.find(t=>t.id===profileCustomerId);if(!t)return;
+ const bound=t.id===s.tid;const query=$('#odiv-profile-search').value.trim().toLowerCase();
+ $('#odiv-profile-name').textContent=displayName(t);$('#odiv-profile-avatar').textContent=t.name.slice(0,1);
+ $('#odiv-profile-id').textContent='#'+t.id+' · 客户历史档案';
+ $('#odiv-profile-bound-state').textContent=bound?'当前会话':'浏览其他客户';
+ $('#odiv-profile-bound-state').classList.toggle('other',!bound);
+ $('#odiv-profile-scope-note').textContent=bound?'此档案已与当前模拟聊天会话匹配。历史线索须人工核实；不参与自动发送。':'这是其他客户的历史档案，不影响当前聊天或其推荐回复。';
  const facts=profileFacts.filter(f=>f.customerId===t.id);
  const confirmed=facts.filter(f=>f.status==='confirmed').length,candidates=facts.filter(f=>f.status==='candidate').length;
  $('#odiv-profile-count').textContent=confirmed+' 已确认 · '+candidates+' 待确认';
+ $('#odiv-profile-summary').textContent=confirmed>0?'已人工确认 '+confirmed+' 条信息；还有 '+candidates+' 条来自历史对话的线索待核实。':'有 '+candidates+' 条历史语料线索，尚无人工确认的偏好或服务约束。';
  const shown=facts.filter(f=>(profileFilter==='all'?f.status!=='dismissed':f.status===profileFilter)&&[f.category,f.value,f.evidence,f.sessionId].join(' ').toLowerCase().includes(query));
- list.replaceChildren();
- if(!shown.length){const empty=document.createElement('div');empty.className='profile-empty';empty.textContent='当前筛选下没有客户关键信息。可导入演示历史并点击 ✦ 提取。';list.append(empty)}
- for(const f of shown){
-  const open=profileExpanded.has(f.id);
-  const article=document.createElement('article');article.className='profile-item';article.dataset.profileId=f.id;
-  const head=document.createElement('div');head.className='profile-item-head';
-  const trigger=document.createElement('button');trigger.type='button';trigger.className='profile-item-trigger';trigger.dataset.profileOpen=f.id;trigger.setAttribute('aria-expanded',String(open));trigger.setAttribute('aria-label',f.category+'：'+f.value+'，'+(f.status==='confirmed'?'已确认':f.status==='dismissed'?'已忽略':'待确认')+'，点击查看来源');
-  const title=document.createElement('strong');title.textContent=f.category+' · '+f.value;
-  const excerpt=document.createElement('span');excerpt.className='profile-evidence-preview';excerpt.textContent='“'+f.evidence+'”';trigger.append(title,excerpt);
-  const label=document.createElement('span');label.className='profile-state '+f.status;label.textContent=f.status==='confirmed'?'已确认':f.status==='dismissed'?'已忽略':'待确认';
-  head.append(trigger,label);article.append(head);
-  if(open){
-   const detail=document.createElement('div');detail.className='profile-detail';
-   for(const [cap,value] of [['客户原话',f.evidence],['可追溯来源',f.sessionId+' / '+f.messageId+' · '+f.at],['提取与权限',f.method+' · 仅供人工参考，不参与自动发送']]){
-    const b=document.createElement('span');b.className='profile-field-label';b.textContent=cap;
-    const val=document.createElement('p');val.textContent=value;detail.append(b,val)
+ const list=$('#odiv-profile-list');list.replaceChildren();
+ if(!shown.length){const empty=document.createElement('p');empty.className='profile-empty';empty.textContent='当前条件下没有档案内容。可导入历史对话后提取。';list.append(empty)}
+ const groups=[['confirmed','已确认信息'],['candidate','待核实线索'],['dismissed','已忽略信息']];
+ for(const [status,heading] of groups){
+  const selected=shown.filter(f=>f.status===status);if(!selected.length)continue;
+  const title=document.createElement('h3');title.textContent=heading;list.append(title);
+  const ul=document.createElement('ul');ul.className='profile-md-list';
+  for(const f of selected){
+   const li=document.createElement('li');li.className='profile-md-fact';li.dataset.profileId=f.id;
+   const line=document.createElement('div');line.className='profile-fact-heading';
+   const field=document.createElement('span');field.className='profile-fact-value';
+   const strong=document.createElement('strong');strong.textContent=f.category+'：';field.append(strong,document.createTextNode(f.value));
+   const state=document.createElement('span');state.className='profile-fact-status '+f.status;state.textContent=status==='confirmed'?'已确认':status==='candidate'?'待确认':'已忽略';line.append(field,state);li.append(line);
+   const open=profileExpanded.has(f.id);
+   const button=document.createElement('button');button.type='button';button.className='profile-evidence-link';button.dataset.profileOpen=f.id;button.setAttribute('aria-expanded',String(open));button.textContent=open?'收起来源':'查看原话与来源';li.append(button);
+   if(open){
+    const evidence=document.createElement('div');evidence.className='profile-fact-source';
+    const quote=document.createElement('blockquote');quote.textContent='“'+f.evidence+'”';
+    const source=document.createElement('small');source.textContent=(f.at||'日期未提供')+' · '+f.sessionId+' / '+f.messageId+' · '+f.method;
+    evidence.append(quote,source);
+    const actions=document.createElement('div');actions.className='profile-actions';
+    for(const [key,text] of status==='candidate'?[['confirm','确认信息'],['dismiss','忽略']]:status==='dismissed'?[['restore','恢复待确认']]:[['restore','撤回确认'],['dismiss','忽略']]){
+     const b=document.createElement('button');b.type='button';b.dataset.profileAction=key;b.dataset.profileFact=f.id;b.textContent=text;if(key==='confirm')b.className='approve';actions.append(b);
+    }evidence.append(actions);li.append(evidence)
    }
-   const actions=document.createElement('div');actions.className='profile-actions';
-   for(const [key,txt] of f.status==='candidate'?[['confirm','确认有效'],['dismiss','忽略']]:f.status==='dismissed'?[['restore','恢复待确认']]:[['restore','改回待确认'],['dismiss','忽略']]){
-    const b=document.createElement('button');b.type='button';b.dataset.profileAction=key;b.dataset.profileFact=f.id;b.textContent=txt;if(key==='confirm')b.className='approve';actions.append(b)
-   }
-   detail.append(actions);article.append(detail)
-  }
-  list.append(article)
+   ul.append(li)
+  }list.append(ul)
  }
  const sessions=profileHistory[t.id]||[],messages=sessions.flatMap(x=>x.messages.map(m=>({...m,sessionId:x.sessionId}))).filter(m=>m.role==='customer');
- $('#odiv-profile-history-count').textContent=messages.length+' 条演示语句';
+ $('#odiv-profile-history-count').textContent=messages.length+' 条原话';
  const hist=$('#odiv-profile-history-list');hist.replaceChildren();
  for(const m of messages.slice(-12).reverse()){
   const d=document.createElement('div');d.className='profile-excerpt';
   const from=document.createElement('strong');from.textContent=(m.at||'日期未提供')+' · '+m.sessionId;
-  const text=document.createElement('span');text.textContent=m.text;d.append(from,text);hist.append(d)
+  const quote=document.createElement('span');quote.textContent=m.text;d.append(from,quote);hist.append(d)
  }
 }
 function parseProfileImport(raw){
@@ -720,12 +814,16 @@ async function importProfileFile(file){
 }
 R.addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b)return;
+ if(b.dataset.profileSelect){profilePage='detail';profileCustomerId=b.dataset.profileSelect;profileExpanded.clear();$('#odiv-profile-search').value='';$('#odiv-profile-filter').value='all';profileFilter='all';renderProfile();return}
  if(b.dataset.profileOpen){profileExpanded.has(b.dataset.profileOpen)?profileExpanded.delete(b.dataset.profileOpen):profileExpanded.add(b.dataset.profileOpen);renderProfile();return}
  if(b.dataset.profileAction){
-  const f=profileFacts.find(x=>x.id===b.dataset.profileFact&&x.customerId===s.tid);if(!f)return;
+  const f=profileFacts.find(x=>x.id===b.dataset.profileFact&&x.customerId===profileCustomerId);if(!f)return;
   f.status=b.dataset.profileAction==='confirm'?'confirmed':b.dataset.profileAction==='dismiss'?'dismissed':'candidate';renderProfile();toast(f.status==='confirmed'?'已人工确认，仍不自动发送':f.status==='dismissed'?'已忽略此条记录':'已恢复待确认');return
  }
 });
+$('#odiv-profile-directory-search').addEventListener('input',renderProfileDirectory);
+$('#odiv-profile-back').addEventListener('click',()=>{profilePage='directory';renderProfile()});
+$('#odiv-profile-go-current').addEventListener('click',()=>{profilePage='detail';profileCustomerId=s.tid;profileExpanded.clear();renderProfile()});
 $('#odiv-profile-search').addEventListener('input',renderProfile);
 $('#odiv-profile-filter').addEventListener('change',e=>{profileFilter=e.target.value;renderProfile()});
 $('#odiv-history-toggle').addEventListener('click',()=>$('#odiv-history-zone').classList.toggle('hidden'));
@@ -734,8 +832,9 @@ $('#odiv-history-file').addEventListener('change',e=>{void importProfileFile(e.t
 const historyDrop=$('#odiv-history-zone');historyDrop.addEventListener('dragover',e=>e.preventDefault());
 historyDrop.addEventListener('drop',e=>{e.preventDefault();void importProfileFile(e.dataTransfer.files?.[0])});
 $('#odiv-profile-clear').addEventListener('click',()=>{
- const id=s.tid;
- if(!window.confirm('确认清空 '+thread().name+' 的演示历史和提取信息？此操作不可撤销，但不影响其他客户或通用知识库。'))return;
+ const id=profileCustomerId;
+ const customer=threads.find(t=>t.id===id);if(!customer)return;
+ if(!window.confirm('确认清空 '+customer.name+' 的演示历史和提取信息？此操作不可撤销，但不影响其他客户或通用知识库。'))return;
  profileHistory[id]=[];profileFacts=profileFacts.filter(x=>x.customerId!==id);profileExpanded.clear();renderProfile();toast('当前客户演示档案已清空');
 });
 
