@@ -1,10 +1,10 @@
 # AI 客服助手 R2.0 · 核心闭环差量验收
 
-日期：2026-10-29（Asia/Shanghai）。源码基线为 `cfcbfa47d96aa458c5c32450d68b201e8f39c437`；本报告覆盖其后的核心修复，具体版本以本报告所在 Git 提交为准。
+日期：2026-10-29（Asia/Shanghai）。源码基线为 `cfcbfa47d96aa458c5c32450d68b201e8f39c437`；业务修复提交为 `6f894340bee099d4db6ca37204896377d0551c7c`，浏览器断言修正及当前 CI 验证提交为 `9ffdc6f273ab07b4d5e60d764514001c432946b3`。报告后续补记不改变该业务源码与 HTML。
 
 ## 结论与范围
 
-已修复本轮发现的四类核心缺陷，正式源码与唯一生成 HTML 一致；本地类型、74 项领域/安全测试和 1 项 HTML 契约通过。真实 Mac Chrome HTTP 补验 6 项核心操作通过。**仍未完成全部核心实窗验收**：正常文件选择导入、草稿覆盖确认取消/接受及系统剪贴板粘贴受现有工具能力影响，逐项保留 `NOT_TESTED`。
+已修复本轮发现的四类核心缺陷，正式源码与唯一生成 HTML 一致；本地类型、74 项领域/安全测试和 1 项 HTML 契约通过，当前 CI 的 10 个核心浏览器场景通过。真实 Mac Chrome HTTP 补验 6 项核心操作通过。**仍未完成全部核心实窗验收**：正常文件选择导入、草稿覆盖确认取消/接受及系统剪贴板粘贴受现有工具能力影响，逐项保留 `NOT_TESTED`。
 
 当前产物是桌面客服产品的 React 离线浏览器原型。未接原生 Desktop Runtime、真实微信/企业微信、订单后台、LLM/RAG、真实发送或外部回执。本轮未开发扩展、sidepanel、第二套页面；未重跑宽度、200% 缩放或截图评分矩阵。
 
@@ -31,7 +31,11 @@
 | HTTP 与本机文件 | PASS | `http://127.0.0.1:52132/` 返回 200，与正式 HTML 逐字节一致；SHA256 `18e090aeb69ff7cdf153cbce8391f31ff377a0c696fcf553e79abdb60f4f7499` |
 | 真实 Mac Chrome | PASS · 6 个定向检查 | 未知回读转人工、后续停止发送、接管后编辑并填草稿、切客户不带入编辑、当前订单摘要草稿、返回原客户保留草稿；浏览器版本未知 |
 | 视觉 | 已确认本轮实际窗口 | 双窗口、头像、气泡、380px 助手、六 Tab 与操作区保持既有风格；没有重新评分。浏览器右侧“阅读目录”悬浮层来自外部浏览器环境，不是客服原型 UI |
-| CI 核心浏览器 | 以对应提交 Actions 为准 | 核心入口 `npm run test:browser -- --core`，包含导入、错误文件、历史冲突、回复/订单草稿确认取消/接受与未知回读；不运行旧尺寸矩阵。Linux headless 不能替代 Mac 文件选择或系统剪贴板证明 |
+| CI 核心浏览器 | PASS · 10/10 | [当前运行 40754087547](https://github.com/shopable-ai/opendesk/actions/runs/40754087547)，提交 `9ffdc6f2`；包含导入、错误文件、历史冲突、回复/订单草稿确认取消/接受与未知回读；不运行旧尺寸矩阵。Linux headless Chromium 143.0.7499.4 不能替代 Mac 文件选择或系统剪贴板证明 |
+
+当前 CI 也通过类型、74 项领域测试、1 项 HTML 契约和构建；重建后的 HTML/lockfile 无差异。产物：[唯一离线 HTML](https://github.com/shopable-ai/opendesk/actions/runs/40754087547/artifacts/12845093285)、[浏览器证据](https://github.com/shopable-ai/opendesk/actions/runs/40754087547/artifacts/12845252830)。此处以 CI 的构建及无差异检查证明一致性，未再次下载 ZIP 做独立字节比对；上表 SHA256 是本机正式 HTML 的散列，不是 artifact ZIP 的散列。
+
+首次 [CI 40753662806](https://github.com/shopable-ai/opendesk/actions/runs/40753662806) 在 8 个浏览器场景通过后，新增客户隔离断言立即读取了 effect 切换前的旧档案。修正为等待目标客户档案身份与旧事实移除，并增加切回原客户后已确认事实仍保留的检查；同一场景及全部 10 个核心场景重验通过。仅修正测试等待，未为此改变产品逻辑。其他仓库级工作流不计入本报告的客服验收结论。
 
 本地验证从 `examples/ai-customer-support/` 执行：
 
@@ -68,6 +72,7 @@ node --check tests/browser-smoke.mjs
 - `knowledge-before.log`、`core-before.log`、`before.log`、`history-review-before.log`：修复前失败证据；不作为当前失败状态。
 - `typecheck.log`、`domain-after.log`、`build.log`、`preview-after.log`：最终本地检查。
 - `http-verification.json`、`mac-core-results.json`：HTTP一致性与分项结论。
+- `ci-first-failure.txt`、`ci-success-excerpt.log`：首次断言竞态与当前 CI 通过摘要，完整日志以各运行链接为准。
 - `mac-unknown-readback.jpg`、`mac-edited-draft-isolation.jpg`、`mac-final-loaded.jpg`：本轮真实 Chrome 页面证据；前两张针对同一回读/草稿实现，最后一张为最终历史规则构建后的重载。
 
 原 `r2-local-20261029/report.md`、`results.json`、`completion-audit.json` 属于旧 file-only 阻塞阶段，不是最新结论。所有运行文件仅保留本地，不提交 `.runtime/`。
