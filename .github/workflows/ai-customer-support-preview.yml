@@ -1,0 +1,58 @@
+name: AI Customer Support React Preview
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'examples/ai-customer-support/**'
+      - '.github/workflows/ai-customer-support-preview.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: ai-customer-support-preview-master
+  cancel-in-progress: false
+jobs:
+  verify-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+        working-directory: examples/ai-customer-support
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: |
+          if [[ -f package-lock.json ]]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+      - name: TypeScript check
+        run: npm run typecheck
+      - name: Domain isolation tests
+        run: node --test tests/domain.test.mjs
+      - name: Generate one offline HTML
+        run: npm run build
+      - name: Offline preview contract
+        run: node --test tests/preview.test.mjs
+      - name: Install CI Chromium
+        run: npx playwright install chromium --with-deps
+      - name: Headless browser regression
+        run: npm run test:browser
+      - name: Upload browser visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-customer-react-browser-evidence
+          path: examples/ai-customer-support/.runtime/tests/ai-customer-support/
+          if-no-files-found: ignore
+      - name: Commit generated preview after all checks
+        run: |
+          cd ../..
+          git add examples/ai-customer-support/preview/index.html examples/ai-customer-support/package-lock.json
+          if git diff --cached --quiet; then
+            echo 'Generated preview and lockfile are unchanged.'
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'build(ai-customer-support): verified offline React preview R2.0 [skip ci]'
+          git push origin HEAD:master

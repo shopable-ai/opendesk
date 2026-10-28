@@ -1,6 +1,6 @@
-# AI 客服助手 · Full Workbench（R1.6 主原型）
+# AI 客服助手 · 六业务页面 React Workbench（R2.0）
 
-> 2026-10-28 · `master`。**唯一正式交互预览为 `preview/index.html`**；这是一份可在浏览器离线打开的双窗口模拟工作台。真实 OpenDesk AI 客服业务 Execution、微信/企业微信识别与自动发送尚未实施。
+> 2026-10-28 · `master`。**唯一正式交互预览为 `preview/index.html`**；R2.0 起从 `src/` React + TypeScript 构建，而非手工维护 HTML。原 R1.9.1 HTML 是视觉和交互迁移基线。真实 OpenDesk AI 客服业务 Execution、微信/企业微信识别与自动发送尚未实施。
 
 ## 一、原始目标
 
@@ -10,9 +10,11 @@
 
 | 用途 | 唯一归属 | 状态 |
 | --- | --- | --- |
-| 双窗口主原型 | `preview/index.html` | R1.5 浏览器演示；唯一正式 HTML |
+| 双窗口主预览 | `preview/index.html` | R2.0 React 自动构建的唯一离线 HTML；构建成功前保留 R1.9.1 |
 | 通用 FAQ/知识 | `fixtures/knowledge-demo.json` | 8 条虚构问答，可从「知识库」导入 |
 | 客户历史语料 | `fixtures/customer-history-demo.json` | 3 个虚构客户、6 段会话、22 条消息，可从「客户档案」导入 |
+| 演示商品 | `fixtures/products-demo.json` | 6 件商品、12 张 SVG 示意图，供商品和图片共享 |
+| 演示订单 | `fixtures/orders-demo.json` | 8 笔虚构订单，按当前客户和授权隔离 |
 
 仓库没有其他同目录被跟踪的旧 HTML；不要引入第二套主原型或平行 Mock。下载的 HTML 可以按 `ai-customer-support.html` 命名，但仓库主文件始终保持 `preview/index.html`。
 
@@ -34,7 +36,7 @@
 
 ## R1.6 客户档案：列表 / 详情与简洁文档阅读
 
-- **双页面而非新的一级 Tab**：「客户档案」仍为原有第四个 Tab。打开 Tab 时，若模拟聊天绑定了客户，默认进入该客户详情；详情顶部「← 客户列表」可回到三位演示客户的检索列表，选择其他客户时明确提示「浏览其他客户」，不修改当前聊天绑定。
+- **双页面而非新的一级 Tab**：「客户档案」为第三个业务 Tab，设置独立在右上角齿轮。打开 Tab 时，若模拟聊天绑定了客户，默认进入该客户详情；详情顶部「← 客户列表」可回到三位演示客户的检索列表，选择其他客户时明确提示「浏览其他客户」，不修改当前聊天绑定。
 - **聊天切换立即重新匹配**：左侧切换会话时，详情自动定位新客户。客户详情不跨客户显示事实、历史原话或人工确认状态。
 - **详情采用 Markdown 风格阅读排版**：客户摘要、已确认信息、待核实线索、历史对话以标题、段落、项目符号展示，不堆叠重复卡片。此阶段生成的是安全的语义 HTML，尚未引入通用 Markdown 解析器或永久 .md 文件；第三方 Markdown 数据接入待业务阶段评估。
 - **保留关键操作**：搜索、状态筛选、历史 JSON 导入、确定性规则提取、来源展开、确认 / 忽略 / 撤回以及清空选中客户。所有演示数据仅浏览器内存，候选线索不自动参与回复或发送。
@@ -65,3 +67,13 @@
 ## R1.9 · 六个业务 Tab（2026-10-29）
 
 正式唯一预览 `preview/index.html`：推荐回复、知识库、客户档案、商品、图片、订单六个一级页面；设置继续由右上角齿轮打开。图片视图直接读取 `fixtures/products-demo.json` 商品下的图片 ID，不建立独立图库数据库。新增 `fixtures/orders-demo.json`（8 笔完全虚构订单），所有只读查询按当前会话 `customerId` 隔离；支持搜索、状态筛选、订单详情、关联商品、复制摘要以及模拟聊天草稿（保护未发送草稿，不直接发送）。HTML 内嵌演示数据以支持离线打开。真实 Desktop Runtime、微信业务接线、订单 API、实时物流、图片附件发送和 AI 视觉识别均未实现。
+
+## R2.0 · 正式 React 迁移与验证入口
+
+- **唯一可维护 UI 源码：** `src/main.tsx` 单 React Root，`src/views/` 六页 + 独立设置。`src/state.tsx` 是单一会话/草稿/授权状态 owner；`src/domain/` 放商品、订单、知识和历史规则；四份 JSON fixture 继续保留在 `fixtures/`。
+- **唯一生成 HTML：** `node scripts/build-preview.mjs` 在 bundle 完整性检查通过后原子替换 `preview/index.html`；错误时原有正常预览不被覆盖；无 CDN、无开发服务器、无第二份 Mock。
+- **本地命令：** `cd examples/ai-customer-support && npm install && npm run typecheck && node --test tests/domain.test.mjs && npm run build && node --test tests/preview.test.mjs`。需浏览器自动检查时执行 `npx playwright install chromium && npm run test:browser`。
+- **CI 回归：** `.github/workflows/ai-customer-support-preview.yml` 按以上顺序执行并在全部通过后将正式 HTML 和依赖锁定文件安全提交 `master`；截图等运行证据保留在 Actions artifact，不作为项目源码提交。
+- **安全边界：** 填入草稿不等于发送，客户和订单不跨会话，任何托管仅发生于左侧虚构聊天窗口。**浏览器 React 预览不等于 Desktop 原生 Custom UI 已接入。** 真正 Mac Chrome 及微信/企业微信联调：`NOT_TESTED`。
+
+> 本节描述源码与验证协议。是否实际通过以对应提交和 CI / 本地测试日志为准；历史 R1.5/R1.6 测试数字不是 R2.0 React 的合格证明。
