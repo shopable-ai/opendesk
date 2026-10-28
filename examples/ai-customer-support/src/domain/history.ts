@@ -36,13 +36,23 @@ const rules = [
   {key:'size-chart',category:'选购习惯',value:'购前希望看尺码表',pattern:/想看尺码表|先看尺码表|发我尺码表/}
 ];
 const sensitive = /身份证号|银行卡号|密码|验证码|宗教|政治立场|医疗诊断/;
+// 演示规则仅接受明确原话；已知否定、撤回和歧义语境宁可不提取。
+function factEvidence(text:string):string[] {
+  const context=text.replace(/不(?:太)?方便接电话|不想接电话|不需要太多装饰|有没有库存|(?:买|购买|下单)之前/g,'');
+  if (/不|没|非|无|别|勿|取消|撤回|撤销|收回|作废|停止|拒绝|避免|说错|改口|更正|改成|改为|改主意|以前|曾经|之前|过去|原先|可能|也许|或|大概|似乎|假如|假设|未|还是(?!发短信联系)/.test(context)) return [];
+  return text.split(/[，,。！!；;\n]/).filter(clause=>
+    !/如果|要是/.test(clause) &&
+    (!/[？?]|吗|是否|是不是|能否|要不要|呢|请问|难道/.test(clause) ||
+    /^可以先(?:发我|看)尺码表吗[？?]?$/.test(clause.trim())));
+}
 export function extractFacts(history: HistoryByCustomer, previous: readonly ProfileFact[]): ProfileFact[] {
   const next = [...previous], seen = new Set(next.map(f=>f.id));
   for (const id of ['t1','t2','t3'] as const) {
     for (const session of history[id]) for (const message of session.messages) {
       if (message.role !== 'customer' || !message.text || sensitive.test(message.text)) continue;
+      const evidence=factEvidence(message.text);
       for (const rule of rules) {
-        if (!rule.pattern.test(message.text)) continue;
+        if (!evidence.some(clause=>rule.pattern.test(clause))) continue;
         const key = [id, session.sessionId, message.messageId, rule.key].join('/');
         if (seen.has(key)) continue;
         next.push({id:key,customerId:id,category:rule.category,value:rule.value,evidence:message.text,
@@ -60,24 +70,26 @@ export function parseHistoryFile(raw: string): HistoryByCustomer {
       d.demo !== true || !Array.isArray(d.customers) || !d.customers.length || d.customers.length > 10) {
     throw Error('需要 customer-history-demo v1 JSON，且必须标记 demo:true');
   }
-  const result: HistoryByCustomer = {t1:[],t2:[],t3:[]};
+  let result: HistoryByCustomer = {t1:[],t2:[],t3:[]};
   let count = 0;
   for (const customer of d.customers) {
     if (!isCustomerId(customer?.customerId) || !Array.isArray(customer.sessions) ||
       !customer.sessions.length || customer.sessions.length > 30) throw Error('未知客户或历史会话结构无效');
     for (const session of customer.sessions) {
-      if (!/^[-_a-zA-Z0-9]{1,80}$/.test(session?.sessionId) ||
+      if (typeof session?.sessionId !== 'string' || !/^[-_a-zA-Z0-9]{1,80}$/.test(session.sessionId) ||
           !Array.isArray(session.messages) || session.messages.length > 180) throw Error('会话标识或消息数量无效');
       const messages: HistoryMessage[] = [];
       for (const m of session.messages) {
         count++;
-        if (count > 360 || !/^[-_a-zA-Z0-9]{1,80}$/.test(m?.messageId) ||
+        if (count > 360 || typeof m?.messageId !== 'string' || !/^[-_a-zA-Z0-9]{1,80}$/.test(m.messageId) ||
           !['customer','agent'].includes(m?.role) || typeof m?.text !== 'string' ||
           !m.text.trim() || m.text.length > 600 || m.text.includes('\0') ||
           (m.at !== undefined && (typeof m.at !== 'string' || m.at.length > 32))) throw Error('历史消息字段无效');
         messages.push({messageId:m.messageId,role:m.role,text:m.text.trim(),at:m.at||''});
       }
-      result[customer.customerId as CustomerId].push({sessionId:session.sessionId,messages});
+      const imported: HistoryByCustomer = {t1:[],t2:[],t3:[]};
+      imported[customer.customerId as CustomerId].push({sessionId:session.sessionId,messages});
+      result=mergeHistory(result,imported);
     }
   }
   return result;
@@ -88,8 +100,17 @@ export function mergeHistory(original: HistoryByCustomer, imported: HistoryByCus
     for (const session of imported[id]) {
       let target = next[id].find(s=>s.sessionId===session.sessionId);
       if (!target) { target={sessionId:session.sessionId,messages:[]}; next[id].push(target); }
-      const ids = new Set(target.messages.map(m=>m.messageId));
-      for (const m of session.messages) if (!ids.has(m.messageId)) {target.messages.push(m); ids.add(m.messageId);}
+      const messages = new Map(target.messages.map(m=>[m.messageId,m]));
+      for (const m of session.messages) {
+        const existing=messages.get(m.messageId);
+        if (existing && (existing.text!==m.text || existing.role!==m.role || existing.at!==m.at)) {
+          throw Error('历史消息冲突：客户 '+id+' / 会话 '+session.sessionId+' / 消息 '+m.messageId+' 的原话、角色或日期不同，整份导入已拒绝，请核对文件；原数据保留。');
+        }
+        if (!existing) {
+          const copy={...m};
+          target.messages.push(copy); messages.set(m.messageId,copy);
+        }
+      }
     }
   }
   return next;

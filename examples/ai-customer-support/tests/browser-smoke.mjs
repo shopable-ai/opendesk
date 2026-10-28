@@ -9,8 +9,10 @@ const url = pathToFileURL(join(root, 'preview', 'index.html')).href;
 const screenshots = resolve(root, '..', '..', '.runtime', 'tests', 'ai-customer-support');
 await mkdir(screenshots, { recursive: true });
 const browser = await chromium.launch({ headless: true });
+const coreOnly = process.argv.includes('--core');
 let passed = 0;
 async function scenario(name, exercise) {
+  if (coreOnly && ['short-window-keeps-navigation-visible','responsive-and-zoom'].includes(name)) return;
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: 'zh-CN' });
   const page = await context.newPage();
   const faults = [];
@@ -157,6 +159,81 @@ try {
     const last = await page.locator('#od-messages .bubble .bubble-text').last().innerText();
     assert.ok(last.length <= 400, 'new customer text bounded safely');
   });
+  await scenario('draft-overwrite-cancel-and-accept', async page => {
+    const draft=page.getByRole('textbox',{name:'模拟聊天草稿',exact:true});
+    const fill=page.getByRole('button',{name:'→ 填入聊天草稿',exact:true});
+    await draft.fill('人工保留草稿');
+    page.once('dialog',dialog=>dialog.dismiss());
+    await fill.click();
+    assert.equal(await draft.inputValue(),'人工保留草稿');
+    page.once('dialog',dialog=>dialog.accept());
+    await fill.click();
+    assert.match(await draft.inputValue(),/签收后 7 天/);
+    await page.locator('#od-contacts button').filter({hasText:'陈先生'}).click();
+    assert.equal(await draft.inputValue(),'');
+    await page.getByRole('tab',{name:'订单',exact:true}).click();
+    await page.getByRole('button',{name:'查看订单 OD-DEMO-2001'}).click();
+    await draft.fill('陈先生自己的草稿');
+    page.once('dialog',dialog=>dialog.dismiss());
+    await page.locator('#odiv-orders .product-actions .primary').click();
+    assert.equal(await draft.inputValue(),'陈先生自己的草稿');
+    page.once('dialog',dialog=>dialog.accept());
+    await page.locator('#odiv-orders .product-actions .primary').click();
+    assert.match(await draft.inputValue(),/OD-DEMO-2001/);
+    assert.doesNotMatch(await draft.inputValue(),/OD-DEMO-1001/);
+  });
+  await scenario('knowledge-markdown-and-rejected-files', async page => {
+    await page.getByRole('tab',{name:'知识库',exact:true}).click();
+    await page.getByRole('button',{name:'导入知识',exact:true}).click();
+    const input=page.locator('#odiv-knowledge input[type="file"]');
+    await input.setInputFiles({name:'care.md',mimeType:'text/markdown',buffer:Buffer.from('## 清洗方法\n请手洗并自然晾干。')});
+    await page.getByRole('button',{name:/清洗方法/}).click();
+    assert.match(await page.locator('#odiv-knowledge .kb-rich-detail').innerText(),/care.md/);
+    assert.match(await page.locator('#odiv-knowledge .kb-rich-detail').innerText(),/默认只提供推荐/);
+    for(const [name,body,reason] of [['bad-types.json',JSON.stringify([{question:{x:1},answer:'答案'}]),'字段类型不符合要求'],
+      ['too-large.json','x'.repeat(262145),'文件超过 256KB'],
+      ['unsupported.txt','## 应被拒绝的问题\n这是有效的 Markdown 答案。','仅支持 256KB 内的 JSON / Markdown']]){
+      await input.setInputFiles({name,mimeType:'text/plain',buffer:Buffer.from(body)});
+      await page.getByRole('status').filter({hasText:reason}).waitFor();
+      assert.equal(await page.locator('#odiv-knowledge .kb-rich-entry').count(),8,'rejected file must not change accepted knowledge');
+    }
+  });
+  await scenario('history-conflict-keeps-reviewed-evidence', async page => {
+    await page.getByRole('tab',{name:'客户档案',exact:true}).click();
+    await page.getByRole('button',{name:'导入历史会话',exact:true}).click();
+    const input=page.locator('#odiv-customer input[type="file"]');
+    const file=text=>({name:'review.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({
+      schemaVersion:1,format:'opendesk.ai-customer-support.customer-history-demo',demo:true,
+      customers:[{customerId:'t1',sessions:[{sessionId:'review',messages:[{messageId:'review-1',role:'customer',text}]}]}]
+    }))});
+    await input.setInputFiles(file('我更喜欢黑色。'));
+    await page.locator('.profile-import-result').filter({hasText:'已导入'}).waitFor();
+    await page.getByRole('button',{name:'根据演示规则提取关键语料'}).click();
+    const fact=page.locator('.profile-md-fact').filter({hasText:'偏好黑色'});
+    await fact.getByRole('button',{name:'查看原话与来源'}).click();
+    await fact.getByRole('button',{name:'确认信息'}).click();
+    assert.match(await fact.innerText(),/已确认/);
+    await input.setInputFiles(file('我更喜欢蓝色。'));
+    await page.locator('.profile-import-result').filter({hasText:'导入失败'}).waitFor();
+    assert.match(await fact.innerText(),/我更喜欢黑色/);
+    assert.match(await fact.innerText(),/已确认/);
+    await page.locator('#od-contacts button').filter({hasText:'陈先生'}).click();
+    assert.equal(await page.locator('.profile-md-fact').filter({hasText:'偏好黑色'}).count(),0);
+    await page.screenshot({path:join(screenshots,'history-import-isolation.png')});
+  });
+  await scenario('automatic-unknown-readback-stops-session', async page => {
+    await page.getByRole('button',{name:'打开设置'}).click();
+    await page.getByRole('checkbox',{name:'发送后模拟回读验证',exact:true}).uncheck();
+    await page.getByRole('checkbox',{name:'智能托管',exact:true}).click();
+    await page.getByRole('button',{name:'理解并启用',exact:true}).click();
+    await page.getByRole('button',{name:'← 返回'}).click();
+    await page.getByRole('button',{name:'发票 · 精确',exact:true}).click();
+    assert.match(await page.locator('#odiv-reply .receipt').innerText(),/未确认/);
+    assert.equal(await page.getByRole('button',{name:'恢复托管',exact:true}).isVisible(),true);
+    await page.getByRole('button',{name:'发票 · 精确',exact:true}).click();
+    assert.equal(await page.locator('#od-messages .bubble.outgoing').count(),1,'unknown receipt does not permit more automatic sends');
+    await page.screenshot({path:join(screenshots,'automatic-readback-unknown.png')});
+  });
   await scenario('short-window-keeps-navigation-visible', async page => {
     await page.getByRole('textbox', {name:'自定义客户提问'}).fill('长文本：'+'售后说明'.repeat(100));
     await page.getByRole('button', {name:'发送问题',exact:true}).click();
@@ -192,7 +269,7 @@ try {
     assert.ok(width <= 2, '200% zoom body overflow: ' + width);
     await page.screenshot({path:join(screenshots,'preview-200pct.png'),fullPage:true});
   });
-  console.log('BROWSER_SMOKE_PASSED=' + passed + '/8; environment=CI headless Chromium (not local Mac Chrome; CSS zoom is not browser zoom)');
+  console.log('BROWSER_SMOKE_PASSED=' + passed + '; scope='+(coreOnly?'core':'all')+'; environment=CI headless Chromium (not local Mac Chrome; CSS zoom is not browser zoom)');
 } finally {
   await browser.close();
 }

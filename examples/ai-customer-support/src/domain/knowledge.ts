@@ -51,15 +51,25 @@ export function parseKnowledgeFile(raw: string, filename: string, currentCount: 
   }
   if (!Array.isArray(rows) || rows.length < 1 || rows.length > 100 || currentCount + rows.length > 150) throw Error('知识条目数量无效（1–100）');
   return rows.map((source: unknown, i: number): Knowledge => {
-    const x = (source || {}) as Record<string, unknown>;
-    const question = String(x.question || x.title || '').trim();
-    const answer = String(x.answer || x.content || x.reply || '').trim();
+    const invalid=()=>Error('第 ' + (i+1) + ' 条问答字段类型不符合要求');
+    if (!source || typeof source !== 'object' || Array.isArray(source)) throw invalid();
+    const x = source as Record<string, unknown>;
+    for (const key of ['question','title','answer','content','reply','category','group']) {
+      if (x[key] !== undefined && typeof x[key] !== 'string') throw invalid();
+    }
+    if ((x.enabled !== undefined && typeof x.enabled !== 'boolean') ||
+        (x.scope !== undefined && x.scope !== null && typeof x.scope !== 'string')) throw invalid();
+    for (const key of ['aliases','keywords']) {
+      if (x[key] !== undefined && (!Array.isArray(x[key]) || x[key].some(v=>typeof v !== 'string'))) throw invalid();
+    }
+    const question = ((x.question || x.title || '') as string).trim();
+    const answer = ((x.answer || x.content || x.reply || '') as string).trim();
     if (!question || !answer || question.length > 240 || answer.length > 2000) throw Error('第 ' + (i+1) + ' 条问答不符合要求');
     const aliases = Array.isArray(x.aliases) ? x.aliases.filter((v):v is string=>typeof v==='string').slice(0,20) : [];
     const keys = Array.isArray(x.keywords) ? x.keywords.filter((v):v is string=>typeof v==='string').slice(0,20) : question.split(/[\s，。？！?]/).filter(w=>w.length>1).slice(0,10);
     return { id:'k' + (nextId + i + 1), q:question, question, a:answer, keys, aliases,
       source:filename.slice(0,120), enabled:x.enabled !== false, category:String(x.category || x.group || '导入').slice(0,24),
-      scope:typeof x.scope === 'string' ? x.scope : null, eligible:false,
+      scope:typeof x.scope === 'string' ? x.scope.trim() || null : null, eligible:false,
       eligibility:'导入数据尚未经过托管资格审核，默认只提供推荐' };
   });
 }

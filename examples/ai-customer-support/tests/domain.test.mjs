@@ -85,3 +85,36 @@ test('single reducer owner protects draft, session and deduplicated simulated se
   s=state.reducer(s,{type:'SETTING',key:'permission',value:false});
   assert.deepEqual(catalog.ordersForCustomer(s.threadId,s.permission),[]);
 });
+
+test('draft overwrite acceptance is scoped to the current authorized unanswered message',()=>{
+  const fill={type:'FILL',id:'t1',messageId:'m1',text:'新草稿',replace:true};
+  let s=state.reducer(state.createInitialState(),{type:'SET_DRAFT',id:'t1',text:'人工草稿'});
+  assert.equal(state.currentThread(state.reducer(s,{...fill,replace:false})).draft,'人工草稿');
+  assert.equal(state.currentThread(state.reducer(s,fill)).draft,'新草稿');
+  for(const action of [
+    {type:'SET_THREAD',id:'t2'},
+    {type:'RECEIVE',id:'t1',text:'另一个问题'},
+    {type:'SETTING',key:'permission',value:false},
+    {type:'SETTING',key:'paused',value:true},
+    {type:'SEND',id:'t1',messageId:'m1'}
+  ]){
+    const changed=state.reducer(s,action),next=state.reducer(changed,fill);
+    assert.deepEqual(next.threads,changed.threads,'late overwrite must not alter drafts or messages');
+  }
+});
+
+test('automatic simulation without readback reports unknown and stops the current session',()=>{
+  let s=state.reducer(state.createInitialState(),{type:'AUTO_REQUEST'});
+  s=state.reducer(s,{type:'AUTO_CONFIRM'});
+  s=state.reducer(s,{type:'SETTING',key:'verify',value:false});
+  s=state.reducer(s,{type:'RECEIVE',id:'t1',text:'请问能开发票吗？'});
+  assert.match(s.receipt,/未确认/);
+  assert.doesNotMatch(s.receipt,/回读一致/);
+  assert.ok(s.takeovers.includes('t1'),'unknown readback requires human handling');
+  const thread=state.currentThread(s),sentId=state.latestCustomerMessage(thread).id;
+  assert.equal(thread.messages.filter(m=>m.who==='agent').length,1);
+  assert.deepEqual(state.reducer(s,{type:'SEND',id:'t1',messageId:sentId}).threads,s.threads,'unknown submission cannot be resent');
+  s=state.reducer(s,{type:'RECEIVE',id:'t1',text:'请问能开发票吗？'});
+  assert.equal(state.currentThread(s).messages.filter(m=>m.who==='agent').length,1,'do not continue automatic sends');
+  assert.ok(!s.takeovers.includes('t2'),'other customers remain isolated');
+});

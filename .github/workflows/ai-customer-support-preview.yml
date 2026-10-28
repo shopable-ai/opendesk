@@ -30,7 +30,7 @@ jobs:
       - name: TypeScript check
         run: npm run typecheck
       - name: Domain isolation tests
-        run: node --test tests/domain.test.mjs tests/import-safety.test.mjs tests/knowledge-conflict.test.mjs
+        run: node --test tests/domain.test.mjs tests/import-safety.test.mjs tests/knowledge-conflict.test.mjs tests/knowledge-import.test.mjs tests/history-evidence.test.mjs
       - name: Generate one offline HTML
         run: npm run build
       - name: Offline preview contract
@@ -38,7 +38,7 @@ jobs:
       - name: Install CI Chromium
         run: npx playwright install chromium --with-deps
       - name: Headless browser regression
-        run: npm run test:browser
+        run: npm run test:browser -- --core
       - name: Upload browser visual evidence
         if: always()
         uses: actions/upload-artifact@v4

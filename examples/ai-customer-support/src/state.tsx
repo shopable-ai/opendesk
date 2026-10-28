@@ -121,7 +121,10 @@ export function reducer(s:AppState,a:Action):AppState {
         if(hit?.exact&&hit.k.eligible&&hit.k.enabled&&!hit.k.scope&&!risky.test(text)&&!current.draft.trim()){
           const answer='您好，'+hit.k.a,rid='r'+(next.counter+1);
           next=changed(next,a.id,t=>({...t,messages:[...t.messages,{id:rid,who:'agent',text:answer,replyTo:id}],sent:[...t.sent,id],draft:''}));
-          return notify(note({...next,counter:next.counter+1},'智能托管模拟发送 '+rid+' · 回读一致'),'模拟自动回复已确认 · 非真实平台');
+          const receipt=next.verify?'智能托管模拟发送 '+rid+' · 回读一致':'模拟已提交，但未启用回读，状态未确认 · 当前会话转人工';
+          return notify(note({...next,counter:next.counter+1,
+            takeovers:next.verify?next.takeovers:[...next.takeovers,a.id]},receipt),
+            next.verify?'模拟自动回复已确认 · 非真实平台':'模拟已提交，回读未确认 · 已转人工');
         }
         return notify(note({...next,takeovers:[...next.takeovers,a.id]},'未精确命中、草稿被占用或有风险，当前会话转人工'),'已转人工 · 没有自动发送');
       }
@@ -179,10 +182,16 @@ export function reducer(s:AppState,a:Action):AppState {
       return notify({...s,knowledge:[...s.knowledge,...entries],knowledgeImportStatus:'导入 '+entries.length+' 条'},
         '知识已导入 '+entries.length+' 条 · 仅页面内存');
     }
-    case 'IMPORT_HISTORY':
+    case 'IMPORT_HISTORY':{
       if(a.epoch!==s.historyImportEpoch)return notify(s,'客户历史导入已取消：档案已清空或重置');
-      return notify({...s,history:mergeHistory(s.history,a.history),historyImportStatus:'已导入，请点击 ✦ 提取关键信息'},
-        '客户历史已导入 · 未上传');
+      try{
+        return notify({...s,history:mergeHistory(s.history,a.history),historyImportStatus:'已导入，请点击 ✦ 提取关键信息'},
+          '客户历史已导入 · 未上传');
+      }catch(error){
+        const message='导入失败：'+(error instanceof Error?error.message:'历史数据冲突');
+        return notify({...s,historyImportStatus:message},message);
+      }
+    }
     case 'IMPORT_ERROR':{
       const current=a.kind==='knowledge'?s.knowledgeImportEpoch:s.historyImportEpoch;
       if(a.epoch!==current)return s;

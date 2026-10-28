@@ -113,3 +113,21 @@ test('clearing a profile permits a new history import without cancelling knowled
   assert.equal(state.history.t1[0].sessionId,'delayed');
   assert.equal(state.knowledge.length,8);
 });
+
+test('history conflict reaches the import error UI state without changing reviewed evidence',()=>{
+  let state=createInitialState();
+  const fact=state.facts.find(f=>f.customerId==='t1');
+  state=reducer(state,{type:'FACT_STATUS',id:fact.id,customerId:'t1',status:'confirmed'});
+  const imported=structuredClone(state.history);
+  imported.t1[0].messages.unshift({messageId:'new-before-conflict',role:'customer',text:'我喜欢黑色。',at:''});
+  imported.t1[0].messages[1].text='我喜欢黑色。';
+  const {history:beforeHistory,facts:beforeFacts}=state;
+  state=reducer(state,{type:'IMPORT_HISTORY',history:imported,epoch:epoch(state,'history')});
+  assert.equal(state.history,beforeHistory,'atomic rejection must not accept the preceding new message');
+  assert.equal(state.facts,beforeFacts);
+  assert.match(state.historyImportStatus,/导入失败.*冲突/);
+  assert.match(state.toast.message,/原数据保留/);
+  state=reducer(state,{type:'IMPORT_HISTORY',history:beforeHistory,epoch:epoch(state,'history')});
+  assert.match(state.historyImportStatus,/已导入/,'an identical retry remains valid');
+  assert.equal(state.facts.find(f=>f.id===fact.id).status,'confirmed');
+});
