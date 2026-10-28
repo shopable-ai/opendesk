@@ -46,6 +46,33 @@
 #od-compact-inline .expand-reply:hover,#od-compact-inline .expand-reply:focus-visible{background:var(--soft);color:var(--accent)}
 #od-compact-inline .expand-reply[aria-expanded="true"]{transform:rotate(180deg)}
 @media(prefers-reduced-motion:reduce){#od-compact-inline .kb-chevron,#od-compact-inline .switch:after{transition:none}}
+
+/* 200% zoom / extremely narrow content container: preserve readable actions. */
+#od-compact-inline .wrap{container-type:inline-size}
+@container (max-width:260px){
+ #od-compact-inline .preview-control{flex-wrap:wrap}
+ #od-compact-inline .preview-control .preview-title{flex:1 1 calc(100% - 44px);min-width:0}
+ #od-compact-inline .preview-control .flex{display:none}
+ #od-compact-inline .tabs{gap:7px;padding:0 6px}
+ #od-compact-inline .tabs button{font-size:10.5px;white-space:nowrap}
+ #od-compact-inline .windowhead{padding:0 7px;gap:4px}
+ #od-compact-inline .identity small{display:none}
+ #od-compact-inline .scroll{padding:9px 8px}
+ #od-compact-inline .bottom{padding:8px}
+ #od-compact-inline .message{padding:8px;margin-top:9px}
+ #od-compact-inline .section span{display:none}
+ #od-compact-inline .hit .check{display:none}
+ #od-compact-inline .option{display:block;padding:8px 25px 8px 8px}
+ #od-compact-inline .option .symbol{display:none}
+ #od-compact-inline .option .answer{font-size:11px}
+ #od-compact-inline .expand-reply{right:1px;top:4px;width:24px;height:26px}
+ #od-compact-inline .bottom .btn-row{flex-wrap:wrap}
+ #od-compact-inline .bottom .btn-row .primary{flex:1 0 100%;white-space:nowrap}
+ #od-compact-inline .bottom .btn-row .tool{width:36px}
+ #od-compact-inline .searchbar{gap:3px}
+ #od-compact-inline .searchbar .tool{width:29px}
+ #od-compact-inline .pop{width:100%}
+}
 </style>
 <div class="wrap"><div class="preview-control"><div class="od-mark">OD</div><div class="preview-title">AI 客服 · Compact Copilot <span class="tiny grey">· 380px</span></div><div class="flex"></div><button class="tool" id="odiv-view" title="切换聊天模拟器 / AI 助手">☷</button><button class="tool" id="odiv-theme" title="深浅色切换">◐</button><button class="tool" id="odiv-reset" title="重置模拟数据">↻</button></div>
 <div class="window"><header class="windowhead"><div class="spark">✦</div><div class="identity flex"><b id="odiv-heading">AI 客服</b><small id="odiv-subtitle">林女士 · 模拟会话已连接</small></div><button class="icon" id="odiv-pause" title="暂停观察">Ⅱ</button><button class="icon" id="odiv-menu" title="设置">···</button></header><nav class="tabs" id="odiv-tabs"><button data-tab="reply" class="on">推荐回复</button><button data-tab="knowledge">知识库</button><button data-tab="settings">设置</button></nav>
@@ -280,8 +307,9 @@ $('#odiv-copy').addEventListener('click',async()=>{try{await navigator.clipboard
 $('#odiv-send').addEventListener('click',()=>sendDraft());
 $('#odiv-chatdraft').addEventListener('input',e=>{thread().draft=e.target.value});
 $('#odiv-search').addEventListener('input',()=>{s.showAll=false;renderKb()});
-$('#odiv-filter').addEventListener('click',()=>$('#odiv-pop').classList.toggle('hidden'));
-$('#odiv-upload').addEventListener('click',()=>$('#odiv-import').classList.toggle('hidden'));
+$('#odiv-filter').addEventListener('click',()=>{$('#odiv-import').classList.add('hidden');$('#odiv-pop').classList.toggle('hidden')});
+$('#odiv-upload').addEventListener('click',()=>{$('#odiv-pop').classList.add('hidden');$('#odiv-import').classList.toggle('hidden')});
+R.addEventListener('keydown',e=>{if(e.key==='Escape'){const active=!$('#odiv-pop').classList.contains('hidden')?'#odiv-filter':!$('#odiv-import').classList.contains('hidden')?'#odiv-upload':null;$('#odiv-pop').classList.add('hidden');$('#odiv-import').classList.add('hidden');if(active)$(active).focus()}});
 $('#odiv-source').addEventListener('change',e=>{s.source=e.target.value;s.showAll=false;renderKb()});
 $('#odiv-scope').addEventListener('change',e=>{s.scope=e.target.value;s.showAll=false;renderKb()});
 $('#odiv-clear').addEventListener('click',()=>{s.filter='all';s.source='all';s.scope='all';s.showAll=false;$('#odiv-scope').value='all';$$('[data-filter]').forEach(b=>b.classList.toggle('on',b.dataset.filter==='all'));renderKb()});
