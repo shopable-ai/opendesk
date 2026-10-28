@@ -85,10 +85,12 @@ try {
     await page.getByRole('tab', { name:'知识库' }).click();
     await page.getByRole('button', { name:'导入知识' }).click();
     await page.locator('#odiv-knowledge input[type="file"]').setInputFiles(join(root, 'fixtures', 'knowledge-demo.json'));
+    await page.waitForFunction(() => document.querySelectorAll('#odiv-knowledge .kb-rich-entry').length === 15);
     assert.equal(await page.locator('#odiv-knowledge .kb-rich-entry').count(), 15);
     await page.getByRole('tab', { name:'客户档案' }).click();
     await page.getByRole('button', { name:'导入历史会话' }).click();
     await page.locator('#odiv-customer input[type="file"]').setInputFiles(join(root, 'fixtures', 'customer-history-demo.json'));
+    await page.getByText('已导入，请点击 ✦ 提取关键信息').waitFor();
     await page.getByRole('button', { name:'根据演示规则提取关键语料' }).click();
     assert.equal(await page.locator('#odiv-customer .profile-markdown').isVisible(), true);
     await page.getByRole('button', { name:'切换明暗主题' }).click();
