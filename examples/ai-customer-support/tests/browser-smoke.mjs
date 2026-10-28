@@ -218,8 +218,14 @@ try {
     assert.match(await fact.innerText(),/我更喜欢黑色/);
     assert.match(await fact.innerText(),/已确认/);
     await page.locator('#od-contacts button').filter({hasText:'陈先生'}).click();
+    await page.locator('.profile-who').filter({hasText:'#t2'}).waitFor();
+    await fact.waitFor({state:'detached'});
     assert.equal(await page.locator('.profile-md-fact').filter({hasText:'偏好黑色'}).count(),0);
     await page.screenshot({path:join(screenshots,'history-import-isolation.png')});
+    await page.locator('#od-contacts button').filter({hasText:'林女士'}).click();
+    await page.locator('.profile-who').filter({hasText:'#t1'}).waitFor();
+    await fact.waitFor();
+    assert.match(await fact.innerText(),/已确认/,'switching customers must preserve the original reviewed fact');
   });
   await scenario('automatic-unknown-readback-stops-session', async page => {
     await page.getByRole('button',{name:'打开设置'}).click();
