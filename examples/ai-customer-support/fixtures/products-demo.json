@@ -1,0 +1,231 @@
+{
+  "schemaVersion": 1,
+  "format": "opendesk.ai-customer-support.products-demo",
+  "demo": true,
+  "description": "完全虚构的商品与图片示例数据；价格仅为演示参考价，图片为程序绘制 SVG 示意图，不反映实时售价、库存或承诺。",
+  "provider": "local-demo",
+  "products": [
+    {
+      "id": "demo-jacket",
+      "sku": "OD-JK-101",
+      "name": "轻量连帽外套",
+      "category": "服饰",
+      "price": "¥299",
+      "model": "JK-101",
+      "summary": "轻量日常外套，展示可参考的颜色与尺码信息。",
+      "specs": [
+        {
+          "label": "颜色",
+          "value": "海军蓝"
+        },
+        {
+          "label": "尺码",
+          "value": "S / M / L / XL"
+        },
+        {
+          "label": "面料",
+          "value": "演示聚酯纤维"
+        }
+      ],
+      "imageType": "jacket",
+      "color": "#426894",
+      "images": [
+        {
+          "id": "front",
+          "label": "正面示意图"
+        },
+        {
+          "id": "detail",
+          "label": "材质细节示意"
+        }
+      ],
+      "source": "demo/products-demo.json",
+      "updated": "2026-10-28"
+    },
+    {
+      "id": "demo-shoes",
+      "sku": "OD-SN-202",
+      "name": "轻量运动鞋",
+      "category": "鞋靴",
+      "price": "¥359",
+      "model": "SN-202",
+      "summary": "适合日常出行的运动鞋演示款，具体脚感与尺码需实物核实。",
+      "specs": [
+        {
+          "label": "颜色",
+          "value": "岩灰"
+        },
+        {
+          "label": "尺码",
+          "value": "36–44（演示）"
+        },
+        {
+          "label": "鞋面",
+          "value": "透气织物（演示）"
+        }
+      ],
+      "imageType": "shoe",
+      "color": "#728491",
+      "images": [
+        {
+          "id": "side",
+          "label": "侧面示意图"
+        },
+        {
+          "id": "detail",
+          "label": "鞋面细节示意"
+        }
+      ],
+      "source": "demo/products-demo.json",
+      "updated": "2026-10-28"
+    },
+    {
+      "id": "demo-bottle",
+      "sku": "OD-CU-303",
+      "name": "便携保温杯",
+      "category": "家居",
+      "price": "¥129",
+      "model": "CU-303",
+      "summary": "轻便杯型与基础容量演示，保温时长不作真实承诺。",
+      "specs": [
+        {
+          "label": "容量",
+          "value": "480 mL（演示）"
+        },
+        {
+          "label": "颜色",
+          "value": "雾蓝"
+        },
+        {
+          "label": "杯身",
+          "value": "双层结构示意"
+        }
+      ],
+      "imageType": "bottle",
+      "color": "#619ab2",
+      "images": [
+        {
+          "id": "front",
+          "label": "外观示意图"
+        },
+        {
+          "id": "detail",
+          "label": "杯盖细节示意"
+        }
+      ],
+      "source": "demo/products-demo.json",
+      "updated": "2026-10-28"
+    },
+    {
+      "id": "demo-speaker",
+      "sku": "OD-SP-404",
+      "name": "迷你蓝牙音箱",
+      "category": "数码",
+      "price": "¥239",
+      "model": "SP-404",
+      "summary": "便携音箱外观与控制区示意，续航和连接参数需进一步核实。",
+      "specs": [
+        {
+          "label": "连接",
+          "value": "蓝牙（演示）"
+        },
+        {
+          "label": "配色",
+          "value": "石墨黑"
+        },
+        {
+          "label": "接口",
+          "value": "USB-C 示意"
+        }
+      ],
+      "imageType": "speaker",
+      "color": "#4f606f",
+      "images": [
+        {
+          "id": "front",
+          "label": "正面示意图"
+        },
+        {
+          "id": "detail",
+          "label": "按键细节示意"
+        }
+      ],
+      "source": "demo/products-demo.json",
+      "updated": "2026-10-28"
+    },
+    {
+      "id": "demo-bag",
+      "sku": "OD-BG-505",
+      "name": "简约帆布托特包",
+      "category": "配饰",
+      "price": "¥159",
+      "model": "BG-505",
+      "summary": "日常通勤包型示意，尺寸和实际承重应以核验资料为准。",
+      "specs": [
+        {
+          "label": "颜色",
+          "value": "燕麦米"
+        },
+        {
+          "label": "结构",
+          "value": "单主袋（演示）"
+        },
+        {
+          "label": "面料",
+          "value": "帆布示意"
+        }
+      ],
+      "imageType": "bag",
+      "color": "#b69b7c",
+      "images": [
+        {
+          "id": "front",
+          "label": "正面示意图"
+        },
+        {
+          "id": "detail",
+          "label": "提手细节示意"
+        }
+      ],
+      "source": "demo/products-demo.json",
+      "updated": "2026-10-28"
+    },
+    {
+      "id": "demo-shirt",
+      "sku": "OD-SH-606",
+      "name": "基础短袖衬衫",
+      "category": "服饰",
+      "price": "¥189",
+      "model": "SH-606",
+      "summary": "简洁通勤版型演示，尺寸表和具体库存需人工确认。",
+      "specs": [
+        {
+          "label": "颜色",
+          "value": "浅蓝"
+        },
+        {
+          "label": "尺码",
+          "value": "S / M / L（演示）"
+        },
+        {
+          "label": "领型",
+          "value": "翻领"
+        }
+      ],
+      "imageType": "shirt",
+      "color": "#8bacc9",
+      "images": [
+        {
+          "id": "front",
+          "label": "正面示意图"
+        },
+        {
+          "id": "detail",
+          "label": "领口细节示意"
+        }
+      ],
+      "source": "demo/products-demo.json",
+      "updated": "2026-10-28"
+    }
+  ]
+}
