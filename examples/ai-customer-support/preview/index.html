@@ -269,7 +269,7 @@ $('simulateSend').disabled=!allowed()||!state.replyText.trim()||state.replyMode=
 }
 function lastInbound(t){return t.messages.slice().reverse().find(function(m){return m.from==='customer'})}
 function existsReply(t,id){return t.sentFor.indexOf(id)>=0}
-function scan(text){var sentence=String(text||'').toLowerCase();var matches=state.knowledge.filter(function(k){return k.enabled!==false}).map(function(k){var score=(k.keywords||[]).reduce(function(n,w){return n+(w&&sentence.includes(String(w).toLowerCase())?w.length:0)},0);return {item:k,score:score}}).filter(function(x){return x.score>0}).sort(function(a,b){return b.score-a.score});return matches.length?matches[0].item:null}
+function scan(text){var sentence=String(text||'').toLowerCase();var matches=state.knowledge.filter(function(k){return k.enabled!==false&&(!k.scope||sentence.includes(String(k.scope).toLowerCase()))}).map(function(k){var score=(k.keywords||[]).reduce(function(n,w){return n+(w&&sentence.includes(String(w).toLowerCase())?w.length:0)},0);return {item:k,score:score}}).filter(function(x){return x.score>0}).sort(function(a,b){return b.score-a.score});return matches.length?matches[0].item:null}
 function suggestions(k){return k?{accurate:'您好，'+k.answer,warm:'您好，感谢您的耐心咨询。'+k.answer+' 如果需要，我可以继续协助您核实。',human:'您好，为避免给您错误承诺，这个问题我会转交人工客服核实，请稍候。'}:{accurate:'',warm:'',human:'您好，当前知识库没有足够依据，我会转交人工客服核实后再答复您，感谢理解。'}}
 function allowed(){return state.authorized&&!state.paused&&!state.minimized}
 function renderThreads(){
@@ -287,15 +287,16 @@ m.scrollTop=m.scrollHeight;
 $('chatTitle').textContent=displayName(t);$('chatSubTitle').textContent='会话 #'+t.id+' · 模拟应用窗口';$('settingThread').textContent='#'+t.id+' · '+displayName(t);
 }
 function analyze(resetDraft){
-var t=thread(),message=lastInbound(t),isAllowed=allowed(),k=isAllowed&&message?scan(message.text):null,variants=suggestions(k),previous=state.drafts[state.cid];
+var t=thread(),message=lastInbound(t),isAllowed=allowed(),k=isAllowed&&message?scan(message.text):null,exact=isAllowed&&message?exactKnowledge(message.text):null,variants=suggestions(k),previous=state.drafts[state.cid];
 if(resetDraft){state.style=k?'accurate':'human';state.replyText=variants[state.style]||'';if(previous&&previous.inbound===message.id){state.style=previous.style;state.replyText=previous.text}}
 if(!isAllowed){$('recognizedText').textContent=state.minimized?'目标窗口已最小化，观察已停止':!state.authorized?'模拟授权已撤销，消息观察关闭':'观察已暂停；新消息不会被分析';$('messageRef').textContent='未读取'}
 else{$('recognizedText').textContent=message?message.text:'当前无客户消息';$('messageRef').textContent=message?'#'+message.id:'—'}
 $('scopeName').textContent=displayName(t);
 var status=$('connectionStatus');status.className='status-pill'+(isAllowed?'':state.minimized?' off':' warn');status.querySelector('.pin').className='pin';status.lastChild.textContent=isAllowed?'模拟已连接':state.minimized?'已隐藏':!state.authorized?'未授权':'已暂停';
 $('matchTag').textContent=isAllowed?'本地规则匹配':'观察停止';$('matchIcon').classList.toggle('unmatched',!k);
-$('matchTitle').textContent=!isAllowed?'无法匹配':k?'命中 · '+k.question:'未命中 · 建议人工处理';$('matchSummary').textContent=!isAllowed?'恢复目标观察后才能分析新消息。':k?k.answer:'没有足够可靠知识依据，不生成商品、退款或赔付承诺。';$('matchSource').textContent=k?'引用：'+k.source:'';
-$('summaryAccurate').textContent=k?'依据已核实知识：'+k.question:'暂无可靠业务依据';
+$('matchTitle').textContent=!isAllowed?'无法匹配':exact?'固定知识命中 · '+k.question:k?'相似知识候选 · 需核实':'未命中 · 建议人工处理';$('matchSummary').textContent=!isAllowed?'恢复目标观察后才能分析新消息。':k?k.answer:'没有足够可靠知识依据，不生成商品、退款或赔付承诺。';$('matchSource').textContent=k?'引用：'+k.source:'';
+$('summaryAccurate').textContent=k?(exact?'固定答案：':'相似候选：')+k.question:'暂无可靠业务依据';
+$('variantAccurate').querySelector('.variant-trust').textContent=exact?'精确命中':k?'人工审核':'无依据';
 $('summaryWarm').textContent=k?'同一依据 · 调整语气，不增加承诺':'无依据时不生成语气变体';
 $('summaryHuman').textContent='人工核实 · 不作未经证实承诺';
 $('notice').classList.toggle('show',isAllowed&&!k);$('notice').textContent='当前知识未命中，仅开放「转人工」，避免生成没有依据的业务承诺。';
