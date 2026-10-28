@@ -16,6 +16,8 @@ export interface AppState {
   verify:boolean; nicknameMode:'original'|'region'; takeovers:CustomerId[];
   chosen:Record<string,string>; edits:Record<string,string>; editing:string|null;
   knowledge:Knowledge[]; history:HistoryByCustomer; facts:ProfileFact[];
+  knowledgeImportEpoch:number; historyImportEpoch:number;
+  knowledgeImportStatus:string; historyImportStatus:string;
   productSelected:string|null; imageSelected:{productId:string;imageId:string}|null; orderSelected:string|null;
   receipt:string; counter:number; log:string[]; toast:{id:number;message:string}|null;
 }
@@ -41,8 +43,9 @@ export type Action =
  | {type:'AUTO_CANCEL'}
  | {type:'AUTO_DISABLE'}
  | {type:'TAKEOVER'}
- | {type:'IMPORT_KNOWLEDGE';entries:Knowledge[]}
- | {type:'IMPORT_HISTORY';history:HistoryByCustomer}
+ | {type:'IMPORT_KNOWLEDGE';entries:Knowledge[];epoch:number}
+ | {type:'IMPORT_HISTORY';history:HistoryByCustomer;epoch:number}
+ | {type:'IMPORT_ERROR';kind:'knowledge'|'history';message:string;epoch:number}
  | {type:'EXTRACT_FACTS'}
  | {type:'FACT_STATUS';id:string;customerId:CustomerId;status:FactStatus}
  | {type:'CLEAR_PROFILE';customerId:CustomerId}
@@ -63,6 +66,7 @@ export function createInitialState():AppState {
     tab:'reply',settingsOrigin:'reply',permission:true,paused:false,auto:false,consented:false,
     consentPending:false,follow:true,verify:true,nicknameMode:'original',takeovers:[],
     chosen:{},edits:{},editing:null,knowledge:initialKnowledge(),history,facts:extractFacts(history,[]),
+    knowledgeImportEpoch:0,historyImportEpoch:0,knowledgeImportStatus:'',historyImportStatus:'',
     productSelected:null,imageSelected:null,orderSelected:null,
     receipt:'尚未发送',counter:7,log:[],toast:null
   };
@@ -91,7 +95,8 @@ const safeToFill=(s:AppState,id:CustomerId,messageId:string):boolean=>{
 const risky=/赔偿|承诺|密码|身份证/;
 export function reducer(s:AppState,a:Action):AppState {
   switch(a.type) {
-    case 'RESET': return createInitialState();
+    case 'RESET': return {...createInitialState(),knowledgeImportEpoch:s.knowledgeImportEpoch+1,
+      historyImportEpoch:s.historyImportEpoch+1};
     case 'TAB': return {...s,tab:a.tab,settingsOrigin:a.tab==='settings'?(s.tab==='settings'?s.settingsOrigin:s.tab):s.settingsOrigin,editing:null};
     case 'OPEN_PRODUCT':return findProduct(a.id)?{...s,productSelected:a.id,tab:'products'}:s;
     case 'CLOSE_PRODUCT':return {...s,productSelected:null};
@@ -162,11 +167,32 @@ export function reducer(s:AppState,a:Action):AppState {
       return note({...s,takeovers:taken?s.takeovers.filter(id=>id!==s.threadId):[...s.takeovers,s.threadId]},
         taken?'已恢复当前会话托管，历史消息不会补发':'已接管当前会话：暂停自动发送');
     }
-    case 'IMPORT_KNOWLEDGE':return notify({...s,knowledge:[...s.knowledge,...a.entries]},'知识已导入 '+a.entries.length+' 条 · 仅页面内存');
-    case 'IMPORT_HISTORY':return notify({...s,history:mergeHistory(s.history,a.history)},'客户历史已导入 · 未上传');
+    case 'IMPORT_KNOWLEDGE':{
+      if(a.epoch!==s.knowledgeImportEpoch)return notify(s,'知识导入已取消：数据已重置');
+      if(!a.entries.length||a.entries.length>100||s.knowledge.length+a.entries.length>150){
+        const message='导入失败：单文件限 1–100 条，知识总数不能超过 150 条';
+        return notify({...s,knowledgeImportStatus:message},message);
+      }
+      // Commit against current state: concurrent File.text() completions share no IDs or stale quota.
+      const nextId=Math.max(...s.knowledge.map(k=>Number(k.id.replace(/^k/,''))||0),0);
+      const entries=a.entries.map((k,i)=>({...k,id:'k'+(nextId+i+1)}));
+      return notify({...s,knowledge:[...s.knowledge,...entries],knowledgeImportStatus:'导入 '+entries.length+' 条'},
+        '知识已导入 '+entries.length+' 条 · 仅页面内存');
+    }
+    case 'IMPORT_HISTORY':
+      if(a.epoch!==s.historyImportEpoch)return notify(s,'客户历史导入已取消：档案已清空或重置');
+      return notify({...s,history:mergeHistory(s.history,a.history),historyImportStatus:'已导入，请点击 ✦ 提取关键信息'},
+        '客户历史已导入 · 未上传');
+    case 'IMPORT_ERROR':{
+      const current=a.kind==='knowledge'?s.knowledgeImportEpoch:s.historyImportEpoch;
+      if(a.epoch!==current)return s;
+      const message='导入失败：'+a.message;
+      return notify({...s,...(a.kind==='knowledge'?{knowledgeImportStatus:message}:{historyImportStatus:message})},message);
+    }
     case 'EXTRACT_FACTS':return notify({...s,facts:extractFacts(s.history,s.facts)},'本地规则提取完成 · 待人工确认');
     case 'FACT_STATUS':return {...s,facts:s.facts.map(f=>f.id===a.id&&f.customerId===a.customerId?{...f,status:a.status}:f)};
-    case 'CLEAR_PROFILE':return {...s,history:{...s.history,[a.customerId]:[]},facts:s.facts.filter(f=>f.customerId!==a.customerId)};
+    case 'CLEAR_PROFILE':return {...s,history:{...s.history,[a.customerId]:[]},facts:s.facts.filter(f=>f.customerId!==a.customerId),
+      historyImportEpoch:s.historyImportEpoch+1,historyImportStatus:''};
     case 'CLEAR_LOG':return {...s,log:[],receipt:'操作记录已清空'};
     case 'RECORD':return note(s,a.message);
     case 'TOAST':return notify(s,a.message);

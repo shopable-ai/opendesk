@@ -9,7 +9,7 @@ export function KnowledgeView(){
   const [query,setQuery]=useState(''),[filter,setFilter]=useState('all'),
     [source,setSource]=useState('all'),[scope,setScope]=useState('all'),
     [expanded,setExpanded]=useState<string[]>([]),[filterOpen,setFilterOpen]=useState(false),
-    [uploadOpen,setUploadOpen]=useState(false),[status,setStatus]=useState('');
+    [uploadOpen,setUploadOpen]=useState(false);
   const sources=Array.from(new Set(state.knowledge.map(k=>k.source))).sort();
   const selectedSource=sources.includes(source)?source:'all';
   const visible=state.knowledge.filter(k=>
@@ -23,8 +23,9 @@ export function KnowledgeView(){
       if(file.size>262144)throw Error('文件超过 256KB');
       const nextId=Math.max(...state.knowledge.map(k=>Number(k.id.replace(/^k/,''))||0),0);
       const rows=parseKnowledgeFile(await file.text(),file.name,state.knowledge.length,nextId);
-      dispatch({type:'IMPORT_KNOWLEDGE',entries:rows});setUploadOpen(false);setStatus('导入 '+rows.length+' 条');
-    }catch(error){const msg=error instanceof Error?error.message:'文件格式错误';setStatus('导入失败');dispatch({type:'TOAST',message:'导入失败：'+msg});}
+      dispatch({type:'IMPORT_KNOWLEDGE',entries:rows,epoch:state.knowledgeImportEpoch});
+    }catch(error){const message=error instanceof Error?error.message:'文件格式错误';
+      dispatch({type:'IMPORT_ERROR',kind:'knowledge',message,epoch:state.knowledgeImportEpoch});}
   }
   return <PanelScroll>
     <div className="searchbar">
@@ -45,7 +46,7 @@ export function KnowledgeView(){
       拖入 JSON / Markdown 文件<div>仅页面内存，不上传</div>
       <label>选择本地文件<input aria-label="选择知识文件" type="file" accept=".json,.md,.markdown" onChange={e=>{void importFile(e.target.files?.[0]);e.target.value='';}}/></label>
     </div>}
-    <div className="between tiny grey" style={{margin:'11px 0 0'}}><span>找到 {visible.length} 条 · 共 {state.knowledge.length} 条知识</span><span>{status}</span></div>
+    <div className="between tiny grey" style={{margin:'11px 0 0'}}><span>找到 {visible.length} 条 · 共 {state.knowledge.length} 条知识</span><span>{state.knowledgeImportStatus}</span></div>
     <p className="kb-instruction">点击条目可查看完整答案、同义问题、数据来源与托管资格</p>
     <div>{visible.length===0?<p className="kb-empty">没有符合当前搜索与筛选条件的知识。</p>:visible.map(k=>{
       const open=expanded.includes(k.id);

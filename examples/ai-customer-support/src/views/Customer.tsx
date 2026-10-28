@@ -17,7 +17,7 @@ export function CustomerView(){
   const [page,setPage]=useState<Page>('detail'),[selected,setSelected]=useState<CustomerId>('t1');
   const [docMode,setDocMode]=useState<DocMode>('render'),[query,setQuery]=useState(''),[directoryQuery,setDirectoryQuery]=useState('');
   const [filter,setFilter]=useState('all'),[dirFilter,setDirFilter]=useState('all'),[dirFilterOpen,setDirFilterOpen]=useState(false);
-  const [expanded,setExpanded]=useState<string[]>([]),[importOpen,setImportOpen]=useState(false),[importStatus,setImportStatus]=useState('');
+  const [expanded,setExpanded]=useState<string[]>([]),[importOpen,setImportOpen]=useState(false);
   const [externalOpen,setExternalOpen]=useState(false),[externalUrl,setExternalUrl]=useState('');
   const [links,setLinks]=useState<Record<string,string>>({});
   useEffect(()=>{
@@ -48,8 +48,9 @@ export function CustomerView(){
     try{
       if(file.size>524288||!file.name.toLowerCase().endsWith('.json'))throw Error('仅支持 512KB 以内的历史演示 JSON');
       const history=parseHistoryFile(await file.text());
-      dispatch({type:'IMPORT_HISTORY',history});setImportStatus('已导入，请点击 ✦ 提取关键信息');
-    }catch(e){const message=e instanceof Error?e.message:'格式错误';setImportStatus('导入失败：'+message);dispatch({type:'TOAST',message:'客户历史未导入：'+message});}
+      dispatch({type:'IMPORT_HISTORY',history,epoch:state.historyImportEpoch});
+    }catch(e){const message=e instanceof Error?e.message:'格式错误';
+      dispatch({type:'IMPORT_ERROR',kind:'history',message,epoch:state.historyImportEpoch});}
   }
   function selectCustomer(id:string){
     if(!isCustomerId(id))return;
@@ -141,7 +142,7 @@ export function CustomerView(){
           <b>导入历史会话 JSON</b><p>按 customerId 归入对应客户。仅在当前演示中处理，不上传、不持久化。</p>
           <label className="profile-filelabel">选择 JSON 文件
             <input type="file" accept=".json,application/json" onChange={e=>{void importFile(e.target.files?.[0]);e.target.value='';}}/></label>
-          <p role="status" className="profile-import-result">{importStatus||'导入后点击 ✦ 提取可审查的关键语料。'}</p></div>}
+          <p role="status" className="profile-import-result">{state.historyImportStatus||'导入后点击 ✦ 提取可审查的关键语料。'}</p></div>}
         <article className="profile-markdown" aria-label="Markdown 风格客户档案正文">
           <h3>客户摘要</h3><p className="profile-summary">{confirmed?
             '已人工确认 '+confirmed+' 条信息；还有 '+candidates+' 条来自历史对话的线索待核实。':

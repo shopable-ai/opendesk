@@ -25,7 +25,9 @@ export function matchKnowledge(message: string | undefined, kb: readonly Knowled
     const similarity = k.keys.filter(key => normalize(key) && input.includes(normalize(key))).length;
     return { k, exact, score: exact ? 100 : similarity * 10 };
   }).filter(h => h.score > 0).sort((a, b) => b.score - a.score);
-  return hits[0] || null;
+  const best = hits[0];
+  if (!best || hits.some(hit => hit.score === best.score && hit.k.a !== best.k.a)) return null;
+  return best;
 }
 export function replyOptions(hit: KnowledgeHit | null): ReplyOption[] {
   if (!hit) return [
