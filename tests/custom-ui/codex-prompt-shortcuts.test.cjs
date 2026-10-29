@@ -259,6 +259,42 @@ async function harness(initial = library(), follow = true, mode, shared) {
     manager: () => manager, bar: () => bar
   };})()`, context, { filename: mainPath, timeout: 2000 });
   return { api, calls, hooks, env, executionEnv:context.Execution.env, panels, files, file, lock, leases, timers, timerDelays,events,watchers,
+    useRealInsertion(){vm.runInNewContext(fs.readFileSync(path.join(path.dirname(mainPath),'insert.js'),'utf8'),context);},
+    installCodexEditor(draft=''){
+      // Native dependencies are simulated; main.js and insert.js are unchanged.
+      this.useRealInsertion();
+      const field={role:'textField',nativeRole:'AXTextArea',name:'随心输入',identifier:'unqualified-composer',
+        enabled:true,focused:true,value:draft||'随心输入\n',
+        bounds:{x:400,y:700,width:600,height:100,coordinateSpace:'screen'},
+        textInputState:{unit:'utf16',composition:'unknown',markedRange:null,
+          selection:{location:draft.length,length:0}}};
+      env.editorText=draft;
+      const ref={kind:'AccessibilityElementRef',id:'codex-composer'};
+      context.Accessibility.find=async(selector,options)=>{
+        (calls.editorFinds??=[]).push({selector:clone(selector),options:clone(options)});
+        if(hooks.editorFind)return hooks.editorFind();return ref;
+      };
+      context.Accessibility.read=async(r,options)=>{
+        assert.equal(r,ref);(calls.editorReads??=[]).push(clone(options));
+        await hooks.editorRead?.(field);return {properties:clone(field)};
+      };
+      context.Accessibility.release=async r=>{assert.equal(r,ref);calls.editorReleases=(calls.editorReleases||0)+1;return true;};
+      context.keyboard={combination:async(...keys)=>{
+        (calls.editorKeys??=[]).push(keys);
+        if(keys.join('+')==='Meta+ArrowDown'){field.textInputState.selection={location:env.editorText.length,length:0};return;}
+        if(keys.join('+')==='ArrowRight'){
+          if(field.textInputState.selection.location<env.editorText.length)field.textInputState.selection.location++;
+          return;
+        }
+        assert.deepEqual(keys,['Meta','v']);
+        if(hooks.editorPaste)return hooks.editorPaste(field);
+        const {location,length}=field.textInputState.selection;assert.equal(length,0);
+        env.editorText=env.editorText.slice(0,location)+env.clipboard+env.editorText.slice(location);
+        field.value=env.editorText;field.textInputState.selection={location:location+env.clipboard.length,length:0};
+      }};
+      context.mouse={clickPoint:async point=>{(calls.editorFocus??=[]).push(clone(point));field.focused=true;}};
+      return field;
+    },
     installWatcher(){context.window.watchAppWindow=(scope,callback)=>{
       if(hooks.watch)return hooks.watch(scope,callback);
       watchers.set(scope.pid,callback);
@@ -269,6 +305,19 @@ async function harness(initial = library(), follow = true, mode, shared) {
     panel: () => panels.findLast(p => p.spec.kind === 'normal' && p.state.status !== 'closed') };
 }
 const model = harness();
+// Generic calibration/lifecycle tests use an explicitly synthetic editor.
+// Their fake success receipts are not evidence of Codex input qualification.
+function genericEditorFixture(h){
+  const bundleId='org.opendesk.tests.editor',config='/virtual/generic-editor.json';
+  h.env.applications=[{bundleId}];h.env.group={identity:{kind:'bundleId',value:bundleId},
+    pids:[101],instances:[{pid:101}]};
+  h.files.set(config,JSON.stringify({schemaVersion:1,profiles:[{
+    id:'fixture-editor',name:'Synthetic editor',app:{bundleId},inputMode:'strict',
+    layout:{sidebarWidth:300,gap:16,top:16,bottom:16,right:16},
+    editorSelector:{role:'textField',identifier:'fixture-composer'},
+  }]}));h.executionEnv.OPENDESK_SHORTCUTS_TARGET_CONFIG=config;
+}
+async function editorHarness(...args){const h=await harness(...args);genericEditorFixture(h);return h;}
 const change = next => { next.prompts[0].body = '已修改'; };
 async function blocked(h) {
   const writes = h.calls.writes.length, creates = h.calls.creates.length;
@@ -634,16 +683,17 @@ test('edits arriving during pending save remain dirty and survive native close',
   assert.equal((await h.panel().control('body').getState()).value, '保存期间继续编辑');
 });
 
-async function hostReady() {
-  const h = await harness(); await h.api.rebuild();
+async function hostReady(realInsertion=false) {
+  const h = await harness();if(realInsertion)h.installCodexEditor();await h.api.rebuild();
   const bar = h.api.bar();
   h.env.active = { ...codex(), id: 'host:toolbar', pid: bar.state.hostPid,
     handle: bar.state.nativeWindowId };
   h.hooks.current = target => ({ ...clone(target), isForeground: false });
   return h;
 }
-test('toolbar focus never activates a remembered target for an unavailable append transport', async () => {
-  const h=await hostReady();await h.api.bar().click('p0');
+test('toolbar focus never activates a remembered target or pastes when it is not foreground', async () => {
+  const h=await hostReady(true);
+  h.hooks.scoped=()=>({...codex(),isForeground:false});await h.api.bar().click('p0');
   assert.deepEqual(h.calls.inserts,[]);
   assert.deepEqual(h.calls.copies,[prompt.body]);
   const receipt=JSON.parse(h.calls.logs.find(s=>s.startsWith('CODEX_SHORTCUT_INSERT=')).split('=')[1]);
@@ -861,7 +911,7 @@ test('ad demo configuration is bounded, local, explicitly demo and optionally di
     assert.throws(()=>h.api.demoOptions({...config,...patch}),{code:'INVALID_AD_DEMO'});
 });
 test('copy mode cancels calibration even when the measurement is pending',async()=>{
-  const h=await harness(library(),false);await h.api.rebuild();await h.api.openManager();
+  const h=await editorHarness(library(),false);await h.api.rebuild();await h.api.openManager();
   let release,started;const ready=new Promise(resolve=>{started=resolve;});
   h.hooks.calibrate=async()=>{started();return new Promise(resolve=>{release=resolve;});};
   const manager=h.panel(),pending=manager.control('calibrate').emit('click');await ready;
@@ -895,7 +945,7 @@ test('real keepalive waits for asynchronous recovery management before exiting',
   await h.panel().close();releaseManager();await running;assert.equal(finished,true);
 });
 test('explicit calibration hides own manager, records candidate target, and copy mode restores ordinary copying', async () => {
-  const h = await harness(library(), false); await h.api.rebuild(); await h.api.openManager();
+  const h = await editorHarness(library(), false); await h.api.rebuild(); await h.api.openManager();
   const manager=h.panel(), bar=h.api.bar();
   assert.equal(manager.state.visible,true); assert.equal(bar.state.visible,false);
   await manager.control('calibrate').emit('click');
@@ -911,7 +961,7 @@ test('explicit calibration hides own manager, records candidate target, and copy
   assert.deepEqual(h.calls.copies,[prompt.body]);
 });
 test('failed calibration restores manager; uncertain insertion preserves clipboard and never retries input', async () => {
-  const h=await harness(library(),false); await h.api.rebuild(); await h.api.openManager();
+  const h=await editorHarness(library(),false); await h.api.rebuild(); await h.api.openManager();
   const manager=h.panel(); h.hooks.calibrate=()=>{throw error('MISSING_FIELD');};
   await manager.control('calibrate').emit('click');
   assert.equal(manager.state.visible,true); assert.equal(h.api.bar().state.visible,false);
@@ -977,6 +1027,7 @@ const composerTree=(win,y,height)=>({complete:true,truncated:false,root:{role:'w
   role:'textField',identifier:'fixture-composer',enabled:true,children:[],
   bounds:{x:win.x+100,y:win.y+y,width:600,height,coordinateSpace:'screen'}}]}});
 async function armComposer(h){
+  genericEditorFixture(h);
   await h.api.rebuild();await h.api.openManager();await h.panel().control('calibrate').emit('click');
   await new Promise(resolve=>setImmediate(resolve));await h.api.sync();
 }
@@ -1615,7 +1666,7 @@ test('configured app membership never admits unrelated windows in the toolbar ho
 for(const code of ['EXISTING_DRAFT','SELECTION_UNREADABLE','TARGET_CHANGED','LAYOUT_CHANGED','VALUE_UNREADABLE']){
   test('insertion preflight '+code+' automatically copies full Unicode prompt with reason',async()=>{
     const doc=library();doc.prompts[0].body='长草稿提示 🚀\n中文 e\u0301 '+ '正文'.repeat(200);
-    const h=await harness(doc,false);await h.api.rebuild();await h.api.openManager();
+    const h=await editorHarness(doc,false);await h.api.rebuild();await h.api.openManager();
     await h.panel().control('calibrate').emit('click');
     h.hooks.insert=()=>({status:'rejected',code,actionState:'not_started'});
     await h.api.bar().click('p0');
@@ -1624,7 +1675,7 @@ for(const code of ['EXISTING_DRAFT','SELECTION_UNREADABLE','TARGET_CHANGED','LAY
   });
 }
 test('thrown input helper latches unknown, preserves clipboard and warns',async()=>{
-  const h=await harness(library(),false);await h.api.rebuild();await h.api.openManager();
+  const h=await editorHarness(library(),false);await h.api.rebuild();await h.api.openManager();
   await h.panel().control('calibrate').emit('click');
   h.hooks.insert=()=>{throw error('NATIVE_TIMEOUT');};
   await h.api.bar().click('p0');await h.api.bar().click('p0');
@@ -1632,7 +1683,7 @@ test('thrown input helper latches unknown, preserves clipboard and warns',async(
   assert.ok(h.calls.toasts.some(t=>/结果未确认.*先检查草稿/.test(t.message)));
 });
 test('observed direct paste reports paste without claiming full readback or blocking the next click',async()=>{
-  const h=await harness(library(),false);await h.api.rebuild();await h.api.openManager();
+  const h=await editorHarness(library(),false);await h.api.rebuild();await h.api.openManager();
   await h.panel().control('calibrate').emit('click');
   h.hooks.insert=()=>({status:'inserted',code:'PASTE_OBSERVED',verified:false,actionState:'acknowledged'});
   await h.api.bar().click('p0');await h.api.bar().click('p0');
@@ -1653,7 +1704,7 @@ for(const receipt of [
   {status:'rejected',code:'FAILED',verified:1,actionState:'not_started'},
   {status:'rejected',code:'FAILED',verified:'true',actionState:'not_started'},
 ])test('inconsistent insertion receipt latches and never reports input success '+JSON.stringify(receipt),async()=>{
-  const h=await harness(library(),false);await h.api.rebuild();await h.api.openManager();
+  const h=await editorHarness(library(),false);await h.api.rebuild();await h.api.openManager();
   await h.panel().control('calibrate').emit('click');
   h.hooks.insert=()=>receipt;
   await h.api.bar().click('p0');await h.api.bar().click('p0');
@@ -1665,7 +1716,7 @@ for(const receipt of [
   assert.equal(h.panel().control('calibrate').state.disabled,true);
 });
 test('failed fallback clipboard readback never reports copied or confirmed input',async()=>{
-  const h=await harness(library(),false);await h.api.rebuild();await h.api.openManager();
+  const h=await editorHarness(library(),false);await h.api.rebuild();await h.api.openManager();
   await h.panel().control('calibrate').emit('click');
   h.hooks.insert=()=>({status:'rejected',code:'EXISTING_DRAFT',actionState:'not_started'});
   h.hooks.clipboardRead=()=> 'someone changed clipboard';
@@ -1965,6 +2016,98 @@ test('scoped follow polls only the selected process and cleans up on disable/qui
 });
 
 
+for(const override of ['', 'com.openai.codex'])
+test('real main and insertion helper wire default Codex paste, override '+override,async()=>{
+  const doc=library();doc.settings.appBundleId=override;
+  doc.prompts[0].body='  合成正文 😀 e\u0301\n\t尾部  ';
+  const h=await harness(doc,false);h.installCodexEditor('prefix suffix');
+  h.hooks.composer=()=>assert.fail('focused Codex must not rediscover through a relative hint');
+  await h.api.setFollowing(true);await h.api.rebuild();const bar=h.api.bar();
+  assert.equal(bar.buttons.size,5);assert.equal(bar.state.visible,true);
+  // Focused insertion stays at the original middle caret on both clicks.
+  h.hooks.editorRead=field=>{if(!h.calls.editorKeys?.length)field.textInputState.selection.location=7;};
+  for(let i=0;i<2;i++)await bar.buttons.get('p0').callback();
+  assert.deepEqual(h.calls.copies,[doc.prompts[0].body,doc.prompts[0].body]);
+  assert.equal(h.calls.discovers.length,0);assert.equal(h.calls.inserterOptions.length,0);
+  assert.equal(h.env.editorText,'prefix '+doc.prompts[0].body.repeat(2)+'suffix');
+  assert.deepEqual(h.calls.editorKeys,[['Meta','v'],['Meta','v']]);
+  assert.ok(h.calls.editorFinds.every(c=>c.options.maxDepth===64));
+  assert.equal(h.calls.logs.filter(s=>s.startsWith('CODEX_SHORTCUT_INSERT=')&&s.includes('VERIFIED_PASTE')).length,2);
+  assert.equal(bar.buttons.get('p0').icon.text,prompt.label);assert.deepEqual(h.disk(),doc);
+});
+
+for(const inputMode of ['strict','paste'])for(const identity of ['bundle','system-path','user-path','profile-id'])
+test('real main selects Codex '+inputMode+' through '+identity+' without using plain semantics',async()=>{
+  const doc=library();doc.prompts[0].body='  原样复制 😀 e\u0301\n\t  ';
+  const h=await harness(doc,false),config='/virtual/codex-candidate.json';h.installCodexEditor();
+  const exePath=identity==='user-path'?'/Users/shopme/Applications/ChatGPT.app/Contents/MacOS/ChatGPT':
+    identity==='profile-id'?'/fixture/Codex':'/Applications/ChatGPT.app/Contents/MacOS/ChatGPT';
+  h.env.active={...codex(),exePath};
+  const id=identity==='profile-id'?'codex':'renamed-candidate';
+  h.files.set(config,JSON.stringify({schemaVersion:1,scope:{pid:101,exePath,profile:id},profiles:[{
+    id,name:'Candidate',app:identity==='bundle'?{bundleId:'com.openai.codex'}:{path:exePath},
+    layout:{sidebarWidth:300,gap:16,top:16,bottom:16,right:16},inputMode,
+    editorSelector:{role:'textField',identifier:'unqualified-composer'},
+  }]}));
+  h.executionEnv.OPENDESK_SHORTCUTS_TARGET_CONFIG=config;
+  h.hooks.forbidGlobal=true;h.hooks.appGet=()=>assert.fail('global App.get');
+  h.hooks.scoped=()=>clone(h.env.active);
+  h.hooks.composer=()=>assert.fail('a selector does not qualify Codex text or selection semantics');
+  await h.api.setFollowing(true);await h.api.rebuild();const bar=h.api.bar();
+  assert.equal(bar.state.visible,true);assert.equal(bar.buttons.size,5);
+  for(let i=0;i<2;i++)await bar.buttons.get('p0').callback();
+  assert.deepEqual(h.calls.copies,[doc.prompts[0].body,doc.prompts[0].body]);
+  assert.equal(h.calls.toasts.filter(t=>t.message?.includes('CODEX_EDITOR_UNQUALIFIED')).length,inputMode==='strict'?2:0);
+  assert.equal(h.calls.logs.some(s=>s.includes('"status":"inserted"')),inputMode==='paste');
+  assert.equal(h.env.editorText,inputMode==='paste'?doc.prompts[0].body.repeat(2):'');
+  assert.equal(!!h.calls.editorFinds?.length,inputMode==='paste');
+  assert.deepEqual(h.disk(),doc);
+  await h.api.openManager();const manager=h.panel();
+  if(inputMode==='strict'){
+    assert.match(manager.control('deliveryMode').state.text,/Codex 严格输入不可用/);
+    h.hooks.delay=async ms=>assert.notEqual(ms,4000,'strict Codex refuses before hiding or scheduling calibration');
+    await manager.control('calibrate').emit('click');
+    assert.equal(manager.state.visible,true);assert.equal(h.api.state().composerSample,null);
+    assert.ok(h.calls.toasts.some(t=>t.level==='error'&&t.message?.includes('Codex 输入区尚未资格化')));
+  }else assert.match(manager.control('deliveryMode').state.text,/不发送/);
+});
+
+test('real main latches uncertain Codex paste globally and never copies over pending input',async()=>{
+  const h=await harness(library(),false);h.installCodexEditor('draft');
+  h.hooks.editorPaste=field=>{field.value='partial';throw error('TIMEOUT',{actionState:'unknown'});};
+  await h.api.setFollowing(true);await h.api.rebuild();const bar=h.api.bar();
+  await bar.click('p0');const keys=h.calls.editorKeys.length,copies=h.calls.copies.length;
+  await bar.click('p0');
+  assert.equal(keys,1);assert.equal(h.calls.editorKeys.length,keys);assert.equal(h.calls.copies.length,copies);
+  assert.equal(h.env.clipboard,prompt.body);
+  assert.ok(h.calls.logs.some(s=>s.startsWith('CODEX_SHORTCUT_INSERT=')&&s.includes('INPUT_BLOCKED')));
+  await h.api.openManager();assert.match(h.panel().control('deliveryMode').state.text,/写入已停止/);
+});
+
+test('calibration rechecks the model after its delay and refuses a switch to Codex',async()=>{
+  const h=await harness(library(),false),config='/virtual/calibration-switch.json';
+  const original=clone(h.env.active),next={...codex(),pid:202,handle:502,id:'mac:202:502',
+    exePath:'/Applications/ChatGPT.app/Contents/MacOS/ChatGPT'};
+  h.files.set(config,JSON.stringify({schemaVersion:1,scopes:[
+    {pid:101,exePath:original.exePath,profile:'fixture-editor'},
+    {pid:202,exePath:next.exePath,profile:'codex'},
+  ],profiles:[{id:'fixture-editor',name:'Synthetic editor',app:{path:original.exePath},
+    layout:{sidebarWidth:300,gap:16,top:16,bottom:16,right:16}},
+    {id:'codex',name:'Strict Codex',app:{path:next.exePath},inputMode:'strict',
+      layout:{sidebarWidth:300,gap:16,top:16,bottom:16,right:16}}]}));
+  h.executionEnv.OPENDESK_SHORTCUTS_TARGET_CONFIG=config;
+  h.hooks.forbidGlobal=true;h.hooks.appGet=()=>assert.fail('global App.get');
+  h.hooks.scoped=scope=>scope.pid===h.env.active.pid?clone(h.env.active):null;
+  await h.api.setFollowing(true);await h.api.rebuild();await h.api.openManager();
+  h.hooks.calibrate=()=>assert.fail('a switch to Codex must stop before pointer calibration');
+  h.hooks.discover=()=>assert.fail('a switch to Codex must stop before discovery');
+  h.hooks.delay=async ms=>{if(ms===4000)h.env.active=clone(next);};
+  await h.panel().control('calibrate').emit('click');
+  assert.equal(h.panel().state.visible,true);assert.equal(h.api.state().composerSample,null);
+  assert.equal(h.env.calibrated,undefined);assert.equal(h.calls.inserterOptions.length,0);
+  assert.ok(h.calls.toasts.some(t=>t.level==='error'&&t.message?.includes('目标已切换至尚未资格化的 Codex')));
+});
+
 test('Codex desktop scoped follow shows the five-button bar in its content area without editor qualification',async()=>{
   const h=await harness(library(),false),config='/virtual/codex-scope.json';
   h.env.active={...codex(),title:'ChatGPT',exePath:'/Applications/ChatGPT.app/Contents/MacOS/ChatGPT'};
@@ -1987,7 +2130,9 @@ test('Codex desktop scoped follow shows the five-button bar in its content area 
   };
   assert.equal(bar.buttons.size,5);assertPlacement();
   assert.equal(h.watchers.has(101),true);
-  assert.equal(h.calls.inserterOptions.length,0);assert.equal(h.calls.discovers.length,0);
+  assert.equal(h.calls.inserterOptions.length,1);assert.equal(h.calls.discovers.length,0);
+  assert.equal(h.calls.inserterOptions[0].editorModel,'codex');
+  assert.equal(h.calls.inserterOptions[0].searchDepth,64);
   h.env.active={...h.env.active,x:180,y:140,width:1100,height:850};await h.api.sync();assertPlacement();
   const saved=clone(h.env.active);h.env.active=null;await h.api.sync();assert.equal(bar.state.visible,false);
   h.env.active={...saved,id:'mac:101:502',handle:502,title:'New conversation'};

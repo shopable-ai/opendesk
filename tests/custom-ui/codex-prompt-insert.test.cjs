@@ -82,6 +82,21 @@ async function harness() {
 const pasted = h => h.calls.filter(c => Array.isArray(c) && c[0] === 'paste');
 const focused = h => h.calls.filter(c => Array.isArray(c) && c[0] === 'focus');
 
+for(const inputMode of ['strict'])
+test('unqualified Codex model refuses '+inputMode+' before target access, ref preparation or input',async()=>{
+  const h=await harness(),body='  合成正文 😀 e\u0301\n\t尾部  ';
+  h.field.value='原稿保持不变';h.state.clipboard='原剪贴板';
+  const inserter=h.createRuntimeInserter({...h.options,inputMode,editorModel:'codex',
+    getTarget:async()=>assert.fail('unqualified model must not discover a target')});
+  await inserter.prepare();
+  for(let i=0;i<2;i++)assert.deepEqual(clone(await inserter.insert(body)),{
+    status:'rejected',code:'CODEX_EDITOR_UNQUALIFIED',actionState:'not_started'});
+  await inserter.dispose();
+  assert.equal(h.field.value,'原稿保持不变');assert.equal(h.state.clipboard,'原剪贴板');
+  assert.equal(h.state.snapshots,0);assert.equal(h.state.reads,0);
+  assert.deepEqual(h.calls,[]);
+});
+
 async function pasteHarness(draft='') {
   const h=await harness();
   h.field.value=draft;h.field.focused=true;
@@ -104,6 +119,134 @@ async function pasteHarness(draft='') {
   h.inserter=h.createRuntimeInserter({...h.options,inputMode:'paste'});
   return h;
 }
+
+// Measured Codex model; this remains a dependency simulation, not native proof.
+async function codexPasteHarness(draft='',name='随心输入') {
+  const h=await pasteHarness(draft);h.logical=draft;
+  h.field.name=name;h.field.nativeRole='AXTextArea';
+  const project=()=>{h.field.value=h.logical||name+'\n';};project();
+  h.runtime.keyboard.combination=async(...keys)=>{
+    const range=h.field.textInputState.selection;
+    if(keys.join('+')==='Meta+ArrowDown'){
+      h.calls.push(['end']);h.field.textInputState.selection={location:h.logical.length,length:0};
+      await h.hooks.end?.();return;
+    }
+    if(keys.join('+')==='ArrowRight'){
+      h.calls.push(['right']);if(range.location<h.logical.length)range.location++;return;
+    }
+    assert.deepEqual(keys,['Meta','v']);assert.equal(range.length,0);
+    h.calls.push(['paste',h.state.clipboard]);
+    if(h.hooks.paste)return h.hooks.paste(h.state.clipboard);
+    h.logical=h.logical.slice(0,range.location)+h.state.clipboard+h.logical.slice(range.location);
+    h.field.textInputState.selection={location:range.location+h.state.clipboard.length,length:0};project();
+  };
+  h.inserter=h.createRuntimeInserter({...h.options,layout:undefined,inputMode:'paste',editorModel:'codex',
+    nativeRole:'AXTextArea',searchDepth:64});
+  return h;
+}
+
+for(const name of ['随心输入','和 Codex 一起工作'])
+for(const draft of ['', '  原稿 😀 e\u0301\n\t尾部  ', '\n',name+'\n'])
+test('Codex focused paste preserves exact text and unknown IME '+JSON.stringify({name,draft}),async()=>{
+  const h=await codexPasteHarness(draft,name),body='  正文 😀 e\u0301\n\t  ';
+  const result=await h.inserter.insert(body);
+  assert.equal(result.code,'VERIFIED_PASTE');assert.equal(result.verified,true);
+  assert.equal(h.logical,draft+body);assert.equal(h.field.value,draft+body);
+  assert.equal(h.field.textInputState.composition,'unknown');
+  assert.deepEqual(pasted(h),[['paste',body]]);assert.equal(focused(h).length,0);
+  assert.equal(h.calls.some(c=>Array.isArray(c)&&['end','right'].includes(c[0])),false);
+  assert.equal(h.state.snapshots,0);assert.equal(h.state.reads,3);
+});
+
+test('Codex consecutive middle-caret inserts do not move the caret or add separators',async()=>{
+  const h=await codexPasteHarness('前😀e\u0301 尾  ');h.field.textInputState.selection.location=5;
+  for(const body of ['BODY',' NEXT'])assert.equal((await h.inserter.insert(body)).verified,true);
+  assert.equal(h.logical,'前😀e\u0301BODY NEXT 尾  ');
+  assert.deepEqual(pasted(h),[['paste','BODY'],['paste',' NEXT']]);
+  assert.equal(focused(h).length,0);assert.equal(h.calls.some(c=>Array.isArray(c)&&c[0]==='end'),false);
+});
+
+test('Codex literal placeholder text at caret zero is never stripped from the draft',async()=>{
+  const h=await codexPasteHarness('随心输入\n');h.field.textInputState.selection.location=0;
+  assert.equal((await h.inserter.insert('BODY')).verified,true);
+  assert.equal(h.logical,'BODY随心输入\n');assert.equal(h.field.value,'BODY随心输入\n');
+  assert.deepEqual(pasted(h),[['paste','BODY']]);
+});
+
+for(const focus of [false,true])for(const draft of ['', '原稿 😀\n  ','随心输入\n'])
+test('Codex fallback distinguishes empty placeholder and literal draft '+JSON.stringify({focus,draft}),async()=>{
+  const h=await codexPasteHarness(draft);h.field.focused=focus;
+  if(focus)h.field.textInputState.selection={location:0,length:Math.min(draft.length,2)};
+  const result=await h.inserter.insert('BODY');assert.equal(result.verified,true);
+  assert.equal(h.logical,draft+(draft?'\n\n':'')+'BODY');
+  assert.deepEqual(pasted(h),[['paste',(draft?'\n\n':'')+'BODY']]);
+  assert.equal(focused(h).length,focus?0:1);
+});
+
+for(const change of ['name','native-role','active-ime','marked-range','selection','draft-before-paste','caret-before-paste'])
+test('Codex rejects '+change+' without paste or retrying a mutation',async()=>{
+  const h=await codexPasteHarness('draft');
+  if(change==='name')h.field.name='Search';
+  if(change==='native-role')h.field.nativeRole='AXTextField';
+  if(change==='active-ime')h.field.textInputState.composition='active';
+  if(change==='marked-range')h.field.textInputState.markedRange={location:0,length:1};
+  if(change==='selection')h.field.textInputState.selection.location=100;
+  if(change==='draft-before-paste')h.hooks.copy=()=>{h.field.value='other draft';};
+  if(change==='caret-before-paste')h.hooks.copy=()=>{h.field.textInputState.selection.location=0;};
+  const result=await h.inserter.insert('BODY');
+  assert.equal(result.status,'rejected');assert.equal(result.actionState,'not_started');
+  assert.equal(pasted(h).length,0);assert.equal(focused(h).length,0);
+});
+
+test('Codex fallback refuses a collapsed caret short of the complete draft endpoint',async()=>{
+  const h=await codexPasteHarness('original');h.field.textInputState.selection={location:0,length:2};
+  h.hooks.end=()=>{h.field.textInputState.selection={location:3,length:0};};
+  assert.equal((await h.inserter.insert('BODY')).code,'CARET_UNVERIFIED');
+  assert.equal(pasted(h).length,0);assert.equal(h.logical,'original');
+  const count=h.calls.length;assert.equal((await h.inserter.insert('BODY')).code,'INPUT_BLOCKED');
+  assert.equal(h.calls.length,count);
+});
+
+test('Codex refuses false empty placeholder when a boundary key advances through real text',async()=>{
+  const h=await codexPasteHarness('随心输入\n');h.field.focused=false;
+  h.hooks.end=()=>{h.field.textInputState.selection={location:0,length:0};};
+  assert.equal((await h.inserter.insert('BODY')).code,'CARET_UNVERIFIED');
+  assert.equal(pasted(h).length,0);assert.equal(h.logical,'随心输入\n');
+});
+
+for(const value of ['BODY','draftBODY!','unchanged','throws'])
+test('Codex unknown '+value+' preserves single dispatch and latches subsequent input',async()=>{
+  const h=await codexPasteHarness('draft');
+  h.hooks.paste=()=>{if(value==='throws')throw fail('TIMEOUT',{actionState:'unknown'});
+    if(value!=='unchanged')h.field.value=value;};
+  const result=await h.inserter.insert('BODY');
+  assert.equal(result.status,'blocked');assert.equal(result.actionState,'unknown');
+  const count=h.calls.length;assert.equal((await h.inserter.insert('BODY')).code,'INPUT_BLOCKED');
+  assert.equal(h.calls.length,count);assert.equal(pasted(h).length,1);
+});
+
+test('Codex requires measured native role and depth 64 before target access',async()=>{
+  const h=await codexPasteHarness();
+  for(const options of [{nativeRole:'AXTextField',searchDepth:64},{nativeRole:'AXTextArea',searchDepth:32}]){
+    const helper=h.createRuntimeInserter({...h.options,...options,inputMode:'paste',editorModel:'codex',
+      getTarget:async()=>assert.fail('missing Codex evidence must reject')});
+    assert.equal((await helper.insert('BODY')).code,'EDITOR_EVIDENCE_REQUIRED');
+  }
+  assert.deepEqual(h.calls,[]);
+});
+
+test('Codex unnamed discovery and prepared reference retain depth 64 with no preflight input',async()=>{
+  const h=await codexPasteHarness();
+  const snapshot=h.runtime.Accessibility.snapshot,find=h.runtime.Accessibility.find;
+  h.runtime.Accessibility.snapshot=async options=>{assert.equal(options.maxDepth,64);return snapshot(options);};
+  h.runtime.Accessibility.find=async(...args)=>{assert.equal(args[1].maxDepth,64);return find(...args);};
+  const measured=await h.discoverRuntimeEditor({...h.options,editorSelector:undefined,
+    editorDiscovery:{role:'textField',nativeRole:'AXTextArea',maxDepth:64}});
+  assert.equal(measured.searchDepth,64);assert.equal(measured.nativeRole,'AXTextArea');
+  await h.inserter.prepare();assert.deepEqual(h.calls,['find']);assert.equal(h.state.reads,0);
+  assert.equal((await h.inserter.insert('BODY')).verified,true);
+  assert.deepEqual(h.calls.filter(c=>c==='find'||c==='release'),['find','release']);
+});
 
 for(const draft of ['', '  草稿\r\n\t😀 e\u0301  ', '末尾\n\n', ' '.repeat(3)])
 test('ordinary paste preserves exact draft and full body, draft length '+draft.length,async()=>{

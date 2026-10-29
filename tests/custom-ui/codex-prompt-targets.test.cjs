@@ -260,7 +260,8 @@ test('default descriptor survives JSON roundtrip and exposes full resize area fo
   const helper=load();
   const profiles=JSON.parse(JSON.stringify(helper.defaultProfiles));
   assert.deepEqual(profiles.find(p=>p.id==='codex'),{id:'codex',name:'ChatGPT（Codex）桌面应用',
-    app:{bundleId:'com.openai.codex'},layout,inputMode:'strict'});
+    app:{bundleId:'com.openai.codex'},layout,inputMode:'paste',
+    editorDiscovery:{role:'textField',nativeRole:'AXTextArea',maxDepth:64}});
   assert.equal(Object.isFrozen(helper.defaultProfiles[0].layout),true);
   const h=fixture(profiles),app=profiles[0].app;
   h.groups.set(key(app),group(app,[51]));
@@ -536,9 +537,10 @@ test('Codex desktop scope supplements its built-in placement without input or Ap
     assert.equal(match.profileId,'codex');
     assert.deepEqual(plain(match.identity),{kind:'path',value:scope.exePath});
     assert.deepEqual(plain(profile.app),{path:scope.exePath});
-    assert.equal(profile.inputMode,'strict');
+    assert.equal(profile.inputMode,'paste');
     assert.equal(profile.editorSelector,undefined);
-    assert.equal(profile.editorDiscovery,undefined);
+    assert.deepEqual(plain(profile.editorDiscovery),{role:'textField',nativeRole:'AXTextArea',maxDepth:64});
+    assert.equal(Object.isFrozen(profile.editorDiscovery),true);
     assert.equal(profile.scene,undefined);
     assert.equal(Object.isFrozen(profile.layout),true);
     assert.deepEqual(plain(profile.contentArea({width:1000,height:800})),
@@ -561,7 +563,7 @@ test('Codex desktop joins Claude Code and OpenCode scopes with independent place
     assert.equal(match.profileId,entry.profile);
     assert.equal(match.identity.value,entry.exePath);
     assert.equal(match.profile.layout.sidebarWidth,entry.profile==='codex'?300:0);
-    assert.equal(match.profile.inputMode,entry.profile==='codex'?'strict':'paste');
+    assert.equal(match.profile.inputMode,'paste');
   }
   assert.equal(registry.matchPid(44),null);
 });
@@ -708,7 +710,7 @@ test('editorDiscovery is copied and frozen without weakening named editorSelecto
   assert.equal(Object.isFrozen(stored.editorDiscovery),true);
   assert.throws(()=>{stored.editorDiscovery.maxDepth=32;},TypeError);
   assert.deepEqual(plain(stored.editorSelector),{role:'textField',name:'Editor'});
-  for(const maxDepth of [1,32]){
+  for(const maxDepth of [1,32,33,64]){
     const accepted=fixture([descriptor('alpha',alpha,
       {editorDiscovery:{role:'textField',nativeRole:'AXTextArea',maxDepth}})]);
     assert.equal(accepted.registry.getProfile('alpha').editorDiscovery.maxDepth,maxDepth);
@@ -726,7 +728,7 @@ test('editorDiscovery rejects malformed or extended descriptors before any App q
     {...good,extra:true}, {...good,[Symbol('extra')]:true},
     Object.defineProperty({...good},'nativeRole',{enumerable:false}),
     ...['',' ',' AXTextArea','AXTextArea\n',7,null].map(nativeRole=>({...good,nativeRole})),
-    ...[0,-1,33,1.5,NaN,Infinity,'24',null,undefined].map(maxDepth=>({...good,maxDepth})),
+    ...[0,-1,65,1.5,NaN,Infinity,'24',null,undefined].map(maxDepth=>({...good,maxDepth})),
   ];
   for(const editorDiscovery of invalid)
     assert.throws(()=>load().createRegistry({App:noAppAccess(),
@@ -753,13 +755,14 @@ test('built-in OpenCode carries explicit read-only discovery metadata and paste 
   }
   const explicit=load().createRegistry({profiles:[descriptor('opencode',{path:scope.exePath})],scope});
   assert.equal(explicit.getProfile('opencode').editorDiscovery,undefined);
-  assert.equal(load().defaultProfiles[0].editorDiscovery,undefined);
+  assert.deepEqual(plain(load().defaultProfiles[0].editorDiscovery),
+    {role:'textField',nativeRole:'AXTextArea',maxDepth:64});
 });
 
 test('default profiles match three stable app identities and retain metadata through bundle overrides',()=>{
   const h=fixture(undefined);
   const expected=[
-    ['codex','com.openai.codex','strict'],
+    ['codex','com.openai.codex','paste'],
     ['claude-code','com.anthropic.claudefordesktop','paste'],
     ['opencode','ai.opencode.desktop','paste'],
   ];

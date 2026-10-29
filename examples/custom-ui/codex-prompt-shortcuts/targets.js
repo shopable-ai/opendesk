@@ -25,7 +25,10 @@
   // Additional configured identities do not imply live application qualification.
   const defaultProfiles=Object.freeze([Object.freeze({
     id:'codex',name:'ChatGPT（Codex）桌面应用',app:Object.freeze({bundleId:'com.openai.codex'}),
-    layout:defaultLayout,inputMode:'strict',
+    layout:defaultLayout,inputMode:'paste',
+    // Codex 26.1023: one live AXTextArea; placeholder/name changes between a
+    // new chat and a thread. The window tree reaches beyond depth 32.
+    editorDiscovery:Object.freeze({role:'textField',nativeRole:'AXTextArea',maxDepth:64}),
   }),Object.freeze({
     id:'claude-code',name:'Claude Code',app:Object.freeze({bundleId:'com.anthropic.claudefordesktop'}),
     layout:fallbackLayout,scene:'claude-code',inputMode:'paste',
@@ -72,7 +75,7 @@
       Reflect.ownKeys(discovery).length===keys.length&&Object.keys(discovery).length===keys.length&&
       keys.every(k=>Object.prototype.hasOwnProperty.call(discovery,k))&&
       discovery.role==='textField'&&text(discovery.nativeRole)&&
-      Number.isInteger(discovery.maxDepth)&&discovery.maxDepth>=1&&discovery.maxDepth<=32;
+      Number.isInteger(discovery.maxDepth)&&discovery.maxDepth>=1&&discovery.maxDepth<=64;
   }
 
   function createRegistry({App,profiles=defaultProfiles,scope,scopes}){

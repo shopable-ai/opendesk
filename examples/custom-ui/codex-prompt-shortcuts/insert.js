@@ -112,7 +112,7 @@ async function discoverRuntimeEditor({getTarget, hint, editorSelector: configure
   await guardTarget(getTarget, window, target, scope);
   if(editorDiscovery&&(configuredSelector||editorDiscovery.role!=='textField'||
       typeof editorDiscovery.nativeRole!=='string'||!editorDiscovery.nativeRole||
-      !Number.isInteger(editorDiscovery.maxDepth)||editorDiscovery.maxDepth<1||editorDiscovery.maxDepth>32||
+      !Number.isInteger(editorDiscovery.maxDepth)||editorDiscovery.maxDepth<1||editorDiscovery.maxDepth>64||
       Object.keys(editorDiscovery).some(k=>!['role','nativeRole','maxDepth'].includes(k))))stop('EDITOR_EVIDENCE_REQUIRED');
   if (!configuredSelector && !editorDiscovery && (!hint || !Number.isFinite(hint.x) || !Number.isFinite(hint.y) ||
       hint.x < 0 || hint.y < 0 || hint.x >= target.width || hint.y >= target.height))
@@ -179,7 +179,9 @@ function createPasteInserter({getTarget, editorSelector, nativeRole, searchDepth
     const result=(status,code,actionState='not_started')=>({status,code,actionState});
     if(blocked)return result('blocked','INPUT_BLOCKED','unknown');
     if(busy)return result('rejected','BUSY');
-    if(!['plain','claude-code','opencode'].includes(editorModel))return result('rejected','INVALID_EDITOR_MODEL');
+    if(!['plain','claude-code','opencode','codex'].includes(editorModel))return result('rejected','INVALID_EDITOR_MODEL');
+    const codex=editorModel==='codex';
+    if(codex&&(nativeRole!=='AXTextArea'||searchDepth!==64))return result('rejected','EDITOR_EVIDENCE_REQUIRED');
     if(typeof body!=='string'||!body.trim()||body.length>8192||
         /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(body))return result('rejected','UNSAFE_BODY');
     if(selector.role!=='textField'||Object.keys(selector).some(k=>!['role','name','identifier'].includes(k)||
@@ -228,13 +230,14 @@ function createPasteInserter({getTarget, editorSelector, nativeRole, searchDepth
         emit('read-ready',{index,durationMs:Date.now()-startedAt});
         if(disposed)stop('STALE_TARGET');
         if(!p||!matchesSelector(p,selector)||nativeRole&&p.nativeRole!==nativeRole)stop('FIELD_CHANGED');
+        if(codex&&!['随心输入','和 Codex 一起工作'].includes(p.name))stop('FIELD_CHANGED');
         if(p.enabled!==true)stop('FIELD_UNAVAILABLE');
         if(typeof p.value!=='string')stop('VALUE_UNREADABLE');
         if((needsBounds||initial&&layout?.editor)&&!withinWindow(target,p.bounds))stop('UNSAFE_BOUNDS');
         if(initial&&layout?.editor&&!same(relativeBounds(target,p.bounds),layout.editor,['x','y','width','height']))stop('LAYOUT_CHANGED');
         return p;
       };
-      const web=editorModel!=='plain';
+      const web=['claude-code','opencode'].includes(editorModel),projected=web||codex;
       const state=p=>{
         const s=p.textInputState,r=s?.selection;
         if(s?.unit!=='utf16'||!r||!Number.isSafeInteger(r.location)||!Number.isSafeInteger(r.length)||
@@ -247,6 +250,11 @@ function createPasteInserter({getTarget, editorSelector, nativeRole, searchDepth
       // scene scan or asynchronous field read between the final guard and V.
       emit('context-start');if(verifyContext)await verifyContext();emit('context-ready');
       let field=await read(true);state(field);const raw=field.value;emit('field-read');
+      // Measured Codex empty AX value is its placeholder plus LF, with a real
+      // {0,0} selection. Nonempty AX values preserve UTF-16/whitespace exactly.
+      // Never trim or strip this string from an actual draft: after paste we
+      // accept either the literal insertion or the proven empty representation.
+      const placeholder=codex&&raw===field.name+'\n';
       const direct=field.focused===true&&state(field).length===0;
       if(field.focused!==true){
         if(typeof mouse?.clickPoint!=='function')stop('INPUT_UNAVAILABLE');
@@ -263,32 +271,33 @@ function createPasteInserter({getTarget, editorSelector, nativeRole, searchDepth
       // Web AX values/offsets are not a faithful text-length oracle. One end
       // key collapses selection without replacing any original draft. Plain
       // editors already at the proven endpoint need no caret input at all.
-      if(!direct&&(web||range.length||range.location!==raw.length)){
+      if(!direct&&(projected||range.length||range.location!==raw.length)){
         await guard();attempted=true;phase='caret';
         await keyboard.combination('Meta','ArrowDown');
         for(let i=0;i<10;i++){
           field=await read();range=state(field);
           if(field.value!==raw)stop('DRAFT_CHANGED');
           if(field.focused!==true)stop('FOCUS_UNVERIFIED');
-          if(range.length===0&&(web||range.location===raw.length))break;
+          if(range.length===0&&(web||range.location===raw.length||placeholder&&range.location===0))break;
           if(i===9)stop('CARET_UNVERIFIED');
           await delay(25);
         }
       }
       // Only the ambiguous one-paragraph empty representation needs the
       // extra boundary check. Never strip a genuine newline from a draft.
-      if(!direct&&web&&raw==='\n'&&range.location===0){
+      if(!direct&&((web&&raw==='\n')||placeholder)&&range.location===0){
         await guard();attempted=true;phase='caret';await keyboard.combination('ArrowRight');
         const boundary=await read(),r=state(boundary);
         if(boundary.value!==raw||boundary.focused!==true||!same(r,range,['location','length']))stop('CARET_UNVERIFIED');
         field=boundary;
       }
-      if(!direct&&web&&raw!=='\n'&&raw!==''&&range.location===0)stop('CARET_UNVERIFIED');
-      const empty=web?range.location===0:raw.length===0;
+      if(!direct&&projected&&raw!=='\n'&&raw!==''&&!placeholder&&range.location===0)stop('CARET_UNVERIFIED');
+      if(!direct&&codex&&range.location!==raw.length&&!(placeholder&&range.location===0))stop('CARET_UNVERIFIED');
+      const empty=web?range.location===0:codex?placeholder&&range.location===0||raw.length===0:raw.length===0;
       emit('caret-ready');
       const suffix=(direct||empty?'':'\n\n')+body;
       clipboard.copy(suffix);
-      if(!direct){
+      if(!direct||codex){
         const ready=await read(),r=state(ready);
         if(ready.value!==raw)stop('DRAFT_CHANGED');
         if(ready.focused!==true||!same(r,range,['location','length']))stop('CARET_CHANGED');
@@ -333,7 +342,12 @@ function createPasteInserter({getTarget, editorSelector, nativeRole, searchDepth
         await guard();phase='caret';await keyboard.combination('Meta','ArrowDown');
         const restored=await read();
         if(restored.value!==checked.value||restored.focused!==true||state(restored).length!==0)stop('CARET_UNVERIFIED');
-      }else if(!web&&actual.value!==(direct?raw.slice(0,range.location)+body+raw.slice(range.location):raw+suffix))stop('READBACK_MISMATCH');
+      }else if(!web){
+        const expected=direct?raw.slice(0,range.location)+body+raw.slice(range.location):raw+suffix;
+        const emptyCodex=placeholder&&range.location===0&&range.length===0&&actual.value===body;
+        if(actual.value!==expected&&!emptyCodex)stop('READBACK_MISMATCH');
+        if(codex&&state(actual).length!==0)stop('CARET_UNVERIFIED');
+      }
       await guard();
       // Web AX projects whitespace and caret offsets. Observing its value
       // change acknowledges paste without pretending to verify exact text.
@@ -358,6 +372,11 @@ function createPasteInserter({getTarget, editorSelector, nativeRole, searchDepth
  */
 function createInserter({ getTarget, editorSelector, nativeRole, searchDepth=24, layout, expectedWindow, window, Accessibility, scope,
   inputMode='strict', editorModel='plain', verifyContext, mouse, clipboard, keyboard, delay, onPhase }) {
+  // Codex qualification is ordinary paste only, never strict/atomic append.
+  // Measurements: .runtime/tests/codex-desktop-session-20261029/measure-composer-01.
+  if(editorModel==='codex'&&inputMode!=='paste')return {async prepare(){},async dispose(){},async insert(){
+    return {status:'rejected',code:'CODEX_EDITOR_UNQUALIFIED',actionState:'not_started'};
+  }};
   if(inputMode==='paste')return createPasteInserter({getTarget,editorSelector,nativeRole,searchDepth,layout,expectedWindow,
     window,Accessibility,scope,editorModel,verifyContext,mouse,clipboard,keyboard,delay,onPhase});
   const selector = {...editorSelector};

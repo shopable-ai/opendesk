@@ -983,6 +983,10 @@ function insertionScope(){
     {scope:{pid:originalWin?.pid,exePath:originalWin?.exePath}}:{};
 }
 function editorModel(profile){
+  // Codex's placeholder AX value needs its own measured text model. Never
+  // route either bundle or executable-bound scopes through plain text.
+  if(profile?.id==='codex'||profile?.app.bundleId==='com.openai.codex'||
+      /\/ChatGPT\.app(?:\/Contents\/MacOS\/ChatGPT)?$/.test(profile?.app.path||''))return 'codex';
   return profile?.scene==='claude-code'?'claude-code':
     profile?.app.bundleId==='ai.opencode.desktop'||profile?.id==='opencode'?'opencode':'plain';
 }
@@ -1005,6 +1009,7 @@ function pasteBinding(win,profile){
 }
 function pasteInserterFor(win,profile,onPhase){
   const isClaude=profile.scene==='claude-code';
+  const isCodex=editorModel(profile)==='codex';
   const selector=isClaude?codeScene?.editorSelector:profile.editorSelector;
   const discovery=profile.editorDiscovery;
   if(!selector&&!discovery)
@@ -1012,8 +1017,8 @@ function pasteInserterFor(win,profile,onPhase){
   const scope={pid:win.pid,exePath:win.exePath};
   return insertionAPI().createRuntimeInserter({...insertionContext(win,profile),
     getTarget:()=>window.getAppWindow(scope),scope,expectedWindow:{...win},
-    editorSelector:selector||{role:'textField'},nativeRole:discovery?.nativeRole||(isClaude?'AXTextArea':undefined),
-    searchDepth:isClaude?64:discovery?.maxDepth||24,
+    editorSelector:selector||{role:'textField'},nativeRole:isCodex?'AXTextArea':discovery?.nativeRole||(isClaude?'AXTextArea':undefined),
+    searchDepth:isClaude||isCodex?64:discovery?.maxDepth||24,
     inputMode:'paste',editorModel:editorModel(profile),onPhase});
 }
 function warmInsertion(win,profile){
@@ -1045,20 +1050,17 @@ async function currentInserter(onPhase){
   if(win.isForeground!==true)throw Object.assign(failure('NOT_FOREGROUND','目标窗口已失焦；未激活或输入'),{actionState:'not_started'});
   if(inserter&&originalTarget?.profile.scene!=='claude-code'&&originalTarget?.profile.inputMode!=='paste')return inserter;
   const profile=originalTarget?.profile,api=insertionAPI();
+  if(editorModel(profile)==='codex')return api.createRuntimeInserter({
+    inputMode:profile?.inputMode||'strict',editorModel:'codex'});
   const isClaude=profile?.scene==='claude-code';
   const editorSelector=isClaude?codeScene?.editorSelector:profile?.editorSelector;
   const editorDiscovery=isClaude?null:profile?.editorDiscovery;
-  const knownCodex=profile?.app.bundleId==='com.openai.codex';
-  const sidebar=profile?.layout?.sidebarWidth;
-  const hint=knownCodex&&Number.isFinite(sidebar)?
-    {x:sidebar+(win.width-sidebar)/2,y:win.height-60}:null;
-  if(!hint&&!editorSelector&&!editorDiscovery)
+  if(!editorSelector&&!editorDiscovery)
     throw Object.assign(failure('EDITOR_EVIDENCE_REQUIRED','此应用尚未配置经核验的输入区'),{actionState:'not_started'});
   let measured;
   try{measured=await api.discoverRuntimeEditor({getTarget:targetWindow,...insertionScope(),
     ...(isClaude?{maxDepth:64}:{}),
-    ...(editorSelector?{editorSelector}:
-      editorDiscovery?{editorDiscovery}:{hint})});}
+    ...(editorSelector?{editorSelector}:{editorDiscovery})});}
   catch(e){e.actionState=e.actionState||'not_started';throw e;}
   return api.createRuntimeInserter({...insertionContext(win,profile),...insertionScope(),...measured,
     inputMode:profile?.inputMode||'strict',editorModel:editorModel(profile)});
@@ -1120,6 +1122,8 @@ async function insertPrompt(id){
 }
 async function calibrateInsertion(){
   if(calibrating||insertionBlocked)throw failure('INPUT_BLOCKED','写入已停止；请检查现有草稿并使用仅复制');
+  if(editorModel(originalTarget?.profile)==='codex'&&originalTarget?.profile.inputMode!=='paste')
+    throw failure('CODEX_EDITOR_UNQUALIFIED','Codex 输入区尚未资格化；提示词按钮会复制完整正文');
   const version=++calibrationVersion;viewVersion++;
   calibrating=true;inserter=null;invalidateComposer(true);
   try{
@@ -1136,15 +1140,17 @@ async function calibrateInsertion(){
     const api=globalThis.OpenDeskPromptInsertion;
     const win=await targetWindow();
     if(!win)throw failure('NO_CURRENT_TARGET','当前前台没有已确认的目标输入区');
-    const isClaude=originalTarget?.profile.scene==='claude-code';
-    const measured=isClaude?
+    if(editorModel(originalTarget?.profile)==='codex'&&originalTarget?.profile.inputMode!=='paste')
+      throw failure('CODEX_EDITOR_UNQUALIFIED','目标已切换至尚未资格化的 Codex；未校准输入区');
+    const isClaude=originalTarget?.profile.scene==='claude-code',isCodex=editorModel(originalTarget?.profile)==='codex';
+    const measured=isClaude||isCodex?
       await api.discoverRuntimeEditor({getTarget:targetWindow,...insertionScope(),
-        editorSelector:codeScene.editorSelector,maxDepth:64}):
+        ...(isClaude?{editorSelector:codeScene.editorSelector,maxDepth:64}:{editorDiscovery:originalTarget.profile.editorDiscovery})}):
       await api.calibrateRuntimeEditor({getTarget:targetWindow,...insertionScope()});
     if(stopping||version!==calibrationVersion)return;
     // Code qualification measures its composer on every observation; the
     // generic shallow tracker cannot reach this application's native editor.
-    targets();composerTracker=isClaude?null:OpenDeskPromptTargets.createComposerTracker({Accessibility,...measured});
+    targets();composerTracker=isClaude||isCodex?null:OpenDeskPromptTargets.createComposerTracker({Accessibility,...measured});
     inserter=api.createRuntimeInserter({...insertionContext(win,originalTarget?.profile),...insertionScope(),...measured,
       inputMode:originalTarget?.profile.inputMode||'strict',editorModel:editorModel(originalTarget?.profile)});copyOnly=false;
     await rebuild();
@@ -1441,7 +1447,8 @@ async function render(preserveDraft=false){
   updates.push(manager.control('follow').update({text:following?'关闭窗口跟随':'开启窗口跟随'}));
   updates.push(manager.control('calibrate').update({disabled:insertionBlocked}));
   updates.push(manager.control('deliveryMode').update({text:insertionBlocked?'写入已停止 · 请核对草稿':
-    !copyOnly?(originalTarget?.profile.inputMode==='paste'?
+    !copyOnly?(editorModel(originalTarget?.profile)==='codex'&&originalTarget?.profile.inputMode!=='paste'?'Codex 严格输入不可用 · 点击复制全文':
+      originalTarget?.profile.inputMode==='paste'?
       '追加到目标输入框 · 不发送 · 失败复制全文':'点击检查追加条件 · 失败复制全文'):'当前：复制模式'}));
   const chosen=items.find(p=>p.id===editId);
   if(!preserveDraft||!draft)draft={body:chosen?.body||'',label:chosen?.label||'',
