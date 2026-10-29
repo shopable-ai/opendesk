@@ -211,7 +211,10 @@ export function reducer(s:AppState,a:Action):AppState {
       return notify(note({...next,counter:s.counter+1},receipt),s.verify?'模拟发送已确认 · 非真实平台':'模拟已提交，回读未确认');
     }
     case 'REPLY_CHOICE':return {...s,chosen:{...s.chosen,[a.key]:a.id},editing:null};
-    case 'REPLY_EDIT':return {...s,editing:a.key};
+    case 'REPLY_EDIT':return {...s,editing:a.key,
+      // Opening the editor takes ownership before an AX value change or IME
+      // composition necessarily reaches React's change/blur handlers.
+      ai:s.native&&a.key===activeReplyKey(s)&&s.ai?.status==='loading'?null:s.ai};
     case 'REPLY_TEXT':return {...s,
       // Human input takes ownership of the current reply. A pending result
       // may still finish in the Host, but cannot replace this edit.

@@ -46,6 +46,8 @@ try{
   assert.equal(await p.locator('.option-wrap').count(),1);
   await p.getByText(/证据编号：synthetic-faq/).waitFor();
   await p.getByRole('button',{name:'编辑选中回复',exact:true}).click();
+  assert.equal(await p.getByRole('textbox',{name:'编辑知识建议',exact:true})
+    .evaluate(el=>document.activeElement===el),true,'Opening edit focuses the actual reply editor');
   await p.getByRole('textbox',{name:'编辑知识建议',exact:true}).fill('人工编辑：请核对订单后回复。');
   await p.getByRole('button',{name:'完成',exact:true}).click();
   await p.getByRole('button',{name:'→ 填入聊天草稿',exact:true}).click();
@@ -60,6 +62,21 @@ try{
   await p.evaluate(m=>window.__deliver(m),result(r));
   assert.equal(await p.getByRole('textbox',{name:'编辑人工核实',exact:true}).inputValue(),'人工保留：请先核对。');
   assert.equal(await p.getByText('合成协议回复：在订单详情查看物流。',{exact:true}).count(),0);
+ });
+ for(const action of ['完成','完成编辑','→ 填入聊天草稿'])await scenario('accessibility-value-commits-'+action,async(p,r)=>{
+  await p.evaluate(m=>window.__deliver(m),result(r));
+  await p.getByRole('button',{name:'编辑选中回复',exact:true}).click();
+  // Simulate a native accessibility value change without fabricating an input
+  // event. The separate Mac gate performs the real scoped AX setter/readback.
+  await p.getByRole('textbox',{name:'编辑知识建议',exact:true}).evaluate(el=>{
+    el.value='人工核对后的可访问性编辑';
+  });
+  // HTMLElement.click models invoke without mouse focus transfer: no blur.
+  await p.getByRole('button',{name:action,exact:true}).evaluate(el=>el.click());
+  if(action!=='→ 填入聊天草稿')await p.getByRole('button',{name:'→ 填入聊天草稿',exact:true}).evaluate(el=>el.click());
+  await p.waitForFunction(()=>window.__out.some(x=>x.type==='support.fillDraft'));
+  const fill=await p.evaluate(()=>window.__out.find(x=>x.type==='support.fillDraft'));
+  assert.equal(fill.text,'人工核对后的可访问性编辑');
  });
  await scenario('switched-customer-rejects-late-result',async(p,r)=>{
   await p.evaluate(m=>window.__deliver(m),observation(2,{...binding,generation:2,customerId:'t2',messageId:'external-2'}));

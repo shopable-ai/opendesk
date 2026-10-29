@@ -177,8 +177,17 @@ async function askAI(request){
     else{
       try{
         const payload=OpenDeskSupportQueryAPI.request(queryConfig,ctx);
+        log('ai-request',{requestId:ctx.requestId,binding:ctx.binding,projectId:queryConfig.projectId,answerStrategy:payload.answer_strategy});
         const response=await http.post(queryConfig.url,payload,{timeout:12000,
           responseType:'json',headers:{'Content-Type':'application/json'}});
+        const dto=response.data?.data;
+        const count=dto?.model_call_counts?.total_provider_requests;
+        log('ai-response',{requestId:ctx.requestId,httpStatus:Number.isInteger(response.status)?response.status:null,
+          projectId:dto?.product_slug===queryConfig.projectId?queryConfig.projectId:null,
+          strategy:['rag_raw','rag_rewrite','context_http','context_codex_cli'].includes(dto?.selected_answer_strategy)?dto.selected_answer_strategy:null,
+          provider:['openai-compatible','http','openai','openai_compatible','codex_cli'].includes(dto?.model_provider)?dto.model_provider:null,
+          modelCallCounts:{total_provider_requests:Number.isSafeInteger(count)&&count>=0?count:null},
+          rewriteStatus:['completed','failed_closed','not_required'].includes(dto?.rewrite_status)?dto.rewrite_status:null});
         result=OpenDeskSupportQueryAPI.convert(queryConfig,ctx,response);
       }catch{
         result=OpenDeskSupportQueryAPI.failed(queryConfig,ctx,'QUERY_UNAVAILABLE');
@@ -244,10 +253,15 @@ const subscription=window.watchAppWindow(target,hint=>{
 });
 function tick(){timer=setTimeout(async()=>{try{await enqueue(()=>observe(dirty?'hint-fallback':'1000ms-revalidation'));dirty=false;}finally{if(!closed)tick();}},1000);}
 try{
+  // Creating the UI host can move focus away from the launcher's own chat.
+  // Resolve and activate the existing exact window; never launch a replacement.
+  const initial=await window.get({pid:target.pid,title:'OpenDesk R2.3 Test Chat'});
+  if(initial.pid!==target.pid||initial.exePath!==target.exePath)throw Error('Owned test chat process changed during startup');
+  await window.activate(initial);
   log('startup',{execution:Execution.id,config,capabilities:Accessibility.getCapabilities(),watch:subscription.capabilities});
   await enqueue(()=>observe('startup'));tick();
-  if(config.verify){
-    const verify=(0,eval)(File.read(File.join(File.cwd(),'tests/custom-ui/ai-customer-support-r23-native.js')));
+  if(config.verify||config.verifyAI){
+    const verify=(0,eval)(File.read(File.join(File.cwd(),config.verifyAI?'tests/custom-ui/ai-customer-support-r30b-native.js':'tests/custom-ui/ai-customer-support-r23-native.js')));
     await verify({panel,target,evidence,adapter,observe:()=>enqueue(()=>observe('test-revalidate')),
       idle:()=>queue,getRender:()=>latestRender,getBound:()=>bound,log});
     await panel.close();

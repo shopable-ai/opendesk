@@ -12,6 +12,15 @@ export function ReplyView(){
   const product=active&&!state.native?productFromCustomerText(message?.text):null;
   const options=activeOptions(state),selected=activeReply(state),txt=activeReplyText(state);
   const key=activeReplyKey(state),copy=useCopy(),fill=useFillDraft(),taken=state.takeovers.includes(state.threadId);
+  const editor=React.useRef<{key:string;node:HTMLTextAreaElement}|null>(null);
+  function commitEdit(){
+    const current=editor.current;
+    if(!active||state.editing!==key||current?.key!==key)return txt;
+    const text=current.node.value.slice(0,2000);
+    dispatch({type:'REPLY_TEXT',key,text});
+    return text;
+  }
+  function finishEdit(){commitEdit();dispatch({type:'REPLY_EDIT',key:null});}
   const sent=!!message&&thread.sent.includes(message.id);
   const caption=!active?'观察已停止':state.native?'AI 草稿 · 人工审核':taken?'人工接管 · AI 继续推荐':state.auto?'自动回复 · 模拟':'本地规则推荐 · 人工发送';
   return <>
@@ -50,10 +59,12 @@ export function ReplyView(){
           onClick={()=>dispatch({type:'REPLY_CHOICE',key:latestKey(state),id:option.id})}>
           <span className="symbol">{option.symbol}</span><span className="answer">{val}</span><span className="tip">{option.name}</span>
         </button>
-        {editing&&<div className="inline-edit"><textarea aria-label={'编辑'+option.name} maxLength={2000}
-          value={val} onChange={e=>dispatch({type:'REPLY_TEXT',key:optionKey,text:e.target.value})}/>
+        {editing&&<div className="inline-edit"><textarea autoFocus aria-label={'编辑'+option.name} maxLength={2000}
+          ref={node=>{editor.current=node?{key:optionKey,node}:null;}}
+          defaultValue={val} onChange={e=>dispatch({type:'REPLY_TEXT',key:optionKey,text:e.target.value})}
+          onBlur={e=>dispatch({type:'REPLY_TEXT',key:optionKey,text:e.currentTarget.value})}/>
           <div className="edit-actions"><span>编辑仅修改此条建议</span>
-          <button onClick={()=>dispatch({type:'REPLY_EDIT',key:null})}>完成</button></div></div>}
+          <button onClick={finishEdit}>完成</button></div></div>}
       </div>;
     })}</div>
     {!state.native&&!hit&&active&&<div className="notice">尚未找到可靠业务规则；建议澄清问题或交由人工核实，不进行自动发送。</div>}
@@ -62,10 +73,10 @@ export function ReplyView(){
     </PanelScroll>
     <footer className="bottom compact-actions"><div className="between"><span className="chosen-label">已选：{selected.name}</span><span className="small">{txt.length} 字</span></div>
       <div className="btn-row">
-        <button className="primary" disabled={!active||sent||!txt.trim()||(state.native&&!!state.pendingFill)} onClick={()=>fill(txt)}>→ 填入聊天草稿</button>
+        <button className="primary" disabled={!active||sent||!txt.trim()||(state.native&&!!state.pendingFill)} onClick={()=>fill(commitEdit())}>→ 填入聊天草稿</button>
         <IconButton icon={state.editing===key?Check:Pencil} title={state.editing===key?'完成编辑':'编辑选中回复'}
-          disabled={!active} onClick={()=>dispatch({type:'REPLY_EDIT',key:state.editing===key?null:key})}/>
-        <IconButton icon={ClipboardCopy} title="复制所选回复" disabled={!active||!txt.trim()} onClick={()=>{void copy(txt,'回复');}}/>
+          disabled={!active} onClick={()=>state.editing===key?finishEdit():dispatch({type:'REPLY_EDIT',key})}/>
+        <IconButton icon={ClipboardCopy} title="复制所选回复" disabled={!active||!txt.trim()} onClick={()=>{void copy(commitEdit(),'回复');}}/>
       </div>
       <div className="receipt">操作状态 · {state.receipt}</div>
     </footer>

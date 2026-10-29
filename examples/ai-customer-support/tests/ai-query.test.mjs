@@ -149,6 +149,16 @@ test('manual editing while AI waits keeps the human reply and rejects the late r
   assert.equal(next.editing,key);
 });
 
+test('opening the active native editor claims the reply before accessibility input commits',()=>{
+  let s=deliver(state.createInitialState(true),observation());
+  s=state.reducer(s,{type:'NATIVE_AI_QUERY',request:{type:'support.aiQuery',requestId:'ai-1',binding}});
+  const key=state.activeReplyKey(s);
+  s=state.reducer(s,{type:'REPLY_EDIT',key});
+  assert.equal(s.ai,null);
+  const next=deliver(s,json(query.convert(config,ctx,body())));
+  assert.equal(next,s);assert.equal(next.editing,key);
+});
+
 test('conflicting coverage declarations cannot be promoted to supported evidence',()=>{
   for(const [inner,outer] of [['full','conflict'],['conflict','full'],['full','unknown']]){
     const result=query.convert(config,ctx,body({coverage_status:outer,

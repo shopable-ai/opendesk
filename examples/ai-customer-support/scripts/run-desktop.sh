@@ -3,8 +3,10 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT_DIR"
 VERIFY=0
+VERIFY_AI=0
 [[ "${1:-}" != --verify ]] || { VERIFY=1; shift; }
-[[ "$#" == 0 ]] || { echo 'Usage: run-desktop.sh [--verify]' >&2; exit 2; }
+[[ "${1:-}" != --verify-ai ]] || { VERIFY_AI=1; shift; }
+[[ "$#" == 0 && "$VERIFY$VERIFY_AI" != 11 ]] || { echo 'Usage: run-desktop.sh [--verify|--verify-ai]' >&2; exit 2; }
 CHAT="$ROOT_DIR/.runtime/apps/OpenDeskSupportChat.app"
 CHAT_BIN="$CHAT/Contents/MacOS/support-chat"
 PREVIEW="$ROOT_DIR/examples/ai-customer-support/preview/index.html"
@@ -41,11 +43,12 @@ for ((attempt=0; attempt<150; attempt++)); do
   sleep 0.1
 done
 [[ -s "$EVIDENCE/fixture-oracle.json" ]] || { echo 'Test chat startup timed out.' >&2; exit 1; }
-node --input-type=module - "$CHAT_PID" "$CHAT_BIN" "$PREVIEW" "$EVIDENCE" "$VERIFY" <<'JS'
+node --input-type=module - "$CHAT_PID" "$CHAT_BIN" "$PREVIEW" "$EVIDENCE" "$VERIFY" "$VERIFY_AI" <<'JS'
 import {readFileSync, writeFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-const [pid,exePath,preview,evidence,verify]=process.argv.slice(2);
+const [pid,exePath,preview,evidence,verify,verifyAI]=process.argv.slice(2);
 const config={schemaVersion:1,pid:Number(pid),exePath,evidence,verify:verify==='1',
+  verifyAI:verifyAI==='1',
   previewSha256:createHash('sha256').update(readFileSync(preview)).digest('hex')};
 // Explicit per-launch project mapping. No arbitrary URL, remote host or UI-supplied
 // project ID is accepted. Never include credentials in the evidence folder.
@@ -61,12 +64,16 @@ if(portText||projectId){
     throw Error('Query API requires valid OPENDESK_SUPPORT_QUERY_PORT, OPENDESK_SUPPORT_PROJECT_ID and provider.');
   config.queryApi={port,projectId,modelProvider:provider};
 }
+if(verifyAI==='1'&&!config.queryApi)throw Error('--verify-ai requires an explicitly verified local Query API and test project.');
 writeFileSync(evidence+'/launch.json',JSON.stringify(config,null,2));
 JS
 git rev-parse HEAD > "$EVIDENCE/head.txt"
 git diff --stat > "$EVIDENCE/dirty-stat.txt"
 shasum -a 256 "$CHAT_BIN" dist/OpenDesk.app/Contents/MacOS/opendesk dist/OpenDesk.app/Contents/Helpers/opendesk-ui-host "$PREVIEW" > "$EVIDENCE/artifact-sha256.txt"
 shasum -a 256 examples/ai-customer-support/native-demo.js examples/ai-customer-support/desktop/native-adapter.js examples/ai-customer-support/desktop/query-api-adapter.js tests/custom-ui/ai-customer-support-r23-native.js tests/custom-ui/tools/support-chat/main.swift > "$EVIDENCE/source-sha256.txt"
+if [[ "$VERIFY_AI" == 1 ]]; then
+  shasum -a 256 tests/custom-ui/ai-customer-support-r30b-native.js >> "$EVIDENCE/source-sha256.txt"
+fi
 printf 'R2.3 evidence: %s\n' "$EVIDENCE"
 OPENDESK_SUPPORT_LAUNCH="$EVIDENCE/launch.json" ./scripts/run_macos_stable.sh -ui \
   -script examples/ai-customer-support/native-demo.js -console-mode script 2>&1 | tee "$EVIDENCE/runtime.log"
