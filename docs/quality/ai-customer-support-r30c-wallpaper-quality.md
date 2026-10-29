@@ -56,7 +56,7 @@ API 只请求已绑定 loopback 18084，auto / generic / draft。模型沿用 10
 | 不支持项目隔离 | **4/4技术拒绝 PASS** | 未回退 bizhi-app；两个均不可用项目，不证明两个可用项目间隔离 |
 | 关键无依据承诺 | 审阅的2条降级+2条演示文本中 **0** | 未观测到真实模型越界正例；完整安全集合/生产分布 NOT_TESTED |
 | Hit@1 / Hit@3 / Recall@3 | **NOT_TESTED，n=0** | 评分样本无真实非空 top_candidates；locked_hits/最终来源不是排名 |
-| Mac两主题生成→编辑→草稿读回 | **NOT_TESTED** | 本轮演示仅Query层；当前产品/原生验收由另一Owner持续变更，未冒称完整Mac通过 |
+| Mac两主题生成→编辑→草稿读回 | **NOT_TESTED** | 两主题演示仅Query层；另有历史Q6单主题Mac通过。本次当前HTML预检失败，未发Query，不冒称两主题Mac通过 |
 
 延迟为 wall-clock：留出 n=26，p50=48ms、p95=8051ms、超时0/26。该分布主要是错误/早退，不是生成 SLA。生成演示 n=2，9894ms、10319ms，最近秩 p50=9894ms、p95=10319ms，超时0/2。未扩大本轮18秒限时。
 
@@ -108,9 +108,19 @@ API 只请求已绑定 loopback 18084，auto / generic / draft。模型沿用 10
 
 ## 产品、Mac与回归证据边界
 
-本轮没有写产品UI/Host，未运行或接管另一Owner的原生窗口。只读源码观察到来源区显示 ID/Hash/原文及“版本、生效期及适用条件：服务未提供，待核实”，并保留旧人工版本；这些是另一Owner的未交付变化，不能由源码阅读证明实际加载或视觉通过。当前本报告的产品状态分别为：代码变更存在（他方）；实际加载、视觉确认、功能闭环没有本对话最终候选对应证明，均 NOT_TESTED。旧R3.0-B的13项Mac和23项离线证明不转为本轮成绩。
+本轮没有写产品UI/Host，也未接管另一Owner的原生窗口。来源区显示 ID/Hash/原文及“版本、生效期及适用条件：服务未提供，待核实”，并保留旧人工版本；实际加载、视觉和功能结论按下面的具体运行区分，不能由源码阅读代替。旧R3.0-B的13项Mac和23项离线证明不转为本轮成绩。
 
-本轮 typecheck通过；评测器12项测试通过，最终完整示例单测132/132通过。没有修改公开Runtime API；未新增Go公共契约测试。build/浏览器/AI Host/离线原生回归属于并行产品Owner的变更范围，尚未取得与其最终候选源码、HTML、加载Hash一致的交付证明，本报告不宣称通过，也没有重建覆盖它的preview。保留普通入口：无Query变量 `./examples/ai-customer-support/scripts/run-desktop.sh --verify`；AI为显式18084/bizhi-app/auto的同脚本 `--verify-ai`，但本轮未执行这两条命令。
+原评测提交时 typecheck通过；评测器12项测试通过，完整示例单测132/132通过。没有修改公开Runtime API；未新增Go公共契约测试。build/浏览器/AI Host/离线原生回归属于并行产品Owner的变更范围，不能将旧候选成绩直接升级为当前持续变化的源码/HTML证明，也没有重建覆盖它的preview。保留正式入口：无Query变量 `./examples/ai-customer-support/scripts/run-desktop.sh --verify`；AI为显式18084/bizhi-app/auto的同脚本 `--verify-ai`，本对话未执行这两条正式门禁命令。
+
+### 续接核验：历史单主题成立，当前两主题预检未通过
+
+2026-10-30 03:23 的独立只读 verifier 核对了另一Owner的最新原始证据：真实运行 `r23/runs/20261030-030508-61868` 为21/21，离线运行 `20261030-030700-65311` 为23/23。历史Q6类型介绍的 Query、React、来源AX、人工编辑、新草稿AX快照和零发送互相吻合；Provider为 `chatcmpl-a88adce8030946ab8633e184`、699 tokens，以HTTP时间区间内唯一记录关联，没有共同trace ID。六次请求均为同一Q6主题，不能算两个主题。该证据的HTML为 `6c313d49ee32d4803046be6479400446ac5f03ae098986394a21f5cdea7f73c2`，与续接时当前HTML不同；产品交付索引中的state Hash也已与当前文件不同。历史链路PASS保留，不外推当前候选。详见另一Owner的 [Mac报告](ai-customer-support-r30c-mac-verify.md) 和本地 `r30c-20261030/native-chain-index.json`。
+
+在确认没有测试聊天/原生验收进程占用后，本对话复用自有18084隔离副本与正常公开入口，准备Q7风格改写、Q12设置流程及一个未知退款问题的补充AX验收。工作目录为仓库根目录，实际原样运行：`OPENDESK_SUPPORT_QUERY_PORT=18084 OPENDESK_SUPPORT_PROJECT_ID=bizhi-app OPENDESK_SUPPORT_QUERY_PROVIDER=auto ./examples/ai-customer-support/scripts/run-desktop.sh`。这是正常启动命令，不是 `--verify-ai` 门禁结果。运行 `r23/runs/20261030-032242-79372` 已实际加载HTML `7ecf16f46f40022d6abad39a3e36669ee205c3c9a4d8f830b2613cb3739c1bd2`，Host源码仍为 `9b313dee56f55d556df668dfc7c6948473a65dfbcf85fe67f1063623631bd5b3`。
+
+补充探针在第一次精确置前时返回 `VERIFICATION_FAILED: Exact window activation failed`，Host持续报告“测试聊天失去焦点/不在前台”；没有放宽前台门禁或重放业务动作。通用桌面工具仅在自有测试聊天添加过一条Q7消息，未取得有效Host观察。预检结果为 **FAIL**，主题流程及未知问题真实语义验收仍 **NOT_TESTED**；实际Query请求0、Provider请求0、草稿回执0，fixture `sendActions=0`。窗口加载成功不等于视觉或功能通过，未取得两主题截图和草稿证据。此次尝试期间他方的styles/HTML再次变化，最终源码→构建→加载对应关系仍需其Owner稳定后核对。
+
+探针、运行前后Hash与原始失败保存在本地 `r30c/mac-two-theme/{before.json,verify.js,probe.log,results.json,attempt-audit.json}`，只作为未完成的补充验收，不进入正式源码、不替代公开门禁。原进程归属核对后，仅向本轮CLI/PID79422和自有18084/PID78976发送SIGTERM，launcher受控清理其聊天/PID79391及UI host/PID79464；已确认这些PID退出。既有10100/PID80227、18082/PID28628保持监听。
 
 ## 阻断与最小剩余差量
 
@@ -119,9 +129,9 @@ API 只请求已绑定 loopback 18084，auto / generic / draft。模型沿用 10
 | bizhi-app 业务知识维护者 | 草案、示例价、缺正式产品范围；4真实过期/冲突未测 | 提供获准业务资料、适用范围及真实版本/撤销链，在新版本封存后执行，不能回填旧结果 |
 | Query部署/Context维护者 | 20个1901明确 registry未加载；10可答全失败 | 只读旧库范围内提交部署差量建议：验证既有Context清单/审批和startup加载；不能空注册、降风险或强行标full。启用需独立受控验证，不扩成CLI/stream全量接入 |
 | Query DTO/Adapter集成Owner | 两条规则转人工缺strategy/调用计数，当前安全拒绝 | 上游补齐一致草稿封套，或由唯一Owner在既有Adapter增加严格的非可选人工提示兼容；不能伪造证据、零调用计数或supported候选 |
-| 产品/原生验收Owner（上述活跃对话） | 来源UI及编辑/授权竞态仍在其工作区修改；本轮两主题Mac未测 | 最终候选通过回归后串行验证两主题、未知降级、独立AX新快照、sendActions=0及真实窗口截图；记录源码/HTML/加载各自Hash，不抢占窗口 |
+| 产品/原生验收Owner（上述对话及当前修改者） | 历史Q6单主题21/21与离线23/23成立；当前state/HTML与证据版本不同，且本次置前预检失败 | 稳定并明确最终候选后，在可保持前台的桌面时段串行验证两主题与未知降级；复用已准备的补充方案，保留独立AX、零发送和截图，重新绑定源码/HTML/加载Hash |
 | 可用项目隔离验证Owner | 当前4题都是不存在的项目 | 获得第二个可用项目的授权测试快照后，补充支持项目之间隔离；现有拒绝证据保持 |
 
 本轮可独立部分已保留；没有因质量FAIL反复请求留出、降低门槛或生成假政策。完整100题七算法矩阵、Embedding重建、Context CLI/stream全量、生产微信发送、打包重构仍延期。
 
-本地证据索引：`.runtime/tests/ai-customer-support/r30c/{baseline.json,calibration-01/,calibration-02/,holdout-01/,generation-01/,source-integrity.json,provider-wire-audit.jsonl,query-wire-audit.jsonl,evaluator-final.log,typecheck-final.log,unit-final.log}`。holdout与generation各有独立review.json（文件名为independent-review.json）；完整私有输出不提交。自有18084/PID34099已受控停止，10100/PID80227和另一Owner的18082/PID28628保持不变，详见cleanup.json。本轮只发Query请求，原生动作0、聊天发送0；这不能替代未执行的Mac sendActions断言。提交/推送SHA在同目录delivery.json及最终交付回执记录。
+本地证据索引：`.runtime/tests/ai-customer-support/r30c/{baseline.json,calibration-01/,calibration-02/,holdout-01/,generation-01/,source-integrity.json,provider-wire-audit.jsonl,query-wire-audit.jsonl,evaluator-final.log,typecheck-final.log,unit-final.log,mac-two-theme/}`。holdout与generation各有独立review.json（文件名为independent-review.json）；完整私有输出不提交。原评测自有18084/PID34099已受控停止，详见cleanup.json；该阶段只有Query请求，原生动作0、聊天发送0。续接原生预检及第二次服务启动/清理单独记录在上节，未改变旧运行结果。提交/推送SHA在同目录delivery.json及最终交付回执记录。
