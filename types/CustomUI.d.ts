@@ -3,7 +3,7 @@ export {};
 declare global {
   type ClawdeskUIActivationSource = "disabled" | "cli" | "projectConfig" | "httpRequest";
   type ClawdeskUIWindowStatus = "creating" | "hidden" | "visible" | "closing" | "closed" | "failed";
-  type ClawdeskUIEventType = "click" | "change" | "input" | "move" | "resize" | "key" | "interactionOutside" | "close";
+  type ClawdeskUIEventType = "message" | "click" | "change" | "input" | "move" | "resize" | "key" | "interactionOutside" | "close";
   type ClawdeskUIEventSelector = ClawdeskUIEventType | "*";
   type ClawdeskUIUnsubscribe = () => void;
 
@@ -69,6 +69,19 @@ declare global {
     interactionGroup?: string;
     theme?: "system" | "dark";
     content: ClawdeskUIContentSpec;
+  }
+
+  type TrustedJSON = null | boolean | number | string | TrustedJSON[] | { [key: string]: TrustedJSON };
+  interface TrustedWindowSpec {
+    id: string;
+    kind?: "normal" | "floating";
+    title?: string;
+    position: ClawdeskUIInitialPosition;
+    content: { file: string; basePath?: string; sha256: string };
+  }
+  interface TrustedWindowHandle extends ClawdeskUIWindowHandle {
+    /** Data only: UTF-8 JSON <=64 KiB, depth <=32, <=4096 values. */
+    postMessage(value: TrustedJSON): Promise<void>;
   }
 
   interface ClawdeskUIControlDescriptor {
@@ -264,6 +277,8 @@ declare global {
     notify(messageOrOptions: string | NotificationOptions): Promise<NotificationHandle>;
     getCapabilities(): Capabilities;
     createWindow(spec: WindowSpec): Promise<WindowHandle>;
+    /** macOS 11+, local self-contained HTML with required SHA-256. */
+    createTrustedWindow(spec: TrustedWindowSpec): Promise<TrustedWindowHandle>;
     closeAll(): Promise<void>;
     on(type: EventType | "*", listener: (event: UIEvent) => void | Promise<void>): () => void;
   }

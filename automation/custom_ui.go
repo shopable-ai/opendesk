@@ -315,7 +315,7 @@ func registerDisabledCustomUI(runtime *goja.Runtime, source customui.ActivationS
 		ProtocolVersion: customui.ProtocolVersion, Enabled: false, Available: false,
 		ActivationSource: normalizeCustomUIActivationSource(source, false),
 		Platform:         "disabled", Driver: "none", MaxSessions: 0,
-		Window:   map[string]bool{"position": false, "placement": false, "size": false, "alwaysOnTop": false, "draggable": false, "chrome": false, "nativeIdentity": false, "notify": false},
+		Window:   map[string]bool{"trustedWindow": false, "position": false, "placement": false, "size": false, "alwaysOnTop": false, "draggable": false, "chrome": false, "nativeIdentity": false, "notify": false},
 		Controls: []string{"button", "text", "img", "switch", "input", "select", "container"},
 		Reason:   "custom UI was not explicitly enabled for this execution",
 	}
@@ -325,17 +325,19 @@ func registerDisabledCustomUI(runtime *goja.Runtime, source customui.ActivationS
 		}
 	}
 	_ = runtime.Set("ui", map[string]any{
-		"getCapabilities": func() any { return jsonCompatible(capabilities) },
-		"createWindow":    disabled("createWindow"),
-		"notify":          disabled("ui.notify"),
-		"closeAll":        disabled("closeAll"),
-		"on":              disabled("on"),
+		"getCapabilities":     func() any { return jsonCompatible(capabilities) },
+		"createWindow":        disabled("createWindow"),
+		"createTrustedWindow": disabled("createTrustedWindow"),
+		"notify":              disabled("ui.notify"),
+		"closeAll":            disabled("closeAll"),
+		"on":                  disabled("on"),
 	})
 }
 
 func (u *CustomUIRuntime) jsUIObject() map[string]any {
 	return map[string]any{
-		"notify": u.jsNotify,
+		"notify":              u.jsNotify,
+		"createTrustedWindow": u.jsCreateTrustedWindow,
 		"getCapabilities": func() any {
 			capabilities := u.driver.Capabilities(u.context)
 			capabilities.Enabled = true

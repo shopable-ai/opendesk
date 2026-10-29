@@ -69,7 +69,8 @@ func Run(input io.Reader, output, diagnostics io.Writer) error {
 	scanErrors := make(chan error, 1)
 	go func() {
 		scanner := bufio.NewScanner(input)
-		scanner.Buffer(make([]byte, 64*1024), 8*1024*1024)
+		// An 8 MiB trusted HTML snapshot may expand sixfold in JSON escaping.
+		scanner.Buffer(make([]byte, 64*1024), 64*1024*1024)
 		for scanner.Scan() {
 			line := scanner.Text()
 			raw := C.CString(line)

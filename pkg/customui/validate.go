@@ -48,6 +48,26 @@ var allowedInputTypes = map[string]bool{
 // Normalize validates a public declaration, loads local HTML/CSS files, and
 // produces the stable control order consumed by every platform driver.
 func Normalize(spec WindowSpec, baseDir string) (WindowSpec, error) {
+	if spec.Trusted != nil {
+		fixed := spec.Trusted
+		if spec.Content.File != "" || spec.Content.HTML != "" || spec.Content.CSS != "" || spec.Content.CSSFile != "" || spec.Content.BasePath != "" || spec.Content.Assets != nil || spec.Controls != nil || spec.Toolbar != nil || spec.Notification != nil || spec.Measurement != nil || spec.ReferenceSelection != nil {
+			return WindowSpec{}, invalidSpec("trusted content cannot be combined with other content or controls")
+		}
+		if len(fixed.HTML) > MaxTrustedHTMLBytes || !utf8.ValidString(fixed.HTML) {
+			return WindowSpec{}, invalidSpec("invalid trusted HTML")
+		}
+		spec.Trusted = nil
+		spec.Content = ContentSpec{HTML: "<div></div>"}
+		normalized, err := Normalize(spec, baseDir)
+		if err != nil {
+			return WindowSpec{}, err
+		}
+		normalized.Content = ContentSpec{}
+		normalized.Controls = nil
+		normalized.Trusted = fixed
+		return normalized, nil
+	}
+
 	spec.ID = strings.TrimSpace(spec.ID)
 	if !publicIDPattern.MatchString(spec.ID) {
 		return WindowSpec{}, invalidSpec("window id must match ^[A-Za-z][A-Za-z0-9_-]{0,63}$")

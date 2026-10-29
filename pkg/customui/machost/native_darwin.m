@@ -10,7 +10,7 @@
 #import "floating_toolbar_darwin.h"
 #import "notification_darwin.h"
 
-static NSString *const CDProtocolVersion = @"1.14.0";
+static NSString *const CDProtocolVersion = @"1.15.0";
 static NSMutableDictionary<NSString *, id> *CDWindows;
 static NSMutableDictionary<NSString *, NSDictionary *> *CDClosedNotifications;
 static void CDReflowBottomNotifications(NSString *session);
@@ -376,6 +376,8 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 // created with loadHTMLString, even when a contained file base URL is supplied.
 // Serve already-validated local image references through a host-owned scheme so
 // the restricted document keeps network and arbitrary filesystem access off.
+#include "trusted_darwin.h"
+
 @interface CDAssetSchemeHandler : NSObject <WKURLSchemeHandler>
 @property(nonatomic, copy) NSString *basePath;
 @end
@@ -921,7 +923,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 
 @end
 
-@interface CDWindowController : NSObject <WKScriptMessageHandler, WKNavigationDelegate, NSWindowDelegate, CDDragOverlayDelegate, CDWebAccessibilityButtonProxyDelegate, CDWebAccessibilityInputProxyDelegate, CDFloatingToolbarDelegate, CDFileDropDelegate>
+@interface CDWindowController : NSObject <WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate, NSWindowDelegate, CDDragOverlayDelegate, CDWebAccessibilityButtonProxyDelegate, CDWebAccessibilityInputProxyDelegate, CDFloatingToolbarDelegate, CDFileDropDelegate>
 @property(nonatomic, copy) NSString *sessionID;
 @property(nonatomic, copy) NSString *windowID;
 @property(nonatomic, copy) NSString *kind;
@@ -930,6 +932,8 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 @property(nonatomic, strong) NSWindow *window;
 @property(nonatomic, strong) WKWebView *webView;
 @property(nonatomic, strong) CDAssetSchemeHandler *assetSchemeHandler;
+@property(nonatomic, strong) CDTrustedSchemeHandler *trustedSchemeHandler;
+@property(nonatomic, copy) NSString *trustedNonce;
 @property(nonatomic, strong) CDDragOverlayView *dragOverlay;
 @property(nonatomic, strong) CDWebIconOverlayView *webIconOverlay;
 @property(nonatomic, strong) CDToolbarView *floatingToolbarView;
@@ -1307,7 +1311,7 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
 }
 
 - (void)refreshDragRegionsWithCompletion:(void (^)(NSError *error))completion {
-	if (self.closed || !self.webView) {
+	if (self.closed || !self.webView || self.trustedSchemeHandler) {
 		if (completion) completion(nil);
 		return;
 	}
@@ -1367,7 +1371,7 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
         @"timestamp": CDTimestamp(),
     } mutableCopy];
     if (target.length) event[@"targetId"] = target;
-	if (body[@"value"] && body[@"value"] != NSNull.null) event[@"value"] = body[@"value"];
+	if (body[@"value"]) event[@"value"] = body[@"value"];
 	if (body[@"checked"] && body[@"checked"] != NSNull.null) event[@"checked"] = body[@"checked"];
 	if ([body[@"bounds"] isKindOfClass:NSDictionary.class]) event[@"bounds"] = body[@"bounds"];
 	if ([body[@"fields"] isKindOfClass:NSDictionary.class]) event[@"fields"] = body[@"fields"];
@@ -1378,6 +1382,24 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
 }
 
 - (void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message {
+    if (self.trustedSchemeHandler) {
+     WKSecurityOrigin *origin=message.frameInfo.securityOrigin;
+     NSURL *url=self.trustedSchemeHandler.url;
+     if (self.closed || message.webView != self.webView || !message.frameInfo.mainFrame ||
+         ![message.name isEqualToString:@"opendeskTrusted"] ||
+         ![message.frameInfo.request.URL.absoluteString isEqualToString:url.absoluteString] ||
+         ![origin.protocol isEqualToString:url.scheme] || ![origin.host isEqualToString:url.host] || origin.port != 0 ||
+         ![message.body isKindOfClass:NSDictionary.class]) return;
+     NSDictionary *body=message.body;
+     if (![body[@"nonce"] isEqual:self.trustedNonce]) return;
+     if ([body[@"kind"] isEqual:@"ready"]) { self.bridgeReady=YES; [self completeCreateIfReady]; return; }
+     if (![body[@"kind"] isEqual:@"message"] || ![body[@"json"] isKindOfClass:NSString.class]) return;
+     NSData *data=[body[@"json"] dataUsingEncoding:NSUTF8StringEncoding];
+     if (data.length>65536) return;
+     id value=[NSJSONSerialization JSONObjectWithData:data options:NSJSONReadingFragmentsAllowed error:nil];
+     if (CDTrustedJSON(value)) [self emitType:@"message" target:nil body:@{@"value":value} reason:nil];
+     return;
+    }
     if (![message.name isEqualToString:@"opendesk"] || !message.frameInfo.mainFrame || ![message.body isKindOfClass:NSDictionary.class] || self.closed) return;
     NSDictionary *body = (NSDictionary *)message.body;
     NSString *type = body[@"type"];
@@ -1483,6 +1505,14 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
 	self.contentView.nativeAccessibilityChildren = @[];
 	[self.webIconOverlay clear];
     self.revision += 1;
+ [self.webView stopLoading];
+ [self.webView.configuration.userContentController removeScriptMessageHandlerForName:@"opendeskTrusted" contentWorld:WKContentWorld.pageWorld];
+ [self.webView.configuration.userContentController removeAllUserScripts];
+ self.trustedSchemeHandler.html=nil;
+ self.trustedNonce=nil;
+ self.webView.navigationDelegate=nil;
+ self.webView.UIDelegate=nil;
+ [self.webView.configuration.userContentController removeAllContentRuleLists];
 	[self.webView.configuration.userContentController removeScriptMessageHandlerForName:@"opendesk" contentWorld:WKContentWorld.defaultClientWorld];
 	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
 		CDFinalizeClosedWindow(self, 0);
@@ -1530,9 +1560,25 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
 	BOOL allowed = NO;
 	if (mainFrame && !self.initialNavigationStarted) {
 		self.initialNavigationStarted = YES;
-		allowed = YES;
+		allowed = self.trustedSchemeHandler ? (navigationAction.targetFrame != nil && navigationAction.targetFrame.mainFrame &&
+       [navigationAction.request.URL.absoluteString isEqualToString:self.trustedSchemeHandler.url.absoluteString]) : YES;
 	}
+    if (@available(macOS 11.3, *)) { if (self.trustedSchemeHandler && navigationAction.shouldPerformDownload) allowed=NO; }
     decisionHandler(allowed ? WKNavigationActionPolicyAllow : WKNavigationActionPolicyCancel);
+}
+
+// Trusted app windows never create another WebView or expose file pickers.
+- (WKWebView *)webView:(WKWebView *)webView createWebViewWithConfiguration:(WKWebViewConfiguration *)configuration forNavigationAction:(WKNavigationAction *)action windowFeatures:(WKWindowFeatures *)features { return nil; }
+- (void)webView:(WKWebView *)webView runOpenPanelWithParameters:(WKOpenPanelParameters *)parameters initiatedByFrame:(WKFrameInfo *)frame completionHandler:(void (^)(NSArray<NSURL *> *))completionHandler { completionHandler(nil); }
+
+- (void)webView:(WKWebView *)webView decidePolicyForNavigationResponse:(WKNavigationResponse *)response decisionHandler:(void (^)(WKNavigationResponsePolicy))decisionHandler {
+ if (self.trustedSchemeHandler) {
+  BOOL allowed=response.isForMainFrame && response.canShowMIMEType &&
+    [response.response.URL.absoluteString isEqualToString:self.trustedSchemeHandler.url.absoluteString] &&
+    [response.response.MIMEType isEqualToString:@"text/html"];
+  decisionHandler(allowed ? WKNavigationResponsePolicyAllow : WKNavigationResponsePolicyCancel); return;
+ }
+ decisionHandler(WKNavigationResponsePolicyAllow);
 }
 
 @end
@@ -2078,6 +2124,27 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
     controller.basePath = [content[@"basePath"] stringByStandardizingPath] ?: @"";
 	controller.createRequestID = requestID;
 	WKWebViewConfiguration *configuration = [WKWebViewConfiguration new];
+ BOOL trusted=[spec[@"trustedContent"] isKindOfClass:NSDictionary.class];
+ if (trusted) { if (@available(macOS 11.0, *)) {} else { CDFail(requestID,@"UNSUPPORTED_CAPABILITY",@"createTrustedWindow",windowID,nil,@"trusted windows require macOS 11 or later"); [window close]; return; } }
+ if (trusted) {
+  // Window following and AX calibration use the actual outer frame. AppKit's
+  // opening animation otherwise briefly publishes scaled WindowServer bounds.
+  window.animationBehavior=NSWindowAnimationBehaviorNone;
+  configuration.websiteDataStore=WKWebsiteDataStore.nonPersistentDataStore;
+  controller.trustedNonce=CDTrustedNonce();
+  CDTrustedSchemeHandler *handler=[CDTrustedSchemeHandler new];
+  NSString *scheme=[@"opendesk-app-" stringByAppendingString:controller.trustedNonce];
+  handler.url=[NSURL URLWithString:[NSString stringWithFormat:@"%@://app/index.html",scheme]];
+  NSString *protectedDocument=[NSString stringWithFormat:@"<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"%@\">%@",CDTrustedCSP(),spec[@"trustedContent"][@"html"]];
+  handler.html=[protectedDocument dataUsingEncoding:NSUTF8StringEncoding];
+  controller.trustedSchemeHandler=handler;
+  [configuration setURLSchemeHandler:handler forURLScheme:scheme];
+  configuration.defaultWebpagePreferences.allowsContentJavaScript=YES;
+  configuration.preferences.javaScriptCanOpenWindowsAutomatically=NO;
+  [configuration.userContentController addScriptMessageHandler:controller contentWorld:WKContentWorld.pageWorld name:@"opendeskTrusted"];
+  WKUserScript *script=[[WKUserScript alloc] initWithSource:CDTrustedBridgeSource(controller.trustedNonce) injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES inContentWorld:WKContentWorld.pageWorld];
+  [configuration.userContentController addUserScript:script];
+ } else {
 	configuration.defaultWebpagePreferences.allowsContentJavaScript = NO;
 	configuration.preferences.javaScriptCanOpenWindowsAutomatically = NO;
 	CDAssetSchemeHandler *assetSchemeHandler = [CDAssetSchemeHandler new];
@@ -2089,14 +2156,16 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 	NSString *bridge = CDBridgeSource(spec[@"controls"] ?: @[], css, controller.draggable, measurementTarget, controller.keyEvents);
 	WKUserScript *script = [[WKUserScript alloc] initWithSource:bridge injectionTime:WKUserScriptInjectionTimeAtDocumentEnd forMainFrameOnly:YES inContentWorld:WKContentWorld.defaultClientWorld];
     [configuration.userContentController addUserScript:script];
+ }
 	CDContentView *contentView = [[CDContentView alloc] initWithFrame:window.contentView.bounds];
 	contentView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 	contentView.accessibilityElement = YES;
 	WKWebView *webView = [[CDWebView alloc] initWithFrame:contentView.bounds configuration:configuration];
     webView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     webView.navigationDelegate = controller;
+    if (trusted) webView.UIDelegate = controller;
 	controller.webView = webView;
-	((CDWebView *)webView).fileDropDelegate = controller;
+	((CDWebView *)webView).fileDropDelegate = trusted ? nil : controller;
 	CDWebIconOverlayView *webIconOverlay = [[CDWebIconOverlayView alloc] initWithFrame:contentView.bounds];
 	webIconOverlay.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 	controller.webIconOverlay = webIconOverlay;
@@ -2118,7 +2187,19 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
     CDWindows[key] = controller;
 	NSString *policy = @"default-src 'none'; img-src data: opendesk-asset:; style-src 'unsafe-inline'; script-src 'none'; connect-src 'none'; media-src 'none'; font-src 'none'; child-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
 	NSString *protectedHTML = [NSString stringWithFormat:@"<meta http-equiv=\"Content-Security-Policy\" content=\"%@\">%@", policy, html];
-	[webView loadHTMLString:protectedHTML baseURL:baseURL];
+ if (trusted) {
+  NSString *rules=@"[{\"trigger\":{\"url-filter\":\"^https?:.*\"},\"action\":{\"type\":\"block\"}},{\"trigger\":{\"url-filter\":\"^wss?:.*\"},\"action\":{\"type\":\"block\"}}]";
+  NSString *identifier=[@"opendesk-trusted-" stringByAppendingString:controller.trustedNonce];
+  [[WKContentRuleListStore defaultStore] compileContentRuleListForIdentifier:identifier encodedContentRuleList:rules completionHandler:^(WKContentRuleList *list,NSError *error) {
+   [[WKContentRuleListStore defaultStore] removeContentRuleListForIdentifier:identifier completionHandler:^(NSError *ignored) {}];
+   if (controller.closed) return;
+   if (!list || error) { [controller failInitialNavigation:error ?: [NSError errorWithDomain:@"OpenDeskTrusted" code:1 userInfo:nil]]; return; }
+   [configuration.userContentController addContentRuleList:list];
+   [webView loadRequest:[NSURLRequest requestWithURL:controller.trustedSchemeHandler.url]];
+  }];
+ } else {
+  [webView loadHTMLString:protectedHTML baseURL:baseURL];
+ }
 	CDFailCreateIfNotReady(controller, 0);
 }
 
@@ -2294,6 +2375,16 @@ static void CDHandleRequest(NSDictionary *request) {
     }
     CDWindowController *controller = CDFindWindow(request, requestID, operation);
     if (!controller) return;
+ if ([operation isEqualToString:@"postMessage"]) {
+  NSString *json=request[@"payload"][@"json"];
+  NSData *data=[json isKindOfClass:NSString.class] ? [json dataUsingEncoding:NSUTF8StringEncoding] : nil;
+  id value=data && data.length<=65536 ? [NSJSONSerialization JSONObjectWithData:data options:NSJSONReadingFragmentsAllowed error:nil] : nil;
+  if (!controller.trustedSchemeHandler || controller.closed || !CDTrustedJSON(value)) { CDFail(requestID,@"INVALID_SPEC",operation,controller.windowID,nil,@"invalid trusted message"); return; }
+  [controller.webView callAsyncJavaScript:@"window.__opendeskTrustedReceive(nonce,json);" arguments:@{@"nonce":controller.trustedNonce,@"json":json} inFrame:nil inContentWorld:WKContentWorld.pageWorld completionHandler:^(id result,NSError *error) {
+   if (error) CDFail(requestID,@"UI_DRIVER_FAILURE",operation,controller.windowID,nil,error.localizedDescription);
+   else CDRespond(requestID,NSNull.null);
+  }]; return;
+ }
 	if ([operation isEqualToString:@"show"]) {
 		if ([controller.kind isEqualToString:@"measurement"]) {
 			// A nonactivating panel is intentionally absent from ordinary window
@@ -2331,7 +2422,7 @@ static void CDHandleRequest(NSDictionary *request) {
 			// Dialog templates use this host-owned marker to make their input the
 			// first responder. Floating panels intentionally retain nonactivating
 			// behavior; normal windows are allowed to receive keyboard input.
-			[controller.webView evaluateJavaScript:@"(function(){var el=document.querySelector('[data-opendesk-dialog-focus]');if(el){el.focus();return true;}return false;})()" completionHandler:nil];
+			if (!controller.trustedSchemeHandler) [controller.webView evaluateJavaScript:@"(function(){var el=document.querySelector('[data-opendesk-dialog-focus]');if(el){el.focus();return true;}return false;})()" completionHandler:nil];
         }
         controller.revision += 1;
 		CDRespondWhenVisible(controller, requestID, 0);
@@ -2392,6 +2483,14 @@ static void CDHandleRequest(NSDictionary *request) {
         controller.revision += 1;
 		CDRespondWhenLayerMatches(controller, requestID, controller.window.level, 0);
 	} else if ([operation isEqualToString:@"setDraggable"]) {
+  if (controller.trustedSchemeHandler) {
+   controller.draggable=[request[@"payload"][@"enabled"] boolValue];
+   controller.dragOverlay.enabled=NO;
+   controller.window.movableByWindowBackground=controller.draggable;
+   controller.revision+=1;
+   CDRespond(requestID,controller.state); return;
+  }
+
         controller.draggable = [request[@"payload"][@"enabled"] boolValue];
 		if (controller.floatingToolbarView) {
 			controller.window.movableByWindowBackground = controller.draggable;

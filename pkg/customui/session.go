@@ -45,7 +45,13 @@ func (s *Session) Create(ctx context.Context, declaration WindowSpec) (*Window, 
 			return nil, err
 		}
 	}
-	window := &Window{session: s, spec: spec, status: StatusCreating, closed: make(chan struct{})}
+	windowSpec := spec
+	if spec.Trusted != nil {
+		// Only the create transport needs the fixed bytes. Handles retain the mode
+		// marker, not an 8 MiB document after the native host has taken ownership.
+		windowSpec.Trusted = &TrustedContent{}
+	}
+	window := &Window{session: s, spec: windowSpec, status: StatusCreating, closed: make(chan struct{})}
 	window.operation.Lock()
 	s.mu.Lock()
 	if s.closed {
@@ -612,6 +618,10 @@ func withUIErrorContext(err error, operation, windowID, targetID string) error {
 }
 
 func (w *Window) handleEvent(event Event) {
+	if event.Type == "message" && w.spec.Trusted == nil {
+		return
+	}
+
 	if event.SessionID == "" {
 		event.SessionID = w.session.id
 	}

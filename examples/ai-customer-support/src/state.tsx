@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useMemo, useReducer } from 'react';
+import React, { createContext, useContext, useMemo, useReducer, useEffect, useRef, useCallback } from 'react';
+import { connectNative, desktopBridge, parseNativeMessage, postNative, sameBinding, type Binding, type FillRequest, type SettingsRequest } from './desktop';
 import { isCustomerId, findProduct, orderForCustomer, type CustomerId } from './domain/catalog';
 import { extractFacts, initialHistory, mergeHistory, type FactStatus, type HistoryByCustomer, type ProfileFact } from './domain/history';
 import { initialKnowledge, matchKnowledge, replyOptions, type Knowledge } from './domain/knowledge';
@@ -10,6 +11,8 @@ export const labels: Record<Tab,string> = {reply:'推荐回复',knowledge:'知�
 export interface ChatMessage { id:string; who:'customer'|'agent'; text:string; replyTo?:string }
 export interface Thread { id:CustomerId; name:string; messages:ChatMessage[]; sent:string[]; draft:string }
 export interface AppState {
+  native:boolean; revision:number; binding:Binding|null; nativeObserving:boolean;
+  pendingFill:FillRequest|null; fillAttempt:string|null; receiptSeen:string[];
   threadId:CustomerId; threads:Thread[];
   tab:Panel; settingsOrigin:Tab; permission:boolean; paused:boolean;
   auto:boolean; consented:boolean; consentPending:boolean; follow:boolean;
@@ -22,6 +25,9 @@ export interface AppState {
   receipt:string; counter:number; log:string[]; toast:{id:number;message:string}|null;
 }
 export type Action =
+ | {type:'NATIVE_MESSAGE';message:unknown}
+ | {type:'NATIVE_FILL';request:FillRequest}
+ | {type:'NATIVE_FAILURE'}
  | {type:'TAB';tab:Panel}
  | {type:'OPEN_PRODUCT';id:string}
  | {type:'CLOSE_PRODUCT'}
@@ -55,26 +61,27 @@ export type Action =
  | {type:'HIDE_TOAST';id:number}
  | {type:'RESET'};
 
-export function createInitialState():AppState {
+export function createInitialState(native=false):AppState {
   const history=initialHistory();
   return {
+    native,revision:-1,binding:null,nativeObserving:false,pendingFill:null,fillAttempt:null,receiptSeen:[],
     threadId:'t1',threads:[
-      {id:'t1',name:'林女士',messages:[{id:'m1',who:'customer',text:'签收后 7 天内还能申请退款吗？'}],sent:[],draft:''},
-      {id:'t2',name:'陈先生',messages:[{id:'m2',who:'customer',text:'物流怎么查询？'}],sent:[],draft:''},
-      {id:'t3',name:'周女士',messages:[{id:'m3',who:'customer',text:'商品如何选尺码？'}],sent:[],draft:''}
+      {id:'t1',name:native?'等待原生观察':'林女士',messages:native?[]:[{id:'m1',who:'customer',text:'签收后 7 天内还能申请退款吗？'}],sent:[],draft:''},
+      {id:'t2',name:native?'等待原生观察':'陈先生',messages:native?[]:[{id:'m2',who:'customer',text:'物流怎么查询？'}],sent:[],draft:''},
+      {id:'t3',name:native?'等待原生观察':'周女士',messages:native?[]:[{id:'m3',who:'customer',text:'商品如何选尺码？'}],sent:[],draft:''}
     ],
-    tab:'reply',settingsOrigin:'reply',permission:true,paused:false,auto:false,consented:false,
+    tab:'reply',settingsOrigin:'reply',permission:!native,paused:false,auto:false,consented:false,
     consentPending:false,follow:true,verify:true,nicknameMode:'original',takeovers:[],
     chosen:{},edits:{},editing:null,knowledge:initialKnowledge(),history,facts:extractFacts(history,[]),
     knowledgeImportEpoch:0,historyImportEpoch:0,knowledgeImportStatus:'',historyImportStatus:'',
     productSelected:null,imageSelected:null,orderSelected:null,
-    receipt:'尚未发送',counter:7,log:[],toast:null
+    receipt:native?'等待原生观察 · 未授权':'尚未发送',counter:7,log:[],toast:null
   };
 }
 export const currentThread=(s:AppState)=>s.threads.find(t=>t.id===s.threadId)!;
 export const latestCustomerMessage=(t:Thread)=>t.messages.filter(m=>m.who==='customer').at(-1);
-export const observed=(s:AppState)=>s.permission&&!s.paused;
-export const latestKey=(s:AppState)=>s.threadId+':'+(latestCustomerMessage(currentThread(s))?.id||'none');
+export const observed=(s:AppState)=>s.permission&&!s.paused&&(!s.native||s.nativeObserving);
+export const latestKey=(s:AppState)=>s.native?JSON.stringify(s.binding):s.threadId+':'+(latestCustomerMessage(currentThread(s))?.id||'none');
 export const activeHit=(s:AppState)=>matchKnowledge(latestCustomerMessage(currentThread(s))?.text,s.knowledge,observed(s));
 export const activeOptions=(s:AppState)=>replyOptions(activeHit(s));
 export const activeReply=(s:AppState)=>{
@@ -94,7 +101,40 @@ const safeToFill=(s:AppState,id:CustomerId,messageId:string):boolean=>{
 };
 const risky=/赔偿|承诺|密码|身份证/;
 export function reducer(s:AppState,a:Action):AppState {
+  if(s.native&&['RESET','SET_THREAD','SET_DRAFT','RECEIVE','FILL','SEND','AUTO_REQUEST','AUTO_CONFIRM','AUTO_DISABLE','AUTO_CANCEL','TAKEOVER'].includes(a.type))return s;
   switch(a.type) {
+    case 'NATIVE_MESSAGE':{
+      if(!s.native)return s;
+      const m=parseNativeMessage(a.message);if(!m)return s;
+      if(m.type==='support.observation'){
+        if(m.revision<=s.revision)return s;
+        const b=s.binding,n=m.binding;
+        // A new host/window/customer requires an explicit native generation change.
+        if(b&&(n.generation<b.generation||(n.generation===b.generation&&
+          (n.pid!==b.pid||n.windowId!==b.windowId||n.customerId!==b.customerId))))return s;
+        const sameIdentity=sameBinding(b,n);
+        const next=changed(s,n.customerId,t=>({...t,name:m.conversation.name,
+          messages:m.conversation.messages,draft:m.conversation.draft,sent:[]}));
+        return {...next,threadId:n.customerId,binding:n,revision:m.revision,nativeObserving:m.observing,
+          permission:m.observing,paused:m.observing?false:s.paused,
+          pendingFill:m.observing&&sameIdentity?s.pendingFill:null,
+          fillAttempt:sameIdentity?s.fillAttempt:null,receiptSeen:sameIdentity?s.receiptSeen:[],
+          editing:sameIdentity?s.editing:null,orderSelected:b?.generation===n.generation?s.orderSelected:null,receipt:m.reason||(m.observing?'原生观察已更新':'原生观察已停止')};
+      }
+      if(!sameBinding(s.binding,m.binding)||!s.pendingFill||!observed(s)||m.requestId!==s.pendingFill.requestId||
+        (m.status==='verified'&&m.draft!==s.pendingFill.text))return s;
+      const fingerprint=JSON.stringify(m);if(s.receiptSeen.includes(fingerprint))return s;
+      const next=m.draft===undefined?s:changed(s,m.binding.customerId,t=>({...t,draft:m.draft!}));
+      return note({...next,pendingFill:null,receiptSeen:[...s.receiptSeen,fingerprint],
+        nativeObserving:m.status==='unknown'?false:s.nativeObserving},'原生草稿 '+m.status+' · '+m.reason);
+    }
+    case 'NATIVE_FILL':{
+      const r=a.request,attempt=JSON.stringify([r.binding,r.text,r.expectedDraft]);
+      if(!s.native||!observed(s)||!latestCustomerMessage(currentThread(s))||!sameBinding(s.binding,r.binding)||s.pendingFill||s.fillAttempt===attempt||
+        r.expectedDraft!==currentThread(s).draft||r.text===r.expectedDraft||!r.text.trim())return s;
+      return {...s,pendingFill:r,fillAttempt:attempt,receipt:'已请求原生填入 · 等待原生回执'};
+    }
+    case 'NATIVE_FAILURE':return s.native?note({...s,nativeObserving:false,pendingFill:null},'原生桥不可用 · 已停止操作'):s;
     case 'RESET': return {...createInitialState(),knowledgeImportEpoch:s.knowledgeImportEpoch+1,
       historyImportEpoch:s.historyImportEpoch+1};
     case 'TAB': return {...s,tab:a.tab,settingsOrigin:a.tab==='settings'?(s.tab==='settings'?s.settingsOrigin:s.tab):s.settingsOrigin,editing:null};
@@ -150,6 +190,13 @@ export function reducer(s:AppState,a:Action):AppState {
     case 'REPLY_EDIT':return {...s,editing:a.key};
     case 'REPLY_TEXT':return {...s,edits:{...s.edits,[a.key]:a.text.slice(0,2000)}};
     case 'SETTING':{
+      if(s.native){
+        if(a.key==='permission')return a.value===false?{...s,permission:false,nativeObserving:false,pendingFill:null}:s;
+        if(a.key==='paused')return {...s,paused:a.value===true,
+          nativeObserving:a.value===true?false:s.nativeObserving,pendingFill:null};
+        if(a.key==='follow')return {...s,follow:a.value===true};
+        if(a.key==='verify')return s;
+      }
       if(a.key==='permission'){
         const on=a.value===true;
         return note({...s,permission:on,auto:on?s.auto:false,consentPending:false,orderSelected:on?s.orderSelected:null},on?'模拟授权已恢复':'模拟授权已撤销 · 停止观察');
@@ -209,11 +256,46 @@ export function reducer(s:AppState,a:Action):AppState {
     default:return s;
   }
 }
-type WorkbenchContext={state:AppState;dispatch:React.Dispatch<Action>};
+type WorkbenchContext={state:AppState;dispatch:React.Dispatch<Action>;fillNative:(text:string)=>void};
 const Context=createContext<WorkbenchContext|null>(null);
 export function WorkbenchProvider({children}:{children:React.ReactNode}) {
-  const [state,dispatch]=useReducer(reducer,undefined,createInitialState);
-  const context=useMemo(()=>({state,dispatch}),[state,dispatch]);
+  const [bridge]=React.useState(desktopBridge);
+  const [state,reduce]=useReducer(reducer,!!bridge,createInitialState);
+  const sent=useRef(new Set<string>()),sequence=useRef(0);
+  const dispatch=useCallback<React.Dispatch<Action>>((action)=>{
+    if(bridge&&action.type==='SETTING'&&['permission','paused','follow'].includes(action.key)){
+      if(action.key==='permission'&&action.value!==false)return;
+      const request:SettingsRequest=action.key==='permission'?{type:'support.settings',permission:false}:
+        action.key==='paused'?{type:'support.settings',paused:action.value===true}:{type:'support.settings',follow:action.value===true};
+      reduce(action);
+      if(!postNative(bridge,request))reduce({type:'NATIVE_FAILURE'});
+      return;
+    }
+    reduce(action);
+  },[bridge]);
+  useEffect(()=>{
+    if(!bridge)return;
+    return connectNative(bridge,message=>reduce({type:'NATIVE_MESSAGE',message}),()=>reduce({type:'NATIVE_FAILURE'}));
+  },[bridge]);
+  useEffect(()=>{
+    const request=state.pendingFill;
+    if(!bridge||!request||sent.current.has(request.requestId))return;
+    sent.current.add(request.requestId);
+    if(!postNative(bridge,request))reduce({type:'NATIVE_FAILURE'});
+  },[bridge,state.pendingFill]);
+  // Effects run after React commits the DOM. This is render telemetry, not external readback.
+  useEffect(()=>{
+    if(!bridge||!state.binding)return;
+    postNative(bridge,{type:'support.rendered',revision:state.revision,binding:state.binding,tab:state.tab,
+      latestText:latestCustomerMessage(currentThread(state))?.text||'',replyText:activeReplyText(state),
+      draft:currentThread(state).draft,receipt:state.receipt});
+  },[bridge,state]);
+  const fillNative=useCallback((text:string)=>{
+    if(!state.binding)return;
+    reduce({type:'NATIVE_FILL',request:{type:'support.fillDraft',requestId:'fill-'+Date.now()+'-'+(++sequence.current),
+      binding:state.binding,text:text.trim(),expectedDraft:currentThread(state).draft}});
+  },[state]);
+  const context=useMemo(()=>({state,dispatch,fillNative}),[state,dispatch,fillNative]);
   return <Context.Provider value={context}>{children}</Context.Provider>;
 }
 export function useWorkbench():WorkbenchContext{

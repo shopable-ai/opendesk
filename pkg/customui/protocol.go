@@ -94,3 +94,15 @@ func marshalPayload(value any) (json.RawMessage, error) {
 	}
 	return data, nil
 }
+
+// Preserve JSON null for trusted messages without changing legacy event shapes.
+func (event Event) MarshalJSON() ([]byte, error) {
+	type alias Event
+	if event.Type == "message" {
+		return json.Marshal(struct {
+			alias
+			Value any `json:"value"`
+		}{alias(event), event.Value})
+	}
+	return json.Marshal(alias(event))
+}

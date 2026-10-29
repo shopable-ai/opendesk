@@ -10,7 +10,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $projectPath = Join-Path $root 'pkg/customui/winhost/OpenDesk.UIHost.csproj'
-$protocolVersion = '1.14.0'
+$protocolVersion = '1.15.0'
 
 if (!$OutputDirectory) {
     $OutputDirectory = Join-Path $root 'dist/ui-host'

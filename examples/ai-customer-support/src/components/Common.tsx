@@ -1,6 +1,6 @@
 import React from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { useActiveContext, type Tab } from '../state';
+import { useWorkbench, useActiveContext, type Tab } from '../state';
 import { type Product, productArt } from '../domain/catalog';
 
 export function IconButton({icon:Icon,title,onClick,disabled,className='tool'}:{
@@ -35,11 +35,13 @@ export function useCopy(){
   };
 }
 export function useFillDraft(){
+  const {fillNative}=useWorkbench();
   const {state,dispatch,thread,message,active}=useActiveContext();
   return (value:string)=>{
     if(!active||!message||thread.sent.includes(message.id)||!value.trim()){
       dispatch({type:'RECORD',message:'未填入：身份、消息或观察状态不满足条件'});return;
     }
+    if(state.native){fillNative(value);return;}
     const replace=Boolean(thread.draft&&thread.draft!==value);
     if(replace&&!window.confirm('当前聊天已有未发送草稿，确定替换吗？'))return;
     dispatch({type:'FILL',id:state.threadId,messageId:message.id,text:value,replace});

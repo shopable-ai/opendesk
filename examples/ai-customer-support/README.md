@@ -1,6 +1,6 @@
-# OpenDesk Desktop · AI 客服助手 R2.0
+# OpenDesk Desktop · AI 客服助手 R2.3
 
-> 2026-10-29 · 当前阶段：React 19 + TypeScript 离线浏览器原型与核心缺陷修复。产品定位是桌面客服助手；真实 Desktop Runtime、微信/企业微信、订单后台及真实自动发送尚未接入。
+> 2026-10-29 · 当前阶段：macOS Desktop 技术 Demo，复用 React 19 + TypeScript 六页及唯一 HTML。目标是独立测试聊天实窗 → 原生识别 → 推荐 → 人工选用 → 草稿回读；真实微信、订单后台和自动发送未接入。
 
 ## 当前目标与工程归属
 
@@ -10,7 +10,25 @@
 - `src/state.tsx` 是唯一会话、授权、草稿、导入结果和模拟发送 owner；`src/domain/` 放商品、订单、知识和历史规则。
 - 唯一正式 HTML 为 `preview/index.html`，由 `scripts/build-preview.mjs` 从正式源码原子生成，无 CDN、开发服务器或平行 Mock。不要直接修改生成 HTML。
 - 三位虚构客户各有独立消息、编辑建议、草稿、订单与档案。状态只保留在当前页面内存，刷新重置；不持久化，不调用云模型。
-- 本轮不开发扩展、sidepanel、第二个页面或新的原生 Runtime。历史 R1.x 的原生开发计划和评分目标不构成本轮任务。
+- 不开发扩展、sidepanel、第二个页面或新的 Runtime。R2.3 原生入口仅维护窗口、观察身份与动作凭据，业务状态仍由 `src/state.tsx` 负责。
+
+## macOS 原生 Demo
+
+从仓库根目录运行：`./examples/ai-customer-support/scripts/run-desktop.sh`。
+
+启动器显式授权自己创建的 `OpenDeskSupportChat.app` 子进程，打开独立测试聊天和约 380px 的原生 React 助手。输入客户消息，点「添加客户消息」，在助手选择推荐，再点「填入聊天草稿」。只有新的原生快照与请求正文一致时才显示 `verified`。测试聊天没有发送动作。
+
+切换联系人使用独立聊天的三个按钮。窗口移动/缩放触发提示后重新读回坐标，1000ms 兜底核验；失焦、最小化、关闭或身份失效会停止观察并隐藏助手。暂停和撤销授权使旧请求失效；撤权后须关闭并重新启动本 Demo。已有人工草稿保留，原生模式不提供覆盖确认。
+
+维护者需先准备当前源码对应的稳定签名宿主：`./scripts/build_macos_app.sh`；React 源码修改后执行 `npm --prefix examples/ai-customer-support run build`。启动器核验现有签名；独立聊天 fixture 缺失或源码更新时使用同一固定开发身份构建。需要已授予 OpenDesk 的 Accessibility；截图验收另需 Screen Recording。缺少权限会明确失败，不自动更改系统授权。不改动 `/Applications/OpenDesk.app` 或其他任务的进程。
+
+正式实机 gate：`./examples/ai-customer-support/scripts/run-desktop.sh --verify`。它会操作本次创建的测试聊天和 React 实窗，保存 AX、坐标、回执、截图和逐项结果，结束时清理自己创建的进程；不用于真实聊天软件。普通体验只需上面的一条启动命令和窗口交互。
+
+可信容器为独立的 `ui.createTrustedWindow()`：固定本地 HTML 字节与 SHA-256、每窗口独立 origin、非持久 WebKit store、仅限 JSON 的双向桥、阻断导航和网络资源。它仍加载 `preview/index.html`；普通 `ui.createWindow()` 继续禁用业务脚本。知识、商品、订单、档案仍为本地演示数据，不调用云模型。
+
+R2.1/R2.2 的历史 `desktop/main.js/panel.html` 补丁未在 master 合入，不是此命令的输入；R2.3 不生成或加载那些平行页面。当前入口为 `native-demo.js`，应用特定解析为 `desktop/native-adapter.js`，测试聊天源码在 `tests/custom-ui/tools/support-chat/`。
+
+实机证据、失败案例和分项计分见 [R2.3 验收记录](../../docs/quality/ai-customer-support-r23-desktop.md)。所有运行输出位于仓库根 `.runtime/tests/ai-customer-support/r23/`，不提交。
 
 ## 核心操作
 
@@ -77,4 +95,5 @@ CI 核心浏览器入口：`cd examples/ai-customer-support && npx playwright in
 - 六页、设置、三客户会话/订单/草稿隔离、商品图片双向关联、档案确认/忽略、回复编辑与填入空草稿、撤权/暂停、人工接管及模拟去重已有真实 Mac Chrome HTTP 证据。
 - 最新核心差量已补领域/安全回归、正式生成 HTML 和真实 Mac Chrome 未知回读检查；具体计数与提交以质量报告为准。
 - **NOT_TESTED（当前 Mac 实窗）：** 知识 JSON/Markdown 和客户历史的正常文件选择导入、错误/过大文件 UI、拖拽、草稿覆盖确认的取消与接受、回复/订单摘要系统剪贴板粘贴、`file://`。工具无法完成的操作不推断为产品失败；成功 toast 也不等于系统剪贴板已验证。
-- **当前范围外：** Desktop 原生 UI/Execution、真实窗口跟随、微信/企业微信接线、真实订单系统、LLM/RAG/图片识别、真实发送与外部回执。后续须独立立项和授权。
+- **浏览器历史证据的边界：** 上述浏览器结果不证明 R2.3 Desktop；原生加载、视觉与功能证据见 R2.3 验收记录。
+- **当前范围外：** 微信/企业微信接线、真实订单系统、LLM/RAG/图片识别、真实发送与外部回执。

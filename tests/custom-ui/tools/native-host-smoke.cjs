@@ -4,7 +4,7 @@ const {spawn} = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
-const protocolVersion = '1.14.0';
+const protocolVersion = '1.15.0';
 const {createInterface} = require('node:readline');
 const hostPath = path.resolve(process.argv[2]);
 const profileArg = process.argv.find(arg=>arg.startsWith('--profile='));

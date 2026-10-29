@@ -78,6 +78,7 @@ docType: index
 | `window.show(): Promise<WindowState>` | 显示 native 窗口。 无。 可见后的 `WindowState`。 Floating kind 不主动抢焦点；只有 host 确认真正 on-screen 后才 r…（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [WindowHandle.show](../ui.md#windowhandleshow)；`read ui WindowHandle.show` |
 | `window.waitUntilClosed(): Promise<WindowState>` | 显式等待窗口终结。 无。 关闭终态。 参与 execution 生命周期；不要用长 sleep 代替。 | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [WindowHandle.waitUntilClosed](../ui.md#windowhandlewaituntilclosed)；`read ui WindowHandle.waitUntilClosed` |
 | `ui.closeAll(): Promise<void>;` | 幂等关闭当前 execution 的所有 Custom UI 窗口。 | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [ui.closeAll](../ui.md#uicloseall)；`read ui ui.closeAll` |
+| `ui.createTrustedWindow(spec: TrustedWindowSpec): Promise<TrustedWindowHandle>;` | macOS 11+ 本地自包含脚本页面，返回 `TrustedWindowHandle`。 | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [ui.createTrustedWindow](../ui.md#uicreatetrustedwindowspec)；`read ui ui.createTrustedWindow` |
 | `ui.createWindow(spec: WindowSpec): Promise<WindowHandle>;` | 创建受限 HTML/CSS `WindowHandle`。 | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [ui.createWindow](../ui.md#uicreatewindowspec)；`read ui ui.createWindow` |
 | `ui.getCapabilities(): Capabilities;` | 读取当前 execution 的 UI 授权、平台和 driver 能力。 | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [ui.getCapabilities](../ui.md#uigetcapabilities)；`read ui ui.getCapabilities` |
 | `ui.notify(messageOrOptions: string \| NotificationOptions): Promise<NotificationHandle>;` | Deprecated/Compatibility：`ui.toast()` 的历史名称。 | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [ui.notify](../ui.md#uinotifymessageoroptions)；`read ui ui.notify` |
@@ -132,9 +133,9 @@ docType: index
 维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
 
 
-- `docs/api/ui.md` SHA-256 `66e64e0407fd1d847ff7db8738961ca86f946ed88b5d8c0bb9d7cf9e2b93e8ee`
+- `docs/api/ui.md` SHA-256 `12f3d6a0048ed29c95f16a5b0b6dea77d01c063154b9539e1ce1df2e5345d16c`
 
-- `types/CustomUI.d.ts` SHA-256 `8fb1424cd1ce5ce7c73101fc74b197bb7e811549c5b5be43e415a7d262fd61ed`
+- `types/CustomUI.d.ts` SHA-256 `effda90acfc5608817755d35fb01283ee84e3cad8a4fc26851189fd545934106`
 
 - `types/FloatingWindow.d.ts` SHA-256 `42303a4eeaad0feb5ad33828d3a7ec7be9f94bf1480d687652c286cda0d77947`
 

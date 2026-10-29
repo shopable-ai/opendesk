@@ -47,7 +47,7 @@ export function ReplyView(){
     </PanelScroll>
     <footer className="bottom compact-actions"><div className="between"><span className="chosen-label">已选：{selected.name}</span><span className="small">{txt.length} 字</span></div>
       <div className="btn-row">
-        <button className="primary" disabled={!active||sent||!txt.trim()} onClick={()=>fill(txt)}>→ 填入聊天草稿</button>
+        <button className="primary" disabled={!active||sent||!txt.trim()||(state.native&&!!state.pendingFill)} onClick={()=>fill(txt)}>→ 填入聊天草稿</button>
         <IconButton icon={state.editing===key?Check:Pencil} title={state.editing===key?'完成编辑':'编辑选中回复'}
           disabled={!active} onClick={()=>dispatch({type:'REPLY_EDIT',key:state.editing===key?null:key})}/>
         <IconButton icon={ClipboardCopy} title="复制所选回复" disabled={!active||!txt.trim()} onClick={()=>{void copy(txt,'回复');}}/>

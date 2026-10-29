@@ -141,6 +141,9 @@ function Workbench(){
     return ()=>clearTimeout(timeout);
   },[state.toast,dispatch]);
   const reset=()=>{dispatch({type:'RESET'});setPositionReset(n=>n+1);setMinimized(false);};
+  if(state.native)return <div id="od-r12" data-native="true" data-theme={dark?'dark':'light'}>
+    <Copilot dark={dark} onToggleTheme={()=>setDark(x=>!x)} onResetPosition={()=>{}}/>
+  </div>;
   return <div id="od-r12" data-theme={dark?'dark':'light'} data-follow={state.follow?'true':'false'}>
     <header className="preview-top"><div className="brand">OD</div><div><div className="ptitle">OpenDesk Desktop · AI 客服助手</div>
       <div className="pmeta">双窗口工作台 · 右侧 Compact Copilot 380px</div></div><div className="push"/>

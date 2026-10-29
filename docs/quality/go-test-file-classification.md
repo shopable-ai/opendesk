@@ -460,3 +460,9 @@ OPENDESK_LIVE_CLIPBOARD_TEST=1 go test ./automation -run '^TestDarwinRichClipboa
 | 文件 | 分类 | 私有访问 | 业务边界 | 依赖 | 断言价值 | 保留理由 |
 |---|---|---|---|---|---|---|
 | `pkg/mcpserver/web_file_test.go` | `KEEP_PACKAGE` | 是：独立 MCP adapter、工具注册/派发、os.Root 与持有文件身份 | 仅三个工具、nonce 独占创建/读取、严格参数与通知拒绝、目录/链接/内容替换、并发与跨实例隔离、关闭生命周期 | 仓库 `.runtime/tests/mcp-chatgpt-web/adapter-development/` 专用临时目录，无桌面/Browser | 防止受限模式越权、覆盖文件、读取替换内容或跨实例泄漏；保留 full/read-only 原契约 | Go 私有 adapter seam；不替代公共 Runtime JavaScript API、云端 Tunnel 或 ChatGPT 网页验收。 |
+
+### AI 客服 R2.3 可信容器
+
+| 文件 | 分类 | 私有访问 | 业务边界 | 依赖 | 断言价值 | 保留理由 |
+|---|---|---|---|---|---|---|
+| `pkg/customui/trusted_test.go` | `KEEP_PACKAGE` | 是：固定字节加载器、路径 containment、内部 Trusted transport 与 Normalize seam | 文件摘要、符号链接逃逸、混合声明和 JSON 资源上限 | 临时本地 HTML 与内存值；不启动 UI | 防止信任边界被路径或内部声明绕过 | 公共 API 另由 `tests/runtime-api/trusted-app-window.js` 在实际宿主验证；此处只覆盖内部 seam。 |

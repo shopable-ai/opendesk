@@ -116,7 +116,7 @@ func (d *ProcessDriver) Capabilities(context.Context) Capabilities {
 		ProtocolVersion: ProtocolVersion, Enabled: true, Available: available,
 		Platform: platform, Driver: "native-process", MaxSessions: 1,
 		Window: map[string]bool{
-			"position": available, "placement": available, "relativePlacement": available, "size": available, "alwaysOnTop": available,
+			"trustedWindow": available && platform == "darwin", "position": available, "placement": available, "relativePlacement": available, "size": available, "alwaysOnTop": available,
 			"draggable": available, "chrome": available, "keyEvents": available, "interactionGroup": available, "nativeIdentity": available, "notify": available,
 		},
 		Controls: []string{"button", "text", "img", "switch", "input", "select", "container"},
@@ -168,6 +168,9 @@ func (d *ProcessDriver) resourceCountsLocked(sessionID string) DriverResourceCou
 
 func (d *ProcessDriver) Create(ctx context.Context, sessionID string, spec WindowSpec, sink func(Event)) (DriverWindow, error) {
 	platform := d.platform()
+	if spec.Trusted != nil && platform != "darwin" {
+		return nil, &Error{Code: CodeUnsupportedPlatform, Operation: "createTrustedWindow", Capability: "trustedWindow", Message: "trusted windows require macOS 11 or later"}
+	}
 	if platform != "darwin" && platform != "windows" && d.opts.Command == nil {
 		return nil, &Error{Code: CodeUnsupportedPlatform, Operation: "createWindow", WindowID: spec.ID, Capability: "ui", Message: "custom UI v1 is not available on " + platform}
 	}
@@ -296,7 +299,7 @@ func (d *ProcessDriver) Close() error {
 				return &Error{
 					Code: CodeDriverFailure, Operation: "shutdown",
 					Message: "native UI host did not exit after forced termination",
-					Cause: errors.Join(killErr, forceErr),
+					Cause:   errors.Join(killErr, forceErr),
 				}
 			}
 		}
@@ -559,6 +562,11 @@ func validateHostEvent(event Event, controls map[string]struct{}, lastSequence u
 	case "click", "change", "input":
 		if _, exists := controls[event.TargetID]; !exists || event.TargetID == "" {
 			return &Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: event.WindowID, TargetID: event.TargetID, Message: "native UI event target is not a declared control"}
+		}
+	case "message":
+		data, err := json.Marshal(event.Value)
+		if err != nil || ValidateTrustedJSON(data) != nil || event.TargetID != "" {
+			return &Error{Code: CodeDriverFailure, Message: "invalid trusted message"}
 		}
 	case "move", "resize", "key", "interactionOutside", "close":
 		if event.TargetID != "" {

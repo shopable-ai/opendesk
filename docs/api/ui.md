@@ -70,6 +70,8 @@ HTTP UI 还要求 server 已启用 UI、单次请求声明 `"capabilities":["ui"
 | `ui.toast(messageOrOptions)` | 推荐的 transient feedback；返回可更新 `ToastHandle`。 |
 | `ui.getCapabilities()` | 读取当前 execution 的 UI 授权、平台和 driver 能力。 |
 | `ui.createWindow(spec)` | 创建受限 HTML/CSS `WindowHandle`。 |
+| `ui.createTrustedWindow(spec)` | macOS 11+ 本地自包含脚本页面，返回 `TrustedWindowHandle`。 |
+| `TrustedWindowHandle.postMessage(value)` | 向可信页面发送有界 JSON 数据。 |
 | `ui.closeAll()` | 幂等关闭当前 execution 的所有 Custom UI 窗口。 |
 | `ui.on(type, listener)` | 监听当前 execution 的 Custom UI 事件。 |
 | `ui.notify(messageOrOptions)` | Deprecated/Compatibility：`ui.toast()` 的历史名称。 |
@@ -373,6 +375,152 @@ ui.getCapabilities(): Capabilities
 
 ```js
 console.log(ui.getCapabilities());
+```
+
+## ui.createTrustedWindow(spec)
+
+创建经 SHA-256 固定内容的本地自包含 HTML 窗口，可运行内联打包的 React。此入口独立于受限的 `ui.createWindow()`。
+
+**签名**
+
+```ts
+ui.createTrustedWindow(spec: TrustedWindowSpec): Promise<TrustedWindowHandle>
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `spec.id` | string | 是 | 无 | 与普通窗口共享当前 execution 的 ID 空间。 |
+| `spec.kind` | "normal" \| "floating" | 否 | "normal" | floating 沿用非激活 NSPanel，show 不主动抢焦点。 |
+| `spec.title` | string | 否 | 空字符串 | 原生窗口标题。 |
+| `spec.position` | ClawdeskUIInitialPosition | 是 | 无 | 与普通窗口相同的 absolute/anchor 初始位置。 |
+| `spec.content.file` | string | 是 | 无 | `.html`/`.htm` 文件，必须位于内容根内。 |
+| `spec.content.basePath` | string | 否 | 脚本目录 | 在脚本目录内解析的内容根；file 相对于该根解析。 |
+| `spec.content.sha256` | string | 是 | 无 | 文件原始 UTF-8 字节的 64 位十六进制 SHA-256。 |
+
+**返回值**
+
+`Promise<TrustedWindowHandle>`：普通窗口 handle 加上 [postMessage](#trustedwindowhandlepostmessagevalue)。初始隐藏，显式 `show()` 显示。没有 DOM Controls；消息通过 `window.on('message', e => e.value)` 接收，也可用 `ui.on` 监听当前 execution。
+
+**行为与错误**
+
+仅支持 macOS 11+ 与匹配协议的原生 host。需要通常的 UI 授权；未授权为 `UI_DISABLED`，无可信窗口能力为 `UNSUPPORTED_CAPABILITY`。`ui.getCapabilities().window.trustedWindow` 可用于可选分支；它不替代 host 加载时的协议校验。
+
+文件只读取一次，限制为 8 MiB UTF-8；摘要不符、越界路径、未知字段及混入 `html/css/assets/controls/trust/trustedContent` 等字段均为 `INVALID_SPEC`。内容须自包含：脚本与样式内联，图片可用 data URL；不提供相邻文件资源加载。普通 `ui.createWindow()` 仍拒绝脚本与所有 trusted 标记。
+
+每个窗口使用独立非持久 WebKit 配置、随机唯一 scheme 与固定 HTML 字节、严格 CSP 和加载前安装的远程资源阻断规则。禁止后续导航、子框架、新窗口、下载、远程连接、worker、form、object、eval 与外部脚本。允许内联打包脚本/样式及 data 图片。消息桥核对主 frame、确切 URL、security origin 与窗口 nonce；不同窗口/execution 不共享桥。页面不拥有 OpenDesk 的 `desktop`、`File`、`Runtime` 或 `ui` 全局。
+
+消息仅传 JSON 数据，不解释指令，不执行 Runtime 权限操作。接收方脚本自行决定如何处理数据。关闭或 execution 取消会停止加载并释放原生消息 handler、内容规则与固定资源；关闭后的 `postMessage` 返回 `INVALID_STATE`。不提供任意页面 JavaScript 执行 API。
+
+**示例**
+
+前提：脚本目录已有单文件打包 `app.html`，并已取得对应 SHA-256。将 `expectedSHA256` 设置为发布产物的实际摘要：
+
+```js
+const expectedSHA256 = '替换为 app.html 的 64 位 SHA-256';
+const app = await ui.createTrustedWindow({
+  id: 'localApp', kind: 'floating', title: 'Local React app',
+  position: { mode: 'absolute', bounds: { x: 120, y: 120, width: 380, height: 480 } },
+  content: { file: 'app.html', sha256: expectedSHA256 }
+});
+app.on('message', e => console.log(JSON.stringify(e.value)));
+await app.show();
+await app.postMessage({ type: 'initialize', value: 1 });
+await app.waitUntilClosed();
+```
+
+## TrustedWindowHandle.postMessage(value)
+
+向本窗口的可信页面传递 JSON 数据。
+
+**签名**
+
+```ts
+handle.postMessage(value: TrustedJSON): Promise<void>
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `value` | TrustedJSON | 是 | 无 | null、布尔、有限数字、字符串、数组或普通对象。 |
+
+**返回值**
+
+`Promise<void>`；表示数据已投递到页面桥，不代表业务处理完成。
+
+**行为与错误**
+
+两个方向均限制为 64 KiB UTF-8 JSON、最大深度 32、最多 4096 个值（根深度为 0）。拒绝 undefined、函数、非有限数、非 JSON 对象和循环引用。Runtime 发送非法数据为 `INVALID_SPEC`；页面发送非法数据会抛错，原生再次校验，不发出事件。native→web 使用固定函数与独立数据 arguments，不拼接消息到 JavaScript 源码。原生错误为 `UI_DRIVER_FAILURE`。
+
+**示例**
+
+```js
+await app.postMessage({ type: 'refresh', ids: [1, 2] });
+```
+
+## window.OpenDeskApp.postMessage(value)
+
+可信 HTML 页面将 JSON 发送到所属 Runtime 窗口。
+
+**签名**
+
+```ts
+window.OpenDeskApp.postMessage(value: TrustedJSON): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `value` | TrustedJSON | 是 | 无 | 与 [handle.postMessage](#trustedwindowhandlepostmessagevalue) 相同的数据限制。 |
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+此对象仅存在于可信 HTML 主页面，不存在于 Runtime。非法 JSON 或超限数据同步抛错；异步投递不保证 Runtime 已处理。Runtime 事件 `e.value` 保留 JSON null。
+
+**示例**
+
+```js
+window.OpenDeskApp.postMessage({ type: 'save', value: { text: 'hello' } });
+```
+
+## window.OpenDeskApp.onMessage(handler)
+
+可信 HTML 页面监听来自 Runtime 的 JSON 数据。
+
+**签名**
+
+```ts
+window.OpenDeskApp.onMessage(handler: (value: TrustedJSON) => void): () => void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `handler` | function | 是 | 无 | 参数直接是 JSON value。 |
+
+**返回值**
+
+幂等 unsubscribe 函数。
+
+**行为与错误**
+
+handler 必须为函数，否则同步抛出 TypeError。页面侧回调异常记录到页面控制台，不赋予 Runtime 权限。导航或关闭销毁页面监听器。
+
+**示例**
+
+```js
+const unsubscribe = window.OpenDeskApp.onMessage(value => {
+  document.querySelector('#root').textContent = JSON.stringify(value);
+});
+unsubscribe();
 ```
 
 ## ui.createWindow(spec)

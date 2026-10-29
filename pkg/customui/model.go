@@ -8,7 +8,7 @@ import (
 
 // ProtocolVersion advances with native-host schema changes so an older host
 // cannot silently accept a host-owned Measurement surface declaration.
-const ProtocolVersion = "1.14.0"
+const ProtocolVersion = "1.15.0"
 
 type ActivationSource string
 
@@ -66,6 +66,7 @@ type ContentSpec struct {
 }
 
 type WindowSpec struct {
+	Trusted          *TrustedContent  `json:"trustedContent,omitempty"`
 	ID               string           `json:"id"`
 	Kind             string           `json:"kind,omitempty"`
 	Title            string           `json:"title,omitempty"`
@@ -270,7 +271,7 @@ type FileDropEvent struct {
 
 func IsPublicEventType(eventType string) bool {
 	switch eventType {
-	case "*", "click", "change", "input", "move", "resize", "key", "interactionOutside", "close":
+	case "*", "message", "click", "change", "input", "move", "resize", "key", "interactionOutside", "close":
 		return true
 	default:
 		return false
