@@ -3,6 +3,7 @@ import { connectNative, desktopBridge, parseNativeMessage, postNative, sameBindi
 import { isCustomerId, findProduct, orderForCustomer, type CustomerId } from './domain/catalog';
 import { extractFacts, initialHistory, mergeHistory, type FactStatus, type HistoryByCustomer, type ProfileFact } from './domain/history';
 import { initialKnowledge, matchKnowledge, replyOptions, type Knowledge } from './domain/knowledge';
+import type { AiQueryRequest, AiState } from './domain/ai';
 
 export const tabs = ['reply','knowledge','customer','products','images','orders'] as const;
 export type Tab = (typeof tabs)[number];
@@ -12,7 +13,7 @@ export interface ChatMessage { id:string; who:'customer'|'agent'; text:string; r
 export interface Thread { id:CustomerId; name:string; messages:ChatMessage[]; sent:string[]; draft:string }
 export interface AppState {
   native:boolean; revision:number; binding:Binding|null; nativeObserving:boolean;
-  pendingFill:FillRequest|null; fillAttempt:string|null; receiptSeen:string[];
+  pendingFill:FillRequest|null; fillAttempt:string|null; receiptSeen:string[]; ai:AiState|null;
   threadId:CustomerId; threads:Thread[];
   tab:Panel; settingsOrigin:Tab; permission:boolean; paused:boolean;
   auto:boolean; consented:boolean; consentPending:boolean; follow:boolean;
@@ -27,6 +28,7 @@ export interface AppState {
 export type Action =
  | {type:'NATIVE_MESSAGE';message:unknown}
  | {type:'NATIVE_FILL';request:FillRequest}
+ | {type:'NATIVE_AI_QUERY';request:AiQueryRequest}
  | {type:'NATIVE_FAILURE'}
  | {type:'TAB';tab:Panel}
  | {type:'OPEN_PRODUCT';id:string}
@@ -64,7 +66,7 @@ export type Action =
 export function createInitialState(native=false):AppState {
   const history=initialHistory();
   return {
-    native,revision:-1,binding:null,nativeObserving:false,pendingFill:null,fillAttempt:null,receiptSeen:[],
+    native,revision:-1,binding:null,nativeObserving:false,pendingFill:null,fillAttempt:null,receiptSeen:[],ai:null,
     threadId:'t1',threads:[
       {id:'t1',name:native?'等待原生观察':'林女士',messages:native?[]:[{id:'m1',who:'customer',text:'签收后 7 天内还能申请退款吗？'}],sent:[],draft:''},
       {id:'t2',name:native?'等待原生观察':'陈先生',messages:native?[]:[{id:'m2',who:'customer',text:'物流怎么查询？'}],sent:[],draft:''},
@@ -83,7 +85,13 @@ export const latestCustomerMessage=(t:Thread)=>t.messages.filter(m=>m.who==='cus
 export const observed=(s:AppState)=>s.permission&&!s.paused&&(!s.native||s.nativeObserving);
 export const latestKey=(s:AppState)=>s.native?JSON.stringify(s.binding):s.threadId+':'+(latestCustomerMessage(currentThread(s))?.id||'none');
 export const activeHit=(s:AppState)=>matchKnowledge(latestCustomerMessage(currentThread(s))?.text,s.knowledge,observed(s));
-export const activeOptions=(s:AppState)=>replyOptions(activeHit(s));
+export const activeOptions=(s:AppState)=>{
+  if(!s.native)return replyOptions(activeHit(s));
+  if(s.ai?.status==='ready'&&s.ai.result&&sameBinding(s.binding,s.ai.binding))
+    return s.ai.result.candidates.map(c=>({id:c.id,name:c.name,symbol:c.symbol,text:c.text}));
+  // Never present demonstration knowledge as verified native-customer facts.
+  return [{id:'human',name:'人工核实',symbol:'♙',text:'您好，我先核对相关资料，确认后再回复您。'}];
+};
 export const activeReply=(s:AppState)=>{
   const options=activeOptions(s),picked=s.chosen[latestKey(s)];
   return options.find(x=>x.id===picked)||options[0];
@@ -106,6 +114,11 @@ export function reducer(s:AppState,a:Action):AppState {
     case 'NATIVE_MESSAGE':{
       if(!s.native)return s;
       const m=parseNativeMessage(a.message);if(!m)return s;
+      if(m.type==='support.aiResult'){
+        if(!s.ai||s.ai.status!=='loading'||m.requestId!==s.ai.requestId||
+          !sameBinding(s.binding,m.binding)||!sameBinding(s.ai.binding,m.binding)||!observed(s))return s;
+        return {...s,ai:{...s.ai,status:m.status,result:m},editing:null};
+      }
       if(m.type==='support.observation'){
         if(m.revision<=s.revision)return s;
         const b=s.binding,n=m.binding;
@@ -118,6 +131,7 @@ export function reducer(s:AppState,a:Action):AppState {
         return {...next,threadId:n.customerId,binding:n,revision:m.revision,nativeObserving:m.observing,
           permission:m.observing,paused:m.observing?false:s.paused,
           pendingFill:m.observing&&sameIdentity?s.pendingFill:null,
+          ai:m.observing&&sameIdentity?s.ai:null,
           fillAttempt:sameIdentity?s.fillAttempt:null,receiptSeen:sameIdentity?s.receiptSeen:[],
           editing:sameIdentity?s.editing:null,orderSelected:b?.generation===n.generation?s.orderSelected:null,receipt:m.reason||(m.observing?'原生观察已更新':'原生观察已停止')};
       }
@@ -128,13 +142,23 @@ export function reducer(s:AppState,a:Action):AppState {
       return note({...next,pendingFill:null,receiptSeen:[...s.receiptSeen,fingerprint],
         nativeObserving:m.status==='unknown'?false:s.nativeObserving},'原生草稿 '+m.status+' · '+m.reason);
     }
+    case 'NATIVE_AI_QUERY':{
+      const r=a.request;
+      if(!s.native||!observed(s)||!sameBinding(s.binding,r.binding)||
+        !latestCustomerMessage(currentThread(s))||s.ai?.status==='loading'||
+        !/^[A-Za-z0-9_-]{1,40}$/.test(r.requestId))return s;
+      const key=latestKey(s),edits={...s.edits},chosen={...s.chosen};
+      delete chosen[key];
+      for(const option of activeOptions(s))delete edits[key+':'+option.id];
+      return {...s,ai:{status:'loading',requestId:r.requestId,binding:r.binding,result:null},edits,chosen,editing:null};
+    }
     case 'NATIVE_FILL':{
       const r=a.request,attempt=JSON.stringify([r.binding,r.text,r.expectedDraft]);
       if(!s.native||!observed(s)||!latestCustomerMessage(currentThread(s))||!sameBinding(s.binding,r.binding)||s.pendingFill||s.fillAttempt===attempt||
         r.expectedDraft!==currentThread(s).draft||r.text===r.expectedDraft||!r.text.trim())return s;
       return {...s,pendingFill:r,fillAttempt:attempt,receipt:'已请求原生填入 · 等待原生回执'};
     }
-    case 'NATIVE_FAILURE':return s.native?note({...s,nativeObserving:false,pendingFill:null},'原生桥不可用 · 已停止操作'):s;
+    case 'NATIVE_FAILURE':return s.native?note({...s,nativeObserving:false,pendingFill:null,ai:null},'原生桥不可用 · 已停止操作'):s;
     case 'RESET': return {...createInitialState(),knowledgeImportEpoch:s.knowledgeImportEpoch+1,
       historyImportEpoch:s.historyImportEpoch+1};
     case 'TAB': return {...s,tab:a.tab,settingsOrigin:a.tab==='settings'?(s.tab==='settings'?s.settingsOrigin:s.tab):s.settingsOrigin,editing:null};
@@ -191,9 +215,9 @@ export function reducer(s:AppState,a:Action):AppState {
     case 'REPLY_TEXT':return {...s,edits:{...s.edits,[a.key]:a.text.slice(0,2000)}};
     case 'SETTING':{
       if(s.native){
-        if(a.key==='permission')return a.value===false?{...s,permission:false,nativeObserving:false,pendingFill:null}:s;
+        if(a.key==='permission')return a.value===false?{...s,permission:false,nativeObserving:false,pendingFill:null,ai:null}:s;
         if(a.key==='paused')return {...s,paused:a.value===true,
-          nativeObserving:a.value===true?false:s.nativeObserving,pendingFill:null};
+          nativeObserving:a.value===true?false:s.nativeObserving,pendingFill:null,ai:a.value===true?null:s.ai};
         if(a.key==='follow')return {...s,follow:a.value===true};
         if(a.key==='verify')return s;
       }
@@ -256,12 +280,12 @@ export function reducer(s:AppState,a:Action):AppState {
     default:return s;
   }
 }
-type WorkbenchContext={state:AppState;dispatch:React.Dispatch<Action>;fillNative:(text:string)=>void};
+type WorkbenchContext={state:AppState;dispatch:React.Dispatch<Action>;fillNative:(text:string)=>void;queryNative:()=>void};
 const Context=createContext<WorkbenchContext|null>(null);
 export function WorkbenchProvider({children}:{children:React.ReactNode}) {
   const [bridge]=React.useState(desktopBridge);
   const [state,reduce]=useReducer(reducer,!!bridge,createInitialState);
-  const sent=useRef(new Set<string>()),sequence=useRef(0);
+  const sent=useRef(new Set<string>()),aiSent=useRef(new Set<string>()),sequence=useRef(0);
   const dispatch=useCallback<React.Dispatch<Action>>((action)=>{
     if(bridge&&action.type==='SETTING'&&['permission','paused','follow'].includes(action.key)){
       if(action.key==='permission'&&action.value!==false)return;
@@ -283,6 +307,13 @@ export function WorkbenchProvider({children}:{children:React.ReactNode}) {
     sent.current.add(request.requestId);
     if(!postNative(bridge,request))reduce({type:'NATIVE_FAILURE'});
   },[bridge,state.pendingFill]);
+  useEffect(()=>{
+    const ai=state.ai;
+    if(!bridge||!ai||ai.status!=='loading'||aiSent.current.has(ai.requestId))return;
+    aiSent.current.add(ai.requestId);
+    if(!postNative(bridge,{type:'support.aiQuery',requestId:ai.requestId,binding:ai.binding}))
+      reduce({type:'NATIVE_FAILURE'});
+  },[bridge,state.ai]);
   // Effects run after React commits the DOM. This is render telemetry, not external readback.
   useEffect(()=>{
     if(!bridge||!state.binding)return;
@@ -295,7 +326,12 @@ export function WorkbenchProvider({children}:{children:React.ReactNode}) {
     reduce({type:'NATIVE_FILL',request:{type:'support.fillDraft',requestId:'fill-'+Date.now()+'-'+(++sequence.current),
       binding:state.binding,text:text.trim(),expectedDraft:currentThread(state).draft}});
   },[state]);
-  const context=useMemo(()=>({state,dispatch,fillNative}),[state,dispatch,fillNative]);
+  const queryNative=useCallback(()=>{
+    if(!state.native||!state.binding||!observed(state))return;
+    reduce({type:'NATIVE_AI_QUERY',request:{type:'support.aiQuery',
+      requestId:'ai-'+Date.now()+'-'+(++sequence.current),binding:state.binding}});
+  },[state]);
+  const context=useMemo(()=>({state,dispatch,fillNative,queryNative}),[state,dispatch,fillNative,queryNative]);
   return <Context.Provider value={context}>{children}</Context.Provider>;
 }
 export function useWorkbench():WorkbenchContext{

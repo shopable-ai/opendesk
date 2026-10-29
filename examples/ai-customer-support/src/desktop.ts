@@ -1,4 +1,5 @@
 import type { CustomerId } from './domain/catalog';
+import type { AiQueryRequest, AiResult, EvidenceItem, ReplyCandidate } from './domain/ai';
 
 export interface Binding {
   generation:number; pid:number; windowId:number; customerId:CustomerId; messageId:string;
@@ -11,10 +12,10 @@ export interface Observation {
 export interface Receipt {
   type:'support.receipt'; requestId:string; binding:Binding; status:'verified'|'refused'|'unknown'; draft?:string; reason:string;
 }
-export type NativeMessage=Observation|Receipt;
+export type NativeMessage=Observation|Receipt|AiResult;
 export type SettingsRequest={type:'support.settings';permission?:false;paused?:boolean;follow?:boolean};
 export type FillRequest={type:'support.fillDraft';requestId:string;binding:Binding;text:string;expectedDraft:string};
-export type OutgoingMessage={type:'support.ready'}|SettingsRequest|FillRequest|{
+export type OutgoingMessage={type:'support.ready'}|SettingsRequest|FillRequest|AiQueryRequest|{
   type:'support.rendered';revision:number;binding:Binding;tab:string;latestText:string;replyText:string;draft:string;receipt:string;
 };
 export interface DesktopBridge {
@@ -48,6 +49,41 @@ export function parseNativeMessage(input:unknown):NativeMessage|null {
   if(!record(v)||!isBinding(v.binding))return null;
   const binding:Binding={generation:v.binding.generation,pid:v.binding.pid,windowId:v.binding.windowId,
     customerId:v.binding.customerId,messageId:v.binding.messageId};
+  if(v.type==='support.aiResult'){
+    const statuses=['ready','blocked','error'],retrieval=['supported','partial','unverified','conflict','unavailable'];
+    if(!text(v.requestId)||!v.requestId||v.requestId.length>40||
+      !text(v.projectId)||v.projectId.length>64||!['query_api','mock'].includes(v.knowledgeBackend)||
+      !['http','codex_cli','none'].includes(v.modelProvider)||!retrieval.includes(v.retrievalStatus)||
+      !statuses.includes(v.status)||v.requiresHumanReview!==true||
+      (v.errorCode!==null&&(!text(v.errorCode)||!/^[A-Z_]{2,60}$/.test(v.errorCode)))||
+      !record(v.evidencePack)||v.evidencePack.projectId!==v.projectId||
+      !['full','partial','unknown','conflict'].includes(v.evidencePack.coverage)||
+      !Array.isArray(v.evidencePack.items)||v.evidencePack.items.length>8||
+      !Array.isArray(v.candidates)||v.candidates.length>3||
+      (v.status==='ready'&&v.candidates.length===0)||(v.status!=='ready'&&v.candidates.length!==0))return null;
+    const items:EvidenceItem[]=[];
+    for(const raw of v.evidencePack.items){
+      if(!record(raw)||!text(raw.id)||raw.id.length>40||raw.sourceType!=='knowledge_base'||
+        !text(raw.sourceRef)||raw.sourceRef.length>160||!text(raw.answerHash)||
+        !/^[a-f0-9]{32,128}$/i.test(raw.answerHash))return null;
+      items.push({id:raw.id,sourceType:'knowledge_base',sourceRef:raw.sourceRef,answerHash:raw.answerHash});
+    }
+    if(new Set(items.map(e=>e.id)).size!==items.length)return null;
+    const candidates:ReplyCandidate[]=[];
+    for(const raw of v.candidates){
+      if(!record(raw)||!text(raw.id)||raw.id.length>40||!text(raw.name)||raw.name.length>60||
+        !text(raw.symbol)||raw.symbol.length>4||!text(raw.text)||!raw.text.trim()||
+        raw.text.length>2000||!Array.isArray(raw.evidenceIds)||raw.evidenceIds.length>8||
+        raw.evidenceIds.some(id=>!text(id)||!items.some(e=>e.id===id)))return null;
+      candidates.push({id:raw.id,name:raw.name,symbol:raw.symbol,text:raw.text,evidenceIds:[...raw.evidenceIds]});
+    }
+    if(new Set(candidates.map(c=>c.id)).size!==candidates.length)return null;
+    return {type:v.type,requestId:v.requestId,binding,projectId:v.projectId,
+      knowledgeBackend:v.knowledgeBackend as AiResult['knowledgeBackend'],modelProvider:v.modelProvider as AiResult['modelProvider'],
+      retrievalStatus:v.retrievalStatus as AiResult['retrievalStatus'],status:v.status as AiResult['status'],errorCode:v.errorCode as string|null,
+      evidencePack:{projectId:v.projectId,coverage:v.evidencePack.coverage as AiResult['evidencePack']['coverage'],items},
+      candidates,requiresHumanReview:true};
+  }
   if(v.type==='support.receipt'){
     if(!text(v.requestId)||!v.requestId||v.requestId.length>100||(v.status!=='verified'&&v.status!=='refused'&&v.status!=='unknown')||!text(v.reason)||
       (v.draft!==undefined&&!text(v.draft)))return null;

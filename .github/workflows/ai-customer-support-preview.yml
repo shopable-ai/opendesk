@@ -31,6 +31,8 @@ jobs:
         run: npm run typecheck
       - name: Domain isolation tests
         run: node --test tests/domain.test.mjs tests/import-safety.test.mjs tests/knowledge-conflict.test.mjs tests/knowledge-import.test.mjs tests/history-evidence.test.mjs
+      - name: AI Query API adapter and Desktop bridge contract
+        run: node --test tests/ai-query.test.mjs tests/desktop-bridge.test.mjs
       - name: Generate one offline HTML
         run: npm run build
       - name: Offline preview contract

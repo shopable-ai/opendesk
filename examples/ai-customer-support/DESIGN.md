@@ -133,3 +133,11 @@
 3. React 只维护 `src/` 组件；`src/state.tsx` 单状态 owner；`src/domain/` 领域纯函数。由脚本生成 `preview/index.html`，无 CDN、无并行 HTML Mock。保留 R1.9.1 的 CSS 风格、380px 密度、原有交互。
 4. 三位虚构客户的消息、回复、未发送草稿和订单必须隔离。撤权、暂停、未知回执时停止对应动作，禁止 React 重渲染重复发送。
 5. 构建、领域测试、浏览器验证分别记录；CI Linux Chromium 不等于真实 Mac Chrome，Desktop 原生 Custom UI 仍未实现。未得到证据时标记 `NOT_TESTED`。
+## R3.0-A · 可信知识回复设计边界（2026-10-29）
+
+独立 R2.3 原生测试聊天仍是唯一真实 Desktop 目标；六页和 React 状态 owner 不变。新增业务 Adapter 只位于 `desktop/query-api-adapter.js`，不迁移旧 Python Query API、不修改通用 Runtime、不建立第二套知识系统。可信 Host 根据原生授权绑定采集最新客户消息，使用显式 loopback 项目映射发起 `draft` 查询，并在结果返回后重新独立获取窗口、客户及最新消息身份；超时、撤权或会话切换 fail closed。
+
+React 只接收带 `requestId/binding/projectId/knowledgeBackend/modelProvider/retrievalStatus/EvidencePack/ReplyCandidate[]/requiresHumanReview/errorCode` 的有限 DTO。旧 API 一条回复只能投射为一个待审核候选（不把多段 text/image 当多方案）；证据引用与源事实有效性分开，必须人工审核动态价格、库存、订单、来源冲突与过期；没有可信动态查询时不保证事实。网页知识库保持明确标注的**离线演示数据**，和旧 Query API 所选项目的正式知识来源不能混为一谈。
+
+P3 七种检索策略（精确 FAQ、BM25、旧 Hash Vector、真实 Embedding、Hybrid、Hybrid+Reranker、bounded Context MD）以 100 合成题建立评测输入草案，尚未标注或实际执行，检索质量和成本未有可比较结论。旧 Query API 有自己的 `answer_strategy=auto` 实现和测试，但仍须对当前选择的具体项目做真实 HTTP/模型/知识事实验证。未经授权不直接连接外部 API、不发送真实消息、不预设 Codex CLI 额度。
+
