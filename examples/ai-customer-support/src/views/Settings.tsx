@@ -51,9 +51,15 @@ export function SettingsView({onResetPosition}:{onResetPosition:()=>void}){
       <Setting title="昵称与演示地区" description="只使用构造的数据，不推断真实地址">
         <select aria-label="昵称显示方式" value={state.nicknameMode} onChange={e=>set('nicknameMode',e.target.value)}>
           <option value="original">仅昵称</option><option value="region">昵称 · 演示地区</option></select></Setting>
+      <div className="settings-group-title">AI 与知识服务</div>
+      <Setting title="知识与模型来源" description={state.native?
+        '由可信 Desktop Host 固定项目与 loopback Query API；当前 React 不持有密钥，也不能切换项目':
+        '网页预览保留本地演示规则，不连接真实 AI 服务'}>
+        <span className="setting-lock">{state.native?(state.ai?.result?.projectId||'未查询'):'离线'}</span>
+      </Setting>
       <div className="settings-group-title">隐私与维护</div>
       <div className="privacy-note"><span className="privacy-icon">◈</span>
-        <span>{state.native?"当前内容来自原生 observation；填入须等待原生草稿回执，不执行自动发送。知识与商品等仍使用本地演示资料。":"此为离线模拟，不能读取真实聊天内容。知识文件仅保存在当前页面内存；自动回复只发生于左侧模拟聊天窗口，不调用云模型。"}</span></div>
+        <span>{state.native?"当前内容来自原生 observation；填入须等待原生草稿回执，不执行自动发送。知识和商品列表仍是本地演示资料，真实问答由可信 Host 选择明确项目并查询。":"此为离线模拟，不能读取真实聊天内容。知识文件仅保存在当前页面内存；自动回复只发生于左侧模拟聊天窗口，不调用云模型。"}</span></div>
       <Setting title="集成与扩展" description="真实平台、商品 Provider 与图片服务后续接入">
         <span className="setting-lock">待接入</span></Setting>
       <div className="setting-actions"><button onClick={()=>dispatch({type:'CLEAR_LOG'})}>清空操作记录</button>

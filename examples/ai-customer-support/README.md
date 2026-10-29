@@ -97,3 +97,20 @@ CI 核心浏览器入口：`cd examples/ai-customer-support && npx playwright in
 - **NOT_TESTED（当前 Mac 实窗）：** 知识 JSON/Markdown 和客户历史的正常文件选择导入、错误/过大文件 UI、拖拽、草稿覆盖确认的取消与接受、回复/订单摘要系统剪贴板粘贴、`file://`。工具无法完成的操作不推断为产品失败；成功 toast 也不等于系统剪贴板已验证。
 - **浏览器历史证据的边界：** 上述浏览器结果不证明 R2.3 Desktop；原生加载、视觉与功能证据见 R2.3 验收记录。
 - **当前范围外：** 微信/企业微信接线、真实订单系统、LLM/RAG/图片识别、真实发送与外部回执。
+## R3.0-A · 可选本机 Query API 知识回复（实验能力）
+
+本轮仅连接 **R2.3 独立测试聊天**，不连接真实微信/企业微信，不启用自动发送。React 六页面不变、设置仍在齿轮，网页预览是离线演示；`native-demo.js` 通过可信 Host 读取目标窗口最新客户消息，显式执行 `support.aiQuery` → `desktop/query-api-adapter.js` → `http.post` → 旧 Query API `POST /api/query`（仅 `127.0.0.1`）→ 独立最新窗口读取 → `support.aiResult` → 推荐卡片和已有人工填草稿/新快照回执。无外部查询配置时给出明确 `NOT_CONFIGURED` 错误，不冒充真实回答。仅真实 Query API 返回的一个回复才能生成一个候选；旧 `reply_segments` 不代表多条策略。
+
+如已在本机自行启动获准的旧 Query API，并为该服务准备了隔离的非生产项目知识，可显式绑定：
+```bash
+OPENDESK_SUPPORT_QUERY_PORT=18082 \
+OPENDESK_SUPPORT_PROJECT_ID=your-approved-demo \
+OPENDESK_SUPPORT_QUERY_PROVIDER=auto \
+./examples/ai-customer-support/scripts/run-desktop.sh
+```
+`QUERY_PROVIDER` 可为 `auto`、`http`、`codex_cli`。端口需为 1–65535，项目 slug 必须由运行者可信指定，不取自 React 页面，也不做跨项目自动回退；不得把服务绑定到公网/企业网入口。该 URL 固定为 `http://127.0.0.1:<port>/api/query`。只提交 `delivery_mode=draft`；不提供真实订单操作、不发出消息。旧 Query API 的当前开发接口并非经过单独验证的认证型公网服务，外部/远程部署不得照搬本配置。
+
+返回的 `review_answer` 仍是待人工审核的候选草稿；`EvidencePack` 中的知识 ID 和 Hash 只是旧系统上报的依据引用，**不等于 OpenDesk 独立验证该知识正确、未过期或适用于当前订单**。模型失败、冲突、项目不符或身份变化均不授权自动操作。旧知识系统包含 Hash Vector 和 BM25，但 Hash Vector 不是已验证的语义 Embedding。
+
+`fixtures/rag-benchmark-100.json` 仅是 100 个合成、未标注/未执行的问题草案；不得生成虚假 Recall@K、正确率、成本或延迟。正式评测需准备经过审核的项目数据、黄金证据 ID 和可比对的 7 策略实际输出。测试：`npm --prefix examples/ai-customer-support test` 或单独 `node --test examples/ai-customer-support/tests/ai-query.test.mjs`。`--verify` 禁用 Query API 配置，继续检验原有离线原生闭环；R3.0-A 真实 AI+Mac 需独立实机验收，尚不能从源码或 CI 推定通过。
+

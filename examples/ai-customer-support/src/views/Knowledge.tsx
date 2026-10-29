@@ -53,7 +53,8 @@ export function KnowledgeView(){
       <label>选择本地文件<input aria-label="选择知识文件" type="file" accept=".json,.md,.markdown" onChange={e=>{void importFile(e.target.files?.[0]);e.target.value='';}}/></label>
     </div>}
     <div className="between tiny grey" style={{margin:'11px 0 0'}}><span>找到 {visible.length} 条 · 共 {state.knowledge.length} 条知识</span><span>{state.knowledgeImportStatus}</span></div>
-    <p className="kb-instruction" role="status">{assessmentLabel}</p>
+    {state.native&&<p className="kb-instruction" role="status">以下是离线演示知识，不是当前 Query API 项目的实时知识库。真实查询及依据状态请在“推荐回复”页查看。</p>}
+    <p className="kb-instruction" role="status">{state.native?'本地演示清单 · 未与当前项目同步':assessmentLabel}</p>
     <div>{visible.length===0?<p className="kb-empty">没有符合当前搜索与筛选条件的知识。</p>:visible.map(k=>{
       const open=expanded.includes(k.id);
       return <article className={'kb-rich-entry'+(k.enabled?'':' disabled')} key={k.id}>

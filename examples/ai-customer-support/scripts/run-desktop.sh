@@ -47,12 +47,26 @@ import {createHash} from 'node:crypto';
 const [pid,exePath,preview,evidence,verify]=process.argv.slice(2);
 const config={schemaVersion:1,pid:Number(pid),exePath,evidence,verify:verify==='1',
   previewSha256:createHash('sha256').update(readFileSync(preview)).digest('hex')};
+// Explicit per-launch project mapping. No arbitrary URL, remote host or UI-supplied
+// project ID is accepted. Never include credentials in the evidence folder.
+const portText=(process.env.OPENDESK_SUPPORT_QUERY_PORT||'').trim();
+const projectId=(process.env.OPENDESK_SUPPORT_PROJECT_ID||'').trim();
+const provider=(process.env.OPENDESK_SUPPORT_QUERY_PROVIDER||'auto').trim();
+if(portText||projectId){
+  const port=Number(portText);
+  if(verify==='1')throw Error('Disable Query API for the isolated native --verify demo.');
+  if(!/^[1-9][0-9]{0,4}$/.test(portText)||!Number.isSafeInteger(port)||port>65535||
+     !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(projectId)||
+     !['auto','http','codex_cli'].includes(provider))
+    throw Error('Query API requires valid OPENDESK_SUPPORT_QUERY_PORT, OPENDESK_SUPPORT_PROJECT_ID and provider.');
+  config.queryApi={port,projectId,modelProvider:provider};
+}
 writeFileSync(evidence+'/launch.json',JSON.stringify(config,null,2));
 JS
 git rev-parse HEAD > "$EVIDENCE/head.txt"
 git diff --stat > "$EVIDENCE/dirty-stat.txt"
 shasum -a 256 "$CHAT_BIN" dist/OpenDesk.app/Contents/MacOS/opendesk dist/OpenDesk.app/Contents/Helpers/opendesk-ui-host "$PREVIEW" > "$EVIDENCE/artifact-sha256.txt"
-shasum -a 256 examples/ai-customer-support/native-demo.js examples/ai-customer-support/desktop/native-adapter.js tests/custom-ui/ai-customer-support-r23-native.js tests/custom-ui/tools/support-chat/main.swift > "$EVIDENCE/source-sha256.txt"
+shasum -a 256 examples/ai-customer-support/native-demo.js examples/ai-customer-support/desktop/native-adapter.js examples/ai-customer-support/desktop/query-api-adapter.js tests/custom-ui/ai-customer-support-r23-native.js tests/custom-ui/tools/support-chat/main.swift > "$EVIDENCE/source-sha256.txt"
 printf 'R2.3 evidence: %s\n' "$EVIDENCE"
 OPENDESK_SUPPORT_LAUNCH="$EVIDENCE/launch.json" ./scripts/run_macos_stable.sh -ui \
   -script examples/ai-customer-support/native-demo.js -console-mode script 2>&1 | tee "$EVIDENCE/runtime.log"

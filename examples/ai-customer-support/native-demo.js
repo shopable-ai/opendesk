@@ -1,12 +1,14 @@
 // Repository root: ./examples/ai-customer-support/scripts/run-desktop.sh
 // This is the native adapter demo; preview/index.html is its only React UI.
 (0,eval)(File.read(File.join(Execution.scriptDir,'desktop/native-adapter.js')));
+(0,eval)(File.read(File.join(Execution.scriptDir,'desktop/query-api-adapter.js')));
 const config=await File.readJSON(System.getEnv('OPENDESK_SUPPORT_LAUNCH'));
 const evidence=config.evidence;
 File.ensureDir(evidence);
 const target={pid:config.pid,exePath:config.exePath};
 if(!Number.isInteger(target.pid)||target.pid<=0||target.exePath!==File.join(File.cwd(),'.runtime/apps/OpenDeskSupportChat.app/Contents/MacOS/support-chat'))throw Error('Only the explicitly launched test chat is allowed');
 const adapter=OpenDeskSupportNative.create(target);
+const queryConfig=OpenDeskSupportQueryAPI.config(config.queryApi);
 const panel=await ui.createTrustedWindow({id:'supportReactR23',kind:'floating',title:'OpenDesk · AI 客服助手 R2.3',
   position:{mode:'absolute',bounds:{x:740,y:100,width:380,height:720}},
   content:{file:'preview/index.html',basePath:Execution.scriptDir,sha256:config.previewSha256}});
@@ -14,6 +16,8 @@ let bound=null,closed=false,revoked=false,paused=false,follow=true,ready=false,v
 let queue=Promise.resolve(),timer=null,dirty=false,latestRender=null;
 let lastError='',lastBounds='',lastPublished=0;
 const requestIds=new Set();
+const aiRequestIds=new Set();
+const aiInflight=new Set();
 const log=(type,data)=>{
   const record={at:new Date().toISOString(),type,...data};
   File.append(File.join(evidence,'events.jsonl'),JSON.stringify(record)+'\n');
@@ -137,6 +141,60 @@ async function fill(request){
     await receipt(request,status,String(error));
   }finally{if(ref)await Accessibility.release(ref);}
 }
+// AI requests read the verified native conversation. HTTP waits outside the AX owner
+// queue, so observation, permission revocation and manual draft controls keep working.
+async function askAI(request){
+  if(!request||request.type!=='support.aiQuery'||
+    typeof request.requestId!=='string'||!/^[A-Za-z0-9_-]{1,40}$/.test(request.requestId)||
+    aiInflight.size>=3||aiRequestIds.has(request.requestId)||aiRequestIds.size>=200)return;
+  aiInflight.add(request.requestId);aiRequestIds.add(request.requestId);
+  let ctx=null;
+  try{
+    await enqueue(async()=>{
+      if(closed||revoked||paused||!adapter.matches(request.binding))return;
+      const w=await freshTarget();
+      if(!w||!w.isForeground)return;
+      const observed=OpenDeskSupportNative.parse(await exactSnapshot(w));
+      const latest=observed.messages.filter(m=>m.who==='customer').at(-1);
+      if(observed.customerId!==request.binding.customerId||
+         latest?.id!==request.binding.messageId||!latest.text.trim()||
+         latest.text!==adapter.current.conversation.messages.filter(m=>m.who==='customer').at(-1)?.text)return;
+      ctx={requestId:request.requestId,binding:{...request.binding},question:latest.text};
+    });
+    if(!ctx)return;
+    let result;
+    if(!queryConfig)result=OpenDeskSupportQueryAPI.failed(null,ctx,'NOT_CONFIGURED');
+    else{
+      try{
+        const payload=OpenDeskSupportQueryAPI.request(queryConfig,ctx);
+        const response=await http.post(queryConfig.url,payload,{timeout:12000,
+          responseType:'json',headers:{'Content-Type':'application/json'}});
+        result=OpenDeskSupportQueryAPI.convert(queryConfig,ctx,response);
+      }catch{
+        result=OpenDeskSupportQueryAPI.failed(queryConfig,ctx,'QUERY_UNAVAILABLE');
+      }
+    }
+    // No model output is applied to the UI before an independent fresh AX read
+    // confirms that the same project/session/message is still in focus.
+    await enqueue(async()=>{
+      if(closed||revoked||paused||!adapter.matches(ctx.binding))return;
+      const w=await freshTarget();
+      if(!w||!w.isForeground)return;
+      const observed=OpenDeskSupportNative.parse(await exactSnapshot(w));
+      const latest=observed.messages.filter(m=>m.who==='customer').at(-1);
+      const after=await window.getAppWindow(target);
+      if(!after||!sameWindow(after)||!after.isForeground||
+        observed.customerId!==ctx.binding.customerId||latest?.id!==ctx.binding.messageId||
+        latest.text!==ctx.question||!adapter.matches(ctx.binding)){
+        log('ai-stale',{requestId:ctx.requestId});return;
+      }
+      await panel.postMessage(result);
+      log('ai-result',{requestId:ctx.requestId,status:result.status,
+        code:result.errorCode,projectId:result.projectId,
+        retrievalStatus:result.retrievalStatus,candidates:result.candidates.length});
+    });
+  }finally{aiInflight.delete(request.requestId);}
+}
 function enqueue(work){queue=queue.then(()=>closed?undefined:work()).catch(async error=>{
   const message=String(error);
   if(lastError!==message){lastError=message;log('failure',{message});}
@@ -159,6 +217,7 @@ const off=panel.on('message',event=>{
     latestRender=message;log('react-rendered',{render:message});
     File.writeJSON(File.join(evidence,'react-rendered.json'),message);
   }else if(message.type==='support.fillDraft')enqueue(()=>fill(message));
+  else if(message.type==='support.aiQuery')void askAI(message).catch(()=>log('ai-failure',{code:'AI_HOST_FAILURE'}));
   else log('rejected-message',{messageType:message.type});
 });
 const offClose=panel.on('close',()=>{closed=true;revoked=true;adapter.revoke();});
