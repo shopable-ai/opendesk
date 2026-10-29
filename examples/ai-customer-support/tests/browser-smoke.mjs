@@ -175,7 +175,7 @@ try {
       name:'invalid.json', mimeType:'application/json', buffer:Buffer.from('{"entries":[')
     });
     assert.equal(await page.locator('#odiv-knowledge').isVisible(), true, 'invalid file does not blank panel');
-    assert.match(await page.getByRole('status').last().innerText(), /导入失败/);
+    await page.getByRole('status').filter({hasText:'导入失败'}).first().waitFor();
     await page.getByRole('tab', { name:'商品' }).click();
     await page.getByRole('searchbox', { name:'搜索商品名称型号和规格' }).fill('THIS-DOES-NOT-EXIST');
     assert.equal(await page.locator('#odiv-products .product-row').count(), 0);
