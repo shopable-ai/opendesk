@@ -33,6 +33,7 @@ export function postNative(bridge:DesktopBridge,message:OutgoingMessage):boolean
 }
 const record=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const text=(v:unknown):v is string=>typeof v==='string';
+const among=(v:unknown,options:readonly string[]):v is string=>text(v)&&options.includes(v);
 const integer=(v:unknown):v is number=>Number.isSafeInteger(v)&&Number(v)>=0;
 export function isBinding(v:unknown):v is Binding {
   return record(v)&&integer(v.generation)&&integer(v.pid)&&v.pid>0&&integer(v.windowId)&&v.windowId>0&&
@@ -52,12 +53,12 @@ export function parseNativeMessage(input:unknown):NativeMessage|null {
   if(v.type==='support.aiResult'){
     const statuses=['ready','blocked','error'],retrieval=['supported','partial','unverified','conflict','unavailable'];
     if(!text(v.requestId)||!v.requestId||v.requestId.length>40||
-      !text(v.projectId)||v.projectId.length>64||!['query_api','mock'].includes(v.knowledgeBackend)||
-      !['http','codex_cli','none'].includes(v.modelProvider)||!retrieval.includes(v.retrievalStatus)||
-      !statuses.includes(v.status)||v.requiresHumanReview!==true||
+      !text(v.projectId)||v.projectId.length>64||!among(v.knowledgeBackend,['query_api','mock'])||
+      !among(v.modelProvider,['http','codex_cli','none'])||!among(v.retrievalStatus,retrieval)||
+      !among(v.status,statuses)||v.requiresHumanReview!==true||
       (v.errorCode!==null&&(!text(v.errorCode)||!/^[A-Z_]{2,60}$/.test(v.errorCode)))||
       !record(v.evidencePack)||v.evidencePack.projectId!==v.projectId||
-      !['full','partial','unknown','conflict'].includes(v.evidencePack.coverage)||
+      !among(v.evidencePack.coverage,['full','partial','unknown','conflict'])||
       !Array.isArray(v.evidencePack.items)||v.evidencePack.items.length>8||
       !Array.isArray(v.candidates)||v.candidates.length>3||
       (v.status==='ready'&&v.candidates.length===0)||(v.status!=='ready'&&v.candidates.length!==0))return null;
