@@ -79,6 +79,23 @@ test('provider choice cannot silently fall back to an unapproved model route',()
   assert.equal(query.convert(http,ctx,body({selected_answer_strategy:'context_http'})).status,'ready');
 });
 
+test('context without verified locked sources and unknown coverage stay blocked',()=>{
+  // The current legacy explicit-context path may report a context hash/count
+  // without locked knowledge IDs. That is insufficient for this product policy.
+  for(const strategy of ['context_http','context_codex_cli']){
+    const c=query.config({port:18082,projectId:'approved-demo',modelProvider:strategy==='context_http'?'http':'codex_cli'});
+    const r=query.convert(c,ctx,body({selected_answer_strategy:strategy,
+      model_provider:strategy==='context_http'?'openai-compatible':'codex_cli',
+      coverage_status:'unknown',coverage:{status:'unknown',locked_hits:[]},
+      compiled_context_hash:'a'.repeat(64),context_selected_document_count:2}));
+    assert.equal(r.status,'blocked');assert.equal(r.errorCode,'EVIDENCE_UNVERIFIED');
+    assert.equal(r.candidates.length,0);
+  }
+  const unknown=query.convert(config,ctx,body({coverage_status:'unknown',
+    coverage:{status:'unknown',locked_hits:[{knowledge_id:'faq-123',answer_hash:'a'.repeat(64)}]}}));
+  assert.equal(unknown.status,'blocked');assert.equal(unknown.candidates.length,0);
+});
+
 async function load(file){
   const result=await build({entryPoints:[join(root,file)],bundle:true,write:false,
     platform:'node',format:'esm',target:'node22',logLevel:'silent'});
@@ -119,4 +136,48 @@ test('late, switched, revoked and duplicate AI results never replace current sug
   const paused=state.reducer(s,{type:'SETTING',key:'paused',value:true});
   assert.equal(paused.ai,null);assert.equal(deliver(paused,good),paused);
   assert.ok(state.activeOptions(s).every(x=>!x.text.includes('演示规则')));
+});
+
+test('manual editing while AI waits keeps the human reply and rejects the late result',()=>{
+  let s=deliver(state.createInitialState(true),observation());
+  s=state.reducer(s,{type:'NATIVE_AI_QUERY',request:{type:'support.aiQuery',requestId:'ai-1',binding}});
+  const key=state.activeReplyKey(s);
+  s=state.reducer(s,{type:'REPLY_EDIT',key});
+  s=state.reducer(s,{type:'REPLY_TEXT',key,text:'人工编辑：请先核对订单，不承诺到账时间。'});
+  const next=deliver(s,json(query.convert(config,ctx,body())));
+  assert.equal(state.activeReplyText(next),'人工编辑：请先核对订单，不承诺到账时间。');
+  assert.equal(next.editing,key);
+});
+
+test('conflicting coverage declarations cannot be promoted to supported evidence',()=>{
+  for(const [inner,outer] of [['full','conflict'],['conflict','full'],['full','unknown']]){
+    const result=query.convert(config,ctx,body({coverage_status:outer,
+      coverage:{status:inner,locked_hits:[{knowledge_id:'faq-1',answer_hash:'a'.repeat(64)}]}}));
+    assert.notEqual(result.status,'ready');assert.equal(result.candidates.length,0);
+  }
+});
+
+test('mock, absent and inconsistent provider declarations cannot claim HTTP generation',()=>{
+  for(const provider of ['mock','none','codex_cli','unrecognized']){
+    const result=query.convert(config,ctx,body({model_provider:provider,selected_answer_strategy:'context_http'}));
+    assert.notEqual(result.modelProvider,'http');
+  }
+  const raw=query.convert(config,ctx,body({selected_answer_strategy:'rag_raw',model_call_counts:{total_provider_requests:0},model_provider:'none'}));
+  assert.equal(raw.modelProvider,'none');assert.equal(raw.status,'ready');
+});
+
+test('generation strategies require valid call counts and an explicit matching provider',()=>{
+  for(const count of [undefined,0,-1,1.5,'1',NaN]){
+    const r=query.convert(config,ctx,body({selected_answer_strategy:'context_http',model_call_counts:{total_provider_requests:count}}));
+    assert.equal(r.status,'error');assert.equal(r.candidates.length,0);
+  }
+  for(const provider of [undefined,''])assert.equal(query.convert(config,ctx,body({model_provider:provider})).status,'error');
+  assert.equal(query.convert(config,ctx,body({selected_answer_strategy:'not-a-strategy'})).status,'error');
+});
+
+test('no-source or unknown-coverage promises never become a selectable draft',()=>{
+  for(const coverage of ['full','unknown']){
+    const r=query.convert(config,ctx,body({coverage_status:coverage,coverage:{status:coverage,locked_hits:[]},review_answer:'保证退款到账，无须核实。'}));
+    assert.equal(r.status,'blocked');assert.equal(r.candidates.length,0);
+  }
 });

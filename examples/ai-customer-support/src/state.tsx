@@ -212,7 +212,11 @@ export function reducer(s:AppState,a:Action):AppState {
     }
     case 'REPLY_CHOICE':return {...s,chosen:{...s.chosen,[a.key]:a.id},editing:null};
     case 'REPLY_EDIT':return {...s,editing:a.key};
-    case 'REPLY_TEXT':return {...s,edits:{...s.edits,[a.key]:a.text.slice(0,2000)}};
+    case 'REPLY_TEXT':return {...s,
+      // Human input takes ownership of the current reply. A pending result
+      // may still finish in the Host, but cannot replace this edit.
+      ai:s.native&&s.ai?.status==='loading'&&a.key===activeReplyKey(s)?null:s.ai,
+      edits:{...s.edits,[a.key]:a.text.slice(0,2000)}};
     case 'SETTING':{
       if(s.native){
         if(a.key==='permission')return a.value===false?{...s,permission:false,nativeObserving:false,pendingFill:null,ai:null}:s;

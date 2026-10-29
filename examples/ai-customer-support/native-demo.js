@@ -13,6 +13,7 @@ const panel=await ui.createTrustedWindow({id:'supportReactR23',kind:'floating',t
   position:{mode:'absolute',bounds:{x:740,y:100,width:380,height:720}},
   content:{file:'preview/index.html',basePath:Execution.scriptDir,sha256:config.previewSha256}});
 let bound=null,closed=false,revoked=false,paused=false,follow=true,ready=false,visible=false;
+let authorizationGeneration=0;
 let queue=Promise.resolve(),timer=null,dirty=false,latestRender=null;
 let lastError='',lastBounds='',lastPublished=0;
 const requestIds=new Set();
@@ -148,6 +149,7 @@ async function askAI(request){
     typeof request.requestId!=='string'||!/^[A-Za-z0-9_-]{1,40}$/.test(request.requestId)||
     aiInflight.size>=3||aiRequestIds.has(request.requestId)||aiRequestIds.size>=200)return;
   aiInflight.add(request.requestId);aiRequestIds.add(request.requestId);
+  const authorization=authorizationGeneration;
   let ctx=null;
   try{
     await enqueue(async()=>{
@@ -155,6 +157,9 @@ async function askAI(request){
       const w=await freshTarget();
       if(!w||!w.isForeground)return;
       const observed=OpenDeskSupportNative.parse(await exactSnapshot(w));
+      const after=await window.getAppWindow(target);
+      if(closed||revoked||paused||authorization!==authorizationGeneration||
+        !adapter.matches(request.binding)||!after||!sameWindow(after)||!after.isForeground)return;
       const latest=observed.messages.filter(m=>m.who==='customer').at(-1);
       if(observed.customerId!==request.binding.customerId||
          latest?.id!==request.binding.messageId||!latest.text.trim()||
@@ -162,6 +167,11 @@ async function askAI(request){
       ctx={requestId:request.requestId,binding:{...request.binding},question:latest.text};
     });
     if(!ctx)return;
+    // The owner queue can yield before dispatch. Recheck live authority and
+    // window identity here, with no asynchronous gap before http.post.
+    const front=await window.getAppWindow(target);
+    if(closed||revoked||paused||authorization!==authorizationGeneration||
+      !adapter.matches(ctx.binding)||!front||!sameWindow(front)||!front.isForeground)return;
     let result;
     if(!queryConfig)result=OpenDeskSupportQueryAPI.failed(null,ctx,'NOT_CONFIGURED');
     else{
@@ -177,13 +187,14 @@ async function askAI(request){
     // No model output is applied to the UI before an independent fresh AX read
     // confirms that the same project/session/message is still in focus.
     await enqueue(async()=>{
-      if(closed||revoked||paused||!adapter.matches(ctx.binding))return;
+      if(closed||revoked||paused||authorization!==authorizationGeneration||!adapter.matches(ctx.binding))return;
       const w=await freshTarget();
       if(!w||!w.isForeground)return;
       const observed=OpenDeskSupportNative.parse(await exactSnapshot(w));
       const latest=observed.messages.filter(m=>m.who==='customer').at(-1);
       const after=await window.getAppWindow(target);
-      if(!after||!sameWindow(after)||!after.isForeground||
+      if(closed||revoked||paused||authorization!==authorizationGeneration||
+        !after||!sameWindow(after)||!after.isForeground||
         observed.customerId!==ctx.binding.customerId||latest?.id!==ctx.binding.messageId||
         latest.text!==ctx.question||!adapter.matches(ctx.binding)){
         log('ai-stale',{requestId:ctx.requestId});return;
@@ -207,8 +218,11 @@ const off=panel.on('message',event=>{
   if(message.type==='support.settings'){
     // Invalidate immediately on the owner loop, including while an AX promise
     // is pending. Only resuming the same still-authorized instance is allowed.
-    if(message.permission===false){revoked=true;adapter.revoke();}
-    if(typeof message.paused==='boolean')paused=message.paused;
+    if(message.permission===false){authorizationGeneration++;revoked=true;adapter.revoke();}
+    if(typeof message.paused==='boolean'){
+      if(paused!==message.paused)authorizationGeneration++;
+      paused=message.paused;
+    }
     if(typeof message.follow==='boolean')follow=message.follow;
     enqueue(async()=>{if(revoked)await publish(adapter.current);else if(paused)await invalidate('已暂停观察',false);else await observe('explicit-resume');});
   }else if(message.type==='support.ready'){
@@ -220,7 +234,7 @@ const off=panel.on('message',event=>{
   else if(message.type==='support.aiQuery')void askAI(message).catch(()=>log('ai-failure',{code:'AI_HOST_FAILURE'}));
   else log('rejected-message',{messageType:message.type});
 });
-const offClose=panel.on('close',()=>{closed=true;revoked=true;adapter.revoke();});
+const offClose=panel.on('close',()=>{authorizationGeneration++;closed=true;revoked=true;adapter.revoke();});
 const subscription=window.watchAppWindow(target,hint=>{
   log('window-hint',{hint});dirty=true;
   if(hint.reasons.some(r=>['target-invalidated','window-destroyed','app-terminated-changed'].includes(r))){

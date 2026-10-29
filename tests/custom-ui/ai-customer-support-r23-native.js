@@ -74,6 +74,11 @@
     await sleep(150);await idle();
   }
   try{
+    // The foreground-only observer cannot bind until this run's fixture is
+    // active. Resolve and verify only the launcher-owned PID before activation.
+    const initial=await window.get({pid:target.pid,title:'OpenDesk R2.3 Test Chat'});
+    assert(initial.pid===target.pid&&initial.exePath===target.exePath,'Unexpected startup fixture identity');
+    await window.activate(initial);
     await wait(()=>getRender()&&getBound(),'native React handshake');
     await window.activate(await window.current(getBound()));
     await wait(async()=>!!(await window.getAppWindow(target)),'fixture foreground after host startup');
@@ -90,11 +95,11 @@
     check('message-deduplicated',adapter.current.revision===revision,adapter.current);
     const second=await message(text);
     check('same-text-new-message',second.messageId!==first.messageId,adapter.current);
-    const previous=getRender().replyText;
+    // Native mode has one safe candidate. Selecting the current candidate
+    // is idempotent; do not expect a second demonstration strategy.
     await clickReact(/^人工核实：/,'checkbox',{action:'setChecked',checked:true});
-    await wait(()=>getRender()?.replyText!==previous,'human recommendation choice');
     const selected=getRender().replyText;
-    check('human-selected-recommendation',selected.includes('人工客服核实'),getRender());
+    check('human-selected-recommendation',selected==='您好，我先核对相关资料，确认后再回复您。',getRender());
     assert(selected&&selected!==text,'No generated recommendation');
     await clickReact('→ 填入聊天草稿');
     await wait(()=>/verified/.test(getRender()?.receipt||''),'native draft receipt');
@@ -165,6 +170,8 @@
     check('closed-window-stops-assistant',!(await panel.getState()).visible,adapter.current);
     let stale=false;try{await window.current(getBound());}catch{stale=true;}
     check('invalid-window-rejected',stale,{original:getBound()});
+    const oracle=await File.readJSON(File.join(evidence,'fixture-oracle.json'));
+    check('no-send-actions',oracle.sendActions===0,{sendActions:oracle.sendActions});
     completed=true;
   }catch(error){
     results.push({id:'gate-completion',status:'FAIL',error:String(error),code:error.code,actionState:error.actionState});

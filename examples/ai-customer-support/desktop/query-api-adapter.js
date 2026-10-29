@@ -44,6 +44,9 @@
     if((c.modelProvider==='http'&&selected!=='context_http')||
        (c.modelProvider==='codex_cli'&&selected!=='context_codex_cli'))
       return failed(c,ctx,'PROVIDER_MISMATCH');
+    const declaredCoverage=object(v.coverage)?v.coverage.status:undefined;
+    if(declaredCoverage!==undefined&&v.coverage_status!==undefined&&declaredCoverage!==v.coverage_status)
+      return failed(c,ctx,'QUERY_COVERAGE_MISMATCH');
     const coverage=object(v.coverage)&&['full','partial','unknown','conflict'].includes(v.coverage.status)?
       v.coverage.status:['full','partial','unknown','conflict'].includes(v.coverage_status)?v.coverage_status:'unknown';
     const result=base(c,ctx,'ready',null);
@@ -63,13 +66,28 @@
     if(coverage==='conflict'||v.delivery_status==='blocked'){
       result.status='blocked';result.errorCode='EVIDENCE_CONFLICT';return result;
     }
+    if(!result.evidencePack.items.length||coverage==='unknown'){
+      result.status='blocked';result.errorCode='EVIDENCE_UNVERIFIED';return result;
+    }
     const answer=text(v.review_answer,2000);
     if(!answer||!answer.trim())return failed(c,ctx,'EMPTY_AI_REPLY');
     // One legacy API reply -> one candidate. reply_segments are NOT strategies.
     const calls=object(v.model_call_counts)?v.model_call_counts:{};
     const count=calls.total_provider_requests;
-    if(typeof count==='number'&&Number.isSafeInteger(count)&&count>0&&text(v.model_provider,100)){
-      result.modelProvider=selected==='context_codex_cli'?'codex_cli':'http';
+    if(!['rag_raw','rag_rewrite','context_http','context_codex_cli'].includes(selected))
+      return failed(c,ctx,'PROVIDER_MISMATCH');
+    if(selected!=='rag_raw'&&(!Number.isSafeInteger(count)||count<=0))
+      return failed(c,ctx,'PROVIDER_MISMATCH');
+    if(selected==='rag_raw'&&(count!==0||!['none','',null,undefined].includes(v.model_provider)))
+      return failed(c,ctx,'PROVIDER_MISMATCH');
+    if(typeof count==='number'&&Number.isSafeInteger(count)&&count>0){
+      // Counts and a strategy name alone do not establish the actual route.
+      // Keep unknown/mock/fallback claims from becoming an HTTP-model badge.
+      const provider=text(v.model_provider,100);
+      const httpProviders=new Set(['http','openai','openai-compatible','openai_compatible']);
+      if(selected==='context_codex_cli'&&provider==='codex_cli')result.modelProvider='codex_cli';
+      else if(['context_http','rag_rewrite'].includes(selected)&&httpProviders.has(provider))result.modelProvider='http';
+      else return failed(c,ctx,'PROVIDER_MISMATCH');
     }
     result.candidates=[{id:'query',name:'知识建议',symbol:'✦',text:answer,
       evidenceIds:result.evidencePack.items.map(item=>item.id)}];
