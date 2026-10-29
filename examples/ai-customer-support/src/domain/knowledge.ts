@@ -17,8 +17,10 @@ export const initialKnowledge = (): Knowledge[] => [
   {id:'k6',q:'A 方案支持多少成员',question:'A 方案支持几名成员？',a:'演示规则：A 方案最多支持 5 名成员，其他方案须按对应套餐说明确认。',keys:['A 方案','成员','人数'],aliases:['A 方案人数上限'],source:'demo/plans.json',enabled:true,category:'套餐',scope:'A 方案',eligible:false,eligibility:'限定适用范围，需明确确认套餐身份后才可使用'},
   {id:'k7',q:'人工客服在线时间',question:'人工客服什么时候在线？',a:'演示规则：人工客服服务时间为工作日 09:00–18:00，非工作时段可留言等待回复。',keys:['客服','人工','服务时间'],aliases:['人工几点上班','怎么转人工'],source:'demo/service.json',enabled:true,category:'服务',scope:null,eligible:true,eligibility:'预设演示知识（仍需精确匹配）'}
 ];
-export function matchKnowledge(message: string | undefined, kb: readonly Knowledge[], observed: boolean): KnowledgeHit | null {
-  if (!observed || !message?.trim()) return null;
+export type KnowledgeMatchKind = 'exact' | 'similar' | 'conflict' | 'none';
+export interface KnowledgeAssessment { kind: KnowledgeMatchKind; hit: KnowledgeHit | null }
+export function inspectKnowledge(message: string | undefined, kb: readonly Knowledge[], observed: boolean): KnowledgeAssessment {
+  if (!observed || !message?.trim()) return {kind:'none',hit:null};
   const input = normalize(message);
   const hits = kb.filter(k => k.enabled && !k.scope).map(k => {
     const exact = [k.question, ...k.aliases].some(a => normalize(a) === input);
@@ -26,8 +28,14 @@ export function matchKnowledge(message: string | undefined, kb: readonly Knowled
     return { k, exact, score: exact ? 100 : similarity * 10 };
   }).filter(h => h.score > 0).sort((a, b) => b.score - a.score);
   const best = hits[0];
-  if (!best || hits.some(hit => hit.score === best.score && hit.k.a !== best.k.a)) return null;
-  return best;
+  if (!best) return {kind:'none',hit:null};
+  // Conflicting top-priority evidence must never be used as a recommended factual answer.
+  if (hits.some(hit => hit.score === best.score && hit.k.a !== best.k.a))
+    return {kind:'conflict',hit:null};
+  return {kind:best.exact?'exact':'similar',hit:best};
+}
+export function matchKnowledge(message: string | undefined, kb: readonly Knowledge[], observed: boolean): KnowledgeHit | null {
+  return inspectKnowledge(message,kb,observed).hit;
 }
 export function replyOptions(hit: KnowledgeHit | null): ReplyOption[] {
   if (!hit) return [

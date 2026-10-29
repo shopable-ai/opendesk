@@ -16,6 +16,48 @@ const knowledge=await load('src/domain/knowledge.ts');
 const history=await load('src/domain/history.ts');
 const state=await load('src/state.tsx');
 
+test('local demo product link and chat text match only unambiguous catalog references',()=>{
+  const jacket=catalog.findProduct('demo-jacket');
+  assert.ok(jacket);
+  const link=catalog.demoProductLink(jacket);
+  assert.equal(catalog.productFromDemoLink(link)?.id,'demo-jacket');
+  assert.equal(catalog.productFromDemoLink(link+'?sku=OD-JK-101')?.id,'demo-jacket');
+  assert.equal(catalog.visibleProducts(link,'all').map(p=>p.id).join(), 'demo-jacket');
+  assert.equal(catalog.visibleProducts(link,'数码').length,0);
+  assert.equal(catalog.productFromCustomerText('请问 OD-JK-101 的尺码？')?.id,'demo-jacket');
+  assert.equal(catalog.productFromCustomerText('这款轻量连帽外套有库存吗？')?.id,'demo-jacket');
+  assert.equal(catalog.productFromCustomerText('看看 '+link)?.id,'demo-jacket');
+  for(const bad of [
+    'http://catalog.opendesk.example/products/demo-jacket',
+    'https://catalog.opendesk.example.evil.test/products/demo-jacket',
+    'https://other.example/products/demo-jacket?sku=OD-JK-101',
+    link+'?sku=OD-SN-202',link+'#other',
+    'https://catalog.opendesk.example/products/demo-jacket/extra',
+    'https://catalog.opendesk.example/products/unknown',
+    'https://catalog.opendesk.example/products/demo-jacket?redirect=evil'
+  ]){
+    assert.equal(catalog.productFromDemoLink(bad),null,'untrusted product URL rejected: '+bad);
+    assert.deepEqual(catalog.visibleProducts(bad,'all'),[],'untrusted URL must not trigger text fallback');
+    assert.equal(catalog.productFromCustomerText('帮我看一下 '+bad),null);
+  }
+  assert.equal(catalog.productFromCustomerText('OD-JK-101X'),null,'SKU prefix is insufficient');
+  assert.equal(catalog.productFromCustomerText('OD-JK-101 和 OD-SN-202 比较'),null,'two distinct products are ambiguous');
+});
+
+test('knowledge assessment distinguishes exact, similarity, conflict and absence',()=>{
+  const kb=knowledge.initialKnowledge();
+  assert.equal(knowledge.inspectKnowledge('签收后 7 天内还能申请退款吗？',kb,true).kind,'exact');
+  assert.equal(knowledge.inspectKnowledge('退款流程需要多久',kb,true).kind,'similar');
+  assert.equal(knowledge.inspectKnowledge('完全不相关的问题',kb,true).kind,'none');
+  const duplicate=[
+    {...kb[0],id:'conflict-a',question:'人工冲突测试',aliases:[],keys:['人工冲突'],a:'第一种答复'},
+    {...kb[1],id:'conflict-b',question:'人工冲突测试',aliases:[],keys:['人工冲突'],a:'第二种答复'}
+  ];
+  assert.equal(knowledge.inspectKnowledge('人工冲突测试',duplicate,true).kind,'conflict');
+  assert.equal(knowledge.matchKnowledge('人工冲突测试',duplicate,true),null);
+  assert.equal(knowledge.inspectKnowledge('人工冲突测试',duplicate,false).kind,'none');
+});
+
 test('same fixture provides six products, twelve images and eight orders',()=>{
   assert.equal(catalog.products.length,6);
   assert.equal(catalog.products.flatMap(p=>p.images).length,12);

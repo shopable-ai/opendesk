@@ -12,9 +12,42 @@ export const isCustomerId = (value: unknown): value is CustomerId =>
 export const normalize = (value: unknown) => String(value ?? '').toLowerCase().replace(/\s|[，。！？?!.,]/g, '');
 
 export const findProduct = (id: string | undefined) => products.find(p => p.id === id);
-export const visibleProducts = (query: string, category: string) =>
-  products.filter(p => (category === 'all' || p.category === category) &&
+
+// The .example host is deliberately non-live. Never infer a trusted product from an arbitrary merchant URL.
+export const demoProductLink = (p: Product) =>
+  'https://catalog.opendesk.example/products/' + encodeURIComponent(p.id);
+export function productFromDemoLink(input: string): Product | null {
+  if (!input.trim() || input.length > 2048) return null;
+  let url: URL;
+  try { url = new URL(input.trim()); } catch { return null; }
+  if (url.origin !== 'https://catalog.opendesk.example' || url.username || url.password ||
+      url.hash || [...url.searchParams.keys()].some(k => k !== 'sku')) return null;
+  const path = /^\/products\/(demo-[a-z0-9-]+)\/?$/.exec(url.pathname);
+  if (!path) return null;
+  const product = findProduct(path[1]);
+  return product && (!url.searchParams.has('sku') || url.searchParams.get('sku') === product.sku) ? product : null;
+}
+export function productFromCustomerText(text: string | undefined): Product | null {
+  if (!text?.trim()) return null;
+  const links = text.match(/https?:\/\/[^\s<>"'，。！？；;]+/gi);
+  // Do not guess from unrelated links, even if their path or query contains a known SKU.
+  if (links?.length) return links.length === 1 ?
+    productFromDemoLink(links[0].replace(/[)）\],。！？]+$/g, '')) : null;
+  const tokens = new Set((text.match(/[A-Za-z0-9-]+/g) || []).map(x => x.toLowerCase()));
+  const matches = products.filter(p => text.includes(p.name) ||
+    tokens.has(p.sku.toLowerCase()) || tokens.has(p.model.toLowerCase()));
+  return matches.length === 1 ? matches[0] : null;
+}
+export const visibleProducts = (query: string, category: string): Product[] => {
+  const trimmed = query.trim();
+  // A URL is accepted only if it is a canonical, local-demo reference; no network or scraping.
+  if (/^https?:\/\//i.test(trimmed)) {
+    const p = productFromDemoLink(trimmed);
+    return p && (category === 'all' || p.category === category) ? [p] : [];
+  }
+  return products.filter(p => (category === 'all' || p.category === category) &&
     normalize([p.name, p.sku, p.model, p.category, p.summary, ...p.specs.map(x => x.value)].join(' ')).includes(normalize(query)));
+};
 
 function validOrder(order: Order): boolean {
   return isCustomerId(order.customerId) && typeof order.orderId === 'string' &&

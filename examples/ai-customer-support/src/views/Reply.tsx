@@ -1,10 +1,14 @@
 import React from 'react';
 import { ClipboardCopy, Pencil, Check } from 'lucide-react';
-import { useActiveContext, activeHit, activeOptions, activeReply, activeReplyKey, activeReplyText, latestKey } from '../state';
+import { useActiveContext, activeOptions, activeReply, activeReplyKey, activeReplyText, latestKey } from '../state';
+import { productFromCustomerText } from '../domain/catalog';
+import { inspectKnowledge } from '../domain/knowledge';
 import { IconButton, PanelScroll, useCopy, useFillDraft } from '../components/Common';
 export function ReplyView(){
   const {state,dispatch,thread,message,active}=useActiveContext();
-  const hit=activeHit(state),options=activeOptions(state),selected=activeReply(state),txt=activeReplyText(state);
+  const assessment=inspectKnowledge(message?.text,state.knowledge,active),hit=assessment.hit;
+  const product=active?productFromCustomerText(message?.text):null;
+  const options=activeOptions(state),selected=activeReply(state),txt=activeReplyText(state);
   const key=activeReplyKey(state),copy=useCopy(),fill=useFillDraft(),taken=state.takeovers.includes(state.threadId);
   const sent=!!message&&thread.sent.includes(message.id);
   const caption=!active?'观察已停止':taken?'人工接管 · AI 继续推荐':state.auto?'自动回复 · 模拟':'AI 推荐 · 人工发送';
@@ -16,8 +20,12 @@ export function ReplyView(){
     <div className="message"><div className="between"><span>最新客户消息</span><span>{active&&message?'#'+message.id:'未读取'}</span></div>
       <p>{active?message?.text||'暂无消息':'未授权或观察已暂停'}</p></div>
     <button className="hit" onClick={()=>dispatch({type:'TAB',tab:'knowledge'})}>
-      <span className="check">{hit?'✓':'?'}</span><span className="flex"><b>{hit?'匹配到 · '+hit.k.q:'暂无可靠知识匹配'}</b>
-      <small>{hit?(hit.exact?'精确匹配':'关键词匹配')+' · 点此查看知识':'仅提供安全澄清与人工核实'}</small></span><span>›</span></button>
+      <span className="check">{hit?'✓':'?'}</span><span className="flex"><b>{assessment.kind==='conflict'?'知识冲突 · 待人工核实':hit?'匹配到 · '+hit.k.q:'未命中可靠知识'}</b>
+      <small>{assessment.kind==='conflict'?'同等级答案有冲突，不采用任何一条':hit?(hit.exact?'精确匹配':'相似候选 · 须人工核实')+' · 查看知识':'仅提供安全澄清与人工核实'}</small></span><span>›</span></button>
+    {product&&<button type="button" className="hit" aria-label={'查看关联商品：'+product.name}
+      onClick={()=>dispatch({type:'OPEN_PRODUCT',id:product.id})}>
+      <span className="check">◇</span><span className="flex"><b>商品线索 · {product.name}</b>
+      <small>{product.sku} · 演示匹配，信息需人工核实</small></span><span>›</span></button>}
     <div className="section">推荐回复 <span>{options.length} 条 · 点击选用</span></div>
     <div className="recommend" id="odiv-options">{options.map(option=>{
       const optionKey=latestKey(state)+':'+option.id,val=state.edits[optionKey]??option.text;

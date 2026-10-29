@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ListFilter, Upload } from 'lucide-react';
-import { useWorkbench } from '../state';
-import { parseKnowledgeFile } from '../domain/knowledge';
+import { useWorkbench, currentThread, latestCustomerMessage, observed } from '../state';
+import { inspectKnowledge, parseKnowledgeFile } from '../domain/knowledge';
 import { IconButton, PanelScroll } from '../components/Common';
 
 export function KnowledgeView(){
@@ -10,6 +10,12 @@ export function KnowledgeView(){
     [source,setSource]=useState('all'),[scope,setScope]=useState('all'),
     [expanded,setExpanded]=useState<string[]>([]),[filterOpen,setFilterOpen]=useState(false),
     [uploadOpen,setUploadOpen]=useState(false);
+  const assessment=inspectKnowledge(latestCustomerMessage(currentThread(state))?.text,state.knowledge,observed(state));
+  const assessmentLabel=!observed(state)?'观察已停止，暂不进行知识匹配':
+    assessment.kind==='exact'?'当前消息：精确匹配 · 请核对适用条件':
+    assessment.kind==='similar'?'当前消息：相似候选 · 需人工核实':
+    assessment.kind==='conflict'?'当前消息：知识冲突 · 未采用任何答案':
+    '当前消息：未命中可靠知识';
   const sources=Array.from(new Set(state.knowledge.map(k=>k.source))).sort();
   const selectedSource=sources.includes(source)?source:'all';
   const visible=state.knowledge.filter(k=>
@@ -47,7 +53,7 @@ export function KnowledgeView(){
       <label>选择本地文件<input aria-label="选择知识文件" type="file" accept=".json,.md,.markdown" onChange={e=>{void importFile(e.target.files?.[0]);e.target.value='';}}/></label>
     </div>}
     <div className="between tiny grey" style={{margin:'11px 0 0'}}><span>找到 {visible.length} 条 · 共 {state.knowledge.length} 条知识</span><span>{state.knowledgeImportStatus}</span></div>
-    <p className="kb-instruction">点击条目可查看完整答案、同义问题、数据来源与托管资格</p>
+    <p className="kb-instruction" role="status">{assessmentLabel}</p>
     <div>{visible.length===0?<p className="kb-empty">没有符合当前搜索与筛选条件的知识。</p>:visible.map(k=>{
       const open=expanded.includes(k.id);
       return <article className={'kb-rich-entry'+(k.enabled?'':' disabled')} key={k.id}>

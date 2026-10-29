@@ -96,6 +96,47 @@ try {
     await page.getByRole('button', { name:'← 返回图库' }).click();
     assert.equal(await page.locator('#odiv-images .product-gallery-tile').count(), 12);
   });
+  await scenario('demo-product-link-message-and-customer-switch', async page => {
+    await page.getByRole('tab',{name:'商品',exact:true}).click();
+    const search=page.getByRole('searchbox',{name:'搜索商品名称型号和规格'});
+    const link='https://catalog.opendesk.example/products/demo-jacket';
+    await search.fill(link);
+    assert.equal(await page.locator('#odiv-products .product-row').count(),1);
+    await search.fill('https://catalog.opendesk.example.evil.test/products/demo-jacket');
+    assert.equal(await page.locator('#odiv-products .product-row').count(),0,'spoofed domain is not accepted');
+    await search.fill('OD-JK-101');
+    assert.equal(await page.locator('#odiv-products .product-row').count(),1,'SKU search remains available');
+    await page.getByRole('textbox',{name:'自定义客户提问'}).fill('请问 OD-JK-101 的尺码？');
+    await page.getByRole('button',{name:'发送问题'}).click();
+    await page.getByRole('tab',{name:'推荐回复',exact:true}).click();
+    await page.getByRole('button',{name:'查看关联商品：轻量连帽外套'}).click();
+    assert.equal(await page.locator('#odiv-products .product-detail-name').innerText(),'轻量连帽外套');
+    await page.getByRole('button',{name:'查看关联图片'}).click();
+    assert.equal(await page.locator('#odiv-images .product-lightbox-image').count(),1);
+    await page.locator('#od-contacts button').filter({hasText:'陈先生'}).click();
+    await page.getByRole('tab',{name:'推荐回复',exact:true}).click();
+    assert.equal(await page.getByRole('button',{name:'查看关联商品：轻量连帽外套'}).count(),0,
+      'product clue must follow the current customer message');
+  });
+  await scenario('knowledge-conflict-diagnostic', async page => {
+    await page.getByRole('tab',{name:'知识库',exact:true}).click();
+    await page.getByRole('button',{name:'导入知识'}).click();
+    const entries=[
+      {question:'冲突演示问题',answer:'结果甲',keywords:['冲突演示']},
+      {question:'冲突演示问题',answer:'结果乙',keywords:['冲突演示']}
+    ];
+    await page.locator('#odiv-knowledge input[type="file"]').setInputFiles({
+      name:'conflict.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({entries}))
+    });
+    await page.getByRole('status').filter({hasText:'导入 2 条'}).waitFor();
+    await page.getByRole('textbox',{name:'自定义客户提问'}).fill('冲突演示问题');
+    await page.getByRole('button',{name:'发送问题'}).click();
+    await page.getByRole('status').filter({hasText:'当前消息：知识冲突'}).waitFor();
+    await page.getByRole('tab',{name:'推荐回复',exact:true}).click();
+    assert.match(await page.locator('#odiv-reply .hit').first().innerText(),/知识冲突/);
+    assert.equal(await page.locator('#odiv-options .option-wrap').count(),2,
+      'conflicting knowledge only yields clarification and handoff');
+  });
   await scenario('knowledge-history-import-and-theme', async page => {
     await page.getByRole('tab', { name:'知识库' }).click();
     await page.getByRole('button', { name:'导入知识' }).click();
