@@ -31,6 +31,8 @@ jobs:
         run: npm run typecheck
       - name: Domain isolation tests
         run: node --test tests/domain.test.mjs tests/import-safety.test.mjs tests/knowledge-conflict.test.mjs tests/knowledge-import.test.mjs tests/history-evidence.test.mjs
+      - name: Multi-store data and trusted hook integration
+        run: node --test tests/business.test.mjs tests/business-state.test.mjs tests/business-sync.test.mjs tests/business-file-client.test.mjs tests/business-files.test.mjs tests/workspace.test.mjs tests/workspace-files.test.mjs tests/business-adapters.test.mjs
       - name: AI Query API adapter and Desktop bridge contract
         run: node --test tests/ai-query.test.mjs tests/desktop-bridge.test.mjs
       - name: Generate one offline HTML
@@ -41,6 +43,10 @@ jobs:
         run: npx playwright install chromium --with-deps
       - name: Headless browser regression
         run: npm run test:browser -- --core
+      - name: Multi-store browser regression
+        run: npm run test:business-browser
+      - name: Local workspace browser regression
+        run: npm run test:workspace-browser
       - name: Upload browser visual evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -57,7 +63,7 @@ jobs:
       - name: Commit generated preview after all checks
         run: |
           cd ../..
-          git add examples/ai-customer-support/preview/index.html examples/ai-customer-support/package-lock.json
+          git add examples/ai-customer-support/preview/index.html examples/ai-customer-support/desktop/app-integrity.json examples/ai-customer-support/desktop/business-validator.generated.js examples/ai-customer-support/package-lock.json
           if git diff --cached --quiet; then
             echo 'Generated preview and lockfile are unchanged.'
             exit 0

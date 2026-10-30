@@ -1,0 +1,17 @@
+{
+  "frozenBeforeInference": true,
+  "createdAt": "2026-10-29T18:43:04.368098+00:00",
+  "files": {
+    "cases.json": "98b36ad8df9465d67d6b3b3b35c82571a6c8ecf97b4dfe48357bd52bff5de66e",
+    "knowledge.json": "b437e48dc7608d5d1d81b860e8121506529bc1ba679c5231edf4bac710c7c331",
+    "label-review.json": "090b970479a1088616745f79bf646df3ec36c5cd5d4fbb220dabcf75600817c3",
+    "original-dev-labels.json": "03a92a7b24d41a781532658a98521c34943374855c31cacaba86a73d2f9cc831",
+    "policy.json": "8ed67f0139bd41011ade53cad1e8b49ea9539cac46b1ac21352f1f8878fbb948",
+    "requests.json": "17f206edff7ad211714ac6db2ccecb2d27cc30465158a5edf22295795a4a4a88"
+  },
+  "code": {
+    "/Users/shopme/Documents/workspace/opendesk/tests/ai-customer-support-quality/prepare_v2.py": "0f2e134656732cfb483feb0c44563268e1af469709a55eef7a9a7738bee82656",
+    "tests/ai-customer-support-quality/run_v2.py": "984f6f6fa95a732d15cb4e3e39852e2a038c8f3bb6a7b6c8a91dc7bdd6449705"
+  },
+  "v1SealSha256": "981cebc27c2909a2fa46b9b3a489039c044dfa9c62b7b79090cba42a8eaad679"
+}

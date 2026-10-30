@@ -11,41 +11,41 @@ export const isCustomerId = (value: unknown): value is CustomerId =>
   typeof value === 'string' && (customers as readonly string[]).includes(value);
 export const normalize = (value: unknown) => String(value ?? '').toLowerCase().replace(/\s|[，。！？?!.,]/g, '');
 
-export const findProduct = (id: string | undefined) => products.find(p => p.id === id);
+export const findProduct = (id: string | undefined, catalog: readonly Product[] = products) => catalog.find(p => p.id === id);
 
 // The .example host is deliberately non-live. Never infer a trusted product from an arbitrary merchant URL.
 export const demoProductLink = (p: Product) =>
   'https://catalog.opendesk.example/products/' + encodeURIComponent(p.id);
-export function productFromDemoLink(input: string): Product | null {
+export function productFromDemoLink(input: string, catalog: readonly Product[] = products): Product | null {
   if (!input.trim() || input.length > 2048) return null;
   let url: URL;
   try { url = new URL(input.trim()); } catch { return null; }
   if (url.origin !== 'https://catalog.opendesk.example' || url.username || url.password ||
       url.hash || [...url.searchParams.keys()].some(k => k !== 'sku')) return null;
-  const path = /^\/products\/(demo-[a-z0-9-]+)\/?$/.exec(url.pathname);
+  const path = /^\/products\/([A-Za-z0-9_-]+)\/?$/.exec(url.pathname);
   if (!path) return null;
-  const product = findProduct(path[1]);
+  const product = findProduct(path[1], catalog);
   return product && (!url.searchParams.has('sku') || url.searchParams.get('sku') === product.sku) ? product : null;
 }
-export function productFromCustomerText(text: string | undefined): Product | null {
+export function productFromCustomerText(text: string | undefined, catalog: readonly Product[] = products): Product | null {
   if (!text?.trim()) return null;
   const links = text.match(/https?:\/\/[^\s<>"'，。！？；;]+/gi);
   // Do not guess from unrelated links, even if their path or query contains a known SKU.
   if (links?.length) return links.length === 1 ?
-    productFromDemoLink(links[0].replace(/[)）\],。！？]+$/g, '')) : null;
+    productFromDemoLink(links[0].replace(/[)）\],。！？]+$/g, ''), catalog) : null;
   const tokens = new Set((text.match(/[A-Za-z0-9-]+/g) || []).map(x => x.toLowerCase()));
-  const matches = products.filter(p => text.includes(p.name) ||
+  const matches = catalog.filter(p => text.includes(p.name) ||
     tokens.has(p.sku.toLowerCase()) || tokens.has(p.model.toLowerCase()));
   return matches.length === 1 ? matches[0] : null;
 }
-export const visibleProducts = (query: string, category: string): Product[] => {
+export const visibleProducts = (query: string, category: string, catalog: readonly Product[] = products): Product[] => {
   const trimmed = query.trim();
   // A URL is accepted only if it is a canonical, local-demo reference; no network or scraping.
   if (/^https?:\/\//i.test(trimmed)) {
-    const p = productFromDemoLink(trimmed);
+    const p = productFromDemoLink(trimmed, catalog);
     return p && (category === 'all' || p.category === category) ? [p] : [];
   }
-  return products.filter(p => (category === 'all' || p.category === category) &&
+  return catalog.filter(p => (category === 'all' || p.category === category) &&
     normalize([p.name, p.sku, p.model, p.category, p.summary, ...p.specs.map(x => x.value)].join(' ')).includes(normalize(query)));
 };
 
@@ -60,9 +60,9 @@ export const ordersForCustomer = (customerId: unknown, authorized: boolean): Ord
   authorized && isCustomerId(customerId) ? validatedOrders.filter(o => o.customerId === customerId) : [];
 export const orderForCustomer = (customerId: unknown, orderId: string, authorized: boolean): Order | null =>
   ordersForCustomer(customerId, authorized).find(o => o.orderId === orderId) ?? null;
-export const orderMatches = (o: Order, query: string, status: string) =>
+export const orderMatches = (o: Order, query: string, status: string, catalog: readonly Product[] = products) =>
   (status === 'all' || o.status === status) &&
-  normalize([o.orderId, o.status, ...o.items.flatMap(item => [item.sku, findProduct(item.productId)?.name || ''])].join(' ')).includes(normalize(query));
+  normalize([o.orderId, o.status, ...o.items.flatMap(item => [item.sku, findProduct(item.productId, catalog)?.name || ''])].join(' ')).includes(normalize(query));
 export const money = (value: number) => '¥' + Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
 export function productCopyText(p: Product): string {
   return p.name + '（SKU：' + p.sku + '）\n型号：' + p.model + '\n' +
@@ -70,9 +70,9 @@ export function productCopyText(p: Product): string {
     '\n演示参考价：' + p.price + '（非实时价格）\n来源：' + p.source +
     ' · ' + p.updated + '\n库存及配送请人工核实。';
 }
-export function orderSummary(o: Order): string {
+export function orderSummary(o: Order, catalog: readonly Product[] = products): string {
   return '演示订单：' + o.orderId +
-    '\n商品：' + o.items.map(i => (findProduct(i.productId)?.name || '商品资料缺失') +
+    '\n商品：' + o.items.map(i => (findProduct(i.productId, catalog)?.name || '商品资料缺失') +
       '（' + i.sku + '）×' + i.quantity + ' · ' + i.specification).join('；') +
     '\n演示金额：' + money(o.amount) + '\n状态：' + o.status +
     '\n付款：' + o.paymentStatus + '\n物流：' + o.shippingStatus +

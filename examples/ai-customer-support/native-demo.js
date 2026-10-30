@@ -2,6 +2,8 @@
 // This is the native adapter demo; preview/index.html is its only React UI.
 (0,eval)(File.read(File.join(Execution.scriptDir,'desktop/native-adapter.js')));
 (0,eval)(File.read(File.join(Execution.scriptDir,'desktop/query-api-adapter.js')));
+(0,eval)(File.read(File.join(Execution.scriptDir,'desktop/business-files.js')));
+const businessFiles=OpenDeskSupportBusinessFiles.createTransport(File);
 const config=await File.readJSON(System.getEnv('OPENDESK_SUPPORT_LAUNCH'));
 const evidence=config.evidence;
 File.ensureDir(evidence);
@@ -53,6 +55,7 @@ async function freshTarget(){
 }
 async function observe(reason){
   if(closed)return;
+  const authorization=authorizationGeneration;
   if(revoked||paused){
     // Keep checking only the already-bound window's lifecycle, without reading
     // its chat tree or restoring observation/write authority after revocation.
@@ -66,16 +69,20 @@ async function observe(reason){
     return;
   }
   const w=await freshTarget();
+  if(closed||revoked||paused||authorization!==authorizationGeneration)return;
   if(!w){await invalidate('测试聊天不在前台或已最小化',true);return;}
   if(!w.isForeground){await invalidate('测试聊天失去焦点',true);return;}
   const snapshot=await exactSnapshot(w);
+  if(closed||revoked||paused||authorization!==authorizationGeneration)return;
   // Recheck foreground and the same window after the tree traversal.
   const after=await window.getAppWindow(target);
+  if(closed||revoked||paused||authorization!==authorizationGeneration)return;
   if(revoked){await publish(adapter.current);return;}
   if(paused){await invalidate('已暂停观察',false);return;}
   if(!after||!sameWindow(after)){await invalidate('观察期间身份已变化',true);return;}
   const result=adapter.accept(after,snapshot);
   if(result.changed){await File.writeJSON(File.join(evidence,'ax-latest.json'),snapshot);log('extracted',{reason,events:result.events,source:snapshot.requestId});}
+  if(closed||revoked||paused||authorization!==authorizationGeneration)return;
   if(ready&&(result.changed||lastPublished!==result.observation.revision))await publish(result.observation);
   if(!ready)return;
   if(follow){
@@ -101,24 +108,39 @@ async function receipt(request,status,reason,draft){
   const payload={type:'support.receipt',requestId:request.requestId,binding:request.binding,status,reason,...(draft===undefined?{}:{draft})};
   if(!closed)await panel.postMessage(payload);log('draft-receipt',{receipt:payload});
 }
-async function fill(request){
+async function fill(request,authorization=authorizationGeneration){
   let attempted=false,ref=null;
+  const checkAuthority=()=>{
+    if(closed||revoked||paused||authorization!==authorizationGeneration||!adapter.matches(request.binding))
+      throw Error('Draft authority invalidated');
+  };
   try{
+    checkAuthority();
     if(closed||revoked||paused)throw Error('Observation closed, paused or revoked');
     if(requestIds.has(request.requestId))throw Error('Duplicate request; no repeated action');
     const text=adapter.validateFill(request);
     requestIds.add(request.requestId);
     if(requestIds.size>500)throw Error('Request budget exhausted; relaunch explicitly');
     const w=await freshTarget();
-    if(!w||!sameWindow(w))throw Error('Test chat must remain the verified foreground window');
+    checkAuthority();
+    if(!w||!w.isForeground||!sameWindow(w))throw Error('Test chat must remain the verified foreground window');
     const snap=await exactSnapshot(w),actual=OpenDeskSupportNative.parse(snap);
+    checkAuthority();
     const latest=actual.messages.filter(m=>m.who==='customer').at(-1);
     if(actual.customerId!==request.binding.customerId||latest?.id!==request.binding.messageId||actual.draft!==request.expectedDraft||!adapter.matches(request.binding))throw Error('Conversation, latest message, or draft changed before input');
     ref=await Accessibility.find({identifier:'support.draft.'+actual.customerId},{within:w,maxDepth:20,maxNodes:500});
+    checkAuthority();
     if(!ref)throw Error('Unique draft field unavailable');
     const before=await Accessibility.read(ref,{properties:['value','identifier']});
-    const finalConversation=OpenDeskSupportNative.parse(await exactSnapshot(w));
+    checkAuthority();
     const front=await window.getAppWindow(target);
+    checkAuthority();
+    if(!front||!front.isForeground||!sameWindow(front))throw Error('Final foreground precondition changed');
+    const finalConversation=OpenDeskSupportNative.parse(await exactSnapshot(w));
+    checkAuthority();
+    const finalValue=await Accessibility.read(ref,{properties:['value','identifier']});
+    checkAuthority();
+    if(finalValue.properties.identifier!=='support.draft.'+request.binding.customerId||finalValue.properties.value!==request.expectedDraft)throw Error('Manual draft changed before input');
     if(before.properties.identifier!=='support.draft.'+request.binding.customerId||before.properties.value!==request.expectedDraft||finalConversation.customerId!==request.binding.customerId||finalConversation.messages.filter(m=>m.who==='customer').at(-1)?.id!==request.binding.messageId||finalConversation.draft!==request.expectedDraft||!front||!sameWindow(front)||!adapter.matches(request.binding)||closed||revoked||paused)throw Error('Final draft precondition changed');
     if(before.properties.value!==text){
       attempted=true;
@@ -129,12 +151,17 @@ async function fill(request){
     await Accessibility.release(ref);ref=null;
     // A new reference and a fresh complete tree are independent observations,
     // rather than the setter receipt or an echo of request.text.
+    checkAuthority();
     const after=await freshTarget();
+    checkAuthority();
     if(!after)throw Error('Target lost after draft action');
     const readbackSnapshot=await exactSnapshot(after),readback=OpenDeskSupportNative.parse(readbackSnapshot);
+    checkAuthority();
     if(readback.customerId!==request.binding.customerId||readback.messages.filter(m=>m.who==='customer').at(-1)?.id!==request.binding.messageId||readback.draft!==text||!adapter.matches(request.binding)||closed||paused||revoked)throw Error('Draft readback identity/value mismatch');
     await File.writeJSON(File.join(evidence,'draft-readback-'+request.requestId+'.json'),readbackSnapshot);
+    checkAuthority();
     const result=adapter.accept(after,readbackSnapshot);await publish(result.observation);
+    checkAuthority();
     await receipt(request,'verified','原生 Accessibility 新快照回读一致 · 未发送',readback.draft);
   }catch(error){
     const status=attempted?'unknown':'refused';
@@ -150,12 +177,13 @@ async function askAI(request){
     aiInflight.size>=3||aiRequestIds.has(request.requestId)||aiRequestIds.size>=200)return;
   aiInflight.add(request.requestId);aiRequestIds.add(request.requestId);
   const authorization=authorizationGeneration;
+  const authorized=()=>!closed&&!revoked&&!paused&&authorization===authorizationGeneration&&adapter.matches(request.binding);
   let ctx=null;
   try{
     await enqueue(async()=>{
-      if(closed||revoked||paused||!adapter.matches(request.binding))return;
+      if(!authorized())return;
       const w=await freshTarget();
-      if(!w||!w.isForeground)return;
+      if(!authorized()||!w||!w.isForeground)return;
       const observed=OpenDeskSupportNative.parse(await exactSnapshot(w));
       const after=await window.getAppWindow(target);
       if(closed||revoked||paused||authorization!==authorizationGeneration||
@@ -178,7 +206,7 @@ async function askAI(request){
       try{
         const payload=OpenDeskSupportQueryAPI.request(queryConfig,ctx);
         log('ai-request',{requestId:ctx.requestId,binding:ctx.binding,projectId:queryConfig.projectId,answerStrategy:payload.answer_strategy});
-        const response=await http.post(queryConfig.url,payload,{timeout:12000,
+        const response=await http.post(queryConfig.url,payload,{timeout:30000,
           responseType:'json',headers:{'Content-Type':'application/json'}});
         const dto=response.data?.data;
         const count=dto?.model_call_counts?.total_provider_requests;
@@ -196,9 +224,9 @@ async function askAI(request){
     // No model output is applied to the UI before an independent fresh AX read
     // confirms that the same project/session/message is still in focus.
     await enqueue(async()=>{
-      if(closed||revoked||paused||authorization!==authorizationGeneration||!adapter.matches(ctx.binding))return;
+      if(!authorized())return;
       const w=await freshTarget();
-      if(!w||!w.isForeground)return;
+      if(!authorized()||!w||!w.isForeground)return;
       const observed=OpenDeskSupportNative.parse(await exactSnapshot(w));
       const latest=observed.messages.filter(m=>m.who==='customer').at(-1);
       const after=await window.getAppWindow(target);
@@ -224,7 +252,15 @@ const off=panel.on('message',event=>{
   let message=event.value;
   if(typeof message==='string'){try{message=JSON.parse(message);}catch{return;}}
   if(!message||typeof message.type!=='string')return;
-  if(message.type==='support.settings'){
+  if(message.type==='support.businessFile'){
+    if(!closed)void Promise.resolve(businessFiles.handle(message)).then(result=>panel.postMessage(result)).catch(()=>log('business-file-failure',{code:'FILE_UNAVAILABLE'}));
+    return;
+  }
+  if(message.type==='support.aiCancel'){
+    // Synchronous invalidation; a pending HTTP/AX operation may finish, but it
+    // cannot authorize another protected read or publish a result.
+    authorizationGeneration++;
+  }else if(message.type==='support.settings'){
     // Invalidate immediately on the owner loop, including while an AX promise
     // is pending. Only resuming the same still-authorized instance is allowed.
     if(message.permission===false){authorizationGeneration++;revoked=true;adapter.revoke();}
@@ -239,7 +275,10 @@ const off=panel.on('message',event=>{
   }else if(message.type==='support.rendered'){
     latestRender=message;log('react-rendered',{render:message});
     File.writeJSON(File.join(evidence,'react-rendered.json'),message);
-  }else if(message.type==='support.fillDraft')enqueue(()=>fill(message));
+  }else if(message.type==='support.fillDraft'){
+    const authorization=authorizationGeneration;
+    enqueue(()=>fill(message,authorization));
+  }
   else if(message.type==='support.aiQuery')void askAI(message).catch(()=>log('ai-failure',{code:'AI_HOST_FAILURE'}));
   else log('rejected-message',{messageType:message.type});
 });

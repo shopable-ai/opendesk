@@ -25,11 +25,12 @@ function harness() {
   const target = {pid: 42, exePath: '/mock/support-chat'};
   const win = {...target, handle: 80, isForeground: true};
   let live = win, tree = snapshot(), snapshots = 0;
-  const h = {calls, results, win, readHook: null, windowHook: null, httpHook: null};
-  const ctx = vm.createContext({target, log() {},
+  const h = {calls, results, win, readHook: null, windowHook: null, freshHook: null, httpHook: null,
+    findHook:null,valueHook:null,writeHook:null,actionHook:null,valueReads:0,actions:[],observations:[]};
+  const ctx = vm.createContext({target,evidence:'/mock/evidence', log() {},
     panel: {on: (name, handler) => {events.set(name, handler); return () => {};},
       postMessage: async result => results.push(result)},
-    freshTarget: async () => live,
+    freshTarget: async () => h.freshHook ? h.freshHook() : live,
     sameWindow: w => w.pid === win.pid && w.exePath === win.exePath && w.handle === win.handle,
     window: {getAppWindow: async () => h.windowHook ? h.windowHook() : live},
     exactSnapshot: async () => {
@@ -50,7 +51,14 @@ function harness() {
         model_call_counts: {total_provider_requests: 1}, model_provider: 'openai-compatible',
       }}};
     }},
-    publish: async () => {}, observe: async () => {},
+    Accessibility:{
+      find:async()=>{if(h.findHook)await h.findHook();return {id:'draft'};},
+      read:async()=>{h.valueReads++;if(h.valueHook)await h.valueHook();return {properties:{identifier:'support.draft.t1',value:tree.root.children.find(n=>n.identifier==='support.draft.t1').value}};},
+      perform:async(ref,action)=>{h.actions.push(action);return h.actionHook?h.actionHook(action):{actionState:'unknown'};},
+      release:async()=>{},
+    },
+    File:{join:(...parts)=>parts.join('/'),writeJSON:async()=>{if(h.writeHook)await h.writeHook();}},
+    publish: async value => h.observations.push(value), observe: async () => {},
   });
   vm.runInContext(read('desktop/native-adapter.js'), ctx);
   vm.runInContext(read('desktop/query-api-adapter.js'), ctx);
@@ -59,11 +67,19 @@ function harness() {
   ctx.queryConfig = ctx.OpenDeskSupportQueryAPI.config({port: 12345, projectId: 'support', modelProvider: 'http'});
   ctx.invalidate = async reason => ctx.adapter.invalidate(reason);
   vm.runInContext(host.slice(host.indexOf('let bound='), host.indexOf('\nconst log=')), ctx);
+  vm.runInContext(host.slice(host.indexOf('async function observe('),host.indexOf('async function receipt(')),ctx);
+  ctx.realObserve=ctx.observe;ctx.observe=async()=>{};
+  vm.runInContext(host.slice(host.indexOf('async function receipt('), host.indexOf('// AI requests read')),ctx);
   vm.runInContext(host.slice(host.indexOf('async function askAI('), host.indexOf('\nconst subscription=')), ctx);
   h.ctx = ctx;
   h.request = {type: 'support.aiQuery', requestId: 'query-1', binding: {...ctx.adapter.current.binding}};
   h.ask = (request = h.request) => ctx.askAI(request);
   h.settings = value => events.get('message')({value: {type: 'support.settings', ...value}});
+  h.cancel = () => events.get('message')({value:{type:'support.aiCancel'}});
+  h.fill = () => events.get('message')({value:{type:'support.fillDraft',requestId:'fill-1',binding:h.request.binding,text:'人工审核稿',expectedDraft:''}});
+  h.observe = () => ctx.realObserve('test');
+  h.draft = text => {tree.root.children.find(n=>n.identifier==='support.draft.t1').value=text;};
+  h.snapshotCount = () => snapshots;
   h.close = () => events.get('close')();
   h.set = code => vm.runInContext(code, ctx);
   h.live = value => {live = value;};
@@ -75,7 +91,53 @@ function harness() {
   h.idle = () => vm.runInContext('queue', ctx);
   return h;
 }
+
+for(const stage of ['queued','fresh','find','read'])test(`fill ${stage}: cancellation starts no further protected operation`,async()=>{
+ const h=harness(),entered=deferred(),release=deferred();
+ if(stage==='queued'){h.ctx.blocked=release.promise;h.set('queue=blocked');}
+ if(stage==='fresh')h.freshHook=async()=>{entered.resolve();await release.promise;return h.win;};
+ if(stage==='find')h.findHook=async()=>{entered.resolve();await release.promise;};
+ if(stage==='read')h.valueHook=async()=>{entered.resolve();await release.promise;};
+ h.fill();if(stage!=='queued')await entered.promise;
+ const count=h.snapshotCount();h.cancel();release.resolve();await h.idle();
+ assert.equal(h.snapshotCount(),count);assert.equal(h.actions.length,0);
+});
+
+test('manual chat draft entered during the last window lookup is preserved',async()=>{
+ const h=harness();h.windowHook=async()=>{h.draft('人工刚输入的草稿');return h.win;};
+ h.fill();await h.idle();assert.equal(h.actions.length,0);
+});
+for(const front of [null,{isForeground:false},{handle:81}])test(`fill rejects invalid final foreground before another protected read: ${JSON.stringify(front)}`,async()=>{
+ const h=harness();h.windowHook=async()=>front&&({...h.win,...front});
+ h.fill();await h.idle();
+ assert.equal(h.snapshotCount(),1);assert.equal(h.valueReads,1);assert.equal(h.actions.length,0);
+});
+test('fill refuses an initially background window without reading its tree',async()=>{
+ const h=harness();h.live({...h.win,isForeground:false});h.fill();await h.idle();
+ assert.equal(h.snapshotCount(),0);assert.equal(h.valueReads,0);assert.equal(h.actions.length,0);
+});
+for(const reason of ['manual edit','paused'])test(`fill write pending: ${reason} cannot publish observing or verified`,async()=>{
+ const h=harness(),entered=deferred(),release=deferred();
+ h.actionHook=async action=>{h.draft(action.value);return {actionState:'acknowledged'};};
+ h.writeHook=async()=>{entered.resolve();await release.promise;};
+ h.fill();await entered.promise;
+ if(reason==='manual edit')h.cancel();else h.settings({paused:true});
+ release.resolve();await h.idle();
+ assert.equal(h.observations.filter(x=>x.observing).length,0);
+ assert.equal(h.results.filter(x=>x.status==='verified').length,0);
+ assert.equal(h.actions.length,1,'the completed action must never be replayed');
+});
+for(const stage of ['window','write'])test(`observe ${stage}: invalidation prevents publishing old observing authority`,async()=>{
+ const h=harness(),entered=deferred(),release=deferred();
+ h.set('follow=false;ready=true;visible=true');h.change('t1',2,false);
+ const hook=async()=>{entered.resolve();await release.promise;return h.win;};
+ if(stage==='window')h.windowHook=hook;else h.writeHook=hook;
+ const work=h.observe();await entered.promise;
+ h.set('authorizationGeneration++');h.ctx.adapter.revoke();release.resolve();await work;
+ assert.equal(h.observations.filter(x=>x.observing).length,0);
+});
 const changes = {
+  'manual edit': h => h.cancel(),
   closed: h => h.close(),
   revoked: h => h.settings({permission: false}),
   paused: h => h.settings({paused: true}),
@@ -191,3 +253,28 @@ test('HTTP disconnect produces a current bound error without retry', async () =>
   assert.equal(h.results[0].errorCode, 'QUERY_UNAVAILABLE');
   assert.equal(h.set('aiInflight.size'), 0);
 });
+
+test('manual cancel after HTTP starts no further protected AX read and cannot revive', async () => {
+ const h=harness(),entered=deferred(),release=deferred();
+ h.httpHook=async()=>{entered.resolve();await release.promise;};
+ const work=h.ask();await entered.promise;const count=h.snapshotCount();
+ h.cancel();release.resolve();await work;
+ assert.equal(h.snapshotCount(),count);assert.equal(h.results.length,0);
+ await h.ask();assert.equal(h.calls.length,1);
+});
+
+test('manual cancel before queued AI work prevents the first protected read', async () => {
+ const h=harness(),release=deferred();
+ h.ctx.blocked=release.promise;h.set('queue=blocked');
+ const work=h.ask();h.cancel();release.resolve();await work;
+ assert.equal(h.snapshotCount(),0);assert.equal(h.calls.length,0);
+});
+for(const phase of [1,2])for(const reason of ['manual edit','revoked','paused','pause-resume before queued invalidation']){
+ test(`fresh target lookup ${phase}: ${reason} prevents the next protected read`,async()=>{
+  const h=harness(),entered=deferred(),release=deferred();let lookups=0;
+  h.freshHook=async()=>{if(++lookups===phase){entered.resolve();await release.promise;}return h.currentWindow();};
+  const work=h.ask();await entered.promise;const count=h.snapshotCount();
+  changes[reason](h);release.resolve();await work;
+  assert.equal(h.snapshotCount(),count);assert.equal(h.calls.length,phase-1);assert.equal(h.results.length,0);
+ });
+}

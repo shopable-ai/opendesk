@@ -1,0 +1,1599 @@
+{
+  "status": "agent_synthetic_source_review_complete",
+  "humanReview": "pending",
+  "businessApproval": "pending",
+  "independentOfModelOutput": true,
+  "sourceSha256": "d80121424a2975963a9dac3d246a2f8fe8c469a342f14f05d716072516c98214",
+  "reviewedBeforeInference": true,
+  "labels": "cases.json and original-dev-labels.json",
+  "limits": "Same agent authors source-based labels; no independent human or merchant approval. Synthetic transfer test, not natural-distribution generalization.",
+  "records": [
+    {
+      "id": "D01",
+      "outcome": "answer",
+      "gold": [
+        "K0F0",
+        "K0F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D02",
+      "outcome": "answer",
+      "gold": [
+        "K1F0",
+        "K1F1",
+        "K1F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D03",
+      "outcome": "answer",
+      "gold": [
+        "K2F0",
+        "K2F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D04",
+      "outcome": "answer",
+      "gold": [
+        "K3F0",
+        "K3F1",
+        "K3F2",
+        "K3F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D05",
+      "outcome": "answer",
+      "gold": [
+        "K4F0",
+        "K4F1",
+        "K4F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D06",
+      "outcome": "answer",
+      "gold": [
+        "K5F0",
+        "K5F1",
+        "K5F2",
+        "K5F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D07",
+      "outcome": "answer",
+      "gold": [
+        "K0F0",
+        "K0F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D08",
+      "outcome": "answer",
+      "gold": [
+        "K1F0",
+        "K1F1",
+        "K1F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D09",
+      "outcome": "answer",
+      "gold": [
+        "K2F0",
+        "K2F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D10",
+      "outcome": "answer",
+      "gold": [
+        "K3F0",
+        "K3F1",
+        "K3F2",
+        "K3F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D11",
+      "outcome": "answer",
+      "gold": [
+        "K4F0",
+        "K4F1",
+        "K4F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D12",
+      "outcome": "answer",
+      "gold": [
+        "K5F0",
+        "K5F1",
+        "K5F2",
+        "K5F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D13",
+      "outcome": "answer",
+      "gold": [
+        "K0F0",
+        "K0F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D14",
+      "outcome": "answer",
+      "gold": [
+        "K1F0",
+        "K1F1",
+        "K1F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D15",
+      "outcome": "answer",
+      "gold": [
+        "K2F0",
+        "K2F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D16",
+      "outcome": "answer",
+      "gold": [
+        "K3F0",
+        "K3F1",
+        "K3F2",
+        "K3F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D17",
+      "outcome": "answer",
+      "gold": [
+        "K4F0",
+        "K4F1",
+        "K4F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D18",
+      "outcome": "answer",
+      "gold": [
+        "K5F0",
+        "K5F1",
+        "K5F2",
+        "K5F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D19",
+      "outcome": "answer",
+      "gold": [
+        "K0F0",
+        "K0F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D20",
+      "outcome": "answer",
+      "gold": [
+        "K1F0",
+        "K1F1",
+        "K1F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D21",
+      "outcome": "answer",
+      "gold": [
+        "K2F0",
+        "K2F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D22",
+      "outcome": "answer",
+      "gold": [
+        "K3F0",
+        "K3F1",
+        "K3F2",
+        "K3F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D23",
+      "outcome": "answer",
+      "gold": [
+        "K4F0",
+        "K4F1",
+        "K4F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D24",
+      "outcome": "answer",
+      "gold": [
+        "K5F0",
+        "K5F1",
+        "K5F2",
+        "K5F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D25",
+      "outcome": "answer",
+      "gold": [
+        "K0F0",
+        "K0F1",
+        "K1F0",
+        "K1F1",
+        "K1F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D26",
+      "outcome": "answer",
+      "gold": [
+        "K1F0",
+        "K1F1",
+        "K1F2",
+        "K2F0",
+        "K2F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D27",
+      "outcome": "answer",
+      "gold": [
+        "K2F0",
+        "K2F1",
+        "K3F0",
+        "K3F1",
+        "K3F2",
+        "K3F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D28",
+      "outcome": "answer",
+      "gold": [
+        "K3F0",
+        "K3F1",
+        "K3F2",
+        "K3F3",
+        "K4F0",
+        "K4F1",
+        "K4F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D29",
+      "outcome": "answer",
+      "gold": [
+        "K4F0",
+        "K4F1",
+        "K4F2",
+        "K5F0",
+        "K5F1",
+        "K5F2",
+        "K5F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D30",
+      "outcome": "answer",
+      "gold": [
+        "K5F0",
+        "K5F1",
+        "K5F2",
+        "K5F3",
+        "K0F0",
+        "K0F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D31",
+      "outcome": "answer",
+      "gold": [
+        "K0F0",
+        "K0F1",
+        "K1F0",
+        "K1F1",
+        "K1F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D32",
+      "outcome": "answer",
+      "gold": [
+        "K1F0",
+        "K1F1",
+        "K1F2",
+        "K2F0",
+        "K2F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D33",
+      "outcome": "answer",
+      "gold": [
+        "K2F0",
+        "K2F1",
+        "K3F0",
+        "K3F1",
+        "K3F2",
+        "K3F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D34",
+      "outcome": "answer",
+      "gold": [
+        "K3F0",
+        "K3F1",
+        "K3F2",
+        "K3F3",
+        "K4F0",
+        "K4F1",
+        "K4F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D35",
+      "outcome": "answer",
+      "gold": [
+        "K4F0",
+        "K4F1",
+        "K4F2",
+        "K5F0",
+        "K5F1",
+        "K5F2",
+        "K5F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D36",
+      "outcome": "answer",
+      "gold": [
+        "K5F0",
+        "K5F1",
+        "K5F2",
+        "K5F3",
+        "K0F0",
+        "K0F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D37",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；unknown",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D38",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；unknown",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D39",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；unknown",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D40",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；unknown",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D41",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；unknown",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D42",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；unknown",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D43",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；unknown",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D44",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；unknown",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D45",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；conflict",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D46",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；conflict",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D47",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；conflict",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D48",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；conflict",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D49",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；expired",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D50",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；expired",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D51",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；expired",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D52",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；expired",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D53",
+      "outcome": "refuse",
+      "gold": [],
+      "rationale": "无有效且适用来源；wrong_scope",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D54",
+      "outcome": "refuse",
+      "gold": [],
+      "rationale": "无有效且适用来源；wrong_scope",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D55",
+      "outcome": "refuse",
+      "gold": [],
+      "rationale": "无有效且适用来源；wrong_scope",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D56",
+      "outcome": "refuse",
+      "gold": [],
+      "rationale": "无有效且适用来源；wrong_scope",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D57",
+      "outcome": "refuse",
+      "gold": [],
+      "rationale": "无有效且适用来源；injection",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D58",
+      "outcome": "refuse",
+      "gold": [],
+      "rationale": "无有效且适用来源；injection",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D59",
+      "outcome": "refuse",
+      "gold": [],
+      "rationale": "无有效且适用来源；injection",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "D60",
+      "outcome": "refuse",
+      "gold": [],
+      "rationale": "无有效且适用来源；injection",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H01",
+      "outcome": "answer",
+      "gold": [
+        "K0F0",
+        "K0F1",
+        "K2F0",
+        "K2F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H02",
+      "outcome": "answer",
+      "gold": [
+        "K1F0",
+        "K1F1",
+        "K1F2",
+        "K3F0",
+        "K3F1",
+        "K3F2",
+        "K3F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H03",
+      "outcome": "answer",
+      "gold": [
+        "K2F0",
+        "K2F1",
+        "K4F0",
+        "K4F1",
+        "K4F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H04",
+      "outcome": "answer",
+      "gold": [
+        "K3F0",
+        "K3F1",
+        "K3F2",
+        "K3F3",
+        "K5F0",
+        "K5F1",
+        "K5F2",
+        "K5F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H05",
+      "outcome": "answer",
+      "gold": [
+        "K0F0",
+        "K0F1",
+        "K3F0",
+        "K3F1",
+        "K3F2",
+        "K3F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H06",
+      "outcome": "answer",
+      "gold": [
+        "K1F0",
+        "K1F1",
+        "K1F2",
+        "K4F0",
+        "K4F1",
+        "K4F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H07",
+      "outcome": "answer",
+      "gold": [
+        "K2F0",
+        "K2F1",
+        "K5F0",
+        "K5F1",
+        "K5F2",
+        "K5F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H08",
+      "outcome": "answer",
+      "gold": [
+        "K0F0",
+        "K0F1",
+        "K4F0",
+        "K4F1",
+        "K4F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H09",
+      "outcome": "answer",
+      "gold": [
+        "K0F0",
+        "K0F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H10",
+      "outcome": "answer",
+      "gold": [
+        "K1F0",
+        "K1F1",
+        "K1F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H11",
+      "outcome": "answer",
+      "gold": [
+        "K2F0",
+        "K2F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H12",
+      "outcome": "answer",
+      "gold": [
+        "K3F0",
+        "K3F1",
+        "K3F2",
+        "K3F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H13",
+      "outcome": "answer",
+      "gold": [
+        "K4F0",
+        "K4F1",
+        "K4F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H14",
+      "outcome": "answer",
+      "gold": [
+        "K5F0",
+        "K5F1",
+        "K5F2",
+        "K5F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H15",
+      "outcome": "answer",
+      "gold": [
+        "K0F0",
+        "K0F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H16",
+      "outcome": "answer",
+      "gold": [
+        "K1F0",
+        "K1F1",
+        "K1F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H17",
+      "outcome": "answer",
+      "gold": [
+        "K2F0",
+        "K2F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H18",
+      "outcome": "answer",
+      "gold": [
+        "K3F0",
+        "K3F1",
+        "K3F2",
+        "K3F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H19",
+      "outcome": "answer",
+      "gold": [
+        "K4F0",
+        "K4F1",
+        "K4F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H20",
+      "outcome": "answer",
+      "gold": [
+        "K5F0",
+        "K5F1",
+        "K5F2",
+        "K5F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H21",
+      "outcome": "answer",
+      "gold": [
+        "K0F0",
+        "K0F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H22",
+      "outcome": "answer",
+      "gold": [
+        "K1F0",
+        "K1F1",
+        "K1F2"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H23",
+      "outcome": "answer",
+      "gold": [
+        "K2F0",
+        "K2F1"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H24",
+      "outcome": "answer",
+      "gold": [
+        "K3F0",
+        "K3F1",
+        "K3F2",
+        "K3F3"
+      ],
+      "rationale": "仅回答给定政策流程及限制，不判定具体订单操作成功。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H25",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；unknown",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H26",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；unknown",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H27",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；unknown",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H28",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；unknown",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H29",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；conflict",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H30",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；conflict",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H31",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；expired",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H32",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "无有效且适用来源；expired",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H33",
+      "outcome": "refuse",
+      "gold": [],
+      "rationale": "无有效且适用来源；wrong_scope",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H34",
+      "outcome": "refuse",
+      "gold": [],
+      "rationale": "无有效且适用来源；wrong_scope",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H35",
+      "outcome": "refuse",
+      "gold": [],
+      "rationale": "无有效且适用来源；wrong_scope",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H36",
+      "outcome": "refuse",
+      "gold": [],
+      "rationale": "无有效且适用来源；wrong_scope",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H37",
+      "outcome": "refuse",
+      "gold": [],
+      "rationale": "无有效且适用来源；injection",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H38",
+      "outcome": "refuse",
+      "gold": [],
+      "rationale": "无有效且适用来源；injection",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H39",
+      "outcome": "refuse",
+      "gold": [],
+      "rationale": "无有效且适用来源；injection",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "H40",
+      "outcome": "refuse",
+      "gold": [],
+      "rationale": "无有效且适用来源；injection",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-01-01",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-01-02",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-01-03",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-01-04",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-01-05",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-01-06",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-01-07",
+      "outcome": "answer",
+      "gold": [
+        "K0F0",
+        "K0F1"
+      ],
+      "rationale": "收货地址修改流程可按有条件的政策回答。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-01-08",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-01-09",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-01-10",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-02-01",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-02-02",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-02-03",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-02-04",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-02-05",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-02-06",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-02-07",
+      "outcome": "answer",
+      "gold": [
+        "K0F0",
+        "K0F1"
+      ],
+      "rationale": "收货地址修改流程可按有条件的政策回答。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-02-08",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-02-09",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-02-10",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-03-01",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-03-02",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-03-03",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-03-04",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-03-05",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-03-06",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-03-07",
+      "outcome": "answer",
+      "gold": [
+        "K0F0",
+        "K0F1"
+      ],
+      "rationale": "收货地址修改流程可按有条件的政策回答。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-03-08",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-03-09",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-03-10",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-04-01",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-04-02",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-04-03",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-04-04",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-04-05",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-04-06",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-04-07",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-04-08",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-04-09",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-04-10",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-05-01",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-05-02",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-05-03",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-05-04",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-05-05",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-05-06",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-05-07",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-05-08",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-05-09",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-05-10",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-06-01",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-06-02",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-06-03",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-06-04",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-06-05",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-06-06",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-06-07",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-06-08",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-06-09",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    },
+    {
+      "id": "R3-06-10",
+      "outcome": "clarify",
+      "gold": [],
+      "rationale": "当前原文未提供所问的入口、具体商品/实时状态、政策或完整多意图信息；相关主题不能替代所问事实。",
+      "humanReviewer": null,
+      "humanDecision": "pending"
+    }
+  ]
+}

@@ -61,6 +61,17 @@
         sourceType:'knowledge_base',sourceRef:h.knowledge_id,answerHash:h.answer_hash});
       if(result.evidencePack.items.length===8)break;
     }
+    // Current service exposes a single matched source, not a per-hit text API.
+    // Attach it only to that exact ID/hash; never distribute aggregate text to hits.
+    if(result.evidencePack.items.length===1){
+      const item=result.evidencePack.items[0],original=text(v.knowledge_answer,12000);
+      if(original&&v.matched_id===item.sourceRef&&v.source_answer_hash===item.answerHash){
+        const sources=object(v.retrieval_index_manifest)?v.retrieval_index_manifest.primary_sources:null;
+        item.source={text:original,title:text(v.canonical_question,500),
+          document:v.matched_layer==='canonical_knowledge'&&object(sources)?text(sources.faq,300):'',
+          association:'service_declared'};
+      }
+    }
     result.retrievalStatus=coverage==='conflict'?'conflict':coverage==='partial'?'partial':
       coverage==='full'&&result.evidencePack.items.length?'supported':'unverified';
     if(coverage==='conflict'||v.delivery_status==='blocked'){

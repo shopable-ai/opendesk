@@ -1,0 +1,8 @@
+{
+  "createdAt": "2026-10-29T18:45:46.250785+00:00",
+  "codeSha256": "471749d6421d353ac19257d698a666f0a128df14d2cbf45efa96a53f9875d38e",
+  "baseSealSha256": "437d534a575d027a88aec7023bed5ceea0f73c889a8fb4d3a606ccced006e039",
+  "tuningSplit": "development only",
+  "devEvidenceSha256": "29d3582ba72d43e771b3f9c8c1bff3b0c0ad127102d2fb852bf7c3fbd34e8f73",
+  "holdoutResponsesPresent": false
+}

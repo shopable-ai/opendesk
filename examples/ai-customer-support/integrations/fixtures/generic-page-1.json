@@ -1,0 +1,12 @@
+{
+  "request_cursor": null,
+  "next_cursor": "generic-page-1",
+  "rows": [
+    { "type": "product", "external_id": " bag / 001 ", "revision": 1, "modified_at": "2026-10-30T00:00:00.000Z", "deleted": false,
+      "fields": { "sku": " SAMPLE-001 ", "title": " Fictional canvas bag ", "category": "箱包", "price_fen": 15990, "model": "SAMPLE-BAG", "description": "Sanitized fictional example", "image_ids": ["image / 1"] } },
+    { "type": "customer", "external_id": 42, "revision": 1, "modified_at": "2026-10-30T00:00:00.000Z", "deleted": false,
+      "fields": { "display_name": " Fictional customer ", "email": "redacted@example.invalid", "internal_note": "This field must not be exported" } },
+    { "type": "image", "external_id": "image / 1", "revision": 1, "modified_at": "2026-10-30T00:00:00.000Z", "deleted": false,
+      "fields": { "product_id": "bag / 001", "label": " Fictional illustration " } }
+  ]
+}

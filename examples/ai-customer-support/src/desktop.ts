@@ -15,7 +15,7 @@ export interface Receipt {
 export type NativeMessage=Observation|Receipt|AiResult;
 export type SettingsRequest={type:'support.settings';permission?:false;paused?:boolean;follow?:boolean};
 export type FillRequest={type:'support.fillDraft';requestId:string;binding:Binding;text:string;expectedDraft:string};
-export type OutgoingMessage={type:'support.ready'}|SettingsRequest|FillRequest|AiQueryRequest|{
+export type OutgoingMessage={type:'support.aiCancel'}|{type:'support.ready'}|{type:'support.clientReady';protocol:1}|SettingsRequest|FillRequest|AiQueryRequest|{
   type:'support.rendered';revision:number;binding:Binding;tab:string;latestText:string;replyText:string;draft:string;receipt:string;
 };
 export interface DesktopBridge {
@@ -67,7 +67,15 @@ export function parseNativeMessage(input:unknown):NativeMessage|null {
       if(!record(raw)||!text(raw.id)||raw.id.length>40||raw.sourceType!=='knowledge_base'||
         !text(raw.sourceRef)||raw.sourceRef.length>160||!text(raw.answerHash)||
         !/^[a-f0-9]{32,128}$/i.test(raw.answerHash))return null;
-      items.push({id:raw.id,sourceType:'knowledge_base',sourceRef:raw.sourceRef,answerHash:raw.answerHash});
+      let source:EvidenceItem['source'];
+      if(raw.source!==undefined){
+        const x=raw.source;
+        if(!record(x)||!text(x.text)||!x.text||x.text.length>12000||
+          !text(x.title)||x.title.length>500||!text(x.document)||x.document.length>300||
+          x.association!=='service_declared')return null;
+        source={text:x.text,title:x.title,document:x.document,association:'service_declared'};
+      }
+      items.push({id:raw.id,sourceType:'knowledge_base',sourceRef:raw.sourceRef,answerHash:raw.answerHash,...(source?{source}:{})});
     }
     if(new Set(items.map(e=>e.id)).size!==items.length)return null;
     const candidates:ReplyCandidate[]=[];
@@ -116,6 +124,15 @@ export function connectNative(bridge:DesktopBridge,onMessage:(message:NativeMess
   try{
     unsubscribe=bridge.onMessage(raw=>{
       if(stopped)return;
+      let hello:unknown=raw;
+      try{if(text(hello))hello=JSON.parse(hello);}catch{return;}
+      // A standalone App can acknowledge the bridge without fabricating a chat
+      // binding or granting observation/write authority to the business reducer.
+      if(record(hello)&&hello.type==='support.hostReady'&&hello.protocol===1&&hello.mode==='disconnected'&&Object.keys(hello).length===3){
+        seenObservation=true;cancelTimer();
+        if(!postNative(bridge,{type:'support.clientReady',protocol:1}))onFailure();
+        return;
+      }
       const message=parseNativeMessage(raw);if(!message)return;
       if(message.type==='support.observation'){seenObservation=true;cancelTimer();}
       onMessage(message);

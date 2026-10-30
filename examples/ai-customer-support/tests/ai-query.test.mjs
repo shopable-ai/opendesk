@@ -191,3 +191,68 @@ test('no-source or unknown-coverage promises never become a selectable draft',()
     assert.equal(r.status,'blocked');assert.equal(r.candidates.length,0);
   }
 });
+
+
+test('R30C requery preserves the selected human draft and keeps new versions opt-in',()=>{
+  let s=deliver(state.createInitialState(true),observation());
+  const start=(s,id)=>state.reducer(s,{type:'NATIVE_AI_QUERY',request:{type:'support.aiQuery',requestId:id,binding}});
+  s=deliver(start(s,'ai-1'),json(query.convert(config,ctx,body())));
+  const key=state.activeReplyKey(s),oldId=state.activeReply(s).id;
+  s=state.reducer(s,{type:'REPLY_TEXT',key,text:'最后人工稿'});
+  s=start(s,'ai-2');
+  assert.equal(state.activeReplyText(s),'最后人工稿','NATIVE_AI_QUERY must not erase edits');
+  assert.equal(state.activeReplyKey(s),key,'native editor key remains stable');
+  const nextResult=json(query.convert(config,ctx,body({review_answer:'第二版建议'})));
+  nextResult.requestId='ai-2';
+  s=deliver(s,nextResult);
+  assert.equal(state.activeReplyText(s),'最后人工稿');
+  assert.equal(state.nativeReplyResult(s).requestId,'ai-1');
+  const option=state.activeOptions(s).find(x=>x.text==='第二版建议');
+  assert.ok(option);assert.notEqual(option.id,oldId);
+  s=state.reducer(s,{type:'REPLY_CHOICE',key:state.latestKey(s),id:option.id});
+  assert.equal(state.activeReplyText(s),'第二版建议');
+  assert.equal(state.nativeReplyResult(s).requestId,'ai-2');
+  s=state.reducer(s,{type:'REPLY_CHOICE',key:state.latestKey(s),id:oldId});
+  assert.equal(state.activeReplyText(s),'最后人工稿');
+});
+
+test('R30C waiting, failure, cancellation and editing preserve earlier human text',()=>{
+  for(const end of ['error','blocked','pause','revoke','bridge','edit']){
+    let s=deliver(state.createInitialState(true),observation());
+    const key=state.activeReplyKey(s);
+    s=state.reducer(s,{type:'REPLY_TEXT',key,text:'查询前人工稿'});
+    s=state.reducer(s,{type:'NATIVE_AI_QUERY',request:{type:'support.aiQuery',requestId:'ai-1',binding}});
+    assert.equal(state.activeReplyText(s),'查询前人工稿');
+    if(end==='error'||end==='blocked'){
+      const result=json(query.convert(config,ctx,body()));
+      s=deliver(s,{...result,status:end,candidates:[],errorCode:'QUERY_UNAVAILABLE'});
+    }else if(end==='bridge')s=state.reducer(s,{type:'NATIVE_FAILURE'});
+    else if(end==='edit'){
+      s=state.reducer(s,{type:'REPLY_EDIT',key});
+      s=state.reducer(s,{type:'REPLY_TEXT',key,text:'等待中人工稿'});
+      const before=s;s=deliver(s,json(query.convert(config,ctx,body())));assert.equal(s,before);
+    }else s=state.reducer(s,{type:'SETTING',key:end==='pause'?'paused':'permission',value:end==='pause'});
+    assert.equal(state.activeReplyText(s),end==='edit'?'等待中人工稿':'查询前人工稿',end);
+    const switched=deliver(s,observation(2,{...binding,generation:2,customerId:'t2',messageId:'outside-2'}));
+    assert.ok(!state.activeOptions(switched).some(x=>x.text.includes('人工稿')));
+    assert.notEqual(state.activeReplyText(switched),state.activeReplyText(s));
+  }
+});
+
+test('pause and resume generations retain the human draft but revoke old request authority',()=>{
+ let s=deliver(state.createInitialState(true),observation());
+ s=state.reducer(s,{type:'NATIVE_AI_QUERY',request:{type:'support.aiQuery',requestId:'ai-1',binding}});
+ const result=json(query.convert(config,ctx,body()));s=deliver(s,result);
+ const key=state.activeReplyKey(s);
+ s=state.reducer(s,{type:'REPLY_TEXT',key,text:'暂停前的人工稿'});
+ s=state.reducer(s,{type:'NATIVE_AI_QUERY',request:{type:'support.aiQuery',requestId:'ai-2',binding}});
+ s=state.reducer(s,{type:'SETTING',key:'paused',value:true});
+ s=deliver(s,{...observation(2,{...binding,generation:2}),observing:false,reason:'已暂停观察'});
+ assert.equal(state.activeReplyText(s),'暂停前的人工稿');
+ s=deliver(s,observation(3,{...binding,generation:3}));
+ assert.equal(state.activeReplyText(s),'暂停前的人工稿');assert.equal(state.activeReplyKey(s),key);
+ assert.equal(s.ai,null);assert.equal(s.nativeReplyVersions.length,1);
+ assert.equal(deliver(s,{...result,requestId:'ai-2'}),s);
+ const changed=deliver(s,{...observation(4,{...binding,generation:4}),conversation:{...observation().conversation,messages:[{id:binding.messageId,who:'customer',text:'同 ID 不同正文'}]}});
+ assert.equal(changed.nativeReplyVersions.length,0);assert.notEqual(state.activeReplyText(changed),'暂停前的人工稿');
+});

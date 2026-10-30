@@ -1,0 +1,10 @@
+{
+  "frozenBeforeInference": true,
+  "files": {
+    "cases.json": "6a924f4c0fc636a9ac1c2cb93f342db5aac6f6c7629ab558a0b2eb41454de505",
+    "knowledge.json": "7d95be16c649024a44b4f89e6d507c1ec76b2f7da391a53f06893e7ab0291881",
+    "label-review.json": "28eb451a8cffedc3c472ba12b7f61bf314e62faa576070c4beff10467d52aeff",
+    "policy.json": "08c3b206466546216529834d3b6cd035dbcc1a93a2182e08eb20f40bbd3af66a"
+  },
+  "evaluatorSha256": "bb3a5b6ec3fff103fea40c4822cf9412b9da9fecc4313eea66404afb3a7c79a5"
+}

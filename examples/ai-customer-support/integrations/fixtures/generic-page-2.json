@@ -1,0 +1,8 @@
+{
+  "request_cursor": "generic-page-1",
+  "next_cursor": "generic-page-2",
+  "rows": [
+    { "type": "order", "external_id": "order / 1", "revision": 1, "modified_at": "2026-10-30T00:00:00.000Z", "deleted": false,
+      "fields": { "customer_id": "42", "lines": [{ "product_id": "bag / 001", "sku": "SAMPLE-001", "quantity": 1, "specification": "Canvas" }], "status": "paid", "total_fen": 15990, "payment": "Paid (fictional)", "shipping": "Pending (fictional)", "after_sales": "None (fictional)" } }
+  ]
+}

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ExternalLink, ListFilter, Sparkles, Upload } from 'lucide-react';
 import { useWorkbench } from '../state';
 import { isCustomerId, type CustomerId } from '../domain/catalog';
+import { effectiveEntities } from '../domain/business';
 import { parseHistoryFile, profileMarkdown, type FactStatus } from '../domain/history';
 import { IconButton, PanelScroll, useCopy } from '../components/Common';
 
@@ -24,6 +25,7 @@ export function CustomerView(){
     setPage('detail');setSelected(state.threadId);setDocMode('render');setExternalOpen(false);
     setExpanded([]);setDirFilterOpen(false);
   },[state.threadId]);
+  const crm=effectiveEntities(state.business,state.storeId,'customer').filter(e=>(e.data as {conversationId:string|null}).conversationId===selected);
   const name=named(selected,state.nicknameMode==='region',state.threads);
   const allFacts=state.facts.filter(f=>f.customerId===selected);
   const history=state.history[selected]||[];
@@ -76,6 +78,14 @@ export function CustomerView(){
     dispatch({type:'TOAST',message:'当前客户演示档案已清空'});
   }
   return <PanelScroll className="profile-scroll">
+    <section className="crm-summary" aria-label="店铺客户资料"><strong>店铺 CRM 资料 · 待核实</strong>
+      {crm.length===1?<><p>{(crm[0].data as {name:string}).name} · {crm[0].id}</p>
+        <small>{(crm[0].data as {tags:string[]}).tags.join(' · ')||'暂无标签'}</small>
+        <p>{(crm[0].data as {notes:string}).notes||'暂无备注'}</p><small>{crm[0].sourceId} · {crm[0].updatedAt}</small></>:
+        <p>当前测试会话没有唯一客户映射。</p>}
+      <small>以下历史与提取信息属于虚构会话；不自动合并为 CRM 事实。原生会话没有店铺绑定。</small>
+      <button className="business-manage-link" onClick={()=>dispatch({type:'TAB',tab:'settings'})}>管理客户与同步来源</button>
+    </section>
     {page==='directory'?<section className="profile-screen" aria-label="客户档案列表">
       <div className="profile-directory-toolbar">
         <label className="profile-directory-search"><span aria-hidden="true">⌕</span>

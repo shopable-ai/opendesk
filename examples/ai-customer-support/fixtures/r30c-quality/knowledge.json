@@ -1,0 +1,238 @@
+[
+  {
+    "id": "demo-0",
+    "question": "发货前可以修改收货地址吗？",
+    "answer": "演示规则：订单尚未发货时，可以联系人工客服申请修改收货地址；是否修改成功需要以订单实际状态和人工核实结果为准。",
+    "aliases": [
+      "订单地址怎么改",
+      "还没发货能换地址吗",
+      "更改收货信息"
+    ],
+    "scope": null,
+    "points": [
+      {
+        "id": "demo-0-p0",
+        "text": "订单尚未发货"
+      },
+      {
+        "id": "demo-0-p1",
+        "text": "联系人工客服申请修改收货地址"
+      },
+      {
+        "id": "demo-0-p2",
+        "text": "以订单实际状态和人工核实结果为准"
+      }
+    ],
+    "source": {
+      "path": "examples/ai-customer-support/fixtures/knowledge-demo.json",
+      "pointer": "/entries/0/answer",
+      "sha256": "d80121424a2975963a9dac3d246a2f8fe8c469a342f14f05d716072516c98214"
+    },
+    "status": "active",
+    "project": "synthetic-demo"
+  },
+  {
+    "id": "demo-1",
+    "question": "退款申请提交后如何查询进度？",
+    "answer": "演示规则：可以进入订单售后详情查看退款申请状态；若状态长时间未更新，请联系人工客服核实，不承诺固定到账时间。",
+    "aliases": [
+      "退款进度在哪里看",
+      "申请退款之后怎么查",
+      "钱什么时候退回来"
+    ],
+    "scope": null,
+    "points": [
+      {
+        "id": "demo-1-p0",
+        "text": "订单售后详情"
+      },
+      {
+        "id": "demo-1-p1",
+        "text": "查看退款申请状态"
+      },
+      {
+        "id": "demo-1-p2",
+        "text": "不承诺固定到账时间"
+      }
+    ],
+    "source": {
+      "path": "examples/ai-customer-support/fixtures/knowledge-demo.json",
+      "pointer": "/entries/1/answer",
+      "sha256": "d80121424a2975963a9dac3d246a2f8fe8c469a342f14f05d716072516c98214"
+    },
+    "status": "active",
+    "project": "synthetic-demo"
+  },
+  {
+    "id": "demo-2",
+    "question": "申请售后需要准备什么材料？",
+    "answer": "演示规则：请准备订单编号、问题说明以及能够说明商品问题的图片或其他凭证；实际要求以对应订单的售后政策为准。",
+    "aliases": [
+      "售后需要什么凭证",
+      "退货需要上传照片吗"
+    ],
+    "scope": null,
+    "points": [
+      {
+        "id": "demo-2-p0",
+        "text": "订单编号"
+      },
+      {
+        "id": "demo-2-p1",
+        "text": "问题说明"
+      },
+      {
+        "id": "demo-2-p2",
+        "text": "图片或其他凭证"
+      }
+    ],
+    "source": {
+      "path": "examples/ai-customer-support/fixtures/knowledge-demo.json",
+      "pointer": "/entries/2/answer",
+      "sha256": "d80121424a2975963a9dac3d246a2f8fe8c469a342f14f05d716072516c98214"
+    },
+    "status": "active",
+    "project": "synthetic-demo"
+  },
+  {
+    "id": "demo-3",
+    "question": "物流信息多天没有更新怎么办？",
+    "answer": "演示规则：可以先提供订单编号，由人工核对最新物流轨迹，并在必要时联系承运方；不能仅凭页面未更新认定包裹丢失。",
+    "aliases": [
+      "快递一直不动",
+      "包裹卡住了",
+      "物流没有更新"
+    ],
+    "scope": null,
+    "points": [
+      {
+        "id": "demo-3-p0",
+        "text": "提供订单编号"
+      },
+      {
+        "id": "demo-3-p1",
+        "text": "人工核对最新物流轨迹"
+      },
+      {
+        "id": "demo-3-p2",
+        "text": "不能仅凭页面未更新认定包裹丢失"
+      }
+    ],
+    "source": {
+      "path": "examples/ai-customer-support/fixtures/knowledge-demo.json",
+      "pointer": "/entries/3/answer",
+      "sha256": "d80121424a2975963a9dac3d246a2f8fe8c469a342f14f05d716072516c98214"
+    },
+    "status": "active",
+    "project": "synthetic-demo"
+  },
+  {
+    "id": "demo-4",
+    "question": "电子发票抬头填错了怎么办？",
+    "answer": "演示规则：请提供订单编号与需修改的发票信息，由人工核对当前开票状态以及可否更正；不保证所有已开具发票都能直接修改。",
+    "aliases": [
+      "发票名称写错了",
+      "发票可以重新开吗"
+    ],
+    "scope": null,
+    "points": [
+      {
+        "id": "demo-4-p0",
+        "text": "提供订单编号"
+      },
+      {
+        "id": "demo-4-p1",
+        "text": "人工核对当前开票状态以及可否更正"
+      },
+      {
+        "id": "demo-4-p2",
+        "text": "不保证所有已开具发票都能直接修改"
+      }
+    ],
+    "source": {
+      "path": "examples/ai-customer-support/fixtures/knowledge-demo.json",
+      "pointer": "/entries/4/answer",
+      "sha256": "d80121424a2975963a9dac3d246a2f8fe8c469a342f14f05d716072516c98214"
+    },
+    "status": "active",
+    "project": "synthetic-demo"
+  },
+  {
+    "id": "demo-5",
+    "question": "这款商品有保修服务吗？",
+    "answer": "演示规则：不同商品的保修期限和范围可能不同，请提供具体商品或订单信息，由人工核对商品详情，不预先承诺固定保修月数。",
+    "aliases": [
+      "商品保修多久",
+      "售后质保怎么处理"
+    ],
+    "scope": null,
+    "points": [
+      {
+        "id": "demo-5-p0",
+        "text": "提供具体商品或订单信息"
+      },
+      {
+        "id": "demo-5-p1",
+        "text": "人工核对商品详情"
+      },
+      {
+        "id": "demo-5-p2",
+        "text": "不预先承诺固定保修月数"
+      }
+    ],
+    "source": {
+      "path": "examples/ai-customer-support/fixtures/knowledge-demo.json",
+      "pointer": "/entries/5/answer",
+      "sha256": "d80121424a2975963a9dac3d246a2f8fe8c469a342f14f05d716072516c98214"
+    },
+    "status": "active",
+    "project": "synthetic-demo"
+  },
+  {
+    "id": "demo-6",
+    "question": "A 方案可以创建多少个团队空间？",
+    "answer": "演示规则：A 方案的团队空间数量须按该方案当前配置核对；在未确认套餐身份与最新权益之前不提供确定数字。",
+    "aliases": [
+      "A 套餐团队空间上限",
+      "A 方案可用几个空间"
+    ],
+    "scope": "A 方案",
+    "points": [
+      {
+        "id": "demo-6-p0",
+        "text": "按该方案当前配置核对"
+      },
+      {
+        "id": "demo-6-p1",
+        "text": "确认套餐身份与最新权益"
+      },
+      {
+        "id": "demo-6-p2",
+        "text": "不提供确定数字"
+      }
+    ],
+    "source": {
+      "path": "examples/ai-customer-support/fixtures/knowledge-demo.json",
+      "pointer": "/entries/6/answer",
+      "sha256": "d80121424a2975963a9dac3d246a2f8fe8c469a342f14f05d716072516c98214"
+    },
+    "status": "active",
+    "project": "synthetic-demo"
+  },
+  {
+    "id": "expired",
+    "question": "去年的双十一优惠还有效吗？",
+    "answer": "演示历史规则：去年的促销信息不能作为当前价格或优惠承诺，必须查询实时活动规则后再向客户答复。",
+    "points": [],
+    "status": "expired",
+    "project": "synthetic-demo"
+  },
+  {
+    "id": "foreign",
+    "question": "另一项目价格",
+    "answer": "其他项目价格为999元",
+    "points": [],
+    "status": "active",
+    "project": "foreign"
+  }
+]

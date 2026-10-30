@@ -4,6 +4,8 @@ export type RetrievalStatus='supported'|'partial'|'unverified'|'conflict'|'unava
 export type AiResultStatus='ready'|'blocked'|'error';
 export interface EvidenceItem {
   id:string; sourceType:'knowledge_base'; sourceRef:string; answerHash:string;
+  // Service-declared association, not independent business approval or freshness.
+  source?:{text:string; title:string; document:string; association:'service_declared'};
 }
 export interface EvidencePack {
   projectId:string; coverage:'full'|'partial'|'unknown'|'conflict'; items:EvidenceItem[];
@@ -23,4 +25,12 @@ export interface AiQueryRequest {
 }
 export interface AiState {
   status:'loading'|AiResultStatus;requestId:string;binding:Binding;result:AiResult|null;
+}
+
+// Exact textual support is deliberately narrower than semantic entailment.
+// A citation alone never verifies a paraphrase, applicability or dynamic facts.
+export function reviewClaims(text:string,items:EvidenceItem[]) {
+  return text.split(/[。！？；\n]+/u).map(s=>s.trim()).filter(Boolean).slice(0,24).map(claim=>({
+    text:claim,evidenceIds:items.filter(e=>claim.length>=6&&e.source?.text.includes(claim)).map(e=>e.id)
+  }));
 }

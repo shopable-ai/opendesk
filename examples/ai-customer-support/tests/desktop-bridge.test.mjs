@@ -10,6 +10,7 @@ async function load(file){
   return import('data:text/javascript;base64,'+Buffer.from(result.outputFiles[0].text).toString('base64'));
 }
 const state=await load('src/state.tsx'),bridge=await load('src/desktop.ts');
+const common=await load('src/components/Common.tsx');
 const binding={generation:1,pid:321,windowId:456,customerId:'t1',messageId:'external-1'};
 const observation=(revision=1,b=binding,extra={})=>({type:'support.observation',revision,binding:{...b},
   conversation:{name:'外部客户',messages:[{id:b.messageId,who:'customer',text:'签收后 7 天内还能申请退款吗？'}],draft:'人工草稿'},
@@ -19,6 +20,32 @@ const initial=()=>deliver(state.createInitialState(true),observation());
 const fill=(s,text='原生回复')=>state.reducer(s,{type:'NATIVE_FILL',request:{type:'support.fillDraft',
   requestId:'request-1',binding:s.binding,text,expectedDraft:state.currentThread(s).draft}});
 const receipt=(b=binding,extra={})=>({type:'support.receipt',requestId:'request-1',binding:{...b},status:'verified',draft:'原生回复',reason:'native readback',...extra});
+
+test('settings is a named standalone region instead of an unowned tabpanel',async()=>{
+  const React=await import('react'),{renderToStaticMarkup}=await import('react-dom/server');
+  const html=renderToStaticMarkup(React.createElement(common.PanelView,{id:'settings',active:true},'设置内容'));
+  assert.match(html,/role="region"/);assert.match(html,/aria-label="设置"/);
+  const business=renderToStaticMarkup(React.createElement(common.PanelView,{id:'reply',active:true},'回复内容'));
+  assert.match(business,/role="tabpanel"/);assert.match(business,/aria-labelledby="odiv-tab-reply"/);
+  const inactive=renderToStaticMarkup(React.createElement(common.PanelView,{id:'products',active:false},'商品内容'));
+  assert.match(inactive,/hidden=""/);
+});
+
+test('standalone App handshake confirms JSON transport without fabricating observation authority',()=>{
+  const outgoing=[],delivered=[];let handler;
+  const disconnect=bridge.connectNative({postMessage:json=>outgoing.push(JSON.parse(json)),onMessage:fn=>{handler=fn;return()=>{};}},
+    value=>delivered.push(value),()=>assert.fail('unexpected bridge failure'));
+  handler(JSON.stringify({type:'support.hostReady',protocol:1,mode:'disconnected'}));
+  assert.deepEqual(outgoing,[{type:'support.ready'},{type:'support.clientReady',protocol:1}]);
+  assert.deepEqual(delivered,[]);
+  const s=state.createInitialState(true);
+  assert.equal(s.binding,null);assert.equal(state.observed(s),false);
+  for(const payload of [{type:'support.hostReady',protocol:2,mode:'disconnected'},
+    {type:'support.hostReady',protocol:1,mode:'connected'},
+    {type:'support.hostReady',protocol:1,mode:'disconnected',binding}])handler(payload);
+  assert.equal(outgoing.length,2);disconnect();handler({type:'support.hostReady',protocol:1,mode:'disconnected'});
+  assert.equal(outgoing.length,2);
+});
 
 test('native starts empty and unauthorized; browser retains its offline demo',()=>{
   const native=state.createInitialState(true),browser=state.createInitialState();
@@ -134,12 +161,14 @@ test('full invalidation stops fill; unpause cannot synthesize a live observation
   assert.equal(state.observed(unpaused),false);
 });
 
-test('suggestion edits are scoped to full native identity even if message IDs are reused',()=>{
+test('suggestion edits are scoped to the native conversation even if message IDs are reused',()=>{
   const s=initial(),key=state.activeReplyKey(s);
   const edited=state.reducer(s,{type:'REPLY_TEXT',key,text:'private old suggestion'});
-  const rebound=deliver(edited,observation(2,{...binding,generation:2}));
-  assert.notEqual(state.activeReplyKey(rebound),key);
-  assert.notEqual(state.activeReplyText(rebound),'private old suggestion');
+  for(const identity of [{pid:999},{windowId:999},{customerId:'t2'},{messageId:'external-2'}]){
+    const rebound=deliver(edited,observation(2,{...binding,...identity,generation:2}));
+    assert.notEqual(state.activeReplyKey(rebound),key);
+    assert.notEqual(state.activeReplyText(rebound),'private old suggestion');
+  }
 });
 
 test('bridge uses JSON envelopes and handles missing/failed transport without executing payloads',()=>{
@@ -239,9 +268,9 @@ test('synchronous first observation still sends mounted ready and installs no re
   t.mock.timers.tick(1000);assert.equal(posted.length,1);cleanup();
 });
 
-test('periodic same-identity observation preserves open reply editing and order detail',()=>{
+test('periodic native observation preserves reply editing without granting store order authority',()=>{
   let s=initial();s=state.reducer(s,{type:'REPLY_EDIT',key:state.activeReplyKey(s)});
   s=state.reducer(s,{type:'OPEN_ORDER',orderId:'OD-DEMO-1001'});
   const next=deliver(s,observation(2));
-  assert.equal(next.editing,s.editing);assert.equal(next.orderSelected,'OD-DEMO-1001');
+  assert.equal(next.editing,s.editing);assert.equal(next.orderSelected,null,'native has no trusted store binding');
 });

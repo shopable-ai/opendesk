@@ -1,9 +1,16 @@
 import React, { createContext, useContext, useMemo, useReducer, useEffect, useRef, useCallback } from 'react';
 import { connectNative, desktopBridge, parseNativeMessage, postNative, sameBinding, type Binding, type FillRequest, type SettingsRequest } from './desktop';
-import { isCustomerId, findProduct, orderForCustomer, type CustomerId } from './domain/catalog';
+import { isCustomerId, type CustomerId, type Product, type Order } from './domain/catalog';
 import { extractFacts, initialHistory, mergeHistory, type FactStatus, type HistoryByCustomer, type ProfileFact } from './domain/history';
 import { initialKnowledge, matchKnowledge, replyOptions, type Knowledge } from './domain/knowledge';
-import type { AiQueryRequest, AiState } from './domain/ai';
+import type { AiQueryRequest, AiState, AiResult } from './domain/ai';
+import { parseMappingPlan, runMappingPlan, type MappingPlan } from './domain/business-mapping';
+import { createBusinessState, parseBusinessSnapshot, previewBusinessImport, applyBusinessImport,
+  saveLocalEntity, clearLocalOverride, parseBusinessBackup, effectiveEntities, addBusinessStore,
+  type BusinessState, type Entity, type ImportPreview } from './domain/business';
+
+import {businessFeedback} from './domain/business-feedback';
+import {useBusinessWorkspace,type BusinessWorkspace} from './use-business-workspace';
 
 export const tabs = ['reply','knowledge','customer','products','images','orders'] as const;
 export type Tab = (typeof tabs)[number];
@@ -11,8 +18,20 @@ export type Panel = Tab|'settings';
 export const labels: Record<Tab,string> = {reply:'推荐回复',knowledge:'知识库',customer:'客户档案',products:'商品',images:'图片',orders:'订单'};
 export interface ChatMessage { id:string; who:'customer'|'agent'; text:string; replyTo?:string }
 export interface Thread { id:CustomerId; name:string; messages:ChatMessage[]; sent:string[]; draft:string }
+type SlotMapping = Record<CustomerId,string|null>;
+type StoreSession = Pick<AppState,'storeId'|'threadId'|'threads'|'history'|'facts'|'knowledge'|'chosen'|'edits'|'takeovers'> & { mapping:SlotMapping };
+export interface NativeReplyVersion {
+  id:string; name:string; symbol:string; text:string;
+  // Keep provenance with the version, never borrow evidence from a later query.
+  result:AiResult|null; candidateId:string;
+}
 export interface AppState {
+  business:BusinessState; storeId:string; businessEpoch:number; businessPreview:ImportPreview|null; businessStatus:string;
+  businessMappings:{plan:MappingPlan;enabled:boolean;version:number}[]; mappingVersion:number; mappingStatus:string;
+  mappingPreview:{key:string;version:number}|null;
+  storeSessions:Record<string,StoreSession>;
   native:boolean; revision:number; binding:Binding|null; nativeObserving:boolean;
+  nativeReplyVersions:NativeReplyVersion[];
   pendingFill:FillRequest|null; fillAttempt:string|null; receiptSeen:string[]; ai:AiState|null;
   threadId:CustomerId; threads:Thread[];
   tab:Panel; settingsOrigin:Tab; permission:boolean; paused:boolean;
@@ -26,6 +45,19 @@ export interface AppState {
   receipt:string; counter:number; log:string[]; toast:{id:number;message:string}|null;
 }
 export type Action =
+ | {type:'MAPPING_SAVE';text:string;input:string;cursor:string;previousCursor:string|null;storeId:string;epoch:number}
+ | {type:'MAPPING_RESTORE';text:string;storeId:string;epoch:number}
+ | {type:'MAPPING_TOGGLE';key:string;version:number;storeId:string;epoch:number}
+ | {type:'MAPPING_PREVIEW';key:string;version:number;input:string;cursor:string;previousCursor:string|null;storeId:string;epoch:number}
+ | {type:'BUSINESS_ADD_STORE';id:string;name:string}
+ | {type:'BUSINESS_STORE';storeId:string}
+ | {type:'BUSINESS_PREVIEW';text:string;storeId:string;epoch:number}
+ | {type:'BUSINESS_APPLY'}
+ | {type:'BUSINESS_CANCEL'}
+ | {type:'BUSINESS_SAVE';entity:Entity;storeId:string;epoch:number}
+ | {type:'BUSINESS_REVERT';key:string;storeId:string}
+ | {type:'BUSINESS_RESTORE';text:string;epoch:number}
+ | {type:'BUSINESS_ERROR';message:string;storeId:string;epoch:number}
  | {type:'NATIVE_MESSAGE';message:unknown}
  | {type:'NATIVE_FILL';request:FillRequest}
  | {type:'NATIVE_AI_QUERY';request:AiQueryRequest}
@@ -40,7 +72,7 @@ export type Action =
  | {type:'SET_THREAD';id:CustomerId}
  | {type:'SET_DRAFT';id:CustomerId;text:string}
  | {type:'RECEIVE';id:CustomerId;text:string}
- | {type:'FILL';id:CustomerId;messageId:string;text:string;replace:boolean}
+ | {type:'FILL';id:CustomerId;messageId:string;text:string;replace:boolean;storeId?:string;businessRevision?:number}
  | {type:'SEND';id:CustomerId;messageId:string}
  | {type:'REPLY_CHOICE';key:string;id:string}
  | {type:'REPLY_EDIT';key:string|null}
@@ -66,7 +98,9 @@ export type Action =
 export function createInitialState(native=false):AppState {
   const history=initialHistory();
   return {
-    native,revision:-1,binding:null,nativeObserving:false,pendingFill:null,fillAttempt:null,receiptSeen:[],ai:null,
+    business:createBusinessState(),storeId:'store-demo',businessEpoch:0,businessPreview:null,businessStatus:'',storeSessions:{},
+    businessMappings:[],mappingVersion:0,mappingStatus:'',mappingPreview:null,
+    nativeReplyVersions:[],native,revision:-1,binding:null,nativeObserving:false,pendingFill:null,fillAttempt:null,receiptSeen:[],ai:null,
     threadId:'t1',threads:[
       {id:'t1',name:native?'等待原生观察':'林女士',messages:native?[]:[{id:'m1',who:'customer',text:'签收后 7 天内还能申请退款吗？'}],sent:[],draft:''},
       {id:'t2',name:native?'等待原生观察':'陈先生',messages:native?[]:[{id:'m2',who:'customer',text:'物流怎么查询？'}],sent:[],draft:''},
@@ -81,12 +115,76 @@ export function createInitialState(native=false):AppState {
   };
 }
 export const currentThread=(s:AppState)=>s.threads.find(t=>t.id===s.threadId)!;
+export const businessProducts=(s:AppState):Product[]=>effectiveEntities(s.business,s.storeId,'product').map(e=>e.data as Product);
+// Local CRM links only bind the three fictitious chat slots. Native observation has no store authority.
+export const businessOrders=(s:AppState):Order[]=>{
+  if(!s.permission||s.native)return [];
+  const linked=effectiveEntities(s.business,s.storeId,'customer').filter(e=>
+    (e.data as {conversationId:string|null}).conversationId===s.threadId);
+  if(linked.length!==1)return [];
+  return effectiveEntities(s.business,s.storeId,'order').filter(e=>
+    (e.data as Order).customerId===linked[0].id&&e.sourceId===linked[0].sourceId).map(e=>e.data as Order);
+};
+// Local single-operator file maintenance is independent of chat observation authority.
+export const businessManagementEntities=(s:AppState):Entity[]=>effectiveEntities(s.business,s.storeId);
+const slots:CustomerId[]=['t1','t2','t3'];
+const slotMapping=(business:BusinessState,storeId:string):SlotMapping=>{
+  const customers=effectiveEntities(business,storeId,'customer');
+  return Object.fromEntries(slots.map(slot=>{
+    const linked=customers.filter(e=>e.data?.conversationId===slot);
+    return [slot,linked.length===1?JSON.stringify([storeId,linked[0].sourceId,linked[0].id]):null];
+  })) as SlotMapping;
+};
+const scoped=({storeId,threadId,threads,history,facts,knowledge,chosen,edits,takeovers,business}:AppState):StoreSession=>
+  ({storeId,threadId,threads,history,facts,knowledge,chosen,edits,takeovers,mapping:slotMapping(business,storeId)});
+function reconcile(session:StoreSession,business:BusinessState,storeId:string):StoreSession {
+  const mapping=slotMapping(business,storeId);
+  const changedSlots=slots.filter(id=>session.storeId!==storeId||session.mapping[id]!==mapping[id]);
+  const keepKey=(key:string)=>!changedSlots.some(id=>key.startsWith(session.storeId+':'+id+':'));
+  return {...session,storeId,mapping,
+    threads:session.threads.map(t=>changedSlots.includes(t.id)?{...t,name:effectiveEntities(business,storeId,'customer')
+      .find(e=>e.data?.conversationId===t.id)?.data?.name??'未映射客户',messages:[],draft:'',sent:[]}:t),
+    history:Object.fromEntries(slots.map(id=>[id,changedSlots.includes(id)?[]:session.history[id]])) as HistoryByCustomer,
+    facts:session.facts.filter(f=>!changedSlots.includes(f.customerId)),
+    chosen:Object.fromEntries(Object.entries(session.chosen).filter(([key])=>keepKey(key))),
+    edits:Object.fromEntries(Object.entries(session.edits).filter(([key])=>keepKey(key))),
+    takeovers:session.takeovers.filter(id=>!changedSlots.includes(id))};
+}
+function freshSession(business:BusinessState,storeId:string):StoreSession {
+  const fresh=createInitialState();
+  // Seed messages belong only to the built-in store/source/customer identities.
+  // A new store has no imported customer history, even when its slot is t1.
+  fresh.storeId=storeId;
+  fresh.history={t1:[],t2:[],t3:[]};fresh.facts=[];
+  const seed=scoped(fresh);
+  seed.threads=seed.threads.map(t=>seed.mapping[t.id]?t:{...t,name:'未映射客户',messages:[]});
+  return reconcile(seed,business,storeId);
+}
+function withBusiness(s:AppState,business:BusinessState,storeId=s.storeId):AppState {
+  const storeSessions=s.native?s.storeSessions:{...s.storeSessions,[s.storeId]:scoped(s)};
+  if(!s.native)for(const store of business.stores){
+    const cached=Object.hasOwn(storeSessions,store.id)?storeSessions[store.id]:undefined;
+    if(cached)storeSessions[store.id]=reconcile(cached,business,store.id);
+  }
+  const session=s.native?null:reconcile((Object.hasOwn(storeSessions,storeId)?storeSessions[storeId]:undefined)??freshSession(business,storeId),business,storeId);
+  return {...s,...(session??{}),business,storeId,
+    storeSessions:session?{...storeSessions,[storeId]:session}:storeSessions,
+    businessEpoch:s.businessEpoch+1,businessPreview:null,mappingPreview:null,
+    productSelected:null,imageSelected:null,orderSelected:null,editing:s.native?s.editing:null,
+    auto:false,consented:false,consentPending:false,
+    knowledgeImportEpoch:s.knowledgeImportEpoch+1,historyImportEpoch:s.historyImportEpoch+1,
+    knowledgeImportStatus:'',historyImportStatus:''};
+}
 export const latestCustomerMessage=(t:Thread)=>t.messages.filter(m=>m.who==='customer').at(-1);
 export const observed=(s:AppState)=>s.permission&&!s.paused&&(!s.native||s.nativeObserving);
-export const latestKey=(s:AppState)=>s.native?JSON.stringify(s.binding):s.threadId+':'+(latestCustomerMessage(currentThread(s))?.id||'none');
+// Human draft identity survives observation generations; request authority does not.
+export const latestKey=(s:AppState)=>s.native?JSON.stringify(s.binding&&[
+  s.binding.pid,s.binding.windowId,s.binding.customerId,s.binding.messageId
+]):s.storeId+':'+s.threadId+':'+(latestCustomerMessage(currentThread(s))?.id||'none');
 export const activeHit=(s:AppState)=>matchKnowledge(latestCustomerMessage(currentThread(s))?.text,s.knowledge,observed(s));
 export const activeOptions=(s:AppState)=>{
   if(!s.native)return replyOptions(activeHit(s));
+  if(s.nativeReplyVersions.length)return s.nativeReplyVersions;
   if(s.ai?.status==='ready'&&s.ai.result&&sameBinding(s.binding,s.ai.binding))
     return s.ai.result.candidates.map(c=>({id:c.id,name:c.name,symbol:c.symbol,text:c.text}));
   // Never present demonstration knowledge as verified native-customer facts.
@@ -96,6 +194,8 @@ export const activeReply=(s:AppState)=>{
   const options=activeOptions(s),picked=s.chosen[latestKey(s)];
   return options.find(x=>x.id===picked)||options[0];
 };
+export const nativeReplyResult=(s:AppState,id=activeReply(s).id):AiResult|null=>
+  s.nativeReplyVersions.find(version=>version.id===id)?.result??null;
 export const activeReplyKey=(s:AppState)=>latestKey(s)+':'+activeReply(s).id;
 export const activeReplyText=(s:AppState)=>s.edits[activeReplyKey(s)]??activeReply(s).text;
 const note=(s:AppState,message:string):AppState=>({...s,receipt:message,log:[message,...s.log].slice(0,40)});
@@ -108,16 +208,107 @@ const safeToFill=(s:AppState,id:CustomerId,messageId:string):boolean=>{
   return !!latest && latest.id===messageId && !t.sent.includes(messageId);
 };
 const risky=/赔偿|承诺|密码|身份证/;
+export const mappingKey=(plan:MappingPlan)=>JSON.stringify([plan.storeId,plan.sourceId]);
 export function reducer(s:AppState,a:Action):AppState {
   if(s.native&&['RESET','SET_THREAD','SET_DRAFT','RECEIVE','FILL','SEND','AUTO_REQUEST','AUTO_CONFIRM','AUTO_DISABLE','AUTO_CANCEL','TAKEOVER'].includes(a.type))return s;
   switch(a.type) {
+    case 'MAPPING_SAVE':
+    case 'MAPPING_RESTORE':{
+      if(a.storeId!==s.storeId||a.epoch!==s.businessEpoch)return s;
+      try{
+        const plan=parseMappingPlan(a.text),key=mappingKey(plan);
+        if(plan.storeId!==s.storeId)throw Error('方案店铺不同，请先选择对应店铺');
+        if(a.type==='MAPPING_SAVE'){
+          const previousCursor=s.business.cursors[key]??null;
+          if(a.previousCursor!==previousCursor)throw Error('已应用页标记变化，请重新试跑');
+          const snapshot=runMappingPlan(plan,a.input,{storeId:s.storeId,sourceId:plan.sourceId,previousCursor,cursor:a.cursor},s.business);
+          previewBusinessImport(s.business,snapshot);
+        }
+        if(s.businessMappings.length>=40&&!s.businessMappings.some(m=>mappingKey(m.plan)===key))throw Error('最多保存40个方案');
+        const version=s.mappingVersion+1;
+        return {...s,businessMappings:[...s.businessMappings.filter(m=>mappingKey(m.plan)!==key),{plan,version,enabled:false}],
+          mappingVersion:version,mappingPreview:null,businessPreview:null,
+          mappingStatus:a.type==='MAPPING_RESTORE'?'已恢复方案，默认停用；请试跑核对后启用':'已保存方案，默认停用；启用后可使用'};
+      }catch(error){return {...s,mappingStatus:'方案保存失败：'+(error instanceof Error?error.message:'配置无效')};}
+    }
+    case 'MAPPING_TOGGLE':{
+      if(a.storeId!==s.storeId||a.epoch!==s.businessEpoch)return s;
+      const current=s.businessMappings.find(m=>mappingKey(m.plan)===a.key&&m.plan.storeId===s.storeId&&m.version===a.version);
+      if(!current)return s;
+      const version=s.mappingVersion+1;
+      return {...s,mappingVersion:version,businessMappings:s.businessMappings.map(m=>m===current?{...m,enabled:!m.enabled,version}:m),
+        businessPreview:null,mappingPreview:null,mappingStatus:current.enabled?'已停用方案；已应用资料保留':'已启用方案；仅在手动使用时运行'};
+    }
+    case 'MAPPING_PREVIEW':{
+      if(a.storeId!==s.storeId||a.epoch!==s.businessEpoch)return s;
+      try{
+        const saved=s.businessMappings.find(m=>mappingKey(m.plan)===a.key&&m.plan.storeId===s.storeId&&m.version===a.version);
+        if(!saved?.enabled)throw Error('方案已变更或停用，请重新选择');
+        const previousCursor=s.business.cursors[a.key]??null;
+        if(a.previousCursor!==previousCursor)throw Error('已应用页标记变化，请重新试跑');
+        const snapshot=runMappingPlan(saved.plan,a.input,{storeId:s.storeId,sourceId:saved.plan.sourceId,previousCursor,cursor:a.cursor},s.business);
+        return {...s,businessPreview:previewBusinessImport(s.business,snapshot),mappingPreview:{key:a.key,version:a.version},
+          businessStatus:'方案预检通过，确认后才应用；所有资料仍需人工核实'};
+      }catch(error){return {...s,businessPreview:null,mappingPreview:null,businessStatus:'方案预检失败：'+(error instanceof Error?error.message:'输入无效')};}
+    }
+    case 'BUSINESS_ADD_STORE':{
+      try{return {...s,business:addBusinessStore(s.business,a.id,a.name),businessEpoch:s.businessEpoch+1,
+        businessPreview:null,mappingPreview:null,businessStatus:'已新增店铺，请在数据店铺中选择'};}
+      catch(error){return {...s,businessStatus:'新增失败：'+businessFeedback(error)};}
+    }
+    case 'BUSINESS_STORE':{
+      if(!s.business.stores.some(store=>store.id===a.storeId)||a.storeId===s.storeId)return s;
+      return {...withBusiness(s,s.business,a.storeId),businessStatus:'已切换数据店铺 · 请核对来源'};
+    }
+    case 'BUSINESS_PREVIEW':{
+      if(a.storeId!==s.storeId||a.epoch!==s.businessEpoch)return s;
+      try{
+        const snapshot=parseBusinessSnapshot(a.text);
+        if(snapshot.storeId!==s.storeId)throw Error('文件店铺与当前店铺不同，请先切换数据店铺');
+        const businessPreview=previewBusinessImport(s.business,snapshot);
+        return {...s,businessPreview,mappingPreview:null,businessStatus:'预检通过，确认后才应用；所有资料仍需人工核实'};
+      }catch(error){return {...s,businessPreview:null,mappingPreview:null,businessStatus:'预检失败：'+businessFeedback(error)};}
+    }
+    case 'BUSINESS_APPLY':{
+      if(!s.businessPreview)return s;
+      try{
+        if(s.mappingPreview&&!s.businessMappings.some(m=>mappingKey(m.plan)===s.mappingPreview!.key&&m.version===s.mappingPreview!.version&&m.enabled))throw Error('方案已变更或停用，请重新预检');
+        return {...withBusiness(s,applyBusinessImport(s.business,s.businessPreview)),businessStatus:'已应用同步页 · 非实时承诺'};
+      }catch(error){return {...s,businessPreview:null,mappingPreview:null,businessStatus:'应用失败：'+businessFeedback(error)};}
+    }
+    case 'BUSINESS_CANCEL':return {...s,businessPreview:null,mappingPreview:null,businessStatus:'已取消预检'};
+    case 'BUSINESS_SAVE':{
+      if(a.storeId!==s.storeId||a.entity.storeId!==s.storeId||a.epoch!==s.businessEpoch)return s;
+      try{return {...withBusiness(s,saveLocalEntity(s.business,a.entity)),businessStatus:'已保存本地资料 · 需要人工核实'};}
+      catch(error){return {...s,businessStatus:'保存失败：'+businessFeedback(error)};}
+    }
+    case 'BUSINESS_REVERT':{
+      if(a.storeId!==s.storeId)return s;
+      try{return {...withBusiness(s,clearLocalOverride(s.business,a.key)),businessStatus:'已恢复来源资料'};}
+      catch(error){return {...s,businessStatus:'恢复失败：'+businessFeedback(error)};}
+    }
+    case 'BUSINESS_RESTORE':{
+      if(a.epoch!==s.businessEpoch)return s;
+      try{
+        const business=parseBusinessBackup(a.text);
+        return {...withBusiness(s,business,business.stores.some(x=>x.id===s.storeId)?s.storeId:business.stores[0].id),
+          businessStatus:'已恢复本地数据备份 · 未恢复任何授权'};
+      }catch(error){return {...s,businessStatus:'恢复失败：'+businessFeedback(error)};}
+    }
+    case 'BUSINESS_ERROR':return a.storeId===s.storeId&&a.epoch===s.businessEpoch?
+      {...s,businessPreview:null,businessStatus:a.message}:s;
     case 'NATIVE_MESSAGE':{
       if(!s.native)return s;
       const m=parseNativeMessage(a.message);if(!m)return s;
       if(m.type==='support.aiResult'){
         if(!s.ai||s.ai.status!=='loading'||m.requestId!==s.ai.requestId||
           !sameBinding(s.binding,m.binding)||!sameBinding(s.ai.binding,m.binding)||!observed(s))return s;
-        return {...s,ai:{...s.ai,status:m.status,result:m},editing:null};
+        const versions=m.status==='ready'?[
+          ...s.nativeReplyVersions,
+          ...m.candidates.map(c=>({...c,id:s.nativeReplyVersions.length?m.requestId+':'+c.id:c.id,
+            result:m,candidateId:c.id}))
+        ]:s.nativeReplyVersions;
+        return {...s,nativeReplyVersions:versions,ai:{...s.ai,status:m.status,result:m},editing:null};
       }
       if(m.type==='support.observation'){
         if(m.revision<=s.revision)return s;
@@ -126,14 +317,19 @@ export function reducer(s:AppState,a:Action):AppState {
         if(b&&(n.generation<b.generation||(n.generation===b.generation&&
           (n.pid!==b.pid||n.windowId!==b.windowId||n.customerId!==b.customerId))))return s;
         const sameIdentity=sameBinding(b,n);
+        const sameDraft=!!b&&b.pid===n.pid&&b.windowId===n.windowId&&
+          b.customerId===n.customerId&&b.messageId===n.messageId&&
+          latestCustomerMessage(currentThread(s))?.text===m.conversation.messages.filter(x=>x.who==='customer').at(-1)?.text;
         const next=changed(s,n.customerId,t=>({...t,name:m.conversation.name,
           messages:m.conversation.messages,draft:m.conversation.draft,sent:[]}));
         return {...next,threadId:n.customerId,binding:n,revision:m.revision,nativeObserving:m.observing,
           permission:m.observing,paused:m.observing?false:s.paused,
           pendingFill:m.observing&&sameIdentity?s.pendingFill:null,
           ai:m.observing&&sameIdentity?s.ai:null,
+          nativeReplyVersions:sameDraft?s.nativeReplyVersions:[],
+          chosen:sameDraft?s.chosen:{},edits:sameDraft?s.edits:{},
           fillAttempt:sameIdentity?s.fillAttempt:null,receiptSeen:sameIdentity?s.receiptSeen:[],
-          editing:sameIdentity?s.editing:null,orderSelected:b?.generation===n.generation?s.orderSelected:null,receipt:m.reason||(m.observing?'原生观察已更新':'原生观察已停止')};
+          editing:sameDraft?s.editing:null,orderSelected:b?.generation===n.generation?s.orderSelected:null,receipt:m.reason||(m.observing?'原生观察已更新':'原生观察已停止')};
       }
       if(!sameBinding(s.binding,m.binding)||!s.pendingFill||!observed(s)||m.requestId!==s.pendingFill.requestId||
         (m.status==='verified'&&m.draft!==s.pendingFill.text))return s;
@@ -147,10 +343,14 @@ export function reducer(s:AppState,a:Action):AppState {
       if(!s.native||!observed(s)||!sameBinding(s.binding,r.binding)||
         !latestCustomerMessage(currentThread(s))||s.ai?.status==='loading'||
         !/^[A-Za-z0-9_-]{1,40}$/.test(r.requestId))return s;
-      const key=latestKey(s),edits={...s.edits},chosen={...s.chosen};
-      delete chosen[key];
-      for(const option of activeOptions(s))delete edits[key+':'+option.id];
-      return {...s,ai:{status:'loading',requestId:r.requestId,binding:r.binding,result:null},edits,chosen,editing:null};
+      const key=latestKey(s),selected=activeReply(s);
+      // Snapshot a human fallback only when it has actually been edited. Ready
+      // versions are already retained with their own evidence and stable keys.
+      const versions=s.nativeReplyVersions.length?s.nativeReplyVersions:
+        s.edits[activeReplyKey(s)]!==undefined?[{...selected,result:null,candidateId:selected.id}]:[];
+      return {...s,nativeReplyVersions:versions,
+        chosen:versions.length?{...s.chosen,[key]:selected.id}:s.chosen,
+        ai:{status:'loading',requestId:r.requestId,binding:r.binding,result:null},editing:null};
     }
     case 'NATIVE_FILL':{
       const r=a.request,attempt=JSON.stringify([r.binding,r.text,r.expectedDraft]);
@@ -159,15 +359,15 @@ export function reducer(s:AppState,a:Action):AppState {
       return {...s,pendingFill:r,fillAttempt:attempt,receipt:'已请求原生填入 · 等待原生回执'};
     }
     case 'NATIVE_FAILURE':return s.native?note({...s,nativeObserving:false,pendingFill:null,ai:null},'原生桥不可用 · 已停止操作'):s;
-    case 'RESET': return {...createInitialState(),knowledgeImportEpoch:s.knowledgeImportEpoch+1,
+    case 'RESET': return {...createInitialState(),businessEpoch:s.businessEpoch+1,knowledgeImportEpoch:s.knowledgeImportEpoch+1,
       historyImportEpoch:s.historyImportEpoch+1};
     case 'TAB': return {...s,tab:a.tab,settingsOrigin:a.tab==='settings'?(s.tab==='settings'?s.settingsOrigin:s.tab):s.settingsOrigin,editing:null};
-    case 'OPEN_PRODUCT':return findProduct(a.id)?{...s,productSelected:a.id,tab:'products'}:s;
+    case 'OPEN_PRODUCT':return effectiveEntities(s.business,s.storeId,'product').some(p=>p.id===a.id)?{...s,productSelected:a.id,tab:'products'}:s;
     case 'CLOSE_PRODUCT':return {...s,productSelected:null};
-    case 'OPEN_IMAGE':return findProduct(a.productId)?.images.some(i=>i.id===a.imageId)?
+    case 'OPEN_IMAGE':return businessProducts(s).find(p=>p.id===a.productId)?.images.some(i=>i.id===a.imageId)?
       {...s,imageSelected:{productId:a.productId,imageId:a.imageId},tab:'images'}:s;
     case 'CLOSE_IMAGE':return {...s,imageSelected:null};
-    case 'OPEN_ORDER':return orderForCustomer(s.threadId,a.orderId,s.permission)?
+    case 'OPEN_ORDER':return businessOrders(s).some(o=>o.orderId===a.orderId)?
       {...s,orderSelected:a.orderId}:s;
     case 'CLOSE_ORDER':return {...s,orderSelected:null};
     case 'SET_THREAD':
@@ -195,6 +395,8 @@ export function reducer(s:AppState,a:Action):AppState {
       return notify(note(next,'客户新消息 '+id+' · 等待人工处理'),'已收到模拟消息');
     }
     case 'FILL':{
+      if(a.storeId!==undefined&&a.storeId!==s.storeId)return s;
+      if(a.businessRevision!==undefined&&a.businessRevision!==s.business.revision)return s;
       if(!safeToFill(s,a.id,a.messageId)||!a.text.trim()) return note(s,'未填入：会话、授权或消息身份不匹配');
       const t=currentThread(s),draft=a.text.trim().slice(0,4000);
       if(t.draft&&t.draft!==draft&&!a.replace)return note(s,'已有未发送草稿，未覆盖');
@@ -287,7 +489,7 @@ export function reducer(s:AppState,a:Action):AppState {
     default:return s;
   }
 }
-type WorkbenchContext={state:AppState;dispatch:React.Dispatch<Action>;fillNative:(text:string)=>void;queryNative:()=>void};
+type WorkbenchContext={state:AppState;dispatch:React.Dispatch<Action>;fillNative:(text:string)=>void;queryNative:()=>void;workspace:BusinessWorkspace};
 const Context=createContext<WorkbenchContext|null>(null);
 export function WorkbenchProvider({children}:{children:React.ReactNode}) {
   const [bridge]=React.useState(desktopBridge);
@@ -303,6 +505,11 @@ export function WorkbenchProvider({children}:{children:React.ReactNode}) {
       return;
     }
     reduce(action);
+    // Cancel synchronously with human ownership, before a late HTTP completion
+    // can start native readback. Cancellation never grants observation rights.
+    if(bridge&&(action.type==='REPLY_TEXT'||action.type==='REPLY_EDIT'&&action.key!==null)){
+      if(!postNative(bridge,{type:'support.aiCancel'}))reduce({type:'NATIVE_FAILURE'});
+    }
   },[bridge]);
   useEffect(()=>{
     if(!bridge)return;
@@ -338,7 +545,8 @@ export function WorkbenchProvider({children}:{children:React.ReactNode}) {
     reduce({type:'NATIVE_AI_QUERY',request:{type:'support.aiQuery',
       requestId:'ai-'+Date.now()+'-'+(++sequence.current),binding:state.binding}});
   },[state]);
-  const context=useMemo(()=>({state,dispatch,fillNative,queryNative}),[state,dispatch,fillNative,queryNative]);
+  const workspace=useBusinessWorkspace(state,dispatch);
+  const context={state,dispatch,fillNative,queryNative,workspace};
   return <Context.Provider value={context}>{children}</Context.Provider>;
 }
 export function useWorkbench():WorkbenchContext{

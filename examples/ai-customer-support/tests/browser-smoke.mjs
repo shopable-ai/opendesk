@@ -6,9 +6,12 @@ import { chromium } from 'playwright';
 
 const root = resolve(import.meta.dirname, '..');
 const url = pathToFileURL(join(root, 'preview', 'index.html')).href;
-const screenshots = resolve(root, '..', '..', '.runtime', 'tests', 'ai-customer-support');
+const screenshots = process.env.SUPPORT_TEST_EVIDENCE
+  ? resolve(process.env.SUPPORT_TEST_EVIDENCE)
+  : resolve(root, '..', '..', '.runtime', 'tests', 'ai-customer-support');
 await mkdir(screenshots, { recursive: true });
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true,
+  ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE } : {}) });
 const coreOnly = process.argv.includes('--core');
 let passed = 0;
 async function scenario(name, exercise) {
@@ -32,6 +35,81 @@ async function scenario(name, exercise) {
   }
 }
 try {
+  await scenario('disconnected-app-settings-and-local-state', async page => {
+    // Browser-only host stub: it acknowledges transport and provides no binding.
+    await page.addInitScript(() => {
+      const listeners = new Set();
+      window.__supportMessages = [];
+      window.OpenDeskApp = {
+        postMessage(raw) {
+          const message = JSON.parse(raw);
+          window.__supportMessages.push(message);
+          if (message.type === 'support.ready') queueMicrotask(() => {
+            for (const handler of listeners) handler({ type:'support.hostReady', protocol:1, mode:'disconnected' });
+          });
+        },
+        onMessage(handler) { listeners.add(handler); return () => listeners.delete(handler); }
+      };
+    });
+    await page.reload();
+    await page.locator('#od-r12[data-native="true"]').waitFor();
+    await page.getByRole('tab', { name:'商品', exact:true }).click();
+    const search = page.getByRole('searchbox', { name:'搜索商品名称型号和规格' });
+    await search.fill('OD-JK-101');
+    await page.getByRole('button', { name:'查看商品：轻量连帽外套 · OD-JK-101', exact:true }).click();
+    await page.getByRole('button', { name:'打开设置' }).click();
+    for (const name of ['原生窗口授权', '智能托管', '发送后模拟回读验证']) {
+      assert.equal(await page.getByRole('checkbox', { name, exact:true }).isDisabled(), true, name);
+    }
+    const follow = page.getByRole('checkbox', { name:'智能窗口跟随', exact:true });
+    const observing = page.getByRole('checkbox', { name:'继续观察新消息', exact:true });
+    await follow.uncheck(); await observing.uncheck();
+    await page.getByRole('button', { name:'← 返回', exact:true }).click();
+    assert.equal(await page.locator('#odiv-products .product-detail-name').innerText(), '轻量连帽外套');
+    await page.getByRole('tab', { name:'知识库', exact:true }).click();
+    await page.getByRole('tab', { name:'商品', exact:true }).click();
+    assert.equal(await page.locator('#odiv-products .product-detail-name').innerText(), '轻量连帽外套');
+    await page.getByRole('button', { name:'← 返回商品', exact:true }).click();
+    assert.equal(await search.inputValue(), 'OD-JK-101');
+    await page.getByRole('button', { name:'打开设置' }).click();
+    assert.equal(await follow.isChecked(), false);
+    assert.equal(await observing.isChecked(), false);
+    await follow.check(); await observing.check();
+    await page.getByRole('button', { name:'← 返回', exact:true }).click();
+    await page.getByRole('tab', { name:'推荐回复', exact:true }).click();
+    assert.equal(await page.getByRole('button', { name:'→ 填入聊天草稿', exact:true }).isDisabled(), true);
+    const messages = await page.evaluate(() => window.__supportMessages);
+    assert.ok(messages.some(m => m.type === 'support.clientReady'));
+    assert.ok(messages.some(m => m.type === 'support.settings' && m.follow === false));
+    assert.ok(messages.some(m => m.type === 'support.settings' && m.paused === true));
+    assert.ok(messages.every(m => ['support.ready', 'support.clientReady', 'support.settings'].includes(m.type)),
+      'transport and local settings cannot fabricate observation or draft writes');
+    assert.ok(messages.every(m => m.permission !== true && !m.binding));
+  });
+  await scenario('panel-state-survives-settings-and-navigation', async page => {
+    await page.getByRole('tab', { name:'商品', exact:true }).click();
+    const search = page.getByRole('searchbox', { name:'搜索商品名称型号和规格' });
+    await search.fill('OD-JK-101');
+    const original = await page.locator('#odiv-products').elementHandle();
+    await page.getByRole('button', { name:'查看商品：轻量连帽外套 · OD-JK-101', exact:true }).click();
+    await page.getByRole('button', { name:'打开设置' }).click();
+    const follow = page.getByRole('checkbox', { name:'智能窗口跟随', exact:true });
+    await follow.uncheck();
+    await page.getByRole('button', { name:'← 返回', exact:true }).click();
+    assert.equal(await page.locator('#odiv-products .product-detail-name').innerText(), '轻量连帽外套');
+    await page.getByRole('button', { name:'← 返回商品', exact:true }).click();
+    assert.equal(await search.inputValue(), 'OD-JK-101');
+    assert.equal(await original.evaluate(node => node === document.querySelector('#odiv-products')), true,
+      'hidden panels keep the original DOM node and local state');
+    await page.getByRole('tab', { name:'知识库', exact:true }).click();
+    await page.getByRole('tab', { name:'商品', exact:true }).click();
+    assert.equal(await search.inputValue(), 'OD-JK-101');
+    await page.getByRole('button', { name:'打开设置' }).click();
+    assert.equal(await follow.isChecked(), false, 'setting survives return and page navigation');
+    await follow.check();
+    await page.getByRole('button', { name:'← 返回', exact:true }).click();
+    assert.equal(await page.getByRole('tab', { name:'商品', exact:true }).getAttribute('aria-selected'), 'true');
+  });
   await scenario('six-tab-navigation-settings-keyboard', async page => {
     const labels = ['推荐回复', '知识库', '客户档案', '商品', '图片', '订单'];
     const ids = ['reply', 'knowledge', 'customer', 'products', 'images', 'orders'];
@@ -316,7 +394,7 @@ try {
     assert.ok(width <= 2, '200% zoom body overflow: ' + width);
     await page.screenshot({path:join(screenshots,'preview-200pct.png'),fullPage:true});
   });
-  console.log('BROWSER_SMOKE_PASSED=' + passed + '; scope='+(coreOnly?'core':'all')+'; environment=CI headless Chromium (not local Mac Chrome; CSS zoom is not browser zoom)');
+  console.log('BROWSER_SMOKE_PASSED=' + passed + '; scope='+(coreOnly?'core':'all')+'; environment='+process.platform+' headless Chromium; executable='+(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE||'Playwright bundled')+' (CSS zoom is not browser zoom)');
 } finally {
   await browser.close();
 }

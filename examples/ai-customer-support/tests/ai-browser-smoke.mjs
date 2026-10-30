@@ -29,7 +29,7 @@ async function scenario(name,run){
   }};
  },observation());
  try{
-  await page.goto(pathToFileURL(join(root,'preview/index.html')).href);
+  await page.goto(pathToFileURL(process.env.SUPPORT_TEST_PREVIEW||join(root,'preview/index.html')).href);
   await page.getByRole('button',{name:'获取 AI 知识建议',exact:true}).waitFor();
   await page.getByRole('button',{name:'获取 AI 知识建议',exact:true}).click();
   await page.waitForFunction(()=>window.__out.some(x=>x.type==='support.aiQuery'));
@@ -55,6 +55,25 @@ try{
   const fill=await p.evaluate(()=>window.__out.find(x=>x.type==='support.fillDraft'));
   assert.equal(fill.text,'人工编辑：请核对订单后回复。');assert.deepEqual(fill.binding,binding);
   assert.equal(fill.expectedDraft,''); // Intent only; no fabricated native receipt.
+ });
+ await scenario('requery-keeps-human-version-until-explicit-choice',async(p,r)=>{
+  await p.evaluate(m=>window.__deliver(m),result(r));
+  await p.getByRole('button',{name:'编辑选中回复',exact:true}).click();
+  await p.getByRole('textbox',{name:'编辑知识建议',exact:true}).fill('最后人工稿');
+  await p.getByRole('button',{name:'完成',exact:true}).click();
+  await p.getByRole('button',{name:'获取 AI 知识建议',exact:true}).click();
+  await p.waitForFunction(()=>window.__out.filter(x=>x.type==='support.aiQuery').length===2);
+  const next=await p.evaluate(()=>window.__out.filter(x=>x.type==='support.aiQuery').at(-1));
+  assert.equal(await p.locator('.option.sel .answer').innerText(),'最后人工稿');
+  await p.evaluate(m=>window.__deliver(m),result(next,{candidates:[
+    {id:'query',name:'知识建议',symbol:'✦',text:'第二版候选',evidenceIds:['e0']}]}));
+  assert.equal(await p.locator('.option.sel .answer').innerText(),'最后人工稿');
+  await p.getByRole('button',{name:'知识建议 · 版本 2：第二版候选',exact:true}).click();
+  assert.equal(await p.locator('.option.sel .answer').innerText(),'第二版候选');
+  await p.getByRole('button',{name:'知识建议 · 版本 1：最后人工稿',exact:true}).click();
+  assert.equal(await p.locator('.option.sel .answer').innerText(),'最后人工稿');
+  const cancels=await p.evaluate(()=>window.__out.filter(x=>x.type==='support.aiCancel'));
+  assert.ok(cancels.length>=2,'Opening and changing the editor synchronously cancel Host work');
  });
  await scenario('late-result-keeps-human-edit',async(p,r)=>{
   await p.getByRole('button',{name:'编辑选中回复',exact:true}).click();

@@ -1,0 +1,30 @@
+{
+  "createdAt": "2026-10-29T19:02:04.961506+00:00",
+  "frozenBeforeInference": true,
+  "reviewStatus": "AWAITING Socrates review relayed by user; live forbidden",
+  "sourceSha256": "df80c24c75747f3cf93b89fb5cfabdf4b7c12937cecf086b92d346ecc7d74686",
+  "files": {
+    "development/cases.json": "4f928326ddee48adf9a87beca6af071c3e1be146bfc9b09dc4f2555cac883c06",
+    "development/requests.json": "b7459e65c2ba67b8e09a80d2e9550c667c283fd31d679184c8a0e941a6a1f568",
+    "knowledge.json": "dce8136453cd773694be01c050eb27dacff5f38e5388fe5bcdbbd772b5b2e8e7",
+    "label-review.json": "2a8709a34bc864dc0f6d9bdfe0f9a1b82ba6714f654cfcd7229104fe2b1bb723",
+    "policy.json": "32ba056e9f41bb0e9bfb94fe9abd5da9b069719ec49bb39bf748c245613feffb",
+    "quotas.json": "ae6a4333f817f38b66be2725a66e60e09a6ef1ff24bbdd0c0fcd3ea3056e132e",
+    "sealed/cases.json": "c53ae530c763a771471fad473053a82fb54c18431dc5ace373c002f4ad143378",
+    "sealed/requests.json": "d4362a07e23105a292ce0f67e0dc7ea2d63a98dff9853fe68bbc6a83eed57960",
+    "source-policy.json": "df80c24c75747f3cf93b89fb5cfabdf4b7c12937cecf086b92d346ecc7d74686",
+    "source-seal.json": "9a4b085026135bf3a2e74352ab048705dcc7d872c15acc198c0294eed1c08b86"
+  },
+  "code": {
+    "tests/ai-customer-support-quality/prepare_v3.py": "f87446f33848bda9ae5f87b769920370f7e070548d570ebf14a2e686f60a9cfb",
+    "tests/ai-customer-support-quality/run_v3.py": "04af0f9df222b1b48199bc616a8a55d2fbfdb400c3e9644dbe39516fa13ae7cd",
+    "tests/ai-customer-support-quality/test_v3.py": "e966ae3f0e3e288d1d4bb3f0b8b4ed187e7714e3278054d6653b19823580b43e",
+    "tests/ai-customer-support-quality/run_v2.py": "984f6f6fa95a732d15cb4e3e39852e2a038c8f3bb6a7b6c8a91dc7bdd6449705",
+    "tests/ai-customer-support-quality/evaluate.py": "bb3a5b6ec3fff103fea40c4822cf9412b9da9fecc4313eea66404afb3a7c79a5"
+  },
+  "priorSeals": {
+    "examples/ai-customer-support/fixtures/r30c-quality/seal.json": "981cebc27c2909a2fa46b9b3a489039c044dfa9c62b7b79090cba42a8eaad679",
+    "examples/ai-customer-support/fixtures/r30c-quality/v2/seal.json": "437d534a575d027a88aec7023bed5ceea0f73c889a8fb4d3a606ccced006e039",
+    "examples/ai-customer-support/fixtures/r30c-quality/v2/correction-seal.json": "18b49bbd9e4002a1f566c2f585477c40e0957a3c5cb65711d391d4d8c0782dc0"
+  }
+}

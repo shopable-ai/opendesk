@@ -1,4 +1,71 @@
-# OpenDesk Desktop · AI 客服助手 R2.3
+# OpenDesk Desktop · AI 客服助手
+
+## 数据处理方案：从字段对应开始
+
+设置 → **业务数据与同步 → 数据处理方案** 提供商品清单和客户名册模板。对应输入字段，查看样例试跑的完整输入/输出和失败行，保存并启用方案，再预检、确认应用。修改配置、停用或离开编辑器会使旧待确认结果失效；界面更新保留未映射的商品元信息、客户标签和会话关联，仍检查版本、游标和本地覆盖冲突。
+
+方案仅保存在本次页面内存，业务备份不含方案；关闭前单独导出方案 JSON，恢复后默认停用。需要几行 JavaScript 定制时，沿用共享映射器的可信本地 Adapter。完整步骤、可复制命令和代码边界见 [数据处理方案使用说明](integrations/mapping-guide.md)。不执行上传代码、不保存平台密钥，也不建立真实聊天授权。
+
+## 2026-10-30 · 可选本地业务工作区
+
+在设置 → **业务数据与同步** 中点「保存工作区」，可保存全部店铺资料及游标。原生 App 写入固定 `.runtime/business-sync/` 的三个版本槽；浏览器使用当前浏览器、当前 origin 的 IndexedDB，两者不共享。页面明确区分未保存、保存中、已保存和失败；导出下载只表示请求文件备份，不会把当前工作区标为已保存。
+
+「启用自动保存」需要当次确认，**每次启动默认关闭**，不会默认读取恢复或托管。重新打开后点「刷新工作区版本」，选择有效版本并确认恢复；损坏/不兼容版本保留诊断，上一有效版本仍可恢复。恢复绑定所选槽位与版本号，版本已轮换时要求刷新。取消不替换资料，恢复后自动保存关闭，核对后再显式保存。
+
+只保存既有业务备份字段：店铺、来源原件、本地覆盖、停用版本和已应用游标；不保存聊天/历史/草稿、授权/真实Binding、托管、脚本或密钥。工作区保存3个恢复版本，原生使用稳定文件锁、版本CAS、同目录独占完整写入及原子rename发布，保留最后有效槽；固定pending/abandoned文件用于中断恢复，不是可选择的业务版本。业务payload仍限8MiB，外层JSON转义单独有界。此发布路线已在本机macOS验收；跨平台live未做。失败或回执未知时关闭自动保存，先刷新核对，不盲目重试；无法辨识generation的损坏文件会保守阻止新写，仍可从其他有效槽恢复并导出。
+
+原生点「刷新文件清单」或图片表单的「刷新图片清单」，从白名单文件中选择，无需手填文件名；也保留basename输入。最多处理500个名称、展示100个文件并提示截断。Runtime `File.listDir` 底层仍全量枚举，本例不宣称其内存扫描硬上限；建议将业务目录保持精简。列表不是授权，读取时仍重新校验路径、类型和容量。页面不会提供任意路径或执行上传脚本。
+
+浏览器存储可能受隐私模式/配额/清除影响，原生 `.runtime` 也可被清理；请独立导出业务备份并妥善保管。关闭拦截取决于宿主，工作区状态是核对保存结果的依据，不能依赖退出时自动落盘。真实CRM/微信、多人权限和生产写回仍不在本地示例范围。
+
+接入开发者可直接运行 [通用JSON/HTTP只读适配器](integrations/README.md)。一调用一页，UI确认应用后才推进cursor；GET、固定allowlist、限额/deadline和外置只读凭据都有本地loopback契约测试，未连接任何真实平台。
+
+Unix工作区新文件从临时inode创建起使用`0600`，固定pending/abandoned及版本槽保留该权限。父目录权限不变；历史文件不被隐式改权限，同账户进程和Windows ACL不在此保证中。
+
+新增验收入口（**从仓库根目录**）：
+
+```sh
+npm --prefix examples/ai-customer-support run test:workspace-browser
+node tests/custom-ui/tools/support-app/run-workspace-files.mjs
+node tests/custom-ui/tools/support-app/run-workspace-native.mjs run
+```
+
+使用本机Chrome可在命令前加 `PLAYWRIGHT_CHROMIUM_EXECUTABLE='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'`。浏览器证据只证明浏览器能力，原生Runtime与实窗另行记录；详见[本轮工作区质量记录](../../docs/quality/ai-customer-support-workspace-20261030.md)。
+
+## 2026-10-30 · 通用多店资料与脚本扩展
+
+在原有六页和约 380px 助手中增加「数据店铺」选择及设置 → **业务数据与同步**。可新增店铺、搜索与维护商品/客户、上传并关联本地商品图片、导入只读订单；支持预检后确认同步、来源游标、本地覆盖与恢复来源、全量业务备份/恢复。两个内置店铺用于验证相同 ID 隔离，全部为虚构数据。导入后商品、图库、客户资料和客服订单页消费所选店的数据。
+
+这是单机资料拥有者的管理视图：管理列表有意显示所选整店数据，备份包含所有店铺，与聊天权限分开。客服订单页只显示明确映射到当前虚构会话的客户；切换店铺隔离草稿和历史，CRM 映射变化清空原客户的会话资料。原生聊天尚无可信店铺/CRM 身份映射，因此其客服订单页为空、业务资料填入禁用；选店不建立真实聊天绑定。多人部署需另接服务端身份和权限。
+
+从**仓库根目录**运行以下离线接入示例（Node >=22，先安装本例依赖；输出名须未使用）：
+
+```sh
+node examples/ai-customer-support/scripts/sync-business.mjs --adapter examples/ai-customer-support/integrations/demo-adapter.mjs --store store-demo --source crm --out .runtime/business-sync/multistore-v1.json
+```
+
+打开现有 App 或 `preview/index.html`，选「示例旗舰店」。浏览器在业务数据区选择生成的 JSON；原生 App 在「本机文件名」填写 `multistore-v1.json` 后点「读取本机同步页」。核对预检后点「确认应用同步页」。CLI 成功只表示文件已准备好；UI 确认才更新游标。下一页显式传 `--cursor demo-v1` 并使用新输出名。从界面已应用的游标继续，逐页确认，不跨页承诺事务。
+
+原生文件操作使用**业务工作目录**下固定的 `.runtime/business-sync/`：仓库源码 App 使用仓库根目录，可搬移 App 包使用自己的 App 根目录，`native-demo.js` 使用其 Execution 工作目录。图片也先放入这里，在编辑表单填写图片文件名后读取；导出会独占生成 `business-backup-*.json` 并显示保存回执。恢复时填入备份文件名，再点「恢复本机业务备份」并确认替换。仅接受不含路径的 ASCII 文件名，拒绝连续点、符号链接和超限文件；不会覆盖已有备份。浏览器继续使用文件选择、下载与恢复。原生入口没有系统文件选择器或下载功能，这些按钮通过本例 Host 文件通道完成。消息分块控制在原生桥每条 64KiB 限额内，完整文件仍按上述业务限额校验；备份收齐并复验后才写入。
+
+自定义本地 `.mjs` 导出 `pull(context)`，可选 `normalize(record, context)` 和 `afterSync(summary)`；可适配 CRM、网店 API、内部系统或文件。完整字段、示例和执行边界见 [接入开发说明](integrations/README.md)。Worker deadline 覆盖模块加载和全部 hooks；父进程复验后独占原子发布。脚本是拥有完整 Node 权限的可信代码，Worker 只做故障隔离；界面不执行上传脚本、不保存平台密钥。
+
+数据格式以 [business.ts](src/domain/business.ts) 为准：`schemaVersion:1`，每条含 store/source/kind/id、正安全整数版本、UTC 时间、deleted 和严格 data。来源独占规范 ID，跨来源关联必须由接入脚本预先归一；版本回退、同版本变更、断游标、坏外键和本地覆盖冲突均整批拒绝。停用保存 tombstone；存在历史订单引用的商品不能删除。同游标仅允许所有记录均已一致的无副作用重放/轮询（可含子集或空页），不保存原页字节身份；旧页在游标前进后拒绝。
+
+商品参考价和订单金额限定 CNY、最多两位小数；不执行金融操作。图片只收 PNG/JPEG/WebP 内嵌数据，单图 128KiB、边长最多 4096、最多 4Mi 像素；域校验结构，UI 再真实解码。同步页最多 1MiB、每店最多 1000 条及 6MiB（含停用记录）、最多 20 店、业务备份 8MiB。不抓取远程图片，程序 SVG 仅作无图片时的示意。所有外部资料仍待人工核实。
+
+React页面内存仍是活动业务状态的唯一owner；可显式保存到工作区或导出备份。备份包含各店来源原件、本地覆盖、停用版本和已应用游标，不含聊天、授权、脚本或凭据；恢复旧备份将恢复旧游标。真实 CRM/OAuth/webhook、生产写回和图片识别尚未实现或验证。
+
+验证命令（同样从仓库根目录）：
+
+```sh
+npm --prefix examples/ai-customer-support run typecheck
+npm --prefix examples/ai-customer-support test
+npm --prefix examples/ai-customer-support run build
+npm --prefix examples/ai-customer-support run test:business-browser
+```
+
+已安装本机 Chrome 时，浏览器命令前可加 `PLAYWRIGHT_CHROMIUM_EXECUTABLE='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'`。CI 同时运行新增域、会话状态、真实 CLI hooks 与浏览器流程。[目标、关键条件与分层验收记录](../../docs/quality/ai-customer-support-multistore.md)记录本轮结果；下文保留既有原生 Demo/AI 能力说明及历史验收边界。
 
 > 2026-10-29 · 当前阶段：macOS Desktop 技术 Demo，复用 React 19 + TypeScript 六页及唯一 HTML。目标是独立测试聊天实窗 → 原生识别 → 推荐 → 人工选用 → 草稿回读；真实微信、订单后台和自动发送未接入。
 
@@ -9,7 +76,7 @@
 - 唯一可维护 UI 源码是 `src/`：单 React root，六个业务页和右上角独立设置。
 - `src/state.tsx` 是唯一会话、授权、草稿、导入结果和模拟发送 owner；`src/domain/` 放商品、订单、知识和历史规则。
 - 唯一正式 HTML 为 `preview/index.html`，由 `scripts/build-preview.mjs` 从正式源码原子生成，无 CDN、开发服务器或平行 Mock。不要直接修改生成 HTML。
-- 三位虚构客户各有独立消息、编辑建议、草稿、订单与档案。状态只保留在当前页面内存，刷新重置；不持久化，不调用云模型。
+- 三位虚构客户各有独立消息、编辑建议、草稿、订单与档案。聊天状态只保留在当前页面内存，刷新重置；可选工作区仅保存上文限定的业务资料。离线预览不调用云模型。
 - 不开发扩展、sidepanel、第二个页面或新的 Runtime。R2.3 原生入口仅维护窗口、观察身份与动作凭据，业务状态仍由 `src/state.tsx` 负责。
 
 ## macOS 原生 Demo
@@ -37,9 +104,9 @@ R2.1/R2.2 的历史 `desktop/main.js/panel.html` 补丁未在 master 合入，�
 | 推荐回复 | 2–3 条处理策略、选用、编辑、复制、填草稿、人工接管 | 草稿不等于发送；没有可靠知识时只澄清/人工核实 |
 | 知识库 | 搜索、状态/来源/范围筛选、展开完整答案、JSON/Markdown 导入 | 新导入数据默认无托管资格；冲突、停用或范围不符不作为可靠匹配 |
 | 客户档案 | 历史 JSON、确定性规则提取、原话证据、人工确认/忽略/恢复、Markdown | 候选不参与自动发送；保守规则不是 LLM，不推断敏感属性 |
-| 商品 | 6 件商品、SKU/规格搜索、详情与关联图片；严格匹配本地演示商品链接 | 不识别外部商家链接、不爬取网页、不查询实时库存或价格 |
-| 图片 | 12 张 SVG 图库、大图和商品双向跳转 | 未实现以图识物或真实附件发送 |
-| 订单 | 当前客户只读搜索/筛选、详情、摘要复制、草稿和关联商品 | 8 笔虚构订单；不执行退款、取消、付款或发货 |
+| 商品 | 按店铺维护/导入、SKU/规格搜索、详情和关联图片；内置基线 6 件商品 | 不识别外部商家链接、不爬取网页、不查询实时库存或价格 |
+| 图片 | 按商品关联的 PNG/JPEG/WebP 本地图片、大图和双向跳转；无图片时使用示意 SVG | 未实现以图识物或真实附件发送 |
+| 订单 | 当前映射客户只读搜索/筛选、详情、摘要复制、草稿和关联商品 | 基线 8 笔虚构订单；可脚本导入，不执行退款、取消、付款或发货 |
 
 商品详情可复制 `https://catalog.opendesk.example/products/<商品ID>` 形式的演示链接（`.example` 为保留示例域名，不指向真实商品）。商品搜索可粘贴该链接；当前客户消息包含唯一 SKU、型号、完整名称或唯一可信演示链接时，推荐回复页显示可点开的商品线索；不存在或有歧义时不猜测，也不会据此自动发送。
 
@@ -53,8 +120,8 @@ R2.1/R2.2 的历史 `desktop/main.js/panel.html` 补丁未在 master 合入，�
 | --- | --- | --- |
 | `fixtures/knowledge-demo.json` | 8 条虚构问答 | 知识库 → 导入知识 → 选择本地文件 |
 | `fixtures/customer-history-demo.json` | 3 客户、6 会话、22 条消息 | 客户档案 → 导入历史会话 → 选择 JSON 文件 → ✦ 提取 |
-| `fixtures/products-demo.json` | 6 商品、12 SVG 引用 | 商品与图片共享，无单独导入 |
-| `fixtures/orders-demo.json` | 8 笔客户隔离的订单 | 订单页，无后台接口 |
+| `fixtures/products-demo.json` | 内置基线 6 商品、12 SVG 引用 | 业务同步另见上节的严格 delta 契约 |
+| `fixtures/orders-demo.json` | 内置基线 8 笔客户隔离订单 | 可从受信 Adapter 导入，没有生产订单操作接口 |
 
 知识文件限 256KB，单文件 1–100 条，页面总计最多 150 条，超限整份拒绝。JSON 接受数组或 `{ "entries": [...] }` / `{ "items": [...] }`；每条须有字符串 `question` 和 `answer`，兼容 `title` 与 `content`/`reply`。可选 `aliases`/`keywords` 为字符串数组，`enabled` 为布尔值，`category`/`group` 为字符串，`scope` 为字符串或 `null`。错误字段类型整份拒绝，避免把 `"false"` 当启用或把对象变成答案。来源显示本地文件名，导入字段不能授予托管资格。
 
@@ -81,6 +148,24 @@ Markdown 采用二级标题问答格式，作为纯文本数据处理：
 首次安装依赖：`npm --prefix examples/ai-customer-support ci`。
 
 类型与正式生成物：`npm --prefix examples/ai-customer-support run typecheck && npm --prefix examples/ai-customer-support run build && npm --prefix examples/ai-customer-support test`。
+
+### 标准 App Mode（macOS，未连接状态）
+
+从上述仓库根目录直接运行：`./dist/opendesk -app examples/ai-customer-support -console-mode script -log-dir .runtime/tests/ai-customer-support/workspace-20261030/public-app`。
+
+入口为 `main.js`，稳定 App ID 为 `com.opendesk.ai-customer-support`，主窗口为 `supportReactR23`。它加载原来的 `preview/index.html`、六页 React 和唯一 reducer。第二次启动激活原实例，关闭窗口退出 App Shell；程序无需保活循环。此入口没有聊天 provider，显示未连接并保持未授权；Bridge 握手只确认 JSON 传输，不合成客户消息、真实身份或草稿回执。R2.3 独立测试聊天仍使用原来的 `scripts/run-desktop.sh`。
+
+`npm --prefix examples/ai-customer-support run build` 同时生成 `desktop/app-integrity.json`。HTML 改动后须重新构建；旧哈希会被 Runtime 拒绝。结构检查：`./dist/opendesk app validate examples/ai-customer-support`；现场诊断：`./dist/opendesk app doctor examples/ai-customer-support`。
+
+生成最小可搬移包：`npm --prefix examples/ai-customer-support run stage:app`。输出为仓库根目录下的 `.runtime/packages/ai-customer-support/`，只包含 Manifest、入口、App adapter、哈希和同一份 HTML；拒绝覆盖已有目录、symlink 和哈希不一致。可通过 `npm --prefix examples/ai-customer-support run stage:app -- .runtime/packages/<新的目录名>` 选择新目标。生成后从仓库根目录运行：`./dist/opendesk -app .runtime/packages/ai-customer-support -console-mode script -log-dir .runtime/tests/ai-customer-support/app-mode/staged-app`。这一步尚未生成可双击发行 `.app`。
+
+本机已有 Chromium 时，可显式选择它运行核心浏览器检查：`PLAYWRIGHT_CHROMIUM_EXECUTABLE='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npm --prefix examples/ai-customer-support run test:browser -- --core`。该检查使用隔离的 headless 浏览器，不能代替原生窗口验收。当前目标、关键条件、实窗证据和宿主限制见[本轮验收记录](../../docs/quality/ai-customer-support-app-mode-20261029.md)。
+
+维护者先原样执行上面的离线接入命令，再运行原生资料区 gate：`node tests/custom-ui/tools/support-app/run-app-native.mjs business`；它检验实际加载、折叠/展开、固定目录读取同步页、确认应用及导出，并独立检查备份中的已应用游标。文件桥 Runtime 检查：`./dist/opendesk -script tests/custom-ui/ai-customer-support-business-files.js -console-mode script`。它们不证明真实平台接通。
+
+维护者的原生 AX 专项入口：`node tests/custom-ui/tools/support-app/run-app-native.mjs`。它使用已有 `dist/opendesk`，生成新的顶层 `.runtime/` 证据目录；只在 staging 副本入口追加验收与 quit，自动取得本次 PID/handle。设置 checkbox 必须来自原生 AX，并实际切换、离开/返回、回读及恢复；商品详情和页面往返后还要验证状态与禁用草稿。缺节点、未知动作或结果缺失会退出 1，不以 Runtime 的退出 summary 代替 gate 结果。`core` 参数运行六页及商品/设置的既有混合 AX/OCR gate；它不证明 AX 完整。正式验收会操作自己的测试窗口，不是普通体验启动方式，也不构建或重签宿主。
+
+浏览器证据可用 `SUPPORT_TEST_EVIDENCE="$PWD/.runtime/tests/ai-customer-support/<新目录>"` 单独保存。核心回归包含未连接 App 的设置/权限边界和局部状态保持；其中 Bridge 为浏览器 stub，不是真实聊天。原生 AX 仍存在间歇性子树缺失；一次完整观察和开关回读通过不能证明该宿主问题已经修复。CPU 启动异常也仍属 native 依赖诊断，未修改宿主。上轮实窗曾显示商品详情示意图上缘文字裁切；本轮改用contain显示完整示意图，最新验证状态见工作区质量记录。
 
 可选静态 HTTP：`python3 -m http.server 4173 --bind 127.0.0.1 --directory examples/ai-customer-support/preview`，访问 <http://127.0.0.1:4173/>。已有客服验收服务时直接复用其地址。HTTP 仍读取同一个正式 HTML；不再生成预览。直接 `file://` 是离线产品目标之一，当前 Mac 工具未完成该路径验收。
 
@@ -112,5 +197,13 @@ OPENDESK_SUPPORT_QUERY_PROVIDER=auto \
 
 返回的 `review_answer` 仍是待人工审核的候选草稿；`EvidencePack` 中的知识 ID 和 Hash 只是旧系统上报的依据引用，**不等于 OpenDesk 独立验证该知识正确、未过期或适用于当前订单**。模型失败、冲突、项目不符或身份变化均不授权自动操作。旧知识系统包含 Hash Vector 和 BM25，但 Hash Vector 不是已验证的语义 Embedding。
 
-`fixtures/rag-benchmark-100.json` 仅是 100 个合成、未标注/未执行的问题草案；不得生成虚假 Recall@K、正确率、成本或延迟。正式评测需准备经过审核的项目数据、黄金证据 ID 和可比对的 7 策略实际输出。测试：`npm --prefix examples/ai-customer-support test` 或单独 `node --test examples/ai-customer-support/tests/ai-query.test.mjs`。`--verify` 禁用 Query API 配置，继续检验原有离线原生闭环；R3.0-A 真实 AI+Mac 需独立实机验收，尚不能从源码或 CI 推定通过。
+`fixtures/rag-benchmark-100.json` 保留为最初的问题草案。R3.0-C 的有标签合成基线位于 `fixtures/r30c-quality/`，开发集、封存集、来源和真实有界调用结果见[质量记录](../../docs/quality/ai-customer-support-r30c-quality.md)。先比较 FAQ/BM25，只按开发集错误做最小增强；不要求为本轮重建七策略。合成知识不代表商家批准。测试：`npm --prefix examples/ai-customer-support test` 或单独 `node --test examples/ai-customer-support/tests/ai-query.test.mjs`。`--verify` 禁用 Query API 配置，继续检验离线原生闭环；真实 AI+Mac 结果按独立实机证据报告，不能由源码或 CI 推定。
+
+## R3.0-C · 版本与来源审核
+
+原生模式再次查询会保留当前人工稿和旧版本，新回答追加为待选版本，点击对应版本才改变选择。暂停恢复保留同一窗口、客户及消息的人工稿，同时使旧请求失效；已有聊天人工草稿仍拒绝覆盖。
+
+每个版本可以展开自己的“审核依据”，查看 Query 项目、请求、来源条目、文档、原文及 Hash。当前服务没有提供的版本、生效期、适用条件和逐句引用明确显示待核实。来源存在、文字匹配和业务适用性是分别审核的事项；本地知识导入不会更新 Query 项目。
+
+本轮修改、真实加载、实窗和功能证据及未完成项见[R3.0-C Mac 验收记录](../../docs/quality/ai-customer-support-r30c-mac-verify.md)。正式启动命令继续使用现有 `scripts/run-desktop.sh`，无真实发送。
 

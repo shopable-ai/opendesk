@@ -1,0 +1,20 @@
+{
+  "sourceDistinctFacts": 80,
+  "questions": 100,
+  "uniqueQuestions": 100,
+  "development": 60,
+  "sealed": 40,
+  "sealedAnswer": 24,
+  "sealedDistinctGoldFacts": 80,
+  "sealedGoldOccurrences": 128,
+  "sealedMultiIntentQuestions": 8,
+  "sealedMultiIntents": 16,
+  "sealedMultiFactOccurrences": 64,
+  "sealedRiskCounts": {
+    "unknown": 4,
+    "conflict": 2,
+    "expired": 2,
+    "wrong_scope": 4,
+    "injection": 4
+  }
+}

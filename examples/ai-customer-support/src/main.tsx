@@ -10,6 +10,7 @@ import { ProductsView } from './views/Products';
 import { ImagesView } from './views/Images';
 import { OrdersView } from './views/Orders';
 import { SettingsView } from './views/Settings';
+import { BusinessScope } from './views/BusinessData';
 import './styles.css';
 
 const questions:Record<string,string>={
@@ -117,13 +118,14 @@ function Copilot({dark,onToggleTheme,onResetPosition}:{dark:boolean;onToggleThem
             aria-expanded={state.tab==='settings'} onClick={()=>dispatch({type:'TAB',tab:state.tab==='settings'?state.settingsOrigin:'settings'})}>
             <Settings size={17} strokeWidth={1.8}/></button>
         </header>
+        <BusinessScope/>
         <BusinessTabs/>
         <PanelView id="reply" active={state.tab==='reply'}><ReplyView/></PanelView>
         <PanelView id="knowledge" active={state.tab==='knowledge'}><KnowledgeView/></PanelView>
-        <PanelView id="customer" active={state.tab==='customer'}><CustomerView/></PanelView>
-        <PanelView id="products" active={state.tab==='products'}><ProductsView/></PanelView>
-        <PanelView id="images" active={state.tab==='images'}><ImagesView/></PanelView>
-        <PanelView id="orders" active={state.tab==='orders'}><OrdersView/></PanelView>
+        <PanelView id="customer" active={state.tab==='customer'}><CustomerView key={state.storeId}/></PanelView>
+        <PanelView id="products" active={state.tab==='products'}><ProductsView key={state.storeId}/></PanelView>
+        <PanelView id="images" active={state.tab==='images'}><ImagesView key={state.storeId}/></PanelView>
+        <PanelView id="orders" active={state.tab==='orders'}><OrdersView key={state.storeId}/></PanelView>
         <PanelView id="settings" active={state.tab==='settings'}><SettingsView onResetPosition={onResetPosition}/></PanelView>
       </div>
       {state.toast&&<div className="toast" role="status" aria-live="polite">{state.toast.message}</div>}

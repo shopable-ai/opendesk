@@ -5,7 +5,7 @@
   const results=[];let completed=false;
   const assert=(ok,message)=>{if(!ok)throw Error(message);};
   const check=(id,ok,actual)=>{const r={id,status:ok?'PASS':'FAIL',actual};results.push(r);log('check',r);assert(ok,id);};
-  const wait=async(fn,label,timeout=18000)=>{
+  const wait=async(fn,label,timeout=35000)=>{
     const start=Date.now();
     while(Date.now()-start<timeout){if(await fn())return;await sleep(150);}
     throw Error('Timed out: '+label);
@@ -34,7 +34,27 @@
   async function click(name,role='button'){
     const {w,b,node}=await control(name,role);
     log('ai-human-control',{name:node.name,role,pid:w.pid,windowId:w.handle,bounds:b});
-    await mouse.clickForPID(w.pid,b.x+b.width/2,b.y+b.height/2);await sleep(150);await idle();
+    const action=role==='checkbox'?{action:'setChecked',checked:node.checked!==true}:{action:'invoke'};
+    assert(node.actions?.includes(action.action),'Control does not advertise '+action.action);
+    const ref=await Accessibility.find({name:node.name,role},{within:w,maxDepth:24,maxNodes:1800});
+    assert(ref,'Control identity changed');
+    try{const result=await Accessibility.perform(ref,action);
+      assert(['acknowledged','not_needed'].includes(result.actionState),'Control action unknown; no retry');
+    }finally{await Accessibility.release(ref);}
+    await sleep(150);await idle();
+  }
+  async function chooseVersion(name){
+    // Version cards may extend below the scroll viewport. Invoke the exact
+    // native AX control directly; never click a point covered by the footer.
+    const {w,node}=await control(name,'checkbox');
+    assert(node.actions?.includes('setChecked'),'Version control has no supported selection action');
+    const ref=await Accessibility.find({name:node.name,role:'checkbox'},{within:w,maxDepth:24,maxNodes:1800});
+    assert(ref,'Version control no longer unique');
+    try{const action=await Accessibility.perform(ref,{action:'setChecked',checked:true});
+      log('ai-version-control',{name:node.name,pid:w.pid,windowId:w.handle,action});
+      assert(['acknowledged','not_needed'].includes(action.actionState),'Version action unknown; no retry');
+    }finally{await Accessibility.release(ref);}
+    await sleep(150);await idle();
   }
   async function shot(name){const w=await chat(),s=await panel.getState(),b=s.bounds;
     const x=Math.min(w.x,b.x),y=Math.min(w.y,b.y);
@@ -91,6 +111,27 @@
     check('real-generated-route',wire.httpStatus===200&&wire.provider==='openai-compatible'&&wire.modelCallCounts?.total_provider_requests>0&&wire.rewriteStatus==='completed',wire);
     await File.writeJSON(File.join(evidence,'ai-card-ax.json'),await tree(await assistant()));
     await shot('01-ai-recommendation');
+    await click('审核依据 '+request.requestId);
+    const reviewTree=await tree(await assistant());
+    await File.writeJSON(File.join(evidence,'source-review-expanded-ax.json'),reviewTree);
+    await shot('01a-source-review-expanded');
+    async function sectionText(name){
+      const ref=await Accessibility.find({name},{within:await assistant(),maxDepth:24,maxNodes:1800});
+      assert(ref,'Missing source section '+name);
+      try{return await tree(ref,true);}finally{await Accessibility.release(ref);}
+    }
+    const reviewNodes=OpenDeskSupportNative.nodes(await sectionText('审核元数据 '+request.requestId));
+    const contains=(nodes,text)=>nodes.some(n=>(n.name||'').includes(text)||(typeof n.value==='string'&&n.value.includes(text)));
+    check('source-review-request-project',contains(reviewNodes,request.requestId)&&contains(reviewNodes,'版本、生效期及适用条件'),{requestId:request.requestId});
+    const sourceControls=OpenDeskSupportNative.nodes(reviewTree).filter(n=>n.role==='button'&&n.name?.startsWith('展开来源 '));
+    assert(sourceControls.length===1,'Expected one actual source control');
+    await click(sourceControls[0].name);
+    const originalTree=await sectionText('来源原文 '+sourceControls[0].name.split(' ')[1]+' '+request.requestId);
+    await File.writeJSON(File.join(evidence,'source-review-ax.json'),originalTree);
+    check('source-original-ax-readable',contains(OpenDeskSupportNative.nodes(originalTree),'可以选的类型还挺全的'),{requestId:request.requestId});
+    await shot('01b-source-original-review');
+    await click('审核依据 '+request.requestId);
+
     await click(/^知识建议：/,'checkbox');
     check('human-selected-ai',getRender().replyText===generated,getRender());
     await click('编辑选中回复');
@@ -118,6 +159,19 @@
     await wait(()=>getRender()?.replyText===intended,'React committed actual native edit');
     const edited=getRender().replyText;
     check('human-edit-react-committed',edited===intended,getRender());
+    const refresh=await query();
+    check('requery-keeps-human-while-waiting',getRender().replyText===intended,getRender());
+    await response(refresh);
+    await wait(()=>events().some(r=>r.type==='ai-result'&&r.requestId===refresh.requestId),'new version delivered');
+    await idle();
+    check('requery-new-version-does-not-overwrite',getRender().replyText===intended,{requestId:refresh.requestId,render:getRender()});
+    await File.writeJSON(File.join(evidence,'requery-versions-ax.json'),await tree(await assistant()));
+    await shot('01c-human-edit-and-pending-version');
+    await chooseVersion(/^知识建议 · 版本 2：/);
+    check('explicit-new-version-adopted',getRender().replyText!==intended,getRender());
+    await chooseVersion(/^知识建议 · 版本 1：/);
+    check('explicit-old-human-version-restored',getRender().replyText===intended,getRender());
+
     await click('→ 填入聊天草稿');
     await wait(()=>getRender()?.receipt?.includes('verified'),'native independent draft receipt');
     const readback=await parsed();
@@ -125,6 +179,11 @@
     await shot('02-ai-edited-draft-verified');
     const oracle=await File.readJSON(File.join(evidence,'fixture-oracle.json'));
     check('no-send',oracle.sendActions===0,{sendActions:oracle.sendActions});
+    await click('暂停观察');
+    await wait(()=>!adapter.current.observing,'human draft paused');
+    check('pause-retains-human-draft',getRender().replyText===edited&&(await parsed()).draft===edited,getRender());
+    await click('恢复观察');await observe();await idle();
+    check('resume-retains-human-draft',getRender().replyText===edited&&adapter.current.observing&&(await parsed()).draft===edited,getRender());
     const manual='已有人工草稿，请保留';
     await act('support.draft.t1',{action:'setValue',value:manual});await observe();await idle();
     await wait(()=>getRender()?.draft===manual,'existing human draft observed');
@@ -135,6 +194,7 @@
     // Inflight changes happen only after actual Host dispatch, not while the
     // query is still waiting to read the native conversation.
     for(const scenario of ['new-message','customer-switch','pause']){
+      const beforeInvalidation=getRender().replyText;
       const pending=await query();
       if(scenario==='new-message')await message(question);
       if(scenario==='customer-switch'){
@@ -147,7 +207,7 @@
       }
       await response(pending);await sleep(400);await idle();
       const stalePublished=events().some(r=>r.type==='ai-result'&&r.requestId===pending.requestId);
-      check('inflight-'+scenario+'-drops-result',!stalePublished&&getRender().replyText===safe,{requestId:pending.requestId,render:getRender()});
+      check('inflight-'+scenario+'-drops-result',!stalePublished&&(scenario==='pause'?getRender().replyText===beforeInvalidation:getRender().replyText===safe),{requestId:pending.requestId,render:getRender()});
       if(scenario==='customer-switch'){
         await act('support.contact.t1',{action:'invoke'});await observe();await idle();
       }

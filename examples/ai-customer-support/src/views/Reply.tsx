@@ -1,15 +1,36 @@
 import React from 'react';
 import { ClipboardCopy, Pencil, Check, Sparkles } from 'lucide-react';
-import { useActiveContext, activeOptions, activeReply, activeReplyKey, activeReplyText, latestKey, useWorkbench } from '../state';
+import { businessProducts, useActiveContext, activeOptions, activeReply, activeReplyKey, activeReplyText, latestKey, useWorkbench } from '../state';
 import { productFromCustomerText } from '../domain/catalog';
+import { reviewClaims, type AiResult } from '../domain/ai';
 import { inspectKnowledge } from '../domain/knowledge';
 import { IconButton, PanelScroll, useCopy, useFillDraft } from '../components/Common';
+
+function EvidenceReview({result,text}:{result:AiResult;text:string}){
+  const items=result.evidencePack.items,claims=reviewClaims(text,items);
+  return <details className="evidence-review"><summary role="button" aria-label={'审核依据 '+result.requestId}>审核依据 · {result.projectId}</summary>
+    <section aria-label={'审核元数据 '+result.requestId}>
+    <p>Query 项目知识 · {result.requestId}。有来源 ≠ 已核实适用；本地导入不会更新此项目。</p>
+    <p>版本、生效期及适用条件：服务未提供，待核实。Hash 是内容指纹，不是生效版本。</p>
+    </section>
+    {items.map(item=><details key={item.id}><summary role="button" aria-label={'展开来源 '+item.sourceRef+' '+result.requestId}>{item.id} · {item.source?.title||item.sourceRef}</summary>
+      <dl><dt>条目</dt><dd>{item.sourceRef}</dd><dt>文档</dt><dd>{item.source?.document||'未提供'}</dd>
+      <dt>来源 Hash</dt><dd>{item.answerHash}</dd></dl>
+      <p>关联状态：{item.source?'服务声明 ID / Hash 一致；原文未独立核验':'原文不可解析，待核实'}</p>
+      {item.source&&<section aria-label={'来源原文 '+item.sourceRef+' '+result.requestId}><blockquote>{item.source.text}</blockquote></section>}
+    </details>)}
+    <b>建议中的主张与引用</b><p>服务未提供逐句引用；文本相同也须核实业务适用性。人工编辑内容重新比对。</p>
+    <ul>{claims.map((claim,i)=><li key={i}>{claim.text}<small>{claim.evidenceIds.length?
+      '原文文字相同：'+claim.evidenceIds.join('、')+' · 适用性待核实':'未验证对应原文 · 待逐条核实（整条建议引用 '+items.map(e=>e.id).join('、')+'）'}</small></li>)}</ul>
+  </details>;
+}
+
 export function ReplyView(){
   const {state,dispatch,thread,message,active}=useActiveContext();
   const {queryNative}=useWorkbench();
   const ai=state.native?state.ai:null,aiResult=ai?.result;
   const assessment=inspectKnowledge(message?.text,state.knowledge,active&&!state.native),hit=assessment.hit;
-  const product=active&&!state.native?productFromCustomerText(message?.text):null;
+  const product=active&&!state.native?productFromCustomerText(message?.text,businessProducts(state)):null;
   const options=activeOptions(state),selected=activeReply(state),txt=activeReplyText(state);
   const key=activeReplyKey(state),copy=useCopy(),fill=useFillDraft(),taken=state.takeovers.includes(state.threadId);
   const editor=React.useRef<{key:string;node:HTMLTextAreaElement}|null>(null);
@@ -27,7 +48,7 @@ export function ReplyView(){
     <PanelScroll><div className="between">
       <span className={'connected'+(!active||taken?' warn':'')}>{caption}</span>
       {state.native&&<IconButton icon={Sparkles} title={ai?.status==='loading'?'正在查询':'获取 AI 知识建议'}
-        disabled={!active||!message||ai?.status==='loading'} onClick={queryNative}/>}
+        disabled={!active||!message||ai?.status==='loading'} onClick={()=>{commitEdit();queryNative();}}/>}
       {(state.auto||taken)&&<button className={'takeover'+(taken?' active':'')} onClick={()=>dispatch({type:'TAKEOVER'})}>{taken?'恢复托管':'♧ 人工接管'}</button>}
     </div>
     <div className="message"><div className="between"><span>最新客户消息</span><span>{active&&message?'#'+message.id:'未读取'}</span></div>
@@ -48,17 +69,25 @@ export function ReplyView(){
       onClick={()=>dispatch({type:'OPEN_PRODUCT',id:product.id})}>
       <span className="check">◇</span><span className="flex"><b>商品线索 · {product.name}</b>
       <small>{product.sku} · 演示匹配，信息需人工核实</small></span><span>›</span></button>}
-    <div className="section">推荐回复 <span>{options.length} 条 · 点击选用</span></div>
-    <div className="recommend" id="odiv-options">{options.map(option=>{
+    {state.native&&options.length>1&&<div className="notice">已保留旧版本及人工编辑。新回答待选，点击对应版本后才替换当前选中回复。</div>}
+    <div className="section">推荐回复 <span>{options.length} 条 · 点击明确选用</span></div>
+    <div className="recommend" id="odiv-options">{options.map((option,index)=>{
       const optionKey=latestKey(state)+':'+option.id,val=state.edits[optionKey]??option.text;
       const editing=state.editing===optionKey;
+      const optionLabel=option.name+(state.native&&options.length>1?' · 版本 '+(index+1):'');
+      const version=state.nativeReplyVersions.find(v=>v.id===option.id);
+      const source=version?.result||(state.nativeReplyVersions.length?null:aiResult);
       return <div className="option-wrap" key={option.id}>
         <button type="button" className={'option'+(selected.id===option.id?' sel':'')}
           disabled={!active} aria-pressed={selected.id===option.id}
-          aria-label={option.name+'：'+val} title={option.name}
+          aria-label={optionLabel+'：'+val} title={optionLabel}
           onClick={()=>dispatch({type:'REPLY_CHOICE',key:latestKey(state),id:option.id})}>
-          <span className="symbol">{option.symbol}</span><span className="answer">{val}</span><span className="tip">{option.name}</span>
+          <span className="symbol">{option.symbol}</span><span className="option-content">
+            {state.native&&options.length>1&&<span className="version-label">版本 {index+1} · {selected.id===option.id?'当前选中':'待选'}</span>}
+            <span className="answer">{val}</span>
+          </span><span className="tip">{optionLabel}</span>
         </button>
+        {state.native&&source&&<EvidenceReview result={source} text={val}/>}
         {editing&&<div className="inline-edit"><textarea autoFocus aria-label={'编辑'+option.name} maxLength={2000}
           ref={node=>{editor.current=node?{key:optionKey,node}:null;}}
           defaultValue={val} onChange={e=>dispatch({type:'REPLY_TEXT',key:optionKey,text:e.target.value})}

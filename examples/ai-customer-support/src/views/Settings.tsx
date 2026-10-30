@@ -1,6 +1,7 @@
 import React from 'react';
 import { useWorkbench } from '../state';
 import { PanelScroll } from '../components/Common';
+import { BusinessData } from './BusinessData';
 
 function Setting({title,description,children}:{title:string;description:string;children:React.ReactNode}){
   return <div className="setting"><div><b>{title}</b><small>{description}</small></div>{children}</div>;
@@ -18,6 +19,7 @@ export function SettingsView({onResetPosition}:{onResetPosition:()=>void}){
     <div className="settings-subhead"><button type="button" className="settings-back" onClick={()=>dispatch({type:'TAB',tab:state.settingsOrigin})}>← 返回</button>
       <strong>设置</strong></div>
     <PanelScroll className="full-settings">
+      <BusinessData/>
       <div className="settings-group-title">目标与授权</div>
       <Setting title="目标聊天软件" description={state.native?"由原生脚本显式绑定外部测试聊天窗口":"本轮只连接左侧的模拟窗口"}>
         <select disabled={state.native} aria-label="目标聊天软件" value="demo" onChange={()=>{}}><option value="demo">{state.native?"原生绑定窗口":"模拟聊天软件"}</option>
@@ -60,8 +62,8 @@ export function SettingsView({onResetPosition}:{onResetPosition:()=>void}){
       <div className="settings-group-title">隐私与维护</div>
       <div className="privacy-note"><span className="privacy-icon">◈</span>
         <span>{state.native?"当前内容来自原生 observation；填入须等待原生草稿回执，不执行自动发送。知识和商品列表仍是本地演示资料，真实问答由可信 Host 选择明确项目并查询。":"此为离线模拟，不能读取真实聊天内容。知识文件仅保存在当前页面内存；自动回复只发生于左侧模拟聊天窗口，不调用云模型。"}</span></div>
-      <Setting title="集成与扩展" description="真实平台、商品 Provider 与图片服务后续接入">
-        <span className="setting-lock">待接入</span></Setting>
+      <Setting title="集成与扩展" description="可信本地 Node Adapter 与 hooks 准备同步页，导入预检后应用；真实平台需自行接入">
+        <span className="setting-lock">快照接入</span></Setting>
       <div className="setting-actions"><button onClick={()=>dispatch({type:'CLEAR_LOG'})}>清空操作记录</button>
         <button disabled={state.native} onClick={onResetPosition}>重置跟随位置</button></div>
     </PanelScroll>

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "com.opendesk.ai-customer-support",
+  "version": "2.4.0",
+  "name": "OpenDesk AI 客服助手",
+  "entry": "main.js",
+  "singleInstance": true,
+  "window": {
+    "mainId": "supportReactR23",
+    "closeBehavior": "quit"
+  },
+  "tray": { "enabled": false }
+}
