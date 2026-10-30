@@ -1,4 +1,5 @@
-// Formal P3 native gate, loaded by run-workspace-native.mjs into its own App Mode.
+// Reusable controller from the retired standalone App Mode gate (2026-10-30).
+// Its runner was removed; migration and acceptance on native-demo.js are deferred.
 // Only native UI actions; disk reads are independent oracles, never state injection.
 (async function workspaceNative({ target, evidence, phase, fileRoot, prior = {}, closeObserve = false, expectedHost }) {
   const checks = [], screenshots = [];

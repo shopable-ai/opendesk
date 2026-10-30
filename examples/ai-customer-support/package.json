@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build-preview.mjs",
-    "stage:app": "node scripts/stage-app.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.mjs",
     "test:browser": "node tests/browser-smoke.mjs",

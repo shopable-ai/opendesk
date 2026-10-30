@@ -1,4 +1,5 @@
-// Called by the workspace native gate's optional scenario entry.
+// Reusable scenario for the workspace controller; its App Mode runner is retired.
+// Migration and acceptance on the current native-demo.js entry are deferred.
 // All changes go through the real window. Exported files are read-only oracles.
 (async function mappingNative(h) {
   const { assert, record, shot, press, pressAX, see, waitText, tree, exportBackup } = h;

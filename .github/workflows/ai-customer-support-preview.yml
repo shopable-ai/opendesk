@@ -63,7 +63,7 @@ jobs:
       - name: Commit generated preview after all checks
         run: |
           cd ../..
-          git add examples/ai-customer-support/preview/index.html examples/ai-customer-support/desktop/app-integrity.json examples/ai-customer-support/desktop/business-validator.generated.js examples/ai-customer-support/package-lock.json
+          git add examples/ai-customer-support/preview/index.html examples/ai-customer-support/desktop/business-validator.generated.js examples/ai-customer-support/package-lock.json
           if git diff --cached --quiet; then
             echo 'Generated preview and lockfile are unchanged.'
             exit 0

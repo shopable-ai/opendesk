@@ -2,7 +2,6 @@ import { build } from 'esbuild';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createHash } from 'node:crypto';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const out = join(root, 'preview', 'index.html');
@@ -51,10 +50,6 @@ try {
   const saved = await readFile(temp, 'utf8');
   if (saved.length < 20000 || !saved.includes('React R2.0')) throw new Error('Preview output failed integrity check');
   await rename(temp, out);
-  const integrity = join(root, 'desktop', 'app-integrity.json');
-  await mkdir(dirname(integrity), { recursive: true });
-  await writeFile(integrity + '.next', JSON.stringify({ previewSha256: createHash('sha256').update(saved).digest('hex') }, null, 2) + '\n');
-  await rename(integrity + '.next', integrity);
   console.log('Generated', out, saved.length, 'characters');
 } catch (error) {
   await rm(temp, { force: true });

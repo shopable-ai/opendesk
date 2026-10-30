@@ -1,5 +1,7 @@
 # OpenDesk Desktop · AI 客服助手
 
+> 2026-10-30 用户纠偏：以已可用的独立聊天实窗 + 右侧约 380px、六业务 Tab 助手为当前基线，支持观察消息和人工填入草稿。此前的平行面板及独立「未连接」App 入口已退役；不能再用旧启动命令替代当前界面。恢复提交与验证边界见[入口清理记录](../../docs/quality/ai-customer-support-ui-retirement-20261030.md)。
+
 ## 数据处理方案：从字段对应开始
 
 设置 → **业务数据与同步 → 数据处理方案** 提供商品清单和客户名册模板。对应输入字段，查看样例试跑的完整输入/输出和失败行，保存并启用方案，再预检、确认应用。修改配置、停用或离开编辑器会使旧待确认结果失效；界面更新保留未映射的商品元信息、客户标签和会话关联，仍检查版本、游标和本地覆盖冲突。
@@ -27,10 +29,9 @@ Unix工作区新文件从临时inode创建起使用`0600`，固定pending/abando
 ```sh
 npm --prefix examples/ai-customer-support run test:workspace-browser
 node tests/custom-ui/tools/support-app/run-workspace-files.mjs
-node tests/custom-ui/tools/support-app/run-workspace-native.mjs run
 ```
 
-使用本机Chrome可在命令前加 `PLAYWRIGHT_CHROMIUM_EXECUTABLE='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'`。浏览器证据只证明浏览器能力，原生Runtime与实窗另行记录；详见[本轮工作区质量记录](../../docs/quality/ai-customer-support-workspace-20261030.md)。
+使用本机Chrome可在命令前加 `PLAYWRIGHT_CHROMIUM_EXECUTABLE='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'`。浏览器证据只证明浏览器能力；旧 App Mode 工作区实窗 gate 已退役，迁移至当前原生入口后的验收待做；详见[本轮工作区质量记录](../../docs/quality/ai-customer-support-workspace-20261030.md)。
 
 ## 2026-10-30 · 通用多店资料与脚本扩展
 
@@ -44,9 +45,9 @@ node tests/custom-ui/tools/support-app/run-workspace-native.mjs run
 node examples/ai-customer-support/scripts/sync-business.mjs --adapter examples/ai-customer-support/integrations/demo-adapter.mjs --store store-demo --source crm --out .runtime/business-sync/multistore-v1.json
 ```
 
-打开现有 App 或 `preview/index.html`，选「示例旗舰店」。浏览器在业务数据区选择生成的 JSON；原生 App 在「本机文件名」填写 `multistore-v1.json` 后点「读取本机同步页」。核对预检后点「确认应用同步页」。CLI 成功只表示文件已准备好；UI 确认才更新游标。下一页显式传 `--cursor demo-v1` 并使用新输出名。从界面已应用的游标继续，逐页确认，不跨页承诺事务。
+启动下文的原生 Demo 或打开 `preview/index.html`，选「示例旗舰店」。浏览器在业务数据区选择生成的 JSON；原生 Demo 在「本机文件名」填写 `multistore-v1.json` 后点「读取本机同步页」。核对预检后点「确认应用同步页」。CLI 成功只表示文件已准备好；UI 确认才更新游标。下一页显式传 `--cursor demo-v1` 并使用新输出名。从界面已应用的游标继续，逐页确认，不跨页承诺事务。
 
-原生文件操作使用**业务工作目录**下固定的 `.runtime/business-sync/`：仓库源码 App 使用仓库根目录，可搬移 App 包使用自己的 App 根目录，`native-demo.js` 使用其 Execution 工作目录。图片也先放入这里，在编辑表单填写图片文件名后读取；导出会独占生成 `business-backup-*.json` 并显示保存回执。恢复时填入备份文件名，再点「恢复本机业务备份」并确认替换。仅接受不含路径的 ASCII 文件名，拒绝连续点、符号链接和超限文件；不会覆盖已有备份。浏览器继续使用文件选择、下载与恢复。原生入口没有系统文件选择器或下载功能，这些按钮通过本例 Host 文件通道完成。消息分块控制在原生桥每条 64KiB 限额内，完整文件仍按上述业务限额校验；备份收齐并复验后才写入。
+原生文件操作使用**业务工作目录**下固定的 `.runtime/business-sync/`：`native-demo.js` 使用其 Execution 工作目录；公开启动器从仓库根目录运行。图片也先放入这里，在编辑表单填写图片文件名后读取；导出会独占生成 `business-backup-*.json` 并显示保存回执。恢复时填入备份文件名，再点「恢复本机业务备份」并确认替换。仅接受不含路径的 ASCII 文件名，拒绝连续点、符号链接和超限文件；不会覆盖已有备份。浏览器继续使用文件选择、下载与恢复。原生入口没有系统文件选择器或下载功能，这些按钮通过本例 Host 文件通道完成。消息分块控制在原生桥每条 64KiB 限额内，完整文件仍按上述业务限额校验；备份收齐并复验后才写入。
 
 自定义本地 `.mjs` 导出 `pull(context)`，可选 `normalize(record, context)` 和 `afterSync(summary)`；可适配 CRM、网店 API、内部系统或文件。完整字段、示例和执行边界见 [接入开发说明](integrations/README.md)。Worker deadline 覆盖模块加载和全部 hooks；父进程复验后独占原子发布。脚本是拥有完整 Node 权限的可信代码，Worker 只做故障隔离；界面不执行上传脚本、不保存平台密钥。
 
@@ -93,7 +94,7 @@ npm --prefix examples/ai-customer-support run test:business-browser
 
 可信容器为独立的 `ui.createTrustedWindow()`：固定本地 HTML 字节与 SHA-256、每窗口独立 origin、非持久 WebKit store、仅限 JSON 的双向桥、阻断导航和网络资源。它仍加载 `preview/index.html`；普通 `ui.createWindow()` 继续禁用业务脚本。知识、商品、订单、档案仍为本地演示数据，不调用云模型。
 
-R2.1/R2.2 的历史 `desktop/main.js/panel.html` 补丁未在 master 合入，不是此命令的输入；R2.3 不生成或加载那些平行页面。当前入口为 `native-demo.js`，应用特定解析为 `desktop/native-adapter.js`，测试聊天源码在 `tests/custom-ui/tools/support-chat/`。
+R2.1/R2.2 的平行 `desktop/main.js/panel.html` 实现已在恢复提交 `1a6ca3a8` 留档后移除；当前命令不生成或加载这些页面。当前入口为 `native-demo.js`，应用特定解析为 `desktop/native-adapter.js`，测试聊天源码在 `tests/custom-ui/tools/support-chat/`。
 
 实机证据、失败案例和分项计分见 [R2.3 验收记录](../../docs/quality/ai-customer-support-r23-desktop.md)。所有运行输出位于仓库根 `.runtime/tests/ai-customer-support/r23/`，不提交。
 
@@ -149,23 +150,13 @@ Markdown 采用二级标题问答格式，作为纯文本数据处理：
 
 类型与正式生成物：`npm --prefix examples/ai-customer-support run typecheck && npm --prefix examples/ai-customer-support run build && npm --prefix examples/ai-customer-support test`。
 
-### 标准 App Mode（macOS，未连接状态）
+### 当前入口与独立检查
 
-从上述仓库根目录直接运行：`./dist/opendesk -app examples/ai-customer-support -console-mode script -log-dir .runtime/tests/ai-customer-support/workspace-20261030/public-app`。
+普通体验从仓库根目录执行：`./examples/ai-customer-support/scripts/run-desktop.sh`。它加载 `native-demo.js` 和同一份 `preview/index.html`，创建测试聊天与六页助手。旧独立 App Mode 的 Manifest、入口、Host、staging 命令和专属验收启动器已移除；本例当前不提供可搬移 App Mode 包。
 
-入口为 `main.js`，稳定 App ID 为 `com.opendesk.ai-customer-support`，主窗口为 `supportReactR23`。它加载原来的 `preview/index.html`、六页 React 和唯一 reducer。第二次启动激活原实例，关闭窗口退出 App Shell；程序无需保活循环。此入口没有聊天 provider，显示未连接并保持未授权；Bridge 握手只确认 JSON 传输，不合成客户消息、真实身份或草稿回执。R2.3 独立测试聊天仍使用原来的 `scripts/run-desktop.sh`。
+本机已有 Chromium 时，核心浏览器检查：`PLAYWRIGHT_CHROMIUM_EXECUTABLE='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npm --prefix examples/ai-customer-support run test:browser -- --core`。它使用隔离的 headless 浏览器和 Bridge stub，不能代替原生聊天、实窗或权限证明。可用 `SUPPORT_TEST_EVIDENCE="$PWD/.runtime/tests/ai-customer-support/<新目录>"` 保存独立浏览器证据。
 
-`npm --prefix examples/ai-customer-support run build` 同时生成 `desktop/app-integrity.json`。HTML 改动后须重新构建；旧哈希会被 Runtime 拒绝。结构检查：`./dist/opendesk app validate examples/ai-customer-support`；现场诊断：`./dist/opendesk app doctor examples/ai-customer-support`。
-
-生成最小可搬移包：`npm --prefix examples/ai-customer-support run stage:app`。输出为仓库根目录下的 `.runtime/packages/ai-customer-support/`，只包含 Manifest、入口、App adapter、哈希和同一份 HTML；拒绝覆盖已有目录、symlink 和哈希不一致。可通过 `npm --prefix examples/ai-customer-support run stage:app -- .runtime/packages/<新的目录名>` 选择新目标。生成后从仓库根目录运行：`./dist/opendesk -app .runtime/packages/ai-customer-support -console-mode script -log-dir .runtime/tests/ai-customer-support/app-mode/staged-app`。这一步尚未生成可双击发行 `.app`。
-
-本机已有 Chromium 时，可显式选择它运行核心浏览器检查：`PLAYWRIGHT_CHROMIUM_EXECUTABLE='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npm --prefix examples/ai-customer-support run test:browser -- --core`。该检查使用隔离的 headless 浏览器，不能代替原生窗口验收。当前目标、关键条件、实窗证据和宿主限制见[本轮验收记录](../../docs/quality/ai-customer-support-app-mode-20261029.md)。
-
-维护者先原样执行上面的离线接入命令，再运行原生资料区 gate：`node tests/custom-ui/tools/support-app/run-app-native.mjs business`；它检验实际加载、折叠/展开、固定目录读取同步页、确认应用及导出，并独立检查备份中的已应用游标。文件桥 Runtime 检查：`./dist/opendesk -script tests/custom-ui/ai-customer-support-business-files.js -console-mode script`。它们不证明真实平台接通。
-
-维护者的原生 AX 专项入口：`node tests/custom-ui/tools/support-app/run-app-native.mjs`。它使用已有 `dist/opendesk`，生成新的顶层 `.runtime/` 证据目录；只在 staging 副本入口追加验收与 quit，自动取得本次 PID/handle。设置 checkbox 必须来自原生 AX，并实际切换、离开/返回、回读及恢复；商品详情和页面往返后还要验证状态与禁用草稿。缺节点、未知动作或结果缺失会退出 1，不以 Runtime 的退出 summary 代替 gate 结果。`core` 参数运行六页及商品/设置的既有混合 AX/OCR gate；它不证明 AX 完整。正式验收会操作自己的测试窗口，不是普通体验启动方式，也不构建或重签宿主。
-
-浏览器证据可用 `SUPPORT_TEST_EVIDENCE="$PWD/.runtime/tests/ai-customer-support/<新目录>"` 单独保存。核心回归包含未连接 App 的设置/权限边界和局部状态保持；其中 Bridge 为浏览器 stub，不是真实聊天。原生 AX 仍存在间歇性子树缺失；一次完整观察和开关回读通过不能证明该宿主问题已经修复。CPU 启动异常也仍属 native 依赖诊断，未修改宿主。上轮实窗曾显示商品详情示意图上缘文字裁切；本轮改用contain显示完整示意图，最新验证状态见工作区质量记录。
+保留的文件桥 Runtime 检查：`./dist/opendesk -script tests/custom-ui/ai-customer-support-business-files.js -console-mode script`；工作区文件检查：`node tests/custom-ui/tools/support-app/run-workspace-files.mjs`。这些检查不证明真实平台接通。原工作区/映射实窗 controller 保留供后续迁移，但当前没有对应启动器，尚未在现有原生入口重新验收；历史 App Mode 报告只作为历史证据。
 
 可选静态 HTTP：`python3 -m http.server 4173 --bind 127.0.0.1 --directory examples/ai-customer-support/preview`，访问 <http://127.0.0.1:4173/>。已有客服验收服务时直接复用其地址。HTTP 仍读取同一个正式 HTML；不再生成预览。直接 `file://` 是离线产品目标之一，当前 Mac 工具未完成该路径验收。
 

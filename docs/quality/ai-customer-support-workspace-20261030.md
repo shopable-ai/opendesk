@@ -1,5 +1,7 @@
 # AI 客服本地业务工作区续作验收
 
+> **2026-10-30 入口退役说明：** 下文保留当时的源码状态、命令及证据；涉及独立「未连接」App Mode、staging 和原生业务/工作区/映射 gate 的命令已退役，不能作为当前运行入口或当前原生通过证明。共享业务代码、浏览器/领域测试及独立文件 gate 保留。当前以 `native-demo.js` 的聊天实窗 + 六页助手为基线，详见[入口清理记录](ai-customer-support-ui-retirement-20261030.md)。
+
 2026-10-30，仓库根目录 `/Users/shopme/Documents/workspace/opendesk`，master HEAD `a867a782cac08ec06382236a962e2609e5342af3`，大量既有未提交修改。未创建分支、提交或推送。采用用户本轮 P0–P4 与本例 [DESIGN §12](../../examples/ai-customer-support/DESIGN.md)，并保护并行的数据处理方案工作。
 
 ## 实现与边界

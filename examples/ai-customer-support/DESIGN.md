@@ -1,5 +1,7 @@
 # OpenDesk Desktop · AI 客服助手｜产品设计基线
 
+> **2026-10-30 最新用户纠偏（优先于下文历史方案）：** 保留当前可用的独立聊天实窗和右侧约 380px 六业务 Tab 助手，以观察消息、人工选用和填入草稿为体验基线。用户指认的是确认该基线之前的错误版本，并不要求按 Tab 数判断文件。平行旧面板及独立「未连接」App Mode 入口在恢复提交 `1a6ca3a8` 留档后退役；共享六页 React、业务模型、数据接入和文件桥保留。本轮只清理入口，不改版、不接真实平台；旧 App Mode 的实窗验收不能当作当前入口的验收。详见[清理记录](../../docs/quality/ai-customer-support-ui-retirement-20261030.md)。
+
 > 2026-10-28 · 产品需求与交互设计（不是功能验收报告）
 >
 > 仓库：shopable-ai/opendesk · 唯一正式浏览器原型：`examples/ai-customer-support/preview/index.html`（R2.0 React：左侧模拟聊天 + 右侧 380px Compact Copilot）。本文记录产品目标，不能把待设计能力写成已实现。

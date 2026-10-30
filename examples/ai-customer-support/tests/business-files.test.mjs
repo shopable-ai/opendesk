@@ -4,8 +4,6 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
-import { stageApp } from '../scripts/stage-app.mjs';
 
 const source = fs.readFileSync(new URL('../desktop/business-files.js', import.meta.url), 'utf8');
 // Host-side real-fs shim tests JS bridge policy and framing, not native Runtime conformance.
@@ -156,24 +154,6 @@ test('image dataURL uses reliable base64 for every tail length and image whiteli
     }
   }
 });
-
-
-test('package staging includes the exact shared file helper in its allowlist', t => {
-  const f = fixture(t), sourceRoot = path.join(f.cwd, 'source');
-  const files = {
-    'opendesk.app.json': JSON.stringify({ id: 'com.opendesk.ai-customer-support', entry: 'main.js', window: { mainId: 'supportReactR23' } }),
-    'main.js': '// fixture', 'desktop/app-host.js': '// host', 'desktop/business-files.js': source,
-    'desktop/business-validator.generated.js': '// fixture validator',
-    'preview/index.html': '<title>Support</title>'
-  };
-  files['desktop/app-integrity.json'] = JSON.stringify({ previewSha256: createHash('sha256').update(files['preview/index.html']).digest('hex') });
-  for (const [name, text] of Object.entries(files)) {
-    const file = path.join(sourceRoot, name); fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, text);
-  }
-  const destination = path.join(f.cwd, 'package'); stageApp({ sourceRoot, destination });
-  assert.equal(fs.readFileSync(path.join(destination, 'desktop/business-files.js'), 'utf8'), source);
-});
-
 // The web bridge receives a JSON string as its TrustedJSON value (double JSON).
 // Native replies are objects. Check the actual UTF-8 budgets in both directions.
 function transport(f) {

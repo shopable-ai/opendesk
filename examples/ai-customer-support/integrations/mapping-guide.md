@@ -4,10 +4,10 @@
 
 ## 先走通一个商品样例
 
-从**仓库根目录**启动已有源码 App：
+从**仓库根目录**启动当前原生 Demo：
 
 ```sh
-./dist/opendesk -app examples/ai-customer-support -console-mode script -log-dir .runtime/tests/ai-customer-support/mapping-manual
+./examples/ai-customer-support/scripts/run-desktop.sh
 ```
 
 维护者更新 React 后先从仓库根执行 `npm --prefix examples/ai-customer-support run build`。纯浏览器也可以直接打开 `examples/ai-customer-support/preview/index.html`；它与原生窗口使用同一份生成 HTML。
@@ -66,10 +66,4 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE='/Applications/Google Chrome.app/Contents/MacOS/G
 
 浏览器验证、原生加载/视觉、原生业务操作和真实平台接入分别记录，不相互替代。真实平台、持久化/文件清单及真实聊天身份由各自工作负责。
 
-维护者的原生映射 gate 使用同一条公开启动命令，再由独立 JavaScript controller 操作该命令实际报告的窗口（需要当前桌面权限，并独占测试窗口；不是普通用户的启动步骤）：
-
-```sh
-node tests/custom-ui/tools/support-app/run-mapping-native.mjs
-```
-
-证据写入 `.runtime/tests/ai-customer-support/mapping-20261030/native-<时间戳>/`。它核对源码、生成 HTML、主程序、UI host 和稳定签名，通过窗口试跑/保存/启停/取消/确认，再读取窗口导出的备份做独立核验。未知输入立即停止；截图仍需检查字段对齐、380px 窗口和裁切。不要与其他真实桌面 gate 同时运行。
+旧独立 App Mode 的映射验收启动器已随该入口退役。工作区 controller 和映射场景保留供后续迁移；在当前 `native-demo.js` 入口上的加载、视觉和映射操作尚未重新验收，不能沿用旧 App Mode 的通过结论。普通体验使用上面的一行启动命令；[入口清理记录](../../../docs/quality/ai-customer-support-ui-retirement-20261030.md)列出保留范围与验证边界。
