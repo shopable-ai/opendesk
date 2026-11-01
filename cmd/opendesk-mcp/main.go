@@ -80,11 +80,11 @@ func main() {
 	}
 }
 
-// The MCP-only protocol layer is implemented and tested independently.
+// The MCP-only protocol layer and targeted tests are staged but not yet Go-tested.
 // Until the authenticated Native-owner capability client is integrated,
 // fail closed: never reuse the generic Browser socket or nonce proof mode.
 func serveFilesBridge(credentialFile string) error {
-    return errors.New("WAITING_FOR_NATIVE_OWNER")
+	return errors.New("WAITING_FOR_NATIVE_OWNER")
 }
 
 func serveWebFileTest(dir string) error {
