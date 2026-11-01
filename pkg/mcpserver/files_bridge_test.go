@@ -530,7 +530,8 @@ func TestFilesBridgeReadPreservesBytesAndNativeStages(t *testing.T) {
 		}
 		data, ok := payload["data"].(map[string]any)
 		if !ok || data["content"] != content || data["sha256"] != sha || data["bytes"] != float64(len(content)) {
-			t.Fatalf("read changed Native bytes or digest: %+v", data)+		}
+			t.Fatalf("read changed Native bytes or digest: %+v", data)
+		}
 		stages, ok := payload["stages"].(map[string]any)
 		if !ok || stages["requestAccepted"] != "ACCEPTED" || stages["fileWritten"] != "NOT_APPLICABLE" || stages["readBackVerified"] != false || stages["toolResult"] != "PREPARED" {
 			t.Fatalf("adapter invented verification or delivery: %+v", stages)

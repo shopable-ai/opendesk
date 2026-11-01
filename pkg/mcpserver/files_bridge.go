@@ -17,7 +17,8 @@ import (
 
 // FilesBridgeBackend is the existing Native owner's authenticated client.
 // Tool metadata and model parameters cannot select a principal or mint a grant.
-type FilesBridgeBackend interface {+	Call(context.Context, string, json.RawMessage) (json.RawMessage, error)
+type FilesBridgeBackend interface {
+	Call(context.Context, string, json.RawMessage) (json.RawMessage, error)
 }
 
 const (
