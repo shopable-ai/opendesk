@@ -77,6 +77,7 @@ type Runtime interface {
 
 type Server struct {
 	webFileTest     *webFileTest
+	filesBridge     *filesBridge
 	runtime         Runtime
 	readOnly        bool
 	protocolVersion string
@@ -114,6 +115,9 @@ func NewServerWithRecorder(runtime Runtime, manager *recorder.Manager) *Server {
 }
 
 func (s *Server) Handle(req Request) Response {
+	if s.filesBridge != nil && !filesBridgeRequestWithinLimit(req) {
+		return s.errorResponse(json.RawMessage("null"), ErrCodeInvalidRequest, "invalid file bridge frame", nil)
+	}
 	if len(req.ID) > 0 && !validRequestID(req.ID) {
 		return s.errorResponse(json.RawMessage("null"), ErrCodeInvalidRequest, "id must be a string or integer", nil)
 	}
@@ -131,6 +135,9 @@ func (s *Server) Handle(req Request) Response {
 	}
 	if len(req.Params) > 0 && !isJSONObject(req.Params) {
 		return s.errorResponse(req.ID, ErrCodeInvalidParams, "params must be an object", nil)
+	}
+	if s.filesBridge != nil && !validFilesBridgeParams(req.Method, req.Params) {
+		return s.errorResponse(req.ID, ErrCodeInvalidParams, "invalid file bridge parameters", nil)
 	}
 
 	switch req.Method {
@@ -158,6 +165,13 @@ func (s *Server) ServeStream(in io.Reader, out io.Writer) error {
 	scanner.Buffer(buf, 2*1024*1024)
 	encoder := json.NewEncoder(out)
 	for scanner.Scan() {
+		if s.filesBridge != nil && len(scanner.Bytes()) > filesBridgeMaxFrameBytes {
+			resp := s.errorResponse(json.RawMessage("null"), ErrCodeInvalidRequest, "file bridge frame exceeds budget", nil)
+			if err := encoder.Encode(resp); err != nil {
+				return err
+			}
+			continue
+		}
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue
@@ -166,6 +180,13 @@ func (s *Server) ServeStream(in io.Reader, out io.Writer) error {
 		raw := []byte(line)
 		if !json.Valid(raw) {
 			resp := s.errorResponse(json.RawMessage("null"), ErrCodeParseError, "invalid jsonrpc payload", nil)
+			if encodeErr := encoder.Encode(resp); encodeErr != nil {
+				return encodeErr
+			}
+			continue
+		}
+		if s.filesBridge != nil && !validFilesBridgeEnvelope(raw) {
+			resp := s.errorResponse(json.RawMessage("null"), ErrCodeInvalidRequest, "invalid file bridge envelope", nil)
 			if encodeErr := encoder.Encode(resp); encodeErr != nil {
 				return encodeErr
 			}
@@ -189,7 +210,11 @@ func (s *Server) ServeStream(in io.Reader, out io.Writer) error {
 		if len(req.ID) == 0 && req.JSONRPC == "2.0" && strings.TrimSpace(req.Method) != "" {
 			continue
 		}
-		if err := encoder.Encode(resp); err != nil {
+		err := encoder.Encode(resp)
+		if s.filesBridge != nil {
+			s.filesBridge.noteDelivery(req, err)
+		}
+		if err != nil {
 			return err
 		}
 	}
@@ -226,6 +251,9 @@ func (s *Server) handleInitialize(req Request) Response {
 }
 
 func (s *Server) handleToolsList(req Request) Response {
+	if s.filesBridge != nil {
+		return s.filesBridgeToolsList(req)
+	}
 	tools := make([]Tool, 0, len(s.tools))
 	order := toolOrder()
 	if s.webFileTest != nil {
@@ -243,6 +271,9 @@ func (s *Server) handleToolsList(req Request) Response {
 }
 
 func (s *Server) handleToolsCall(req Request) Response {
+	if s.filesBridge != nil {
+		return s.handleFilesBridgeCall(req)
+	}
 	if s.webFileTest != nil && (len(req.ID) == 0 || !validRequestID(req.ID) || !validWebFileCall(req.Params)) {
 		return s.errorResponse(req.ID, ErrCodeInvalidParams, "expected name, optional arguments object and optional _meta object", nil)
 	}
@@ -292,6 +323,9 @@ func (s *Server) handleToolsCall(req Request) Response {
 }
 
 func (s *Server) callTool(name string, args map[string]any) (map[string]any, error) {
+	if s.filesBridge != nil {
+		return s.filesBridge.call(name, args)
+	}
 	if s.webFileTest != nil {
 		return s.webFileTest.call(name, args)
 	}
@@ -308,6 +342,9 @@ func (s *Server) callTool(name string, args map[string]any) (map[string]any, err
 }
 
 func (s *Server) callToolCore(name string, args map[string]any) (map[string]any, error) {
+	if s.filesBridge != nil {
+		return s.filesBridge.call(name, args)
+	}
 	if s.webFileTest != nil {
 		return s.webFileTest.call(name, args)
 	}

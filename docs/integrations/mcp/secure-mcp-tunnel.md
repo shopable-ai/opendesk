@@ -393,3 +393,9 @@ key 通过隐藏输入进入子 shell 的环境，客户端读取 profile 中的
 之后本项目专用三工具 Tunnel 已完成真实网页验收，当前正式工具版本也已通过，见本文顶部。
 七工具 `--read-only` 的本地证据与三工具在线证据分别成立；未据此推广到所有 Pro 账户，
 官方候选 key 的权限/到期日已有独立页面证据；与保存文件的对应关系及历史暴露恢复仍待核验。
+
+## 2026-11-02：文件 MCP 独立适配层（Native 授权接线待完成）
+
+已复用原有 MCP Server 的协议处理，在 `pkg/mcpserver/files_bridge.go` 增加四工具专属隔离模式（`tm_files_status`、`tm_files_list`、`tm_files_read`、`tm_files_write`）及定向单元测试。它仅接受经认证的受限 Native 后端接口；不会打开任何工作区路径或 mint grant。原 `--web-file-test-dir` 固定 nonce 模式及桌面模式保持不变。
+
+**当前不可启动正式文件 Bridge：** `opendesk-mcp --files-bridge-credential-file` 在受限 Native owner 完成独立 capability 通道与本地显式授权前明确返回 `WAITING_FOR_NATIVE_OWNER`。不得以普通 Socket、浏览器网页监听、禁用身份验证或三工具旧证明模式充当替代。共享 owner 接线合同见 [files-bridge-native-contract.zh-CN.md](files-bridge-native-contract.zh-CN.md)。原 Tunnel 配置、key 和已有启动器不在本次 MCP-only 提交中改动。真实 Mac 构建、Tunnel 认证、ChatGPT 文件调用及撤权均为 NOT_TESTED。

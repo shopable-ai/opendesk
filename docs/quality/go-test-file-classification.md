@@ -466,3 +466,11 @@ OPENDESK_LIVE_CLIPBOARD_TEST=1 go test ./automation -run '^TestDarwinRichClipboa
 | 文件 | 分类 | 私有访问 | 业务边界 | 依赖 | 断言价值 | 保留理由 |
 |---|---|---|---|---|---|---|
 | `pkg/customui/trusted_test.go` | `KEEP_PACKAGE` | 是：固定字节加载器、路径 containment、内部 Trusted transport 与 Normalize seam | 文件摘要、符号链接逃逸、混合声明和 JSON 资源上限 | 临时本地 HTML 与内存值；不启动 UI | 防止信任边界被路径或内部声明绕过 | 公共 API 另由 `tests/runtime-api/trusted-app-window.js` 在实际宿主验证；此处只覆盖内部 seam。 |
+
+### 官方文件 MCP Bridge 独立协议层（2026-11-02）
+
+| 文件 | 分类 | 私有访问 | 业务边界 | 依赖 | 断言价值 | 保留理由 |
+|---|---|---|---|---|---|---|
+| `pkg/mcpserver/files_bridge_test.go` | `KEEP_PACKAGE` | 是：独立工具集合、严格 wire/schema、IPC adapter 与实际输出 observer | 四工具、一般工具拒绝、身份字段/通知、整帧/UTF-8/SHA、稳定操作 ID、UNKNOWN 对账、历史回执和输出失败 | 内存 IPC 边界 fake 与受控流 writer；不操作真实用户磁盘 | 防止普通 MCP 能力混入、元数据授权、超预算及未知结果伪成功/自动重放 | MCP 私有 adapter seam；生产文件安全由 Native 定向测试覆盖，真实 Tunnel 独立验收。 |
+
+当前独立层仅增加 `pkg/mcpserver/files_bridge_test.go`；Native owner 的测试尚未提交。当前 Go 测试未在正式工作区运行；两者不得互相冒充。

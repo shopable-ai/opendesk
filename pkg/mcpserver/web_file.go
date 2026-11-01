@@ -101,6 +101,9 @@ func NewWebFileTestServer(dir string) (*Server, error) {
 // Close releases only handles owned by the restricted adapter; proof artifacts
 // remain available for independent host inspection. Safe to call repeatedly.
 func (s *Server) Close() error {
+	if s.filesBridge != nil {
+		s.filesBridge.close()
+	}
 	if s.webFileTest == nil {
 		return nil
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"opendesk/automation"
@@ -15,6 +16,8 @@ func main() {
 	var browserExecutionID string
 	var readOnly bool
 	var webFileTestDir string
+	var filesBridgeCredentialFile string
+	flag.StringVar(&filesBridgeCredentialFile, "files-bridge-credential-file", "", "Private local credential reference for the existing Native owner's approved file-only bridge; no desktop runtime")
 	flag.StringVar(&webFileTestDir, "web-file-test-dir", "", "Dedicated existing absolute repository .runtime/tests/mcp-chatgpt-web run directory; exposes only nonce proof tools")
 	flag.BoolVar(&readOnly, "read-only", false, "Expose only read-only tools; use this mode for official tunnel connections (no caller-selected screenshot output files)")
 	flag.StringVar(&browserPolicy.CoreRoot, "browser-core-root", "", "Absolute verified Browser Core workspace; enables the Browser adapter")
@@ -22,8 +25,11 @@ func main() {
 	flag.IntVar(&browserPolicy.Tab, "browser-tab", -1, "Host-authorized exact Chrome tab")
 	flag.StringVar(&browserExecutionID, "browser-execution-id", "", "Host-bound Agent execution identity")
 	flag.Parse()
-	webMode, browserMode, readOnlyOption := false, false, false
+	webMode, browserMode, readOnlyOption, filesMode := false, false, false, false
 	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "files-bridge-credential-file" {
+			filesMode = true
+		}
 		if f.Name == "read-only" {
 			readOnlyOption = true
 		}
@@ -34,6 +40,17 @@ func main() {
 			browserMode = true
 		}
 	})
+	if filesMode {
+		if webMode || readOnlyOption || browserMode || flag.NArg() != 0 {
+			fmt.Fprintln(os.Stderr, "files-bridge-credential-file conflicts with other modes or positional arguments")
+			os.Exit(1)
+		}
+		if err := serveFilesBridge(filesBridgeCredentialFile); err != nil {
+			fmt.Fprintln(os.Stderr, "file bridge unavailable: WAITING_FOR_NATIVE_OWNER")
+			os.Exit(1)
+		}
+		return
+	}
 	if webMode {
 		if readOnlyOption || browserMode || flag.NArg() != 0 {
 			fmt.Fprintln(os.Stderr, "web-file-test-dir conflicts with read-only, Browser options or positional arguments")
@@ -61,6 +78,13 @@ func main() {
 		fmt.Fprintf(os.Stderr, "mcp server exited with error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// The MCP-only protocol layer is implemented and tested independently.
+// Until the authenticated Native-owner capability client is integrated,
+// fail closed: never reuse the generic Browser socket or nonce proof mode.
+func serveFilesBridge(credentialFile string) error {
+    return errors.New("WAITING_FOR_NATIVE_OWNER")
 }
 
 func serveWebFileTest(dir string) error {
