@@ -784,6 +784,7 @@ func (f *floatingWindow) show() goja.Value {
 		Bounds: f.bounds, AlwaysOnTop: f.alwaysOnTop, Draggable: f.draggable,
 		Placement: f.placement, InteractionGroup: f.interactionGroup, Toolbar: &declaration,
 	}
+	spec = f.ui.appWindowSpec(spec)
 	return f.ui.startAsyncFinally("FloatingWindow.show", func(ctx context.Context) (any, error) {
 		window, err := f.ui.session.Create(ctx, spec)
 		if err != nil {

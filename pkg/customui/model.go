@@ -97,6 +97,9 @@ type WindowSpec struct {
 	// this marker; it prevents normal Custom UI windows from intercepting a
 	// desktop click under the reserved reference-selection kind.
 	ReferenceSelection *ReferenceSelectionSurfaceSpec `json:"referenceSelection,omitempty"`
+	// AppOwned is internal lifecycle ownership, injected for every window of an
+	// App Mode runtime. Public JavaScript declarations cannot set it.
+	AppOwned bool `json:"appOwned,omitempty"`
 	// AppCloseBehavior is host-owned App Mode policy. It is absent from the
 	// public JavaScript declaration and is injected only for window.mainId.
 	AppCloseBehavior string `json:"appCloseBehavior,omitempty"`

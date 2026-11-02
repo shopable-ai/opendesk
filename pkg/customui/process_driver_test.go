@@ -19,6 +19,7 @@ func TestUIHostCandidatesContainOnlyCanonicalOpenDeskHost(t *testing.T) {
 	platform := "darwin"
 	executable := filepath.Join(string(filepath.Separator), "Applications", "OpenDesk.app", "Contents", "MacOS", "opendesk")
 	want := []string{
+		filepath.Join(filepath.Dir(executable), "..", "Helpers", "OpenDesk UI.app", "Contents", "MacOS", "opendesk-ui-host"),
 		filepath.Join(filepath.Dir(executable), "opendesk-ui-host"),
 		filepath.Join(filepath.Dir(executable), "..", "Helpers", "opendesk-ui-host"),
 	}
@@ -467,5 +468,84 @@ func helperUIHost() {
 			response.Error = &protocolError{Code: CodeDriverFailure, Operation: request.Operation, Message: fmt.Sprintf("unsupported helper operation %q", request.Operation)}
 		}
 		_ = encoder.Encode(response)
+	}
+}
+
+func TestResolveUIHostPrefersNestedAppAndFallsBackToBareHost(t *testing.T) {
+	root := t.TempDir()
+	executable := filepath.Join(root, "OpenDesk.app", "Contents", "MacOS", "opendesk")
+	nested := filepath.Join(root, "OpenDesk.app", "Contents", "Helpers", "OpenDesk UI.app", "Contents", "MacOS", "opendesk-ui-host")
+	bare := filepath.Join(root, "OpenDesk.app", "Contents", "Helpers", "opendesk-ui-host")
+	for _, filename := range []string{nested, bare} {
+		if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filename, []byte("fixture"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	resolved, err := resolveUIHostPathForExecutable(executable, "darwin")
+	if err != nil || resolved != nested {
+		t.Fatalf("nested resolution = %q, %v", resolved, err)
+	}
+	if err := os.Remove(nested); err != nil {
+		t.Fatal(err)
+	}
+	resolved, err = resolveUIHostPathForExecutable(executable, "darwin")
+	if err != nil || resolved != bare {
+		t.Fatalf("legacy resolution = %q, %v", resolved, err)
+	}
+}
+
+func TestValidateHostEventAppQuitIsReservedUntargetedAndSequenced(t *testing.T) {
+	event := Event{WindowID: "secondary", Type: "appQuit", Sequence: 2}
+	if err := validateHostEvent(event, nil, 1); err != nil {
+		t.Fatalf("reserved quit rejected: %v", err)
+	}
+	event.TargetID = "button"
+	if err := validateHostEvent(event, map[string]struct{}{"button": {}}, 1); err == nil {
+		t.Fatal("targeted appQuit accepted")
+	}
+	event.TargetID = ""
+	for _, sequence := range []uint64{0, 1} {
+		event.Sequence = sequence
+		if err := validateHostEvent(event, nil, 1); err == nil {
+			t.Fatalf("invalid quit sequence %d accepted", sequence)
+		}
+	}
+}
+
+func TestResolveUIHostFollowsExecutableSymlinkBeforeStaleSibling(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Darwin executable symlink layout")
+	}
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dist := filepath.Join(root, "dist")
+	executable := filepath.Join(dist, "OpenDesk.app", "Contents", "MacOS", "opendesk")
+	canonical := filepath.Join(dist, "OpenDesk.app", "Contents", "Helpers", "OpenDesk UI.app", "Contents", "MacOS", "opendesk-ui-host")
+	stale := filepath.Join(dist, "opendesk-ui-host")
+	for _, name := range []string{executable, canonical, stale} {
+		if err := os.MkdirAll(filepath.Dir(name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(name, []byte("fixture"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entry := filepath.Join(dist, "opendesk")
+	if err := os.Symlink(filepath.Join("OpenDesk.app", "Contents", "MacOS", "opendesk"), entry); err != nil {
+		t.Fatal(err)
+	}
+	actual, err := resolveUIHostPathForExecutable(entry, "darwin")
+	if err != nil || actual != canonical {
+		t.Fatalf("symlink executable resolved host %q, want %q: %v", actual, canonical, err)
+	}
+	// Explicit host configuration remains authoritative, even for a stale sibling.
+	actual, err = resolveUIHostPath(stale)
+	if err != nil || actual != stale {
+		t.Fatalf("configured override changed: %q, %v", actual, err)
 	}
 }

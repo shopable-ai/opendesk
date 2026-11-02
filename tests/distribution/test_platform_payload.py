@@ -1,6 +1,7 @@
 """Fixture tests for release-file checks; these are NOT desktop Runtime tests."""
 import importlib.util
 import json
+import plistlib
 from pathlib import Path
 import shutil
 import subprocess
@@ -37,6 +38,16 @@ class PayloadTests(unittest.TestCase):
             self.write(root, directory + "/example.js", b"// fixture\n")
         marker = {"schemaVersion": 1, "kind": "opendesk-app-builder-template", "target": target}
         self.write(root, layout["marker"], json.dumps(marker).encode())
+        if target == "macos":
+            legacy = root / "Contents/Helpers/opendesk-ui-host"
+            if legacy.exists():
+                legacy.unlink()
+            self.write(root, "Contents/Helpers/OpenDesk UI.app/Contents/MacOS/opendesk-ui-host")
+            info = {"CFBundleIdentifier": "com.opendesk.cli", "CFBundleName": "OpenDesk", "CFBundleDisplayName": "OpenDesk", "CFBundleShortVersionString": "1.0.0"}
+            self.write(root, "Contents/Info.plist", plistlib.dumps(info))
+            info.update(CFBundleIdentifier="com.opendesk.cli.ui-host", CFBundleExecutable="opendesk-ui-host", CFBundleIconFile="OpenDesk.icns", LSUIElement=True)
+            self.write(root, "Contents/Helpers/OpenDesk UI.app/Contents/Info.plist", plistlib.dumps(info))
+            self.write(root, "Contents/Helpers/OpenDesk UI.app/Contents/Resources/OpenDesk.icns", b"full icon")
         return root
 
     def app(self, target):
@@ -69,11 +80,30 @@ class PayloadTests(unittest.TestCase):
                 self.assertTrue(any("NOT verified" in item for item in result["warnings"]))
 
     def test_missing_native_host_both_platforms(self):
-        for target, host in (("macos", "Contents/Helpers/opendesk-ui-host"),
+        for target, host in (("macos", "Contents/Helpers/OpenDesk UI.app/Contents/MacOS/opendesk-ui-host"),
                              ("windows", "ui-host/opendesk-ui-host.exe")):
             root = self.fixture(target, target)
             (root / host).unlink()
             self.assertFalse(payload.verify(root, target)["ok"])
+
+    def test_nested_identity_and_icon_are_required(self):
+        root = self.fixture("macos")
+        plist = root / "Contents/Helpers/OpenDesk UI.app/Contents/Info.plist"
+        info = plistlib.loads(plist.read_bytes())
+        info["CFBundleName"] = "Wrong app"
+        plist.write_bytes(plistlib.dumps(info))
+        self.assertFalse(payload.verify(root, "macos")["ok"])
+        info["CFBundleName"] = "OpenDesk"
+        plist.write_bytes(plistlib.dumps(info))
+        (root / "Contents/Helpers/OpenDesk UI.app/Contents/Resources/OpenDesk.icns").unlink()
+        self.assertFalse(payload.verify(root, "macos")["ok"])
+
+    def test_legacy_template_remains_accepted_but_duplicates_do_not(self):
+        root = self.fixture("macos")
+        self.write(root, "Contents/Helpers/opendesk-ui-host")
+        self.assertFalse(payload.verify(root, "macos")["ok"])
+        shutil.rmtree(root / "Contents/Helpers/OpenDesk UI.app")
+        self.assertTrue(payload.verify(root, "macos")["ok"])
 
     def test_empty_required_file(self):
         root = self.fixture("windows")
@@ -132,7 +162,12 @@ class PayloadTests(unittest.TestCase):
 
     def test_macos_identity_and_user_package_may_change(self):
         source, dest = self.app("macos")
-        (dest / "Contents/Info.plist").write_bytes(b"new publisher identity")
+        for relative, identifier in (("Contents/Info.plist", "com.example.publisher"),
+                                     ("Contents/Helpers/OpenDesk UI.app/Contents/Info.plist", "com.example.publisher.ui-host")):
+            plist = dest / relative
+            info = plistlib.loads(plist.read_bytes())
+            info["CFBundleIdentifier"] = identifier
+            plist.write_bytes(plistlib.dumps(info))
         self.write(source, "Contents/Resources/AppMode/old.js")
         self.write(source, "Contents/_CodeSignature/CodeResources")
         self.assertTrue(payload.verify(dest, "macos", "app", source)["ok"])

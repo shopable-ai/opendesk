@@ -474,3 +474,5 @@ OPENDESK_LIVE_CLIPBOARD_TEST=1 go test ./automation -run '^TestDarwinRichClipboa
 | `pkg/mcpserver/files_bridge_test.go` | `KEEP_PACKAGE` | 是：独立工具集合、严格 wire/schema、IPC adapter 与实际输出 observer | 四工具、一般工具拒绝、身份字段/通知、整帧/UTF-8/SHA、稳定操作 ID、UNKNOWN 对账、历史回执和输出失败 | 内存 IPC 边界 fake 与受控流 writer；不操作真实用户磁盘 | 防止普通 MCP 能力混入、元数据授权、超预算及未知结果伪成功/自动重放 | MCP 私有 adapter seam；生产文件安全由 Native 定向测试覆盖，真实 Tunnel 独立验收。 |
 
 当前独立层仅增加 `pkg/mcpserver/files_bridge_test.go`；Native owner 的测试尚未提交。当前 Go 测试未在正式工作区运行；两者不得互相冒充。
+
+| `automation/custom_ui_app_ownership_internal_test.go` | `KEEP_PACKAGE` | 是：私有 AppOwned 注入、native appQuit queue 与 App Shell owner | 附属窗口退出路由、公开 listener 隔离及主窗口独占关闭策略 | 纯内存 Goja、事件队列与 Shell，无 native host | 防止共享 UI Host 退出误杀父进程或泄漏内部退出事件 | 内部 transport/lifecycle seam，不重复 Runtime 公共 API 测试。 |

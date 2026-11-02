@@ -568,7 +568,7 @@ func validateHostEvent(event Event, controls map[string]struct{}, lastSequence u
 		if err != nil || ValidateTrustedJSON(data) != nil || event.TargetID != "" {
 			return &Error{Code: CodeDriverFailure, Message: "invalid trusted message"}
 		}
-	case "move", "resize", "key", "interactionOutside", "close":
+	case "move", "resize", "key", "interactionOutside", "close", "appQuit":
 		if event.TargetID != "" {
 			return &Error{Code: CodeDriverFailure, Operation: "readHostEvent", WindowID: event.WindowID, TargetID: event.TargetID, Message: "window event must not identify a control target"}
 		}
@@ -727,6 +727,12 @@ func resolveUIHostPath(configured string) (string, error) {
 }
 
 func resolveUIHostPathForExecutable(executable, platform string) (string, error) {
+	// Darwin can report the launched dist/opendesk symlink. Resolve the runtime
+	// before discovery so an old sibling host cannot shadow its bundled helper.
+	// Explicit HostPath overrides take the separate branch in resolveUIHostPath.
+	if resolved, err := filepath.EvalSymlinks(executable); err == nil {
+		executable = resolved
+	}
 	candidates := uiHostCandidates(executable, platform)
 	for _, candidate := range candidates {
 		if info, err := os.Stat(candidate); err == nil && usableUIHostFile(info, platform) {
@@ -752,6 +758,7 @@ func uiHostCandidates(executable, platform string) []string {
 		}
 	}
 	return []string{
+		filepath.Join(dir, "..", "Helpers", "OpenDesk UI.app", "Contents", "MacOS", "opendesk-ui-host"),
 		filepath.Join(dir, "opendesk-ui-host"),
 		filepath.Join(dir, "..", "Helpers", "opendesk-ui-host"),
 	}

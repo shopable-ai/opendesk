@@ -26,6 +26,8 @@ const (
 	TargetMacOS   = "macos"
 	TargetWindows = "windows"
 
+	macOSUIAppRelativePath = "Contents/Helpers/OpenDesk UI.app"
+
 	templateSchemaVersion = 1
 	templateKind          = "opendesk-app-builder-template"
 
@@ -168,6 +170,19 @@ func Build(options Options) (Result, error) {
 		}
 		if err := rewriteMacOSInfoPlist(filepath.Join(stagedOutput, "Contents", "Info.plist"), validation.Package.Manifest.ID, displayName(validation.Package.Manifest), validation.Package.Manifest.Version); err != nil {
 			return Result{}, stageError(err)
+		}
+		if _, err := os.Lstat(filepath.Join(stagedOutput, filepath.FromSlash(macOSUIAppRelativePath))); err == nil {
+			nestedContents := filepath.Join(stagedOutput, filepath.FromSlash(macOSUIAppRelativePath), "Contents")
+			if err := rewriteMacOSInfoPlist(filepath.Join(nestedContents, "Info.plist"), validation.Package.Manifest.ID+".ui-host", displayName(validation.Package.Manifest), validation.Package.Manifest.Version); err != nil {
+				return Result{}, stageError(err)
+			}
+			if err := os.RemoveAll(filepath.Join(nestedContents, "_CodeSignature")); err != nil {
+				return Result{}, stageError(err)
+			}
+			// Prefer the bundled identity; never ship a second bare copy.
+			if err := os.Remove(filepath.Join(stagedOutput, "Contents", "Helpers", "opendesk-ui-host")); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return Result{}, stageError(err)
+			}
 		}
 		// The source template can be publisher signed. Staging a user package and
 		// a new identity invalidates that signature, so remove the outer bundle
@@ -322,7 +337,7 @@ func locateRuntimeTemplate(target, explicitExecutable string) (runtimeTemplate, 
 		if err := requireRegular(filepath.Join(sourceRoot, "Contents", "MacOS", "opendesk")); err != nil {
 			return runtimeTemplate{}, templateInvalid(target, err)
 		}
-		if err := requireRegular(filepath.Join(sourceRoot, "Contents", "Helpers", "opendesk-ui-host")); err != nil {
+		if _, err := macOSUIHostPath(sourceRoot); err != nil {
 			return runtimeTemplate{}, templateInvalid(target, err)
 		}
 	case TargetWindows:
@@ -535,7 +550,10 @@ func verifyOutput(target, output, packagePath, provenance string) error {
 		return fmt.Errorf("verify build provenance: %w", err)
 	}
 	if target == TargetMacOS {
-		for _, relative := range []string{"Contents/MacOS/opendesk", "Contents/Helpers/opendesk-ui-host", "Contents/Info.plist", "Contents/Resources/AppMode/opendesk.app.json"} {
+		if _, err := macOSUIHostPath(output); err != nil {
+			return fmt.Errorf("verify macOS UI host: %w", err)
+		}
+		for _, relative := range []string{"Contents/MacOS/opendesk", "Contents/Info.plist", "Contents/Resources/AppMode/opendesk.app.json"} {
 			if err := requireRegular(filepath.Join(output, filepath.FromSlash(relative))); err != nil {
 				return fmt.Errorf("verify macOS app layout: %w", err)
 			}
@@ -549,6 +567,23 @@ func verifyOutput(target, output, packagePath, provenance string) error {
 		}
 	}
 	return nil
+}
+
+// A present nested app must be complete; only old templates use the bare helper.
+func macOSUIHostPath(root string) (string, error) {
+	nested := filepath.Join(root, filepath.FromSlash(macOSUIAppRelativePath))
+	if _, err := os.Lstat(nested); err == nil {
+		for _, relative := range []string{"Contents/Info.plist", "Contents/MacOS/opendesk-ui-host"} {
+			if err := requireRegular(filepath.Join(nested, filepath.FromSlash(relative))); err != nil {
+				return "", err
+			}
+		}
+		return filepath.Join(nested, "Contents", "MacOS", "opendesk-ui-host"), nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	legacy := filepath.Join(root, "Contents", "Helpers", "opendesk-ui-host")
+	return legacy, requireRegular(legacy)
 }
 
 func requireRegular(filename string) error {

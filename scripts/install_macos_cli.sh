@@ -137,7 +137,11 @@ target="${bin_dir}/opendesk"
 app_bundle="$(cd "${app_bundle}" && pwd -P)"
 [[ "${app_bundle}" != *$'\n'* && "${app_bundle}" != *$'\r'* ]] || die 'app bundle path must not contain a line break'
 runtime="${app_bundle}/Contents/MacOS/opendesk"
-ui_host="${app_bundle}/Contents/Helpers/opendesk-ui-host"
+ui_host="${app_bundle}/Contents/Helpers/OpenDesk UI.app/Contents/MacOS/opendesk-ui-host"
+# Accept an older installed Runtime, but never mask an incomplete nested app.
+if [[ ! -e "${app_bundle}/Contents/Helpers/OpenDesk UI.app" ]]; then
+  ui_host="${app_bundle}/Contents/Helpers/opendesk-ui-host"
+fi
 [[ -f "${runtime}" && -x "${runtime}" ]] || die "OpenDesk runtime is missing or not executable: ${runtime}"
 [[ -f "${ui_host}" && -x "${ui_host}" ]] || die "bundled UI host is missing or not executable: ${ui_host}"
 

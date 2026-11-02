@@ -219,8 +219,9 @@ func (d *DialogRuntime) invoke(kind dialogKind, value goja.Value) goja.Value {
 			_, _ = callable(goja.Undefined())
 		}
 	}
+	spec := d.ui.appWindowSpec(buildDialogWindowSpec(active))
 	return d.ui.startAsyncUntilObserved(operation, func(ctx context.Context) (any, error) {
-		return d.runDialog(ctx, active)
+		return d.runDialog(ctx, active, spec)
 	}, func(value any) goja.Value {
 		result := value.(dialogResult)
 		if result.void {
@@ -246,8 +247,8 @@ func (d *DialogRuntime) rejected(operation, dialogID, code, message string) goja
 	return d.runtime.ToValue(promise)
 }
 
-func (d *DialogRuntime) runDialog(ctx context.Context, active *activeDialog) (dialogResult, error) {
-	window, err := d.ui.session.Create(ctx, buildDialogWindowSpec(active))
+func (d *DialogRuntime) runDialog(ctx context.Context, active *activeDialog, spec customui.WindowSpec) (dialogResult, error) {
+	window, err := d.ui.session.Create(ctx, spec)
 	if err != nil {
 		return dialogResult{}, mapDialogError(err, "Dialog."+string(active.kind), active.id)
 	}

@@ -250,3 +250,51 @@ const testInfoPlist = `<?xml version="1.0" encoding="UTF-8"?>
   <string>0.1.0</string>
 </dict></plist>
 `
+
+func TestBuildMacOSNestedUIHostDerivesIdentityAndDropsLegacyDuplicate(t *testing.T) {
+	executable := writeRuntimeTemplate(t, TargetMacOS)
+	root := filepath.Dir(filepath.Dir(filepath.Dir(executable)))
+	nested := "Contents/Helpers/OpenDesk UI.app/Contents/"
+	writeFixture(t, root, nested+"MacOS/opendesk-ui-host", "nested host")
+	writeFixture(t, root, nested+"Info.plist", testInfoPlist)
+	writeFixture(t, root, nested+"Resources/OpenDesk.icns", "complete icon")
+	writeFixture(t, root, nested+"_CodeSignature/CodeResources", "obsolete nested signature")
+	output := filepath.Join(t.TempDir(), "Builder.app")
+	_, err := Build(Options{PackageDir: writePackage(t), Target: TargetMacOS, Output: output, RuntimeExecutable: executable})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(output, nested+"Info.plist"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{"com.example.builder-test.ui-host", "Builder Test", "1.2.3"} {
+		if !strings.Contains(string(data), "<string>"+value+"</string>") {
+			t.Fatalf("missing derived %q in %s", value, data)
+		}
+	}
+	for _, relative := range []string{"Contents/Helpers/opendesk-ui-host", nested + "_CodeSignature"} {
+		if _, err := os.Stat(filepath.Join(output, relative)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("obsolete payload retained: %s: %v", relative, err)
+		}
+	}
+	icon, err := os.ReadFile(filepath.Join(output, nested+"Resources/OpenDesk.icns"))
+	if err != nil || string(icon) != "complete icon" {
+		t.Fatalf("icon changed: %q %v", icon, err)
+	}
+	// A current template needs no bare helper to be accepted.
+	if err := os.Remove(filepath.Join(root, "Contents/Helpers/opendesk-ui-host")); err != nil {
+		t.Fatal(err)
+	}
+	_, err = Build(Options{PackageDir: writePackage(t), Target: TargetMacOS, Output: filepath.Join(t.TempDir(), "Nested.app"), RuntimeExecutable: executable})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(root, nested+"Info.plist")); err != nil {
+		t.Fatal(err)
+	}
+	// A broken current template must not silently use an old bare helper.
+	writeFixture(t, root, "Contents/Helpers/opendesk-ui-host", "old host")
+	_, err = Build(Options{PackageDir: writePackage(t), Target: TargetMacOS, Output: filepath.Join(t.TempDir(), "Broken.app"), RuntimeExecutable: executable})
+	assertBuildError(t, err, "APP_BUILD_RUNTIME_TEMPLATE_INVALID")
+}

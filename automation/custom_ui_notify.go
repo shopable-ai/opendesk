@@ -38,8 +38,9 @@ func (u *CustomUIRuntime) jsNotify(call goja.FunctionCall) goja.Value {
 		u.nextNotificationID++
 		id = fmt.Sprintf("OpenDeskNotification%d", u.nextNotificationID)
 	}
+	windowSpec := u.appWindowSpec(customui.WindowSpec{ID: id, Kind: "notification", Title: "OpenDesk", Notification: &normalized})
 	return u.startAsyncUntilObserved("ui.notify", func(ctx context.Context) (any, error) {
-		window, err := u.session.Create(ctx, customui.WindowSpec{ID: id, Kind: "notification", Title: "OpenDesk", Notification: &normalized})
+		window, err := u.session.Create(ctx, windowSpec)
 		if err != nil {
 			return nil, err
 		}

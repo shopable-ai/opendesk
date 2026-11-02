@@ -28,6 +28,17 @@ for (const name of publicNames) {
 }
 const child = spawn(hostPath, [], {stdio:['pipe','pipe','pipe']});
 let sequence=0,stderr='',pending=new Map(),events=[],measurementStyle=null;
+const hostExit = new Promise(resolve=>child.once('exit',(code,signal)=>{
+  resolve({code,signal,stdinEndedBeforeExit:child.stdin.writableEnded});
+}));
+async function waitForHostExit(timeoutMs){
+  let timer;
+  try {
+    return await Promise.race([hostExit,new Promise((_,reject)=>{
+      timer=setTimeout(()=>reject(new Error(`host did not exit within ${timeoutMs}ms with stdin left open ${stderr}`)),timeoutMs);
+    })]);
+  } finally { clearTimeout(timer); }
+}
 let helloResolve,helloReject;
 const hello = new Promise((a,b)=>{helloResolve=a;helloReject=b;});
 child.stderr.on('data',d=>{stderr+=d;});
@@ -123,6 +134,28 @@ const notice={message:'正在执行 · Native UI smoke',caption:'Task progress a
   const coverage = hostedDeterministic
     ? {profile,verified:['hello','icon-registry','toolbar-lifecycle','toolbar-state','notification-lifecycle','notification-follow','notification-timeout'],requiresInteractive:['web-surface-navigation','web-surface-control-bridge','measurement-local-image']}
     : {profile,verified:['hello','icon-registry','toolbar-lifecycle','toolbar-state','notification-lifecycle','notification-follow','notification-timeout','web-surface-navigation','web-surface-control-bridge','measurement-local-image',...(interactiveMeasurement?['measurement-pointer-and-key-input']:[])],requiresInteractive:interactiveMeasurement?[]:['measurement-pointer-and-key-input']};
-  fs.writeFileSync(path.join(root,'protocol-smoke.json'),JSON.stringify({hostPath,platform:process.platform,passed:true,coverage,measurementStyle,events,stderr},null,2));
-  console.log('NATIVE_HOST_PROTOCOL_PASS');await call('shutdown',{},'');child.stdin.end();
-})().catch(error=>{fs.writeFileSync(path.join(root,'protocol-smoke-error.json'),JSON.stringify({message:error.message,code:error.code,profile,stderr,events},null,2));console.error(error,stderr);child.kill();process.exitCode=1;});
+  const stdinOpenBeforeShutdown=!child.stdin.destroyed&&!child.stdin.writableEnded;
+  assert(stdinOpenBeforeShutdown,'stdin must remain open for protocol shutdown');
+  const shutdownStarted=Date.now();
+  await call('shutdown',{},'');
+  // Never end stdin here: EOF must not hide intercepted native termination.
+  const shutdown={...await waitForHostExit(5000),stdinOpenBeforeShutdown,elapsedMs:Date.now()-shutdownStarted};
+  assert.equal(shutdown.code,0,'protocol shutdown must exit the native host with code 0');
+  assert.equal(shutdown.signal,null,'protocol shutdown must not require a signal');
+  assert.equal(shutdown.stdinEndedBeforeExit,false,'EOF must not be used to terminate the host');
+  coverage.verified.push('protocol-shutdown-exit-with-stdin-open');
+  fs.writeFileSync(path.join(root,'protocol-smoke.json'),JSON.stringify({hostPath,platform:process.platform,passed:true,coverage,shutdown,measurementStyle,events,stderr},null,2));
+  console.log('NATIVE_HOST_SHUTDOWN '+JSON.stringify(shutdown));
+  console.log('NATIVE_HOST_PROTOCOL_PASS');
+})().catch(async error=>{
+  // Only this smoke's child is eligible for cleanup. Bound even failed shutdown
+  // cleanup, and never turn a forced exit into passing protocol evidence.
+  if(child.exitCode===null&&child.signalCode===null){
+    child.kill('SIGKILL');
+    try { await waitForHostExit(2000); } catch {
+      child.stdin.destroy();child.stdout.destroy();child.stderr.destroy();child.unref();
+    }
+  }
+  fs.writeFileSync(path.join(root,'protocol-smoke-error.json'),JSON.stringify({passed:false,message:error.message,code:error.code,profile,stderr,events},null,2));
+  console.error(error,stderr);process.exitCode=1;
+});

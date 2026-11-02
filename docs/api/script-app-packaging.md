@@ -235,7 +235,7 @@ OPENDESK=/Applications/OpenDesk.app/Contents/MacOS/opendesk
 My App.app/
 └── Contents/
     ├── MacOS/opendesk
-    ├── Helpers/opendesk-ui-host
+    ├── Helpers/OpenDesk UI.app/Contents/MacOS/opendesk-ui-host
     └── Resources/
         └── AppMode/
             ├── opendesk.app.json

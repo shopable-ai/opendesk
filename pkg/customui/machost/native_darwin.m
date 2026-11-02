@@ -14,6 +14,8 @@ static NSString *const CDProtocolVersion = @"1.15.0";
 static NSMutableDictionary<NSString *, id> *CDWindows;
 static NSMutableDictionary<NSString *, NSDictionary *> *CDClosedNotifications;
 static void CDReflowBottomNotifications(NSString *session);
+static BOOL CDSyncDockPresentation(void);
+static uint64_t CDPresentationSequence;
 
 static BOOL CDDragDebugEnabled(void) {
 	const char *value = getenv("OPENDESK_UI_DEBUG_DRAG");
@@ -954,7 +956,11 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 	@property(nonatomic, copy) NSString *interactionGroup;
 @property(nonatomic) BOOL closed;
 @property(nonatomic) BOOL programmaticClose;
+@property(nonatomic) BOOL miniaturizing;
+@property(nonatomic) BOOL hiddenByOwner;
+@property(nonatomic) uint64_t presentationOrder;
 @property(nonatomic, copy) NSString *appCloseBehavior;
+@property(nonatomic) BOOL appOwned;
 @property(nonatomic, copy) NSString *measurementTarget;
 @property(nonatomic, strong) id measurementKeyboardMonitor;
 @property(nonatomic) BOOL dragActive;
@@ -1490,9 +1496,38 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
 	});
 }
 
+- (void)windowDidBecomeKey:(NSNotification *)notification {
+	self.presentationOrder = ++CDPresentationSequence;
+}
+
+- (void)windowWillMiniaturize:(NSNotification *)notification {
+	// Promote before the animation so an accessory NSPanel has a Dock owner.
+	self.miniaturizing = YES;
+	self.presentationOrder = ++CDPresentationSequence;
+	[self.floatingToolbarView invalidateTooltips];
+	[self.floatingToolbarView setAnimationsActive:NO];
+	CDSyncDockPresentation();
+}
+
+- (void)windowDidMiniaturize:(NSNotification *)notification {
+	self.miniaturizing = NO;
+	self.revision += 1;
+	CDSyncDockPresentation();
+}
+
+- (void)windowDidDeminiaturize:(NSNotification *)notification {
+	self.miniaturizing = NO;
+	self.presentationOrder = ++CDPresentationSequence;
+	self.revision += 1;
+	[self.floatingToolbarView setAnimationsActive:!self.hiddenByOwner];
+	CDSyncDockPresentation();
+}
+
 - (void)windowWillClose:(NSNotification *)notification {
 	if (self.closed) return;
 	self.closed = YES;
+	self.miniaturizing = NO;
+	CDSyncDockPresentation();
 	[self stopMeasurementKeyboardMonitor];
 	self.dragActive = NO;
 	self.dragOverlay.enabled = NO;
@@ -1523,8 +1558,11 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
 	if (self.programmaticClose || ![self.appCloseBehavior isEqualToString:@"hide"]) return YES;
 	// A user X in App Mode hide policy keeps this exact NSWindow and its WKWebView
 	// alive. Programmatic/session close paths set programmaticClose and bypass it.
+	self.hiddenByOwner = YES;
+	if (sender.isMiniaturized) [sender deminiaturize:nil];
 	[sender orderOut:nil];
 	self.revision += 1;
+	CDSyncDockPresentation();
 	return NO;
 }
 
@@ -1583,17 +1621,7 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
 
 @end
 
-// The UI host is an accessory process unless it currently owns a normal
-// document surface. Floating tools and the dedicated Measurement panel must
-// never leave a Dock/app-switcher participant behind after a normal page has
-// been closed in the same process.
-static BOOL CDHasRegularDocumentWindow(void) {
-	for (CDWindowController *controller in CDWindows.allValues) {
-		if (controller.closed || controller.notificationView) continue;
-		if (![controller.kind isEqualToString:@"floating"] && ![controller.kind isEqualToString:@"measurement"]) return YES;
-	}
-	return NO;
-}
+#import "window_presentation_darwin.h"
 
 static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger attempt) {
 	if (!controller || controller.closeEventEmitted) return;
@@ -1607,10 +1635,7 @@ static void CDFinalizeClosedWindow(CDWindowController *controller, NSUInteger at
             while (CDClosedNotifications.count > 64) [CDClosedNotifications removeObjectForKey:CDClosedNotifications.allKeys.firstObject];
         }
         [CDWindows removeObjectForKey:CDWindowKey(controller.sessionID, controller.windowID)];
-		// Restore the host's nonpersistent status as soon as no normal document
-		// surface remains. Tooling and Measurement may still be visible, but they
-		// must not keep the host in Dock/window-switcher presentation.
-		if (!CDHasRegularDocumentWindow()) [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+		CDSyncDockPresentation();
 		return;
 	}
 	if (attempt >= 500) return;
@@ -1960,7 +1985,8 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 	BOOL isReferenceSelection = [kind isEqualToString:@"reference-selection"];
 	BOOL frameless = [spec[@"chrome"] isEqualToString:@"none"];
     NSWindowStyleMask style = frameless ? NSWindowStyleMaskBorderless : (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable);
-	if (!frameless && !isHostDialog && !isNativeToolbar) style |= NSWindowStyleMaskResizable | NSWindowStyleMaskMiniaturizable;
+	if (!frameless && !isHostDialog) style |= NSWindowStyleMaskMiniaturizable;
+	if (!frameless && !isHostDialog && !isNativeToolbar) style |= NSWindowStyleMaskResizable;
     NSRect frame = CDNativeRect(bounds);
 	if ([spec[@"centerOnActiveDisplay"] boolValue]) {
 		frame = CDCenteredDialogRect(frame);
@@ -2010,6 +2036,11 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
 		window = [[windowClass alloc] initWithContentRect:frame styleMask:style backing:NSBackingStoreBuffered defer:NO];
 	}
 	window.title = (isMeasurement || isReferenceSelection) ? @"" : (spec[@"title"] ?: @"");
+	[[window standardWindowButton:NSWindowCloseButton] setAccessibilityIdentifier:@"opendesk.window.close"];
+	[[window standardWindowButton:NSWindowMiniaturizeButton] setAccessibilityIdentifier:@"opendesk.window.minimize"];
+	[[window standardWindowButton:NSWindowZoomButton] setAccessibilityIdentifier:@"opendesk.window.zoom"];
+	if (isNativeToolbar || isHostDialog) [[window standardWindowButton:NSWindowZoomButton] setHidden:YES];
+	if (isHostDialog || (isNativeToolbar && frame.size.width < 90)) [[window standardWindowButton:NSWindowMiniaturizeButton] setHidden:YES];
 	if (isNativeToolbar && [toolbarSpec[@"orientation"] isEqualToString:@"vertical"]) {
 		// A 60pt one-column toolbar cannot fit a title beside the close button.
 		// Keep the native drag/close area without clipped text or inactive buttons.
@@ -2057,6 +2088,7 @@ static void CDHandleCreate(NSDictionary *request, NSString *requestID) {
     controller.sessionID = sessionID;
     controller.windowID = windowID;
 	controller.kind = kind;
+	controller.appOwned = [spec[@"appOwned"] boolValue];
 	controller.appCloseBehavior = [spec[@"appCloseBehavior"] isKindOfClass:NSString.class] ? spec[@"appCloseBehavior"] : @"";
 	controller.measurementTarget = [spec[@"measurement"] isKindOfClass:NSDictionary.class] ? spec[@"measurement"][@"targetId"] : nil;
     controller.window = window;
@@ -2360,6 +2392,7 @@ static void CDHandleRequest(NSDictionary *request) {
         return;
     }
     if ([operation isEqualToString:@"shutdown"]) {
+		CDShutdownRequested = YES;
         for (CDWindowController *controller in CDWindows.allValues.copy) {
             controller.programmaticClose = YES;
             [controller.window close];
@@ -2386,6 +2419,8 @@ static void CDHandleRequest(NSDictionary *request) {
   }]; return;
  }
 	if ([operation isEqualToString:@"show"]) {
+		controller.hiddenByOwner = NO;
+		controller.presentationOrder = ++CDPresentationSequence;
 		if ([controller.kind isEqualToString:@"measurement"]) {
 			// A nonactivating panel is intentionally absent from ordinary window
 			// cycling, but AppKit only delivers its local WebView key events after
@@ -2399,6 +2434,7 @@ static void CDHandleRequest(NSDictionary *request) {
 			[controller startMeasurementKeyboardMonitor];
 			[controller.window displayIfNeeded];
 		} else if ([controller.kind isEqualToString:@"floating"] || controller.notificationView) {
+			if (controller.window.isMiniaturized) [controller.window deminiaturize:nil];
             [controller.window orderFrontRegardless];
 			[controller.floatingToolbarView setAnimationsActive:YES];
             [controller.notificationView start];
@@ -2415,7 +2451,11 @@ static void CDHandleRequest(NSDictionary *request) {
 			// product window. Restoring is deliberately separate from the
 			// floating-level branch above: it must not alter the window level.
 			if (controller.window.isMiniaturized) [controller.window deminiaturize:nil];
-			[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+			// Promote before activation; visibility is not updated until orderFront.
+			if (!CDSetDockPolicy(NSApplicationActivationPolicyRegular)) {
+				CDFail(requestID, @"UI_DRIVER_FAILURE", operation, controller.windowID, nil, @"cannot present application in Dock");
+				return;
+			}
             [NSApp activateIgnoringOtherApps:YES];
 			[controller.window makeKeyAndOrderFront:nil];
 			[controller.window makeFirstResponder:controller.webView];
@@ -2425,12 +2465,16 @@ static void CDHandleRequest(NSDictionary *request) {
 			if (!controller.trustedSchemeHandler) [controller.webView evaluateJavaScript:@"(function(){var el=document.querySelector('[data-opendesk-dialog-focus]');if(el){el.focus();return true;}return false;})()" completionHandler:nil];
         }
         controller.revision += 1;
+		CDSyncDockPresentation();
 		CDRespondWhenVisible(controller, requestID, 0);
 	} else if ([operation isEqualToString:@"hide"]) {
+		controller.hiddenByOwner = YES;
 		[controller.floatingToolbarView invalidateTooltips];
 		[controller.floatingToolbarView setAnimationsActive:NO];
+		if (controller.window.isMiniaturized) [controller.window deminiaturize:nil];
         [controller.window orderOut:nil];
         controller.revision += 1;
+		CDSyncDockPresentation();
         CDRespond(requestID, controller.state);
     } else if ([operation isEqualToString:@"close"]) {
         controller.programmaticClose = YES;
@@ -2582,6 +2626,7 @@ void OpenDeskUIHandleCommand(const char *json) {
 
 void OpenDeskUIShutdown(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
+		CDShutdownRequested = YES;
         for (CDWindowController *controller in CDWindows.allValues.copy) {
             controller.programmaticClose = YES;
             [controller.window close];
@@ -2595,6 +2640,9 @@ void OpenDeskUIRun(void) {
         CDWindows = [NSMutableDictionary dictionary];
         NSApplication *application = NSApplication.sharedApplication;
         [application setActivationPolicy:NSApplicationActivationPolicyAccessory];
+		CDAppDelegate = [CDApplicationDelegate new];
+		application.delegate = CDAppDelegate;
+		CDInstallWindowMenu();
 		[application finishLaunching];
         CDEmitHello();
         [application run];

@@ -17,7 +17,8 @@ RESOURCES_DIR="${CONTENTS_DIR}/Resources"
 HELPERS_DIR="${CONTENTS_DIR}/Helpers"
 EXECUTABLE_PATH="${MACOS_DIR}/opendesk"
 EXECUTABLE_STAGE="${DIST_DIR}/.opendesk-build.$$"
-UI_HOST_PATH="${HELPERS_DIR}/opendesk-ui-host"
+UI_HOST_APP="${HELPERS_DIR}/OpenDesk UI.app"
+UI_HOST_PATH="${UI_HOST_APP}/Contents/MacOS/opendesk-ui-host"
 STATUS_HELPER_PATH="${HELPERS_DIR}/opendesk-status"
 INSPECTOR_WEB_SOURCE="${ROOT_DIR}/apps/inspector_web"
 INSPECTOR_WEB_PATH="${RESOURCES_DIR}/inspector_web"
@@ -102,12 +103,27 @@ if [[ -e "${APP_ROOT}" ]]; then
   chmod -R u+w "${APP_ROOT}"
   rm -rf "${APP_ROOT}"
 fi
-mkdir -p "${MACOS_DIR}" "${HELPERS_DIR}" "${RESOURCES_DIR}"
+mkdir -p "${MACOS_DIR}" "${HELPERS_DIR}" "${RESOURCES_DIR}" \
+  "${UI_HOST_APP}/Contents/MacOS" "${UI_HOST_APP}/Contents/Resources"
 
 cp "${EXECUTABLE_STAGE}" "${EXECUTABLE_PATH}"
 cp "${DIST_DIR}/opendesk-ui-host" "${UI_HOST_PATH}"
 cp "${DIST_DIR}/opendesk-status" "${STATUS_HELPER_PATH}"
 cp "${APP_ICON_SOURCE}" "${RESOURCES_DIR}/${APP_ICON_NAME}"
+cp "${APP_ICON_SOURCE}" "${UI_HOST_APP}/Contents/Resources/${APP_ICON_NAME}"
+# Use plutil string insertion so custom app names remain valid XML.
+UI_HOST_PLIST="${UI_HOST_APP}/Contents/Info.plist"
+plutil -create xml1 "${UI_HOST_PLIST}"
+plutil -insert CFBundleIdentifier -string "${BUNDLE_ID}.ui-host" "${UI_HOST_PLIST}"
+plutil -insert CFBundleName -string "${APP_NAME}" "${UI_HOST_PLIST}"
+plutil -insert CFBundleDisplayName -string "${APP_NAME}" "${UI_HOST_PLIST}"
+plutil -insert CFBundleExecutable -string opendesk-ui-host "${UI_HOST_PLIST}"
+plutil -insert CFBundlePackageType -string APPL "${UI_HOST_PLIST}"
+plutil -insert CFBundleIconFile -string "${APP_ICON_NAME}" "${UI_HOST_PLIST}"
+plutil -insert CFBundleShortVersionString -string "${VERSION}" "${UI_HOST_PLIST}"
+plutil -insert CFBundleVersion -string 1 "${UI_HOST_PLIST}"
+plutil -insert LSMinimumSystemVersion -string "${MACOS_DEPLOYMENT_TARGET}" "${UI_HOST_PLIST}"
+plutil -insert LSUIElement -bool true "${UI_HOST_PLIST}"
 "${GO_BIN}" run ./scripts/tools/inspector-web-payload \
   -source "${INSPECTOR_WEB_SOURCE}" \
   -destination "${INSPECTOR_WEB_PATH}"

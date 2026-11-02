@@ -118,7 +118,10 @@ static int list_on_screen_windows(cgwindow_row *out, int capacity,
 		int64_t owner_pid = 0;
 		int64_t layer = -1;
 		if (!copy_number(row, kCGWindowOwnerPID, &owner_pid) || owner_pid <= 0) continue;
-		if (!copy_number(row, kCGWindowLayer, &layer) || layer != 0) continue;
+		if (!copy_number(row, kCGWindowLayer, &layer)) continue;
+		// Discovery stays limited to normal windows. An already-resolved
+		// exact target may be a floating panel on a nonzero window level.
+		if (layer != 0 && expected_pid <= 0) continue;
 
 		CFDictionaryRef bounds = (CFDictionaryRef)CFDictionaryGetValue(row, kCGWindowBounds);
 		CGRect rect = CGRectZero;
@@ -127,8 +130,9 @@ static int list_on_screen_windows(cgwindow_row *out, int capacity,
 
 		int64_t number = 0;
 		if (!copy_number(row, kCGWindowNumber, &number) || number <= 0) continue;
-		int index = normal_index++;
-		if (front_id != NULL && *front_id == 0 && owner_pid == front_pid) *front_id = number;
+		int index = normal_index;
+		if (layer == 0) normal_index++;
+		if (layer == 0 && front_id != NULL && *front_id == 0 && owner_pid == front_pid) *front_id = number;
 		if (expected_pid > 0 && (owner_pid != expected_pid || number != expected_id)) continue;
 
 		cgwindow_row *item = &out[written];

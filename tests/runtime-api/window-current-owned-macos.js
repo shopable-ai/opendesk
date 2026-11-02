@@ -15,7 +15,7 @@ async function refresh(w){
   const start=Date.now(),fresh=await window.current(w);
   result.samples.push({ms:Date.now()-start,id:fresh.id,foreground:fresh.isForeground,bounds:{x:fresh.x,y:fresh.y,width:fresh.width,height:fresh.height}});
   check(fresh.id===w.id&&fresh.pid===w.pid&&fresh.handle===w.handle,'EXACT_IDENTITY_CHANGED');
-  check(fresh.exePath===File.join(File.cwd(),'dist/OpenDesk.app/Contents/Helpers/opendesk-ui-host'),'EXECUTABLE_CHANGED');
+  check(fresh.exePath===File.join(File.cwd(),'dist/OpenDesk.app/Contents/Helpers/OpenDesk UI.app/Contents/MacOS/opendesk-ui-host'),'EXECUTABLE_CHANGED');
   return fresh;
 }
 try{

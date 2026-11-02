@@ -285,6 +285,17 @@ if [[ "${bundle_icon_name}" != "OpenDesk.icns" ]]; then
   exit 1
 fi
 cmp "${MACOS_ICON}" "${PACKAGE_DIST}/OpenDesk.app/Contents/Resources/${bundle_icon_name}"
+ui_app="${PACKAGE_DIST}/OpenDesk.app/Contents/Helpers/OpenDesk UI.app"
+ui_plist="${ui_app}/Contents/Info.plist"
+[[ "$(plutil -extract CFBundleName raw "${ui_plist}")" == OpenDesk ]]
+[[ "$(plutil -extract CFBundleDisplayName raw "${ui_plist}")" == OpenDesk ]]
+[[ "$(plutil -extract CFBundleIdentifier raw "${ui_plist}")" == com.opendesk.cli.ui-host ]]
+[[ "$(plutil -extract CFBundleExecutable raw "${ui_plist}")" == opendesk-ui-host ]]
+[[ "$(plutil -extract LSUIElement raw "${ui_plist}")" == true ]]
+[[ -x "${ui_app}/Contents/MacOS/opendesk-ui-host" ]]
+[[ ! -e "${PACKAGE_DIST}/OpenDesk.app/Contents/Helpers/opendesk-ui-host" ]]
+cmp "${MACOS_ICON}" "${ui_app}/Contents/Resources/OpenDesk.icns"
+
 payload_digest="$(awk 'NR == 1 { print $1; exit }' "${PACKAGE_DIST}/OpenDesk.app/Contents/Resources/opendesk-payload.sha256")"
 binary_digest="$(shasum -a 256 "${PACKAGE_DIST}/opendesk" | awk '{print $1}')"
 if [[ "${payload_digest}" != "${binary_digest}" ]]; then
@@ -320,6 +331,7 @@ assert_app_bundle() {
     printf 'Unexpected app name or executable contract for %s\n' "${app_path}" >&2
     exit 1
   }
+  cmp "${MACOS_ICON}" "${app_path}/Contents/Helpers/OpenDesk UI.app/Contents/Resources/OpenDesk.icns"
   cmp "${MACOS_ICON}" "${resource_icon}"
   iconutil -c iconset "${resource_icon}" -o "${RUNTIME_DIR}/$(basename "${app_path}").iconset"
   codesign --verify --deep --strict "${app_path}"

@@ -19,7 +19,7 @@ trap cleanup EXIT
 app_bundle="${WORK_DIR}/OpenDesk.app"
 bin_dir="${WORK_DIR}/bin"
 runtime="${app_bundle}/Contents/MacOS/opendesk"
-ui_host="${app_bundle}/Contents/Helpers/opendesk-ui-host"
+ui_host="${app_bundle}/Contents/Helpers/OpenDesk UI.app/Contents/MacOS/opendesk-ui-host"
 mkdir -p "$(dirname "${runtime}")" "$(dirname "${ui_host}")"
 
 cat >"${runtime}" <<'EOF'

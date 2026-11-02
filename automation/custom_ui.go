@@ -353,12 +353,7 @@ func (u *CustomUIRuntime) jsUIObject() map[string]any {
 			if err != nil {
 				panic(customUIJSError(u.runtime, err))
 			}
-			if u.appShell != nil {
-				manifest := u.appShell.shell.Manifest()
-				if spec.ID == manifest.Window.MainID {
-					spec.AppCloseBehavior = manifest.Window.CloseBehavior
-				}
-			}
+			spec = u.appWindowSpec(spec)
 			return u.startAsync("createWindow", func(ctx context.Context) (any, error) {
 				return u.session.Create(ctx, spec)
 			}, func(value any) goja.Value {
@@ -659,8 +654,30 @@ func (u *CustomUIRuntime) enqueueEvent(event customui.Event) {
 	}
 }
 
+// appWindowSpec runs on the Goja owner before handing a spec to a worker.
+// App ownership covers auxiliary windows; close policy still belongs only to mainId.
+func (u *CustomUIRuntime) appWindowSpec(spec customui.WindowSpec) customui.WindowSpec {
+	spec.AppOwned = u.appShell != nil
+	if u.appShell != nil {
+		manifest := u.appShell.shell.Manifest()
+		if spec.ID == manifest.Window.MainID {
+			spec.AppCloseBehavior = manifest.Window.CloseBehavior
+		}
+	}
+	return spec
+}
+
 func (u *CustomUIRuntime) drainEvents(runtime *goja.Runtime) {
 	for _, event := range u.queue.Drain() {
+		// Reserved native lifecycle intent must never become a public UI event.
+		if event.Type == "appQuit" {
+			if u.appShell != nil && !u.appShell.closing.Load() {
+				if err := u.appShell.shell.RequestQuit(); err != nil {
+					u.appShell.reportAsyncError(err)
+				}
+			}
+			continue
+		}
 		if u.appShell != nil {
 			u.appShell.mainWindowEvent(customUIAppWindowEvent{WindowID: event.WindowID, Type: event.Type, Reason: event.Reason})
 		}

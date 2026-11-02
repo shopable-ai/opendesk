@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import os
+import plistlib
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,7 @@ LAYOUT = {
     "macos": {
         "files": (
             "Contents/Info.plist", "Contents/MacOS/opendesk",
-            "Contents/Helpers/opendesk-ui-host",
+            "Contents/Helpers/OpenDesk UI.app/Contents/MacOS/opendesk-ui-host",
         ),
         "js": ("Contents/MacOS/polyfills", "Contents/MacOS/jslibs"),
         "marker": "Contents/Resources/OpenDeskAppBuilder/template.json",
@@ -27,6 +28,8 @@ LAYOUT = {
         "provenance": "Contents/Resources/OpenDeskAppBuilder/build-provenance.json",
         "owned": ("Contents/MacOS", "Contents/Helpers", "Contents/Resources"),
         "mutable": ("Contents/Info.plist", "Contents/_CodeSignature",
+                    "Contents/Helpers/OpenDesk UI.app/Contents/Info.plist",
+                    "Contents/Helpers/OpenDesk UI.app/Contents/_CodeSignature",
                     "Contents/Resources/AppMode",
                     "Contents/Resources/OpenDeskAppBuilder/build-provenance.json"),
         "wrong_suffixes": (".exe", ".dll", ".pdb"),
@@ -144,6 +147,36 @@ def verify(root: Path, target: str, kind: str = "runtime",
             except (ValueError, UnicodeError, OSError) as exc:
                 errors.append(f"invalid distribution provenance: {exc}")
     required = list(layout["files"])
+    if target == "macos":
+        nested = "Contents/Helpers/OpenDesk UI.app/Contents/"
+        host = nested + "MacOS/opendesk-ui-host"
+        legacy = "Contents/Helpers/opendesk-ui-host"
+        if (root / "Contents/Helpers/OpenDesk UI.app").exists():
+            required.append(nested + "Info.plist")
+            if legacy in files:
+                errors.append("duplicate bare UI host beside nested UI app")
+            try:
+                outer = plistlib.loads((root / "Contents/Info.plist").read_bytes())
+                info = plistlib.loads((root / (nested + "Info.plist")).read_bytes())
+                expected = {"CFBundleIdentifier": outer["CFBundleIdentifier"] + ".ui-host",
+                            "CFBundleName": outer["CFBundleName"],
+                            "CFBundleDisplayName": outer["CFBundleDisplayName"],
+                            "CFBundleShortVersionString": outer["CFBundleShortVersionString"],
+                            "CFBundleExecutable": "opendesk-ui-host", "LSUIElement": True}
+                for key, value in expected.items():
+                    if info.get(key) != value:
+                        errors.append(f"nested UI app metadata mismatch: {key}")
+                icon = info.get("CFBundleIconFile")
+                if not isinstance(icon, str) or not icon or "/" in icon or icon in (".", ".."):
+                    errors.append("invalid nested UI app icon name")
+                else:
+                    required.append(nested + "Resources/" + icon)
+            except (ValueError, KeyError, TypeError, OSError, plistlib.InvalidFileException) as exc:
+                errors.append(f"invalid nested UI app metadata: {exc}")
+        else:
+            # Older installed templates remain valid input to App Builder.
+            required.remove(host)
+            required.append(legacy)
     if kind == "runtime":
         required.append(layout["marker"])
     else:

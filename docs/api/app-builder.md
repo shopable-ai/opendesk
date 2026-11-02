@@ -73,7 +73,7 @@ mkdir -p release
 release/My App.app/
 └── Contents/
     ├── MacOS/opendesk
-    ├── Helpers/opendesk-ui-host
+    ├── Helpers/OpenDesk UI.app/Contents/MacOS/opendesk-ui-host
     ├── Info.plist
     └── Resources/
         ├── AppMode/                         # 已验证的 my-app payload

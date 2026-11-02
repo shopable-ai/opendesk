@@ -47,7 +47,7 @@ The driver is lazy. Constructing App Mode or a standalone CLI execution does not
 never uses host-backed Custom UI should remain at zero UI Host processes. A separate trusted CLI/App that does use Custom UI may
 own its own host; that is a different product/execution boundary and must not be force-shared with the official desktop app.
 
-On macOS release builds, `Contents/Helpers/opendesk-ui-host` is the only shipped UI helper. ClawDesk-era helper
+On macOS release builds, `Contents/Helpers/OpenDesk UI.app/Contents/MacOS/opendesk-ui-host` is the only shipped UI helper. ClawDesk-era helper
 names are not part of the current runtime contract and are no longer staged or auto-discovered. If the canonical helper is
 missing, Runtime fails with `UI_HOST_NOT_FOUND` / `CodeHostNotFound` and reports the canonical expected paths instead of
 silently starting an older helper found on disk. A `clawdesk-ui-host` file found on a machine is therefore evidence of an

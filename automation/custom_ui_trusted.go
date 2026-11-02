@@ -29,9 +29,7 @@ func (u *CustomUIRuntime) jsCreateTrustedWindow(call goja.FunctionCall) goja.Val
 	if err != nil {
 		fail(err)
 	}
-	if u.appShell != nil && spec.ID == u.appShell.shell.Manifest().Window.MainID {
-		spec.AppCloseBehavior = u.appShell.shell.Manifest().Window.CloseBehavior
-	}
+	spec = u.appWindowSpec(spec)
 	return u.startAsync("createTrustedWindow", func(ctx context.Context) (any, error) {
 		caps := u.driver.Capabilities(ctx)
 		if caps.Platform != "darwin" || !caps.Window["trustedWindow"] {
