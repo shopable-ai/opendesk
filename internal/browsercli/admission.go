@@ -9,15 +9,19 @@ import (
 )
 
 type admissionIdentity struct {
+	ConnectionID   string `json:"connectionId,omitempty"`
+	ExtensionID    string `json:"extensionId,omitempty"`
 	RegistrationID string `json:"registrationId"`
 	RequestID      string `json:"admissionRequestId"`
 	Method         string `json:"admissionMethod"`
 	Digest         string `json:"requestDigest"`
 }
 type invocationError struct {
-	err       error
-	requestID string
-	recovery  *admissionIdentity
+	err          error
+	requestID    string
+	recovery     *admissionIdentity
+	connectionID string
+	extensionID  string
 }
 
 func (e *invocationError) Error() string { return e.err.Error() }
@@ -27,6 +31,9 @@ func (e *invocationError) Unwrap() error { return e.err }
 // execute a project. Bind the subsequent mutation to that precise registration;
 // a disappearing/changing owner is rejected by the existing Browser boundary.
 func prepareAdmission(method string, params map[string]json.RawMessage, requestID string) (*admissionIdentity, error) {
+	return prepareAdmissionAt(nil, method, params, requestID)
+}
+func prepareAdmissionAt(cfg *browserbridge.Installation, method string, params map[string]json.RawMessage, requestID string) (*admissionIdentity, error) {
 	if method != "run.start" && method != "page.preview" {
 		return nil, nil
 	}
@@ -40,7 +47,13 @@ func prepareAdmission(method string, params map[string]json.RawMessage, requestI
 		if err != nil {
 			return nil, err
 		}
-		reply, err := browserbridge.Call(context.Background(), "bridge.status", json.RawMessage(`{}`), id, 3*time.Second)
+		call := browserbridge.Call
+		if cfg != nil {
+			call = func(ctx context.Context, method string, params json.RawMessage, id string, timeout time.Duration) ([]byte, error) {
+				return browserbridge.CallAt(ctx, *cfg, method, params, id, timeout)
+			}
+		}
+		reply, err := call(context.Background(), "bridge.status", json.RawMessage(`{}`), id, 3*time.Second)
 		if err != nil {
 			return nil, &browserbridge.CallError{Code: "E_NATIVE_NOT_READY", Outcome: "NOT_DISPATCHED"}
 		}
@@ -74,5 +87,10 @@ func prepareAdmission(method string, params map[string]json.RawMessage, requestI
 	if err != nil {
 		return nil, err
 	}
-	return &admissionIdentity{registration, requestID, method, digest}, nil
+	identity := &admissionIdentity{RegistrationID: registration, RequestID: requestID, Method: method, Digest: digest}
+	if cfg != nil && cfg.ConnectionID != "" {
+		identity.ConnectionID = cfg.ConnectionID
+		identity.ExtensionID = cfg.ExtensionID
+	}
+	return identity, nil
 }

@@ -33,7 +33,16 @@ func callError(sent bool) error {
 func Call(ctx context.Context,method string,params json.RawMessage,requestID string,timeout time.Duration) ([]byte,error) {
 	if !supportedMethods[method] || !RequestIDValid(requestID) {return nil,ErrSchema}
 	if _,err:=Decode(params);err!=nil{return nil,ErrSchema}
-	cfg,err:=Load();if err!=nil{return nil,err}
+	cfg,err:=LoadClient();if err!=nil{return nil,err}
+	return CallAt(ctx,cfg,method,params,requestID,timeout)
+}
+
+// CallAt pins a multi-step caller to the exact connection selected before
+// admission. A disconnect never causes selection of the remaining browser.
+func CallAt(ctx context.Context,cfg Installation,method string,params json.RawMessage,requestID string,timeout time.Duration) ([]byte,error) {
+	if !supportedMethods[method] || !RequestIDValid(requestID) {return nil,ErrSchema}
+	if _,err:=Decode(params);err!=nil{return nil,ErrSchema}
+	if cfg.ConnectionID!=""{if err:=verifyClientInstallation(cfg);err!=nil{return nil,err}}
 	if timeout<=0{timeout=145*time.Second}
 	deadline:=time.Now().Add(timeout)
 	dialer:=net.Dialer{Timeout:3*time.Second}
@@ -50,6 +59,9 @@ func Call(ctx context.Context,method string,params json.RawMessage,requestID str
 	auth,err:=Decode(authBytes)
 	if err!=nil || Int(auth,"v")!=Version || String(auth,"kind")!="authenticated" {
 		return nil,&CallError{Code:"E_AUTH",Outcome:"NOT_DISPATCHED"}
+	}
+	if cfg.ConnectionID!="" && (String(auth,"connectionId")!=cfg.ConnectionID || String(auth,"extensionId")!=cfg.ExtensionID){
+		return nil,&CallError{Code:"E_CONNECTION_IDENTITY",Outcome:"NOT_DISPATCHED"}
 	}
 	if !Bool(auth,"browserReady"){return nil,callError(false)}
 	id,err:=json.Marshal(requestID);if err!=nil{return nil,err}

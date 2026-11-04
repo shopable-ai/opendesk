@@ -73,10 +73,14 @@ func workspaceStorePath(cfg Installation) string {
 // race an operation admitted using an older grant, and two Native connections
 // cannot independently pass the service's optimistic content precondition.
 func lockWorkspaceStore(cfg Installation) (func(), error) {
-	if err := requireDir(cfg.InstallRoot); err != nil {
+	// Grants remain private to the Port, but all Ports of one installation
+	// serialize their final content checks and writes (including legacy Hosts).
+	root := cfg.InstallRoot
+	if cfg.ConnectionID != "" { root = cfg.ParentRoot }
+	if err := requireDir(root); err != nil {
 		return nil, filesFailure("E_FILES_ACCESS")
 	}
-	fd, err := syscall.Open(filepath.Join(cfg.InstallRoot, workspaceLockName),
+	fd, err := syscall.Open(filepath.Join(root, workspaceLockName),
 		syscall.O_RDWR|syscall.O_CREAT|syscall.O_CLOEXEC|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0600)
 	if err != nil {
 		return nil, filesFailure("E_FILES_ACCESS")
@@ -216,7 +220,7 @@ func WorkspaceAdd(p, access string) (map[string]any, error) {
 	if !validWorkspaceAccess(access) {
 		return nil, filesFailure("E_FILES_ACCESS")
 	}
-	cfg, err := Load()
+	cfg, err := LoadClient()
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +292,7 @@ func WorkspaceAdd(p, access string) (map[string]any, error) {
 }
 
 func WorkspaceList() (map[string]any, error) {
-	cfg, err := Load()
+	cfg, err := LoadClient()
 	if err != nil {
 		return nil, err
 	}
@@ -316,7 +320,7 @@ func WorkspaceRevoke(id string) (map[string]any, error) {
 	if !workspaceIDPattern.MatchString(id) {
 		return nil, ErrSchema
 	}
-	cfg, err := Load()
+	cfg, err := LoadClient()
 	if err != nil {
 		return nil, err
 	}

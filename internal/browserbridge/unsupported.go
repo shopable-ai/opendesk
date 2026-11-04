@@ -9,6 +9,10 @@ import (
 )
 
 type Installation struct {
+	ApprovedExtensions string
+	ConnectionID string
+	ParentRoot string
+	ParentCredentialDigest string
 	Name string
 	ExtensionID string
 	Browser string

@@ -502,7 +502,7 @@ func (h *Host) handleModernDevRequest(f Fields) error {
     h.mu.Unlock()
     if method=="projects.list"{
         go func(){
-            listed,err:=ProjectList()
+            listed,err:=projectListFor(h.cfg)
             if err!=nil{h.devError(id,epoch,"E_DEV_AUTH");return}
             rows,_:=listed["projects"].([]map[string]any)
             for scoped,entry:=range modern{
@@ -634,7 +634,7 @@ func (h *Host) handleModernSourceRequest(f Fields, modern map[string]struct{clie
     return nil
 }
 func (h *Host) serveAggregatedGoProject(id,epoch,bindingID string) {
-    result,err:=ResolveProject(bindingID)
+    result,err:=resolveProjectFor(h.cfg,bindingID)
     h.mu.Lock();live:=!h.closed&&h.aggregateEpoch==epoch&&len(h.modern)>0;h.mu.Unlock()
     if !live{return}
     if err!=nil {h.devError(id,epoch,"E_DEV_SOURCE");return}

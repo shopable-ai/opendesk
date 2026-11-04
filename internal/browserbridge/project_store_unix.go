@@ -153,7 +153,7 @@ func projectStoreLock(cfg Installation)(func(),error){
 // ProjectAdd requires a user's exact local path and explicit type/site scope.
 // It grants no directory traversal, browser action, HTTP origin or npm access.
 func ProjectAdd(p,kind,entry,siteOrigin string)(map[string]any,error){
- cfg,err:=Load();if err!=nil{return nil,err}
+ cfg,err:=LoadClient();if err!=nil{return nil,err}
  if !validateProjectKind(kind,entry){return nil,projectErr("E_DEV_RUNTIME")}
  if !validateSiteOrigin(siteOrigin){return nil,projectErr("E_DEV_ORIGIN")}
  f,info,err:=secureSourcePath(p);if err!=nil{return nil,err}
@@ -179,7 +179,10 @@ func ProjectAdd(p,kind,entry,siteOrigin string)(map[string]any,error){
  "providerNotified":notifyProjectChanged(cfg)},nil
 }
 func ProjectList()(map[string]any,error){
- cfg,err:=Load();if err!=nil{return nil,err}
+ cfg,err:=LoadClient();if err!=nil{return nil,err}
+ return projectListFor(cfg)
+}
+func projectListFor(cfg Installation)(map[string]any,error){
  state,err:=readProjectStore(cfg);if err!=nil{return nil,err}
  projects:=make([]map[string]any,0,len(state.Projects))
  for _,grant:=range state.Projects{
@@ -190,7 +193,7 @@ func ProjectList()(map[string]any,error){
 }
 func ProjectRevoke(id string)(map[string]any,error){
  if !projectBindingRE.MatchString(id){return nil,projectErr("E_SCHEMA")}
- cfg,err:=Load();if err!=nil{return nil,err}
+ cfg,err:=LoadClient();if err!=nil{return nil,err}
  release,err:=projectStoreLock(cfg);if err!=nil{return nil,err}
  defer release()
  state,err:=readProjectStore(cfg);if err!=nil{return nil,err}
@@ -208,8 +211,11 @@ func ProjectRevoke(id string)(map[string]any,error){
 // ResolveProject returns ONLY source bytes and execution metadata, never
 // workspace paths. The grant is checked both before and after file snapshot.
 func ResolveProject(id string)(map[string]any,error){
+ cfg,err:=LoadClient();if err!=nil{return nil,err}
+ return resolveProjectFor(cfg,id)
+}
+func resolveProjectFor(cfg Installation,id string)(map[string]any,error){
  if !projectBindingRE.MatchString(id){return nil,projectErr("E_SCHEMA")}
- cfg,err:=Load();if err!=nil{return nil,err}
  state,err:=readProjectStore(cfg);if err!=nil{return nil,err}
  var grant *ProjectGrant
  for i:=range state.Projects{if state.Projects[i].BindingID==id{grant=&state.Projects[i];break}}

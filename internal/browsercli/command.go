@@ -35,7 +35,7 @@ func exitError(out io.Writer,err error) int {
 	var call *browserbridge.CallError
 	if errors.As(err,&call) && call.Outcome!=""{v["outcome"]=call.Outcome}
 	var invocation *invocationError
-	if errors.As(err,&invocation){v["requestId"]=invocation.requestID;if invocation.recovery!=nil{v["recovery"]=invocation.recovery}}
+	if errors.As(err,&invocation){v["requestId"]=invocation.requestID;if invocation.connectionID!=""{v["connectionId"]=invocation.connectionID;v["extensionId"]=invocation.extensionID};if invocation.recovery!=nil{v["recovery"]=invocation.recovery}}
 	writeJSON(out,v)
 	return 1
 }
@@ -87,17 +87,20 @@ func doCall(method string, opts map[string]string, timeout time.Duration) (json.
 	if !browserbridge.RequestIDValid(requestID) {
 		return nil, browserbridge.ErrSchema
 	}
-	recovery, err := prepareAdmission(method, params, requestID)
+	if method=="request.get" && os.Getenv(browserbridge.ConnectionEnvironment)=="" {return nil,errors.New("E_CONNECTION_REQUIRED: request.get requires the original connection (or legacy)")}
+ cfg,err:=browserbridge.LoadClient()
+	if err!=nil{return nil,err}
+ recovery, err := prepareAdmissionAt(&cfg,method, params, requestID)
 	if err != nil {
-		return nil, &invocationError{err, requestID, nil}
+		return nil, &invocationError{err:err, requestID:requestID, connectionID:cfg.ConnectionID,extensionID:cfg.ExtensionID}
 	}
 	payload, err := json.Marshal(params)
 	if err != nil {
 		return nil, err
 	}
-	reply, err := browserbridge.Call(context.Background(), method, payload, requestID, timeout)
+	reply, err := browserbridge.CallAt(context.Background(),cfg, method, payload, requestID, timeout)
 	if err != nil {
-		return nil, &invocationError{err, requestID, recovery}
+		return nil, &invocationError{err:err,requestID:requestID,recovery:recovery,connectionID:cfg.ConnectionID,extensionID:cfg.ExtensionID}
 	}
 	var response struct {
 		Error *struct {
@@ -106,16 +109,37 @@ func doCall(method string, opts map[string]string, timeout time.Duration) (json.
 		} `json:"error"`
 	}
 	if json.Unmarshal(reply, &response) == nil && response.Error != nil && response.Error.Outcome == "OUTCOME_UNKNOWN" {
-		return nil, &invocationError{&browserbridge.CallError{Code: response.Error.Code, Outcome: response.Error.Outcome}, requestID, recovery}
+		return nil, &invocationError{err:&browserbridge.CallError{Code: response.Error.Code, Outcome: response.Error.Outcome},requestID:requestID,recovery:recovery,connectionID:cfg.ConnectionID,extensionID:cfg.ExtensionID}
 	}
-	return json.RawMessage(reply), nil
+	if cfg.ConnectionID!="" {
+  var envelope map[string]json.RawMessage
+  if json.Unmarshal(reply,&envelope)!=nil{return nil,browserbridge.ErrSchema}
+  envelope["connectionId"],_=json.Marshal(cfg.ConnectionID)
+  envelope["extensionId"],_=json.Marshal(cfg.ExtensionID)
+  reply,err=json.Marshal(envelope);if err!=nil{return nil,err}
+ }
+ return json.RawMessage(reply), nil
 }
 func Execute(args []string,stdout,stderr io.Writer) int {
+	if len(args)>2 && args[0]=="browser" && args[1]=="--connection" {
+		if len(args)<4{return exitError(stderr,browserbridge.ErrSchema)}
+		previous,set:=os.LookupEnv(browserbridge.ConnectionEnvironment)
+		if err:=os.Setenv(browserbridge.ConnectionEnvironment,args[2]);err!=nil{return exitError(stderr,err)}
+		defer func(){if set{_ = os.Setenv(browserbridge.ConnectionEnvironment,previous)}else{_ = os.Unsetenv(browserbridge.ConnectionEnvironment)}}()
+		if _,err:=browserbridge.LoadConnection(args[2]);err!=nil{return exitError(stderr,err)}
+		args=append([]string{"browser"},args[3:]...)
+	}
     if !IsCommand(args) {
         return exitError(stderr,errors.New("E_CAPABILITY: browser [dev|setup|update|doctor|cleanup|native-host|workspace|project|ai|bridge.status|target.current|run.start|run.get|run.stop]"))
     }
     if len(args)==1 {return runBrowserDev(nil,stdout,stderr)}
     command,rest:=args[1],args[2:]
+	if command=="connections" {
+		if len(rest)!=0{return exitError(stderr,browserbridge.ErrSchema)}
+		result,err:=browserbridge.Connections();if err!=nil{return exitError(stderr,err)}
+		writeJSON(stdout,result);return 0
+	}
+	if command=="extension"{return runExtensionAuthorization(rest,stdout,stderr)}
     if command=="help"||command=="--help"||command=="-h" {
         if len(rest)!=0{return exitError(stderr,browserbridge.ErrSchema)}
         _,_=io.WriteString(stdout,devHelp)
@@ -173,7 +197,7 @@ func Execute(args []string,stdout,stderr io.Writer) int {
 		if len(rest)!=1{return exitError(stderr,browserbridge.ErrSchema)}
 		cfg,err:=browserbridge.Load()
 		if err!=nil{return exitError(stderr,err)}
-		host,err:=browserbridge.NewHost(cfg,rest[0],os.Stdin,stdout)
+		host,err:=browserbridge.NewConnectionHost(cfg,rest[0],os.Stdin,stdout)
 		if err!=nil{return exitError(stderr,err)}
 		// Chrome normally closes stdin when its Port is destroyed. OS shutdown
 		// and an explicit SIGTERM instead require an owned socket cleanup;

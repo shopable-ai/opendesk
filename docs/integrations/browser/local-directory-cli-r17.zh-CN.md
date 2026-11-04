@@ -8,6 +8,8 @@
 
 ## 双入口和原命令
 
+同一安装存在多个 Chrome Native 连接时，Go 使用 `opendesk browser --connection <32位连接ID> dev /absolute/project`；Node 使用 `opendesk-dev --connection <32位连接ID> /absolute/project`，或设置 `OPENDESK_NATIVE_CONNECTION`。先用 `opendesk browser connections` 取得真实身份；显式目标失效不会切换到其他连接。scoped Workspace 输出精确 URL 并保持租约，目前需在对应 Profile 手动打开。重连产生新 scope，目录授权不继承；完整批准、撤销和原身份对账规则见 [Native 多连接说明](native-messaging-host.zh-CN.md#同一安装的多个-chrome-profile-与扩展2026-11-04mac-开发实现)。
+
 ```sh
 cd "/absolute/path/项目 A"
 opendesk browser

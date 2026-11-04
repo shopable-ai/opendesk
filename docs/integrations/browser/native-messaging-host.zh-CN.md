@@ -8,6 +8,34 @@
 
 > **R17 当前增量：** 裸 `opendesk browser` 现用于当前目录直连，`opendesk browser dev [dir]` 与 Node `opendesk-dev [dir]` 共用一个 Resolver；新增多来源协商，旧 Go 单文件、长期 Workspace 和高级 MCP 保持独立。此文其余 R1 安装/单 Provider 介绍保留历史口径。直接使用见 [R17 说明](local-directory-cli-r17.zh-CN.md)。架构前置审计见 Browser 仓库 `docs/architecture/browser-framework/opendesk-native-takeover-r1.zh-CN.md`。
 
+## 同一安装的多个 Chrome Profile 与扩展（2026-11-04，Mac 开发实现）
+
+同一份 OpenDesk 安装可供多个真实 Chrome Profile 同时连接。每个 Chrome Native Port 自动取得随机连接 ID、独立凭据、私有 socket 和授权目录，用户无需编辑 socket、重复 setup 或安装多份 OpenDesk。连接 ID 是 Native 身份，不是可信的 Chrome Profile 名称，不能用来启动或猜测操作系统 Profile。Controller 继续遵守 Browser 原有单执行槽。
+
+沿用首次 setup 的主扩展 ID；额外扩展必须先从 Chrome 读取真实 ID，再通过原安装事务精确批准。最多主 ID 加七个额外 ID，manifest 与 Host 都核对完整 `chrome-extension://<id>/` Origin，扩展自报的 ID 不构成批准：
+
+```sh
+# 使用已安装并放在 PATH 的 opendesk；命令不依赖当前工作目录。
+opendesk browser extension approve --extension-id <第二个真实扩展ID>
+opendesk browser extension list
+opendesk browser connections
+opendesk browser --connection <32位连接ID> bridge.status
+```
+
+在两个 Profile 中各自通过原 Native Agent 设置授权并连接即可；不同获准 ID 也可在同一个 Profile 并存。发现连接只做认证，不授予目录权限。仅一个候选时普通命令可以自动选择；多个候选（含 legacy socket）返回 `E_CONNECTION_REQUIRED`，未就绪候选不会被悄悄跳过。也可设置 `OPENDESK_NATIVE_CONNECTION=<连接ID>`，该环境变量只选择身份，不承载凭据。显式选择消失或未就绪的连接会失败，绝不切到剩余连接。
+
+```sh
+opendesk browser --connection <32位连接ID> dev --read-only /absolute/project
+opendesk browser --connection <原连接ID> request.get --file /absolute/reconcile.json
+opendesk browser extension revoke --extension-id <第二个真实扩展ID>
+```
+
+`request.get` 的文件参数仍遵守 Browser 原请求合同；未知结果必须显式选择原连接。旧单 Host 的只读对账可显式选择 `--connection legacy`，没有 selector 时即使只剩 legacy 也拒绝对账。Go/Node scoped Workspace CLI 保持租约并输出精确 URL，须在所选连接所属的 Profile 打开；当前不能自动识别并启动该 Profile。原 legacy 启动行为保留。
+
+关闭或撤销一个 Port 不会关闭其他连接。重连使用全新 scope，旧 project/workspace 授权不继承；撤销后即刻重新批准也不会复活旧 scope。scope 发布与批准/撤销共用安装锁，过期的安装快照不能创建连接。批准/撤销先完成事务预检，再永久退役旧 scope；后续失败的错误消息会说明扩展 ID、确认退役数量和安装状态待检查，不能删除 marker 恢复旧授权。修复安装状态后需重新连接和授权。主 ID 不能单独 revoke。短暂安装锁竞争最多等待两秒再校验，不能绕过撤权检查。
+
+超时请求释放活跃容量，保留独立、有界的未知结果围栏，避免十二个丢失回执耗尽正常对账/停止槽位。迟到响应只处理自己的 requestId；不得换 ID 自动重放未知效果。本节是核心开发合同，真实证据必须另行绑定当前候选；不表示正式发布、全浏览器矩阵或 Windows Native Host 已通过。
+
 > **Mac 本地实施入口 R5（2026-10-10）**：重新编译完整 OpenDesk.app、安装到长期固定路径、让 Chrome 按需启动 Go Native Host，以及通过 Codex CLI 联调真实网页的操作说明见 [Mac 构建、安装与测试](native-mac-build-install-test-r5.zh-CN.md)。可直接复制的本地 Codex GOAL 见 [R5 提示词](../../../prompts/automation/native-messaging-host-mac-codex-r5.zh-CN.md)。该文档不会把模拟 Chrome 或旧 Node Host 的成功外推为真实 Go/Chrome 全链路验收。
 
 ## 范围冻结：只接管 OpenDesk Browser Native Messaging Host
@@ -73,7 +101,7 @@ opendesk browser run.get --file ./run.json --request-id read-existing-run-1
 
 ## 安全与生命周期边界
 
-- 只允许单个精确 `chrome-extension://<id>/` origin；manifest `allowed_origins` 和进程 argv 双重校验。用户必须主动授予扩展 Native 权限；调用页面必须另行授权对应网站。
+- 只允许安装事务精确批准的 `chrome-extension://<id>/` Origin；manifest `allowed_origins` 和进程 argv 双重校验。用户必须主动授予扩展 Native 权限；调用页面必须另行授权对应网站。
 - 使用原 `com.shopable.opendesk_browser.agent`、wire v1、最大 61440 字节 Native/IPC JSON、8 client/12 inflight、10s hello/welcome、3s IPC 认证、138s Host/145s CLI 超时，保留 `E_EFFECT_UNKNOWN / OUTCOME_UNKNOWN` 和 Browser SW 持久栅栏。
 - 安装根与 Socket 是当前用户私有资源（0700/0600）；凭据只保存在模式 0600 的 `install.json`，不入命令行、环境变量或日志；Socket 存在即拒绝抢占，清理仅移除自己拥有的 inode。
 - 本机 Host 不拥有浏览器页面权限、脚本业务执行、录制、Flow 发布、跨运行结果库或 Desktop Scheduler。

@@ -41,6 +41,8 @@ type Host struct {
 	writeMu sync.Mutex
 	listener *net.UnixListener
 	socketInfo os.FileInfo
+	connectionInfo os.FileInfo
+	releaseConnection func()
 	ready bool
 	localDev bool
 	localDevMulti bool
@@ -49,6 +51,7 @@ type Host struct {
 	closed bool
 	clients map[*localClient]bool
 	pending map[string]*pendingCall
+ pendingFences map[string]bool
 	devPending map[string]*pendingDev
 	provider *localClient
     modern map[*localClient]*modernProvider
@@ -80,7 +83,7 @@ func NewHost(cfg Installation,origin string,input io.Reader,output io.Writer) (*
 	files,err:=newNativeFiles(cfg)
 	if err!=nil{return nil,err}
 	return &Host{cfg:cfg,origin:origin,input:input,output:output,clients:make(map[*localClient]bool),
-		pending:make(map[string]*pendingCall),devPending:make(map[string]*pendingDev),
+		pending:make(map[string]*pendingCall),pendingFences:make(map[string]bool),devPending:make(map[string]*pendingDev),
 		internalIDs:make(map[string]bool),modern:make(map[*localClient]*modernProvider),leases:make(map[string]devLease),legacyQueries:make(map[string]chan Fields),ai:browserai.NewManager(browserai.Options{}),files:files,done:make(chan struct{})},nil
 }
 func (h *Host) sendChrome(raw []byte) error {
@@ -139,6 +142,8 @@ func (h *Host) Close() {
 				_ = os.Remove(h.cfg.SocketPath)
 			}
 		}
+		h.retireConnection()
+		if h.releaseConnection!=nil { h.releaseConnection() }
 	})
 }
 func (h *Host) startSocket() error {
@@ -211,6 +216,7 @@ func (h *Host) serveLocal(c *localClient) {
 	authBytes,err:=ReadLine(reader)
 	if err!=nil{return}
 	auth,_:=Decode(authBytes)
+	if h.cfg.ConnectionID!="" && verifyClientInstallation(h.cfg)!=nil{return}
 	if Int(auth,"v")!=1 || String(auth,"kind")!="auth" ||
 		!CredentialValid(String(auth,"credential")) ||
 		subtle.ConstantTimeCompare([]byte(String(auth,"credential")),[]byte(h.cfg.ClientCredential))!=1{
@@ -219,6 +225,7 @@ func (h *Host) serveLocal(c *localClient) {
 	h.mu.Lock();ready:=h.ready;dev:=h.localDev;multi:=h.localDevMulti;devAccess:=h.localDevAccess;devSource:=h.localDevSource;filesReady:=h.localFiles;h.mu.Unlock()
 	if err=h.sendLocal(c,MustEncode(map[string]any{
 		"v":1,"kind":"authenticated","browserReady":ready,
+		"connectionId":h.cfg.ConnectionID,"extensionId":h.cfg.ExtensionID,
 		"localDevVersion":func()int{if dev{return 1};return 0}(),
         "localDevMultiVersion":func()int{if multi{return 1};return 0}(),
         "localDevAccessVersion":func()int{if devAccess{return 1};return 0}(),
@@ -229,11 +236,12 @@ func (h *Host) serveLocal(c *localClient) {
 	payload,err:=ReadLine(reader)
 	if err!=nil{return}
 	f,err:=Decode(payload);if err!=nil{return}
+	if h.cfg.ConnectionID!="" { if err:=verifyClientInstallation(h.cfg);err!=nil{return} }
 	if Int(f,"v")!=1{return}
 	if String(f,"kind")=="project.changed" {
 		// Internal, credential-authenticated local grant refresh. A file
 		// change is NEVER a Browser run request or an extra execution API.
-		listed,err:=ProjectList()
+		listed,err:=projectListFor(h.cfg)
 		if err!=nil {
 			_ = h.sendLocal(c,MustEncode(map[string]any{"v":1,"kind":"project.changed",
 				"ok":false,"error":map[string]string{"code":"E_DEV_AUTH"}}))
@@ -313,8 +321,9 @@ func (h *Host) serveLocal(c *localClient) {
 	h.mu.Lock()
 	if !h.ready{h.mu.Unlock();h.localError(c,id,"E_NATIVE_NOT_READY","NOT_DISPATCHED");return}
 	if len(h.pending)+len(h.devPending)+h.internalPending>=MaxInflight{h.mu.Unlock();h.localError(c,id,"E_LIMIT","NOT_DISPATCHED");return}
-	if _,exists:=h.pending[id];exists{h.mu.Unlock();h.localError(c,id,"E_REQUEST_CONFLICT","NOT_DISPATCHED");return}
-	entry:=&pendingCall{answer:make(chan []byte,1)}
+	if _,exists:=h.pending[id];exists || h.pendingFences[id]{h.mu.Unlock();h.localError(c,id,"E_REQUEST_CONFLICT","NOT_DISPATCHED");return}
+	if len(h.pendingFences)>=1024{h.mu.Unlock();h.localError(c,id,"E_LIMIT","NOT_DISPATCHED");return}
+ entry:=&pendingCall{answer:make(chan []byte,1)}
 	h.pending[id]=entry
 	h.mu.Unlock()
 	// Pending IDs remain fenced even if the caller closes its socket.
@@ -327,15 +336,18 @@ func (h *Host) serveLocal(c *localClient) {
 	case answer:=<-entry.answer:
 		_ = h.sendLocal(c,answer)
 	case <-time.After(nativeTimeout):
-		h.mu.Lock()
-		if current,ok:=h.pending[id];ok && current==entry{delete(h.pending,id)}
-		h.mu.Unlock()
+		// Fences are separate from active capacity, so request.get/run.stop
+  // remain available after lost ACKs. The bounded fence set never replays IDs.
+  h.mu.Lock()
+  if h.pending[id]==entry {delete(h.pending,id);h.pendingFences[id]=true}
+  h.mu.Unlock()
 		h.localError(c,id,"E_EFFECT_UNKNOWN","OUTCOME_UNKNOWN")
 	case <-h.done:
 		h.localError(c,id,"E_EFFECT_UNKNOWN","OUTCOME_UNKNOWN")
 	}
 }
 func (h *Host) handleChrome(raw []byte) error {
+	if h.cfg.ConnectionID!="" {if err:=verifyClientInstallation(h.cfg);err!=nil{return err}}
 	f,err:=Decode(raw);if err!=nil{return err}
 	h.mu.Lock();ready:=h.ready;h.mu.Unlock()
 	if !ready {
@@ -347,7 +359,7 @@ func (h *Host) handleChrome(raw []byte) error {
 		// has authorized Native and completed the exact welcome handshake.
 		// With no user file grants, keep Node's original disconnected state.
 		if Int(f,"localDevVersion")==1 {
-			if listed,err:=ProjectList();err==nil {
+			if listed,err:=projectListFor(h.cfg);err==nil {
 				if rows,ok:=listed["projects"].([]map[string]any);ok&&len(rows)>0{
 					epoch,_:=NewID()
 					h.mu.Lock();h.internalEpoch=epoch;h.mu.Unlock()
@@ -367,7 +379,7 @@ func (h *Host) handleChrome(raw []byte) error {
 	case "response":
 		if err=ValidateResponse(f);err!=nil{return err}
 		id:=String(f,"requestId")
-		h.mu.Lock();entry:=h.pending[id];delete(h.pending,id);h.mu.Unlock()
+		h.mu.Lock();entry:=h.pending[id];delete(h.pending,id);delete(h.pendingFences,id);h.mu.Unlock()
 		if entry!=nil{select{case entry.answer<-raw:default:}}
 		return nil
 	case "dev.request":
@@ -425,8 +437,8 @@ func (h *Host) serveInternalProject(id,epoch,method,bindingId string) {
 	var result map[string]any
 	var err error
 	switch method{
-	case "projects.list":result,err=ProjectList()
-	case "project.resolve":result,err=ResolveProject(bindingId)
+	case "projects.list":result,err=projectListFor(h.cfg)
+	case "project.resolve":result,err=resolveProjectFor(h.cfg,bindingId)
 	default:err=ErrSchema
 	}
 	h.mu.Lock()
@@ -463,6 +475,7 @@ func (h *Host) Run() error {
 	if h.cfg.Provider!="opendesk" {return errors.New("E_MIGRATION_REQUIRED")}
 	defer h.Close()
 	if err:=h.startSocket();err!=nil{return err}
+	go h.watchConnectionAuthorization()
 	if err:=h.startAIHTTP();err!=nil{return err}
 	if err:=h.sendChrome(MustEncode(map[string]any{"v":1,"kind":"hello","workflowAiVersion":1,"localFilesVersion":FilesVersion,"localDevMultiVersion":1,"localDevAccessVersion":1,"localDevSourceVersion":LocalDevSourceVersion}));err!=nil{return err}
 	timer:=time.AfterFunc(handshakeTimeout,func(){

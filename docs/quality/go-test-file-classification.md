@@ -476,3 +476,10 @@ OPENDESK_LIVE_CLIPBOARD_TEST=1 go test ./automation -run '^TestDarwinRichClipboa
 当前独立层仅增加 `pkg/mcpserver/files_bridge_test.go`；Native owner 的测试尚未提交。当前 Go 测试未在正式工作区运行；两者不得互相冒充。
 
 | `automation/custom_ui_app_ownership_internal_test.go` | `KEEP_PACKAGE` | 是：私有 AppOwned 注入、native appQuit queue 与 App Shell owner | 附属窗口退出路由、公开 listener 隔离及主窗口独占关闭策略 | 纯内存 Goja、事件队列与 Shell，无 native host | 防止共享 UI Host 退出误杀父进程或泄漏内部退出事件 | 内部 transport/lifecycle seam，不重复 Runtime 公共 API 测试。 |
+
+### Native 多连接隔离（2026-11-04）
+
+| 文件 | 分类 | 私有访问 | 业务边界 | 依赖 | 断言价值 | 保留理由 |
+|---|---|---|---|---|---|---|
+| `internal/browserbridge/host_connections_unix_test.go` | `KEEP_PACKAGE` | 是：Host pending/fence、连接 publication 与私有安装快照 | 同安装多个 Native Port、同 requestId 路由、断连及未知回包 | 私有临时安装、真实 Unix Socket 与 Native pipes | 防止连接互抢、超时重放、迟到响应结算新请求 | Native transport/lifecycle seam；不替代真实 Chrome。 |
+| `internal/browserbridge/host_connection_security_unix_test.go` | `KEEP_PACKAGE` | 是：安装锁、scope store、精确 Origin 与永久退役 marker | 批准/撤销、快速恢复、授权隔离、共享文件操作锁及安全退役 | 真实私有文件、Unix Socket 与 Native pipes | 防止短暂锁竞争误断其他 Port、旧授权复活或身份切换 | 内部安全 seam；真实 Profile 与签名候选证据独立记录。 |

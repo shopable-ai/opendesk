@@ -163,7 +163,7 @@ func validateJournal(j installationJournal) error {
 		return err
 	}
 	c := j.Config
-	if j.Format != "opendesk.native-install-transaction.v1" || c.Name != HostName || c.SocketPath != filepath.Join(root, "agent.sock") || !filepath.IsAbs(c.Executable) || c.InstallRoot != root || c.Provider != "opendesk" || !ExtensionIDValid(c.ExtensionID) || !CredentialValid(c.ClientCredential) {
+	if !validApprovedExtensions(c) || c.ConnectionID!="" || c.ParentRoot!="" || c.ParentCredentialDigest!="" || j.Format != "opendesk.native-install-transaction.v1" || c.Name != HostName || c.SocketPath != filepath.Join(root, "agent.sock") || !filepath.IsAbs(c.Executable) || c.InstallRoot != root || c.Provider != "opendesk" || !ExtensionIDValid(c.ExtensionID) || !CredentialValid(c.ClientCredential) {
 		return errors.New("E_INSTALL_JOURNAL")
 	}
 	manifest, err := ManifestFor(c.Browser, c.UserDataDir)
@@ -292,6 +292,12 @@ func recoverInstallation(dir string) error {
 	return syncDirectory(dir)
 }
 func commitInstallation(ctx context.Context, cfg Installation, files []installMutation) error {
+	return commitInstallationAfterPreflight(ctx, cfg, files, nil)
+}
+
+// The optional owner action runs under the existing installation lock, after
+// all deterministic artifact/journal checks and before any publication.
+func commitInstallationAfterPreflight(ctx context.Context, cfg Installation, files []installMutation, beforeCommit func() error) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -329,6 +335,11 @@ func commitInstallation(ctx context.Context, cfg Installation, files []installMu
 	data, err := json.Marshal(j)
 	if err != nil {
 		return err
+	}
+	if beforeCommit != nil {
+		if err = beforeCommit(); err != nil {
+			return err
+		}
 	}
 	if err = writeAtomic(path, data, 0600); err != nil {
 		return err

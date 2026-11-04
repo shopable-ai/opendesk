@@ -271,9 +271,7 @@ func (f *nativeFiles) publicWorkspaces(state workspaceStore) map[string]any {
 // CLI paths are consumed only by the local authenticated socket handler, never
 // by the Native Chrome wire or by page-originated requests.
 func (f *nativeFiles) verifyInstall() error {
-	cfg, err := Load()
-	if err != nil || cfg.InstallRoot != f.cfg.InstallRoot ||
-		cfg.ExtensionID != f.cfg.ExtensionID || cfg.ClientCredential != f.cfg.ClientCredential {
+	if err := verifyClientInstallation(f.cfg); err != nil {
 		return filesFailure("E_FILES_ACCESS")
 	}
 	return nil

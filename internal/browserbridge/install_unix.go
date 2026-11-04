@@ -19,6 +19,10 @@ import (
 )
 
 type Installation struct {
+ ApprovedExtensions string
+ ConnectionID string
+ ParentRoot string
+ ParentCredentialDigest string
 	Name             string
 	ExtensionID      string
 	Browser          string
@@ -147,7 +151,7 @@ func readConfig() (Installation,error) {
 	if _,err:=requireRegular(configPath(),0600);err!=nil{return cfg,err}
 	b,err:=os.ReadFile(configPath());if err!=nil{return cfg,err}
 	if err:=json.Unmarshal(b,&cfg);err!=nil{return cfg,errors.New("E_INSTALL_INVALID")}
-	if cfg.Name!=HostName || !ExtensionIDValid(cfg.ExtensionID) ||
+	if cfg.ConnectionID!="" || cfg.ParentRoot!="" || cfg.ParentCredentialDigest!="" || !validApprovedExtensions(cfg) || cfg.Name!=HostName || !ExtensionIDValid(cfg.ExtensionID) ||
 		!CredentialValid(cfg.ClientCredential) || cfg.InstallRoot!=root ||
 		cfg.SocketPath!=filepath.Join(root,"agent.sock") ||
 		(cfg.Browser!="chrome" && cfg.Browser!="cft") {
@@ -216,7 +220,7 @@ func expectedManifest(cfg Installation) map[string]any {
 		"description":"OpenDesk Browser Native Messaging Host (OpenDesk)",
 		"path":filepath.Join(cfg.InstallRoot,"native-host"),
 		"type":"stdio",
-		"allowed_origins":[]string{"chrome-extension://"+cfg.ExtensionID+"/"}}
+		"allowed_origins":extensionOrigins(cfg)}
 }
 func validateManifest(file string,cfg Installation) error {
 	if _,err:=requireRegular(file,0);err!=nil{return err}
@@ -233,7 +237,7 @@ func validateManifestBytes(b []byte,cfg Installation) error {
 	}
 	var origins []string
 	if err:=json.Unmarshal(m["allowed_origins"],&origins);err!=nil ||
-		len(origins)!=1 || origins[0]!="chrome-extension://"+cfg.ExtensionID+"/"{
+		!equalExtensionOrigins(origins,extensionOrigins(cfg)){
 		return errors.New("E_MANIFEST_CONFLICT")
 	}
 	return nil
@@ -328,7 +332,9 @@ func setupContext(ctx context.Context,extensionID,browser,userDataDir,executable
 		if prior.ExtensionID!=extensionID{return nil,errors.New("E_EXTENSION_ID_CONFLICT")}
 		if prior.Browser!=browser{return nil,errors.New("E_BROWSER_CONFLICT")}
 		if prior.UserDataDir!=userDataDir{return nil,errors.New("E_PROFILE_CONFLICT")}
-		cfg.ClientCredential=prior.ClientCredential
+		cfg.ApprovedExtensions=prior.ApprovedExtensions
+        if connections,err:=connectionCandidates(prior);err!=nil{return nil,err}else if len(connections)>0{return nil,errors.New("E_SOCKET_IN_USE")}
+        cfg.ClientCredential=prior.ClientCredential
 		cfg.CreatedAt=prior.CreatedAt
 		wrapperExecutable=prior.Executable
 	}else if !os.IsNotExist(err){return nil,err}
@@ -350,14 +356,7 @@ func setupContext(ctx context.Context,extensionID,browser,userDataDir,executable
 	}else if !os.IsNotExist(err){return nil,err}
 	if err=ensureManifestDir(filepath.Dir(manifest));err!=nil{return nil,err}
 	wrapper,_,err:=expectedWrapper(executable);if err!=nil{return nil,err}
-	configMap:=map[string]any{
-		"name":cfg.Name,"extensionId":cfg.ExtensionID,"browser":cfg.Browser,
-		"userDataDir":func() any {if cfg.UserDataDir==""{return nil};return cfg.UserDataDir}(),
-		"socketPath":cfg.SocketPath,"clientCredential":cfg.ClientCredential,
-		"installRoot":cfg.InstallRoot,"provider":cfg.Provider,"executable":cfg.Executable,
-		"createdAt":cfg.CreatedAt,"installedAt":cfg.InstalledAt,
-	}
-	infoBytes,_:=json.MarshalIndent(configMap,"","  ")
+	infoBytes,_:=installationJSON(cfg)
 	manifestBytes,_:=json.MarshalIndent(expectedManifest(cfg),"","  ")
 	if err=commitInstallation(ctx,cfg,[]installMutation{{Path:wrapperFile,Data:[]byte(wrapper),Mode:0700},{Path:configPath(),Data:append(infoBytes,'\n'),Mode:0600},{Path:manifest,Data:append(manifestBytes,'\n'),Mode:0600}});err!=nil{return nil,err}
 	return map[string]any{"installed":true,"extensionId":cfg.ExtensionID,"browser":browser,
@@ -387,6 +386,7 @@ func Cleanup() (map[string]any,error) {
 }
 func cleanupInstallation() (map[string]any,error) {
 	cfg,err:=loadInstallation();if err!=nil{return nil,err}
+ if connections,err:=connectionCandidates(cfg);err!=nil{return nil,err}else if len(connections)>0{return nil,errors.New("E_SOCKET_IN_USE")}
 	if _,err=os.Lstat(cfg.SocketPath);err==nil{return nil,errors.New("E_SOCKET_IN_USE")}else if !os.IsNotExist(err){return nil,err}
 	manifest,err:=ManifestFor(cfg.Browser,cfg.UserDataDir);if err!=nil{return nil,err}
 	if err=validateManifest(manifest,cfg);err!=nil{return nil,err}
