@@ -1,0 +1,19 @@
+{
+  "description": "OD-CODEX-HOOK-DEMO local A to B handoff (merge with existing trusted hooks; do not replace).",
+  "hooks": {
+    "UserPromptSubmit": [{
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"$(git rev-parse --show-toplevel)/examples/workflows/codex-hook-demo/sender.py\"",
+        "timeout": 3
+      }]
+    }],
+    "Stop": [{
+      "hooks": [{
+        "type": "command",
+        "command": "python3 \"$(git rev-parse --show-toplevel)/examples/workflows/codex-hook-demo/sender.py\"",
+        "timeout": 3
+      }]
+    }]
+  }
+}
