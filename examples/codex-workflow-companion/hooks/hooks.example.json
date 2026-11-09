@@ -1,0 +1,7 @@
+{
+  "description": "Codex Workflow Companion; merge with trusted hooks.json, never replace other hooks.",
+  "hooks": {
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "python3 \"$(git rev-parse --show-toplevel)/examples/codex-workflow-companion/hooks/sender.py\"", "timeout": 3}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "python3 \"$(git rev-parse --show-toplevel)/examples/codex-workflow-companion/hooks/sender.py\"", "timeout": 3}]}]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "@opendesk/codex-workflow-companion",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "mcp": "node mcp/server.mjs",
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test ../../tests/codex-workflow-companion/*.test.mjs"
+  },
+  "dependencies": { "react": "19.2.0", "react-dom": "19.2.0" },
+  "devDependencies": { "@types/react": "19.2.0", "@types/react-dom": "19.2.0", "esbuild": "0.25.12", "typescript": "5.9.3" }
+}
