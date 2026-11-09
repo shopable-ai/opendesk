@@ -16,12 +16,16 @@ const workflow = new Workflow(store, { mode: process.env.OD_CWF_MODE || 'simulat
 const secret = randomBytes(32).toString('hex');
 const uiToken = randomBytes(32).toString('hex');
 let base = '';
+// Guard an asynchronously dispatched reservation from concurrent HTTP mutations.
+// The durable 'reserved' state remains the crash-recovery boundary.
+const dispatchInFlight = new Set();
 const json = (res, code, body) => { res.writeHead(code, { 'Content-Type':'application/json; charset=utf-8', 'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff' }); res.end(JSON.stringify(body)); };
 const safeError = err => ({ ok:false, error: /^[A-Z_]{3,64}$/.test(err.message || '') ? err.message : 'UNEXPECTED_FAILURE' });
 async function afterMutation() {
   // Only the owner can issue this side effect. Each reservation is persisted BEFORE dispatch.
   const next = workflow.pending();
-  if (!next || next.dispatch !== 'reserved') return;
+  if (!next || next.dispatch !== 'reserved' || dispatchInFlight.has(next.attemptId)) return;
+  dispatchInFlight.add(next.attemptId);
   try {
     const result = await dispatch(next, workflow.s.mode, {
       runtimeDir: stateDir, appServer: { onTurnCompleted: status => workflow.hostedEvent(next.attemptId, status) }, profileFile: path.join(stateDir,'profile.json'),
@@ -31,6 +35,8 @@ async function afterMutation() {
   } catch (error) {
     // Post-reservation failure may have produced external actions: never retry automatically.
     workflow.dispatchResult({ attemptId: next.attemptId, status: error.dispatchPossiblySent ? 'unknown' : 'blocked' });
+  } finally {
+    dispatchInFlight.delete(next.attemptId);
   }
 }
 function operator(action, body) {

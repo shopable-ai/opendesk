@@ -1,6 +1,6 @@
 // Run only via approved OpenDesk -script from repository root; real Mac gate remains pending.
 // Adapted from examples/workflows/codex-hook-demo/main.js, without another Hook listener.
-const base = './.runtime/tests/codex-workflow-companion';
+const base = System.getEnv('OD_CWF_STATE_DIR') || './.runtime/tests/codex-workflow-companion';
 const command = await File.readJSON(base + '/native-command.json');
 if (!command || !/^[a-f0-9-]{36}$/.test(command.attemptId) ||
     !command.prompt.startsWith('OD-CWF/v1 run=')) throw Error('COMMAND_INVALID');

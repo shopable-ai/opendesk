@@ -1,5 +1,5 @@
 // Root command: ./dist/opendesk -ui -script examples/codex-workflow-companion/native-window.js -console-mode script
-const base='./.runtime/tests/codex-workflow-companion/endpoint.json';
+const base=File.join(System.getEnv('OD_CWF_STATE_DIR') || './.runtime/tests/codex-workflow-companion','endpoint.json');
 const endpoint=await File.readJSON(base);
 if(endpoint?.protocol!=='od.codex-workflow.v1'||!/^http:\/\/127\.0\.0\.1:\d+$/.test(endpoint.url))throw Error('ENDPOINT_INVALID');
 const contentFile=File.join(Execution.scriptDir,'preview/index.html');

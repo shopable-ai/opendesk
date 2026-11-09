@@ -129,3 +129,18 @@ test('MCP status omits attempt claim capability, even while active',t=>{
   const status=w.mcpState();assert.equal(status.active.nonce,undefined);
   assert.equal(status.pending.prompt,undefined);assert.equal(status.pending.deepLink,undefined);
 });
+
+
+test('restart does not mistake a previous App Server hosted receipt for a live child process',t=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'od-cwf-hosted-restart-'));
+  let store=new Store(dir);
+  let w=new Workflow(store,{mode:'app-server'});
+  const p=w.start();w.dispatchResult({attemptId:p.attemptId,status:'hosted',threadId:'hosted-thread'});
+  store.close();
+  store=new Store(dir);w=new Workflow(store);
+  assert.equal(w.s.active.attemptId,p.attemptId);
+  assert.equal(w.s.active.dispatch,'unknown');assert.equal(w.s.paused,true);
+  assert.ok(w.s.history.some(e=>e.type==='RECOVERED_ORPHANED_HOSTED_RUN'));
+  assert.equal(w.s.tasks[1].status,'queued');
+  store.close();fs.rmSync(dir,{recursive:true,force:true});
+});

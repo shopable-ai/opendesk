@@ -28,9 +28,12 @@ export class Workflow {
     this.store = store;
     this.s = store.load() || makeState(mode, reviewPolicy);
     if (this.s.reviewPolicy === 'exact-demo' && this.s.mode !== 'simulate') throw Error('DEMO_REVIEW_ONLY');
-    if (this.s.active?.dispatch === 'reserved') {
+    if (['reserved','hosted'].includes(this.s.active?.dispatch)) {
+      const prior = this.s.active.dispatch;
+      // Hosted App Server child processes are not restored by a Node owner restart.
+      // Never treat a prior thread/start receipt as a live/resumable execution.
       this.s.active.dispatch = 'unknown'; this.s.paused = true;
-      this.#record('RECOVERED_UNCERTAIN_DISPATCH');
+      this.#record(prior === 'reserved' ? 'RECOVERED_UNCERTAIN_DISPATCH' : 'RECOVERED_ORPHANED_HOSTED_RUN');
     }
     this.store.save(this.s);
   }

@@ -9,9 +9,9 @@ import { fileURLToPath } from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const app=path.join(root,'examples/codex-workflow-companion');
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
-async function spawnService(t,review='manual'){
+async function spawnService(t,review='manual',extraEnv={}){
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'od-cwf-live-'));
-  const env={...process.env,OD_CWF_STATE_DIR:dir,OD_CWF_MODE:'simulate',OD_CWF_REVIEW:review};
+  const env={...process.env,OD_CWF_STATE_DIR:dir,OD_CWF_MODE:'simulate',OD_CWF_REVIEW:review,...extraEnv};
   const child=spawn(process.execPath,[path.join(app,'server.mjs')],{cwd:root,env,stdio:['ignore','pipe','pipe']});
   t.after(async()=>{child.kill('SIGTERM');await delay(50);fs.rmSync(dir,{recursive:true,force:true});});
   const ready=await new Promise((resolve,reject)=>{
@@ -120,4 +120,35 @@ test('real MCP tool calls cannot bypass Hook and approval; A handoff waits for i
   assert.equal((await hook({protocol:'od.codex-workflow.v1',kind:'stop',workflowId:fields.workflowId,taskId:fields.taskId,attemptId:fields.attemptId,sessionId:'actual-session',turnId:'actual-turn',stopHookActive:false},'real-stop')).status,200);
   const after=await s.request('/api/operator',{action:'approve',attemptId:fields.attemptId,evidence:'human verified local test'});
   assert.equal(after.status,200);assert.equal(after.body.state.active.taskId,'B');
+});
+
+
+test('concurrent operator calls cannot dispatch the same hosted task twice',async t=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'od-cwf-double-dispatch-'));
+  t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  const countFile=path.join(dir,'spawns.txt');
+  const codex=path.join(dir,'codex');
+  fs.writeFileSync(codex,`#!/usr/bin/env node
+const fs=require('node:fs'),readline=require('node:readline');
+fs.appendFileSync(process.env.CWF_DISPATCH_LOG,'spawn\\n');
+const rl=readline.createInterface({input:process.stdin});
+const send=msg=>process.stdout.write(JSON.stringify(msg)+'\\n');
+rl.on('line',line=>{const msg=JSON.parse(line);
+ if(msg.method==='initialize')setTimeout(()=>send({id:msg.id,result:{}}),250);
+ if(msg.method==='thread/start')send({id:msg.id,result:{thread:{id:'hosted-thread'}}});
+ if(msg.method==='turn/start') {send({id:msg.id,result:{turn:{id:'hosted-turn'}}});setTimeout(()=>process.exit(0),100);}
+});
+`);
+  fs.chmodSync(codex,0o700);
+  const s=await spawnService(t,'manual',{OD_CWF_MODE:'app-server',CWF_DISPATCH_LOG:countFile,PATH:dir+path.delimiter+process.env.PATH});
+  const starting=s.request('/api/operator',{action:'start'});
+  await delay(60); // while app-server initialize is deliberately still pending
+  const pausing=s.request('/api/operator',{action:'pause'});
+  const [started,paused]=await Promise.all([starting,pausing]);
+  assert.equal(started.status,200,JSON.stringify(started.body));
+  assert.equal(paused.status,200,JSON.stringify(paused.body));
+  assert.equal(fs.readFileSync(countFile,'utf8').trim().split('\n').length,1,'one reservation may spawn at most one app-server');
+  const state=JSON.parse(fs.readFileSync(path.join(s.dir,'state.json'),'utf8'));
+  assert.equal(state.active.dispatch,'hosted');
+  assert.equal(state.paused,true);
 });
