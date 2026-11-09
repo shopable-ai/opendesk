@@ -15,7 +15,7 @@ const rl=readline.createInterface({input:process.stdin});
 rl.on('line',line=>{const msg=JSON.parse(line);const send=x=>process.stdout.write(JSON.stringify(x)+'\\n');
 if(msg.method==='initialize')send({id:msg.id,result:{userAgent:'fake'}});
 if(msg.method==='thread/start')send({id:msg.id,result:{thread:{id:'thread-test'}}});
-if(msg.method==='turn/start'){send({id:msg.id,result:{turn:{id:'turn-test'}}});setTimeout(()=>send({method:'turn/completed',params:{turn:{status:'completed'}}}),10);}
+if(msg.method==='turn/start'){send({id:msg.id,result:{turn:{id:'turn-test'}}});setTimeout(()=>send({method:'turn/completed',params:{turn:{id:'turn-test',status:'completed'}}}),10);}
 });`);
   let terminal='';
   const result=await appServerTurn('prompt text',{spawnFn:()=>spawn(process.execPath,[fake],{stdio:['pipe','pipe','pipe']}),onTurnCompleted:status=>terminal=status});

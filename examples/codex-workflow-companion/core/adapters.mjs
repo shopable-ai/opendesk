@@ -12,7 +12,7 @@ export function validateDeepLink(url) {
 /** App Server owns an independent Codex execution. It does NOT synchronize to the desktop UI. */
 export async function appServerTurn(prompt, { codex = 'codex', spawnFn = spawn, timeoutMs = 12000, onTurnCompleted = () => {} } = {}) {
   const p = spawnFn(codex, ['app-server'], { stdio: ['pipe','pipe','pipe'], env: process.env });
-  const pending = new Map(); let sequence = 0; let buffer = ''; let ready = false; let finished = false;
+  const pending = new Map(); let sequence = 0; let buffer = ''; let ready = false; let finished = false; let acceptedTurnId = null; const earlyCompletions = new Map();
   const rejectAll = error => { for (const { reject } of pending.values()) reject(error); pending.clear(); };
   const onData = chunk => {
     buffer += chunk.toString('utf8');
@@ -26,10 +26,16 @@ export async function appServerTurn(prompt, { codex = 'codex', spawnFn = spawn, 
         if (msg.error) item.reject(Error('APP_SERVER_RPC_ERROR'));
         else item.resolve(msg.result);
       }
-      if (msg.method === 'turn/completed') onTurnCompleted(msg.params?.turn?.status || 'unknown');
+      if (msg.method === 'turn/completed') {
+        const id = msg.params?.turn?.id, status = msg.params?.turn?.status || 'unknown';
+        if (id === acceptedTurnId) onTurnCompleted(status);
+        else if (typeof id === 'string' && earlyCompletions.size < 8) earlyCompletions.set(id, status);
+      }
     }
   };
   p.stdout.on('data', onData);
+  p.stderr.resume(); // Do not deadlock a verbose App Server child.
+  p.stdin.on('error', rejectAll);
   p.on('error', rejectAll);
   p.on('exit', () => { finished = true; rejectAll(Error('APP_SERVER_EXITED')); });
   function rpc(method, params) {
@@ -49,8 +55,11 @@ export async function appServerTurn(prompt, { codex = 'codex', spawnFn = spawn, 
     const threadId = thread?.thread?.id;
     if (typeof threadId !== 'string' || !threadId) throw Error('APP_SERVER_THREAD_UNCONFIRMED');
     const turn = await rpc('turn/start', { threadId, input: [{ type:'text', text:prompt }] });
-    if (!turn?.turn?.id) throw Error('APP_SERVER_TURN_UNCONFIRMED');
-    return { threadId, turnId: turn.turn.id, process: p };
+    if (typeof turn?.turn?.id !== 'string' || !turn.turn.id) throw Error('APP_SERVER_TURN_UNCONFIRMED');
+    acceptedTurnId = turn.turn.id;
+    if (earlyCompletions.has(acceptedTurnId)) onTurnCompleted(earlyCompletions.get(acceptedTurnId));
+    earlyCompletions.clear();
+    return { threadId, turnId: acceptedTurnId, process: p };
   } catch (error) {
     p.kill();
     // Once initialize/thread/start succeeded, a timeout might conceal a successful submission.

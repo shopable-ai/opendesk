@@ -89,3 +89,35 @@ test('actual Codex hook sender reuses demo sender transport and records prompt a
   state=JSON.parse(fs.readFileSync(path.join(s.dir,'state.json'),'utf8'));
   assert.equal(state.active.stopObserved,true);assert.equal(state.tasks[0].status,'running');
 });
+
+test('real MCP tool calls cannot bypass Hook and approval; A handoff waits for independent evidence',async t=>{
+  const s=await spawnService(t);
+  const started=await s.request('/api/operator',{action:'start'});
+  const pending=started.body.state.pending;
+  const marker=/^OD-CWF\/v1 run=([^ ]+) task=([A-C]) attempt=([^ ]+) claim=([^\n]+)/.exec(pending.prompt);
+  assert.ok(marker);
+  const fields={workflowId:pending.workflowId,taskId:pending.taskId,taskVersion:pending.taskVersion,attemptId:pending.attemptId,nonce:marker[4]};
+  const m=await mcpConnect(t,s.env);
+  await m.rpc('initialize',{clientInfo:{name:'test',version:'0'}});m.notify('notifications/initialized');
+  const call=async(name,args)=>{
+    const r=await m.rpc('tools/call',{name,arguments:args});return r.result;
+  };
+  const early=await call('task_claim',{...fields,eventId:'claim-early'});
+  assert.equal(early.isError,true);
+  const promptEvent={protocol:'od.codex-workflow.v1',kind:'prompt',workflowId:fields.workflowId,taskId:fields.taskId,attemptId:fields.attemptId,nonce:fields.nonce,sessionId:'actual-session',turnId:'actual-turn'};
+  const hook=async(event,id)=>{
+    const r=await fetch(s.ready.url+'/api/hook',{method:'POST',headers:{...s.endpoint.headers,'Content-Type':'application/json','X-OpenDesk-Source':'codex-workflow-companion','X-OpenDesk-Delivery-Id':id},body:JSON.stringify(event)});
+    return {status:r.status,body:await r.json()};
+  };
+  assert.equal((await hook(promptEvent,'real-prompt')).status,200);
+  assert.equal((await call('task_claim',{...fields,eventId:'claim-real'})).isError,false);
+  assert.equal((await call('task_progress',{...fields,eventId:'prog-real',percent:67,message:'Actual tool call, synthetic task context'})).isError,false);
+  assert.equal((await call('task_submit',{...fields,eventId:'submit-real',result:'OK-A',evidence:'local integration test'})).isError,false);
+  let st=JSON.parse(fs.readFileSync(path.join(s.dir,'state.json'),'utf8'));
+  assert.equal(st.tasks[0].status,'review');assert.equal(st.tasks[1].status,'queued');
+  const beforeStop=await s.request('/api/operator',{action:'approve',attemptId:fields.attemptId,evidence:'operator approved'});
+  assert.equal(beforeStop.status,400);
+  assert.equal((await hook({protocol:'od.codex-workflow.v1',kind:'stop',workflowId:fields.workflowId,taskId:fields.taskId,attemptId:fields.attemptId,sessionId:'actual-session',turnId:'actual-turn',stopHookActive:false},'real-stop')).status,200);
+  const after=await s.request('/api/operator',{action:'approve',attemptId:fields.attemptId,evidence:'human verified local test'});
+  assert.equal(after.status,200);assert.equal(after.body.state.active.taskId,'B');
+});
