@@ -20,19 +20,19 @@ docType: index
 | 精确方法；主要输入 → 输出（签名） | 解决的问题 | 副作用；适用限制 | 契约获取 |
 | --- | --- | --- | --- |
 | `File.append(path: string, text: string, encoding?: string): void;` | 追加文本 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.append](../file.md#fileappendpath-text)；`read file File.append` |
-| `File.appendBytes(path: string, bytes: OpenDeskByteInput): void;` | 追加字节 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.appendBytes](../file.md)；`read file File.appendBytes` **正文缺口：禁止据类型直接生成调用** |
+| `File.appendBytes(path: string, bytes: OpenDeskByteInput): void;` | 追加字节 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.appendBytes](../file.md#fileappendbytespath-bytes)；`read file File.appendBytes` |
 | `File.copy(pathFrom: string, pathTo: string): void;` | 复制文件 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.copy](../file.md#filecopypathfrom-pathto)；`read file File.copy` |
-| `File.create(path: string): void;` | 创建空文件 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.create](../file.md)；`read file File.create` **正文缺口：禁止据类型直接生成调用** |
-| `File.createIfNotExists(path: string): void;` | 不存在时创建 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.createIfNotExists](../file.md)；`read file File.createIfNotExists` **正文缺口：禁止据类型直接生成调用** |
-| `File.createWithDirs(path: string): void;` | 自动创建父目录后建文件 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.createWithDirs](../file.md)；`read file File.createWithDirs` 共享整页兜底 |
+| `File.create(path: string): void;` | 创建空文件 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.create](../file.md#filecreatepath)；`read file File.create` |
+| `File.createIfNotExists(path: string): void;` | 不存在时创建 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.createIfNotExists](../file.md#filecreateifnotexistspath)；`read file File.createIfNotExists` |
+| `File.createWithDirs(path: string): void;` | 自动创建父目录后建文件 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.createWithDirs](../file.md#filecreatewithdirspath)；`read file File.createWithDirs` |
 | `File.cwd(): string;` | 当前工作目录 | 纯计算/路径；不提交外部输入；继承本节限制 | [File.cwd](../file.md#filecwd)；`read file File.cwd` |
 | `File.ensureDir(path: string): void;` | 确保目录存在 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.ensureDir](../file.md#fileensuredirpath)；`read file File.ensureDir` |
 | `File.exists(path: string): boolean;` | 是否存在 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [File.exists](../file.md#fileexistspath)；`read file File.exists` |
-| `File.getExtension(fileName: string): string;` | 取扩展名 | 纯计算/路径；不提交外部输入；继承本节限制 | [File.getExtension](../file.md)；`read file File.getExtension` **正文缺口：禁止据类型直接生成调用** |
-| `File.getHumanReadableSize(bytes: number): string;` | 人类可读大小 | 纯计算/路径；不提交外部输入；继承本节限制 | [File.getHumanReadableSize](../file.md)；`read file File.getHumanReadableSize` **正文缺口：禁止据类型直接生成调用** |
-| `File.getName(filePath: string): string;` | 取文件名 | 纯计算/路径；不提交外部输入；继承本节限制 | [File.getName](../file.md)；`read file File.getName` **正文缺口：禁止据类型直接生成调用** |
-| `File.getNameWithoutExtension(filePath: string): string;` | 取不带扩展名文件名 | 纯计算/路径；不提交外部输入；继承本节限制 | [File.getNameWithoutExtension](../file.md)；`read file File.getNameWithoutExtension` **正文缺口：禁止据类型直接生成调用** |
-| `File.getSimplifiedPath(path: string): string;` | 路径规范化 | 纯计算/路径；不提交外部输入；继承本节限制 | [File.getSimplifiedPath](../file.md)；`read file File.getSimplifiedPath` **正文缺口：禁止据类型直接生成调用** |
+| `File.getExtension(fileName: string): string;` | 取扩展名 | 纯计算/路径；不提交外部输入；继承本节限制 | [File.getExtension](../file.md#filegetextensionfilename)；`read file File.getExtension` |
+| `File.getHumanReadableSize(bytes: number): string;` | 人类可读大小 | 纯计算/路径；不提交外部输入；继承本节限制 | [File.getHumanReadableSize](../file.md#filegethumanreadablesizebytes)；`read file File.getHumanReadableSize` |
+| `File.getName(filePath: string): string;` | 取文件名 | 纯计算/路径；不提交外部输入；继承本节限制 | [File.getName](../file.md#filegetnamefilepath)；`read file File.getName` |
+| `File.getNameWithoutExtension(filePath: string): string;` | 取不带扩展名文件名 | 纯计算/路径；不提交外部输入；继承本节限制 | [File.getNameWithoutExtension](../file.md#filegetnamewithoutextensionfilepath)；`read file File.getNameWithoutExtension` |
+| `File.getSimplifiedPath(path: string): string;` | 路径规范化 | 纯计算/路径；不提交外部输入；继承本节限制 | [File.getSimplifiedPath](../file.md#filegetsimplifiedpathpath)；`read file File.getSimplifiedPath` |
 | `File.isDir(path: string): boolean;` | 是否目录 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [File.isDir](../file.md#fileisfilepath--fileisdirpath)；`read file File.isDir` |
 | `File.isEmptyDir(path: string): boolean;` | 是否空目录 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [File.isEmptyDir](../file.md#fileisemptydirpath)；`read file File.isEmptyDir` |
 | `File.isFile(path: string): boolean;` | 是否文件 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [File.isFile](../file.md#fileisfilepath--fileisdirpath)；`read file File.isFile` |
@@ -45,24 +45,24 @@ docType: index
 | `File.readBytes(path: string): ArrayBuffer;` | 读取字节 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [File.readBytes](../file.md#filereadbytespath)；`read file File.readBytes` |
 | `File.readJSON(filePath: string, options?: OpenDeskFileJSONReadOptions): Promise<unknown>;` | 异步读取并按 Runtime JSON.parse 解析 JSON | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [File.readJSON](../file.md#filereadjsonfilepath-options)；`read file File.readJSON` |
 | `File.realPath(path: string): string;` | 解析一个**已经存在**的文件或目录，跟随符号链接／Windows reparse point，并返回宿主文件系统的 canonical 绝对路径。它只做路径解析，不创建…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [File.realPath](../file.md#filerealpathpath)；`read file File.realPath` |
-| `File.remove(path: string): void;` | 删除文件 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.remove](../file.md)；`read file File.remove` **正文缺口：禁止据类型直接生成调用** |
-| `File.removeDir(path: string): void;` | 删除目录 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.removeDir](../file.md)；`read file File.removeDir` **正文缺口：禁止据类型直接生成调用** |
-| `File.rename(path: string, newName: string): void;` | 重命名 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.rename](../file.md)；`read file File.rename` **正文缺口：禁止据类型直接生成调用** |
-| `File.renameWithoutExtension(path: string, newName: string): void;` | 重命名但保留扩展名 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.renameWithoutExtension](../file.md)；`read file File.renameWithoutExtension` **正文缺口：禁止据类型直接生成调用** |
+| `File.remove(path: string): void;` | 删除文件 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.remove](../file.md#fileremovepath)；`read file File.remove` |
+| `File.removeDir(path: string): void;` | 删除目录 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.removeDir](../file.md#fileremovedirpath)；`read file File.removeDir` |
+| `File.rename(path: string, newName: string): void;` | 重命名 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.rename](../file.md#filerenamepath-newname)；`read file File.rename` |
+| `File.renameWithoutExtension(path: string, newName: string): void;` | 重命名但保留扩展名 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.renameWithoutExtension](../file.md#filerenamewithoutextensionpath-newname)；`read file File.renameWithoutExtension` |
 | `File.stat(path: string): OpenDeskFileStat \| null;` | 查询跨平台稳定文件元数据 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [File.stat](../file.md#filestatpath)；`read file File.stat` |
 | `File.write(path: string, text: string, encoding?: string): void;` | 写文本 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.write](../file.md#filewritepath-text)；`read file File.write` |
 | `File.writeBytes(path: string, bytes: OpenDeskByteInput): void;` | 写字节 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.writeBytes](../file.md#filewritebytespath-bytes)；`read file File.writeBytes` |
 | `File.writeJSON(filePath: string, value: unknown, options?: OpenDeskFileJSONWriteOptions): Promise<void>;` | 异步、安全替换地写入 JSON | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.writeJSON](../file.md#filewritejsonfilepath-value-options)；`read file File.writeJSON` |
 | `File.writeNew(path: string, text: string, encoding?: string): void;` | 独占创建一个新文本文件；目标或父目录别名存在风险时拒绝 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [File.writeNew](../file.md#filewritenewpath-text)；`read file File.writeNew` |
-| `FileHandle.close(): void;` | `File.open()` 返回受控的同步 `FileHandle`，适用于需要维护当前位置、截断或请求落盘的场景；普通完整文件读写优先使用 `File.read()`、…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.close](../file.md#fileopenpath-mode)；`read file FileHandle.close` |
-| `FileHandle.read(maxBytes?: number): string;` | `File.open()` 返回受控的同步 `FileHandle`，适用于需要维护当前位置、截断或请求落盘的场景；普通完整文件读写优先使用 `File.read()`、…（摘要） | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [FileHandle.read](../file.md#fileopenpath-mode)；`read file FileHandle.read` |
-| `FileHandle.readBytes(maxBytes?: number): ArrayBuffer;` | `File.open()` 返回受控的同步 `FileHandle`，适用于需要维护当前位置、截断或请求落盘的场景；普通完整文件读写优先使用 `File.read()`、…（摘要） | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [FileHandle.readBytes](../file.md#fileopenpath-mode)；`read file FileHandle.readBytes` |
-| `FileHandle.seek(offset: number, whence?: 'start' \| 'current' \| 'end'): number;` | `File.open()` 返回受控的同步 `FileHandle`，适用于需要维护当前位置、截断或请求落盘的场景；普通完整文件读写优先使用 `File.read()`、…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.seek](../file.md#fileopenpath-mode)；`read file FileHandle.seek` |
-| `FileHandle.sync(): void;` | `File.open()` 返回受控的同步 `FileHandle`，适用于需要维护当前位置、截断或请求落盘的场景；普通完整文件读写优先使用 `File.read()`、…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.sync](../file.md#fileopenpath-mode)；`read file FileHandle.sync` |
-| `FileHandle.truncate(size: number): void;` | `File.open()` 返回受控的同步 `FileHandle`，适用于需要维护当前位置、截断或请求落盘的场景；普通完整文件读写优先使用 `File.read()`、…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.truncate](../file.md#fileopenpath-mode)；`read file FileHandle.truncate` |
+| `FileHandle.close(): void;` | 无。 undefined；重复关闭成功。 同步方法，没有单独 timeout/signal；复用 File.open 所有权与已关闭检查。释放 OS handle 和锁，…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.close](../file.md#filehandleclose)；`read file FileHandle.close` |
+| `FileHandle.read(maxBytes?: number): string;` | 省略参数时使用 8 MiB；显式传值必须是 number 类型的有限整数 1..8388608。小数、字符串、null、undefined 或多个参数会在读取前抛错，不改…（摘要） | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [FileHandle.read](../file.md#filehandlereadmaxbytes)；`read file FileHandle.read` |
+| `FileHandle.readBytes(maxBytes?: number): ArrayBuffer;` | 省略参数时使用 8 MiB；显式传值必须是 number 类型的有限整数 1..8388608。小数、字符串、null、undefined 或多个参数会在读取前抛错，不改…（摘要） | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [FileHandle.readBytes](../file.md#filehandlereadbytesmaxbytes)；`read file FileHandle.readBytes` |
+| `FileHandle.seek(offset: number, whence?: 'start' \| 'current' \| 'end'): number;` | offset 为字节偏移；whence 省略或空字符串为 start，只接受一个 whence。 新的绝对字节偏移。 同步方法，没有单独 timeout/signal；复…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.seek](../file.md#filehandleseekoffset-whence)；`read file FileHandle.seek` |
+| `FileHandle.sync(): void;` | 无。 undefined。 同步方法，没有单独 timeout/signal；复用 File.open 所有权与已关闭检查。同步请求 OS 刷新文件；失败抛错，不保证跨断…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.sync](../file.md#filehandlesync)；`read file FileHandle.sync` |
+| `FileHandle.truncate(size: number): void;` | 恰好一个参数，必须是非负的安全整数（`0..Number.MAX_SAFE_INTEGER`），单位为字节。省略、小数或其他无效值会在调用文件系统前抛错。 undefin…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.truncate](../file.md#filehandletruncatesize)；`read file FileHandle.truncate` |
 | `FileHandle.tryLock(): boolean;` | 对已打开的普通文件尝试非阻塞独占锁 | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.tryLock](../file.md#filehandletrylock)；`read file FileHandle.tryLock` |
-| `FileHandle.write(text: string): void;` | `File.open()` 返回受控的同步 `FileHandle`，适用于需要维护当前位置、截断或请求落盘的场景；普通完整文件读写优先使用 `File.read()`、…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.write](../file.md#fileopenpath-mode)；`read file FileHandle.write` |
-| `FileHandle.writeBytes(bytes: OpenDeskByteInput): void;` | `File.open()` 返回受控的同步 `FileHandle`，适用于需要维护当前位置、截断或请求落盘的场景；普通完整文件读写优先使用 `File.read()`、…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.writeBytes](../file.md#fileopenpath-mode)；`read file FileHandle.writeBytes` |
+| `FileHandle.write(text: string): void;` | 必填字符串，不增加换行。 undefined。 同步方法，没有单独 timeout/signal；复用 File.open 所有权与已关闭检查。从当前位置写入；a 模式仍…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.write](../file.md#filehandlewritetext)；`read file FileHandle.write` |
+| `FileHandle.writeBytes(bytes: OpenDeskByteInput): void;` | 必填 ArrayBuffer、Uint8Array 或 0–255 整数数组。 undefined。 同步方法，没有单独 timeout/signal；复用 File.o…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [FileHandle.writeBytes](../file.md#filehandlewritebytesbytes)；`read file FileHandle.writeBytes` |
 
 
 ## path
@@ -94,9 +94,9 @@ docType: index
 | 精确方法；主要输入 → 输出（签名） | 解决的问题 | 副作用；适用限制 | 契约获取 |
 | --- | --- | --- | --- |
 | `AppStorage.clear(): void;` | 清空当前存储 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [AppStorage.clear](../storage.md#appstorageclear)；`read storage AppStorage.clear` |
-| `AppStorage.getItem(key: string): string;` | 读取字符串值 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [AppStorage.getItem](../storage.md)；`read storage AppStorage.getItem` 共享整页兜底 |
-| `AppStorage.getLength(): number;` | 键数量 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [AppStorage.getLength](../storage.md#appstoragegetlength--appstoragekeyindex)；`read storage AppStorage.getLength` |
-| `AppStorage.key(index: number): string;` | 按索引取键名 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [AppStorage.key](../storage.md#appstoragegetlength--appstoragekeyindex)；`read storage AppStorage.key` |
+| `AppStorage.getItem(key: string): string;` | 读取字符串值 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [AppStorage.getItem](../storage.md#appstoragegetitemkey)；`read storage AppStorage.getItem` |
+| `AppStorage.getLength(): number;` | 键数量 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [AppStorage.getLength](../storage.md#appstoragegetlength)；`read storage AppStorage.getLength` |
+| `AppStorage.key(index: number): string;` | 按索引取键名 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [AppStorage.key](../storage.md#appstoragekeyindex)；`read storage AppStorage.key` |
 | `AppStorage.removeItem(key: string): void;` | 删除键 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [AppStorage.removeItem](../storage.md#appstorageremoveitemkey)；`read storage AppStorage.removeItem` |
 | `AppStorage.setItem(key: string, value: unknown): void;` | 写入值 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [AppStorage.setItem](../storage.md#appstoragesetitemkey-value)；`read storage AppStorage.setItem` |
 
@@ -109,11 +109,11 @@ docType: index
 
 | 精确方法；主要输入 → 输出（签名） | 解决的问题 | 副作用；适用限制 | 契约获取 |
 | --- | --- | --- | --- |
-| `SQLite.open(options: OpenDeskSQLiteOpenOptions): Promise<OpenDeskSQLiteDatabase>;` | `timeoutMs` 是本次打开及其进入句柄队列前的额外 deadline；`signal` 是本次操作额外的 `AbortSignal`。两者只能收紧 executi…（摘要） | 依模式：可能创建/截断；返回需关闭的句柄；继承本节限制 | [SQLite.open](../sqlite.md#打开数据库sqliteopenoptions)；`read sqlite SQLite.open` |
-| `db.batch(statements: OpenDeskSQLiteBatchStatement[], options?: OpenDeskSQLiteOperationOptions): Promise<OpenDeskSQLiteBatchResult>;` | `batch` 的每个元素是 `{ sql, params? }`（最多 256 个），并固定在**同一个物理连接**上的一个真实事务内执行。 全部元素成功才提交；在提交…（摘要） | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [db.batch](../sqlite.md#dbbatchstatements-options)；`read sqlite db.batch` |
-| `db.close(): Promise<void>;` | `close()` 可重复调用。第一次开始关闭后，句柄拒绝新的 `open` 后操作，正常 close 会等待已经进入该句柄队列 的操作结束，再释放连接、Rows、Stm…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [db.close](../sqlite.md#dbclose)；`read sqlite db.close` |
-| `db.exec(sql: string, params?: OpenDeskSQLiteParams, options?: OpenDeskSQLiteOperationOptions): Promise<OpenDeskSQLiteExecResult>;` | 执行一条顶层 SQL 并返回受影响行数。参数始终由 SQLite 原生绑定，绝不通过字符串拼接生成 SQL。 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [db.exec](../sqlite.md#dbexecsql-params-options)；`read sqlite db.exec` |
-| `db.query(sql: string, params?: OpenDeskSQLiteParams, options?: OpenDeskSQLiteQueryOptions): Promise<Record<string, OpenDeskSQLiteValue>[]>;` | 执行一条顶层 SQL 并返回行对象数组；没有记录时 resolve `[]`。它不等同于安全意义的“只读”：只读边界 必须使用 `SQLite.open({ mode: …（摘要） | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [db.query](../sqlite.md#dbquerysql-params-options)；`read sqlite db.query` |
+| `SQLite.open(options: OpenDeskSQLiteOpenOptions): Promise<OpenDeskSQLiteDatabase>;` | 打开 execution-owned 句柄。 | 依模式：可能创建/截断；返回需关闭的句柄；继承本节限制 | [SQLite.open](../sqlite.md#打开数据库sqliteopenoptions)；`read sqlite SQLite.open` |
+| `db.batch(statements: OpenDeskSQLiteBatchStatement[], options?: OpenDeskSQLiteOperationOptions): Promise<OpenDeskSQLiteBatchResult>;` | 在一个事务内执行一组语句。 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [db.batch](../sqlite.md#dbbatchstatements-options)；`read sqlite db.batch` |
+| `db.close(): Promise<void>;` | 排队释放句柄，可重复调用。 | 需核对正文；不能假定无副作用；继承本节限制 | [db.close](../sqlite.md#dbclose)；`read sqlite db.close` |
+| `db.exec(sql: string, params?: OpenDeskSQLiteParams, options?: OpenDeskSQLiteOperationOptions): Promise<OpenDeskSQLiteExecResult>;` | 执行单条 SQL，返回影响行数。 | 有：持久化写入/删除，受路径或 SQL 约束；继承本节限制 | [db.exec](../sqlite.md#dbexecsql-params-options)；`read sqlite db.exec` |
+| `db.query(sql: string, params?: OpenDeskSQLiteParams, options?: OpenDeskSQLiteQueryOptions): Promise<Record<string, OpenDeskSQLiteValue>[]>;` | 返回有限的行对象数组。 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [db.query](../sqlite.md#dbquerysql-params-options)；`read sqlite db.query` |
 
 
 ## jslibs
@@ -140,7 +140,7 @@ Runtime 默认预加载的第三方库；按库级能力发现，不把第三方
 维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
 
 
-- `docs/api/file.md` SHA-256 `891cbbea5d3dd0c4559c9fde1ca3f59441f52663da72f74e7d53afc3387f0eb2`
+- `docs/api/file.md` SHA-256 `a61efc386eb00334f96f8d60dc70ee8fcda2c5edffc814131c4145777144e6fc`
 
 - `types/File.d.ts` SHA-256 `9b9351e485d2bf28e2c7c9bad0a724ba3530608b4ac363aa884fcb6907ed7fbf`
 
@@ -148,11 +148,11 @@ Runtime 默认预加载的第三方库；按库级能力发现，不把第三方
 
 - `types/path.d.ts` SHA-256 `051e27eb1542d59ffb4670c9d03d3f2fe5edc90c6988e6ec8aa2cccdacd452c2`
 
-- `docs/api/storage.md` SHA-256 `25ab75c9467511ef79aafad5954b174602dea86431f7c80f1658bbdde851f1a6`
+- `docs/api/storage.md` SHA-256 `38e778917dafcb60844590332fbcec95d9c3fcc2146581746c818698a8ee0548`
 
 - `types/AppStorage.d.ts` SHA-256 `7a623ed3a209e476aa776d7c4296a47b90a2670aa3a467c689f5f1183bd615ba`
 
-- `docs/api/sqlite.md` SHA-256 `174c8e2e3c838c8154309e89c206dadce5010513cdc3a04c09a5b2be5cb7a2c4`
+- `docs/api/sqlite.md` SHA-256 `fb494b9ab4cc056ab8fc4bad209f77fcd0de8d92391cea341a057af0a945791f`
 
 - `types/sqlite.d.ts` SHA-256 `0026c6278e61d03029ca89dc8f997017db8ded1c77b3f7d5213af7c369dd458c`
 

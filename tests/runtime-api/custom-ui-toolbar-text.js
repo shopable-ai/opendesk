@@ -1,6 +1,7 @@
 // From repository root (paired development bundle):
 // ./dist/OpenDesk.app/Contents/MacOS/opendesk -ui -script tests/runtime-api/custom-ui-toolbar-text.js -console-mode script -log-dir .runtime/tests/custom-ui-toolbar-text/run
 // Only own native windows; no external app lookup, keyboard or clipboard input.
+// Set OPENDESK_TOOLBAR_TEXT_CAPTURE=1 to also capture the own-window states.
 const root=File.join(File.cwd(),'.runtime/tests/custom-ui-toolbar-text');
 await File.ensureDir(root);
 function check(value,message){if(!value)throw new Error(message);}
@@ -9,6 +10,14 @@ async function invalid(fn){
   check(caught&&caught.code==='INVALID_SPEC','Expected INVALID_SPEC');
 }
 const toolbar=new FloatingWindow({orientation:'vertical',position:{mode:'absolute',x:300,y:180}});
+const screenshots={};
+async function capture(phase,panel=toolbar){
+  if(Execution.env?.OPENDESK_TOOLBAR_TEXT_CAPTURE!=='1')return;
+  await System.delay(180);
+  const state=await panel.getState();
+  screenshots[phase]=await page.screenshot({clip:state.bounds,
+    path:File.join(root,phase+'.png'),returnType:'object'});
+}
 for(const icon of [{text:''},{text:'12345'},{text:'a b'},{text:'a\n'},
   {text:'a\0'},{text:'审阅',path:'fake.png'},{text:'审阅',extra:true}]){
   await invalid(()=>toolbar.addButton('bad','Bad',icon));
@@ -35,13 +44,21 @@ try{
   check(icon.renderedText===''&&icon.icon==='timer','Text to icon transition');
   const text=await toolbar.updateButton('text',{icon:{text:'继续'}});
   check(text.renderedText==='继续'&&text.iconPresentation.kind==='text','Icon to text transition');
+  await capture('text-idle');
   const busy=await toolbar.updateButton('text',{busy:true});
-  check(busy.busy&&busy.icon.text==='继续'&&busy.renderedText==='稍候','Busy actual text');
+  check(busy.busy&&busy.icon.text==='继续'&&busy.renderedText==='','Busy spinner replaces visible text');
   const busyRead=await toolbar.getButtonState('text');
-  check(busyRead.revision===busy.revision&&busyRead.renderedText==='稍候','Busy readback actual text');
+  check(busyRead.revision===busy.revision&&busyRead.renderedText==='','Busy spinner readback');
+  for(const state of [busy,busyRead]){
+    check(state.label===text.label&&state.tooltip===text.tooltip&&state.accessibilityName===text.accessibilityName,
+      'Busy changed semantic label');
+    check(state.screenBounds.width===40&&state.screenBounds.height===40,'Busy changed compact geometry');
+  }
+  await capture('text-busy');
   const idle=await toolbar.updateButton('text',{busy:false});
   check(!idle.busy&&idle.renderedText==='继续','Cleared busy restores text');
   check((await toolbar.getButtonState('text')).renderedText==='继续','Cleared busy readback');
+  await capture('text-restored');
 
   const relabeled=await toolbar.updateButton('text',{label:'Independent semantic label'});
   const relabeledRead=await toolbar.getButtonState('text');
@@ -63,7 +80,7 @@ try{
     }
     const kind=typeof spec.icon==='string'?'builtIn':spec.icon.text?'text':'image';
     check(state.iconPresentation.kind===kind,'Mixed icon presentation');
-    check(state.renderedText===(kind==='text'?(spec.busy?'稍候':spec.icon.text):''),'Mixed renderedText');
+    check(state.renderedText===(kind==='text'&&!spec.busy?spec.icon.text:''),'Mixed renderedText');
     if(kind==='builtIn')check(state.icon===spec.icon,'Mixed built-in icon');
     else if(kind==='text')check(state.icon.text===spec.icon.text,'Mixed text icon');
     else check(state.icon.path===spec.icon.path&&state.icon.renderingMode===spec.icon.renderingMode,'Image source/revision mismatch');
@@ -102,6 +119,28 @@ try{
   result.concurrentFinal=final;
   result.before=before;result.legacy=old;result.updated=next;result.final=text;
   result.invalidUpdates=4;
+  // More than the former five-item limit must increase the native height,
+  // preserving every full-size row without introducing a scroll viewport.
+  await toolbar.hide();
+  const expanded=new FloatingWindow({orientation:'vertical',position:{mode:'absolute',x:400,y:160}});
+  expanded.addButton('settings','管理提示词',{text:'管理'});
+  for(let i=0;i<8;i++)expanded.addButton('prompt'+i,'提示词 '+(i+1),{text:'词'+(i+1)});
+  try{
+    const shown=await expanded.show();await System.delay(350);
+    const states=[];
+    for(const id of ['settings',...Array.from({length:8},(_,i)=>'prompt'+i)]){
+      const state=await expanded.getButtonState(id),index=states.length;
+      check(state.localBounds.x===10&&state.localBounds.y===8+index*48,'Expanded row order or gap');
+      check(state.screenBounds.width===40&&state.screenBounds.height===40,'Expanded target size');
+      check(state.screenBounds.y>=shown.bounds.y&&state.screenBounds.y+40<=shown.bounds.y+shown.bounds.height,
+        'Expanded row was clipped');
+      states.push(state);
+    }
+    check(shown.bounds.width===60&&shown.bounds.height===472,'Expanded natural native size');
+    await capture('vertical-expanded',expanded);
+    result.expanded={shown,states};
+  }finally{await expanded.close();}
+  result.screenshots=screenshots;
   await File.writeJSON(File.join(root,'evidence.json'),result);
-  console.log('FLOATING_TEXT_PASS='+JSON.stringify({invalidDeclarations:7,invalidUpdates:4,legacyCompatible:true,concurrentResponses,busyActualText:true}));
+  console.log('FLOATING_TEXT_PASS='+JSON.stringify({invalidDeclarations:7,invalidUpdates:4,legacyCompatible:true,concurrentResponses,busySpinner:true,expandedRows:9}));
 }finally{await toolbar.close();}

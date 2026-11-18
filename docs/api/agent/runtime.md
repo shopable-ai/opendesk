@@ -70,15 +70,15 @@ docType: index
 | `copyToClipboard(text: string): void;` | 当脚本只需要读写文本时，可以直接使用全局函数： 需要清空剪贴板、处理平台重试或使用完整对象接口时，请阅读 Clipboard API。 | 需核对正文；不能假定无副作用；继承本节限制 | [copyToClipboard](../global-apis.md#copytoclipboard--getclipboard剪贴板快捷函数)；`read global-apis copyToClipboard` |
 | `crypto.getRandomValues<T extends OpenDeskIntegerTypedArray>(array: T): T;` | 由宿主 `crypto/rand` 提供，不启动外部 Runtime | 观察/查询；可能读取敏感数据，不等于业务完成；安全随机字节与 UUID v4 | [crypto.getRandomValues](../global-apis.md#cryptogetrandomvalues)；`read global-apis crypto.getRandomValues` |
 | `crypto.randomUUID(): string;` | 由宿主 `crypto/rand` 提供，不启动外部 Runtime | 需核对正文；不能假定无副作用；安全随机字节与 UUID v4 | [crypto.randomUUID](../global-apis.md#cryptorandomuuid)；`read global-apis crypto.randomUUID` |
-| `delay(milliseconds?: number): Promise<void>;` | 三者都返回 `Promise<void>`，等待期间不会阻塞 Runtime 事件循环。`delay()` 是推荐的通用名称， `sleep()` 和 `sleepSec…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [delay](../global-apis.md#delay--sleep--sleepseconds固定等待)；`read global-apis delay` |
+| `delay(milliseconds?: number): Promise<void>;` | `delay` 使用毫秒；省略时由 Runtime 使用默认延迟。取消后回调不会执行。 周期任务必须在完成条件满足后调用 `clearInterval()`。不要用无限周…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [delay](../global-apis.md#settimeout--setinterval--requestanimationframe--delay--sleep计时器与等待)；`read global-apis delay` |
 | `getClipboard(): string;` | 当脚本只需要读写文本时，可以直接使用全局函数： 需要清空剪贴板、处理平台重试或使用完整对象接口时，请阅读 Clipboard API。 | 需核对正文；不能假定无副作用；继承本节限制 | [getClipboard](../global-apis.md#copytoclipboard--getclipboard剪贴板快捷函数)；`read global-apis getClipboard` |
 | `notify(message: string): void;`（2 个声明；--types 核对） | `notify()` 是全局系统通知函数： 它的完整参数、同步返回、平台后端、权限和可见性边界见 notify。通知显示不是业务成功或执行证据的替代品。 | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [notify](../global-apis.md#notify系统通知)；`read global-apis notify` |
 | `prompt(message: string \| OpenDeskPromptOptions): Promise<string \| null>;` | OpenDesk 的同名全局函数是 Dialog API 的 Promise alias，和浏览器的同步 API 不同：它们不会阻塞 Runtime EventLo…（摘…（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [prompt](../global-apis.md#alert--confirm--prompt异步原生-dialog)；`read global-apis prompt` |
 | `queueMicrotask(callback: () => void): void;` | 在当前同步 JavaScript job 结束后、后续 timer 前排队一个回调。 `callback`：需要排队的函数。 `undefined`。 回调使用当前 Go…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [queueMicrotask](../global-apis.md#queuemicrotask)；`read global-apis queueMicrotask` |
-| `requestAnimationFrame(callback: (timestamp: number) => void): OpenDeskTimerId;` | `requestAnimationFrame()` 当前由约 60 FPS 的 timer 兼容实现提供，回调会收到毫秒时间戳。 它不会等待浏览器 DOM 绘制，也不代表…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [requestAnimationFrame](../global-apis.md#requestanimationframe--cancelanimationframe帧回调)；`read global-apis requestAnimationFrame` |
-| `setInterval(callback: () => void, delay?: number): OpenDeskTimerId;` | 周期任务必须在完成条件满足后调用 `clearInterval()`。不要用无限周期任务维持脚本生命周期； 需要等待窗口关闭或 UI 事件时，请使用对应的页面或 Cust…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [setInterval](../global-apis.md#setinterval--clearinterval周期计时器)；`read global-apis setInterval` |
-| `setTimeout(callback: () => void, delay?: number): OpenDeskTimerId;` | `delay` 使用毫秒；省略时由 Runtime 使用默认延迟。取消后回调不会执行。 | 需核对正文；不能假定无副作用；继承本节限制 | [setTimeout](../global-apis.md#settimeout--cleartimeout一次性计时器)；`read global-apis setTimeout` |
-| `sleep(ms: number): Promise<void>;` | 三者都返回 `Promise<void>`，等待期间不会阻塞 Runtime 事件循环。`delay()` 是推荐的通用名称， `sleep()` 和 `sleepSec…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [sleep](../global-apis.md#delay--sleep--sleepseconds固定等待)；`read global-apis sleep` |
+| `requestAnimationFrame(callback: (timestamp: number) => void): OpenDeskTimerId;` | `delay` 使用毫秒；省略时由 Runtime 使用默认延迟。取消后回调不会执行。 周期任务必须在完成条件满足后调用 `clearInterval()`。不要用无限周…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [requestAnimationFrame](../global-apis.md#settimeout--setinterval--requestanimationframe--delay--sleep计时器与等待)；`read global-apis requestAnimationFrame` |
+| `setInterval(callback: () => void, delay?: number): OpenDeskTimerId;` | `delay` 使用毫秒；省略时由 Runtime 使用默认延迟。取消后回调不会执行。 周期任务必须在完成条件满足后调用 `clearInterval()`。不要用无限周…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [setInterval](../global-apis.md#settimeout--setinterval--requestanimationframe--delay--sleep计时器与等待)；`read global-apis setInterval` |
+| `setTimeout(callback: () => void, delay?: number): OpenDeskTimerId;` | `delay` 使用毫秒；省略时由 Runtime 使用默认延迟。取消后回调不会执行。 周期任务必须在完成条件满足后调用 `clearInterval()`。不要用无限周…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [setTimeout](../global-apis.md#settimeout--setinterval--requestanimationframe--delay--sleep计时器与等待)；`read global-apis setTimeout` |
+| `sleep(ms: number): Promise<void>;` | `delay` 使用毫秒；省略时由 Runtime 使用默认延迟。取消后回调不会执行。 周期任务必须在完成条件满足后调用 `clearInterval()`。不要用无限周…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [sleep](../global-apis.md#settimeout--setinterval--requestanimationframe--delay--sleep计时器与等待)；`read global-apis sleep` |
 | `sleepSeconds(seconds: number): Promise<void>;` | 三者都返回 `Promise<void>`，等待期间不会阻塞 Runtime 事件循环。`delay()` 是推荐的通用名称， `sleep()` 和 `sleepSec…（摘要） | 需核对正文；不能假定无副作用；继承本节限制 | [sleepSeconds](../global-apis.md#delay--sleep--sleepseconds固定等待)；`read global-apis sleepSeconds` |
 
 
@@ -96,9 +96,9 @@ docType: index
 | `System.getExecutablePath(): string;` | 当前可执行文件路径 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [System.getExecutablePath](../system.md#systemgetexecutablepath)；`read system System.getExecutablePath` |
 | `System.getFingerprint(): string;` | 生成设备指纹 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [System.getFingerprint](../system.md#systemgetfingerprint)；`read system System.getFingerprint` |
 | `System.getNetworkConnections(): OpenDeskNetworkConnectionInfo[];` | 获取活动网络连接 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [System.getNetworkConnections](../system.md#systemgetnetworkconnections)；`read system System.getNetworkConnections` |
-| `System.getNetworkInterfaces(): OpenDeskNetworkInterfaceInfo[];` | 获取网络接口统计 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [System.getNetworkInterfaces](../system.md)；`read system System.getNetworkInterfaces` **正文缺口：禁止据类型直接生成调用** |
+| `System.getNetworkInterfaces(): OpenDeskNetworkInterfaceInfo[];` | 获取网络接口统计 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [System.getNetworkInterfaces](../system.md#systemgetnetworkinterfaces)；`read system System.getNetworkInterfaces` |
 | `System.getPlatformInfo(): OpenDeskPlatformInfo;` | 获取 Runtime OS、架构和进程信息 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [System.getPlatformInfo](../system.md#systemgetplatforminfo)；`read system System.getPlatformInfo` |
-| `System.getPowerInfo(): Record<string, unknown>;` | 获取电源/电池信息 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [System.getPowerInfo](../system.md)；`read system System.getPowerInfo` **正文缺口：禁止据类型直接生成调用** |
+| `System.getPowerInfo(): OpenDeskPowerInfo;` | 获取电源/电池信息 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [System.getPowerInfo](../system.md#systemgetpowerinfo)；`read system System.getPowerInfo` |
 | `System.getProcessList(): OpenDeskProcessInfo[];` | 列出运行中进程 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [System.getProcessList](../system.md#systemgetprocesslist)；`read system System.getProcessList` |
 | `System.getSessionCapabilities(): OpenDeskSystemSessionCapabilities;` | 查询 session backend 和逐操作能力 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [System.getSessionCapabilities](../system.md)；`read system System.getSessionCapabilities` 共享整页兜底 |
 | `System.getSessionState(): OpenDeskSystemSessionState;` | 查询当前 session identity/state；不推测未知 lock state | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [System.getSessionState](../system.md#systemgetsessionstate)；`read system System.getSessionState` |
@@ -128,7 +128,7 @@ docType: index
 | 精确方法；主要输入 → 输出（签名） | 解决的问题 | 副作用；适用限制 | 契约获取 |
 | --- | --- | --- | --- |
 | `Command.getCapabilities(): OpenDeskCommandCapabilities;` | 查询当前 execution 是否允许命令执行。 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [Command.getCapabilities](../command.md#commandgetcapabilities)；`read command Command.getCapabilities` |
-| `Command.run(command: string, args?: string[], options?: OpenDeskCommandOptions): Promise<OpenDeskCommandResult>;`（2 个声明；--types 核对） | 启动一次命令，等待退出并返回 stdout、stderr 与 exit code。 | 需核对正文；不能假定无副作用；继承本节限制 | [Command.run](../command.md#commandrun-options)；`read command Command.run` |
+| `Command.run(command: string, args?: string[], options?: OpenDeskCommandOptions): Promise<OpenDeskCommandResult>;`（2 个声明；--types 核对） | 启动一次命令，等待退出并返回 stdout、stderr 与 exit code。 | 需核对正文；不能假定无副作用；继承本节限制 | [Command.run](../command.md#commandruncommand-args-options)；`read command Command.run` |
 
 
 ## Audio
@@ -175,11 +175,11 @@ docType: index
 | `Sound.stop(id: string): boolean;` | 按 ID 请求停止；未知或已结束会话返回 `false`。 | 依方法：呈现/交互/资源；不得视为纯查询；`id: string` | [Sound.stop](../sound.md#soundplaysuccess--soundplayfail--soundplaywarning--soundplayerror--soundplaycaptcha--soundplaysound--soundplay--soundstart--soundplayasync--soundstop--soundstopall--soundgetactive方法总览)；`read sound Sound.stop` 共享整页兜底 |
 | `Sound.stopAll(): number;` | 请求停止当前 execution 拥有的所有活动会话，返回接受的数量。 | 依方法：呈现/交互/资源；不得视为纯查询；无 | [Sound.stopAll](../sound.md#soundplaysuccess--soundplayfail--soundplaywarning--soundplayerror--soundplaycaptcha--soundplaysound--soundplay--soundstart--soundplayasync--soundstop--soundstopall--soundgetactive方法总览)；`read sound Sound.stopAll` 共享整页兜底 |
 | `playback.id: string;` | 这些方法会等待音频播放完成；在同一个 JavaScript execution 中等待期间无法调用另一个 `Sound.stop()`。它们仍会观察 execution …（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [playback.id](../sound.md#soundplaysuccess--soundplayfail--soundplaywarning--soundplayerror--soundplaycaptcha--soundplaysound--soundplay--soundstart--soundplayasync--soundstop--soundstopall--soundgetactive方法总览)；`read sound playback.id` 共享整页兜底 |
-| `playback.isPlaying(): boolean;` | playback.isPlaying；所属能力：Sound API | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [playback.isPlaying](../sound.md)；`read sound playback.isPlaying` **正文缺口：禁止据类型直接生成调用** |
+| `playback.isPlaying(): boolean;` | 判断句柄是否尚处于 playing/paused/stopping。 | 依方法：呈现/交互/资源；不得视为纯查询；无 | [playback.isPlaying](../sound.md#playbackisplaying)；`read sound playback.isPlaying` 共享整页兜底 |
 | `playback.path: string;` | 这些方法会等待音频播放完成；在同一个 JavaScript execution 中等待期间无法调用另一个 `Sound.stop()`。它们仍会观察 execution …（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [playback.path](../sound.md#soundplaysuccess--soundplayfail--soundplaywarning--soundplayerror--soundplaycaptcha--soundplaysound--soundplay--soundstart--soundplayasync--soundstop--soundstopall--soundgetactive方法总览)；`read sound playback.path` 共享整页兜底 |
 | `playback.pause(): boolean;` | 这些方法会等待音频播放完成；在同一个 JavaScript execution 中等待期间无法调用另一个 `Sound.stop()`。它们仍会观察 execution …（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [playback.pause](../sound.md#soundplaysuccess--soundplayfail--soundplaywarning--soundplayerror--soundplaycaptcha--soundplaysound--soundplay--soundstart--soundplayasync--soundstop--soundstopall--soundgetactive方法总览)；`read sound playback.pause` 共享整页兜底 |
 | `playback.resume(): boolean;` | 这些方法会等待音频播放完成；在同一个 JavaScript execution 中等待期间无法调用另一个 `Sound.stop()`。它们仍会观察 execution …（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [playback.resume](../sound.md#soundplaysuccess--soundplayfail--soundplaywarning--soundplayerror--soundplaycaptcha--soundplaysound--soundplay--soundstart--soundplayasync--soundstop--soundstopall--soundgetactive方法总览)；`read sound playback.resume` 共享整页兜底 |
-| `playback.startedAt: string;` | playback.startedAt；所属能力：Sound API | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [playback.startedAt](../sound.md)；`read sound playback.startedAt` **正文缺口：禁止据类型直接生成调用** |
+| `playback.startedAt: string;` | 会话创建时的 UTC 时间快照。 | 依方法：呈现/交互/资源；不得视为纯查询；无 | [playback.startedAt](../sound.md#playbackstartedat)；`read sound playback.startedAt` 共享整页兜底 |
 | `playback.status(): OpenDeskSoundPlaybackStatus;` | 这些方法会等待音频播放完成；在同一个 JavaScript execution 中等待期间无法调用另一个 `Sound.stop()`。它们仍会观察 execution …（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [playback.status](../sound.md#soundplaysuccess--soundplayfail--soundplaywarning--soundplayerror--soundplaycaptcha--soundplaysound--soundplay--soundstart--soundplayasync--soundstop--soundstopall--soundgetactive方法总览)；`read sound playback.status` 共享整页兜底 |
 | `playback.stop(): boolean;` | 这些方法会等待音频播放完成；在同一个 JavaScript execution 中等待期间无法调用另一个 `Sound.stop()`。它们仍会观察 execution …（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [playback.stop](../sound.md#soundplaysuccess--soundplayfail--soundplaywarning--soundplayerror--soundplaycaptcha--soundplaysound--soundplay--soundstart--soundplayasync--soundstop--soundstopall--soundgetactive方法总览)；`read sound playback.stop` 共享整页兜底 |
 | `playback.wait(): Promise<OpenDeskSoundPlaybackResult>;` | 这些方法会等待音频播放完成；在同一个 JavaScript execution 中等待期间无法调用另一个 `Sound.stop()`。它们仍会观察 execution …（摘要） | 依方法：呈现/交互/资源；不得视为纯查询；继承本节限制 | [playback.wait](../sound.md#soundplaysuccess--soundplayfail--soundplaywarning--soundplayerror--soundplaycaptcha--soundplaysound--soundplay--soundstart--soundplayasync--soundstop--soundstopall--soundgetactive方法总览)；`read sound playback.wait` 共享整页兜底 |
@@ -190,28 +190,28 @@ docType: index
 维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
 
 
-- `docs/api/execution.md` SHA-256 `a3f440853eed4d812a9bcaabcf8653c643ce0552e7d4cee0cdfbe0e262253c4f`
+- `docs/api/execution.md` SHA-256 `e38a789155dfe1fb4509580723f83f52a82c8dd7b08c3f2f30c770e8b2cde1aa`
 
 - `types/Execution.d.ts` SHA-256 `e1776073124a1585896ead8fdc22ad7f2da61546c9923a0f90fd3378f6c735d0`
 
-- `docs/api/global-apis.md` SHA-256 `64be8b1eae5c756d52e9ee8446e5041b4e072929d280eceaabf463e29aaae6e1`
+- `docs/api/global-apis.md` SHA-256 `4a7ba387f78159b4aff05b55cc5f2007580acf6a115337438cd08d32e2ebb559`
 
 - `types/global.d.ts` SHA-256 `1cf9e19b27cd13fb50d7147713d1a2a67c2176a0be2de6791a2e325b5519da8c`
 
 - `types/console.d.ts` SHA-256 `9d7c2ed399e35bdaff0e60e8052c2dbec0750ef965878418a5bdf9289d19dfb9`
 
-- `docs/api/system.md` SHA-256 `98312025a56ef39653c2c3d2dbdf8b92a70866d9c04407711f4e0f686f0b49bf`
+- `docs/api/system.md` SHA-256 `351517d6f7ec6feebf4caaf3239b26cd27c6556e3dec9b1fe21641999449cfb4`
 
-- `types/System.d.ts` SHA-256 `636fa6d8fca5728f2427e7119c12ba0b36ff88c34ebc02876e1573fa64316ae8`
+- `types/System.d.ts` SHA-256 `5fab82e72fdf457bfabb904f56fc3d0fda9f7bfd0753d103d29d2027facc37ef`
 
-- `docs/api/command.md` SHA-256 `55a08ab522c2c0598476c07dbadd0926b7068bfcba1589fa3accd204c633bac1`
+- `docs/api/command.md` SHA-256 `64c9e1647940e6a724697dee0a51ecaa689445295e8e0a23537506d5187a6ffc`
 
 - `types/Command.d.ts` SHA-256 `f7fdeeef6c9d26878e50b89a1197a6aae38df877f11177861b2f2d652ed8fd3a`
 
-- `docs/api/audio.md` SHA-256 `dd9d9c3b5a446c8ecb86e87ab9b1b1980f456ab07d635138f162415fd8d7cf8c`
+- `docs/api/audio.md` SHA-256 `517804683d01bbdb2889bdd36b2247738d6b2ea207324c5a5fe4acce51ded46e`
 
 - `types/Audio.d.ts` SHA-256 `2f1192612c2fc62e4f360b6e1229e8aaeb0659e121971d02964058d95db90b4b`
 
-- `docs/api/sound.md` SHA-256 `1dea29216d7ff3d80db255c5139ebaa48063d520064bbdc30020b4cef41430e9`
+- `docs/api/sound.md` SHA-256 `b61bcfbc34ae0990155f9ef627ccbc89f5b934cad72f53dd7c6cdd5ac4272f20`
 
 - `types/Sound.d.ts` SHA-256 `a40959b86b72f086c0510eba33095af99e234567843bd25060478902007eb974`

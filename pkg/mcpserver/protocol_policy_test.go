@@ -78,7 +78,7 @@ func TestPolicyReadOnlyListAndCallFailClosed(t *testing.T) {
 	server := NewServerWithOptions(nil, ServerOptions{ReadOnly: true})
 	response := server.Handle(Request{JSONRPC: "2.0", ID: json.RawMessage(`1`), Method: "tools/list"})
 	tools := mustMapResult(t, response.Result)["tools"].([]any)
-	want := map[string]bool{"tm_status": true, "tm_permissions": true, "tm_list_windows": true, "tm_get_active_window": true, "tm_list_displays": true, "tm_wait_for_window": true, "tm_screenshot": true}
+	want := map[string]bool{"tm_status": true, "tm_permissions": true, "tm_list_windows": true, "tm_get_active_window": true, "tm_list_displays": true, "tm_wait_for_window": true, "tm_screenshot": true, "tm_runtime_capabilities": true}
 	if len(tools) != len(want) {
 		t.Fatalf("unexpected tool surface: %#v", tools)
 	}
@@ -103,6 +103,38 @@ func TestPolicyReadOnlyListAndCallFailClosed(t *testing.T) {
 	server.tools["future_tool"] = Tool{Name: "future_tool", Annotations: &ToolAnnotations{ReadOnlyHint: true}}
 	if policyCall(t, server, "future_tool", nil).Error == nil {
 		t.Fatal("annotations bypassed policy")
+	}
+}
+
+func TestAdvancedToolsCannotWidenRestrictedModes(t *testing.T) {
+	for _, options := range []ServerOptions{{}, {ReadOnly: true}, {ReadOnly: true, Scripts: &ScriptService{}}} {
+		server := NewServerWithOptions(nil, options)
+		for _, name := range []string{"tm_script_start", "tm_script_status", "tm_script_cancel", "tm_api_catalog", "tm_api_read"} {
+			if _, exists := server.tools[name]; exists {
+				t.Fatalf("unconfigured tool exposed: %s", name)
+			}
+			if policyCall(t, server, name, map[string]any{}).Error == nil {
+				t.Fatalf("unconfigured tool dispatched: %s", name)
+			}
+		}
+		payload := callToolPayload(t, server, "tm_runtime_capabilities", map[string]any{})
+		if payload["scripts"].(map[string]any)["enabled"] != false {
+			t.Fatal("read-only or unconfigured server enabled scripts")
+		}
+	}
+	for _, tool := range advancedTools() {
+		if tool.Name == "tm_script_start" {
+			for _, args := range []map[string]any{
+				{"script": "1", "capabilities": []any{"command"}},
+				{"script": "1", "env": map[string]any{"SECRET": "value"}},
+				{"script": "1", "workdir": "/tmp"},
+				{"script": "1", "scriptPath": "/tmp/file.js"},
+			} {
+				if validateToolArguments(tool, args) == nil {
+					t.Fatal("client authorization override accepted")
+				}
+			}
+		}
 	}
 }
 

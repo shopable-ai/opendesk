@@ -1,0 +1,10 @@
+{
+  "python": "/absolute/path/to/query-venv/bin/python",
+  "source": "/absolute/path/to/query-source",
+  "projectsRoot": "/absolute/path/to/authorized-projects",
+  "projectId": "bizhi-app",
+  "profile": "ai_sales_assistant_zh",
+  "port": 0,
+  "plannerTimeoutSeconds": 16,
+  "credentialSource": "existing-codex"
+}

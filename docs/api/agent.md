@@ -49,7 +49,7 @@ Agent.run<T = string>(options: OpenDeskAgentRunOptions): Promise<OpenDeskModelCa
 | `options.prompt` | `string` | 是 | 无 | 通过 stdin 发送，不拼接 shell。 |
 | `options.model` | `string` | 否 | Profile / CLI 默认值 | 当前 backend 使用的模型；不会改变 backend。 |
 | `options.output` | `{type:'text'} \| {type:'json',name?,validation?,schema}` | 否 | `{type:'text'}` | 与 `LLM.generate()` 共用输出和 schema 语义。JSON 默认 `native`。 |
-| `options.cwd` | `string` | 否 | Profile cwd / 隔离调用目录 | CLI 工作目录；必须位于 Profile 的 `allowedCwd` 内。 |
+| `options.cwd` | `string` | 否 | Profile cwd / 隔离调用目录 | CLI 工作目录；启动前解析真实路径，必须是 Profile `allowedCwd` 真实目录自身或其后代目录。 |
 | `options.timeoutMs` | `number` | 否 | Profile / backend / 120000 | 1 到 86400000 毫秒的整次调用预算。 |
 | `options.signal` | `AbortSignal \| null` | 否 | `null` | 本次调用附加取消信号。 |
 | `options.backendOptions` | `object` | 否 | Profile 默认值 | 只能包含当前 backend 命名空间和已知字段。 |
@@ -85,6 +85,10 @@ Codex JSONL 当前不提供可靠的实际 model 字段，因此 `meta.model` �
 
 内建 Codex / Claude Code Profile 在没有显式 executable 时，仅从当前 `Execution.env` 的受控 `PATH` 解析固定程序名 `codex` / `claude`。不会读取 shell 初始化文件、宿主的另一份环境或任务 `cwd`；空项和相对 PATH 项不参与查找。解析由 Command native owner 完成，结果必须是绝对路径；随后适配器仍以 `Command.run(absolutePath, args, {envMode:'replace', ...})` 启动，不经过 shell。PATH 顺序决定同名程序优先级。Windows 使用 `PATHEXT` 和环境变量名大小写不敏感语义。
 
+CLI 工作目录按 `options.cwd` → Profile `cwd` → 本次隔离 invocation 目录选择；相对的 `cwd` 与 `allowedCwd` 以 `Execution.workdir` 为基准，Profile 未配置 `allowedCwd` 时使用 `Execution.workdir`。两适配器都会在启动 Command 前用 [File.realPath()](file.md#filerealpathpath) 解析最终工作目录和 `allowedCwd`，要求两者均为已存在的目录，并比较真实目录边界。指向范围外的符号链接会被拒绝，指向范围内的别名按真实位置判断；传给 Command 的 cwd 使用已解析路径。路径不存在、无法解析、不是目录或真实位置越界均以 `CWD_OUTSIDE_ALLOWED_SCOPE` 拒绝，且不启动 CLI。
+
+未配置 cwd 时，隔离 invocation 目录位于 `Execution.artifactDir/agent/<callId>`（没有 artifactDir 时以 `Execution.workdir` 为基准），也必须通过同一检查；如果它落在 `allowedCwd` 外，调用失败。可显式选择范围内的已有 cwd；适配器仍在独立 invocation 目录准备和清理自己的临时资源。此检查限定启动时的工作目录，不是进程的文件系统沙箱，也不保证抵御检查与启动之间对目录的并发替换。
+
 Codex 适配器执行 `codex exec`，使用 stdin、JSONL event stream、`--output-last-message`，native JSON 时使用 `--output-schema`，并以 `--ephemeral`、`--ignore-user-config`、read-only sandbox 和独立 invocation 目录运行。适配器还以固定 `--disable` 参数关闭 `shell_tool`、`unified_exec`、`computer_use`、内外部 browser、in-app automation、apps 与 multi-agent；不接受调用方参数来重新开启这些能力。`--ignore-user-config` 保留 `CODEX_HOME` 认证，但不加载用户配置的 MCP server。只有 started thread、started turn、唯一最终 `turn.completed`、存在且有界的 final message、以及业务输出校验全部成功才 resolve。
 
 Claude Code 适配器执行 `claude -p`，使用 stdin、`--output-format json`、plan permission mode、`--no-session-persistence`、`--strict-mcp-config` 和 `--tools ""`；native JSON 使用 `--json-schema` 并读取 `structured_output`。它不加载环境中的 MCP server，并关闭模型可调用的内置工具。只有 `type: 'result'`、`subtype: 'success'`、`is_error !== true` 以及业务输出校验全部成功才 resolve。两者不是仅替换 executable 的同一参数模板。
@@ -95,7 +99,7 @@ Agent 外层默认不自动重跑整个任务。总 deadline 覆盖配置、准�
 
 `OPENDESK_AGENT_CONFIG` 显式指向 JSON 配置，相对路径以 `Execution.workdir` 为准。Profile 字段为 `backend`、`executable` / `executableEnv`、`model` / `modelEnv`、`auth`、`policy`、`timeoutMs`、`cwd`、`allowedCwd` 和 `backendOptions`。P0 只接受 `policy: 'analysis'`；auth 为 `{mode:'saved'}` 或 `{mode:'env',env:'NAME'}`。凭据只从声明的环境引用传入所选 backend，child 使用 `Command.run(..., {envMode:'replace'})`，不会继承整个 `Execution.env`。
 
-内建 Profile 使用 `OPENDESK_CODEX_MODEL` / `OPENDESK_CLAUDE_CODE_MODEL`；`OPENDESK_CODEX_EXECUTABLE` / `OPENDESK_CLAUDE_CODE_EXECUTABLE` 是高级显式覆盖，设置时必须是有效绝对路径并优先于 PATH discovery。自定义 Profile 的 `executable` 或 `executableEnv` 不会获得任意名称 discovery；声明的值缺失、为空或为相对路径时启动前失败。默认 Codex 不代表自动安装、自动登录或自动授予权限。`Agent.run()` 仅在 Command 已授权的本地 `-script` / `ai run` execution 中可用；HTTP、MCP 与 Scheduler execution 不能借此提升为本地进程权限。
+内建 Profile 使用 `OPENDESK_CODEX_MODEL` / `OPENDESK_CLAUDE_CODE_MODEL`；`OPENDESK_CODEX_EXECUTABLE` / `OPENDESK_CLAUDE_CODE_EXECUTABLE` 是高级显式覆盖，设置时必须是有效绝对路径并优先于 PATH discovery。自定义 Profile 的 `executable` 或 `executableEnv` 不会获得任意名称 discovery；声明的值缺失、为空或为相对路径时启动前失败。默认 Codex 不代表自动安装、自动登录或自动授予权限。`Agent.run()` 要求当前 execution 的 Command 已获宿主授权。本地 `-script` / `ai run` 默认开启；HTTP、默认 MCP 与 Scheduler 默认关闭。可信本地 MCP 宿主可显式设置 `--allow-script-execution --script-capabilities=command`，客户端参数和脚本不能提升该权限。MCP execution 的 `Execution.env` 为空，因此授权也不自动提供 PATH、Profile 或登录凭据；配置完整性与真实 backend 可用性必须分别核对，见 [MCP Runtime 调用](../integrations/mcp/runtime-api.md)。
 
 **示例**
 

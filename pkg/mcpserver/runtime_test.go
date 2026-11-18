@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"encoding/base64"
 	"errors"
+	"slices"
 	"testing"
 )
 
@@ -35,6 +36,18 @@ func TestSplitKeyChordSupportsCommaAndPlus(t *testing.T) {
 	parts = splitKeyChord("cmd+shift+p")
 	if len(parts) != 3 || parts[0] != "cmd" || parts[1] != "shift" || parts[2] != "p" {
 		t.Fatalf("unexpected plus split: %#v", parts)
+	}
+}
+
+func TestSplitKeyChordPreservesMissingComponents(t *testing.T) {
+	for input, want := range map[string][]string{
+		"+p":      {"", "p"},
+		"cmd+ ,p": {"cmd", "", "p"},
+		"cmd+p,":  {"cmd", "p", ""},
+	} {
+		if got := splitKeyChord(input); !slices.Equal(got, want) {
+			t.Errorf("splitKeyChord(%q) = %q, want %q", input, got, want)
+		}
 	}
 }
 

@@ -74,7 +74,9 @@
     switch (String(status || 'unknown')) {
       case 'not_required': return `${base} 当前平台无需额外系统授权。`;
       case 'restricted': return `${base} 当前受到系统策略限制。`;
-      case 'unknown': return `${base} 当前系统接口无法可靠确认状态，可打开系统设置检查。`;
+      case 'unknown':
+        if (id === 'automation') return `${base} 请在需要控制目标应用时检查对应授权。`;
+        return `${base} 当前系统接口无法可靠确认状态。若系统设置已允许，更新时签名身份变化也可能导致旧授权失配；反复请求无法修复。请先确认正在运行的版本并重启，必要时为新身份重新授权一次。`;
       case 'denied': return `${base} 当前未授权，可使用适用操作处理。`;
       default: return base;
     }
@@ -144,6 +146,19 @@
     const attemptedRequests = new Set();
     const requesting = new Set();
 
+    function logReport(value) {
+      if (!logger || typeof logger.info !== 'function') return;
+      // Local diagnostics from this App's native query, never a cached grant
+      // or a CLI child's state. Do not include targets, input or window data.
+      logger.info('OPENDESK_SYSTEM_PERMISSIONS=' + JSON.stringify({
+        identity: field(value, 'identity', 'Identity'),
+        checkedAt: field(value, 'checkedAt', 'CheckedAt'),
+        permissions: permissionsFromReport(value).map(item => ({
+          id: field(item, 'id', 'ID'), status: field(item, 'status', 'Status'),
+        })),
+      }));
+    }
+
     function resetWindowSession() {
       windowGeneration++;
       attemptedRequests.clear();
@@ -202,6 +217,7 @@
       await safeUpdate('notice', {text: '正在静默重新检查当前进程的系统权限…'});
       try {
         report = app.getPermissions('desktop-automation');
+        logReport(report);
         await render(report, source || '重新检查');
       } catch (error) {
         lastError = error && error.message ? String(error.message) : String(error || 'permission refresh failed');
@@ -312,6 +328,7 @@
       lastError = '';
       try {
         report = app.getPermissions('desktop-automation');
+        logReport(report);
       } catch (error) {
         lastError = error && error.message ? String(error.message) : String(error || 'permission preflight failed');
         if (logger && typeof logger.warn === 'function') logger.warn('PERMISSIONS_PREFLIGHT_FAILED=' + lastError);

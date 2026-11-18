@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useMemo, useReducer, useEffect, useRef, useCallback } from 'react';
-import { connectNative, desktopBridge, parseNativeMessage, postNative, sameBinding, type Binding, type FillRequest, type SettingsRequest } from './desktop';
+import { connectNative, desktopBridge, parseNativeMessage, postNative, sameBinding, type AutomationStatus, type AutomationRequest, type Binding, type FillRequest, type SettingsRequest } from './desktop';
 import { isCustomerId, type CustomerId, type Product, type Order } from './domain/catalog';
 import { extractFacts, initialHistory, mergeHistory, type FactStatus, type HistoryByCustomer, type ProfileFact } from './domain/history';
 import { initialKnowledge, matchKnowledge, replyOptions, type Knowledge } from './domain/knowledge';
@@ -31,6 +31,7 @@ export interface AppState {
   mappingPreview:{key:string;version:number}|null;
   storeSessions:Record<string,StoreSession>;
   native:boolean; revision:number; binding:Binding|null; nativeObserving:boolean;
+  automation:AutomationStatus|null;
   nativeReplyVersions:NativeReplyVersion[];
   pendingFill:FillRequest|null; fillAttempt:string|null; receiptSeen:string[]; ai:AiState|null;
   threadId:CustomerId; threads:Thread[];
@@ -62,6 +63,8 @@ export type Action =
  | {type:'NATIVE_FILL';request:FillRequest}
  | {type:'NATIVE_AI_QUERY';request:AiQueryRequest}
  | {type:'NATIVE_FAILURE'}
+ | {type:'AUTOMATION_RESUME'}
+ | {type:'AUTOMATION_PAUSE'}
  | {type:'TAB';tab:Panel}
  | {type:'OPEN_PRODUCT';id:string}
  | {type:'CLOSE_PRODUCT'}
@@ -100,7 +103,7 @@ export function createInitialState(native=false):AppState {
   return {
     business:createBusinessState(),storeId:'store-demo',businessEpoch:0,businessPreview:null,businessStatus:'',storeSessions:{},
     businessMappings:[],mappingVersion:0,mappingStatus:'',mappingPreview:null,
-    nativeReplyVersions:[],native,revision:-1,binding:null,nativeObserving:false,pendingFill:null,fillAttempt:null,receiptSeen:[],ai:null,
+    automation:null,nativeReplyVersions:[],native,revision:-1,binding:null,nativeObserving:false,pendingFill:null,fillAttempt:null,receiptSeen:[],ai:null,
     threadId:'t1',threads:[
       {id:'t1',name:native?'等待原生观察':'林女士',messages:native?[]:[{id:'m1',who:'customer',text:'签收后 7 天内还能申请退款吗？'}],sent:[],draft:''},
       {id:'t2',name:native?'等待原生观察':'陈先生',messages:native?[]:[{id:'m2',who:'customer',text:'物流怎么查询？'}],sent:[],draft:''},
@@ -176,6 +179,12 @@ function withBusiness(s:AppState,business:BusinessState,storeId=s.storeId):AppSt
     knowledgeImportStatus:'',historyImportStatus:''};
 }
 export const latestCustomerMessage=(t:Thread)=>t.messages.filter(m=>m.who==='customer').at(-1);
+// A later agent message closes the customer turn even if the Host keeps the
+// same latest-customer binding. Own messages never authorize a new action.
+const pendingCustomerTurn=(s:AppState)=>{
+  const last=currentThread(s).messages.at(-1);
+  return last?.who==='customer'&&!!last.text.trim();
+};
 export const observed=(s:AppState)=>s.permission&&!s.paused&&(!s.native||s.nativeObserving);
 // Human draft identity survives observation generations; request authority does not.
 export const latestKey=(s:AppState)=>s.native?JSON.stringify(s.binding&&[
@@ -209,8 +218,33 @@ const safeToFill=(s:AppState,id:CustomerId,messageId:string):boolean=>{
 };
 const risky=/赔偿|承诺|密码|身份证/;
 export const mappingKey=(plan:MappingPlan)=>JSON.stringify([plan.storeId,plan.sourceId]);
+function stopAutomation(s:AppState,mode:AutomationStatus['mode'],reason:string):AppState {
+  const locked=s.automation?.mode==='locked';
+  return {...s,auto:false,consentPending:false,consented:mode==='revoked'||mode==='locked'?false:s.consented,
+    automation:s.binding?{type:'support.automationStatus',binding:s.binding,mode:locked?'locked':mode,
+      reason:locked?s.automation!.reason:reason,requests:s.automation?.requests??0,
+      queued:0,lastOutcome:s.automation?.lastOutcome??null}:null};
+}
+// Transport decisions use the same state owner and guards as the reducer.
+export function automationRequest(s:AppState,a:Action):AutomationRequest|null {
+  if(!s.native||!s.binding)return null;
+  let action:AutomationRequest['action']|null=null;
+  if(a.type==='AUTO_CONFIRM'&&reducer(s,a)!==s)action='enable';
+  if(a.type==='AUTOMATION_RESUME'&&reducer(s,a)!==s)action='resume';
+  if(a.type==='AUTOMATION_PAUSE'||a.type==='SETTING'&&a.key==='paused'&&a.value===true)action='pause';
+  if(a.type==='AUTO_DISABLE'||a.type==='SETTING'&&a.key==='permission'&&a.value===false)action='revoke';
+  if(a.type==='NATIVE_FILL'&&reducer(s,a)!==s)action='takeover';
+  if(a.type==='TAKEOVER'||a.type==='REPLY_TEXT'||a.type==='REPLY_EDIT'&&a.key!==null)action='takeover';
+  if(a.type==='NATIVE_MESSAGE'){
+    const m=parseNativeMessage(a.message);
+    if(m?.type==='support.observation'&&reducer(s,a)!==s&&
+      (m.binding.pid!==s.binding.pid||
+       m.binding.windowId!==s.binding.windowId||m.binding.customerId!==s.binding.customerId||!m.observing))action='takeover';
+  }
+  return action?{type:'support.automation',action,binding:s.binding}:null;
+}
 export function reducer(s:AppState,a:Action):AppState {
-  if(s.native&&['RESET','SET_THREAD','SET_DRAFT','RECEIVE','FILL','SEND','AUTO_REQUEST','AUTO_CONFIRM','AUTO_DISABLE','AUTO_CANCEL','TAKEOVER'].includes(a.type))return s;
+  if(s.native&&['RESET','SET_THREAD','SET_DRAFT','RECEIVE','FILL','SEND'].includes(a.type))return s;
   switch(a.type) {
     case 'MAPPING_SAVE':
     case 'MAPPING_RESTORE':{
@@ -300,9 +334,18 @@ export function reducer(s:AppState,a:Action):AppState {
     case 'NATIVE_MESSAGE':{
       if(!s.native)return s;
       const m=parseNativeMessage(a.message);if(!m)return s;
+      if(m.type==='support.automationStatus'){
+        if(!sameBinding(s.binding,m.binding))return s;
+        // A late enabled receipt must not undo local human ownership or revocation.
+        if((m.mode==='enabled'||m.mode==='enabling')&&
+          (!s.consented||!observed(s)||s.automation?.mode==='locked'||s.automation?.mode==='paused'))return s;
+        if(s.automation?.mode==='locked'&&m.mode!=='locked')return s;
+        return {...s,automation:m,auto:m.mode==='enabled',
+          consented:['revoked','disabled','locked'].includes(m.mode)?false:s.consented};
+      }
       if(m.type==='support.aiResult'){
         if(!s.ai||s.ai.status!=='loading'||m.requestId!==s.ai.requestId||
-          !sameBinding(s.binding,m.binding)||!sameBinding(s.ai.binding,m.binding)||!observed(s))return s;
+          !sameBinding(s.binding,m.binding)||!sameBinding(s.ai.binding,m.binding)||!observed(s)||!pendingCustomerTurn(s))return s;
         const versions=m.status==='ready'?[
           ...s.nativeReplyVersions,
           ...m.candidates.map(c=>({...c,id:s.nativeReplyVersions.length?m.requestId+':'+c.id:c.id,
@@ -317,15 +360,28 @@ export function reducer(s:AppState,a:Action):AppState {
         if(b&&(n.generation<b.generation||(n.generation===b.generation&&
           (n.pid!==b.pid||n.windowId!==b.windowId||n.customerId!==b.customerId))))return s;
         const sameIdentity=sameBinding(b,n);
+        // Generations track message/context authority, not automation consent scope.
+        const sameSession=!!b&&b.pid===n.pid&&b.windowId===n.windowId&&b.customerId===n.customerId;
         const sameDraft=!!b&&b.pid===n.pid&&b.windowId===n.windowId&&
           b.customerId===n.customerId&&b.messageId===n.messageId&&
           latestCustomerMessage(currentThread(s))?.text===m.conversation.messages.filter(x=>x.who==='customer').at(-1)?.text;
+        // Binding alone does not encode text corrections or a later own reply.
+        // Preserve human versions independently, but retire work on old context.
+        const sameContext=sameIdentity&&sameDraft&&
+          JSON.stringify(currentThread(s).messages)===JSON.stringify(m.conversation.messages);
+        const fillDraftUnchanged=!!s.pendingFill&&
+          (m.conversation.draft===s.pendingFill.expectedDraft||m.conversation.draft===s.pendingFill.text);
         const next=changed(s,n.customerId,t=>({...t,name:m.conversation.name,
           messages:m.conversation.messages,draft:m.conversation.draft,sent:[]}));
         return {...next,threadId:n.customerId,binding:n,revision:m.revision,nativeObserving:m.observing,
+          // Keep the last receipt intact; the UI waits for the Host's next
+          // current-binding status instead of relabeling an old receipt.
+          automation:sameSession?s.automation:null,
+          auto:sameSession&&m.observing?s.auto:false,
+          consented:sameSession?s.consented:false,consentPending:sameSession?s.consentPending:false,
           permission:m.observing,paused:m.observing?false:s.paused,
-          pendingFill:m.observing&&sameIdentity?s.pendingFill:null,
-          ai:m.observing&&sameIdentity?s.ai:null,
+          pendingFill:m.observing&&sameContext&&fillDraftUnchanged?s.pendingFill:null,
+          ai:m.observing&&sameContext?s.ai:null,
           nativeReplyVersions:sameDraft?s.nativeReplyVersions:[],
           chosen:sameDraft?s.chosen:{},edits:sameDraft?s.edits:{},
           fillAttempt:sameIdentity?s.fillAttempt:null,receiptSeen:sameIdentity?s.receiptSeen:[],
@@ -341,7 +397,7 @@ export function reducer(s:AppState,a:Action):AppState {
     case 'NATIVE_AI_QUERY':{
       const r=a.request;
       if(!s.native||!observed(s)||!sameBinding(s.binding,r.binding)||
-        !latestCustomerMessage(currentThread(s))||s.ai?.status==='loading'||
+        !pendingCustomerTurn(s)||s.ai?.status==='loading'||
         !/^[A-Za-z0-9_-]{1,40}$/.test(r.requestId))return s;
       const key=latestKey(s),selected=activeReply(s);
       // Snapshot a human fallback only when it has actually been edited. Ready
@@ -354,11 +410,11 @@ export function reducer(s:AppState,a:Action):AppState {
     }
     case 'NATIVE_FILL':{
       const r=a.request,attempt=JSON.stringify([r.binding,r.text,r.expectedDraft]);
-      if(!s.native||!observed(s)||!latestCustomerMessage(currentThread(s))||!sameBinding(s.binding,r.binding)||s.pendingFill||s.fillAttempt===attempt||
+      if(!s.native||!observed(s)||!pendingCustomerTurn(s)||!sameBinding(s.binding,r.binding)||s.pendingFill||s.fillAttempt===attempt||
         r.expectedDraft!==currentThread(s).draft||r.text===r.expectedDraft||!r.text.trim())return s;
-      return {...s,pendingFill:r,fillAttempt:attempt,receipt:'已请求原生填入 · 等待原生回执'};
+      return {...stopAutomation(s,'paused','填入草稿 · 人工接管'),pendingFill:r,fillAttempt:attempt,receipt:'已请求原生填入 · 等待原生回执'};
     }
-    case 'NATIVE_FAILURE':return s.native?note({...s,nativeObserving:false,pendingFill:null,ai:null},'原生桥不可用 · 已停止操作'):s;
+    case 'NATIVE_FAILURE':return s.native?note({...stopAutomation(s,'locked','原生桥不可用'),nativeObserving:false,pendingFill:null,ai:null},'原生桥不可用 · 已停止操作'):s;
     case 'RESET': return {...createInitialState(),businessEpoch:s.businessEpoch+1,knowledgeImportEpoch:s.knowledgeImportEpoch+1,
       historyImportEpoch:s.historyImportEpoch+1};
     case 'TAB': return {...s,tab:a.tab,settingsOrigin:a.tab==='settings'?(s.tab==='settings'?s.settingsOrigin:s.tab):s.settingsOrigin,editing:null};
@@ -413,19 +469,19 @@ export function reducer(s:AppState,a:Action):AppState {
       return notify(note({...next,counter:s.counter+1},receipt),s.verify?'模拟发送已确认 · 非真实平台':'模拟已提交，回读未确认');
     }
     case 'REPLY_CHOICE':return {...s,chosen:{...s.chosen,[a.key]:a.id},editing:null};
-    case 'REPLY_EDIT':return {...s,editing:a.key,
+    case 'REPLY_EDIT':return {...(s.native&&a.key!==null?stopAutomation(s,'paused','人工编辑接管'):s),editing:a.key,
       // Opening the editor takes ownership before an AX value change or IME
       // composition necessarily reaches React's change/blur handlers.
       ai:s.native&&a.key===activeReplyKey(s)&&s.ai?.status==='loading'?null:s.ai};
-    case 'REPLY_TEXT':return {...s,
+    case 'REPLY_TEXT':return {...(s.native?stopAutomation(s,'paused','人工编辑接管'):s),
       // Human input takes ownership of the current reply. A pending result
       // may still finish in the Host, but cannot replace this edit.
       ai:s.native&&s.ai?.status==='loading'&&a.key===activeReplyKey(s)?null:s.ai,
       edits:{...s.edits,[a.key]:a.text.slice(0,2000)}};
     case 'SETTING':{
       if(s.native){
-        if(a.key==='permission')return a.value===false?{...s,permission:false,nativeObserving:false,pendingFill:null,ai:null}:s;
-        if(a.key==='paused')return {...s,paused:a.value===true,
+        if(a.key==='permission')return a.value===false?{...stopAutomation(s,'revoked','已撤销授权'),permission:false,nativeObserving:false,pendingFill:null,ai:null}:s;
+        if(a.key==='paused')return {...(a.value===true?stopAutomation(s,'paused','观察已暂停'):s),paused:a.value===true,
           nativeObserving:a.value===true?false:s.nativeObserving,pendingFill:null,ai:a.value===true?null:s.ai};
         if(a.key==='follow')return {...s,follow:a.value===true};
         if(a.key==='verify')return s;
@@ -440,11 +496,21 @@ export function reducer(s:AppState,a:Action):AppState {
       if(a.key==='nicknameMode')return {...s,nicknameMode:a.value==='region'?'region':'original'};
       return s;
     }
-    case 'AUTO_REQUEST':return !s.permission?s: s.consented?{...s,auto:true}:{...s,consentPending:true};
-    case 'AUTO_CONFIRM':return !s.permission||!s.consentPending?s:notify({...s,consented:true,auto:true,consentPending:false},'模拟自动回复已启用');
+    case 'AUTOMATION_PAUSE':return s.native?stopAutomation(s,'paused','已请求暂停'):s;
+    case 'AUTOMATION_RESUME':return s.native&&s.consented&&observed(s)&&s.automation?.mode==='paused'?
+      {...s,automation:{...s.automation,mode:'enabling',reason:'已请求恢复 · 等待 Host'},auto:false}:s;
+    case 'AUTO_REQUEST':if(s.native)return observed(s)&&s.binding&&s.automation?.mode!=='locked'?
+      {...s,consentPending:true}:s;
+      return !s.permission?s: s.consented?{...s,auto:true}:{...s,consentPending:true};
+    case 'AUTO_CONFIRM':if(s.native)return observed(s)&&s.binding&&s.consentPending&&s.automation?.mode!=='locked'?
+      {...s,consented:true,consentPending:false,auto:false,automation:{type:'support.automationStatus',binding:s.binding,
+        mode:'enabling',reason:'已明确同意 · 等待 Host',requests:0,queued:0,lastOutcome:null}}:s;
+      return !s.permission||!s.consentPending?s:notify({...s,consented:true,auto:true,consentPending:false},'模拟自动回复已启用');
     case 'AUTO_CANCEL':return {...s,consentPending:false};
-    case 'AUTO_DISABLE':return {...s,auto:false,consentPending:false};
+    case 'AUTO_DISABLE':if(s.native)return stopAutomation(s,'revoked','已撤权 · 重新启用须再次确认');
+      return {...s,auto:false,consentPending:false};
     case 'TAKEOVER':{
+      if(s.native)return stopAutomation(s,'paused','人工接管 · 历史消息不补发');
       const taken=s.takeovers.includes(s.threadId);
       if(!s.auto&&!taken)return s;
       return note({...s,takeovers:taken?s.takeovers.filter(id=>id!==s.threadId):[...s.takeovers,s.threadId]},
@@ -495,39 +561,50 @@ export function WorkbenchProvider({children}:{children:React.ReactNode}) {
   const [bridge]=React.useState(desktopBridge);
   const [state,reduce]=useReducer(reducer,!!bridge,createInitialState);
   const sent=useRef(new Set<string>()),aiSent=useRef(new Set<string>()),sequence=useRef(0);
+  const latestState=useRef(state);
+  latestState.current=state;
+  const apply=useCallback((action:Action)=>{
+    const request=automationRequest(latestState.current,action);
+    latestState.current=reducer(latestState.current,action);
+    reduce(action);
+    if(bridge&&request&&!postNative(bridge,request)){
+      latestState.current=reducer(latestState.current,{type:'NATIVE_FAILURE'});
+      reduce({type:'NATIVE_FAILURE'});
+    }
+  },[bridge]);
   const dispatch=useCallback<React.Dispatch<Action>>((action)=>{
     if(bridge&&action.type==='SETTING'&&['permission','paused','follow'].includes(action.key)){
       if(action.key==='permission'&&action.value!==false)return;
       const request:SettingsRequest=action.key==='permission'?{type:'support.settings',permission:false}:
         action.key==='paused'?{type:'support.settings',paused:action.value===true}:{type:'support.settings',follow:action.value===true};
-      reduce(action);
-      if(!postNative(bridge,request))reduce({type:'NATIVE_FAILURE'});
+      apply(action);
+      if(!postNative(bridge,request))apply({type:'NATIVE_FAILURE'});
       return;
     }
-    reduce(action);
     // Cancel synchronously with human ownership, before a late HTTP completion
     // can start native readback. Cancellation never grants observation rights.
     if(bridge&&(action.type==='REPLY_TEXT'||action.type==='REPLY_EDIT'&&action.key!==null)){
-      if(!postNative(bridge,{type:'support.aiCancel'}))reduce({type:'NATIVE_FAILURE'});
+      if(!postNative(bridge,{type:'support.aiCancel'})){apply({type:'NATIVE_FAILURE'});return;}
     }
-  },[bridge]);
+    apply(action);
+  },[bridge,apply]);
   useEffect(()=>{
     if(!bridge)return;
-    return connectNative(bridge,message=>reduce({type:'NATIVE_MESSAGE',message}),()=>reduce({type:'NATIVE_FAILURE'}));
-  },[bridge]);
+    return connectNative(bridge,message=>apply({type:'NATIVE_MESSAGE',message}),()=>apply({type:'NATIVE_FAILURE'}));
+  },[bridge,apply]);
   useEffect(()=>{
     const request=state.pendingFill;
     if(!bridge||!request||sent.current.has(request.requestId))return;
     sent.current.add(request.requestId);
-    if(!postNative(bridge,request))reduce({type:'NATIVE_FAILURE'});
-  },[bridge,state.pendingFill]);
+    if(!postNative(bridge,request))apply({type:'NATIVE_FAILURE'});
+  },[bridge,state.pendingFill,apply]);
   useEffect(()=>{
     const ai=state.ai;
     if(!bridge||!ai||ai.status!=='loading'||aiSent.current.has(ai.requestId))return;
     aiSent.current.add(ai.requestId);
     if(!postNative(bridge,{type:'support.aiQuery',requestId:ai.requestId,binding:ai.binding}))
-      reduce({type:'NATIVE_FAILURE'});
-  },[bridge,state.ai]);
+      apply({type:'NATIVE_FAILURE'});
+  },[bridge,state.ai,apply]);
   // Effects run after React commits the DOM. This is render telemetry, not external readback.
   useEffect(()=>{
     if(!bridge||!state.binding)return;
@@ -537,14 +614,14 @@ export function WorkbenchProvider({children}:{children:React.ReactNode}) {
   },[bridge,state]);
   const fillNative=useCallback((text:string)=>{
     if(!state.binding)return;
-    reduce({type:'NATIVE_FILL',request:{type:'support.fillDraft',requestId:'fill-'+Date.now()+'-'+(++sequence.current),
+    apply({type:'NATIVE_FILL',request:{type:'support.fillDraft',requestId:'fill-'+Date.now()+'-'+(++sequence.current),
       binding:state.binding,text:text.trim(),expectedDraft:currentThread(state).draft}});
-  },[state]);
+  },[state,apply]);
   const queryNative=useCallback(()=>{
     if(!state.native||!state.binding||!observed(state))return;
-    reduce({type:'NATIVE_AI_QUERY',request:{type:'support.aiQuery',
+    apply({type:'NATIVE_AI_QUERY',request:{type:'support.aiQuery',
       requestId:'ai-'+Date.now()+'-'+(++sequence.current),binding:state.binding}});
-  },[state]);
+  },[state,apply]);
   const workspace=useBusinessWorkspace(state,dispatch);
   const context={state,dispatch,fillNative,queryNative,workspace};
   return <Context.Provider value={context}>{children}</Context.Provider>;

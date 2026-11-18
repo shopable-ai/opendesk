@@ -31,6 +31,7 @@ OpenDesk 按“框架分类 → 任务求解方法 → 解题模式 → 案例 �
 
 | 当前问题 | 直接入口 | 阅读时机 |
 | --- | --- | --- |
+| 怎样用 JS 和 OpenDesk 做成独立桌面应用？ | [JavaScript 桌面应用解决方案](javascript-desktop-app-solution.md) | 选择界面、业务状态、Runtime 交互、App Mode 与桌面交付方式时阅读；AI 客服助手作为第一个示例 |
 | 怎样表示目标、处理歧义与安全失败？ | [Action Target Model](../architecture/desktop-automation/action-target-model.md) | 设计定位、动作前置条件、业务验证或失败策略时阅读；不是使用每个 UI 方法前的必读项 |
 | 通用结构与应用专属语义怎样分开？ | [App Adapter Contract](../architecture/desktop-automation/app-adapter-contract.md) | 封装应用 helper／adapter 时阅读 |
 | 多应用 Recipe 反复出现的窗口、控件、坐标和等待代码应怎样进入框架？ | [多应用自动化高频框架能力](multi-application-automation-primitives.md) | 设计公共原语、减少生成代码样板或安排 Runtime 实施批次时阅读 |
@@ -76,6 +77,7 @@ OpenDesk 按“框架分类 → 任务求解方法 → 解题模式 → 案例 �
 | 内容 | 权威维护位置 | 其他文档怎样使用 |
 | --- | --- | --- |
 | 系统分层与运行闭环 | `automation-framework.md` | 引用，不另造总体框架 |
+| JS 桌面应用的组合方案与职责划分 | [JavaScript 桌面应用解决方案](javascript-desktop-app-solution.md) | 应用保留业务正文与验收状态，API 保留公开契约 |
 | 六类解题模式、业务步骤交接 | `automation-problem-solving-framework.md` | 应用开发与主流程文档链接此处 |
 | 千牛源码事实与案例反向校准 | [主流程文档第 10 节](demonstration-to-automation-pipeline.md#10-qianniujs-真实案例反向校准) | 方法文档只保留必要摘取和改进假设，不复制完整案例 |
 | 示范的阶段门、Recorder 工件链 | 主流程文档；Recorder 专项文档 | 普通 Recipe 路线注明适用边界 |

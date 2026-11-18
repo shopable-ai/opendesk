@@ -3,6 +3,7 @@ package automation
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -14,6 +15,60 @@ import (
 type memoryNotificationInteractionBackend struct {
 	mu      sync.Mutex
 	records []NotificationRecord
+}
+
+type boundaryNotificationBackend struct {
+	*memoryNotificationInteractionBackend
+	list func(context.Context) ([]NotificationRecord, error)
+}
+
+func (b *boundaryNotificationBackend) List(ctx context.Context) ([]NotificationRecord, error) {
+	return b.list(ctx)
+}
+
+// E2 worker-only seam: no Notifications binding or Goja public API wrapper.
+func TestNotificationsPrivateWaitBoundary(t *testing.T) {
+	for _, scenario := range []string{"existing-timeout", "baseline-timeout", "existing-cancel", "baseline-cancel", "pre-cancel", "existing-success", "baseline-success"} {
+		t.Run(scenario, func(t *testing.T) {
+			parent, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			ctx, deadlineCancel := context.WithTimeout(parent, 30*time.Millisecond)
+			defer deadlineCancel()
+			probe := &waitBoundaryProbe{cancel: cancel}
+			backend := &boundaryNotificationBackend{memoryNotificationInteractionBackend: &memoryNotificationInteractionBackend{}}
+			backend.list = func(ctx context.Context) ([]NotificationRecord, error) {
+				call := probe.lists.Add(1)
+				if call == 1 && (scenario == "existing-timeout" || scenario == "baseline-timeout" || scenario == "existing-cancel" || scenario == "baseline-cancel") {
+					probe.hold(ctx, strings.HasSuffix(scenario, "-cancel"))
+				}
+				if call == 1 && strings.HasPrefix(scenario, "baseline-") {
+					return nil, nil
+				}
+				return []NotificationRecord{{ID: "synthetic", Title: "Synthetic"}}, nil
+			}
+			manager := &NotificationsRuntime{backend: backend}
+			if scenario == "pre-cancel" {
+				cancel()
+			}
+			started := time.Now()
+			record, err := manager.waitForMatch(ctx, notificationWaitOptions{
+				id: "synthetic", includeExisting: !strings.HasPrefix(scenario, "baseline-"), pollInterval: 50 * time.Millisecond, startedAt: started,
+			})
+			lists := int64(1)
+			if scenario == "pre-cancel" {
+				lists = 0
+			} else if scenario == "baseline-success" {
+				lists = 2
+			}
+			assertPrivateWaitBoundary(t, scenario, probe, err, started, lists, 0)
+			if err != nil && record.ID != "" {
+				t.Fatal("private worker returned a notification with its terminal error")
+			}
+			if err == nil && record.ID != "synthetic" {
+				t.Fatal("private healthy match changed")
+			}
+		})
+	}
 }
 
 func (b *memoryNotificationInteractionBackend) Capabilities() NotificationInteractionCapabilities {

@@ -78,7 +78,7 @@ declare global {
   }
 
   interface OpenDeskScreenRecordingOptions {
-    target: OpenDeskResolvedScreenRecordingTarget;
+    target: OpenDeskScreenRecordingTarget;
     fps?: 30;
     output: string;
     showCursor?: boolean;

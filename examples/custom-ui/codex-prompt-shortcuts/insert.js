@@ -7,7 +7,7 @@
 // This candidate needs readable AX textField value and live screen bounds. No
 // measured non-AX route is available here; this is not a product-wide AX policy.
 // textInputState is a native, explicit-only observation. It does not prove an
-// idle IME. The explicit paste policy uses ordinary desktop input; strict mode
+// idle IME. The legacy paste policy uses ordinary Unicode input; strict mode
 // still requires an unavailable editor-directed compare-and-append transport.
 const properties = ['role', 'nativeRole', 'name', 'identifier', 'enabled', 'focused', 'value', 'bounds'];
 const windowKeys = ['id', 'pid', 'handle', 'title', 'exePath', 'x', 'y', 'width', 'height'];
@@ -149,11 +149,12 @@ function inputState(p) {
   if (state.composition !== 'inactive') stop('IME_ACTIVE');
 }
 
-// Ordinary paste is intentionally a small desktop operation. Discovery proves
+// Ordinary input is intentionally a small desktop operation. Discovery proves
 // uniqueness once; read(ref) revalidates that exact native element. A focused
-// caret receives one paste only. Full Copy is reserved for fallback append.
+// caret receives one Unicode text input only. The historical inputMode:'paste'
+// selects this ordinary-input policy; it no longer uses the clipboard at all.
 function createPasteInserter({getTarget, editorSelector, nativeRole, searchDepth=24, layout, expectedWindow,
-  window, Accessibility, scope, editorModel='plain', verifyContext, mouse, clipboard, keyboard, delay, onPhase}) {
+  window, Accessibility, scope, editorModel='plain', verifyContext, mouse, keyboard, delay, onPhase}) {
   let busy=false,blocked=false,prepared=null,preparing=null,disposed=false;
   const selector={...editorSelector};
   const emit=(phase,detail)=>{try{onPhase?.(phase,detail);}catch(_){}};
@@ -191,8 +192,8 @@ function createPasteInserter({getTarget, editorSelector, nativeRole, searchDepth
     busy=true;
     let ref,attempted=false,phase='preflight',outcome;
     try{
-      if(typeof clipboard?.copy!=='function'||typeof clipboard?.paste!=='function'||
-          typeof keyboard?.combination!=='function'||typeof delay!=='function')stop('INPUT_UNAVAILABLE');
+      if(typeof keyboard?.type!=='function'||typeof keyboard?.combination!=='function'||
+          typeof delay!=='function')stop('INPUT_UNAVAILABLE');
       emit('target-start');
       const target={...await getTarget()};validateTarget(target);emit('target');
       if(expectedWindow&&!same(target,expectedWindow,windowKeys))stop('TARGET_CHANGED');
@@ -247,12 +248,12 @@ function createPasteInserter({getTarget, editorSelector, nativeRole, searchDepth
         return r;
       };
       // Qualify the page once, before reading the focused editor. There is no
-      // scene scan or asynchronous field read between the final guard and V.
+      // scene scan or asynchronous field read between the final guard and type.
       emit('context-start');if(verifyContext)await verifyContext();emit('context-ready');
       let field=await read(true);state(field);const raw=field.value;emit('field-read');
       // Measured Codex empty AX value is its placeholder plus LF, with a real
       // {0,0} selection. Nonempty AX values preserve UTF-16/whitespace exactly.
-      // Never trim or strip this string from an actual draft: after paste we
+      // Never trim or strip this string from an actual draft: after input we
       // accept either the literal insertion or the proven empty representation.
       const placeholder=codex&&raw===field.name+'\n';
       const direct=field.focused===true&&state(field).length===0;
@@ -296,16 +297,14 @@ function createPasteInserter({getTarget, editorSelector, nativeRole, searchDepth
       const empty=web?range.location===0:codex?placeholder&&range.location===0||raw.length===0:raw.length===0;
       emit('caret-ready');
       const suffix=(direct||empty?'':'\n\n')+body;
-      clipboard.copy(suffix);
-      if(!direct||codex){
+      {
         const ready=await read(),r=state(ready);
         if(ready.value!==raw)stop('DRAFT_CHANGED');
         if(ready.focused!==true||!same(r,range,['location','length']))stop('CARET_CHANGED');
       }
       await guard();
-      if(clipboard.paste()!==suffix)stop('CLIPBOARD_CHANGED');
-      attempted=true;phase='paste';emit('paste-start');
-      await keyboard.combination('Meta','v');emit('paste-dispatched');phase='readback';
+      attempted=true;phase='type';emit('type-start');
+      await keyboard.type(suffix);emit('type-dispatched');phase='readback';
       let actual;
       for(let i=0;i<20;i++){
         actual=await read();
@@ -315,45 +314,19 @@ function createPasteInserter({getTarget, editorSelector, nativeRole, searchDepth
         await delay(25);
       }
       emit('value-observed');
-      if(web&&!direct){
-        await guard();
-        await keyboard.combination('Meta','a');
-        let selected;
-        for(let i=0;i<10;i++){
-          selected=await read();const s=state(selected);
-          if(selected.value!==actual.value||selected.focused!==true)stop('DRAFT_CHANGED');
-          if(s.location===0&&s.length>0)break;
-          if(i===9)stop('COPY_UNVERIFIED');
-          await delay(25);
-        }
-        const marker='OpenDesk copy probe '+Date.now()+' '+Math.random();
-        clipboard.copy(marker);await guard();
-        if(clipboard.paste()!==marker)stop('CLIPBOARD_CHANGED');
-        await keyboard.combination('Meta','c');
-        let copied=marker;
-        for(let i=0;i<20&&copied===marker;i++){await delay(25);copied=clipboard.paste();}
-        if(copied===marker)stop('COPY_UNVERIFIED');
-        // Copy is the actual string, without trimming or AX normalization.
-        // Fallback append checks its suffix; this is no editor transaction.
-        if(typeof copied!=='string'||!copied.endsWith(suffix)||empty&&copied!==body)stop('READBACK_MISMATCH');
-        const checked=await read();
-        if(checked.value!==selected.value||checked.focused!==true||
-            !same(state(checked),state(selected),['location','length']))stop('DRAFT_CHANGED');
-        await guard();phase='caret';await keyboard.combination('Meta','ArrowDown');
-        const restored=await read();
-        if(restored.value!==checked.value||restored.focused!==true||state(restored).length!==0)stop('CARET_UNVERIFIED');
-      }else if(!web){
+      if(!web){
         const expected=direct?raw.slice(0,range.location)+body+raw.slice(range.location):raw+suffix;
         const emptyCodex=placeholder&&range.location===0&&range.length===0&&actual.value===body;
         if(actual.value!==expected&&!emptyCodex)stop('READBACK_MISMATCH');
         if(codex&&state(actual).length!==0)stop('CARET_UNVERIFIED');
       }
+      state(actual);
       await guard();
       // Web AX projects whitespace and caret offsets. Observing its value
-      // change acknowledges paste without pretending to verify exact text.
+      // change acknowledges input without pretending to verify exact text.
       // Do not select/copy or move the user's caret just to obtain a receipt.
-      const verified=!(web&&direct);emit(verified?'verified':'paste-observed');
-      outcome={status:'inserted',code:verified?'VERIFIED_PASTE':'PASTE_OBSERVED',actionState:'acknowledged',verified};
+      const verified=!web;emit(verified?'verified':'text-observed');
+      outcome={status:'inserted',code:verified?'VERIFIED_TEXT':'TEXT_OBSERVED',actionState:'acknowledged',verified};
     }catch(error){
       blocked=attempted||error?.actionState==='unknown';
       outcome={...result(blocked?'blocked':'rejected',error?.code||'INSERT_FAILED',blocked?'unknown':'not_started'),phase};
@@ -365,20 +338,20 @@ function createPasteInserter({getTarget, editorSelector, nativeRole, searchDepth
   }};
 }
 
-/** The default strict policy only preflights. An explicit paste policy inputs
+/** The default strict policy only preflights. The legacy paste policy inputs
  * at a focused collapsed caret, or falls back to focus/end/append.
  * Neither policy invents provider composition state or an atomic transaction.
  * Any uncertain input latches this instance until the caller reconciles it.
  */
 function createInserter({ getTarget, editorSelector, nativeRole, searchDepth=24, layout, expectedWindow, window, Accessibility, scope,
-  inputMode='strict', editorModel='plain', verifyContext, mouse, clipboard, keyboard, delay, onPhase }) {
-  // Codex qualification is ordinary paste only, never strict/atomic append.
+  inputMode='strict', editorModel='plain', verifyContext, mouse, keyboard, delay, onPhase }) {
+  // Codex policy permits ordinary input only, never strict/atomic append.
   // Measurements: .runtime/tests/codex-desktop-session-20261029/measure-composer-01.
   if(editorModel==='codex'&&inputMode!=='paste')return {async prepare(){},async dispose(){},async insert(){
     return {status:'rejected',code:'CODEX_EDITOR_UNQUALIFIED',actionState:'not_started'};
   }};
   if(inputMode==='paste')return createPasteInserter({getTarget,editorSelector,nativeRole,searchDepth,layout,expectedWindow,
-    window,Accessibility,scope,editorModel,verifyContext,mouse,clipboard,keyboard,delay,onPhase});
+    window,Accessibility,scope,editorModel,verifyContext,mouse,keyboard,delay,onPhase});
   const selector = {...editorSelector};
   const measured = layout && {window: {...layout.window}, editor: {...layout.editor}};
   const validSelector = selector.role === 'textField' &&
@@ -455,7 +428,7 @@ function createInserter({ getTarget, editorSelector, nativeRole, searchDepth=24,
 // Explicit construction only; passes documented Runtime globals as dependencies.
 function createRuntimeInserter({ getTarget, editorSelector, nativeRole, searchDepth, layout, expectedWindow, scope, inputMode, editorModel, verifyContext, onPhase, runtime = globalThis }) {
   return createInserter({ getTarget, editorSelector, nativeRole, searchDepth, layout, expectedWindow, window: runtime.window, scope,
-    inputMode, editorModel, verifyContext, onPhase, Accessibility: runtime.Accessibility, mouse:runtime.mouse, clipboard:runtime.clipboard,
+    inputMode, editorModel, verifyContext, onPhase, Accessibility: runtime.Accessibility, mouse:runtime.mouse,
     keyboard:runtime.keyboard,delay:runtime.System?.delay?.bind(runtime.System) });
 }
 

@@ -262,8 +262,11 @@ let positionOwner=null,inserterBinding=null,codeScene=null;
 let followEpoch=0,scopedObserved=null,sceneVerifiedAt=0;
 let sceneVersion=0,sceneVerifiedVersion=-1;
 let editId=null,editDirty=false,page=0,stopping=false,subscribers=[];
-let barPage=0,barItems=[],barUpdating=false,barReady=false,barRefresh=Promise.resolve();
+let barItems=[],barUpdating=false,barReady=false,barRefresh=Promise.resolve();
+let barItemCount=0;
 let barVersion=0,dragVersion=0;
+const dragReads=new Map();
+let dragReadId=0,dragAcceptedRead=0;
 let draft=null,resolution=null,editVersion=0;
 let recovery=null,pendingWrite=null,recoveredBaseline=null,closing=false;
 let openingManager=null,recoverManager=false;
@@ -523,7 +526,13 @@ function saveOffset(settings,match,offsetX,offsetY){
   settings.positions={...settings.positions,[key]:{offsetX,offsetY}};
 }
 function acceptTarget(win,match,scene=null){
-  const binding=JSON.stringify([win.id,win.pid,win.handle,win.exePath,win.x,win.y,win.width,win.height,
+  // A known paste adapter rediscovers its own editor on a window switch. Do
+  // not let another window's manual calibration hide it. Calibration-only /
+  // strict targets still require fresh evidence; geometry changes remeasure.
+  const policy=OpenDeskPromptTargets.editorPolicy(match?.profile,scene);
+  if(composerTracker&&!composerTracker.matchesWindow(win)&&policy.inputMode==='paste'&&
+      (policy.selector||policy.discovery))invalidateComposer(true);
+  const binding=JSON.stringify([win.id,win.pid,win.handle,win.exePath,win.title,win.x,win.y,win.width,win.height,
     applicationPositionKey(match),scene?.signature]);
   if(inserterBinding!==binding){
     clearPreparedInsertion();
@@ -601,7 +610,8 @@ async function targetWindow(qualify=true){
     if(exact.id!==active.id||exact.pid!==active.pid||exact.handle!==active.handle||
         !exact.exePath||exact.exePath!==active.exePath||
         !sameApplication(match,matchTarget(exact.pid,exact.exePath))||exact.isForeground!==true)return null;
-    return qualify?qualifyTarget(exact,match):exact;
+    if(epoch!==followEpoch)return null;
+    return qualify?qualifyTarget(exact,match,()=>epoch===followEpoch):exact;
   }
   // Only this exact visible toolbar can temporarily own focus, never another
   // window sharing the Host PID (including the manager and transient toasts).
@@ -705,6 +715,7 @@ function placement(win,h,offset=targetOffset(),clip=true,scene=codeScene){
 }
 function cancelDrag(){
   dragVersion++;
+  dragAcceptedRead=++dragReadId;dragReads.clear();
   if(dragTimer)clearTimeout(dragTimer);
   dragTimer=null;dragTarget=null;
 }
@@ -767,7 +778,10 @@ async function synchronize(observation){
     // A drag debounce must never suppress loss of focus, manager visibility,
     // target replacement or a new target frame. Only the unchanged target may
     // wait for the user's relative position to be saved.
-    if(dragTarget){if(sameWindow(dragTarget,win))return;cancelDrag();}
+    if(dragTarget||dragReads.size){
+      if(sameWindow(dragTarget,win)||Array.from(dragReads.values()).some(target=>sameWindow(target,win)))return;
+      cancelDrag();
+    }
     positionKey=JSON.stringify([epoch,win.id,win.pid,win.handle,win.x,win.y,win.width,win.height,pos]);
     if(positionKey===failedPositionKey)return;
     if(!current())return;
@@ -905,7 +919,7 @@ async function sync(retry=false,scopedSample=null){
   if(!retry){cancelFollowRetry();followRetryRemaining=2;}
   syncRequest++;
   // Foreground guards keep running, but full scene/placement scans must not
-  // queue behind the button's exact editor reads while a paste is in flight.
+  // queue behind the button's exact editor reads while input is in flight.
   if(copying){pendingSync=true;return;}
   if(syncing){pendingSync=true;return;}syncing=true;
   const observation={hiddenMoveRefreshed:false,scopedSample};
@@ -919,22 +933,24 @@ async function drag(event,epoch){
   if(!Number.isFinite(b.x)||!Number.isFinite(b.y))return;
   // Ignore programmatic and stale event frames, not every user drag during a
   // blanket time window after following. Read this exact native toolbar back.
-  if(expectedPosition&&Math.abs(b.x-expectedPosition.x)<2&&
+  if(!dragReads.size&&expectedPosition&&Math.abs(b.x-expectedPosition.x)<2&&
       Math.abs(b.y-expectedPosition.y)<2)return;
   const panel=bar,target=originalWin,owner=originalTarget;
   if(!panel)return;
-  // Reserve the version before yielding: a later move owns the readback even
-  // when the older request completes first. Hold the drag through the commit,
-  // while synchronize still checks foreground/manager/target before this hold.
-  const version=++dragVersion;dragTarget=target;
-  if(dragTimer)clearTimeout(dragTimer);dragTimer=null;
-  let scheduled=false;
+  // Hold follow while reading, but only a verified frame may supersede a
+  // pending save. A delayed programmatic receipt must not cancel a user drag.
+  const read=++dragReadId;dragReads.set(read,target);
   try{
   const native=await panel.getState();
-  if(version!==dragVersion||epoch!==barId||panel!==bar||!following||stopping||
+  if(!dragReads.has(read)||read<=dragAcceptedRead||epoch!==barId||panel!==bar||!following||stopping||
       openingManager||calibrating||!sameWindow(originalWin,target)||!native.visible||!native.onScreen||
       Math.abs(native.bounds.x-b.x)>1||Math.abs(native.bounds.y-b.y)>1)return;
-  scheduled=true;
+  dragAcceptedRead=read;
+  const version=++dragVersion;dragTarget=target;
+  if(dragTimer)clearTimeout(dragTimer);dragTimer=null;
+  // This verified user frame supersedes the previous programmatic position.
+  // Otherwise dragging back there (even before debounce) is ignored forever.
+  expectedPosition={x:b.x,y:b.y};
   dragTimer=setTimeout(()=>{void safe(async()=>{
     dragTimer=null;
     const current=()=>version===dragVersion&&epoch===barId&&following&&!stopping&&
@@ -952,7 +968,7 @@ async function drag(event,epoch){
       saveOffset(next.settings,owner,Math.round(b.x-base.x),Math.round(b.y-base.y));},current);
     }finally{if(version===dragVersion)dragTarget=null;await sync();}
   })();},160);
-  }finally{if(!scheduled&&version===dragVersion)dragTarget=null;}
+  }finally{dragReads.delete(read);}
 }
 function copyVerified(item,reason=''){
   clipboard.copy(item.body);
@@ -983,12 +999,7 @@ function insertionScope(){
     {scope:{pid:originalWin?.pid,exePath:originalWin?.exePath}}:{};
 }
 function editorModel(profile){
-  // Codex's placeholder AX value needs its own measured text model. Never
-  // route either bundle or executable-bound scopes through plain text.
-  if(profile?.id==='codex'||profile?.app.bundleId==='com.openai.codex'||
-      /\/ChatGPT\.app(?:\/Contents\/MacOS\/ChatGPT)?$/.test(profile?.app.path||''))return 'codex';
-  return profile?.scene==='claude-code'?'claude-code':
-    profile?.app.bundleId==='ai.opencode.desktop'||profile?.id==='opencode'?'opencode':'plain';
+  targets();return OpenDeskPromptTargets.editorPolicy(profile).model;
 }
 function insertionContext(win,profile){
   const sceneKey=codeScene?.sceneKey;
@@ -1005,21 +1016,18 @@ function clearPreparedInsertion(){
 function pasteBinding(win,profile){
   // acceptTarget invalidates the prepared ref only when a new binding passes
   // qualification. The helper also performs its own fresh scene gate.
-  return JSON.stringify([win.id,win.pid,win.exePath,win.x,win.y,win.width,win.height,profile.id]);
+  return JSON.stringify([win.id,win.pid,win.handle,win.exePath,win.title,win.x,win.y,win.width,win.height,
+    applicationPositionKey(originalTarget),profile.id,codeScene?.signature]);
 }
 function pasteInserterFor(win,profile,onPhase){
-  const isClaude=profile.scene==='claude-code';
-  const isCodex=editorModel(profile)==='codex';
-  const selector=isClaude?codeScene?.editorSelector:profile.editorSelector;
-  const discovery=profile.editorDiscovery;
-  if(!selector&&!discovery)
+  const policy=OpenDeskPromptTargets.editorPolicy(profile,codeScene);
+  if(!policy.selector&&!policy.discovery)
     throw Object.assign(failure('EDITOR_EVIDENCE_REQUIRED','此应用尚未确认输入区'),{actionState:'not_started'});
   const scope={pid:win.pid,exePath:win.exePath};
   return insertionAPI().createRuntimeInserter({...insertionContext(win,profile),
     getTarget:()=>window.getAppWindow(scope),scope,expectedWindow:{...win},
-    editorSelector:selector||{role:'textField'},nativeRole:isCodex?'AXTextArea':discovery?.nativeRole||(isClaude?'AXTextArea':undefined),
-    searchDepth:isClaude||isCodex?64:discovery?.maxDepth||24,
-    inputMode:'paste',editorModel:editorModel(profile),onPhase});
+    editorSelector:policy.selector||{role:'textField'},nativeRole:policy.nativeRole,
+    searchDepth:policy.maxDepth,inputMode:'paste',editorModel:policy.model,onPhase});
 }
 function warmInsertion(win,profile){
   if(copying||stopping||insertionBlocked||profile?.inputMode!=='paste')return;
@@ -1033,7 +1041,27 @@ function warmInsertion(win,profile){
   });
 }
 async function currentInserter(onPhase){
-  // The visible toolbar already has an app-qualified window/scene. Paste
+  // Notifications/polls can lag behind a real app/window switch. Resolve the
+  // foreground before choosing its adapter, never click using a remembered ref.
+  const epoch=followEpoch,valid=()=>epoch===followEpoch&&!stopping;
+  try{
+    const current=await targetWindow(false);
+    if(!valid())throw failure('TARGET_CHANGED','窗口跟随状态已变化');
+    if(!current)throw failure('NO_CURRENT_TARGET','当前前台没有已确认的目标窗口');
+    if(current.isForeground!==true)throw failure('NOT_FOREGROUND','目标窗口已失焦；未激活或输入');
+    const match=matchTarget(current.pid,current.exePath);
+    if(!sameWindow(originalWin,current)||originalWin?.exePath!==current.exePath||
+        originalWin?.title!==current.title||!sameApplication(originalTarget,match)){
+      if(!match||!await qualifyTarget(current,match,valid))
+        throw failure('NO_CURRENT_TARGET','当前前台没有已确认的目标输入区');
+      pendingSync=true; // Move the same toolbar after this guarded operation ends.
+    }
+  }catch(e){
+    // This phase is entirely read-only; a failed observation must not latch
+    // the unknown-input stop intended for a dispatched keyboard operation.
+    throw Object.assign(failure(e?.code||'TARGET_UNAVAILABLE',String(e?.message||e)),{actionState:'not_started'});
+  }
+  // The visible toolbar already has an app-qualified window/scene. Input
   // revalidates that exact window and finds its unique live editor once. Do
   // not repeat qualification, discovery snapshots and find on every click.
   const selectedProfile=originalTarget?.profile;
@@ -1046,7 +1074,7 @@ async function currentInserter(onPhase){
   const win=await targetWindow();
   if(!win)throw Object.assign(failure('NO_CURRENT_TARGET','当前前台不是已确认的目标或本实例快捷栏'),{actionState:'not_started'});
   // Observation never activates a remembered window. Each click rediscovers
-  // its editor; a profile must explicitly select ordinary paste input.
+  // its editor; a profile must explicitly select the ordinary input policy.
   if(win.isForeground!==true)throw Object.assign(failure('NOT_FOREGROUND','目标窗口已失焦；未激活或输入'),{actionState:'not_started'});
   if(inserter&&originalTarget?.profile.scene!=='claude-code'&&originalTarget?.profile.inputMode!=='paste')return inserter;
   const profile=originalTarget?.profile,api=insertionAPI();
@@ -1083,9 +1111,9 @@ async function insertPrompt(id){
     catch(e){result={status:e?.actionState==='not_started'?'rejected':'blocked',
       code:e?.code||'INSERT_FAILED',actionState:e?.actionState||'unknown'};}
     // A readback never overrides an unknown or contradictory action receipt.
-    // Focused web paste acknowledges observation without claiming exact text.
+    // Web input acknowledges observation without claiming exact text.
     const confirmed=result?.status==='inserted'&&result.verified===true&&result.actionState==='acknowledged';
-    const observed=result?.status==='inserted'&&result.code==='PASTE_OBSERVED'&&
+    const observed=result?.status==='inserted'&&result.code==='TEXT_OBSERVED'&&
       result.verified===false&&result.actionState==='acknowledged';
     const unverified=result&&(result.verified===undefined||result.verified===false);
     const untouched=result?.status==='rejected'&&unverified&&result.actionState==='not_started';
@@ -1094,11 +1122,10 @@ async function insertPrompt(id){
       result={status:'blocked',code:'INVALID_RECEIPT',actionState:'unknown'};
     console.log('CODEX_SHORTCUT_INSERT='+JSON.stringify({id,status:result.status,code:result.code,verified:result.verified,actionState:result.actionState,phase:result.phase}));
     if(confirmed||observed){
-      // Feedback failure cannot change the acknowledged paste fact.
+      // Feedback failure cannot change the acknowledged input fact.
     }else if(result.status!=='rejected'||result.actionState==='unknown'){
-      // A dispatched paste may consume the clipboard asynchronously. Preserve
-      // its exact suffix on uncertainty; copying the body here could change a
-      // pending paste and discard the separator. Explicit copy stays available.
+      // Unknown input cannot authorize copying or another dispatch. Preserve
+      // the clipboard even if a future helper uses asynchronous paste input.
       insertionBlocked=true;
     }else{
       try{copyVerified(item,result.code||'UNVERIFIED_INPUT');}
@@ -1111,13 +1138,13 @@ async function insertPrompt(id){
     else if(originalWin)warmInsertion(originalWin,originalTarget?.profile);
   }
   if(result.status==='inserted'&&result.verified===true){
-    await toast('已写入并读回完整正文 · 尚未发送','success');inputPhase('feedback');return;
+    inputPhase('verified');return;
   }
-  if(result.status==='inserted'&&result.code==='PASTE_OBSERVED'&&result.verified===false&&result.actionState==='acknowledged'){
-    await toast('已粘贴 · 尚未发送','success');inputPhase('feedback');return;
+  if(result.status==='inserted'&&result.code==='TEXT_OBSERVED'&&result.verified===false&&result.actionState==='acknowledged'){
+    await toast('已观察到输入变化，完整正文未验证；请检查草稿，尚未发送。','warning');inputPhase('feedback');return;
   }
   await toast(insertionBlocked?'结果未确认，先检查草稿；保留剪贴板，不自动重试。':
-    '未写入（'+result.code+'）；已复制完整正文。','warning');
+    '未写入，已复制完整正文（'+result.code+'）。','warning');
   if(demoAd)await notice('ad',demoAd);
 }
 async function calibrateInsertion(){
@@ -1168,23 +1195,26 @@ async function refreshBar(){
   let panel=null,epoch=0;
   const current=()=>!stopping&&bar===panel&&barId===epoch;
   try{
+    const items=data.prompts.filter(p=>p.enabled),count=Math.max(1,items.length);
+    if(bar&&barItemCount!==count){
+      const previous=bar;bar=null;barId++;barReady=false;barItems=[];
+      cancelDrag();barHostIdentity=null;expectedPosition=null;
+      await previous.close();
+    }
     if(!bar){
       const epoch=++barId;
       // Same native toolbar as examples/custom-ui/quick-replies; its host owns
-      // geometry, drag handling and button rendering. Vertical capacity is five.
+      // geometry, drag handling and rendering. Height grows with the prompt list.
       bar=new FloatingWindow({title:'OpenDesk · 提示词快捷栏',orientation:'vertical',theme:'dark',
         alwaysOnTop:true,draggable:true,position:{mode:'absolute',x:520,y:240}});
+      barItemCount=count;
       bar.onError(logError);
       bar.addButton('settings','OpenDesk · 管理提示词与导入',
         {path:'assets/opendesk-logo.png',renderingMode:'original'},safe(openManager));
-      for(let i=0;i<3;i++)bar.addButton('p'+i,'暂无提示词',{text:'空'},safe(async()=>{
+      for(let i=0;i<count;i++)bar.addButton('p'+i,'暂无提示词',{text:'空'},safe(async()=>{
         if(epoch===barId&&!barUpdating&&barReady&&barItems[i]){
           if(copyOnly)await copy(barItems[i].id);else await insertPrompt(barItems[i].id);
         }
-      }));
-      bar.addButton('next','下一组',{text:'下一'},safe(async()=>{
-        if(epoch!==barId||barUpdating)return;
-        barPage++;await rebuild();
       }));
       bar.on('move',e=>{void drag(e,epoch).catch(logError);});
       bar.on('close',safe(async()=>{
@@ -1196,22 +1226,16 @@ async function refreshBar(){
       }));
     }
     panel=bar;epoch=barId;
-    const items=data.prompts.filter(p=>p.enabled),pages=Math.max(1,Math.ceil(items.length/3));
-    barPage=barPage%pages;
-    const shown=items.slice(barPage*3,barPage*3+3);
-    for(let i=0;i<3;i++){
-      const p=shown[i],short=p?label(p.label||p.body):null;
+    for(let i=0;i<count;i++){
+      const p=items[i],short=p?label(p.label||p.body):null;
       await panel.updateButton('p'+i,{disabled:!p,active:false,error:null,
         label:p?Array.from(Array.from(p.name||short).slice(0,24).join('')+
           (!copyOnly?' · 追加到输入框，不发送 · ':' · 点击复制全文 · ')+p.body).slice(0,60).join(''):
-          '暂无提示词，请导入浏览器 JSON',
-        icon:{text:p&&Array.from(short).length<=4?short:(p?String(barPage*3+i+1):'空')},badge:null});
+          '暂无启用的提示词，请在管理器中添加或导入',
+        icon:{text:p&&Array.from(short).length<=4?short:(p?String(i+1):'空')},badge:null});
       if(!current())return;
     }
-    await panel.updateButton('next',{disabled:pages===1,label:'下一组（'+(barPage+1)+'/'+pages+'）',
-      icon:{text:pages>1?'下一':'一页'},badge:null});
-    if(!current())return;
-    barItems=shown;barReady=true;failedPositionKey=null;
+    barItems=items;barReady=true;failedPositionKey=null;
   }catch(e){
     if(panel&&!current())return; // Native close invalidates an in-flight refresh.
     if(panel){

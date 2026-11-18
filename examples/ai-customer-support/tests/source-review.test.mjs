@@ -29,3 +29,20 @@ test('citations do not verify unsupported or paraphrased business claims',()=>{
  const claims=reviewClaims('包含静态高清壁纸。保证永久免费。支持高清静态背景。',items);
  assert.deepEqual(claims.map(c=>c.evidenceIds),[['e0'],[],[]]);
 });
+test('claim review covers the complete editor text including unknown claims after 24 clauses',()=>{
+ const text='包含静态高清壁纸。'.repeat(30)+'保证永久免费。';
+ const claims=reviewClaims(text,[{id:'e0',source:{text:'包含静态高清壁纸。'}}]);
+ assert.ok(text.length<=2000);
+ assert.equal(claims.length,31);
+ assert.deepEqual(claims.at(-1),{text:'保证永久免费',evidenceIds:[]});
+ const fullEditor='短句。'.repeat(665)+'未知尾部。';
+ assert.equal(fullEditor.length,2000);
+ const fullClaims=reviewClaims(fullEditor,[{id:'e1',source:{text:'短句。'}}]);
+ assert.equal(fullClaims.length,666);
+ assert.deepEqual(fullClaims.at(-1),{text:'未知尾部',evidenceIds:[]});
+});
+test('claim review matches whole clauses, never a positive substring inside a negative',()=>{
+ const items=[{id:'e0',source:{text:'不支持退款。包含静态高清壁纸，但不包含视频。'}}];
+ assert.deepEqual(reviewClaims('支持退款。包含静态高清壁纸。',items).map(c=>c.evidenceIds),[[],[]]);
+ assert.deepEqual(reviewClaims('不支持退款。',items)[0].evidenceIds,['e0']);
+});

@@ -1,157 +1,173 @@
-# OD-CODEX-HOOK-DEMO — Codex Hook → OpenDesk → Codex A/B 最小技术验证
+# OD-CODEX-HOOK-DEMO V1.2 — 独立创建任务能力
 
-**检索词：`OD-CODEX-HOOK-DEMO`。** 本文件是跨对话唯一进度记录。续接时必须先读取这里和真实 `state.json`，不要依据聊天文字重放已执行或结果未知的步骤。
+## 当前结论与范围（2026-11-04）
 
-## 1. 原始目标（不得漂移）
+**阶段 2 / T03 阻塞，整体未完成。没有创建、预填或提交任何演示任务。**
 
-保留官方 **Codex 桌面客户端**执行任务、呈现对话的现有功能。人手在 Codex 启动无业务副作用的演示任务 A；Codex 的真实生命周期 Hook 将 A 的事件发给本机 OpenDesk；OpenDesk 接收、记录、按固定 `A → B` 顺序在**同一个官方客户端**创建、填入、提交 B；Codex 的 B Hook 被 OpenDesk 记录并结束。**只允许 A、B 两项，不使用 Codex 队列、Redis、另一个自动化平台，也不修改 OpenDesk Browser / Web Flow。**
+最终目标仍是：Codex A → Hook 通知 OpenDesk → 官方客户端中的 B → B 完成通知 → 停止。
+本轮只拆分、验证独立创建任务能力，不接 Hook，不建队列，不修改 Web Flow。
+后续只有 T02/T03 通过后才能提交一次固定演示任务；不能以新 CLI agent 替代官方桌面关联。
 
-**分工**：Codex 运行任务并发通知；OpenDesk 处理通知并操作下一项；本示例用固定 next-task 函数 `submitB()` 代替队列。无需通用 HTTP API 或新 Go 接口，直接复用可信 `-script` 中现有 `Webhook.listen()`、`window`、`UI.within()`、`App` 和 `File`。
+当前 `master` / HEAD `98679755e8c91befef9b00706133a5f4e9273443`，本轮未创建分支、提交或推送，未 fetch。
+两个仓库均有其他任务的未提交改动；Browser 同时有其他会话工作，不修改、不恢复、不重启它们。
 
-## 2. 代码归属与真实前提
+原 Demo 七文件和原始 17/17 日志仍未找到，本机相关 Git 路径历史为空；现有目录原先只有上轮新增的 README。
+历史阻塞记录保留于 `.runtime/tests/codex-hook-demo/audit-20261104T171906+0800/`。
+这不阻止本轮按新授权补充 T02 的独立模块，但不表示恢复或重新实现了原 Hook Demo。
 
-- `main.js`：由 OpenDesk **可信本地** Runtime 执行的进程内 Webhook + 单次桌面动作；运行时生成 UUID，绑定会话与回合，持久化事件与提交状态。
-- `sender.py`：官方 Codex `UserPromptSubmit` / `Stop` 的快速、窄范围转发；不会替 Codex 排队、执行第二项或阻止官方流程。
-- `hooks.example.json`：官方 Hook 配置模板；**必须合并**进当前已信任的 `<repo>/.codex/hooks.json`，不要覆盖其他 Hook。
-- `profile.example.json`：待 Mac 实机确认的三个语义定位器（旧会话不存在而新会话才出现的标记、编辑框、提交按钮）。模板的 `confirmed:false` 与 `REPLACE_` 会明确拒绝桌面输入。
-- `tests/codex-hook-demo/main.test.cjs`：Node VM 的流程**组件测试**；`tests/codex-hook-demo/test_sender.py`：Python 事件过滤和 localhost HTTP 客户端**组件测试**。测试不使用官方 Codex 窗口或真实 OpenDesk 原生驱动。
+## 已执行调查与官方入口选择
 
-本方案开发时只读取了远程 GitHub 仓库 `shopable-ai/opendesk` 的 `master` 快照（基线 `909effdc2e1cbeca57ba0e265b6d6f7a57f42041`），**没有读取用户 Mac 上的 Git 工作树**。将代码合入本机前，先检查分支、`AGENTS.md`、已有同名实现和未提交修改；不要强行覆盖。`examples/workflows/codex-hook-demo/` 在该远端快照中尚不存在。原有 `examples/local-webhook-order-query/` 证明可复用入口，`docs/api/webhook.md` 描述了只监听 `127.0.0.1` 的 P0 本地 Webhook。
+本轮证据根：`.runtime/tests/codex-hook-demo/v1.2-20261104/`。以下均区分入口存在、调用接受、桌面显示和真实执行。
 
-相关官方资料：
-- Codex Hook 输入、`Stop` 语义、文件放置和可信审查：https://learn.chatgpt.com/docs/hooks
-- Codex 桌面快捷键（启动前仍须按实际版本核对 Cmd+N）：https://learn.chatgpt.com/docs/reference/commands
-- OpenDesk 合同：`docs/api/webhook.md`、`docs/api/window.md`、`docs/api/desktop-ui.md`、`docs/api/input.md`、`docs/frameworks/ui-locator-repair.md`。
+| 候选 | 官方支持 / 本机结果 | 项目与执行证明 | 界面、权限与安全停止 | 决定 |
+| --- | --- | --- | --- | --- |
+| Deep Link | 官方文档支持 `codex://threads/new?path=...&prompt=...`；本机 plist 注册了 scheme；没有打开链接 | `path` 选本地绝对目录，`prompt` 只设置 composer；无提交回执；本机归属未验证 | 通常可保留 App；必须实查空白/获准草稿、目标安装路径与回读；两个安装副本存在，不能只按 bundle ID 猜 | 优先保留为 T03 候选，可能需要 OpenDesk 完成提交；尚未选为合格实现 |
+| App Server stdio | 安装版 schema 已生成；真实 initialize、thread/loaded/list、当前 thread/read 成功 | 可读当前聊天 ID/cwd；独立进程 loaded 列表为空。只证明历史可读；未调用 thread/start/resume、turn/start | 公共协议可用；没有证明与当前 Desktop 同一执行实例或新线程在客户端显示 | 不作为完整产品替代 |
+| App Server proxy/daemon | help 提供公共 proxy；daemon version 返回 running/0.166.0；proxy initialize 在 12 秒 deadline 内未获响应并正常关闭（未留实测耗时） | 无创建/提交请求；不能推出提交未知，也不能推出桌面共享 | 不猜私有 socket framing，不重启/更新 daemon，不修改配置 | 本候选 BLOCKED；只保留证据 |
+| 原生 App 工具 | list_projects/list_threads 成功；能区分本地与 ChatGPT 项目 | 本地 opendesk ID `b4cf3025-44d3-4089-9129-a94f4d9eb82a`；同名 ChatGPT ID `g-p-6aeae7d57c708191854792b1d3f03c62` | 当前聊天工具不是已经公开给 OpenDesk 的外部 API；没有调用 create_thread | 作为可信只读归属证据，不冒称 T06 外部入口 |
+| OpenDesk UI | 现有 App/window/Accessibility/输入 API 与相邻插入模块存在 | 没有取得本轮目标窗口、草稿、输入框或新线程截图 | 当前 Computer Use 明确拒绝访问 com.openai.codex；不经其他 UI 技术绕过 | 当前现场 BLOCKED，未写未验证的按钮/快捷键方案 |
 
-## 3. 当前状态与证据（2026-11-04）
+官方资料（2026-11-04 已实际获取）：[Commands](https://learn.chatgpt.com/docs/reference/commands)、
+[App Server](https://learn.chatgpt.com/docs/app-server)、[Projects](https://learn.chatgpt.com/docs/projects)、
+[Hooks](https://learn.chatgpt.com/docs/hooks)、[Developer commands](https://learn.chatgpt.com/docs/developer-commands)。
+App Server 属实验接口；本机 schema 比照本机版本，不能用当前网页替换安装版本契约。
+`turn/completed` 还需检查 turn.status，事件名称不证明成功。
+CLI `/app` 是官方已保存会话接续方式，但未证明是可供 OpenDesk 独立创建的接口。
 
-| 子项 | 当前结论 | 证据 |
+## T01 能力与权限矩阵
+
+| 能力 / owner | 状态 | 实际依据与限制 |
 | --- | --- | --- |
-| 官方 Hook 文档、仓库 API 与 `AGENTS.md` | `SOURCE_REVIEWED` | 上述 URLs、GitHub 基线 SHA |
-| 本地受信 Webhook、身份隔离、持久状态、A→B→停止逻辑 | `SOURCE_IMPLEMENTED` | 本目录 `main.js`, `sender.py` |
-| 业务组件测试 | `COMPONENT_TESTED` | `node --test tests/codex-hook-demo/main.test.cjs`：14/14；`python3 -m unittest discover -s tests/codex-hook-demo -p 'test_*.py' -v`：3/3 |
-| 真实 Codex 版本、Hook 在 Mac 实际启用与信任 | `NOT_TESTED` | 当前开发执行环境为 Linux，未连接用户 Mac |
-| A 的真实 Hook、OpenDesk 实机收件 | `NOT_TESTED` | **没有**真实 Hook 投递日志 |
-| Mac 辅助功能授权、真实新建/填写/提交 B | `NOT_TESTED` | **没有**实窗截图或任务创建证据 |
-| B 的真实 Hook、结果和 A→B→停止 | `NOT_TESTED` | **没有** B 的真实执行凭据 |
+| 官方桌面安装与运行 | SUPPORTED | /Applications/ChatGPT.app，26.1027.61615 (24141)，com.openai.codex，OpenAI 签名，PID 22719；另有 ~/Applications 旧副本 |
+| 安装版 CLI / schema | SUPPORTED | 0.166.0-alpha.5.1；schema/v1 与 v2，明确提供所需协议字段 |
+| 独立 App Server 只读协议 | SUPPORTED | documented-stdio-probe.json；没有创建线程或启动回合 |
+| 外部新线程在当前官方桌面显示 | NOT_TESTED | 共享历史读取不证明桌面显示 |
+| public proxy 当前连接 | BLOCKED | initialize 超时；没有执行写方法 |
+| Computer Use → 官方客户端 | BLOCKED | 工具原文：Computer Use is not allowed to use the app 'com.openai.codex' for safety reasons. |
+| OpenDesk → 目标窗口的实际读写 | NOT_TESTED | 本轮不以其他 UI 通道规避上述拒绝 |
+| ChatGPT Project 通过 cwd 指定 | UNSUPPORTED | 本地目录与 ChatGPT Project 为不同产品对象，本脚本拒绝 |
+| OpenDesk Runtime 的纯检查入口 | SUPPORTED | 文档一行命令已原样运行，File.realPath/stat 实际成功，Command enabled/supported；不控制目标 UI |
+| 本次宿主的 AX / Screen Capture 快照 | SUPPORTED（只读权限检查） | 两项 granted；不等同于对目标 Codex 窗口读写获准或已验证 |
 
-**严禁把组件测试里的伪造 Hook 数据、VM 模拟窗口或测试用 localhost 服务器当成真实闭环。**
+Codex/OpenCodex 负责代码和协议开发；OpenDesk 本地可信 Runtime 才承担其获准的桌面动作；
+macOS 管理该具体宿主的权限；官方客户端负责线程和任务执行。更换开发工具不授予桌面权限，
+静态 TCC 记录或另一个进程获权也不证明本入口可操作目标。
+本轮未改 provider/model、Hook、凭据、应用签名、权限、daemon 或既有运行进程；只启动并关闭自有只读 probe/检查进程。
 
-## 4. 本机最短启动与验收（仅 macOS；目标 Codex 官方桌面）
+stdio 原始回执还包含 19 项配置被忽略的 configWarning，样例包括 auth_mode、disable_response_storage、features.child_agents_md。
+本轮不修改这些个人配置。只读初始化/历史读取已成功；对未来写方法的影响仍未确认，不能外推兼容通过。
+实际 probe 在 initialize 响应后发送过 initialized，但原始 JSON 日志漏记该发出通知；保留此留档缺口，不改写 raw log。
+proxy 记录仅有无响应/退出，不把退出码 0 当连接成功。CLI 与 managed daemon 版本分别见 daemon-version.json。
 
-下面所有相对命令以实际 OpenDesk 仓库根目录为工作目录，示例假设它是 `/Users/shopme/Documents/workspace/opendesk`。如果本机已有实现，先核对而非重复复制。同一轮只启动一个 `main.js` 进程。
+## T02 项目识别与已落地的最小实现
 
-### 4.1 检查并合入
+源码：`project-target.mjs`。明确目标只支持以下形状：
 
-```bash
-cd /Users/shopme/Documents/workspace/opendesk
-git status --short --branch
-cat AGENTS.md
-find examples -iname '*codex*hook*' -print
-# 代码已提交到 GitHub master，先只读核对实际本机状态，避免重复应用旧补丁/ZIP：
-git fetch origin master
-git diff --name-status HEAD..origin/master -- examples/workflows/codex-hook-demo tests/codex-hook-demo
-# 由本机执行者检查分支、未提交修改、文件冲突后，按需安全 fast-forward；不得直接覆盖本地改动。
-node --check examples/workflows/codex-hook-demo/main.js
-node --test tests/codex-hook-demo/main.test.cjs
-python3 -m unittest discover -s tests/codex-hook-demo -p 'test_*.py' -v
+```js
+{ type: 'codex-local', path: '/absolute/existing/directory' }
+{ type: 'projectless' }
+{ type: 'chatgpt-project', projectId: 'g-p-...' } // 明确 BLOCKED
 ```
 
-### 4.2 安装 Codex Hook 并核对本机版本
+本地目标依赖显式路径 + 当前宿主 File.realPath + File.stat(directory)，输出 canonical workspacePath 与依据。
+输出 App projectId 保持 null：文件系统失败保留 failurePhase 与可安全识别的 errorCode（宿主没有 code 时为 null），不复制可能含路径的异常消息。
+目录身份不冒称已验证的桌面项目绑定。T02 的本地目录识别/拒绝前缀已验证；App projectId 联结和创建后的归属仍待 T03。
+当前聊天的 App 元数据 projectId 为 null，即便 cwd 是 opendesk，也不把它说成已经属于本地项目。
+只有原生 list_projects 返回的 type/id/path 才能证明已配置项目身份；其现场记录单独留证。
 
-1. 先用 Codex 桌面客户端的 About/设置核对**实际版本和当前工作空间**，确定 Codex 当前项目工作目录位于本仓库；在 macOS 系统检查已安装的官方 Codex bundle ID、原有 Hook 和快捷键映射。不能假定当前机器的客户端一定与参考文档一致。
-2. 将本目录 `hooks.example.json` 中的 `UserPromptSubmit` 和 `Stop` handler **合并**到 `<repo>/.codex/hooks.json`（或当前有效的 user-level Hook 配置）；不要覆盖已有 hooks，也不要增加相互冲突的 `Stop` continuation Hook。模板 `python3 "$(git rev-parse --show-toplevel)/examples/workflows/codex-hook-demo/sender.py"` 通过当前仓库定位本地脚本。
-3. 在 Codex CLI 输入 `/hooks` 或按桌面客户端版本的 Hooks 设置页，**审阅并信任**这个非托管 Hook 的确切配置/hash；每次修改需重新审阅。运行前验证 Python 3、Hook 执行用户与 OpenDesk 在同一台 Mac、同一用户安全上下文。不要将监听地址与 Bearer token 发到公网。
-4. `Stop` **不包含可靠的“任务整体成功”布尔字段**；`stop_hook_active:false` 只是没有先前 Stop continuation 的信号。这个演示只以 **同一 `session_id`/`turn_id` + 精确 DONE 标记 + 无其他继续执行的 Stop Hook** 认定简单 A/B 回合结束。它不能替代未来复杂任务的业务结果验证。`SessionEnd` 可能在关闭/长期空闲后才触发，因此不用它驱动 B。
+项目缺失、标题、最近使用、当前窗口、多个路径或猜测 projectId 均返回 PROJECT_UNKNOWN；
+不可访问/不存在/非目录分别拒绝。不覆盖用户草稿，不改变前台窗口。
+projectless 可以被识别，但 Deep Link 省略 path 未证明不会沿用最近项目，因此准备阶段 BLOCKED。
+ChatGPT Project 即使同名、有 cwd 也拒绝，不宣称继承共享上下文。
 
-### 4.3 校准桌面目标（必要的本机人工前置，不能猜定位器）
+`planCodexTask({ projectTarget, prompt }, File)` 只生成正确编码的 Deep Link 候选。
+状态固定是 NOT_STARTED / PREPARATION_PLAN_READY，**不是 DRAFT_READY 或 SUBMITTED_VERIFIED**；
+不执行打开、输入或提交。没有合格 T03 之前不增加假的 createCodexTask 成功入口。
 
-在 Mac 打开 Codex，确认辅助功能/输入监控的 OS 权限仅授予真实 OpenDesk 可执行宿主。使用 **Accessibility Inspector** 或现有 OpenDesk Accessibility 只读检查，找到当前版本以下三个确切目标，填入 `.runtime/tests/codex-hook-demo/profile.json`：
+## 最小实施与验证顺序
 
-- `composer`：Codex 官方聊天输入区的**唯一可读写**原生 `textField`（需要实际支持 `setValue` 和同引用回读）；
-- `submit`：新会话中**唯一**的原生 `button` 提交控件（实际 role/name/identifier）；
-- `newThreadIndicator`：仅在进入**全新且尚无消息的会话主区域**才出现，且在已完成任务 A 的会话中**不存在**的独特原生 `staticText`/`heading`。**侧栏常驻“新建会话”按钮不是有效标记。**
+1. 先写目标识别/拒绝与 URL round-trip 回归测试，确认实现缺失时失败。
+2. 只补 T02 和 T03 无输入计划模块；不建立适配器、通用 SDK 或提交框架，不新增依赖。
+3. 由同一模块进入 OpenDesk 本地可信检查入口，验证真实文件系统与当前宿主只读权限报告。
+4. 当前 T03 界面关联/草稿门禁不能通过，停止依赖输入；后续 T04/T05/T06 不提前实现或提交。
+5. 独立审查与评分按实际完成范围，不用组件结果替代实机证据。
 
-配置样例：
+## 独立检查命令
 
-```bash
-mkdir -p .runtime/tests/codex-hook-demo
-cp -n examples/workflows/codex-hook-demo/profile.example.json .runtime/tests/codex-hook-demo/profile.json
-chmod 700 .runtime/tests/codex-hook-demo
-# 检查并编辑 profile.json 中三组真实 AX 识别字段，最后才改 confirmed 为 true。
+从仓库根目录运行下面的一行命令。默认显式绑定**本脚本所在仓库根目录**，不跟随前台项目或进程 cwd；
+使用固定无业务副作用的 DEMO_PROMPT，但仅生成计划，不向 Codex 发送任何内容。
+
+```sh
+./dist/opendesk -script examples/workflows/codex-hook-demo/inspect.mjs -console-mode script -log-dir .runtime/tests/codex-hook-demo/v1.2-20261104/opendesk-inspect-r2
 ```
 
-若该版本的 Codex 编辑器只暴露 `contentEditable`、AX 不支持独立 value 或没有可区分新会话标记，**本示例应拒绝输入并保持 NOT_TESTED/BLOCKED**，不能为了跑通而用盲坐标、直接 Enter、放宽远程权限或使用虚构 identifier。下一步才根据实际窗口截图/AX 证据作最小定位策略修复。
+组件测试（Node 维护验证，不是桌面验收）：
 
-### 4.4 启动 OpenDesk；人工在 Codex 中提交 A
-
-```
-cd /Users/shopme/Documents/workspace/opendesk
-./dist/opendesk -script examples/workflows/codex-hook-demo/main.js -console-mode script -log-dir .runtime/tests/codex-hook-demo/opendesk-log
+```sh
+node --test tests/codex-hook-demo/project-target.test.mjs
 ```
 
-保持这个进程运行。`main.js` 首次打印 `OD_CODEX_DEMO_READY={"runId":...,"aPrompt":...}`，**只复制 `aPrompt` 的值**到已处于本仓库工作空间的官方 Codex 桌面客户端输入区并提交。不要手动创建 B。`endpoint.json` 内含本机 listener Bearer **密钥**，不要复制到聊天、版本库或公开测试证据。`state.json` 保存本轮身份、阶段和事件。
+本轮仅有 inspect.mjs 的检查入口，不是已实现的独立创建/提交入口；不要把此命令接入 Hook。
+重复运行检查不会提交任务；这也不能算真实提交去重、未知恢复或草稿保护已经通过。
+所有本轮日志、协议原始回执、schema、测试输出和审查资料保存在上述证据根，忽略规则沿用现有 `.runtime/`。
 
-成功所需真实日志顺序：
+初版直接命令执行 ID：`direct-20261104-175550-458000`，检查脚本成功；评审后对错误诊断做小修，最终版见下述 r2 证据，业务状态仍为 NOT_STARTED。
 
-```
-RUN_INITIALIZED
-A_BOUND
-A_STOP_ACCEPTED
-B_NEW_THREAD_RESERVED
-B_SUBMIT_RESERVED
-B_PROMPT_SUBMITTED
-B_STOP_ACCEPTED
+业务模块在实际 OpenDesk Runtime 下另有 9/9 检查（非桌面验收），执行 ID `direct-20261104-175737-418000`：
+
+```sh
+./dist/opendesk -script tests/codex-hook-demo/runtime-project-target.mjs -console-mode script -log-dir .runtime/tests/codex-hook-demo/v1.2-20261104/runtime-project-target-r2
 ```
 
-`B_SUBMIT_ACTION_RETURNED` 是辅助日志，可能在 `B_PROMPT_SUBMITTED` 前后到达；它**不能**单独证明 B 已被 Codex 接收。`state.json` 的终态 `DONE` 必须有 `A_STOP_ACCEPTED`、`B_PROMPT_SUBMITTED`、`B_STOP_ACCEPTED` 及其不同的真实 session/turn 身份（B 的 session 与 A 不同），同时请保留两个官方客户端会话真实截图/日志以及 OpenDesk 实际目标窗口与 B 内容回读凭据。仅在这些证据齐全时才记 `MAC_DESKTOP_VERIFIED` 或 `PRODUCT_DONE`（本轮尚没有）。
+最终版执行 ID：`direct-20261104-180416-891000`、`direct-20261104-180417-683000`。
 
-**不要自动清理 `.runtime` 后重启。** `state.json` 存在会拒绝启动另一次运行，这是为避免未知提交的重复副作用；须先人工确认上轮结果与状态，再将旧证据归档至 `.runtime/tests/codex-hook-demo/archive-<runId>/`，重建一个全新 runId。不要把删除状态当成重试策略。
+初版日志保持不变；最终版 `opendesk-inspect-r2/` 与 `runtime-project-target-r2/` 都保留 stdout、summary、script snapshot 和 events。
+ESM summary 的 script_hash 是链接 payload 的 hash；源码本体另在 verification.json 留 SHA-256，二者不混用。
 
-## 5. 异常、重复与失败边界
+## T01–T06 进度
 
-| 情况 | 本 Demo 行为 |
-| --- | --- |
-| A 的 `Stop` 重复到达 | 按已绑定 `sessionId+turnId` 与不可逆的 `B_DISPATCH_RESERVED` 拒绝再次调度 B；Webhook 的 deliveryId 去重是额外的短期防线 |
-| 其他会话/回合/历史 runId/普通聊天 | 不与本次固定 A/B 模板、工作目录或身份一致 → 忽略或 `403/409`；无桌面动作 |
-| `Stop` 继续中、回答不含精确 DONE 标记、缺少 A PromptSubmit | 不向 OpenDesk 报完成；A 不启动 B。其他继续执行 Hook 的可能性仍须通过客户端配置排除 |
-| 无 profile/权限/官方窗口、Codex 不在前台或已有草稿 | 提交前 `BLOCKED`，保存错误码，无 B 点击；不会自动跳过授权或切换窗口 |
-| Cmd+N 已发但“新会话”结果未确认，或文本已编辑 | `PAUSED_UNKNOWN`，保存状态，不自动再发 Cmd+N / 重输 / 点击；防止覆盖用户草稿 |
-| 已准备单次提交且点击回执异常/超时 | `PAUSED_UNKNOWN`，`bSubmitAttempted:true`，**不重试**；若随后实际 B `UserPromptSubmit`/`Stop` 到来，允许同一轮只读对账收口 |
-| Hook 收件失败、OpenDesk 进程中断/关闭 | Codex Hook 仍返回 `{ "continue": true }`，不阻断用户原回合；失败在本机 Hook stderr 显示。OpenDesk 状态不把未收到事件伪装为成功，也不自动重建 listener |
-| B 最终完成 | `DONE` 并 `hook.close()`；不存在第三个任务，也无递归任务队列 |
+| 任务 | 源码/证据与当前状态 | 未完成 |
+| --- | --- | --- |
+| T01 能力发现 | 调查已完成；官方原生 stdio 只读成功，UI BLOCKED；host.json / schema / 协议记录 | 无桌面操作资格 |
+| T02 项目识别 | project-target.mjs，组件 10/10；本地类型/目录与 projectless 分类、ChatGPT 拒绝 | OpenDesk 一行命令和真实 Runtime 9 项检查通过；桌面项目绑定未验证 |
+| T03 准备新对话 | 仅静态准备计划已实现；BLOCKED | 实际打开、项目一致、草稿、输入框、DRAFT_READY |
+| T04 填写校验 | NOT_STARTED（依赖 T03） | 原生值回读与目标保持 |
+| T05 单次提交 | NOT_STARTED（依赖 T03/T04） | thread/turn 身份、执行事件、项目、未知持久化、一次性提交 |
+| T06 独立创建封装 | NOT_STARTED；只有独立检查脚本 | 实际 createCodexTask 及 Fresh Run，尚不能接 Hook |
 
-保留运行报告和证据在 `.runtime/tests/codex-hook-demo/`；本目录源文件**不**保存凭据。Hook 超时/网络失败不等于业务回滚，也不能自动发第二次 B。`Stop` 只适用于此次精确且无外部副作用的 A/B 一行输出任务。
+## 测试矩阵
 
-## 6. 独立代码/可靠性复查与评分
+| 场景 | 代码/组件验证 | 当前实机验证 |
+| --- | --- | --- |
+| 普通独立对话 | 显式识别；未证明无 path 语义，准备拒绝 | 未打开/未提交 |
+| 当前项目内新对话 | 显式目录与 URL 验证 | 仅只读 App 项目目录与现有 thread/cwd；未创建 |
+| 从一个项目到另一个 | 两个明确目录的身份不同，无当前窗口 fallback | 未切换 |
+| 多项目、当前未知 | PROJECT_UNKNOWN | 原生项目目录确实有多个；未执行选择 |
+| 已有未发送草稿 | 没有输入调用，计划保持 NOT_STARTED | 无草稿观察；不声称保护测试通过 |
+| 非目标窗口前台 | 计划不依赖窗口 | 未做输入或切换测试 |
+| 缺 Accessibility | 目录识别不依赖 AX；目标桌面路径尚未实现 | 只读权限快照；没有撤销权限进行负向实测 |
+| 动作返回未知 | 没有动作路径；未来必须 SUBMISSION_UNKNOWN 并禁止重试 | 未制造动作，不声称未知提交测试通过 |
+| 重复创建请求 | 重复规划结果一致且保持 NOT_STARTED；无动作依赖另由源码审查确认 | 真实创建去重尚未实现/验证 |
 
-以下是**实现与测试用例分开的第二轮静态审查**（同一 AI 执行，不是第三方人员代码审计），不是 Mac 真机验收：
+## 独立审查
 
-| 维度（每项 100） | 初评 | 依据 / 待补证 |
-| --- | ---: | --- |
-| 职责边界与最小性 | 96 | 单个示例，Hook 只转发、OpenDesk 决策；无队列平台/Runtime 改动 |
-| 权限与事件隔离 | 94 | 可信本地 Webhook、0600 secret、runId/session/turn/cwd/来源收紧；未验证真实 macOS 权限 |
-| 一次性提交与未知处理 | 95 | 提交前持久预留、不会自动二次点击；测试覆盖晚到 B 事件和竞态 |
-| 桌面结果可验证性 | 78 | 已实现新会话 marker 前后态、原生读回、B PromptSubmit/Stop；未知 Codex AX 实际可用性 |
-| 测试覆盖及交付 | 88 | 17 个组件测试通过，**无**真机 Hook 与 A/B 实窗证据 |
-| **平均** | **90.2** | 质量目标 95/100 尚未达到；不能用评分替代真实证据 |
+五个独立代理分别评估整项请求的验收准备度；不是实机通过评分，未完成能力不以高分补足。
 
-## 7. 最新唯一下一步（V1.2 分阶段验证，不重复开发）
+| 维度 | 独立审查者 | 分数 | 主要缺口 |
+| --- | --- | --- | --- |
+| 官方接口选择与兼容性 | Bacon | 58/100 | 新线程的 Desktop 关联、alpha/daemon 连接语义未验证 |
+| 项目识别正确性 | Helmholtz | 78/100 | 目录识别已验证，真实 App 项目绑定未验证 |
+| macOS 桌面自动化可靠性 | Kant | 40/100 | 无 T03 实窗/草稿/输入框证据 |
+| 权限、安全和未知提交保护 | Kierkegaard | 75/100 | 当前前缀安全；未来未知状态持久化、去重和负向门禁未实现 |
+| 代码复用、测试质量和最小实现 | Galileo | 70/100 | 两项代码意见已修复复核，独立创建本身仍未实现 |
 
-**先在实际 Mac 上独立验证“OpenDesk 能在指定项目的官方 Codex 客户端创建、提交一条新任务”的能力，不立即重放 A→B。**
-原始 A→B→停止目标不变；但新对话执行能力未实机通过前，不应把 Hook、调度和 UI 混成一次验收。
+**平均 (58 + 78 + 40 + 75 + 70) / 5 = 64.2/100。未通过 95 分门槛；安全维度也未达 95，整体不能交付为创建能力。**
+详情在 expert-reviews.json。前四份评审基于 r1；第五份定向复核 r2，关键桌面阻塞项未变化。
+评审指出的证据索引/README 同步已补齐，原始日志未伪补，未因此自动上调评分。
 
-依次推进，若某阶段已有真实证据则跳过：
+## 唯一下一步
 
-| 任务 | 目标与独立验收 |
-| --- | --- |
-| T01 | 核对官方 Codex、App Server、Deep Link、macOS 权限和 OpenDesk 当前入口的真实版本及能力 |
-| T02 | 独立识别 Codex 本地工作目录/项目身份；不要把 ChatGPT Project 与本地项目混淆；未知归属停止 |
-| T03 | 独立验证在**指定项目**准备新对话，优先官方入口；若只预填则仅记 `DRAFT_READY` |
-| T04 | 在不覆盖用户草稿的前提下输入固定任务，并对实际输入值严格回读 |
-| T05 | 对固定演示任务**单次**提交，取得官方线程及执行证据；未知结果标为 `SUBMISSION_UNKNOWN` 且不重试 |
-| T06 | 将 T02–T05 封装为可单独运行的 OpenDesk 可信本地脚本，运行组件及实机测试；**不依赖 Hook** |
-
-通过 T01–T06 后，下一阶段才将已验证的创建任务脚本接入原有 `Webhook.listen`，最后验收 A→B→停止。
-
-**证据状态：**此前只有 14 项 Node + 3 项 Python 组件测试（Linux 环境）通过。提交代码到远端 GitHub 不意味着用户 Mac 的本地目录已同步，不意味着官方 Hook 已启用，也不意味着 T01–T06 或 A/B 实机通过。继续之前先核对本机工作树、`.runtime/tests/codex-hook-demo/state.json`、真实客户端版本和已存在的执行记录。禁止重放 UNKNOWN。
+在允许访问官方客户端的独立执行环境中，沿用本轮明确的本地项目目标，
+只验证 T03 的 Deep Link → 正确安装副本/项目 → 不覆盖草稿 → 输入框内容回读并保留实窗证据。
+T03 通过之前不提交任务；不能为补证据把当前工具的明确拒绝转经 OpenDesk 或其他 UI 技术执行。
+如官方接口能直接证明桌面归属与可见性，复用该入口，不再另造 UI 方案。

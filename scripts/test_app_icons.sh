@@ -296,7 +296,7 @@ ui_plist="${ui_app}/Contents/Info.plist"
 [[ ! -e "${PACKAGE_DIST}/OpenDesk.app/Contents/Helpers/opendesk-ui-host" ]]
 cmp "${MACOS_ICON}" "${ui_app}/Contents/Resources/OpenDesk.icns"
 
-payload_digest="$(awk 'NR == 1 { print $1; exit }' "${PACKAGE_DIST}/OpenDesk.app/Contents/Resources/opendesk-payload.sha256")"
+payload_digest="$(awk 'NR == 1 { print $1; exit }' "${PACKAGE_DIST}/opendesk-payload.sha256")"
 binary_digest="$(shasum -a 256 "${PACKAGE_DIST}/opendesk" | awk '{print $1}')"
 if [[ "${payload_digest}" != "${binary_digest}" ]]; then
   printf 'OpenDesk app payload provenance does not match packaged binary.\n' >&2

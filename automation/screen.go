@@ -2,6 +2,7 @@ package automation
 
 import (
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/go-vgo/robotgo"
@@ -12,6 +13,7 @@ import (
 // Display namespace with duplicate list/primary methods.
 type Screen struct {
 	displayControl displayControlBackend
+	readPixel      func(x, y int) string
 }
 
 // DisplayInfo describes one physical display.
@@ -118,53 +120,74 @@ func (s *Screen) GetVirtualBounds() map[string]interface{} {
 
 // Pixel returns the color of a specific pixel at (x, y) coordinates
 func (s *Screen) Pixel(x, y int) string {
-	color := robotgo.GetPixelColor(x, y)
+	var color string
+	if s.readPixel == nil {
+		color = robotgo.GetPixelColor(x, y)
+	} else {
+		color = s.readPixel(x, y)
+	}
 	if color == "" {
 		return ""
 	}
 	return "#" + color
 }
 
-// Pixels returns colors for multiple points as hex strings.
-// If a color cannot be retrieved for a point, it returns an empty string for that point.
-func (s *Screen) Pixels(points []interface{}, scaled bool) []string {
-	colors := make([]string, len(points))
-
-	for i, point := range points {
-		var x, y int
-
-		// Handle different input types
-		switch p := point.(type) {
-		case []interface{}:
-			if len(p) != 2 {
-				colors[i] = ""
-				continue
-			}
-			x = jsToInt(p[0])
-			y = jsToInt(p[1])
-		case map[string]interface{}:
-			x = jsToInt(p["x"])
-			y = jsToInt(p["y"])
-		default:
-			colors[i] = ""
-			continue
-		}
-
-		// Optional scaling (default true)
-		if scaled == false {
-			// TODO: Implement unscaled coordinate handling if needed
-		}
-
-		// Get pixel color and ensure it starts with #
-		color := robotgo.GetPixelColor(x, y)
-		if color == "" {
-			colors[i] = ""
-		} else {
-			colors[i] = "#" + color
-		}
+// Pixels validates the entire batch before reading any screen pixel.
+func (s *Screen) Pixels(points any, _ bool) ([]string, error) {
+	list, ok := points.([]any)
+	if !ok {
+		return nil, fmt.Errorf("points must be an array")
 	}
 
-	return colors
+	coordinates := make([][2]int, len(list))
+	for i, point := range list {
+		var x, y any
+		switch p := point.(type) {
+		case []any:
+			if len(p) != 2 {
+				return nil, fmt.Errorf("points[%d] must contain exactly two coordinates", i)
+			}
+			x, y = p[0], p[1]
+		case map[string]any:
+			x, y = p["x"], p["y"]
+		default:
+			return nil, fmt.Errorf("points[%d] must be a coordinate pair or an object with x and y", i)
+		}
+
+		px, xOK := screenPixelCoordinate(x)
+		py, yOK := screenPixelCoordinate(y)
+		if !xOK || !yOK {
+			return nil, fmt.Errorf("points[%d] requires finite numeric x and y coordinates in the supported range", i)
+		}
+		coordinates[i] = [2]int{px, py}
+	}
+
+	colors := make([]string, len(coordinates))
+	for i, point := range coordinates {
+		colors[i] = s.Pixel(point[0], point[1])
+	}
+	return colors, nil
+}
+
+func screenPixelCoordinate(value any) (int, bool) {
+	var numeric float64
+	switch v := value.(type) {
+	case int:
+		numeric = float64(v)
+	case int64:
+		numeric = float64(v)
+	case float64:
+		numeric = v
+	default:
+		return 0, false
+	}
+	// robotgo marshals coordinates as signed 32-bit integers. Preserve the
+	// previous truncation of fractional inputs without letting large values wrap.
+	numeric = math.Trunc(numeric)
+	if math.IsNaN(numeric) || numeric < math.MinInt32 || numeric > math.MaxInt32 {
+		return 0, false
+	}
+	return int(numeric), true
 }
 
 func resolveDisplays() []DisplayInfo {

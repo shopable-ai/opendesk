@@ -8,6 +8,8 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -152,6 +154,8 @@ func Execute(args []string,stdout,stderr io.Writer) int {
     }
     if command=="dev" {return runBrowserDev(rest,stdout,stderr)}
     if command=="--read-only" {return runBrowserDev(args[1:],stdout,stderr)}
+	if command=="files-mcp" {return runFilesMCP(rest,stdout,stderr)}
+	if command=="socket" {return runSocketRecovery(rest,stdout,stderr)}
 	if command=="workspace" {
 		if len(rest)==0 || rest[0]=="help" || rest[0]=="--help" {
 			writeJSON(stdout,map[string]any{"commands":[]string{
@@ -197,6 +201,12 @@ func Execute(args []string,stdout,stderr io.Writer) int {
 		if len(rest)!=1{return exitError(stderr,browserbridge.ErrSchema)}
 		cfg,err:=browserbridge.Load()
 		if err!=nil{return exitError(stderr,err)}
+		// A launcher started before a rolling update may load the new binding
+		// afterwards. It must not advertise the newer executable's identity.
+		executable,err:=os.Executable()
+		if err==nil{executable,err=filepath.EvalSymlinks(executable)}
+		if err!=nil{return exitError(stderr,err)}
+		if executable!=cfg.Executable{return exitError(stderr,errors.New("E_NATIVE_RUNTIME_CHANGED"))}
 		host,err:=browserbridge.NewConnectionHost(cfg,rest[0],os.Stdin,stdout)
 		if err!=nil{return exitError(stderr,err)}
 		// Chrome normally closes stdin when its Port is destroyed. OS shutdown
@@ -290,5 +300,46 @@ func Execute(args []string,stdout,stderr io.Writer) int {
 	if _,err=fmt.Fprintln(stdout,string(reply));err!=nil{return 1}
 	var body map[string]json.RawMessage
 	if json.Unmarshal(reply,&body)!=nil || len(body["error"])>0{return 1}
+	return 0
+}
+
+func runSocketRecovery(args []string,stdout,stderr io.Writer) int {
+	if len(args)==0{return exitError(stderr,errors.New("E_CAPABILITY: browser socket [recover|help]"))}
+	if args[0]=="help" || args[0]=="--help" {
+		if len(args)!=1{return exitError(stderr,browserbridge.ErrSchema)}
+		writeJSON(stdout,map[string]any{
+			"command":"opendesk browser socket recover --extension-id <id> [--expected-device <positive-decimal-uint64>] [--expected-inode <positive-decimal-uint64>] [--dry-run true|false] [--legacy-quiesced true|false]",
+			"note":"Every flag requires a value. --dry-run defaults to false. Apply requires both expected identity values and --legacy-quiesced true. Legacy quiesced is the operator's explicit declaration that this instance's old Host and launchers have been safely quiesced; connection refusal or a new lock cannot establish it automatically. Recovery handles only the socket; it does not prove connection or a terminal outcome for an old AI request. Unknown AI requests may only be queried or stopped, never replayed.",
+		})
+		return 0
+	}
+	if args[0]!="recover"{return exitError(stderr,errors.New("E_CAPABILITY: browser socket [recover|help]"))}
+	opts,err:=parseOptions(args[1:],map[string]bool{
+		"--extension-id":true,"--expected-device":true,"--expected-inode":true,
+		"--dry-run":true,"--legacy-quiesced":true,
+	})
+	if err!=nil{return exitError(stderr,err)}
+	if !browserbridge.ExtensionIDValid(opts["--extension-id"]){return exitError(stderr,browserbridge.ErrSchema)}
+	recovery:=browserbridge.SocketRecoveryOptions{ExtensionID:opts["--extension-id"]}
+	for flag,target:=range map[string]*bool{"--dry-run":&recovery.DryRun,"--legacy-quiesced":&recovery.LegacyQuiesced} {
+		if raw,exists:=opts[flag];exists {
+			if raw!="true" && raw!="false"{return exitError(stderr,browserbridge.ErrSchema)}
+			*target=raw=="true"
+		}
+	}
+	for flag,target:=range map[string]*uint64{"--expected-device":&recovery.ExpectedDevice,"--expected-inode":&recovery.ExpectedInode} {
+		if raw,exists:=opts[flag];exists {
+			if raw==""{return exitError(stderr,browserbridge.ErrSchema)}
+			for _,digit:=range raw{if digit<'0' || digit>'9'{return exitError(stderr,browserbridge.ErrSchema)}}
+			value,parseErr:=strconv.ParseUint(raw,10,64)
+			if parseErr!=nil || value==0{return exitError(stderr,browserbridge.ErrSchema)}
+			*target=value
+		}
+	}
+	ctx,cancel:=context.WithTimeout(context.Background(),3*time.Second)
+	defer cancel()
+	result,err:=browserbridge.RecoverSocketContext(ctx,recovery)
+	if err!=nil{return exitError(stderr,err)}
+	writeJSON(stdout,result)
 	return 0
 }

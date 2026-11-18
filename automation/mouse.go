@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dop251/goja"
 	"github.com/go-vgo/robotgo"
 )
 
@@ -17,6 +18,8 @@ type Mouse struct {
 	pressedButtons       map[string]bool
 	context              context.Context
 	inputPermissionCheck func() error
+	dispatchClick        func(x, y int, options MouseOptions) error
+	dispatchMove         func(x, y int, options mouseMoveOptions) error
 }
 
 const (
@@ -42,6 +45,32 @@ func NewMouseWithContext(ctx context.Context) *Mouse {
 		ctx = context.Background()
 	}
 	return &Mouse{pressedButtons: make(map[string]bool), context: ctx, inputPermissionCheck: ensureMouseInputPermission}
+}
+
+// Check the raw JavaScript values before the reflection binding can coerce
+// them into integers or supply zero for a missing coordinate.
+func mapMouseToJS(runtime *goja.Runtime, mouse *Mouse) map[string]any {
+	methods := AutoMapObject(runtime, mouse)
+	if mouse == nil {
+		return methods
+	}
+	for _, name := range []string{"click", "move"} {
+		invoke := methods[name].(func(goja.FunctionCall) goja.Value)
+		methods[name] = func(call goja.FunctionCall) goja.Value {
+			for i, axis := range []string{"x", "y"} {
+				argument := call.Argument(i)
+				if goja.IsNumber(argument) {
+					coordinate := math.Trunc(argument.ToFloat())
+					if !math.IsNaN(coordinate) && coordinate >= math.MinInt32 && coordinate <= math.MaxInt32 {
+						continue
+					}
+				}
+				panic(runtime.NewTypeError("mouse.%s %s must be a finite number in the supported coordinate range", name, axis))
+			}
+			return invoke(call)
+		}
+	}
+	return methods
 }
 
 func (m *Mouse) checkInputPermission() error {
@@ -103,6 +132,10 @@ func (m *Mouse) Click(x, y int, options interface{}) error {
 				switch v := delay.(type) {
 				case int:
 					opts.Delay = v
+				case int64:
+					if v > 0 && int64(int(v)) == v && v <= math.MaxInt64/int64(time.Millisecond) {
+						opts.Delay = int(v)
+					}
 				case float64:
 					opts.Delay = int(v)
 				}
@@ -120,6 +153,9 @@ func (m *Mouse) Click(x, y int, options interface{}) error {
 	}
 	if err := m.checkInputPermission(); err != nil {
 		return err
+	}
+	if m.dispatchClick != nil {
+		return m.dispatchClick(x, y, opts)
 	}
 
 	// Handle single click case
@@ -174,6 +210,9 @@ func (m *Mouse) Move(x, y int, options interface{}) error {
 	}
 	if err := m.checkInputPermission(); err != nil {
 		return err
+	}
+	if m.dispatchMove != nil {
+		return m.dispatchMove(x, y, opts)
 	}
 
 	pressedButton := m.dragButtonForMove()

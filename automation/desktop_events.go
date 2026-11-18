@@ -138,6 +138,8 @@ type desktopEventSubscription struct {
 	inFlight  bool
 	deferred  *DesktopEvent
 	timer     *time.Timer
+	deadline  time.Time
+	timeout   time.Duration
 }
 
 type desktopEventGroup struct {
@@ -233,13 +235,12 @@ func (d *DesktopEventsRuntime) once(call goja.FunctionCall) goja.Value {
 	promise, resolve, reject := d.runtime.NewPromise()
 	subscription := &desktopEventSubscription{
 		eventType: eventType, resolve: resolve, reject: reject, once: true, active: true,
+		deadline: time.Now().Add(timeout), timeout: timeout,
 	}
 	if err := d.addSubscription(subscription, "Events.once"); err != nil {
 		panic(desktopEventsJSError(d.runtime, err))
 	}
-	if timeout > 0 {
-		subscription.timer = time.AfterFunc(timeout, func() { d.enqueueTimeout(subscription, timeout) })
-	}
+	subscription.timer = time.AfterFunc(time.Until(subscription.deadline), func() { d.enqueueTimeout(subscription) })
 	return d.runtime.ToValue(promise)
 }
 
@@ -271,7 +272,11 @@ func desktopEventTimeout(value goja.Value) (time.Duration, error) {
 	if milliseconds <= 0 || milliseconds > 600000 || milliseconds != milliseconds {
 		return 0, fmt.Errorf("timeout must be greater than 0 and at most 600000 milliseconds")
 	}
-	return time.Duration(milliseconds * float64(time.Millisecond)), nil
+	timeout := time.Duration(milliseconds * float64(time.Millisecond))
+	if timeout == 0 {
+		timeout = time.Nanosecond
+	}
+	return timeout, nil
 }
 
 func (d *DesktopEventsRuntime) eventTypeArgument(call goja.FunctionCall, index int, operation string) DesktopEventType {
@@ -428,6 +433,10 @@ func (d *DesktopEventsRuntime) dispatchSubscription(subscription *desktopEventSu
 		return
 	}
 	if subscription.once {
+		if !time.Now().Before(subscription.deadline) {
+			d.expireOnce(subscription)
+			return
+		}
 		resolve := subscription.resolve
 		d.removeSubscription(subscription, "Events.once", false)
 		if resolve != nil {
@@ -439,6 +448,9 @@ func (d *DesktopEventsRuntime) dispatchSubscription(subscription *desktopEventSu
 	}
 	if subscription.inFlight {
 		copy := event
+		if previous := subscription.deferred; previous != nil {
+			copy.Coalesced += previous.Coalesced + 1
+		}
 		subscription.deferred = &copy
 		return
 	}
@@ -512,24 +524,25 @@ func (d *DesktopEventsRuntime) finishCallback(subscription *desktopEventSubscrip
 	}
 }
 
-func (d *DesktopEventsRuntime) enqueueTimeout(subscription *desktopEventSubscription, timeout time.Duration) {
-	if d == nil || subscription == nil || d.closing.Load() || d.loop == nil {
+func (d *DesktopEventsRuntime) enqueueTimeout(subscription *desktopEventSubscription) {
+	if d.closing.Load() || d.loop == nil {
 		return
 	}
-	d.loop.RunOnLoop(func(*goja.Runtime) {
-		if !subscription.active || !subscription.once {
-			return
-		}
-		reject := subscription.reject
-		eventType := subscription.eventType
-		d.removeSubscription(subscription, "Events.once", false)
-		if reject != nil {
-			_ = reject(desktopEventsJSError(d.runtime, &DesktopEventsError{
-				Code: DesktopEventsTimeout, Operation: "Events.once", EventType: eventType,
-				Message: fmt.Sprintf("timed out after %s", timeout),
-			}))
-		}
-	})
+	d.loop.RunOnLoop(func(*goja.Runtime) { d.expireOnce(subscription) })
+}
+
+func (d *DesktopEventsRuntime) expireOnce(subscription *desktopEventSubscription) {
+	if !subscription.active || !subscription.once {
+		return
+	}
+	reject := subscription.reject
+	d.removeSubscription(subscription, "Events.once", false)
+	if reject != nil {
+		_ = reject(desktopEventsJSError(d.runtime, &DesktopEventsError{
+			Code: DesktopEventsTimeout, Operation: "Events.once", EventType: subscription.eventType,
+			Message: fmt.Sprintf("timed out after %s", subscription.timeout),
+		}))
+	}
 }
 
 func (d *DesktopEventsRuntime) removeSubscription(subscription *desktopEventSubscription, operation string, report bool) {

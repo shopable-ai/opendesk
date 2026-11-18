@@ -213,7 +213,8 @@ Runner 自身等待当前 recipe execution 收口后更新最终状态。
 录屏和其他已登记资源。执行超时、CLI 中断或 transport cancellation 会取消同一次 execution，
 并触发这些资源的清理。不要启动 Runtime 无法持有的后台任务后立即结束脚本；需要本地命令时
 使用受 execution 管理的 [Command API](command.md)。本地 `-script` 和 `ai run` 默认提供该能力，
-HTTP、MCP 与 Scheduler execution 不提供。
+HTTP、默认 MCP 与 Scheduler execution 不提供。可信 MCP 宿主可单独显式授权 Command，见
+[MCP Runtime 调用](../integrations/mcp/runtime-api.md)。
 
 `opendesk ai run` 还会等待常见的末尾 `main();` Promise；其他普通 `.js` 入口应使用顶层 `await` 明确
 表达完成条件。`.mjs` 文件入口由模块 loader 在链接完成后调用其导出的 `main()`。AI recipe 的输入与输出约定见

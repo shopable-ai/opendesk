@@ -14,6 +14,7 @@ spec = importlib.util.spec_from_file_location('prepare_run', Path(__file__).with
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 os.umask(0o077)
+module.ROOT = Path(os.environ.get('OPENDESK_TUNNEL_TEST_ROOT', str(module.ROOT)))
 root = module.ROOT / 'prepare-regression'
 root.mkdir(parents=True, exist_ok=True)
 case = Path(tempfile.mkdtemp(prefix='run-', dir=root))

@@ -64,6 +64,93 @@ func TestNvmCodexCandidatesAreBoundedAndSemverOrdered(t *testing.T) {
 	}
 }
 
+func TestAppOwnedCodexPrecedesAmbientCLIAndAbsentPackagePreservesDiscovery(t *testing.T) {
+	root := t.TempDir()
+	root, _ = filepath.EvalSymlinks(root)
+	appExecutable := filepath.Join(root, "OpenDesk.app", "Contents", "MacOS", "opendesk")
+	ambient := filepath.Join(root, "ambient", "codex")
+	bundled := filepath.Join(root, "OpenDesk.app", "Contents", "Resources", "codex-01621", "bin", "codex")
+	for _, file := range []string{appExecutable, ambient} {
+		if err := os.MkdirAll(filepath.Dir(file), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, []byte("synthetic, never executed"), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", filepath.Dir(ambient))
+	if got, err := discoverCodexForExecutable(appExecutable); err != nil || got != ambient {
+		t.Fatalf("absent optional package changed discovery: %q %v", got, err)
+	}
+	if err := os.MkdirAll(filepath.Dir(bundled), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bundled, []byte("synthetic, never executed"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := discoverCodexForExecutable(appExecutable); err != nil || got != bundled {
+		t.Fatalf("App-owned CLI did not precede PATH: %q %v", got, err)
+	}
+	// A standalone executable must not acquire the neighboring App's package.
+	if got, err := discoverCodexForExecutable(ambient); err != nil || got != ambient {
+		t.Fatalf("non-App discovery changed: %q %v", got, err)
+	}
+}
+
+func TestInvalidAppOwnedCodexFailsClosedInsteadOfFallingBack(t *testing.T) {
+	for _, invalid := range []string{"missing-binary", "non-executable", "package-symlink", "escaping-binary"} {
+		t.Run(invalid, func(t *testing.T) {
+			root := t.TempDir()
+			root, _ = filepath.EvalSymlinks(root)
+			appExecutable := filepath.Join(root, "OpenDesk.app", "Contents", "MacOS", "opendesk")
+			pkg := filepath.Join(root, "OpenDesk.app", "Contents", "Resources", "codex-01621")
+			ambient := filepath.Join(root, "ambient", "codex")
+			for _, file := range []string{appExecutable, ambient} {
+				if err := os.MkdirAll(filepath.Dir(file), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(file, []byte("synthetic, never executed"), 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			t.Setenv("PATH", filepath.Dir(ambient))
+			if err := os.MkdirAll(filepath.Dir(pkg), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if invalid == "package-symlink" {
+				if err := os.Symlink(filepath.Dir(ambient), pkg); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if err := os.MkdirAll(filepath.Join(pkg, "bin"), 0700); err != nil {
+					t.Fatal(err)
+				}
+				switch invalid {
+				case "non-executable":
+					if err := os.WriteFile(filepath.Join(pkg, "bin", "codex"), nil, 0600); err != nil {
+						t.Fatal(err)
+					}
+				case "escaping-binary":
+					if err := os.Symlink(ambient, filepath.Join(pkg, "bin", "codex")); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if got, err := discoverCodexForExecutable(appExecutable); err == nil || got != "" {
+				t.Fatalf("invalid App package selected a CLI: %q %v", got, err)
+			}
+			m := NewManager(Options{Factory: func(ctx context.Context, workspace string) (Agent, Capabilities, error) {
+				return factoryWithDiscovery(ctx, workspace, func() (string, error) { return discoverCodexForExecutable(appExecutable) })
+			}})
+			defer m.Close()
+			caps, _ := m.Probe(context.Background())
+			if caps.State != "CODEX_UNSUPPORTED" || caps.Reason != "E_CODEX_UNSUPPORTED" || caps.ReadyForTurn {
+				t.Fatalf("invalid package was misreported: state=%s reason=%s ready=%v", caps.State, caps.Reason, caps.ReadyForTurn)
+			}
+		})
+	}
+}
+
 func TestOwnedNvmCodexLauncherResolvesItsNodeWithoutShellPATH(t *testing.T) {
 	if os.PathSeparator != '/' {
 		t.Skip("POSIX npm launcher test")

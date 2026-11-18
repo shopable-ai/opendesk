@@ -346,10 +346,14 @@
         WritableStream.prototype._opendeskWrite = function _opendeskWrite(chunk) {
             var stream = this;
             var state = this._opendeskWritableState;
-            if (state.status !== 'writable') return Promise.reject(state.error || new TypeError('WritableStream is not writable'));
+            if (state.status !== 'writable') return Promise.reject(state.status === 'errored' ? state.error : new TypeError('WritableStream is not writable'));
             state.chain = state.chain.then(function () {
-                if (state.status !== 'writable') throw state.error || new TypeError('WritableStream is not writable');
+                // close() rejects new writes, but drains writes accepted before it.
+                if (state.status === 'errored') throw state.error;
                 return state.write ? state.write.call(undefined, chunk, {}) : undefined;
+            }).then(function (result) {
+                if (state.status === 'errored') throw state.error;
+                return result;
             }).catch(function (error) {
                 stream._opendeskError(error);
                 throw error;
@@ -360,14 +364,16 @@
         WritableStream.prototype._opendeskClose = function _opendeskClose() {
             var stream = this;
             var state = this._opendeskWritableState;
-            if (state.status !== 'writable') return Promise.reject(state.error || new TypeError('WritableStream is not writable'));
+            if (state.status !== 'writable') return Promise.reject(state.status === 'errored' ? state.error : new TypeError('WritableStream is not writable'));
             state.status = 'closing';
             state.chain = state.chain.then(function () {
+                if (state.status === 'errored') throw state.error;
                 return state.close ? state.close.call(undefined) : undefined;
             }).then(function () {
+                if (state.status === 'errored') throw state.error;
                 state.status = 'closed';
                 state.closedResolve(undefined);
-            }, function (error) {
+            }).catch(function (error) {
                 stream._opendeskError(error);
                 throw error;
             });
@@ -420,36 +426,56 @@
         function TransformStream(transformer) {
             var transform = transformer === undefined ? {} : Object(transformer);
             var readableController;
+            var writableController;
+            var failed = false;
+            var failure;
+            function errorBoth(reason) {
+                if (!failed) {
+                    failed = true;
+                    failure = reason;
+                }
+                readableController.error(failure);
+                if (writableController) writableController.error(failure);
+            }
+            function rejectBoth(reason) {
+                errorBoth(reason);
+                throw reason;
+            }
             var readable = new global.ReadableStream({
                 start: function (controller) { readableController = controller; }
             });
             var transformController = {
                 enqueue: function (chunk) { readableController.enqueue(chunk); },
-                error: function (reason) { readableController.error(reason); },
+                error: errorBoth,
                 terminate: function () { readableController.close(); }
             };
             var started;
             try {
                 started = typeof transform.start === 'function' ? transform.start(transformController) : undefined;
             } catch (error) {
-                readableController.error(error);
+                errorBoth(error);
                 started = Promise.reject(error);
             }
             var startPromise = Promise.resolve(started);
-            startPromise.catch(function () {});
+            startPromise.catch(errorBoth);
             var writable = new global.WritableStream({
+                start: function (controller) {
+                    writableController = controller;
+                    if (failed) controller.error(failure);
+                    return startPromise;
+                },
                 write: function (chunk) {
                     return startPromise.then(function () {
                         if (typeof transform.transform === 'function') return transform.transform(chunk, transformController);
                         transformController.enqueue(chunk);
-                    });
+                    }).catch(rejectBoth);
                 },
                 close: function () {
                     return startPromise.then(function () {
                         return typeof transform.flush === 'function' ? transform.flush(transformController) : undefined;
-                    }).then(function () { readableController.close(); });
+                    }).then(function () { readableController.close(); }).catch(rejectBoth);
                 },
-                abort: function (reason) { readableController.error(reason); }
+                abort: errorBoth
             });
             Object.defineProperties(this, {
                 readable: { enumerable: true, value: readable },

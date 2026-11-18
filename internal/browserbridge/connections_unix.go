@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -24,6 +27,76 @@ import (
 const ConnectionEnvironment = "OPENDESK_NATIVE_CONNECTION"
 
 var connectionIDPattern = regexp.MustCompile(`^[a-f0-9]{32}$`)
+
+// A rolling update authorizes only the exact already-live scope snapshots.
+// No executable allowlist, grants or credentials are inherited by a new Port.
+func validRetainedConnections(value string) bool {
+	if value == "" {
+		return true
+	}
+	entries := strings.Split(value, ",")
+	if len(entries) > MaxClients {
+		return false
+	}
+	last := ""
+	for _, entry := range entries {
+		if len(entry) != 97 || entry[32] != ':' || !connectionIDPattern.MatchString(entry[:32]) ||
+			!CredentialValid(entry[33:]) || entry[:32] <= last {
+			return false
+		}
+		last = entry[:32]
+	}
+	return true
+}
+
+func retainedConnectionCount(value string) int {
+	if value == "" {
+		return 0
+	}
+	return strings.Count(value, ",") + 1
+}
+
+func connectionRuntimeBinding(cfg Installation) string {
+	// Frozen v1 wire order: adding Installation fields must not change the
+	// digest of a scope published by an earlier supporting binary.
+	data, _ := json.Marshal([]string{"opendesk.native-connection-runtime.v1",
+		cfg.ApprovedExtensions, cfg.ConnectionID, cfg.ParentRoot, cfg.ParentCredentialDigest,
+		cfg.Name, cfg.ExtensionID, cfg.Browser, cfg.UserDataDir, cfg.SocketPath,
+		cfg.ClientCredential, cfg.InstallRoot, cfg.Provider, cfg.Executable, cfg.CreatedAt, cfg.InstalledAt})
+	digest := sha256.Sum256(data)
+	return cfg.ConnectionID + ":" + hex.EncodeToString(digest[:])
+}
+
+func retainConnectionRuntimes(connections []Installation) (string, error) {
+	entries := make([]string, 0, len(connections))
+	for _, cfg := range connections {
+		// Older running binaries enforce exact executable equality. Updating
+		// underneath them would invalidate their outstanding work.
+		if cfg.ConnectionUpdateVersion != 1 {
+			return "", errors.New("E_SOCKET_IN_USE")
+		}
+		entries = append(entries, connectionRuntimeBinding(cfg))
+	}
+	sort.Strings(entries)
+	value := strings.Join(entries, ",")
+	if !validRetainedConnections(value) {
+		return "", errors.New("E_CONNECTION_INVALID")
+	}
+	return value, nil
+}
+
+func connectionRuntimeMatches(cfg, parent Installation) bool {
+	if cfg.RetainedConnections != "" || (cfg.ConnectionUpdateVersion != 0 && cfg.ConnectionUpdateVersion != 1) ||
+		!validRetainedConnections(parent.RetainedConnections) {
+		return false
+	}
+	for _, entry := range strings.Split(parent.RetainedConnections, ",") {
+		if strings.HasPrefix(entry, cfg.ConnectionID+":") {
+			return cfg.ConnectionUpdateVersion == 1 && entry == connectionRuntimeBinding(cfg)
+		}
+	}
+	return cfg.Executable == parent.Executable
+}
 
 func connectionDirectory() (string, error) {
 	base, err := browserBaseDir()
@@ -99,6 +172,8 @@ func allocateConnectionHost(parent Installation, origin string, input io.Reader,
 		return nil, err
 	}
 	cfg := parent
+	cfg.ConnectionUpdateVersion = 1
+	cfg.RetainedConnections = ""
 	cfg.ConnectionID = connectionID
 	cfg.ParentRoot = parent.InstallRoot
 	cfg.ParentCredentialDigest = digestCredential(parent.ClientCredential)
@@ -161,7 +236,7 @@ func validateConnectionParent(cfg, parent Installation) error {
 		cfg.ParentCredentialDigest != digestCredential(parent.ClientCredential) || !InstallationAllowsExtension(parent, cfg.ExtensionID) {
 		return errors.New("E_CONNECTION_REVOKED")
 	}
-	if cfg.Name != parent.Name || cfg.Provider != parent.Provider || cfg.Executable != parent.Executable ||
+	if cfg.Name != parent.Name || cfg.Provider != parent.Provider || !connectionRuntimeMatches(cfg, parent) ||
 		cfg.Browser != parent.Browser || cfg.UserDataDir != parent.UserDataDir || !CredentialValid(cfg.ClientCredential) ||
 		cfg.InstallRoot != filepath.Join(base, cfg.ConnectionID) || cfg.SocketPath != filepath.Join(cfg.InstallRoot, "agent.sock") {
 		return errors.New("E_CONNECTION_INVALID")
@@ -173,6 +248,14 @@ func validateConnectionParent(cfg, parent Installation) error {
 }
 
 func readConnection(parent Installation, id string) (Installation, error) {
+	cfg, err := readConnectionRecord(id)
+	if err == nil {
+		err = validateConnectionParent(cfg, parent)
+	}
+	return cfg, err
+}
+
+func readConnectionRecord(id string) (Installation, error) {
 	var cfg Installation
 	if !connectionIDPattern.MatchString(id) {
 		return cfg, errors.New("E_CONNECTION_INVALID")
@@ -218,10 +301,64 @@ func readConnection(parent Installation, id string) (Installation, error) {
 	if json.Unmarshal(data, &cfg) != nil || cfg.ConnectionID != id {
 		return Installation{}, errors.New("E_CONNECTION_INVALID")
 	}
-	if err = validateConnectionParent(cfg, parent); err != nil {
-		return Installation{}, err
-	}
 	return cfg, nil
+}
+
+// Called only under the shared, process-independent installation transaction
+// lock. Verify the other installation's private config, launcher, manifest and
+// scope binding; an untrusted ParentRoot claim alone can never exclude work.
+func connectionBelongsToOtherInstallation(id string, current Installation) bool {
+	cfg, err := readConnectionRecord(id)
+	if err != nil || cfg.ParentRoot == current.InstallRoot {
+		return false
+	}
+	base, err := connectionDirectory()
+	if err != nil {
+		return false
+	}
+	base = filepath.Dir(base)
+	root, instance := cfg.ParentRoot, ""
+	if root != filepath.Join(base, "native-agent-r1") {
+		instance = filepath.Base(root)
+		if !nativeInstancePattern.MatchString(instance) || root != filepath.Join(base, "native-agent-instances", instance) {
+			return false
+		}
+	}
+	if requireDir(filepath.Dir(root)) != nil || requireDir(root) != nil {
+		return false
+	}
+	file := filepath.Join(root, "install.json")
+	info, err := requireRegular(file, 0600)
+	if err != nil || info.Size() > 65536 {
+		return false
+	}
+	data, err := os.ReadFile(file)
+	var parent Installation
+	if err != nil || json.Unmarshal(data, &parent) != nil || parent.InstallRoot != root || parent.SocketPath != filepath.Join(root, "agent.sock") ||
+		parent.ConnectionID != "" || parent.ParentRoot != "" || parent.ParentCredentialDigest != "" || parent.ConnectionUpdateVersion != 0 ||
+		!validRetainedConnections(parent.RetainedConnections) || !validApprovedExtensions(parent) || parent.Name != HostName || parent.Provider != "opendesk" ||
+		!ExtensionIDValid(parent.ExtensionID) || !CredentialValid(parent.ClientCredential) || !filepath.IsAbs(parent.Executable) ||
+		(parent.Browser != "chrome" && parent.Browser != "cft") || (instance != "" && (parent.Browser != "cft" || parent.UserDataDir == "")) {
+		return false
+	}
+	transaction := "default"
+	if instance != "" {
+		transaction = "instance-" + instance
+	}
+	if _, err = os.Lstat(filepath.Join(base, "install-transactions-r2", transaction, "journal.json")); !os.IsNotExist(err) {
+		return false
+	}
+	wrapper := filepath.Join(root, "native-host")
+	if _, err = requireRegular(wrapper, 0700); err != nil {
+		return false
+	}
+	data, err = os.ReadFile(wrapper)
+	expected, legacy, wrapperErr := expectedWrapperForInstance(parent.Executable, instance, instance != "")
+	if err != nil || wrapperErr != nil || (string(data) != expected && (instance != "" || string(data) != legacy)) {
+		return false
+	}
+	manifest, err := ManifestFor(parent.Browser, parent.UserDataDir)
+	return err == nil && validateManifest(manifest, parent) == nil && validateConnectionParent(cfg, parent) == nil
 }
 
 // dialConnection verifies the server's connection identity before a request can
@@ -252,6 +389,14 @@ func dialConnection(cfg Installation) (net.Conn, error) {
 }
 
 func connectionCandidates(parent Installation) ([]Installation, error) {
+	return connectionCandidatesWithPolicy(parent, false)
+}
+
+func connectionCandidatesForUpdate(parent Installation) ([]Installation, error) {
+	return connectionCandidatesWithPolicy(parent, true)
+}
+
+func connectionCandidatesWithPolicy(parent Installation, updating bool) ([]Installation, error) {
 	base, err := connectionDirectory()
 	if err != nil {
 		return nil, err
@@ -273,13 +418,27 @@ func connectionCandidates(parent Installation) ([]Installation, error) {
 		}
 		cfg, err := readConnection(parent, e.Name())
 		if err != nil {
+			if updating {
+				if connectionBelongsToOtherInstallation(e.Name(), parent) {
+					continue
+				}
+				// An unverified scope may still own work. Only its released
+				// lifetime lock proves retirement; a failed probe never does.
+				release, lockErr := lockConnectionRoot(filepath.Join(base, e.Name()))
+				if lockErr != nil {
+					return nil, errors.New("E_CONNECTION_NOT_READY")
+				}
+				release()
+			}
 			continue
 		}
 		// A blocked/busy/unready live Host is still a possible target. Never
 		// silently choose the other browser because a probe temporarily failed.
 		// An acquired lifetime lock proves only this scoped Host is retired.
 		if release, lockErr := lockConnectionRoot(cfg.InstallRoot); lockErr == nil {
-			retireConnectionFiles(cfg, nil)
+			if !updating {
+				retireConnectionFiles(cfg, nil)
+			}
 			release()
 			continue
 		}
@@ -366,7 +525,8 @@ func Connections() (map[string]any, error) {
 		if err == nil {
 			_ = probe.Close()
 		}
-		rows = append(rows, map[string]any{"connectionId": c.ConnectionID, "extensionId": c.ExtensionID, "browser": c.Browser, "ready": err == nil})
+		rows = append(rows, map[string]any{"connectionId": c.ConnectionID, "extensionId": c.ExtensionID, "browser": c.Browser, "ready": err == nil,
+			"liveUpdateSupported": c.ConnectionUpdateVersion == 1, "runtimeCurrent": c.Executable == parent.Executable})
 	}
 	return map[string]any{"connections": rows}, nil
 }
@@ -376,8 +536,12 @@ func verifyClientInstallation(cfg Installation) error {
 	if err != nil {
 		return err
 	}
+	return verifyConnectionParent(cfg, parent)
+}
+
+func verifyConnectionParent(cfg, parent Installation) error {
 	if cfg.ConnectionID != "" {
-		if err = validateConnectionParent(cfg, parent); err != nil {
+		if err := validateConnectionParent(cfg, parent); err != nil {
 			return err
 		}
 		current, err := readConnection(parent, cfg.ConnectionID)
@@ -467,11 +631,36 @@ func (h *Host) watchConnectionAuthorization() {
 		case <-h.done:
 			return
 		case <-ticker.C:
-			err := verifyClientInstallation(h.cfg)
+			err := h.verifyInstallation()
 			if err != nil && (err.Error() == "E_CONNECTION_REVOKED" || os.IsNotExist(err)) {
 				h.Close()
 				return
 			}
+		}
+	}
+}
+
+// A received frame is held, never replayed or admitted against stale state.
+// Unlike a short-lived CLI client, a live Host waits through a slow install
+// transaction until publication completes or its own Port is closed.
+func (h *Host) verifyInstallation() error {
+	for {
+		select {
+		case <-h.done:
+			return ErrClosed
+		default:
+		}
+		parent, err := Load()
+		if err == nil {
+			return verifyConnectionParent(h.cfg, parent)
+		}
+		if err.Error() != "E_INSTALL_BUSY" {
+			return err
+		}
+		select {
+		case <-h.done:
+			return ErrClosed
+		case <-time.After(5 * time.Millisecond):
 		}
 	}
 }

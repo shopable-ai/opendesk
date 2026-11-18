@@ -237,3 +237,138 @@ func TestJXACommandHelperProcess(t *testing.T) {
 	}
 	os.Exit(0)
 }
+
+func TestWindowListPIDCoreGraphicsMerge(t *testing.T) {
+	jxa := []macWindow{{PID: 42, Handle: 10, Title: "JXA title"}}
+	cg := func() ([]macWindow, error) {
+		return []macWindow{
+			{PID: 41, Handle: 20}, {PID: 42, Handle: 10, Title: "CG title"}, {PID: 42, Handle: 30},
+		}, nil
+	}
+	rows, err := mergeMacWindowCoreGraphics(jxa, 42, cg)
+	if err != nil || len(rows) != 2 || rows[0].Title != "JXA title" || rows[1].Handle != 30 {
+		t.Fatalf("scoped merge=%v err=%v", rows, err)
+	}
+	rows, err = mergeMacWindowCoreGraphics([]macWindow{}, 99, cg)
+	if err != nil || rows == nil || len(rows) != 0 {
+		t.Fatalf("absent merge=%v err=%v", rows, err)
+	}
+	rows, err = mergeMacWindowCoreGraphics(jxa, 0, cg)
+	if err != nil || len(rows) != 3 {
+		t.Fatalf("default merge=%v err=%v", rows, err)
+	}
+	cause := errors.New("CG enumeration denied")
+	broken := func() ([]macWindow, error) { return nil, cause }
+	for _, initial := range [][]macWindow{jxa, {}} {
+		rows, err = mergeMacWindowCoreGraphics(initial, 42, broken)
+		if !errors.Is(err, cause) || rows != nil {
+			t.Fatalf("scoped error suppressed: rows=%v err=%v", rows, err)
+		}
+	}
+	rows, err = mergeMacWindowCoreGraphics(jxa, 0, broken)
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("default degradation changed: rows=%v err=%v", rows, err)
+	}
+}
+
+func TestWindowListPIDNormalizationFailsClosed(t *testing.T) {
+	for _, item := range []macWindow{
+		{PID: 42, Width: 230, Height: 408}, // No title or fallback name.
+		{PID: 0, Title: "Fixture", Width: 230, Height: 408},
+		{PID: 41, Title: "Fixture", Width: 230, Height: 408},
+		{PID: 42, Title: "Fixture", Width: 0, Height: 408},
+		{PID: 42, Title: "Fixture", Width: 230, Height: -1},
+	} {
+		if keep, err := normalizeMacWindowListRow(&item, 42); err == nil || keep {
+			t.Fatalf("invalid candidate omitted: item=%+v keep=%v err=%v", item, keep, err)
+		}
+	}
+	unnamed := macWindow{PID: 42, Width: 230, Height: 408, AppName: "Calculator", X: -100}
+	if keep, err := normalizeMacWindowListRow(&unnamed, 42); !keep || err != nil || unnamed.Title != "Calculator" {
+		t.Fatalf("title fallback changed: %+v keep=%v err=%v", unnamed, keep, err)
+	}
+	// Original full-desktop normalization still permits bad geometry in rows and
+	// silently skips a row with no title/name; the scoped path alone is stricter.
+	badBounds := macWindow{Title: "Fixture"}
+	if keep, err := normalizeMacWindowListRow(&badBounds, 0); !keep || err != nil {
+		t.Fatalf("default bounds behavior changed: %v", err)
+	}
+	empty := macWindow{}
+	if keep, err := normalizeMacWindowListRow(&empty, 0); keep || err != nil {
+		t.Fatalf("default empty-title behavior changed: %v", err)
+	}
+}
+
+// These callbacks model native calls that can return successfully after their
+// budget. They never inspect windows or invoke AppleEvents/GUI APIs.
+func TestDarwinActivateTotalBudget(t *testing.T) {
+	for _, scenario := range []struct {
+		name           string
+		lateStage      string
+		initialFocused bool
+		focusAfter     int
+		wantRefreshes  int
+		wantActivates  int
+		wantTimeout    bool
+	}{
+		{"initial_late_success", "initial", true, 0, 1, 0, true},
+		{"initial_late_unfocused_no_submission", "initial", false, 0, 1, 0, true},
+		{"activation_late_success", "activation", false, 2, 1, 1, true},
+		{"late_readback", "readback", false, 2, 2, 1, true},
+		{"no_duplicate_activation", "", false, 0, 0, 1, true},
+		{"timely_already_focused", "", true, 0, 1, 0, false},
+		{"timely_activation", "", false, 2, 2, 1, false},
+		{"timely_retry_without_reactivation", "", false, 3, 3, 1, false},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			budget := 100 * time.Millisecond
+			target := WindowInfo{ID: "42:99", ProcessID: 42, Handle: 99}
+			refreshes, activations := 0, 0
+			var contexts []context.Context
+			late := func() { time.Sleep(budget + 10*time.Millisecond) }
+			current, err := activateDarwinWindowWithCallbacks(target, budget,
+				func(ctx context.Context, got WindowInfo) (*WindowInfo, error) {
+					refreshes++
+					contexts = append(contexts, ctx)
+					if got != target {
+						t.Fatalf("refresh target changed: %+v", got)
+					}
+					if (refreshes == 1 && scenario.lateStage == "initial") ||
+						(refreshes > 1 && scenario.lateStage == "readback") {
+						late()
+					}
+					item := target
+					item.IsForeground = (refreshes == 1 && scenario.initialFocused) ||
+						(scenario.focusAfter > 0 && refreshes >= scenario.focusAfter)
+					item.HasFocus = item.IsForeground
+					return &item, nil
+				},
+				func(got WindowInfo, remaining time.Duration) error {
+					activations++
+					if got != target || remaining <= 0 || remaining > budget {
+						t.Errorf("invalid activation target/budget: %+v %s", got, remaining)
+					}
+					if scenario.lateStage == "activation" {
+						late()
+					}
+					return nil
+				})
+			if scenario.wantTimeout {
+				var windowErr *WindowError
+				if current != nil || !errors.As(err, &windowErr) || windowErr.Code != WindowVerificationFailed {
+					t.Errorf("expected total-budget verification failure, got current=%+v err=%v", current, err)
+				}
+			} else if err != nil || current == nil || !current.IsForeground || !current.HasFocus {
+				t.Errorf("expected timely focused result, got current=%+v err=%v", current, err)
+			}
+			if activations != scenario.wantActivates || (scenario.wantRefreshes > 0 && refreshes != scenario.wantRefreshes) {
+				t.Errorf("calls: refresh=%d activate=%d; want refresh=%d activate=%d", refreshes, activations, scenario.wantRefreshes, scenario.wantActivates)
+			}
+			for _, ctx := range contexts {
+				if _, ok := ctx.Deadline(); !ok || ctx != contexts[0] {
+					t.Error("refreshes must share one total deadline context")
+				}
+			}
+		})
+	}
+}

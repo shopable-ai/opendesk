@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/dop251/goja"
@@ -150,6 +151,7 @@ type floatingWindow struct {
 	ui                    *CustomUIRuntime
 	windowID              string
 	window                *customui.Window
+	creation              *floatingWindowCreation
 	starting              bool
 	closed                bool
 	items                 []floatingToolbarItem
@@ -167,6 +169,16 @@ type floatingWindow struct {
 	errorHandler          goja.Callable
 	lifecycleListeners    map[uint64]floatingLifecycleListener
 	nextLifecycleListener uint64
+}
+
+// The creation worker owns window until done closes. Close joins that worker
+// before reading window, including when a driver ignores cancellation and
+// delivers a native resource late. No worker reads the EventLoop-owned state.
+type floatingWindowCreation struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	done   chan struct{}
+	window *customui.Window
 }
 
 func newDefaultFloatingWindow(ui *CustomUIRuntime) *floatingWindow {
@@ -568,13 +580,7 @@ func (f *floatingWindow) jsObject() *goja.Object {
 			}
 			return f.ui.startAsync("FloatingWindow.hide", func(ctx context.Context) (any, error) { return f.window.Hide(ctx) }, nil)
 		},
-		"close": func(goja.FunctionCall) goja.Value {
-			if f.window == nil {
-				f.release()
-				return f.resolved(nil)
-			}
-			return f.ui.startAsync("FloatingWindow.close", func(ctx context.Context) (any, error) { return f.window.Close(ctx) }, nil)
-		},
+		"close":        func(goja.FunctionCall) goja.Value { return f.close() },
 		"setPosition":  func(call goja.FunctionCall) goja.Value { return f.setPosition(call) },
 		"setPlacement": func(call goja.FunctionCall) goja.Value { return f.setPlacement(call) },
 		"setAlwaysOnTop": func(call goja.FunctionCall) goja.Value {
@@ -759,9 +765,10 @@ func (f *floatingWindow) show() goja.Value {
 		panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeInvalidState, Operation: "FloatingWindow.show", WindowID: f.windowID, Capability: "lifecycle", Message: "toolbar is closed"}))
 	}
 	if f.window != nil {
-		return f.ui.startAsync("FloatingWindow.show", func(ctx context.Context) (any, error) { return f.window.Show(ctx) }, nil)
+		window := f.window
+		return f.ui.startAsync("FloatingWindow.show", func(ctx context.Context) (any, error) { return window.Show(ctx) }, nil)
 	}
-	if f.starting {
+	if f.starting || f.creation != nil {
 		panic(customUIJSError(f.ui.runtime, &customui.Error{Code: customui.CodeBusy, Operation: "FloatingWindow.show", WindowID: f.windowID, Capability: "lifecycle", Message: "floating toolbar is being created"}))
 	}
 	if f.contentCount() < 1 || f.contentCount() > f.maxContentItems() {
@@ -785,15 +792,48 @@ func (f *floatingWindow) show() goja.Value {
 		Placement: f.placement, InteractionGroup: f.interactionGroup, Toolbar: &declaration,
 	}
 	spec = f.ui.appWindowSpec(spec)
-	return f.ui.startAsyncFinally("FloatingWindow.show", func(ctx context.Context) (any, error) {
-		window, err := f.ui.session.Create(ctx, spec)
+	ctx, cancel := context.WithCancel(f.ui.context)
+	creation := &floatingWindowCreation{ctx: ctx, cancel: cancel, done: make(chan struct{})}
+	f.creation = creation
+	session := f.ui.session
+	canceled := func() error {
+		return &customui.Error{Code: customui.CodeCanceled, Operation: "FloatingWindow.show", WindowID: spec.ID,
+			Message: "floating toolbar creation was canceled", Cause: creation.ctx.Err()}
+	}
+	return f.ui.startAsyncFinally("FloatingWindow.show", func(context.Context) (any, error) {
+		defer close(creation.done)
+		defer creation.cancel()
+		if creation.ctx.Err() != nil {
+			return nil, canceled()
+		}
+		window, err := session.Create(creation.ctx, spec)
+		// Create retains and returns a delivered resource when its bounded
+		// failure cleanup could not close it. Keep the same owner for retry.
+		creation.window = window
 		if err != nil {
 			return nil, err
 		}
-		state, err := window.Show(ctx)
+		closeCreated := func(cause error) (any, error) {
+			// Creation cancellation must not cancel cleanup immediately, but a
+			// connected, unresponsive host must not hold Window.operation forever
+			// and prevent execution teardown from reaching driver.Close.
+			cleanupContext, cleanupCancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cleanupCancel()
+			if _, cleanupErr := window.Close(cleanupContext); cleanupErr != nil {
+				// Keep creation.window owned for explicit close retry or teardown.
+				return nil, errors.Join(cause, fmt.Errorf("floating toolbar cleanup failed: %w", cleanupErr))
+			}
+			return nil, cause
+		}
+		if creation.ctx.Err() != nil {
+			return closeCreated(canceled())
+		}
+		state, err := window.Show(creation.ctx)
 		if err != nil {
-			_, _ = window.Close(context.Background())
-			return nil, err
+			return closeCreated(err)
+		}
+		if creation.ctx.Err() != nil {
+			return closeCreated(canceled())
 		}
 		return struct {
 			window *customui.Window
@@ -804,11 +844,49 @@ func (f *floatingWindow) show() goja.Value {
 			window *customui.Window
 			state  customui.WindowState
 		})
-		f.window = result.window
-		f.bounds = result.state.Bounds
-		f.starting = false
+		// Close may already own this creation while the result waits on the
+		// EventLoop. Its completion must not resurrect the logical toolbar.
+		if !f.closed {
+			f.window = result.window
+			f.bounds = result.state.Bounds
+			f.creation = nil
+		}
 		return f.ui.runtime.ToValue(jsonCompatible(result.state))
-	}, func(error) { f.starting = false })
+	}, func(err error) {
+		f.starting = false
+		if err != nil && !f.closed && creation.window == nil && f.creation == creation {
+			f.creation = nil
+		}
+	})
+}
+
+func (f *floatingWindow) close() goja.Value {
+	if creation := f.creation; creation != nil {
+		f.release()
+		return f.ui.startAsync("FloatingWindow.close", func(ctx context.Context) (any, error) {
+			select {
+			case <-creation.done:
+			case <-ctx.Done():
+				return nil, &customui.Error{Code: customui.CodeCanceled, Operation: "FloatingWindow.close", Message: "waiting for floating toolbar creation was canceled", Cause: ctx.Err()}
+			}
+			if creation.window == nil {
+				return nil, nil
+			}
+			return creation.window.Close(ctx)
+		}, func(value any) goja.Value {
+			f.window = creation.window
+			if f.creation == creation {
+				f.creation = nil
+			}
+			return f.ui.runtime.ToValue(jsonCompatible(value))
+		})
+	}
+	if f.window == nil {
+		f.release()
+		return f.resolved(nil)
+	}
+	window := f.window
+	return f.ui.startAsync("FloatingWindow.close", func(ctx context.Context) (any, error) { return window.Close(ctx) }, nil)
 }
 
 func (f *floatingWindow) toolbarSpec() toolbar.ToolbarSpec {
@@ -1727,6 +1805,9 @@ func (f *floatingWindow) listenerCount() int {
 }
 
 func (f *floatingWindow) release() {
+	if f.creation != nil {
+		f.creation.cancel()
+	}
 	if f.closed {
 		return
 	}

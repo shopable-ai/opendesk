@@ -1,5 +1,6 @@
 ---
 title: File API
+docType: reference
 description: File 对象提供面向脚本的文件系统读写、移动、复制、删除与路径处理能力。
 order: 350
 ---
@@ -60,7 +61,437 @@ File 是运行时注入的文件系统对象。原有 `read()`、`write()` 等�
 | File.open(path, mode) | 按模式打开文件 |
 | FileHandle.tryLock() | 对已打开的普通文件尝试非阻塞独占锁 |
 
-## File：常用方法
+## 公共约定
+
+同步 File 方法采用当前宿主的路径与文件系统语义。相对路径以不可变的 `Execution.workdir` 为基准；绝对路径直接使用。
+File 不提供文件沙箱，也不要求额外 MCP capability flag；调用方仍须限定授权的数据范围。同步 I/O 没有独立的 `signal`、超时或取消参数，进入系统调用后不能承诺立即中断。
+除另有说明，宿主 I/O 错误作为 JavaScript Error 抛出；不要依赖跨平台固定的错误文本或 `code`。JSON API 的结构化错误只适用于 JSON 方法。
+
+## File.create(path)
+
+创建空文件；已存在的普通文件会被截断为零字节。
+
+**签名**
+
+```ts
+File.create(path: string): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `path` | `string` | 是 | 无 | 文件路径；父目录必须已存在。 |
+
+**返回值**
+
+返回 `undefined`。
+
+**行为与错误**
+
+同步调用宿主文件系统，不创建父目录。目标为目录、父目录缺失、权限拒绝或关闭文件失败时抛错。现有普通文件会立即被截断；会跟随文件符号链接，不提供独占创建或事务保证。需要避免覆盖时使用 `File.writeNew`。
+
+**示例**
+
+以下片段在仓库根目录的普通 Runtime 脚本中运行；仅操作 `.runtime/examples/file/` 下的示例文件。
+
+```js
+File.ensureDir('./.runtime/examples/file');
+File.create('./.runtime/examples/file/empty.txt');
+```
+
+## File.createIfNotExists(path)
+
+目标不存在时创建空文件；已存在时保持原内容。
+
+**签名**
+
+```ts
+File.createIfNotExists(path: string): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `path` | `string` | 是 | 无 | 要检查或创建的文件路径；父目录必须已存在。 |
+
+**返回值**
+
+返回 `undefined`，不返回是否创建的标记。
+
+**行为与错误**
+
+同步先查询路径；存在的文件或目录均不修改。仅不存在时按 `File.create` 创建，其他查询错误直接抛出；父目录缺失或创建失败也抛错。检查与创建之间没有原子性：并发创建可能导致后续创建截断文件。会跟随符号链接，不是安全的独占创建；此需求使用 `File.writeNew`。
+
+**示例**
+
+以下片段在仓库根目录的普通 Runtime 脚本中运行；仅操作 `.runtime/examples/file/` 下的示例文件。
+
+```js
+File.ensureDir('./.runtime/examples/file');
+File.createIfNotExists('./.runtime/examples/file/optional.txt');
+```
+
+## File.createWithDirs(path)
+
+递归建立父目录，再创建或截断目标文件。
+
+**签名**
+
+```ts
+File.createWithDirs(path: string): void
+```
+
+**参数**
+
+`path` 为必填文件路径；相对路径按 `Execution.workdir` 解析。
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+同步操作；父目录使用 0755 再受 umask 收紧。已有普通文件会被截断，跟随符号链接。目录创建、文件创建或关闭失败时抛错；前面已经建立的目录不回滚。无独占创建、事务或单次取消保证。
+
+**示例**
+
+```js
+File.createWithDirs('./.runtime/examples/file/nested/empty.txt');
+```
+
+## File.appendBytes(path, bytes)
+
+将字节追加到文件末尾；文件不存在时创建。
+
+**签名**
+
+```ts
+File.appendBytes(path: string, bytes: OpenDeskByteInput): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `path` | `string` | 是 | 无 | 文件路径；父目录必须已存在。 |
+| `bytes` | `ArrayBuffer \| Uint8Array \| number[]` | 是 | 无 | 要追加的字节。数组元素应为 0–255 的整数。 |
+
+**返回值**
+
+返回 `undefined`。
+
+**行为与错误**
+
+同步打开并追加，不创建父目录、不覆盖已有前缀。空字节输入也会打开文件，必要时创建空文件。字节转换失败或文件打开/写入失败时抛错；目录目标也会失败。可能已写入部分数据后才抛错，不提供回滚、原子追加块或独占锁；结果未知时不要自动重复追加。
+
+**示例**
+
+以下片段在仓库根目录的普通 Runtime 脚本中运行；仅操作 `.runtime/examples/file/` 下的示例文件。
+
+```js
+File.ensureDir('./.runtime/examples/file');
+File.appendBytes('./.runtime/examples/file/bytes.bin', new Uint8Array([0, 128, 255]));
+```
+
+## File.rename(path, newName)
+
+在源路径所在目录中重命名文件或目录。
+
+**签名**
+
+```ts
+File.rename(path: string, newName: string): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `path` | `string` | 是 | 无 | 已存在的源路径。 |
+| `newName` | `string` | 是 | 无 | 新的完整名称，包含所需扩展名。应传单个名称。 |
+
+**返回值**
+
+返回 `undefined`。
+
+**行为与错误**
+
+同步按源目录与 `newName` 拼接目标，再执行宿主 rename；不创建目标父目录。源不存在、权限拒绝或文件系统不允许重命名时抛错。不会自动保留原扩展名。目标冲突和覆盖行为受操作系统及文件系统约束，不保证拒绝覆盖。没有将 `newName` 限制为单个 basename，传入路径片段可能移动到其他位置；已知完整目标路径使用 `File.move`。没有后台任务、重试或回滚。
+
+**示例**
+
+以下片段在仓库根目录的普通 Runtime 脚本中运行；仅操作 `.runtime/examples/file/` 下的示例文件。
+
+```js
+File.ensureDir('./.runtime/examples/file');
+File.create('./.runtime/examples/file/draft.txt');
+File.rename('./.runtime/examples/file/draft.txt', 'final.json');
+```
+
+## File.renameWithoutExtension(path, newName)
+
+重命名时保留源路径最后一段扩展名。
+
+**签名**
+
+```ts
+File.renameWithoutExtension(path: string, newName: string): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `path` | `string` | 是 | 无 | 已存在的源路径。 |
+| `newName` | `string` | 是 | 无 | 新的名称主体；原最后一段扩展名会直接追加到它后面。 |
+
+**返回值**
+
+返回 `undefined`。
+
+**行为与错误**
+
+同步执行宿主 rename。例如 `archive.tar.gz` 配合 `report` 得到 `report.gz`；传入 `report.txt` 得到 `report.txt.gz`。无扩展名时不追加；点文件的扩展名遵循 `File.getExtension`。不创建父目录、不校验 `newName` 是单个名称，路径片段可能改变目录。源不存在、权限或 rename 失败时抛错；目标冲突/覆盖受宿主系统约束，不承诺 no-clobber，也没有回滚。
+
+**示例**
+
+以下片段在仓库根目录的普通 Runtime 脚本中运行；仅操作 `.runtime/examples/file/` 下的示例文件。
+
+```js
+File.ensureDir('./.runtime/examples/file');
+File.create('./.runtime/examples/file/draft.tar.gz');
+File.renameWithoutExtension('./.runtime/examples/file/draft.tar.gz', 'final'); // final.gz
+```
+
+## File.getExtension(fileName)
+
+从路径文本取得最后一段扩展名。
+
+**签名**
+
+```ts
+File.getExtension(fileName: string): string
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `fileName` | `string` | 是 | 无 | 文件名或路径文本；不要求目标存在。 |
+
+**返回值**
+
+返回包含前导点的扩展名；无扩展名时为 `""`。
+
+**行为与错误**
+
+纯同步字符串处理，不访问文件系统。使用当前宿主的路径分隔规则，只检查最后一个路径元素的最后一个点。`archive.tar.gz` 返回 `.gz`，`.env` 返回 `.env`，`name.` 返回 `.`。不做 MIME、内容或文件存在性检查；合法字符串输入没有 I/O 错误。
+
+**示例**
+
+以下片段在仓库根目录的普通 Runtime 脚本中运行；仅操作 `.runtime/examples/file/` 下的示例文件。
+
+```js
+console.log(File.getExtension('archive.tar.gz')); // .gz
+```
+
+## File.getName(filePath)
+
+从路径文本取得最后一个路径元素。
+
+**签名**
+
+```ts
+File.getName(filePath: string): string
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `filePath` | `string` | 是 | 无 | 路径文本，不要求目标存在。 |
+
+**返回值**
+
+返回包含扩展名的最后一个元素；空文本返回 `"."`。
+
+**行为与错误**
+
+纯同步字符串处理，按当前宿主路径规则忽略末尾分隔符；根路径返回根分隔符。不访问文件系统，不解析符号链接，不检查路径存在性。合法字符串输入没有 I/O 错误。
+
+**示例**
+
+以下片段在仓库根目录的普通 Runtime 脚本中运行；仅操作 `.runtime/examples/file/` 下的示例文件。
+
+```js
+console.log(File.getName('reports/final.txt')); // final.txt
+```
+
+## File.getNameWithoutExtension(filePath)
+
+取得路径最后一个元素并移除其最后一段扩展名。
+
+**签名**
+
+```ts
+File.getNameWithoutExtension(filePath: string): string
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `filePath` | `string` | 是 | 无 | 路径文本，不要求目标存在。 |
+
+**返回值**
+
+返回名称主体；`archive.tar.gz` 返回 `archive.tar`，`.env` 返回空串。
+
+**行为与错误**
+
+纯同步字符串处理，组合宿主 basename 与最后扩展名语义。不会按内容识别多段扩展名，也不会查询或修改文件。合法字符串输入没有 I/O 错误。
+
+**示例**
+
+以下片段在仓库根目录的普通 Runtime 脚本中运行；仅操作 `.runtime/examples/file/` 下的示例文件。
+
+```js
+console.log(File.getNameWithoutExtension('reports/archive.tar.gz')); // archive.tar
+```
+
+## File.remove(path)
+
+删除一个文件、符号链接或空目录。
+
+**签名**
+
+```ts
+File.remove(path: string): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `path` | `string` | 是 | 无 | 要删除的单个文件系统路径。 |
+
+**返回值**
+
+返回 `undefined`。
+
+**行为与错误**
+
+同步删除，不递归。目标不存在、目录非空、权限拒绝或其他删除失败时抛错。最终目标为符号链接时删除链接自身；父路径仍按宿主文件系统解析。成功删除不能回滚；递归删除使用 `File.removeDir`。
+
+**示例**
+
+以下片段在仓库根目录的普通 Runtime 脚本中运行；仅操作 `.runtime/examples/file/` 下的示例文件。
+
+```js
+File.ensureDir('./.runtime/examples/file');
+File.create('./.runtime/examples/file/disposable.txt');
+File.remove('./.runtime/examples/file/disposable.txt');
+```
+
+## File.removeDir(path)
+
+递归删除指定路径及其内容。
+
+**签名**
+
+```ts
+File.removeDir(path: string): void
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `path` | `string` | 是 | 无 | 调用方已确认允许递归删除的精确路径。 |
+
+**返回值**
+
+返回 `undefined`；路径不存在时也成功。
+
+**行为与错误**
+
+同步递归删除，不移入废纸篓，不回滚。尽管名称含 Dir，也可以删除普通文件；最终目标为符号链接时仅移除链接，不遍历其指向的目录。父目录符号链接仍按宿主规则解析。权限或其他 I/O 失败时抛错，错误发生前可能已删除部分内容。没有工作目录隔离或危险路径保护；不要传空串、根目录或未经核对的业务路径。
+
+**示例**
+
+以下片段在仓库根目录的普通 Runtime 脚本中运行；仅操作 `.runtime/examples/file/` 下的示例文件。
+
+```js
+File.ensureDir('./.runtime/examples/file/disposable');
+File.removeDir('./.runtime/examples/file/disposable');
+```
+
+## File.getHumanReadableSize(bytes)
+
+把字节数格式化为以 1024 为基数的大小文本。
+
+**签名**
+
+```ts
+File.getHumanReadableSize(bytes: number): string
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `bytes` | `number` | 是 | 无 | 可安全表示的整数字节数；不读取文件大小。 |
+
+**返回值**
+
+小于 1024 时返回整数加 ` B`；其他值用一位小数和 `KB`、`MB`、`GB`、`TB`、`PB` 或 `EB`。
+
+**行为与错误**
+
+纯同步计算，无 I/O。单位进位使用 1024，标签仍为 KB/MB 等；小数显示四舍五入。不额外校验非负数，负整数返回如 `-1 B`。不要依赖桥接层对非整数、非有限数或超出安全整数范围的转换；合法整数字节数没有 I/O 错误。
+
+**示例**
+
+以下片段在仓库根目录的普通 Runtime 脚本中运行；仅操作 `.runtime/examples/file/` 下的示例文件。
+
+```js
+console.log(File.getHumanReadableSize(1536)); // 1.5 KB
+```
+
+## File.getSimplifiedPath(path)
+
+按宿主路径规则进行词法规范化。
+
+**签名**
+
+```ts
+File.getSimplifiedPath(path: string): string
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `path` | `string` | 是 | 无 | 路径文本，不要求目标存在。 |
+
+**返回值**
+
+返回移除冗余分隔符、`.` 和可折叠 `..` 的文本；空串返回 `"."`。
+
+**行为与错误**
+
+纯同步字符串处理，不访问文件系统、不转为绝对路径、不展开 `~`、不解析符号链接。保留无法消除的相对 `..`；分隔规则由宿主平台决定。不能把词法结果当作真实路径或授权边界；真实存在路径使用 `File.realPath`。合法字符串输入没有 I/O 错误。
+
+**示例**
+
+以下片段在仓库根目录的普通 Runtime 脚本中运行；仅操作 `.runtime/examples/file/` 下的示例文件。
+
+```js
+console.log(File.getSimplifiedPath('reports/./draft/../final.txt')); // reports/final.txt
+```
+
 
 ## File.realPath(path)
 
@@ -85,22 +516,80 @@ File.realPath(path: string): string
 
 ## File.cwd()
 
+**签名**
+
+```ts
+File.cwd(): string
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+当前 execution 已规范化的绝对工作目录。
+
+**行为与错误**
+
+不查询后续进程 cwd，不改变目录，不创建资源。
+
+**示例**
+
 ```js
 console.log(File.cwd());
 ```
 
 ## File.path(relativePath)
 
+**签名**
+
+```ts
+File.path(relativePath: string): string
+```
+
+**参数**
+
+`relativePath` 必填字符串。
+
+**返回值**
+
+绝对路径原样返回；相对路径与当前 execution 工作目录拼接并清理。
+
+**行为与错误**
+
+只做路径运算，不检查存在性，不跟随符号链接，也不是文件授权边界。
+
+**示例**
+
 ```js
-const abs = File.path('./.runtime/examples/out.txt');
-console.log(abs);
+console.log(File.path('./.runtime/examples/file/out.txt'));
 ```
 
 ## File.read(path)
 
+**签名**
+
+```ts
+File.read(path: string, encoding?: string): string
+```
+
+**参数**
+
+`path` 必填；`encoding` 兼容字段，当前忽略。
+
+**返回值**
+
+完整文件字节转成的字符串；空文件为 `''`。
+
+**行为与错误**
+
+同步执行，无独立 timeout/signal；相对路径使用 `Execution.workdir`。没有大小上限，也不进行 UTF-8 合法性校验。不存在、目录或读取失败抛普通 Error。
+
+**示例**
+
 ```js
 const text = File.read('./README.md');
-console.log(text.slice(0, 200));
 ```
 
 ## File.readJSON(filePath, options?)
@@ -185,17 +674,30 @@ macOS 与 Linux 当前使用同目录 Unix rename 的真实后端；这承诺受
 
 ## File.write(path, text)
 
-```js
-const text = `first line
-second line
-`;
-File.write('./.runtime/examples/result.txt', text);
+**签名**
+
+```ts
+File.write(path: string, text: string, encoding?: string): void
 ```
 
-**注意**
-- `File.write()` 会按传入内容保留模板字符串中的换行；不会自动增加或删除末尾换行
-- 当前实现不会自动创建父目录
-- 若目录可能不存在，先用 `File.ensureDir()` 或 `File.createWithDirs()`
+**参数**
+
+`path` 和 `text` 必填；`encoding` 当前忽略。
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+同步执行，无独立 timeout/signal；相对路径使用 `Execution.workdir`。创建或截断并覆盖文件；不创建父目录，不修改换行，不提供原子替换或回滚。创建权限为 0644 再受 umask 收紧，已有权限保留；跟随符号链接。I/O 失败抛错，可能已有部分副作用。
+
+**示例**
+
+```js
+File.ensureDir('./.runtime/examples/file');
+File.write('./.runtime/examples/file/out.txt', 'first line\n');
+```
 
 ## File.writeNew(path, text)
 
@@ -217,6 +719,7 @@ File.writeNew(path: string, text: string, encoding?: string): void
 - 同步执行；相对路径继续以不可变的 `Execution.workdir` 为基准。
 - 父目录必须已经存在。该方法不会隐式创建目录。
 - 使用父目录 `os.Root`，先完整写入、flush 并关闭同目录私有临时文件，再通过不覆盖的硬链接原子发布；最终目标已经存在（包括普通文件或符号链接）就失败，不会截断或替换。文件系统需支持同目录硬链接，否则拒绝，不退回非原子的写入。
+- Unix 新临时 inode 从创建起采用 `0600`（再受进程 umask 收紧）；硬链接发布及后续 rename 保持该权限，避免完整业务文本在临时阶段被其他本机用户读取。不修改父目录的既有权限；同账户进程不隔离。Windows 使用其目录继承 ACL，不把 Unix mode 当作 Windows 隔离承诺。
 - 打开父目录句柄后，Runtime 会重新解析父目录的 symlink / Windows reparse-point 目标并核对目录文件身份；父目录是别名、被重定向，或授权检查期间被替换时失败。
 - 写入、flush 或 close 在发布前失败时，最终目标不可见；Runtime 尽力清理私有临时文件。发布后绝不因临时文件清理失败删除最终目标。进程异常退出可能遗留 `.opendesk-new-*` 私有临时文件，它不代表已发布的业务文件。
 - 它只保证“新文件独占创建”，**不**是对已有文件的 compare-and-swap，也不提供目录级多文件事务。需要修改已有 JSON 时仍按 `File.writeJSON` 的平台支持语义处理。
@@ -224,37 +727,133 @@ File.writeNew(path: string, text: string, encoding?: string): void
 
 ## File.append(path, text)
 
+**签名**
+
+```ts
+File.append(path: string, text: string, encoding?: string): void
+```
+
+**参数**
+
+`path` 和 `text` 必填；`encoding` 当前忽略。
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+同步执行，无独立 timeout/signal；相对路径使用 `Execution.workdir`。不存在时创建，存在时追加；父目录必须存在。不会自动增加换行；可能部分写入后抛错，没有回滚或多进程块级原子性承诺。
+
+**示例**
+
 ```js
-File.append('./.runtime/examples/log.txt', 'line 1\n');
-File.append('./.runtime/examples/log.txt', 'line 2\n');
+File.append('./.runtime/examples/file/out.txt', 'next line\n');
 ```
 
 ## File.readBytes(path)
 
+**签名**
+
+```ts
+File.readBytes(path: string): ArrayBuffer
+```
+
+**参数**
+
+`path` 必填字符串。
+
+**返回值**
+
+完整文件的 `ArrayBuffer`，空文件 byteLength 为 0。
+
+**行为与错误**
+
+同步执行，无独立 timeout/signal；相对路径使用 `Execution.workdir`。不设置大小上限；不存在或读取失败抛错。
+
+**示例**
+
 ```js
-const bytes = File.readBytes('./.runtime/examples/image.png');
-console.log(bytes.length);
+const bytes = File.readBytes('./.runtime/examples/file/out.txt');
+console.log(new Uint8Array(bytes));
 ```
 
 ## File.writeBytes(path, bytes)
 
+**签名**
+
+```ts
+File.writeBytes(path: string, bytes: OpenDeskByteInput): void
+```
+
+**参数**
+
+`path` 必填；`bytes` 为 ArrayBuffer、Uint8Array 或 0–255 整数数组。
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+同步执行，无独立 timeout/signal；相对路径使用 `Execution.workdir`。创建或截断，不创建父目录；空字节输入也会截断。字节转换或 I/O 错误抛错，部分写入不会回滚。
+
+**示例**
+
 ```js
-const shot = await page.screenshot({ returnType: 'bytes' });
-File.writeBytes('./.runtime/examples/shot.png', shot);
+File.writeBytes('./.runtime/examples/file/bytes.bin', [0,128,255]);
 ```
 
 ## File.ensureDir(path)
 
+**签名**
+
+```ts
+File.ensureDir(path: string): void
+```
+
+**参数**
+
+`path` 必填字符串。
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+同步执行，无独立 timeout/signal；相对路径使用 `Execution.workdir`。递归创建缺失目录（0755 再受 umask 收紧）；已有目录保持不变。路径为文件、权限或创建失败时抛错。
+
+**示例**
+
 ```js
-File.ensureDir('./.runtime/examples/reports');
+File.ensureDir('./.runtime/examples/file/nested');
 ```
 
 ## File.exists(path)
 
+**签名**
+
+```ts
+File.exists(path: string): boolean
+```
+
+**参数**
+
+`path` 必填字符串。
+
+**返回值**
+
+宿主 stat 成功为 true，任何 stat 错误为 false。
+
+**行为与错误**
+
+同步执行，无独立 timeout/signal；相对路径使用 `Execution.workdir`。跟随符号链接；false 也可能表示权限或其他 I/O 错误，不能推断必然不存在。需要区分时使用 File.stat。
+
+**示例**
+
 ```js
-if (!File.exists('./.runtime/examples/result.json')) {
-  console.log('missing');
-}
+console.log(File.exists('./.runtime/examples/file/out.txt'));
 ```
 
 ## File.stat(path)
@@ -312,42 +911,160 @@ if (info === null) {
 
 ## File.copy(pathFrom, pathTo)
 
+**签名**
+
+```ts
+File.copy(pathFrom: string, pathTo: string): void
+```
+
+**参数**
+
+两个文件路径均必填；目标父目录必须存在。
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+同步执行，无独立 timeout/signal；相对路径使用 `Execution.workdir`。只复制普通文件的字节；目标可被创建或截断。跟随文件符号链接，不复制目录、权限或时间元数据。实际源、目标 descriptor 指向同一 inode（包括硬链接或符号链接别名）时，在截断前抛错并保留源内容。其他 I/O 失败可能留下截断或部分目标，不提供回滚。macOS/Linux 的打开步骤使用非阻塞 flag，避免 FIFO 替换竞争导致阻塞。
+
+**示例**
+
 ```js
-File.copy('./.runtime/examples/a.txt', './.runtime/examples/b.txt');
+File.copy('./.runtime/examples/file/out.txt', './.runtime/examples/file/copy.txt');
 ```
 
 ## File.move(path, newPath)
 
+**签名**
+
+```ts
+File.move(path: string, newPath: string): void
+```
+
+**参数**
+
+源路径和完整目标路径均必填。
+
+**返回值**
+
+`undefined`。
+
+**行为与错误**
+
+同步执行，无独立 timeout/signal；相对路径使用 `Execution.workdir`。直接调用宿主 rename；不创建父目录，跨文件系统通常失败，不退回 copy/delete。目标覆盖语义由宿主决定；源/权限/rename 错误抛出。
+
+**示例**
+
 ```js
-File.move('./.runtime/examples/tmp.txt', './.runtime/examples/archive/tmp.txt');
+File.move('./.runtime/examples/file/copy.txt', './.runtime/examples/file/moved.txt');
 ```
 
 ## File.listDir(path)
 
+**签名**
+
+```ts
+File.listDir(path: string): string[]
+```
+
+**参数**
+
+`path` 必填目录路径。
+
+**返回值**
+
+按文件名排序的直接子项名称数组（不含父路径）；空目录为 []。
+
+**行为与错误**
+
+同步执行，无独立 timeout/signal；相对路径使用 `Execution.workdir`。不递归；文件和目录都包含，跟随最终目录符号链接。不存在、不是目录或读取失败抛错。
+
+**示例**
+
 ```js
-console.log(File.listDir('./artifacts'));
+console.log(File.listDir('./.runtime/examples/file'));
 ```
 
 ## File.isFile(path) / File.isDir(path)
 
-```js
-console.log(File.isFile('./README.md'));
-console.log(File.isDir('./artifacts'));
+**签名**
+
+```ts
+File.isFile(path: string): boolean;
+File.isDir(path: string): boolean;
 ```
 
-如果需要区分普通文件、目录和其他文件系统对象，或不能接受把某些 stat 错误折叠成布尔值，请使用 `File.stat()`。
+**参数**
+
+`path` 必填字符串。
+
+**返回值**
+
+stat 失败均返回 false；isDir 返回是否目录，历史 isFile 返回“不是目录”，也可能包含特殊文件。
+
+**行为与错误**
+
+同步执行，无独立 timeout/signal；相对路径使用 `Execution.workdir`。跟随符号链接，不是严格普通文件判定；需要区分 file/directory/other 或 I/O 错误时用 File.stat。
+
+**示例**
+
+```js
+console.log(File.isFile('./README.md'));
+console.log(File.isDir('./.runtime/examples/file'));
+```
 
 ## File.isEmptyDir(path)
 
+**签名**
+
+```ts
+File.isEmptyDir(path: string): boolean
+```
+
+**参数**
+
+`path` 必填目录路径。
+
+**返回值**
+
+直接子项为零时 true，否则 false。
+
+**行为与错误**
+
+同步执行，无独立 timeout/signal；相对路径使用 `Execution.workdir`。读取目录全部子项，不递归；不是目录、不存在或无权限时抛错。
+
+**示例**
+
 ```js
-console.log(File.isEmptyDir('./.runtime/examples/empty-dir'));
+console.log(File.isEmptyDir('./.runtime/examples/file'));
 ```
 
 ## File.join(parent, ...children)
 
+**签名**
+
+```ts
+File.join(parent: string, ...children: string[]): string
+```
+
+**参数**
+
+`parent` 必填，`children` 可省略；均为字符串。
+
+**返回值**
+
+按当前平台分隔符拼接并规范化的路径字符串。
+
+**行为与错误**
+
+纯宿主 filepath.Join 语义，不查询文件系统；不要套用 path.join 的保留末尾分隔符规则。空片段跳过，全部为空返回空字符串。
+
+**示例**
+
 ```js
-const path = File.join('./artifacts', 'vision', 'result.json');
-console.log(path);
+console.log(File.join('.runtime', 'examples', 'file', 'out.txt'));
 ```
 
 ## File.open(path, mode)
@@ -368,7 +1085,7 @@ try {
 **签名**
 
 ```ts
-File.open(path: string, mode: 'r' | 'w' | 'a'): FileHandle
+File.open(path: string, mode: 'r' | 'w' | 'a'): OpenDeskFileHandle
 ```
 
 | `FileHandle` 方法 | 说明 |
@@ -385,8 +1102,225 @@ File.open(path: string, mode: 'r' | 'w' | 'a'): FileHandle
 - `r` 为只读；`w` 会创建或截断文件；`a` 会创建文件并始终从末尾追加。父目录不会自动创建。
 - `read` 与 `readBytes` 的默认和最大 `maxBytes` 都是 8 MiB；必须是 1 到 8 MiB 的整数。超过限制会报错并保持原句柄位置。
 - `File.open()` 只接受普通文件；目录、设备、管道等特殊文件会被拒绝。
+- macOS/Linux 打开时使用非阻塞 flag 防止 FIFO 替换竞争导致阻塞，并在实际 descriptor 上再次检查类型；`w` 的截断发生在类型检查之后。普通文件的读写仍同步，不承诺任意文件系统调用可硬中断。
 - 句柄不暴露宿主 `os.File` 或文件描述符等未文档化能力。请使用 `try/finally` 显式关闭；Runtime teardown 也会自动关闭忘记关闭的句柄。
 - 非法 mode 会报：`invalid file mode`。
+
+## FileHandle.close()
+
+**签名**
+
+```ts
+file.close(): void
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+undefined；重复关闭成功。
+
+**行为与错误**
+
+同步方法，没有单独 timeout/signal；复用 File.open 所有权与已关闭检查。释放 OS handle 和锁，关闭失败抛错。关闭后其余方法均抛错；Runtime teardown 也尝试关闭。
+
+**示例**
+
+```js
+// file 是 File.open 返回的句柄；在 try/finally 内使用。
+file.close();
+```
+
+## FileHandle.read(maxBytes?)
+
+**签名**
+
+```ts
+file.read(maxBytes?: number): string
+```
+
+**参数**
+
+省略参数时使用 8 MiB；显式传值必须是 number 类型的有限整数 1..8388608。小数、字符串、null、undefined 或多个参数会在读取前抛错，不改变句柄位置。
+
+**返回值**
+
+当前位置到 EOF 的字符串；EOF 返回空字符串。
+
+**行为与错误**
+
+同步方法，没有单独 timeout/signal；复用 File.open 所有权与已关闭检查。超出上限拒绝并恢复原位置；读取失败抛错，不保证失败前未移动位置。文本不额外校验 UTF-8。
+
+**示例**
+
+```js
+// file 是 File.open 返回的句柄；在 try/finally 内使用。
+console.log(file.read(1024));
+```
+
+## FileHandle.readBytes(maxBytes?)
+
+**签名**
+
+```ts
+file.readBytes(maxBytes?: number): ArrayBuffer
+```
+
+**参数**
+
+省略参数时使用 8 MiB；显式传值必须是 number 类型的有限整数 1..8388608。小数、字符串、null、undefined 或多个参数会在读取前抛错，不改变句柄位置。
+
+**返回值**
+
+当前位置到 EOF 的 ArrayBuffer；EOF 为零字节。
+
+**行为与错误**
+
+同步方法，没有单独 timeout/signal；复用 File.open 所有权与已关闭检查。超出上限拒绝并恢复原位置；读取或恢复位置失败抛错。
+
+**示例**
+
+```js
+// file 是 File.open 返回的句柄；在 try/finally 内使用。
+console.log(file.readBytes(1024).byteLength);
+```
+
+## FileHandle.write(text)
+
+**签名**
+
+```ts
+file.write(text: string): void
+```
+
+**参数**
+
+必填字符串，不增加换行。
+
+**返回值**
+
+undefined。
+
+**行为与错误**
+
+同步方法，没有单独 timeout/signal；复用 File.open 所有权与已关闭检查。从当前位置写入；a 模式仍由 OS 强制追加。权限/I/O 错误抛错，可能已经部分写入。
+
+**示例**
+
+```js
+// file 是 File.open 返回的句柄；在 try/finally 内使用。
+file.write('line\n');
+```
+
+## FileHandle.writeBytes(bytes)
+
+**签名**
+
+```ts
+file.writeBytes(bytes: OpenDeskByteInput): void
+```
+
+**参数**
+
+必填 ArrayBuffer、Uint8Array 或 0–255 整数数组。
+
+**返回值**
+
+undefined。
+
+**行为与错误**
+
+同步方法，没有单独 timeout/signal；复用 File.open 所有权与已关闭检查。从当前位置写入；a 模式追加，转换和 I/O 失败抛错。可能部分写入，没有回滚。
+
+**示例**
+
+```js
+// file 是 File.open 返回的句柄；在 try/finally 内使用。
+file.writeBytes([0,128,255]);
+```
+
+## FileHandle.seek(offset, whence?)
+
+**签名**
+
+```ts
+file.seek(offset: number, whence?: 'start' | 'current' | 'end'): number
+```
+
+**参数**
+
+offset 为字节偏移；whence 省略或空字符串为 start，只接受一个 whence。
+
+**返回值**
+
+新的绝对字节偏移。
+
+**行为与错误**
+
+同步方法，没有单独 timeout/signal；复用 File.open 所有权与已关闭检查。非法 whence 或 OS seek 失败抛错；可以定位到 EOF 后，seek 本身不扩展文件。
+
+**示例**
+
+```js
+// file 是 File.open 返回的句柄；在 try/finally 内使用。
+console.log(file.seek(0, 'start'));
+```
+
+## FileHandle.truncate(size)
+
+**签名**
+
+```ts
+file.truncate(size: number): void
+```
+
+**参数**
+
+恰好一个参数，必须是非负的安全整数（`0..Number.MAX_SAFE_INTEGER`），单位为字节。省略、小数或其他无效值会在调用文件系统前抛错。
+
+**返回值**
+
+undefined。
+
+**行为与错误**
+
+同步方法，没有单独 timeout/signal；复用 File.open 所有权与已关闭检查。缩短或扩展文件但不改变当前位置；OS truncate 失败抛错，只读句柄不能修改长度。
+
+**示例**
+
+```js
+// file 是 File.open 返回的句柄；在 try/finally 内使用。
+file.truncate(0);
+```
+
+## FileHandle.sync()
+
+**签名**
+
+```ts
+file.sync(): void
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+undefined。
+
+**行为与错误**
+
+同步方法，没有单独 timeout/signal；复用 File.open 所有权与已关闭检查。同步请求 OS 刷新文件；失败抛错，不保证跨断电、多文件事务或目录项持久性。
+
+**示例**
+
+```js
+// file 是 File.open 返回的句柄；在 try/finally 内使用。
+file.sync();
+```
 
 ## FileHandle.tryLock()
 

@@ -21,6 +21,8 @@ var OpenDeskSupportBusinessDomain = (() => {
   // desktop/business-validator-entry.ts
   var business_validator_entry_exports = {};
   __export(business_validator_entry_exports, {
+    initialKnowledge: () => initialKnowledge,
+    inspectKnowledge: () => inspectKnowledge,
     parseBackup: () => parseBusinessBackup
   });
 
@@ -431,6 +433,7 @@ var OpenDeskSupportBusinessDomain = (() => {
   var allOrders = Object.freeze(orders_demo_default.orders);
   var customers = Object.freeze(["t1", "t2", "t3"]);
   var isCustomerId = (value) => typeof value === "string" && customers.includes(value);
+  var normalize = (value) => String(value ?? "").toLowerCase().replace(/\s|[，。！？?!.,]/g, "");
   function validOrder(order) {
     return isCustomerId(order.customerId) && typeof order.orderId === "string" && Number.isFinite(order.amount) && Array.isArray(order.items) && order.items.length > 0 && order.items.every((item) => Number.isInteger(item.quantity) && item.quantity > 0 && products.some((product) => product.id === item.productId && product.sku === item.sku));
   }
@@ -810,6 +813,31 @@ var OpenDeskSupportBusinessDomain = (() => {
     const state = { revision: b.revision, stores: b.stores, records: b.records, overrides: b.overrides, cursors: b.cursors };
     validateState(state);
     return state;
+  }
+
+  // src/domain/knowledge.ts
+  var initialKnowledge = () => [
+    { id: "k1", q: "\u7B7E\u6536\u540E\u51E0\u5929\u53EF\u4EE5\u7533\u8BF7\u9000\u6B3E", question: "\u7B7E\u6536\u540E\u51E0\u5929\u53EF\u4EE5\u7533\u8BF7\u9000\u6B3E", a: "\u6F14\u793A\u89C4\u5219\uFF1A\u7B26\u5408\u6761\u4EF6\u7684\u5B9E\u7269\u8BA2\u5355\u53EF\u5728\u7B7E\u6536\u540E 7 \u5929\u5185\u7533\u8BF7\u9000\u6B3E\u3002\u5177\u4F53\u8D44\u683C\u9700\u6309\u8BA2\u5355\u552E\u540E\u653F\u7B56\u6838\u5B9E\u3002", keys: ["\u9000\u6B3E", "\u9000\u8D27", "\u7B7E\u6536", "\u552E\u540E"], aliases: ["\u9000\u6B3E\u671F\u9650\u662F\u591A\u5C11", "\u51E0\u5929\u5185\u53EF\u4EE5\u9000\u6B3E", "\u7B7E\u6536\u540E 7 \u5929\u5185\u8FD8\u80FD\u7533\u8BF7\u9000\u6B3E\u5417\uFF1F"], source: "demo/after-sales.json", enabled: true, category: "\u552E\u540E", scope: null, eligible: true, eligibility: "\u9884\u8BBE\u6F14\u793A\u77E5\u8BC6\uFF08\u4ECD\u9700\u7CBE\u786E\u5339\u914D\uFF09" },
+    { id: "k2", q: "\u5982\u4F55\u7533\u8BF7\u7535\u5B50\u53D1\u7968", question: "\u8BF7\u95EE\u80FD\u5F00\u53D1\u7968\u5417\uFF1F", a: "\u6F14\u793A\u89C4\u5219\uFF1A\u7B26\u5408\u5F00\u7968\u6761\u4EF6\u7684\u8BA2\u5355\u53EF\u4EE5\u7533\u8BF7\u7535\u5B50\u53D1\u7968\u3002\u8BF7\u63D0\u4F9B\u8BA2\u5355\u53F7\uFF0C\u4EE5\u4FBF\u6838\u5B9E\u5F00\u7968\u4FE1\u606F\u4E0E\u5177\u4F53\u6D41\u7A0B\u3002", keys: ["\u53D1\u7968", "\u7535\u5B50\u53D1\u7968", "\u5F00\u7968"], aliases: ["\u53D1\u7968\u5728\u54EA\u91CC\u5F00", "\u53EF\u4EE5\u7533\u8BF7\u53D1\u7968\u5417", "\u80FD\u5F00\u53D1\u7968\u5417"], source: "demo/finance.json", enabled: true, category: "\u8D22\u52A1", scope: null, eligible: true, eligibility: "\u9884\u8BBE\u6F14\u793A\u77E5\u8BC6\uFF08\u4ECD\u9700\u7CBE\u786E\u5339\u914D\uFF09" },
+    { id: "k3", q: "\u7269\u6D41\u8FDB\u5EA6\u600E\u4E48\u67E5\u8BE2", question: "\u7269\u6D41\u600E\u4E48\u67E5\u8BE2\uFF1F", a: "\u6F14\u793A\u89C4\u5219\uFF1A\u63D0\u4F9B\u8BA2\u5355\u7F16\u53F7\u540E\uFF0C\u5BA2\u670D\u53EF\u4EE5\u534F\u52A9\u67E5\u8BE2\u7269\u6D41\u8F68\u8FF9\u3002\u7269\u6D41\u957F\u65F6\u95F4\u6CA1\u6709\u66F4\u65B0\uFF0C\u9700\u8981\u4EBA\u5DE5\u8FDB\u4E00\u6B65\u6838\u5B9E\u3002", keys: ["\u7269\u6D41", "\u5FEB\u9012", "\u914D\u9001", "\u53D1\u8D27"], aliases: ["\u5FEB\u9012\u600E\u4E48\u67E5", "\u7269\u6D41\u5230\u54EA\u91CC\u4E86"], source: "demo/shipping.md", enabled: true, category: "\u7269\u6D41", scope: null, eligible: true, eligibility: "\u9884\u8BBE\u6F14\u793A\u77E5\u8BC6\uFF08\u4ECD\u9700\u7CBE\u786E\u5339\u914D\uFF09" },
+    { id: "k4", q: "\u5546\u54C1\u5C3A\u7801\u5982\u4F55\u9009\u62E9", question: "\u5546\u54C1\u5982\u4F55\u9009\u5C3A\u7801\uFF1F", a: "\u6F14\u793A\u89C4\u5219\uFF1A\u8BF7\u63D0\u4F9B\u5546\u54C1\u578B\u53F7\u4E0E\u5C3A\u7801\u9700\u6C42\uFF0C\u7531\u5BA2\u670D\u6838\u5BF9\u5546\u54C1\u89C4\u683C\u540E\u7ED9\u51FA\u5EFA\u8BAE\uFF0C\u4E0D\u627F\u8BFA\u672A\u6838\u5B9E\u7684\u5177\u4F53\u5C3A\u7801\u3002", keys: ["\u5546\u54C1", "\u5C3A\u7801", "\u5C3A\u5BF8", "\u89C4\u683C"], aliases: ["\u5C3A\u7801\u63A8\u8350", "\u8FD9\u6B3E\u5546\u54C1\u591A\u5927\u7801"], source: "demo/product.json", enabled: true, category: "\u5546\u54C1", scope: null, eligible: false, eligibility: "\u9700\u8981\u5546\u54C1\u4E0A\u4E0B\u6587\u6838\u5B9E\uFF0C\u6682\u4E0D\u81EA\u52A8\u6258\u7BA1" },
+    { id: "k5", q: "\u65E7\u7248\u4F18\u60E0\u6D3B\u52A8\u662F\u5426\u7EE7\u7EED", question: "\u6D3B\u52A8\u662F\u5426\u7EE7\u7EED\uFF1F", a: "\u6F14\u793A\u89C4\u5219\uFF1A\u5386\u53F2\u4FC3\u9500\u6D3B\u52A8\u5DF2\u7ECF\u7ED3\u675F\uFF0C\u65E7\u7248\u6D3B\u52A8\u8BF4\u660E\u4E0D\u80FD\u4F5C\u4E3A\u5F53\u524D\u4E1A\u52A1\u627F\u8BFA\u3002", keys: ["\u6D3B\u52A8", "\u4F18\u60E0", "\u6298\u6263"], aliases: ["\u65E7\u4F18\u60E0\u8FD8\u6709\u5417"], source: "demo/old-campaign.md", enabled: false, category: "\u6D3B\u52A8", scope: null, eligible: false, eligibility: "\u5DF2\u505C\u7528\uFF0C\u4E0D\u53C2\u4E0E\u77E5\u8BC6\u5339\u914D\u6216\u81EA\u52A8\u6258\u7BA1" },
+    { id: "k6", q: "A \u65B9\u6848\u652F\u6301\u591A\u5C11\u6210\u5458", question: "A \u65B9\u6848\u652F\u6301\u51E0\u540D\u6210\u5458\uFF1F", a: "\u6F14\u793A\u89C4\u5219\uFF1AA \u65B9\u6848\u6700\u591A\u652F\u6301 5 \u540D\u6210\u5458\uFF0C\u5176\u4ED6\u65B9\u6848\u987B\u6309\u5BF9\u5E94\u5957\u9910\u8BF4\u660E\u786E\u8BA4\u3002", keys: ["A \u65B9\u6848", "\u6210\u5458", "\u4EBA\u6570"], aliases: ["A \u65B9\u6848\u4EBA\u6570\u4E0A\u9650"], source: "demo/plans.json", enabled: true, category: "\u5957\u9910", scope: "A \u65B9\u6848", eligible: false, eligibility: "\u9650\u5B9A\u9002\u7528\u8303\u56F4\uFF0C\u9700\u660E\u786E\u786E\u8BA4\u5957\u9910\u8EAB\u4EFD\u540E\u624D\u53EF\u4F7F\u7528" },
+    { id: "k7", q: "\u4EBA\u5DE5\u5BA2\u670D\u5728\u7EBF\u65F6\u95F4", question: "\u4EBA\u5DE5\u5BA2\u670D\u4EC0\u4E48\u65F6\u5019\u5728\u7EBF\uFF1F", a: "\u6F14\u793A\u89C4\u5219\uFF1A\u4EBA\u5DE5\u5BA2\u670D\u670D\u52A1\u65F6\u95F4\u4E3A\u5DE5\u4F5C\u65E5 09:00\u201318:00\uFF0C\u975E\u5DE5\u4F5C\u65F6\u6BB5\u53EF\u7559\u8A00\u7B49\u5F85\u56DE\u590D\u3002", keys: ["\u5BA2\u670D", "\u4EBA\u5DE5", "\u670D\u52A1\u65F6\u95F4"], aliases: ["\u4EBA\u5DE5\u51E0\u70B9\u4E0A\u73ED", "\u600E\u4E48\u8F6C\u4EBA\u5DE5"], source: "demo/service.json", enabled: true, category: "\u670D\u52A1", scope: null, eligible: true, eligibility: "\u9884\u8BBE\u6F14\u793A\u77E5\u8BC6\uFF08\u4ECD\u9700\u7CBE\u786E\u5339\u914D\uFF09" }
+  ];
+  function inspectKnowledge(message, kb, observed) {
+    if (!observed || !message?.trim()) return { kind: "none", hit: null };
+    const input = normalize(message);
+    const hits = kb.filter((k) => k.enabled && !k.scope).map((k) => {
+      const exact = [k.question, ...k.aliases].some((a) => normalize(a) === input);
+      const similarity = k.keys.filter((key) => normalize(key) && input.includes(normalize(key))).length;
+      return { k, exact, score: exact ? 100 : similarity * 10 };
+    }).filter((h) => h.score > 0).sort((a, b) => b.score - a.score);
+    const best = hits[0];
+    if (!best) return { kind: "none", hit: null };
+    if (hits.some((hit) => hit.score === best.score && hit.k.a !== best.k.a))
+      return { kind: "conflict", hit: null };
+    return { kind: best.exact ? "exact" : "similar", hit: best };
   }
   return __toCommonJS(business_validator_entry_exports);
 })();

@@ -53,7 +53,7 @@ const types = {
   events: ['Events'], notifications: ['Notifications'], file: ['File'], path: ['path'], storage: ['AppStorage'],
   sqlite: ['sqlite'], execution: ['Execution'], 'global-apis': ['global', 'console'], system: ['System'],
   command: ['Command'], audio: ['Audio'], sound: ['Sound'], ui: ['CustomUI', 'FloatingWindow'], dialog: ['dialog'],
-  'automation-app': ['automation-app'], http: ['http', 'axios'], webhook: ['Webhook'], llm: ['LLM'], agent: ['Agent'],
+  notify: ['global'], 'automation-app': ['automation-app'], http: ['http', 'axios'], webhook: ['Webhook'], llm: ['LLM'], agent: ['Agent'],
   'recorder-runtime': ['recorder'], 'native-extension': ['NativeExtension'],
 };
 const instances = {
@@ -61,6 +61,13 @@ const instances = {
   db: 'OpenDeskSQLiteDatabase', playback: 'OpenDeskSoundPlayback', handle: 'OpenDeskWebhookHandle',
   RecorderSession: 'OpenDeskRecorderSession', FloatingWindow: 'ClawdeskFloatingWindow',
   'automation.app': 'OpenDeskAutomationApp',
+};
+// These returned handles enrich existing canonical entries with their exact
+// declarations. They do not introduce extra catalog rows for type-only fields.
+const referenceInstances = {
+  ToastHandle: 'ClawdeskUIToastHandle',
+  WindowHandle: 'ClawdeskUIWindowHandle',
+  ControlHandle: 'ClawdeskUIControlHandle',
 };
 // 这些历史页没有独立方法合同；使用当前整页兜底，明确标记，不伪造精确小片段。
 const wholePages = new Set(['sound', 'libs', 'native-extension']);
@@ -84,7 +91,15 @@ const dependencies = [
   {doc: 'window', method: /^window\.wait$/, delegate: () => 'window.get'},
   {doc: 'window', method: /^window\.activate$/, delegate: () => 'window.current'},
   {doc: 'http', method: /^http\.(get|post)$/, delegate: () => 'http.request'},
-  {doc: 'http', method: /^(http|axios)\./, sections: ['http#http--axios错误行为', 'http#axios实现边界']},
+  {doc: 'http', method: /^axios\.(get|post|put|patch|delete|defaults|interceptors)(?:\.|$)/, delegate: () => 'axios.request'},
+  {doc: 'http', method: /^axios\./, contracts: [['http', 'http.request'], ['http', 'axios.defaults']]},
+  {doc: 'http', method: /^(http\.(?!download$)|axios\.)/, sections: ['http#http--axios错误行为', 'http#axios实现边界']},
+  {doc: 'image-color', method: /^ImageColor\.findImages$/, delegate: () => 'ImageColor.findImage'},
+  {doc: 'webhook', method: /^handle\./, delegate: () => 'Webhook.listen'},
+  {doc: 'sqlite', method: /^db\./, delegate: () => 'SQLite.open'},
+  {doc: 'llm', method: /^LLM\.generate$/, contracts: [['http', 'http.request']]},
+  {doc: 'agent', method: /^Agent\.run$/, contracts: [['command', 'Command.run'], ['llm', 'LLM.generate']]},
+  {doc: 'agent', method: /^Agent\.getCapabilities$/, contracts: [['command', 'Command.getCapabilities']]},
   {doc: 'ui', method: /^ui\.notify$/, delegate: () => 'ui.toast'},
   {doc: 'ui', method: /^ToastHandle\./, delegate: () => 'ui.toast'},
   {doc: 'ui', method: /^(WindowHandle|ControlHandle)\./, delegate: () => 'ui.createWindow'},
@@ -92,8 +107,8 @@ const dependencies = [
   {doc: 'desktop-ui', method: /^UI\.(getValue|setValue|tapText|tapTexts|tapTargets|getMenuItems|findMenuItem|tapMenuItem)$/, sections: ['accessibility#公共约定', 'accessibility#错误', 'accessibility#平台与能力']},
   {doc: 'desktop-ui', method: /^UI\.tapTargets$/, delegate: () => 'UI.tapTexts'},
 
+  {doc: 'file', method: /^FileHandle\./, delegate: () => 'File.open'},
   {doc: 'file', method: /^File\.(readJSON|writeJSON)$/, sections: ['file#写入提交取消与并发', 'file#错误']},
-  {doc: 'storage', method: /^AppStorage\.getItem$/, sections: ['storage#appstorage基本使用']},
   {doc: 'window', method: /^window\.(get|wait|list)$/, sections: ['app#公共约定']},
   {doc: 'desktop-ui', method: /^(scope\.|Locator\.)/, sections: ['desktop-ui#uiwithinwin', 'desktop-ui#ui-scope-locatortarget']},
   {doc: 'desktop-ui', method: /^scope\.(?!locator)/, delegate: name => `UI.${name.split('.').pop()}`},
@@ -104,4 +119,4 @@ const dependencies = [
   {doc: 'desktop-ui', method: /^(UI\.(findTexts|findTextMatches|findText|hasText|readText|tapText|tapTexts|waitText|waitTextGone)|Locator\.(find|waitFor|tap))$/, sections: ['desktop-ui#文本选项', 'desktop-ui#scopewithin', 'desktop-ui#region', 'desktop-ui#relativeto']},
   {doc: 'desktop-ui', method: /^Locator\./, sections: ['desktop-ui#图片选项', 'desktop-ui#原生-target-序列选项']},
 ];
-module.exports = {groups, surfaces, types, instances, wholePages, navigation, uiShared, dependencies, bundledLibraries};
+module.exports = {groups, surfaces, types, instances, referenceInstances, wholePages, navigation, uiShared, dependencies, bundledLibraries};

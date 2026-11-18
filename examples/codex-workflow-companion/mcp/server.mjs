@@ -7,12 +7,30 @@ import readline from 'node:readline';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const dir = process.env.OD_CWF_STATE_DIR || path.join(root,'.runtime/tests/codex-workflow-companion');
 const endpointPath = path.join(dir,'endpoint.json');
-const st = fs.lstatSync(endpointPath);
-if (!st.isFile() || st.isSymbolicLink() || (st.mode & 0o077) !== 0) throw Error('ENDPOINT_PERMISSIONS');
-const endpoint = JSON.parse(fs.readFileSync(endpointPath,'utf8'));
-const url = new URL(endpoint.url);
-if (endpoint.protocol !== 'od.codex-workflow.v1' || url.hostname !== '127.0.0.1' || url.protocol !== 'http:' || url.pathname !== '/' || url.search ||
-    !/^Bearer [0-9a-f]{64}$/.test(endpoint.headers?.Authorization)) throw Error('ENDPOINT_INVALID');
+function loadEndpoint() {
+  const owned = st => typeof process.getuid !== 'function' || st.uid === process.getuid();
+  const directory = fs.lstatSync(dir);
+  if (!directory.isDirectory() || !owned(directory) || (directory.mode & 0o077) !== 0) throw Error('ENDPOINT_PERMISSIONS');
+  const st = fs.lstatSync(endpointPath);
+  const privateFile = st => st.isFile() && owned(st) && (st.mode & 0o077) === 0 && st.nlink === 1 && st.size <= 16384;
+  if (!privateFile(st)) throw Error('ENDPOINT_PERMISSIONS');
+  // Read the validated inode, never a symlink swapped in between lstat and open.
+  const fd = fs.openSync(endpointPath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+  let endpoint;
+  try {
+    const opened = fs.fstatSync(fd);
+    if (!privateFile(opened) || opened.dev !== st.dev || opened.ino !== st.ino) throw Error('ENDPOINT_PERMISSIONS');
+    endpoint = JSON.parse(fs.readFileSync(fd,'utf8'));
+  } finally { fs.closeSync(fd); }
+  // Accept only a literal loopback origin and explicit nonzero port. This also
+  // excludes credentials, fragments, queries and URL normalization surprises.
+  if (endpoint?.protocol !== 'od.codex-workflow.v1' || typeof endpoint.url !== 'string' ||
+      !/^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}\/?$/.test(endpoint.url) ||
+      typeof endpoint.headers?.Authorization !== 'string' ||
+      !/^Bearer [0-9a-f]{64}$/.test(endpoint.headers.Authorization)) throw Error('ENDPOINT_INVALID');
+  const url = new URL(endpoint.url); // Also validates the port range.
+  return { url: new URL('/api/mcp', url).href, authorization: endpoint.headers.Authorization };
+}
 const identity = { type:'object', additionalProperties:false, required:['workflowId','taskId','taskVersion','attemptId','nonce','eventId'],
   properties:{workflowId:{type:'string'},taskId:{type:'string'},taskVersion:{type:'integer'},attemptId:{type:'string'},nonce:{type:'string'},eventId:{type:'string'}} };
 const extend = (extra, required) => ({ ...identity, required:[...identity.required,...required], properties:{...identity.properties,...extra} });
@@ -26,7 +44,9 @@ const tools = [
 let initialized = false;
 const write = msg => process.stdout.write(JSON.stringify(msg) + '\n');
 async function forward(name,args) {
-  const result = await fetch(endpoint.url+'/api/mcp',{method:'POST',headers:{Authorization:endpoint.headers.Authorization,'Content-Type':'application/json'},
+  const endpoint = loadEndpoint();
+  // One attempt only: a failed response may follow an already-applied mutation.
+  const result = await fetch(endpoint.url,{method:'POST',redirect:'error',headers:{Authorization:endpoint.authorization,'Content-Type':'application/json'},
     body:JSON.stringify({name,arguments:args}),signal:AbortSignal.timeout(2500)});
   return result.json();
 }

@@ -26,7 +26,9 @@ order: 140
 
 ### Capability
 
-Dialog 使用 `ui` capability。CLI 可通过 `-ui` 或可信项目配置启用；`-no-ui` 优先级最高并强制禁用。HTTP 还要求 server 与单次 request 都声明 `ui` 且来源为 loopback。MCP 与 Scheduler 当前不提供 Dialog opt-in。
+Dialog 使用 `ui` capability。CLI 可通过 `-ui` 或可信项目配置启用；`-no-ui` 优先级最高并强制禁用。HTTP 还要求 server 与单次 request 都声明 `ui` 且来源为 loopback。可信本机 MCP 可由启动宿主显式指定 `--allow-script-execution --script-capabilities=custom-ui` 启用；普通 tool request 不能自行授予能力。Scheduler 当前不提供 Dialog opt-in。
+
+`enabled` 表示当前 execution 已启用能力，`available` 表示 native driver 当前可用。授权不保证平台、driver 或 host 可用，以 `Dialog.getCapabilities()` 的实际结果为准。默认未授权时调用以 `DIALOG_DISABLED` 拒绝。
 
 同一 execution 最多同时显示一个 Dialog；第二个并发调用以 `DIALOG_BUSY` 拒绝。
 

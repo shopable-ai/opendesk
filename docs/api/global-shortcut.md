@@ -1,4 +1,5 @@
 ---
+docType: reference
 title: Global Shortcut API
 description: macOS 与 Windows 系统级 globalShortcut 注册、回调与生命周期。
 order: 180
@@ -8,7 +9,7 @@ order: 180
 
 `globalShortcut` 把系统范围快捷键事件投递回当前 OpenDesk JavaScript Runtime。它与 `keyboard` 方向相反：`keyboard` 发送输入，`globalShortcut` 接收系统快捷键触发。
 
-状态：**Stable（macOS、Windows）**。Linux 保留对象形状，但注册会返回 `NOT_SUPPORTED`。
+状态：**Stable（macOS、Windows）**。Linux 保留对象形状，但 `register()` / `unregister()` 会同步抛 `NOT_SUPPORTED`。未启用 cgo 的 macOS 构建也不支持原生注册/注销。
 
 ## API 一览
 
@@ -102,7 +103,7 @@ globalShortcut.unregister(accelerator: string): void;
 
 **行为与错误**
 
-当前 Runtime 未注册该快捷键时为 no-op；不能注销其他进程或其他应用拥有的 shortcut。非法 accelerator 抛 `INVALID_ACCELERATOR`。
+先验证 accelerator，再执行平台映射，最后查询当前 Runtime 的 registry。仅在平台映射受支持时，未注册该快捷键为 no-op；不能注销其他进程或其他应用拥有的 shortcut。非法 accelerator 同步抛 `INVALID_ACCELERATOR`。不支持的平台或构建同步抛 `NOT_SUPPORTED`，即使当前 Runtime 没有该注册。
 
 **示例**
 ```js
@@ -130,7 +131,7 @@ globalShortcut.isRegistered(accelerator: string): boolean;
 
 **行为与错误**
 
-只查询当前 Runtime 的本地 registry，不探测其他进程或系统范围占用情况。
+只查询当前 Runtime 的本地 registry，不探测其他进程或系统范围占用情况。非法 accelerator 同步抛 `INVALID_ACCELERATOR`；有效 accelerator 在不支持的平台或构建上返回 `false`。
 
 **示例**
 ```js
@@ -156,7 +157,7 @@ globalShortcut.unregisterAll(): void;
 
 **行为与错误**
 
-幂等清理当前 Runtime registry；不会影响其他 execution 或应用。
+幂等清理当前 Runtime registry；不会影响其他 execution 或应用。没有本 Runtime 注册资源时为 no-op，包括不支持原生快捷键的平台或构建。
 
 **示例**
 ```js
@@ -169,4 +170,4 @@ globalShortcut.unregisterAll();
 
 ## 平台与能力
 
-macOS 与 Windows 提供 Stable backend；Linux 当前不支持注册。权限与 backend 失败不会静默降级为仅前台快捷键。
+macOS cgo 与 Windows 提供 Stable backend；Linux 与 macOS 无 cgo 构建不支持 `register()` / `unregister()`，有效 accelerator 的 `isRegistered()` 返回 `false`，无注册资源时 `unregisterAll()` 为 no-op。权限与 backend 失败不会静默降级为仅前台快捷键。

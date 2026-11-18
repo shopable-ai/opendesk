@@ -1,4 +1,5 @@
 ---
+docType: reference
 title: Vision API
 description: OCR、UI 文本检测、provider capabilities、布局分析与旧 OCR 对象。
 order: 110
@@ -9,6 +10,8 @@ order: 110
 `Vision` 提供底层 OCR、provider capability 和图像布局分析。需要直接操作桌面文本时优先使用 [`UI`](desktop-ui.md)，因为 `UI` 的 Perception Resolver 会处理 scope、歧义、候选融合与 image-pixel → screen-logical 投影。Native OCR（包括 Apple Vision）是该 Resolver 的一个只读 observation source；普通 Recipe 不需要、也不应选择 OCR provider。
 
 同页记录 secondary `OCR.extractText()`，它是独立的本地 Tesseract 纯文本兼容入口。
+
+本页方法均同步执行，直接返回结果；失败同步抛错，不返回 Promise。OCR 计算和 provider 请求会阻塞当前调用直到完成或报错。
 
 ## API 一览
 
@@ -53,7 +56,7 @@ Apple helper 缺失、扩展发现/协议失败、无执行权限、provider tim
 
 **签名**
 ```ts
-Vision.runOCR(options: OpenDeskVisionOCROptions): Promise<OpenDeskVisionOCRResult>;
+Vision.runOCR(options: OpenDeskVisionOptions): OpenDeskVisionOCRResult;
 ```
 
 **参数**
@@ -77,7 +80,7 @@ Vision.runOCR(options: OpenDeskVisionOCROptions): Promise<OpenDeskVisionOCRResul
 
 **行为与错误**
 
-必须提供一种有效图像输入。provider 未实现、未配置、不可用、图片无效或 timeout 时 reject；不会把 reserved provider 静默替换成其他 provider。
+必须提供一种有效图像输入。provider 未实现、未配置、不可用、图片无效或 timeout 时同步抛错；不会把 reserved provider 静默替换成其他 provider。
 
 **示例**
 ```js
@@ -86,7 +89,7 @@ const imagePath = await page.screenshot({
   path: './.runtime/examples/vision-input.png',
   returnType: 'path',
 });
-const result = await Vision.runOCR({ imagePath, provider: 'apple', lang: 'ch' });
+const result = Vision.runOCR({ imagePath, provider: 'apple', lang: 'ch' });
 console.log(result.text);
 ```
 
@@ -96,7 +99,7 @@ console.log(result.text);
 
 **签名**
 ```ts
-Vision.detectUI(options: OpenDeskVisionDetectUIOptions): Promise<OpenDeskVisionDetectUIResult>;
+Vision.detectUI(options: OpenDeskVisionOptions): OpenDeskVisionDetectUIResult;
 ```
 
 **参数**
@@ -123,7 +126,7 @@ Vision.detectUI(options: OpenDeskVisionDetectUIOptions): Promise<OpenDeskVisionD
 
 **示例**
 ```js
-const result = await Vision.detectUI({ imagePath, targetText: '登录', matchMode: 'contains' });
+const result = Vision.detectUI({ imagePath, targetText: '登录', matchMode: 'contains' });
 console.log(result.elements);
 ```
 
@@ -133,7 +136,7 @@ console.log(result.elements);
 
 **签名**
 ```ts
-Vision.getCapabilities(options?: { provider?: string }): Promise<OpenDeskVisionCapabilities>;
+Vision.getCapabilities(options?: Pick<OpenDeskVisionOptions, "provider" | "providerName">): OpenDeskVisionCapabilities;
 ```
 
 **参数**
@@ -141,6 +144,7 @@ Vision.getCapabilities(options?: { provider?: string }): Promise<OpenDeskVisionC
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
 | `options.provider` | `string` | 否 | 未设置 | 只查看指定 provider。 |
+| `options.providerName` | `string` | 否 | 未设置 | `provider` 的兼容字段。 |
 
 **返回值**
 
@@ -152,7 +156,7 @@ Vision.getCapabilities(options?: { provider?: string }): Promise<OpenDeskVisionC
 
 **示例**
 ```js
-const caps = await Vision.getCapabilities({ provider: 'apple' });
+const caps = Vision.getCapabilities({ provider: 'apple' });
 console.log(caps.providers[0]);
 ```
 
@@ -162,23 +166,27 @@ console.log(caps.providers[0]);
 
 **签名**
 ```ts
-Vision.analyzeLayout(options: { image: OpenDeskImageInput; [key: string]: unknown }): OpenDeskVisionLayoutResult;
+Vision.analyzeLayout(options: OpenDeskVisionOptions & {
+  image: string | OpenDeskByteInput | OpenDeskVisionImageSource;
+}): Record<string, unknown>;
 ```
 
 **参数**
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `options.image` | `OpenDeskImageInput` | 是 | 无 | Runtime 支持的图像输入。 |
-| `options` | `object` | 是 | 无 | 其他布局分析选项以当前 Runtime 合同为准。 |
+| `options.image` | `string \| OpenDeskByteInput \| OpenDeskVisionImageSource` | 是 | 无 | Runtime 支持的图像输入。 |
+| `options` | `OpenDeskVisionOptions` | 是 | 无 | 布局参数见 [`ImageColor.analyzeLayout()`](image-color.md#imagecoloranalyzelayoutimage-options)；不需要 OCR provider。 |
 
 **返回值**
 
-`OpenDeskVisionLayoutResult`，包含检测到的区域和分隔线信息。
+`Record<string, unknown>`，包含图像宽高、`regions` 与 `separators` 等布局信息。
 
 **行为与错误**
 
-不依赖 OCR provider，不产生桌面输入。无效图像或选项会明确失败。
+不依赖 OCR provider，不产生桌面输入。图像解码失败、无效尺寸或分析网格过小时同步抛错。
+
+布局选项沿用兼容容错解析：未知字段忽略，数值字段可能先转换再取下限或夹取到范围，未识别的枚举值保留默认值；并非所有无效选项都会抛错。需要严格校验时，调用方应先校验选项，不能用本方法充当 options schema 验证器。
 
 **示例**
 ```js
@@ -192,25 +200,33 @@ console.log(layout.regions, layout.separators);
 
 **签名**
 ```ts
-Vision.annotateRegions(options: OpenDeskVisionAnnotateOptions): OpenDeskImageResult;
+Vision.annotateRegions(options: OpenDeskVisionOptions & {
+  image: string | OpenDeskByteInput | OpenDeskVisionImageSource;
+  regions?: unknown[];
+  separators?: unknown[] | { vertical?: unknown[]; horizontal?: unknown[] };
+}): Record<string, unknown>;
 ```
 
 **参数**
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `options.image` | `OpenDeskImageInput` | 是 | 无 | 输入图像。 |
+| `options.image` | `string \| OpenDeskByteInput \| OpenDeskVisionImageSource` | 是 | 无 | 输入图像。 |
 | `options.regions` | `array` | 否 | 未设置 | 要标注的区域。 |
-| `options.separators` | `array` | 否 | 未设置 | 要标注的分隔线。 |
+| `options.separators` | `array \| { vertical?: array; horizontal?: array }` | 否 | 未设置 | 要标注的分隔线；可直接使用布局结果的分组对象。 |
 | `options.outputPath` | `string` | 否 | 未设置 | 可选输出路径。 |
 
 **返回值**
 
-当前 Runtime 的标注图像结果。
+`Record<string, unknown>`，包含 `width`、`height`、区域 `count` 与 PNG data URL `image`；写入文件时还包含绝对 `outputPath`。
 
 **行为与错误**
 
-不依赖 OCR provider。无效图像、标注数据或输出路径明确失败。
+不依赖 OCR provider。图像解码、PNG 编码、输出路径解析或文件写入失败时同步抛错；不会严格拒绝所有无效标注。
+
+`regions` 未提供或为 `null` 时按空集合处理；非数组值同步抛错。数组内非对象项、解析后 `bbox.width` 或 `bbox.height` 不大于 0 的项会被跳过，坐标字段沿用兼容转换。分隔线解析也会忽略无法解析的形状或项，例如非对象项或位置解析后为负数的项。
+
+当解析后的 regions 和 separators 都为空时，会自动调用布局分析再标注；显式传入空集合或所有项都被丢弃也触发此行为，不能用空集合保证不绘制自动布局。`separators` 的分组对象是当前 Runtime 兼容形式，现有 `types/Vision.d.ts` 的数组声明尚未覆盖它。
 
 **示例**
 ```js
@@ -229,7 +245,7 @@ const annotated = Vision.annotateRegions({
 
 **签名**
 ```ts
-OCR.extractText(image: string, lang?: string): Promise<string>;
+OCR.extractText(image: string, lang?: string): string;
 ```
 
 **参数**
@@ -241,15 +257,15 @@ OCR.extractText(image: string, lang?: string): Promise<string>;
 
 **返回值**
 
-`Promise<string>`。
+`string`，同步返回抽取的纯文本。
 
 **行为与错误**
 
-依赖本地 Tesseract；不可用、图片无效或 OCR 失败时 reject。需要结构化 lines/bbox/provider 管理时使用 `Vision.runOCR()`。
+依赖本地 Tesseract；不可用、图片无效或 OCR 失败时同步抛错。需要结构化 lines/bbox/provider 管理时使用 `Vision.runOCR()`。
 
 **示例**
 ```js
-const text = await OCR.extractText('./.runtime/examples/vision-input.png', 'chi_sim+eng');
+const text = OCR.extractText('./.runtime/examples/vision-input.png', 'chi_sim+eng');
 console.log(text);
 ```
 

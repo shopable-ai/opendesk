@@ -8,7 +8,9 @@ order: 390
 
 `Command` 是 OpenDesk JavaScript Runtime 的 execution-owned 命令执行 API。它直接启动可执行文件，不是 Node.js `child_process` 兼容层，也不经过 shell。
 
-本地 `-script` 与 `ai run` execution 默认启用；HTTP、MCP 与 Scheduler execution 当前禁用。
+本地 `-script` 与 `ai run` execution 默认启用；HTTP、MCP 与 Scheduler execution 默认禁用。
+可信本地 MCP 宿主可用 `--allow-script-execution --script-capabilities=command` 显式授权，见
+[MCP Runtime 调用](../integrations/mcp/runtime-api.md)。客户端请求不能授予该能力。
 
 ## API 一览
 
@@ -23,7 +25,7 @@ order: 390
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `cwd` | `string` | 否 | `Execution.workdir` | 子进程工作目录；必须是已存在目录。 |
+| `cwd` | `string` | 否 | `Execution.workdir` | 子进程工作目录；必须是已存在目录。建议传绝对路径；显式相对路径按宿主进程 cwd 检查和解析。 |
 | `env` | `Record<string, string>` | 否 | `{}` | 覆盖 `Execution.env` 中的同名键。 |
 | `envMode` | `"inherit" \| "replace"` | 否 | `"inherit"` | `inherit` 在 `Execution.env` 上覆盖；`replace` 只传入显式 `env`。 |
 | `input` | `string` | 否 | 未设置 | 一次性 UTF-8 stdin；写完自动关闭；最大 64 MiB。 |
@@ -164,4 +166,4 @@ try {
 
 ## 平台与能力
 
-`Command` 的可用性由 execution 来源与当前平台 backend 决定。本地脚本和 `ai run` 默认启用；HTTP、MCP 与 Scheduler execution 当前返回禁用 capability，不能通过脚本 options 或环境变量自行升级授权。
+`Command` 的可用性由 execution 授权与当前平台 backend 决定。本地脚本和 `ai run` 默认启用；HTTP、MCP 与 Scheduler execution 默认返回禁用 capability。MCP 仅允许可信宿主的显式启动配置授权，不能通过脚本 options、环境变量或客户端请求自行升级授权。

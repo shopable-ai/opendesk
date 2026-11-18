@@ -32,7 +32,7 @@ order: 300
 
 `Execution` 与 `Execution.env` 在一次 execution 内被冻结。脚本改写字段不会改变宿主持有的 ID、deadline、取消状态、artifact 或最终结果。
 
-停止整个 execution 由创建它的控制面负责：Script Runner 使用产品内“停止”，本地 CLI 使用中断，HTTP transport 使用 `DELETE /executions/{id}`。脚本内部没有 `Execution.cancel()`。统一的停止范围、副作用和终态语义见 [JavaScript Runtime：异步完成与取消](runtime.md#异步完成与取消)。
+停止整个 execution 由创建它的控制面负责：Script Runner 使用产品内“停止”，本地 CLI 使用中断，HTTP transport 使用 `DELETE /executions/{id}`，MCP 脚本使用 `tm_script_cancel` 并查询终态（见 [MCP Runtime 调用](../integrations/mcp/runtime-api.md)）。脚本内部没有 `Execution.cancel()`。统一的停止范围、副作用和终态语义见 [JavaScript Runtime：异步完成与取消](runtime.md#异步完成与取消)。
 
 ### 本地环境来源
 

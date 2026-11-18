@@ -88,7 +88,7 @@ test('native only follows host binding; simulated actions and settings cannot re
   let s=initial();
   for(const a of [{type:'SET_THREAD',id:'t2'},{type:'RESET'},{type:'RECEIVE',id:'t1',text:'x'},
     {type:'SET_DRAFT',id:'t1',text:'fake'},{type:'FILL',id:'t1',messageId:'external-1',text:'fake',replace:true},
-    {type:'SEND',id:'t1',messageId:'external-1'},{type:'AUTO_REQUEST'},{type:'AUTO_CONFIRM'},{type:'TAKEOVER'}]){
+    {type:'SEND',id:'t1',messageId:'external-1'},{type:'AUTO_CONFIRM'}]){
     assert.equal(state.reducer(s,a),s,a.type);
   }
   s=state.reducer(s,{type:'SETTING',key:'permission',value:false});
@@ -207,8 +207,13 @@ test('server rendering reuses all six business panels inside the native containe
       assert.ok(native.includes('id="odiv-'+id+'"'),'existing panel '+id);
     }
     assert.match(native,/等待原生观察/);
+    assert.match(native,/原生测试自动回复/);
+    assert.match(native,/无法支持真实微信自动发送/);
+    assert.match(native,/人工接管/);
+    for(const action of ['启用','暂停','恢复','撤权','人工接管'])
+      assert.ok(native.includes('aria-label="本地测试自动回复：'+action+'"'));
     assert.match(native,/aria-label="原生窗口授权" disabled=""/);
-    assert.match(native,/aria-label="智能托管" disabled=""/);
+    assert.match(native,/aria-label="本地测试自动回复：启用" disabled=""/);
     globalThis.window={};
     const browser=ui.render();
     assert.doesNotMatch(browser,/data-native="true"/);

@@ -4,9 +4,112 @@ import (
 	"context"
 	"errors"
 	"math"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 )
+
+// This seam controls the otherwise inaccessible session-close/create lock
+// handoff. Public FloatingWindow cancellation assertions live in Runtime JS.
+type closingDuringCreateDriver struct {
+	*MemoryDriver
+	stateEntered, stateRelease, cleanupEntered chan struct{}
+	mu                                         sync.Mutex
+	closeAttempts                              int
+}
+
+func (d *closingDuringCreateDriver) Create(ctx context.Context, sessionID string, spec WindowSpec, sink func(Event)) (DriverWindow, error) {
+	w, err := d.MemoryDriver.Create(ctx, sessionID, spec, sink)
+	return &closingDuringCreateWindow{DriverWindow: w, owner: d}, err
+}
+
+type closingDuringCreateWindow struct {
+	DriverWindow
+	owner *closingDuringCreateDriver
+}
+
+func (w *closingDuringCreateWindow) State(ctx context.Context) (WindowState, error) {
+	close(w.owner.stateEntered)
+	<-w.owner.stateRelease
+	return w.DriverWindow.State(ctx)
+}
+
+func (w *closingDuringCreateWindow) Close(ctx context.Context) (WindowState, error) {
+	w.owner.mu.Lock()
+	w.owner.closeAttempts++
+	first := w.owner.closeAttempts == 1
+	w.owner.mu.Unlock()
+	if first {
+		close(w.owner.cleanupEntered)
+		<-ctx.Done()
+		return WindowState{}, ctx.Err()
+	}
+	return w.DriverWindow.Close(ctx)
+}
+
+func TestSessionCloseDuringCreateBoundsCleanupAndRetainsOwner(t *testing.T) {
+	driver := &closingDuringCreateDriver{MemoryDriver: NewMemoryDriver(), stateEntered: make(chan struct{}),
+		stateRelease: make(chan struct{}), cleanupEntered: make(chan struct{})}
+	session, err := NewSession("closing-create", t.TempDir(), driver, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type created struct {
+		window *Window
+		err    error
+	}
+	creation := make(chan created, 1)
+	go func() {
+		w, err := session.Create(context.Background(), testWindowSpec("panel"))
+		creation <- created{w, err}
+	}()
+	<-driver.stateEntered
+	closing := make(chan error, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	go func() { closing <- session.Close(ctx) }()
+	for {
+		session.mu.RLock()
+		closed := session.closed
+		session.mu.RUnlock()
+		if closed {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("session Close did not begin")
+		case <-time.After(time.Millisecond):
+		}
+	}
+	close(driver.stateRelease)
+	<-driver.cleanupEntered
+	window, exists := session.Window("panel")
+	if !exists || window.Status() == StatusClosed || session.WindowCount() != 1 || driver.ResourceCounts().Sinks != 1 {
+		t.Fatal("in-flight cleanup lost live resource ownership")
+	}
+	select {
+	case result := <-creation:
+		if result.window != window || !errors.Is(result.err, context.DeadlineExceeded) ||
+			!strings.Contains(result.err.Error(), "session closed during window creation") ||
+			!strings.Contains(result.err.Error(), "creation cleanup failed") {
+			t.Fatalf("Create result lost owner or errors: window=%p, err=%v", result.window, result.err)
+		}
+	case <-ctx.Done():
+		t.Fatal("Create cleanup blocked session Close")
+	}
+	select {
+	case err := <-closing:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal("session Close could not retry native cleanup")
+	}
+	if driver.ResourceCounts().Sinks != 0 || session.WindowCount() != 0 || window.Status() != StatusClosed {
+		t.Fatal("session Close returned with a native resource")
+	}
+}
 
 func testWindowSpec(id string) WindowSpec {
 	return WindowSpec{

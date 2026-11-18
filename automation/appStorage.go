@@ -92,18 +92,18 @@ func (s *AppStorage) migrateLegacyStorage(homeDir, requestedName string) {
 				continue
 			}
 			if err != nil {
-				fmt.Printf("Failed to read legacy AppStorage file %s: %v\n", legacyPath, err)
+				fmt.Fprintf(os.Stderr, "Failed to read legacy AppStorage file %s: %v\n", legacyPath, err)
 				continue
 			}
 			if !json.Valid(content) {
-				fmt.Printf("Skipped invalid legacy AppStorage JSON: %s\n", legacyPath)
+				fmt.Fprintf(os.Stderr, "Skipped invalid legacy AppStorage JSON: %s\n", legacyPath)
 				continue
 			}
 			if err := os.WriteFile(s.filePath, content, 0644); err != nil {
-				fmt.Printf("Failed to migrate AppStorage from %s to %s: %v\n", legacyPath, s.filePath, err)
+				fmt.Fprintf(os.Stderr, "Failed to migrate AppStorage from %s to %s: %v\n", legacyPath, s.filePath, err)
 				return
 			}
-			fmt.Printf("Migrated AppStorage from %s to %s\n", legacyPath, s.filePath)
+			fmt.Fprintf(os.Stderr, "Migrated AppStorage from %s to %s\n", legacyPath, s.filePath)
 			return
 		}
 	}
@@ -123,13 +123,13 @@ func (s *AppStorage) load() {
 
 	content, err := os.ReadFile(s.filePath)
 	if err != nil {
-		fmt.Printf("Failed to read storage file: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to read storage file: %v\n", err)
 		return
 	}
 
 	if len(content) > 0 {
 		if err := json.Unmarshal(content, &s.data); err != nil {
-			fmt.Printf("Failed to parse storage file: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Failed to parse storage file: %v\n", err)
 			s.data = make(map[string]string)
 		}
 	}
@@ -145,17 +145,17 @@ func (s *AppStorage) save() {
 
 	content, err := json.MarshalIndent(s.data, "", "  ")
 	if err != nil {
-		fmt.Printf("Failed to serialize storage data: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to serialize storage data: %v\n", err)
 		return
 	}
 
 	dir := filepath.Dir(s.filePath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		fmt.Printf("Failed to create directory: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to create directory: %v\n", err)
 		return
 	}
 	if err := os.WriteFile(s.filePath, content, 0644); err != nil {
-		fmt.Printf("Failed to write storage file: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to write storage file: %v\n", err)
 	}
 }
 

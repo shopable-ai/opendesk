@@ -253,8 +253,10 @@ executable、wire method、protocol、version 和默认 timeout 固定在 closur
 
 Discovery、`list()`、`get()` 和 `diagnostics()` 不启动 native process，也不执行 bundle 中的任何第三方 JavaScript。只有第一次调用生成的方法时才启动一个 one-shot process；以后每次调用仍启动一个新的 one-shot process。
 
-HTTP 的 `/SCRIPT_RUN`、`/executions`、MCP tool list/call 和其他远程执行通道均不注入
-`NativeExtensions`，也不能用请求字段开启、重定向或调用 Native Extension。低层
+HTTP 的 `/SCRIPT_RUN`、`/executions`、默认 MCP 和其他远程执行通道均不注入
+`NativeExtensions`。可信本地 MCP 宿主可用 `--allow-script-execution --script-capabilities=native-extensions`
+显式授权普通脚本，仍只从原有受控 roots 发现扩展；见 [MCP Runtime 调用](../integrations/mcp/runtime-api.md)。
+客户端不能用请求字段开启或重定向 Native Extension。低层
 `NativeExtension.call` 仍只属于单独的本机 unsafe diagnostic gate，绝不是日常 JavaScript API。
 
 ## NativeExtensions：Discovery roots 和优先顺序
@@ -355,7 +357,7 @@ goBasic.hello({ name: "OpenDesk" });
 ```
 
 - `list()` 返回 id、version、namespace、root kind、公开 method names 和 executable digest；不返回绝对路径或 wire methods。
-- `get(pluginId)` 只接受 manifest canonical id，不接受 path/executable。
+- `get(pluginId)` 只接受 manifest canonical id，不接受 path/executable；同步返回已注册 namespace，不启动插件进程。缺失、空白、前后空格或非字符串 id 同步抛 `invalid_params`；有效字符串未注册时同步抛 `unknown_plugin`。该查询不会安装插件，也不证明 namespace 的方法可运行。
 - `diagnostics()` 返回 privacy-minimized discovery 状态和 error code，不返回用户名、home path 或完整 manifest。
 
 `NativeExtensions` global、每个 namespace 和 method property 都是 non-writable、non-configurable。root、namespace 和 function 对象均 `Object.freeze()`；root/namespace 使用 null prototype。
@@ -551,6 +553,52 @@ NativeExtensions.goBasic.hello({ name: "OpenDesk" });
 ```
 
 它不是日常插件 API，HTTP/MCP 永远不能开启。
+
+**签名**
+
+```ts
+NativeExtension.call(options: {
+  extension?: string;
+  executable?: string;
+  method: string;
+  params?: Record<string, unknown>;
+  timeoutMs?: number;
+}): unknown;
+```
+
+**参数**
+
+| 字段 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `extension` | 与 `executable` 二选一 | 无 | 非空安全文件名；拒绝路径分隔符、NUL、`.`、`..`。相对于解析符号链接后的 OpenDesk 可执行文件同级 `native-extensions/`，不按 execution workdir 解析，不自动补扩展名。 |
+| `executable` | 与 `extension` 二选一 | 无 | 非空绝对路径，目标须为可执行普通文件；不通过 PATH 搜索。 |
+| `method` | 是 | 无 | 非空字符串，去除首尾空白后作为 wire method。 |
+| `params` | 否 | `{}` | 可编码的 JSON 对象；显式 null、数组、标量不接受。 |
+| `timeoutMs` | 否 | `3000` | 正有限整数，不超过 `9223372036854`；此低层入口没有 registry 方法的 60000 上限。 |
+
+**返回值**
+
+同步阻塞，每次启动一个子进程。成功直接返回响应 JSON `result`，包括合法 `null`；不返回 Promise、CallResult、request ID 或成功 evidence 包装。JSON 数字按 JavaScript number 表达。
+
+**行为与错误**
+
+子进程受 execution context 与本次 timeout 共同约束，较早取消/deadline 生效。timeout 不是包括参数转换、路径检查在内的整次调用硬上限；没有独立 AbortSignal。
+
+失败同步抛出 `NativeExtensionError`，包含 `code`、`extensionCode`、`message`、`evidence`。正常 Host 失败 message 为脱敏的 `native extension call failed`；不应依赖远端原始错误文本。扩展合法失败响应的 `code` 为 `extension_error`，`extensionCode` 为扩展错误 code。
+
+evidence 包含 `protocol`、`protocolVersion`、`startupDurationMs`、`durationMs`、`exitCode`、`status`、`errorCode`、`stderrTruncated`，不包含 params、result、原始 stderr。状态为 succeeded、failed、timed_out、canceled。
+
+失败分类包括 invalid_request、invalid_params、invalid_executable、executable_not_found、permission_denied、start_failed、process_failed、timeout、canceled、child_exit_nonzero、empty_response、response_too_large、invalid_json、invalid_response、protocol_mismatch、request_id_mismatch、extension_error。stdout 上限 1 MiB，必须为一个合法 UTF-8 JSON 协议响应；stderr 有界捕获。虽然称为 V0 兼容入口，当前 wire protocolVersion 为 1。未知 options 字段当前不会被逐项拒绝，不能当作受支持选项。
+
+**示例**
+
+```js
+// 只定义：需要上述本机 unsafe gate，并由用户选择真实诊断 executable。
+function inspectNativeExtension(executable, method, params) {
+  return NativeExtension.call({executable, method, params, timeoutMs: 3000});
+}
+```
+
 
 ## NativeExtensions：验收
 

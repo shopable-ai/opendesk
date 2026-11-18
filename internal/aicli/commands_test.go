@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -13,11 +14,34 @@ import (
 	"testing"
 	"time"
 
+	"opendesk/automation"
+
 	pkgExecution "opendesk/pkg/execution"
 	"opendesk/pkg/licensing"
 	"opendesk/pkg/scriptloader"
 	"opendesk/pkg/scriptpackage"
 )
+
+func TestWindowErrorsUseTypedCodeBeforePermissionWords(t *testing.T) {
+	for native, want := range map[automation.WindowErrorCode]string{
+		automation.WindowStaleTarget:      "window_not_found",
+		automation.WindowNotFound:         "window_not_found",
+		automation.WindowBackendFailed:    "execution_failed",
+		automation.WindowAmbiguousTarget:  "execution_failed",
+		automation.WindowNotSupported:     "unsupported_platform",
+		automation.WindowTimeout:          "timeout",
+		automation.WindowInvalidArgument:  "invalid_argument",
+		automation.WindowPermissionDenied: "permission_required",
+	} {
+		t.Run(string(native), func(t *testing.T) {
+			err := fmt.Errorf("content read: %w", &automation.WindowError{Code: native, Message: "native accessibility target is unavailable"})
+			got := automationError(err, "window content")
+			if got.Code != want || (got.Permission != "" && native != automation.WindowPermissionDenied) {
+				t.Fatalf("code=%s permission=%s, want %s", got.Code, got.Permission, want)
+			}
+		})
+	}
+}
 
 type aiTestPublisherKeys struct{ key ed25519.PublicKey }
 

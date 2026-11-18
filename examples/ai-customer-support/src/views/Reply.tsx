@@ -1,27 +1,30 @@
 import React from 'react';
+import { NativeAutomationControls } from './Settings';
 import { ClipboardCopy, Pencil, Check, Sparkles } from 'lucide-react';
 import { businessProducts, useActiveContext, activeOptions, activeReply, activeReplyKey, activeReplyText, latestKey, useWorkbench } from '../state';
 import { productFromCustomerText } from '../domain/catalog';
-import { reviewClaims, type AiResult } from '../domain/ai';
+import { buildReplyHandoff, reviewCandidate, type AiResult } from '../domain/ai';
 import { inspectKnowledge } from '../domain/knowledge';
 import { IconButton, PanelScroll, useCopy, useFillDraft } from '../components/Common';
 
-function EvidenceReview({result,text}:{result:AiResult;text:string}){
-  const items=result.evidencePack.items,claims=reviewClaims(text,items);
-  return <details className="evidence-review"><summary role="button" aria-label={'审核依据 '+result.requestId}>审核依据 · {result.projectId}</summary>
+function EvidenceReview({result,text,candidateId}:{result:AiResult;text:string;candidateId:string}){
+  const {items,claims,unverifiedCount,warnings}=reviewCandidate(text,result,candidateId);
+  return <details className="evidence-review"><summary role="button" aria-label={'审核依据 '+result.requestId}>
+    审核依据 · {claims.length} 段 / {unverifiedCount} 段待核实</summary>
     <section aria-label={'审核元数据 '+result.requestId}>
     <p>Query 项目知识 · {result.requestId}。有来源 ≠ 已核实适用；本地导入不会更新此项目。</p>
     <p>版本、生效期及适用条件：服务未提供，待核实。Hash 是内容指纹，不是生效版本。</p>
     </section>
+    <ul aria-label="审核提醒">{warnings.map(warning=><li key={warning}>{warning}</li>)}</ul>
     {items.map(item=><details key={item.id}><summary role="button" aria-label={'展开来源 '+item.sourceRef+' '+result.requestId}>{item.id} · {item.source?.title||item.sourceRef}</summary>
       <dl><dt>条目</dt><dd>{item.sourceRef}</dd><dt>文档</dt><dd>{item.source?.document||'未提供'}</dd>
       <dt>来源 Hash</dt><dd>{item.answerHash}</dd></dl>
       <p>关联状态：{item.source?'服务声明 ID / Hash 一致；原文未独立核验':'原文不可解析，待核实'}</p>
       {item.source&&<section aria-label={'来源原文 '+item.sourceRef+' '+result.requestId}><blockquote>{item.source.text}</blockquote></section>}
     </details>)}
-    <b>建议中的主张与引用</b><p>服务未提供逐句引用；文本相同也须核实业务适用性。人工编辑内容重新比对。</p>
+    <b>当前候选的主张与引用</b><p>仅比对本候选引用的完整分句；文本相同也须核实业务适用性。人工编辑内容重新比对。</p>
     <ul>{claims.map((claim,i)=><li key={i}>{claim.text}<small>{claim.evidenceIds.length?
-      '原文文字相同：'+claim.evidenceIds.join('、')+' · 适用性待核实':'未验证对应原文 · 待逐条核实（整条建议引用 '+items.map(e=>e.id).join('、')+'）'}</small></li>)}</ul>
+      '原文文字相同：'+claim.evidenceIds.join('、')+' · 适用性待核实':'未验证对应原文 · 待逐条核实'}</small></li>)}</ul>
   </details>;
 }
 
@@ -33,6 +36,11 @@ export function ReplyView(){
   const product=active&&!state.native?productFromCustomerText(message?.text,businessProducts(state)):null;
   const options=activeOptions(state),selected=activeReply(state),txt=activeReplyText(state);
   const key=activeReplyKey(state),copy=useCopy(),fill=useFillDraft(),taken=state.takeovers.includes(state.threadId);
+  const selectedVersion=state.nativeReplyVersions.find(version=>version.id===selected.id);
+  const selectedResult=selectedVersion?.result??(state.nativeReplyVersions.length?null:aiResult??null);
+  const candidateId=selectedVersion?.candidateId??selected.id;
+  const handoff=(text:string)=>buildReplyHandoff({customerName:thread.name,question:message?.text??'',
+    text,result:selectedResult,candidateId});
   const editor=React.useRef<{key:string;node:HTMLTextAreaElement}|null>(null);
   function commitEdit(){
     const current=editor.current;
@@ -49,8 +57,9 @@ export function ReplyView(){
       <span className={'connected'+(!active||taken?' warn':'')}>{caption}</span>
       {state.native&&<IconButton icon={Sparkles} title={ai?.status==='loading'?'正在查询':'获取 AI 知识建议'}
         disabled={!active||!message||ai?.status==='loading'} onClick={()=>{commitEdit();queryNative();}}/>}
-      {(state.auto||taken)&&<button className={'takeover'+(taken?' active':'')} onClick={()=>dispatch({type:'TAKEOVER'})}>{taken?'恢复托管':'♧ 人工接管'}</button>}
+      {!state.native&&(state.auto||taken)&&<button className={'takeover'+(taken?' active':'')} onClick={()=>dispatch({type:'TAKEOVER'})}>{taken?'恢复托管':'♧ 人工接管'}</button>}
     </div>
+    <NativeAutomationControls/>
     <div className="message"><div className="between"><span>最新客户消息</span><span>{active&&message?'#'+message.id:'未读取'}</span></div>
       <p>{active?message?.text||'暂无消息':'未授权或观察已暂停'}</p></div>
     {!state.native?<button className="hit" onClick={()=>dispatch({type:'TAB',tab:'knowledge'})}>
@@ -87,7 +96,7 @@ export function ReplyView(){
             <span className="answer">{val}</span>
           </span><span className="tip">{optionLabel}</span>
         </button>
-        {state.native&&source&&<EvidenceReview result={source} text={val}/>}
+        {state.native&&source&&<EvidenceReview result={source} text={val} candidateId={version?.candidateId??option.id}/>}
         {editing&&<div className="inline-edit"><textarea autoFocus aria-label={'编辑'+option.name} maxLength={2000}
           ref={node=>{editor.current=node?{key:optionKey,node}:null;}}
           defaultValue={val} onChange={e=>dispatch({type:'REPLY_TEXT',key:optionKey,text:e.target.value})}
@@ -99,6 +108,13 @@ export function ReplyView(){
     {!state.native&&!hit&&active&&<div className="notice">尚未找到可靠业务规则；建议澄清问题或交由人工核实，不进行自动发送。</div>}
     {state.native&&aiResult?.status==='ready'&&aiResult.retrievalStatus!=='supported'&&
       <div className="notice">模型草稿不等于已核实事实；此回复须核对来源、价格、订单等动态信息后再使用。</div>}
+    {state.native&&active&&message&&<details className="evidence-review handoff-review">
+      <summary role="button" aria-label="展开人工交接">人工交接 · 仅复制</summary>
+      <p>整理当前客户问题、选中稿和待核实依据。不会发送消息或创建工单。</p>
+      <textarea aria-label="人工交接摘要" readOnly rows={8} value={handoff(txt)}/>
+      <button type="button" className="smallbtn" disabled={!txt.trim()}
+        onClick={()=>{void copy(handoff(commitEdit()),'交接摘要');}}>复制交接摘要</button>
+    </details>}
     </PanelScroll>
     <footer className="bottom compact-actions"><div className="between"><span className="chosen-label">已选：{selected.name}</span><span className="small">{txt.length} 字</span></div>
       <div className="btn-row">

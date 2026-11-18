@@ -141,12 +141,19 @@ declare global {
     getSize(image: string): [number, number] | null;
     clip(image: string, options?: OpenDeskImageCropOptions): string;
     save(image: string, path: string, format?: "png" | "jpeg" | "jpg" | string, quality?: number): boolean;
+    /** First column-major non-gray pixel with red > 20; lowercase hex or empty string. Throws on invalid image. */
     findRedChannel(image: string, x: number, y: number, width?: number, height?: number): string;
+    /** First column-major non-gray pixel with green > 20; lowercase hex or empty string. Throws on invalid image. */
     findGreenChannel(image: string, x: number, y: number, width?: number, height?: number): string;
+    /** First column-major non-gray pixel with blue > 20; lowercase hex or empty string. Throws on invalid image. */
     findBlueChannel(image: string, x: number, y: number, width?: number, height?: number): string;
+    /** Six-digit hex with optional # only; throws on invalid input. Returns RGB text. */
     toRGB(color: string): string;
+    /** Six-digit hex with optional # only; throws on invalid input. Returns RGBA text; alpha is always 1. */
     toRGBA(color: string): string;
+    /** Six-digit hex with optional # only; throws on invalid input. Returns HSL text. */
     toHSL(color: string): string;
+    /** Six-digit hex with optional # only; throws on invalid input. Returns HSLA text; alpha is always 1. */
     toHSLA(color: string): string;
     isColorSimilar(targetColor: string, compareColor: string, tolerance?: number): OpenDeskColorSimilarityResult;
     analyzeLayout(image: string, options?: OpenDeskLayoutAnalyzeOptions): Record<string, unknown>;

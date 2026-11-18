@@ -24,10 +24,10 @@ func registerPath(runtime *goja.Runtime, workDir string) error {
 		return nil
 	}
 
-	if err := object.Set("sep", string(filepath.Separator)); err != nil {
+	if err := object.DefineDataProperty("sep", runtime.ToValue(string(filepath.Separator)), goja.FLAG_FALSE, goja.FLAG_FALSE, goja.FLAG_TRUE); err != nil {
 		return fmt.Errorf("register path.sep: %w", err)
 	}
-	if err := object.Set("delimiter", string(os.PathListSeparator)); err != nil {
+	if err := object.DefineDataProperty("delimiter", runtime.ToValue(string(os.PathListSeparator)), goja.FLAG_FALSE, goja.FLAG_FALSE, goja.FLAG_TRUE); err != nil {
 		return fmt.Errorf("register path.delimiter: %w", err)
 	}
 	if err := set("join", func(call goja.FunctionCall) goja.Value {

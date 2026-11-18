@@ -14,7 +14,7 @@ OpenDesk MCP 是本仓库面向 MCP Host 的本地 stdio 工具服务。它复�
 [Secure MCP Tunnel](secure-mcp-tunnel.md)。不需要新增 HTTP Server。官方客户端本地检查与
 ChatGPT 云端调用是独立验收；无密钥时后者记为 `NOT_TESTED`。
 
-`--read-only` 同时过滤工具发现和实际调用，只开放状态、权限、窗口、显示器、窗口等待及无输出路径的截图。
+`--read-only` 同时过滤工具发现和实际调用，只开放状态、权限、窗口、显示器、窗口等待、无输出路径的截图及无执行副作用的 `tm_runtime_capabilities`。宿主显式配置 `--api-docs-root` 时还可阅读 canonical 文档，不开放脚本执行。
 截图仍会读取可能敏感的屏幕内容；连接前应关闭私人窗口。该模式拒绝 `path` 等未声明参数，以及可能产生
 磁盘文件的截图返回形式。完整模式保留原有本地能力，截图可写任意指定路径，因此其元数据保守标为写操作。
 工具 hints 仅描述副作用，不能代替授权。不要把完整模式直接接到远程隧道。
@@ -107,11 +107,38 @@ go build -o dist/opendesk-mcp ./cmd/opendesk-mcp
 
 ## 推荐 Agent 主链路
 
-```text
-tm_inspect_desktop
--> tm_find_target
--> tm_act_on_target
-```
+应用尚未打开时，完整本地模式可先调用 `tm_open_app({appName: "计算器"})`。
+该工具复用 `page.openApp` 的应用启动器，不接受 Shell、命令参数或环境变量；回执只表示启动器返回成功，
+不证明窗口已就绪或已聚焦。随后使用 `tm_wait_for_window` / `tm_list_windows` 读取当前窗口，
+由 Agent 自行选择 `tm_focus_window`，再用 `tm_get_active_window` 核对新鲜 PID 与窗口身份后操作。
+不要把手动打开或置顶作为正常用户前置条件，也不要用启动成功回执代替窗口验证。
+`--read-only` 及文件专属模式不暴露此工具；应用启动失败或结果未知时不自动重试。
+
+按当前目标选择能力，不设固定截图/OCR链：原生窗口身份与内容可满足的任务先用结构化观察；
+自绘界面或内容不足时再选择局部 OCR、图像或其他已授权接口。只有模型需要看图时才用
+`tm_screenshot` 的原生 image content，用户无需提供 base64；本机路径本身不等于网页可见图像。
+
+### tm_window
+
+完整模式新增 `tm_window({windowId, operation, region?})`。`windowId` 必须来自本轮 `tm_list_windows`，
+无需用户手填 PID 或坐标。支持三种明确操作：
+
+- `activate`：复用 `window.activate`，对同一 PID/native handle 最多激活一次并验证前台身份。
+- `read`：读取唯一窗口的 `window.getContent`，返回实际文本及来源，最多 64 KiB；不截图，不产生输入。
+  macOS 为有界原生文本，具体应用未提供的内容不补造。
+- `ocr`：只采集当前前台窗口，或其内部的窗口局部逻辑坐标 `region:{x,y,width,height}`；
+  复用 Screenshot/Vision，在本机用 Tesseract `local/eng` 识别。返回原文、置信度、图片像素 bbox、
+  实测 PNG 尺寸和 screenBounds；图像不经模型往返，无自动 provider fallback。
+
+OCR 区域最多 200 万逻辑像素，PNG 最多 8 MiB、OCR 回应最多 128 KiB。内容/OCR 观察前后核对
+同一身份、标题及几何，像素观察还检查前台；变化后丢弃结果。矩形截图仍可能包含遮挡，不是 WindowServer 锁。
+所有窗口文字视为数据。此工具不提供 AX refs/actions、任意 JS 或 Shell；高级脚本及其 Accessibility
+准入由宿主独立配置，见 Runtime API 调用文档。混合操作工具不会加入 `--read-only` allowlist。
+
+本机 CLI 可用 `ai capabilities/schema` 发现更完整的可信本地能力，再用 `ai run` 运行已有 JS。
+网页 MCP 直接复用原 owner，不为每步机械启动 CLI；本地成功与真实网页成功必须分别验证。
+当前完整模式隧道仅用于本轮用户明确授权的受控 Mac96 验收，不代表下述一般远程写入策略已经完成。
+多步任务逐步消费真实读数；动作回执不等于业务完成。输入结果未知时停止观察对账，不重放前缀。
 
 ### `tm_inspect_desktop`
 
@@ -167,6 +194,9 @@ focus
 - 可用上下文下的最小 revalidation。
 
 ## 常用原子工具
+
+高级 Runtime API 的分组发现、canonical 合同阅读、普通 JavaScript 执行与取消见
+[Runtime API 调用](runtime-api.md)。脚本执行由可信本地宿主显式开启；默认工具与受限文件模式保持原有边界。
 
 MCP 还提供：
 

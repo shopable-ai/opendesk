@@ -2,8 +2,11 @@ package mcpserver
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image/png"
 	"io"
 	"math"
 	"opendesk/pkg/recorder"
@@ -19,6 +22,8 @@ const ProtocolVersion = "2024-11-05"
 // LatestProtocolVersion is the newest initialize-based revision implemented here.
 // 2026-07-28 uses a different discovery/per-request metadata contract.
 const LatestProtocolVersion = "2025-11-25"
+
+const maxMCPFrameBytes = 2 * 1024 * 1024
 
 const (
 	ErrCodeParseError     = -32700
@@ -85,11 +90,15 @@ type Server struct {
 	recorder        *recorder.Manager
 	recorderOnce    sync.Once
 	recorderErr     error
+	scripts         *ScriptService
+	apiDocs         *APIDocs
 }
 
 // ServerOptions controls the tool surface for the lifetime of one stdio server.
 type ServerOptions struct {
 	ReadOnly bool
+	Scripts  *ScriptService
+	APIDocs  *APIDocs
 }
 
 func NewServer(runtime Runtime) *Server {
@@ -97,12 +106,27 @@ func NewServer(runtime Runtime) *Server {
 }
 
 func NewServerWithOptions(runtime Runtime, options ServerOptions) *Server {
-	s := &Server{runtime: runtime, readOnly: options.ReadOnly, protocolVersion: LatestProtocolVersion}
+	s := &Server{runtime: runtime, readOnly: options.ReadOnly, protocolVersion: LatestProtocolVersion, apiDocs: options.APIDocs}
+	if !options.ReadOnly {
+		s.scripts = options.Scripts
+	}
 	s.tools = map[string]Tool{}
 	for _, tool := range builtinTools() {
 		s.tools[tool.Name] = policyTool(tool, options.ReadOnly)
 	}
 	for _, tool := range browserTools() {
+		s.tools[tool.Name] = policyTool(tool, options.ReadOnly)
+	}
+	for _, tool := range advancedTools() {
+		if strings.HasPrefix(tool.Name, "tm_script_") && s.scripts == nil {
+			continue
+		}
+		if strings.HasPrefix(tool.Name, "tm_api_") && s.apiDocs == nil {
+			continue
+		}
+		s.tools[tool.Name] = policyTool(tool, options.ReadOnly)
+	}
+	for _, tool := range windowTools() {
 		s.tools[tool.Name] = policyTool(tool, options.ReadOnly)
 	}
 	return s
@@ -162,7 +186,7 @@ func (s *Server) Handle(req Request) Response {
 func (s *Server) ServeStream(in io.Reader, out io.Writer) error {
 	scanner := bufio.NewScanner(in)
 	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 2*1024*1024)
+	scanner.Buffer(buf, maxMCPFrameBytes)
 	encoder := json.NewEncoder(out)
 	for scanner.Scan() {
 		if s.filesBridge != nil && len(scanner.Bytes()) > filesBridgeMaxFrameBytes {
@@ -316,10 +340,60 @@ func (s *Server) handleToolsCall(req Request) Response {
 			"text": mustJSONString(payload),
 		}},
 	}
+	if params.Name == "tm_runtime_capabilities" || strings.HasPrefix(params.Name, "tm_api_") || strings.HasPrefix(params.Name, "tm_script_") {
+		if payload["error"] != nil || !payloadOK(payload) {
+			result["isError"] = true
+		}
+		response := s.resultResponse(req.ID, result)
+		encoded, err := json.Marshal(response)
+		if err != nil || len(encoded) >= maxMCPFrameBytes {
+			return s.resultResponse(req.ID, map[string]any{"isError": true, "content": []map[string]any{{"type": "text", "text": "advanced tool response exceeds MCP frame limit; no partial result returned"}}})
+		}
+		return response
+	}
 	if payload["error"] != nil || !payloadOK(payload) {
 		result["isError"] = true
+		return s.resultResponse(req.ID, result)
+	}
+	if params.Name == "tm_screenshot" && (params.Arguments["returnType"] == nil || params.Arguments["returnType"] == "base64") {
+		image, err := screenshotImageContent(payload["result"])
+		if err != nil {
+			return s.resultResponse(req.ID, map[string]any{
+				"content": []map[string]any{{"type": "text", "text": err.Error()}},
+				"isError": true,
+			})
+		}
+		result["content"] = append(result["content"].([]map[string]any), image)
+		response := s.resultResponse(req.ID, result)
+		// Text compatibility duplicates the image data. Bound the complete frame
+		// using the existing stdio limit, without reading paths or resizing images.
+		encoded, err := json.Marshal(response)
+		if err != nil || len(encoded) >= maxMCPFrameBytes {
+			return s.resultResponse(req.ID, map[string]any{
+				"content": []map[string]any{{"type": "text", "text": "screenshot image response exceeds MCP frame limit"}},
+				"isError": true,
+			})
+		}
+		return response
 	}
 	return s.resultResponse(req.ID, result)
+}
+
+func screenshotImageContent(value any) (map[string]any, error) {
+	const prefix = "data:image/png;base64,"
+	dataURL, ok := value.(string)
+	if !ok || len(dataURL) > maxMCPFrameBytes || !strings.HasPrefix(dataURL, prefix) {
+		return nil, fmt.Errorf("screenshot result must be a PNG base64 data URL within the MCP frame limit")
+	}
+	data := strings.TrimPrefix(dataURL, prefix)
+	raw, err := base64.StdEncoding.Strict().DecodeString(data)
+	if err != nil || len(raw) == 0 || base64.StdEncoding.EncodeToString(raw) != data {
+		return nil, fmt.Errorf("screenshot result contains invalid PNG base64")
+	}
+	if _, err := png.DecodeConfig(bytes.NewReader(raw)); err != nil {
+		return nil, fmt.Errorf("screenshot result contains invalid PNG image configuration")
+	}
+	return map[string]any{"type": "image", "mimeType": "image/png", "data": data}, nil
 }
 
 func (s *Server) callTool(name string, args map[string]any) (map[string]any, error) {
@@ -335,6 +409,9 @@ func (s *Server) callTool(name string, args map[string]any) (map[string]any, err
 	if strings.HasPrefix(name, "tm_recorder_") {
 		return s.callRecorderTool(name, args)
 	}
+	if name == "tm_runtime_capabilities" || strings.HasPrefix(name, "tm_api_") || strings.HasPrefix(name, "tm_script_") {
+		return s.callAdvancedTool(name, args)
+	}
 	if sessionID := serverStringArg(args, "recordingSessionId"); sessionID != "" && recordableTool(name) {
 		return s.callRecordedTool(name, args, sessionID)
 	}
@@ -342,6 +419,15 @@ func (s *Server) callTool(name string, args map[string]any) (map[string]any, err
 }
 
 func (s *Server) callToolCore(name string, args map[string]any) (map[string]any, error) {
+	if name == "tm_window" {
+		owner, ok := s.runtime.(interface {
+			WindowOperation(map[string]any) (map[string]any, error)
+		})
+		if !ok {
+			return nil, fmt.Errorf("scoped window capability is unavailable")
+		}
+		return owner.WindowOperation(args)
+	}
 	if s.filesBridge != nil {
 		return s.filesBridge.call(name, args)
 	}
@@ -363,6 +449,19 @@ func (s *Server) callToolCore(name string, args map[string]any) (map[string]any,
 		return map[string]any{"windows": rows, "count": len(rows)}, nil
 	case "tm_get_active_window":
 		return s.runtime.GetActiveWindow()
+	case "tm_open_app":
+		appName := strings.TrimSpace(serverStringArg(args, "appName"))
+		if appName == "" || strings.ContainsRune(appName, '\x00') {
+			return nil, fmt.Errorf("appName must be a non-empty application name without NUL characters")
+		}
+		launcher, ok := s.runtime.(interface{ OpenApp(string) error })
+		if !ok {
+			return nil, fmt.Errorf("application launcher is unavailable")
+		}
+		if err := launcher.OpenApp(appName); err != nil {
+			return nil, err
+		}
+		return ack("open_app", map[string]any{"appName": appName}), nil
 	case "tm_focus_window":
 		title := serverStringArg(args, "title")
 		if title == "" {
@@ -1722,8 +1821,10 @@ func toolOrder() []string {
 		"tm_recorder_compile",
 		"tm_permissions",
 		"tm_request_permissions",
+		"tm_open_app",
 		"tm_list_windows",
 		"tm_get_active_window",
+		"tm_window",
 		"tm_focus_window",
 		"tm_wait_for_window",
 		"tm_focus_and_type",
@@ -1748,6 +1849,9 @@ func toolOrder() []string {
 	for _, tool := range browserTools() {
 		order = append(order, tool.Name)
 	}
+	for _, tool := range advancedTools() {
+		order = append(order, tool.Name)
+	}
 	return order
 }
 
@@ -1769,6 +1873,7 @@ func builtinTools() []Tool {
 		{Name: "tm_recorder_distill", Description: "Distill a stopped immutable raw trace into deterministic Flow IR", InputSchema: obj(map[string]any{"recordingSessionId": map[string]any{"type": "string"}}, "recordingSessionId")},
 		{Name: "tm_recorder_compile", Description: "Compile a distilled Flow IR into deterministic OpenDesk JavaScript", InputSchema: obj(map[string]any{"recordingSessionId": map[string]any{"type": "string"}, "replayConfigPath": map[string]any{"type": "string"}}, "recordingSessionId")},
 		{Name: "tm_permissions", Description: "macOS automation/screenshot permission snapshot", InputSchema: obj(map[string]any{})},
+		{Name: "tm_open_app", Description: "Open or activate a local application by exact application name, e.g. Calculator or 计算器 on macOS. Launcher success does not verify window readiness or focus: wait for its window, focus it, then inspect its current identity before input. No shell, command arguments or environment variables are accepted.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"appName": map[string]any{"type": "string", "description": "Exact installed application name"}}, "required": []string{"appName"}, "additionalProperties": false}},
 		{Name: "tm_request_permissions", Description: "Open macOS privacy settings and trigger permission probes", InputSchema: obj(map[string]any{"openSettings": map[string]any{"type": "boolean", "description": "Open System Settings if supported"}, "section": map[string]any{"type": "string", "description": "Optional macOS privacy section hint"}})},
 		{Name: "tm_list_windows", Description: "List visible windows; low-level fields in each row are best-effort metadata, not a stable cross-platform contract", InputSchema: obj(map[string]any{})},
 		{Name: "tm_get_active_window", Description: "Return the current active window; low-level metadata fields are best-effort and not a stable cross-platform contract", InputSchema: obj(map[string]any{})},

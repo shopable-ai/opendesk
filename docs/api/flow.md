@@ -74,7 +74,7 @@ Flow.resolve(relativePath: string): string;
 
 参数 | 类型 | 必填 | 默认值 | 说明
 --- | --- | --- | --- | ---
-`relativePath` | `string` | 是 | 无 | 使用 `/` 分隔的 canonical 相对资源路径；不能是绝对路径、包含 `..`、反斜杠、卷标、尾点或尾空格的路径。 |
+`relativePath` | `string` | 是 | 无 | 使用 `/` 分隔的非空 canonical 相对资源路径；有效 UTF-8、最多 512 字节及 32 个路径组件。不能是绝对路径、包含 `..`、反斜杠、卷标、尾点或尾空格的路径。 |
 
 **返回值**
 

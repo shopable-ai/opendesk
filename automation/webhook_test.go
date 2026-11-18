@@ -87,6 +87,18 @@ func (h *webhookTestRuntime) close(t *testing.T) {
 	_ = h.loop.RunOnLoop(func(*goja.Runtime) {
 		if h.lifecycle != nil {
 			h.lifecycle.CancelAsync()
+			// Other owners can synchronously settle a handler's Promise after
+			// HTTP teardown. Its late pump cleanup must not resurrect a host
+			// that retains the entire execution without a cleanup watcher.
+			httpOwner := h.lifecycle.HTTP
+			if httpOwner != nil {
+				_, _ = httpOwner.WebhookNext("retired")
+				_ = httpOwner.WebhookRespond("retired", "retired", nil)
+				_ = httpOwner.WebhookClose("retired")
+				if _, retained := localWebhookHosts.Load(httpOwner); retained {
+					t.Error("late webhook cleanup resurrected the execution host")
+				}
+			}
 		}
 		close(cancelDone)
 	})

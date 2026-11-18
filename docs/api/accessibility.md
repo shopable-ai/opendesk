@@ -9,7 +9,7 @@ order: 100
 
 `Accessibility` 是 OpenDesk 的第一方原生桌面语义接口。它统一 macOS Accessibility（AX）和 Windows UI Automation（UIA），提供有界观察、受管元素引用和原生动作；不读取浏览器 DOM，不使用 OCR 或鼠标坐标。
 
-本接口为 **Experimental**。可信本地 `-script`、`-script-text`、stdin 与 `opendesk ai run` execution 可启用；HTTP、MCP 与 Scheduler 当前关闭。关闭时仍可调用 `Accessibility.getCapabilities()`，其他方法以 `CAPABILITY_DISABLED` 拒绝。
+本接口为 **Experimental**。可信本地 `-script`、`-script-text`、stdin 与 `opendesk ai run` execution 可启用；HTTP、MCP 与 Scheduler 默认关闭。可信本地 MCP 宿主可用 `--allow-script-execution --script-capabilities=accessibility` 显式授权，见 [MCP Runtime 调用](../integrations/mcp/runtime-api.md)。系统权限仍独立检查；客户端请求不能授予能力。关闭时仍可调用 `Accessibility.getCapabilities()`，其他方法以 `CAPABILITY_DISABLED` 拒绝。
 
 ## API 一览
 

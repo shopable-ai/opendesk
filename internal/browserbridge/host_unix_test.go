@@ -104,6 +104,9 @@ func TestHostChromeCLIBridgeAndUnknownIdentity(t *testing.T) {
 	if err==nil{t.Fatal("wrong origin accepted")}
 }
 func TestProviderReverseRequestsAndDisconnect(t *testing.T) {
+	// This test owns only its external provider; real user project grants must
+	// not inject an unrelated built-in provider notification into its pipe.
+	t.Setenv("HOME",t.TempDir())
 	h,w,r,socket:=testHost(t)
 	welcome(t,h,w,true)
 	conn,reader:=local(t,socket)

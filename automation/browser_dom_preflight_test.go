@@ -24,7 +24,7 @@ func TestBrowserDOMInvalidCallsRejectedBeforeCoreStartup(t *testing.T) {
 	target := map[string]any{"opaque": "not-a-valid-core-target"}
 	cases := []struct {
 		name, operation, code string
-		args map[string]any
+		args                  map[string]any
 	}{
 		{"unknown-operation", "not_a_browser_operation", "UNSUPPORTED_OPERATION", nil},
 		{"status-extra-field", "status", "INVALID_ARGUMENT", map[string]any{"arbitrary": true}},
@@ -64,13 +64,50 @@ func TestBrowserDOMInvalidCallsRejectedBeforeCoreStartup(t *testing.T) {
 	for _, raw := range []string{"null\n", "{}\n", "not-json\n"} {
 		t.Run("invalid-adapter-"+strings.TrimSpace(raw), func(t *testing.T) {
 			adapter := &BrowserDOMRuntime{
-				stdin: &browserDOMTestWriteCloser{},
+				stdin:  &browserDOMTestWriteCloser{},
 				stdout: bufio.NewScanner(strings.NewReader(raw)),
 			}
 			got := adapter.exchange(map[string]any{"operation": "status"})
 			failure, ok := got["error"].(map[string]any)
 			if !ok || failure["code"] != "BROWSER_ADAPTER_RESPONSE_INVALID" || got["outcome"] != "OUTCOME_UNKNOWN" {
 				t.Fatalf("untrusted adapter envelope must fail closed, got %+v", got)
+			}
+		})
+	}
+}
+
+func TestBrowserDOMCorrelatesAndValidatesAdapterReplies(t *testing.T) {
+	cases := []struct {
+		name, wire, outcome, code string
+	}{
+		{"success including null", `{"requestId":"current","outcome":"SUCCEEDED","result":null}`, "SUCCEEDED", ""},
+		{"known refusal", `{"requestId":"current","outcome":"NOT_DISPATCHED","error":{"code":"PERMISSION_DENIED","outcome":"NOT_DISPATCHED"}}`, "NOT_DISPATCHED", "PERMISSION_DENIED"},
+		{"known cancellation", `{"requestId":"current","outcome":"CANCELLED_BEFORE_DISPATCH","error":{"code":"CANCELLED","outcome":"CANCELLED_BEFORE_DISPATCH"}}`, "CANCELLED_BEFORE_DISPATCH", "CANCELLED"},
+		{"confirmed failure", `{"requestId":"current","outcome":"FAILED_CONFIRMED","error":{"code":"VERIFICATION_FAILED","outcome":"FAILED_CONFIRMED"}}`, "FAILED_CONFIRMED", "VERIFICATION_FAILED"},
+		{"unknown action", `{"requestId":"current","outcome":"OUTCOME_UNKNOWN","error":{"code":"CLIENT_TIMEOUT","outcome":"OUTCOME_UNKNOWN"}}`, "OUTCOME_UNKNOWN", "CLIENT_TIMEOUT"},
+		{"stale error", `{"requestId":"other","outcome":"NOT_DISPATCHED","error":{"code":"PERMISSION_DENIED","outcome":"NOT_DISPATCHED"}}`, "OUTCOME_UNKNOWN", "BROWSER_ADAPTER_RESPONSE_INVALID"},
+		{"missing ID", `{"outcome":"NOT_DISPATCHED","error":{"code":"PERMISSION_DENIED","outcome":"NOT_DISPATCHED"}}`, "OUTCOME_UNKNOWN", "BROWSER_ADAPTER_RESPONSE_INVALID"},
+		{"stale success", `{"requestId":"other","outcome":"SUCCEEDED","result":{}}`, "OUTCOME_UNKNOWN", "BROWSER_ADAPTER_RESPONSE_INVALID"},
+		{"missing result", `{"requestId":"current","outcome":"SUCCEEDED"}`, "OUTCOME_UNKNOWN", "BROWSER_ADAPTER_RESPONSE_INVALID"},
+		{"result and error", `{"requestId":"current","outcome":"SUCCEEDED","result":{},"error":null}`, "OUTCOME_UNKNOWN", "BROWSER_ADAPTER_RESPONSE_INVALID"},
+		{"disagreeing outcomes", `{"requestId":"current","outcome":"NOT_DISPATCHED","error":{"code":"CLIENT_TIMEOUT","outcome":"OUTCOME_UNKNOWN"}}`, "OUTCOME_UNKNOWN", "BROWSER_ADAPTER_RESPONSE_INVALID"},
+		{"invalid error", `{"requestId":"current","outcome":"NOT_DISPATCHED","error":"invalid"}`, "OUTCOME_UNKNOWN", "BROWSER_ADAPTER_RESPONSE_INVALID"},
+		{"invalid code", `{"requestId":"current","outcome":"NOT_DISPATCHED","error":{"code":1,"outcome":"NOT_DISPATCHED"}}`, "OUTCOME_UNKNOWN", "BROWSER_ADAPTER_RESPONSE_INVALID"},
+		{"unrecognized outcome", `{"requestId":"current","outcome":"REPLAY","error":{"code":"INVALID_ARGUMENT","outcome":"REPLAY"}}`, "OUTCOME_UNKNOWN", "BROWSER_ADAPTER_RESPONSE_INVALID"},
+		{"lost response", "", "OUTCOME_UNKNOWN", "BROWSER_CLIENT_DISCONNECTED"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stdin := &browserDOMTestWriteCloser{}
+			adapter := &BrowserDOMRuntime{stdin: stdin, stdout: bufio.NewScanner(strings.NewReader(tc.wire))}
+			got := adapter.exchange(map[string]any{"requestId": "current", "operation": "fill"})
+			failure, _ := got["error"].(map[string]any)
+			code, _ := failure["code"].(string)
+			if got["outcome"] != tc.outcome || code != tc.code {
+				t.Fatalf("got %+v, want %s/%s", got, tc.outcome, tc.code)
+			}
+			if strings.Count(stdin.String(), "\n") != 1 {
+				t.Fatalf("exchange must write exactly one request, got %q", stdin.String())
 			}
 		})
 	}

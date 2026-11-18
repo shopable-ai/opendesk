@@ -60,7 +60,7 @@ declare global {
     draggable?: boolean;
 	/** Execution-scoped group used by related HTML panels to suppress outside interaction events. */
 	interactionGroup?: string;
-    /** Defaults to horizontal. Vertical toolbars accept at most five native content items. */
+    /** Defaults to horizontal. Vertical toolbars accept at most 81 native content items. */
     orientation?: ClawdeskFloatingWindowOrientation;
     /**
      * Immutable tooltip side preference. Omission defaults to auto: right for
@@ -78,7 +78,7 @@ declare global {
     tooltipPosition?: ClawdeskFloatingTooltipPosition;
     /**
      * Horizontal automatic-wrap constraints. Not supported with orientation:
-     * "vertical", which remains a one-column toolbar for compatibility.
+     * "vertical", which remains a naturally sized single column.
      */
     toolbar?: ClawdeskFloatingToolbarOptions;
   }
@@ -198,7 +198,7 @@ declare global {
     badge: string;
     /** Monotonic EventLoop-owned state revision confirmed by the native host. */
     revision: number;
-    /** Actual visible text: “稍候” while a text button is busy; empty for icons/images. */
+    /** Actual visible text; empty while the busy spinner is shown or for icons/images. */
     renderedText: string;
     /** Native tooltip readback. Always mirrors label. */
     tooltip: string;
@@ -405,8 +405,9 @@ declare global {
   type ClawdeskFloatingButtonCallback = (event: ClawdeskUIEvent) => unknown | Promise<unknown>;
 
   interface ClawdeskFloatingWindow {
+    /** Execution-local toolbar id, allocated before show; not an OS window id. Do not assign: JS assignment cannot rename the native toolbar. */
     readonly id: string;
-    /** Adds ordered 40×40 buttons with a built-in icon, image, or explicit {text} before first show. label supplies both the native tooltip and Accessibility name. Horizontal accepts 1-32 unless toolbar.maxRows imposes a smaller capacity; vertical accepts 1-5. */
+    /** Adds ordered 40×40 buttons with a built-in icon, image, or explicit {text} before first show. label supplies both the native tooltip and Accessibility name. Horizontal accepts 1-32 unless toolbar.maxRows imposes a smaller capacity; vertical accepts 1-81. */
     addButton(id: string, label: string, icon: ClawdeskFloatingIconSource, callback?: ClawdeskFloatingButtonCallback): void;
     /** Adds bounded visible native status text before first show. Width stays fixed across updates. */
     addLabel(id: string, text: string, options?: ClawdeskFloatingLabelOptions): void;
@@ -441,7 +442,7 @@ declare global {
     getButtonState(id: string): Promise<ClawdeskFloatingButtonState>;
     getLabelState(id: string): Promise<ClawdeskFloatingLabelState>;
     getControlState(id: string): Promise<ClawdeskFloatingControlState>;
-    /** Shows 40pt-high native content. Horizontal rows use toolbar.maxWidth/maxColumns/maxRows; vertical remains a single column of at most five content items. */
+    /** Shows 40pt-high native content. Horizontal rows use toolbar.maxWidth/maxColumns/maxRows; vertical naturally grows as a single column of at most 81 content items, without scrolling or pagination. */
     show(): Promise<ClawdeskUIWindowState>;
     hide(): Promise<ClawdeskUIWindowState | null>;
     close(): Promise<ClawdeskUIWindowState | null>;

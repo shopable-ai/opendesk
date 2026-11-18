@@ -128,7 +128,9 @@ func (s *downloadCommitState) replace(ctx context.Context, replace func() (bool,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.cancelRequested {
-		return false, downloadContextError(ctx, false)
+		// The commit fence may observe abort before the request context does.
+		// Never return (false, nil): that would be an unpublished success.
+		return false, downloadError(DownloadCanceled, "http.download", "download was canceled before commit", 0, false, context.Canceled)
 	}
 	if err := downloadContextError(ctx, false); err != nil {
 		return false, err
@@ -140,8 +142,19 @@ func (s *downloadCommitState) replace(ctx context.Context, replace func() (bool,
 	return committed, err
 }
 
-func (h *HTTPClient) downloadSpec(rawURL string, options *goja.Object) (httpDownloadRequest, func(), *downloadCommitState, error) {
+func (h *HTTPClient) downloadSpec(rawURL string, options *goja.Object) (request httpDownloadRequest, cleanup func(), commit *downloadCommitState, err error) {
 	const operation = "http.download"
+	// Options and signal accessors execute JS. Keep failures inside Download's
+	// Promise contract before any slot, worker, network or file is created.
+	defer func() {
+		if recover() != nil {
+			if request.cancel != nil {
+				request.cancel()
+			}
+			request, cleanup, commit = httpDownloadRequest{}, nil, nil
+			err = downloadError(DownloadInvalidArgument, operation, "could not read download options", 0, false, nil)
+		}
+	}()
 	if options == nil {
 		options = h.runtime.NewObject()
 	}
@@ -160,7 +173,7 @@ func (h *HTTPClient) downloadSpec(rawURL string, options *goja.Object) (httpDown
 	if err != nil {
 		return httpDownloadRequest{}, nil, nil, err
 	}
-	if headers.Get("Range") != "" || headers.Get("If-Range") != "" {
+	if len(headers.Values("Range")) != 0 || len(headers.Values("If-Range")) != 0 {
 		return httpDownloadRequest{}, nil, nil, downloadError(DownloadInvalidArgument, operation, "Range and If-Range headers are not supported for complete downloads", 0, false, nil)
 	}
 	maxBytes, err := downloadMaxBytes(downloadOption(options, "maxBytes"))
@@ -184,7 +197,8 @@ func (h *HTTPClient) downloadSpec(rawURL string, options *goja.Object) (httpDown
 		return httpDownloadRequest{}, nil, nil, err
 	}
 	ctx, cancel := h.requestContext(downloadOption(options, "timeout"))
-	commit := &downloadCommitState{}
+	request.cancel = cancel
+	commit = &downloadCommitState{}
 	cleanupAbort := h.bindAbortSignalCallback(downloadOption(options, "signal"), func() {
 		commit.cancel()
 		cancel()
@@ -447,6 +461,9 @@ func streamHTTPDownloadResponse(response *http.Response, request httpDownloadReq
 		var err error
 		gzipReader, err = gzip.NewReader(response.Body)
 		if err != nil {
+			if contextErr := downloadContextError(request.context, false); contextErr != nil {
+				return httpDownloadResult{}, withDownloadStatus(contextErr, response.StatusCode, false)
+			}
 			return httpDownloadResult{}, downloadError(DownloadResponseEncoding, operation, "gzip response could not be decoded", response.StatusCode, false, err)
 		}
 		defer gzipReader.Close()

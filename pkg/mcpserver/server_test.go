@@ -2,8 +2,12 @@ package mcpserver
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"image"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -374,7 +378,7 @@ func TestToolsCallScreenshotDelegatesToRuntime(t *testing.T) {
 		Method:  "tools/call",
 		Params: mustRawMap(t, map[string]any{
 			"name":      "tm_screenshot",
-			"arguments": map[string]any{"path": "/tmp/shot.png", "target": "screen"},
+			"arguments": map[string]any{"path": "/tmp/shot.png", "target": "screen", "returnType": "object"},
 		}),
 	})
 	if resp.Error != nil {
@@ -388,6 +392,123 @@ func TestToolsCallScreenshotDelegatesToRuntime(t *testing.T) {
 	payload := mustJSONTextPayload(t, content)
 	if payload["path"] != "/tmp/shot.png" {
 		t.Fatalf("unexpected payload: %#v", payload)
+	}
+}
+
+func screenshotTestPNG(t *testing.T) []byte {
+	t.Helper()
+	var buffer bytes.Buffer
+	if err := png.Encode(&buffer, image.NewRGBA(image.Rect(0, 0, 2, 3))); err != nil {
+		t.Fatal(err)
+	}
+	return buffer.Bytes()
+}
+
+func TestToolsCallScreenshotImageContent(t *testing.T) {
+	raw := screenshotTestPNG(t)
+	data := base64.StdEncoding.EncodeToString(raw)
+	dataURL := "data:image/png;base64," + data
+	for _, readOnly := range []bool{false, true} {
+		for _, explicit := range []bool{false, true} {
+			t.Run(fmt.Sprintf("readOnly=%t/explicit=%t", readOnly, explicit), func(t *testing.T) {
+				original := map[string]any{"ok": true, "result": dataURL, "backend": "fixture", "width": 2, "height": 3}
+				fake := &fakeRuntime{screenshotResult: original}
+				args := map[string]any{}
+				if explicit {
+					args["returnType"] = "base64"
+				}
+				response := policyCall(t, NewServerWithOptions(fake, ServerOptions{ReadOnly: readOnly}), "tm_screenshot", args)
+				if response.Error != nil {
+					t.Fatal(response.Error)
+				}
+				result := mustMapResult(t, response.Result)
+				content := mustCallContent(t, result)
+				if result["isError"] == true || len(content) != 2 {
+					t.Fatalf("expected text plus image: %#v", result)
+				}
+				text := content[0].(map[string]any)
+				if text["type"] != "text" || text["text"] != mustJSONString(normalizeResultMap(original)) {
+					t.Fatal("text compatibility or metadata changed")
+				}
+				picture := content[1].(map[string]any)
+				if len(picture) != 3 || picture["type"] != "image" || picture["mimeType"] != "image/png" || picture["data"] != data {
+					t.Fatalf("invalid MCP image block: %#v", picture)
+				}
+				decoded, err := base64.StdEncoding.DecodeString(picture["data"].(string))
+				if err != nil || !bytes.Equal(decoded, raw) {
+					t.Fatal("image bytes changed")
+				}
+				if fake.lastOCRArgs != nil || fake.lastAnalyzeArgs != nil {
+					t.Fatal("screenshot assembly invoked vision")
+				}
+			})
+		}
+	}
+	// This is the actual Runtime return shape: a string, not a metadata map.
+	response := policyCall(t, NewServer(&fakeRuntime{screenshotResult: dataURL}), "tm_screenshot", map[string]any{"returnType": "base64"})
+	content := mustCallContent(t, mustMapResult(t, response.Result))
+	if len(content) != 2 || mustJSONTextPayload(t, content)["result"] != dataURL {
+		t.Fatal("Runtime data URL shape was not preserved and promoted")
+	}
+}
+
+func TestToolsCallScreenshotImageRejectsInvalidAndOversizedData(t *testing.T) {
+	data := base64.StdEncoding.EncodeToString(screenshotTestPNG(t))
+	for name, value := range map[string]any{
+		"path":               "/must-not-read/screenshot.png",
+		"path-object":        map[string]any{"path": "/must-not-read/screenshot.png", "mimeType": "image/png"},
+		"empty":              "data:image/png;base64,",
+		"bare-base64":        data,
+		"wrong-mime":         "data:image/jpeg;base64," + data,
+		"invalid-base64":     "data:image/png;base64,!",
+		"non-png":            "data:image/png;base64," + base64.StdEncoding.EncodeToString([]byte("not a PNG")),
+		"truncated-png":      "data:image/png;base64," + base64.StdEncoding.EncodeToString([]byte("\x89PNG\r\n\x1a\n")),
+		"whitespace":         "data:image/png;base64," + data[:4] + "\n" + data[4:],
+		"oversized-data-url": "data:image/png;base64," + strings.Repeat("A", maxMCPFrameBytes),
+		// DecodeConfig accepts this PNG without allocating pixel storage, but
+		// duplicating its payload in text and image must exceed the frame budget.
+		"oversized-complete-frame": "data:image/png;base64," + base64.StdEncoding.EncodeToString(append(screenshotTestPNG(t), make([]byte, maxMCPFrameBytes/2)...)),
+	} {
+		t.Run(name, func(t *testing.T) {
+			response := policyCall(t, NewServer(&fakeRuntime{screenshotResult: value}), "tm_screenshot", map[string]any{"returnType": "base64"})
+			result := mustMapResult(t, response.Result)
+			content := mustCallContent(t, result)
+			if result["isError"] != true || len(content) != 1 || content[0].(map[string]any)["type"] != "text" {
+				t.Fatalf("invalid image was not rejected: %#v", result)
+			}
+			if len(response.Result) >= maxMCPFrameBytes {
+				t.Fatal("rejection retained oversized data")
+			}
+		})
+	}
+}
+
+func TestToolsCallScreenshotImagePreservesOtherResultsAndErrors(t *testing.T) {
+	dataURL := "data:image/png;base64," + base64.StdEncoding.EncodeToString(screenshotTestPNG(t))
+	for _, representation := range []string{"bytes", "path", "object", "none"} {
+		t.Run(representation, func(t *testing.T) {
+			response := policyCall(t, NewServer(&fakeRuntime{screenshotResult: dataURL}), "tm_screenshot", map[string]any{"returnType": representation})
+			result := mustMapResult(t, response.Result)
+			content := mustCallContent(t, result)
+			if result["isError"] == true || len(content) != 1 || mustJSONTextPayload(t, content)["result"] != dataURL {
+				t.Fatal("non-base64 representation changed")
+			}
+		})
+	}
+	for _, fake := range []*fakeRuntime{
+		{screenshotErr: errors.New("capture failed")},
+		{screenshotResult: map[string]any{"ok": false, "result": dataURL}},
+		{screenshotResult: map[string]any{"error": "capture failed", "result": dataURL}},
+	} {
+		response := policyCall(t, NewServer(fake), "tm_screenshot", map[string]any{"returnType": "base64"})
+		result := mustMapResult(t, response.Result)
+		if result["isError"] != true || len(mustCallContent(t, result)) != 1 {
+			t.Fatal("failed capture produced image content")
+		}
+	}
+	response := policyCall(t, NewServer(&fakeRuntime{ocrResult: map[string]any{"ok": true, "result": dataURL}}), "tm_ocr", map[string]any{})
+	if len(mustCallContent(t, mustMapResult(t, response.Result))) != 1 {
+		t.Fatal("image promotion escaped screenshot assembly")
 	}
 }
 

@@ -2,6 +2,7 @@
 title: SQLite Runtime API
 description: 第一方、execution-owned 的异步 SQLite 数据库句柄。
 order: 370
+docType: reference
 ---
 
 # SQLite
@@ -32,8 +33,9 @@ try {
 ## 入口与文件边界
 
 SQLite 仅注入可信本地 execution：`-script`、`-script-text`、`-script-stdin` 和 `opendesk ai run`。
-HTTP、MCP 和 Scheduler execution 不注入 `SQLite`，也没有任意 SQL 的 HTTP route 或 MCP tool。
-因此新增该全局对象不会让远程入口取得宿主文件系统访问能力。
+HTTP、MCP 和 Scheduler execution 默认不注入 `SQLite`，也没有任意 SQL 的 HTTP route 或专用 MCP tool。
+可信本地 MCP 宿主可用 `--allow-script-execution --script-capabilities=sqlite` 显式授权普通脚本，见
+[MCP Runtime 调用](../integrations/mcp/runtime-api.md)。客户端请求不能授予该能力；默认受限模式不变。
 
 路径规则和 [`File.path()`](file.md#filepathrelativepath) 一致：相对路径以不可变的
 `Execution.workdir` 为基准；绝对路径按所在平台的原生规则使用。Windows 驱动器/UNC 路径、包含空格
@@ -54,14 +56,35 @@ HTTP、MCP 和 Scheduler execution 不注入 `SQLite`，也没有任意 SQL 的 
 
 ## 打开数据库：SQLite.open(options)
 
+打开一个归当前 execution 所有的独立数据库句柄。
+
+**签名**
+
 ```ts
-SQLite.open({
+SQLite.open(options: {
   path: string,
   mode?: 'rw' | 'rwc' | 'ro',
   timeoutMs?: number,
   signal?: AbortSignal,
 }): Promise<OpenDeskSQLiteDatabase>
 ```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| options | object | 是 | 无 | 只接受下列字段。 |
+| options.path | string | 是 | 无 | 非空本地路径或 `:memory:`；父目录必须存在，见[文件边界](#入口与文件边界)。 |
+| options.mode | string | 否 | `rw` | `rw`、`rwc`、`ro`，语义见下表。 |
+| options.timeoutMs | number | 否 | 30000 | 1–600000 整数毫秒，从调用起计时。 |
+| options.signal | AbortSignal | 否 | 无 | 进一步收紧本次操作的取消范围。 |
+
+**返回值**
+
+`Promise<OpenDeskSQLiteDatabase>`，仅在连接成功后 resolve；句柄不能跨 execution 传递，落盘文件可由后续
+execution 重新打开。不存在的 `rw`/`ro` 文件不会被创建。
+
+**行为与错误**
 
 | `mode` | 默认 | 含义 |
 | --- | --- | --- |
@@ -75,6 +98,24 @@ SQLite.open({
 
 `open`、`exec`、`query` 和 `batch` 的 `timeoutMs` 默认是 30,000 ms，必须是 1–600,000 的整数；
 `AbortSignal` 已经 aborted 时直接以 Promise rejection 完成。`close` 不接受 options。
+
+权限由入口/宿主授予，客户端 SQL 或 options 不能提权；未注入时访问 `SQLite` 是 JavaScript 名称错误，
+并非 `SQLiteError`。路径/权限/驱动打开失败为 `OPEN_FAILED`，受保护路径为 `PROTECTED_PATH`，
+参数错误为 `INVALID_ARGUMENT`，预取消为 `CANCELED`、截止时间为 `TIMEOUT`；失败不返回可用句柄。
+错误字段见[错误](#错误)。
+
+**示例**
+
+在已授权的本地 execution 中，工作目录已有 `data/` 目录：
+
+```js
+const db = await SQLite.open({ path: 'data/tasks.sqlite', mode: 'rwc' });
+try {
+  await db.exec('CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY, title TEXT NOT NULL)');
+} finally {
+  await db.close();
+}
+```
 
 ## 参数、值与精度
 
@@ -114,9 +155,27 @@ SQLite 本身没有 BOOLEAN 存储类：绑定的 `boolean` 按 SQLite INTEGER �
 如需把精确十进制文本写为 INTEGER，可让 SQLite 显式转换，例如
 `CAST(? AS INTEGER)`；不要先把它变成不安全的 JavaScript number。
 
+## API 一览
+
+| 方法 | 用途 |
+| --- | --- |
+| [SQLite.open(options)](#打开数据库sqliteopenoptions) | 打开 execution-owned 句柄。 |
+| [db.exec(sql, params?, options?)](#dbexecsql-params-options) | 执行单条 SQL，返回影响行数。 |
+| [db.query(sql, params?, options?)](#dbquerysql-params-options) | 返回有限的行对象数组。 |
+| [db.batch(statements, options?)](#dbbatchstatements-options) | 在一个事务内执行一组语句。 |
+| [db.close()](#dbclose) | 排队释放句柄，可重复调用。 |
+
 ## 句柄方法
 
-### db.exec(sql, params?, options?)
+以下 `db` 均为 `SQLite.open()` 返回的句柄；权限与路径边界见[入口与文件边界](#入口与文件边界)。
+示例在已授权的本地 execution 内运行；除打开示例外，假设已有 `tasks(id INTEGER PRIMARY KEY,
+ title TEXT NOT NULL)` 表及开放的 `db`，调用者最终在 `finally` 中关闭句柄。
+
+## db.exec(sql, params?, options?)
+
+执行一条顶层 SQL 并返回受影响行数。
+
+**签名**
 
 ```ts
 db.exec(
@@ -126,9 +185,40 @@ db.exec(
 ): Promise<{ changes: number }>
 ```
 
-执行一条顶层 SQL 并返回受影响行数。参数始终由 SQLite 原生绑定，绝不通过字符串拼接生成 SQL。
+**参数**
 
-### db.query(sql, params?, options?)
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| sql | string | 是 | 无 | 非空的单条 SQL；受[单语句规则](#单语句排队取消与写入结果)约束。 |
+| params | OpenDeskSQLiteParams | 否 | 无绑定 | 位置数组或命名对象，见[参数、值与精度](#参数值与精度)。 |
+| options | object | 否 | 无 | 只接受下列字段。 |
+| options.timeoutMs | number | 否 | 30000 | 1–600000 整数毫秒，包含排队时间。 |
+| options.signal | AbortSignal | 否 | 无 | 取消本次操作，不能延长 execution 生命周期。 |
+
+**返回值**
+
+`Promise<{ changes: number }>`，影响行数由 SQLite 返回；不提供行对象或 lastInsertId。
+
+**行为与错误**
+
+参数通过 SQLite 原生绑定。必须使用已授权、未关闭句柄；`ro` 连接拒绝写入为 `READ_ONLY`。
+参数和 SQL 边界错误在执行前 reject；引擎语法、约束等失败为 `SQL_ERROR`，关闭中或已关闭为 `CLOSED`，
+队列满为 `QUEUE_FULL`。`signal` 预取消为 `CANCELED`、截止时间为 `TIMEOUT`；预取消的写入状态为
+`not_started`/`false`。SQL 开始后的失败可能为 `unknown`/`null`，不得自动重试。
+完整错误码与状态见[错误](#错误)及[写入结果](#单语句排队取消与写入结果)。
+
+**示例**
+
+```js
+const result = await db.exec('INSERT INTO tasks (title) VALUES (?)', ['参数绑定']);
+console.log(result.changes);
+```
+
+## db.query(sql, params?, options?)
+
+执行单条 SQL，返回完整且有界的行对象数组。
+
+**签名**
 
 ```ts
 db.query(
@@ -143,41 +233,133 @@ db.query(
 ): Promise<Array<Record<string, OpenDeskSQLiteValue>>>
 ```
 
-执行一条顶层 SQL 并返回行对象数组；没有记录时 resolve `[]`。它不等同于安全意义的“只读”：只读边界
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| sql | string | 是 | 无 | 非空单条 SQL，见[单语句规则](#单语句排队取消与写入结果)。 |
+| params | OpenDeskSQLiteParams | 否 | 无绑定 | 位置数组或命名对象，见[参数、值与精度](#参数值与精度)。 |
+| options | object | 否 | 无 | 只接受下列字段。 |
+| options.timeoutMs | number | 否 | 30000 | 1–600000 整数毫秒，包含排队和读取。 |
+| options.signal | AbortSignal | 否 | 无 | 取消本次查询。 |
+| options.maxRows | number | 否 | 10000 | 1–100000 整数，结果行数上限。 |
+| options.maxBytes | number | 否 | 8388608 | 1–67108864 整数，编码结果字节上限。 |
+
+**返回值**
+
+`Promise<Array<Record<string, OpenDeskSQLiteValue>>>`；没有记录时 resolve `[]`。
+列类型和整数精度见[参数、值与精度](#参数值与精度)。
+
+**行为与错误**
+
+必须使用已授权、未关闭句柄；参数、单语句、队列及关闭错误见[错误](#错误)。语法、扫描等引擎错误为
+`SQL_ERROR`；`signal` 预取消/执行取消为 `CANCELED`、超时为 `TIMEOUT`。只取消单次查询时，后续操作
+仍可使用健康句柄；execution 取消则清理该 execution 的资源。
+
+它不等同于安全意义的“只读”：只读边界
 必须使用 `SQLite.open({ mode: 'ro' })`。例如 DML `... RETURNING` 也可以由 `query` 返回行；若它在
 结果上限、取消或读取错误处失败，写入结果可能为 `writeState: 'unknown'` / `committed: null`，不得自动重试。
 
 为避免无界结果，query 默认最多返回 **10,000 行**和 **8 MiB** 的编码结果数据。`maxRows` 可设为
 1–100,000，`maxBytes` 可设为 1–64 MiB；任一上限触发时 reject `RESULT_LIMIT`，不会静默截断后返回部分行。
 
-### db.batch(statements, options?)
+**示例**
 
-```ts
-db.batch([
-  { sql: 'INSERT INTO tasks (title) VALUES (?)', params: ['first'] },
-  { sql: 'UPDATE counters SET value = value + ? WHERE name = ?', params: [1, 'writes'] },
-], { timeoutMs: 5_000 });
-// Promise<{ results: Array<{ changes: number }> }>
+```js
+const rows = await db.query('SELECT id, title FROM tasks WHERE id > ?', [0], { maxRows: 100 });
+console.log(rows);
 ```
 
+## db.batch(statements, options?)
+
+在同一个事务内按顺序执行一组 SQL，并只在完整成功时提交。
+
+**签名**
+
+```ts
+db.batch(statements: Array<{ sql: string; params?: OpenDeskSQLiteParams }>,
+  options?: { timeoutMs?: number; signal?: AbortSignal }
+): Promise<{ results: Array<{ changes: number }> }>
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| statements | Array<object> | 是 | 无 | 1–256 个元素，全部在入队前校验。 |
+| statements[].sql | string | 是 | 无 | 非空单条 SQL，不允许原始事务/连接控制。 |
+| statements[].params | OpenDeskSQLiteParams | 否 | 无绑定 | 绑定规则见[参数、值与精度](#参数值与精度)。 |
+| options | object | 否 | 无 | 只接受下列字段。 |
+| options.timeoutMs | number | 否 | 30000 | 1–600000 整数毫秒，覆盖排队、事务、提交。 |
+| options.signal | AbortSignal | 否 | 无 | 进一步限制整个 batch。 |
+
+**返回值**
+
+`Promise<{ results: Array<{ changes: number }> }>`，按输入顺序返回影响行数，不返回查询行。
+
+**行为与错误**
+
+权限来自打开句柄的入口；`ro` 写入为 `READ_ONLY`，约束等引擎错误为 `SQL_ERROR`，参数/SQL 边界、
+`CLOSED`、`QUEUE_FULL` 见[错误](#错误)。预取消为 `CANCELED` 且 `not_started`/`false`；运行期取消或
+超时分别为 `CANCELED` 或 `TIMEOUT`，应检查实际的写入状态。
+
 `batch` 的每个元素是 `{ sql, params? }`（最多 256 个），并固定在**同一个物理连接**上的一个真实事务内执行。
-全部元素成功才提交；在提交点之前任一元素出错、超时或取消时整个 batch 回滚，不能用逐条独立提交冒充事务。
-如果 `COMMIT` 本身与取消或底层错误竞态，Runtime 不会谎称已经回滚，而是以 `writeState: 'unknown'`、
-`committed: null` reject；调用者不得自动重试。成功时 `results` 与输入顺序一一对应。
+全部元素成功才提交；提交点之前任一元素出错、超时或取消时尝试回滚整个 batch，不能用逐条独立提交冒充事务。
+事务内失败后，只有显式回滚成功（或已确认事务结束）才报告 `rolled_back` / `false`。
+COMMIT 失败后若回滚无法确认，则为 `unknown` / `null`，并关闭不确定的连接；不得自动重试。
+若 COMMIT 已成功后才观察到取消，则 rejection 可报告 `committed` / `true`，不能声称已回滚。
+成功时 `results` 与输入顺序一一对应。
 
 首版不提供跨调用 `BEGIN`/`COMMIT`、transaction callback 或可跨句柄共享的事务 API。`BEGIN`、`COMMIT`、
 `ROLLBACK`、`SAVEPOINT`、`RELEASE` 等原始事务控制语句均被拒绝，尤其不能放进 batch 绕过 owner。`ATTACH`、
 `DETACH` 和 `VACUUM` 这类改变连接/文件边界的语句也不受此句柄支持。
 
-### db.close()
+**示例**
+
+```js
+const result = await db.batch([
+  { sql: 'INSERT INTO tasks (title) VALUES (?)', params: ['first'] },
+  { sql: 'INSERT INTO tasks (title) VALUES (?)', params: ['second'] },
+], { timeoutMs: 5_000 });
+console.log(result.results);
+```
+
+## db.close()
+
+按 FIFO 顺序释放当前句柄。
+
+**签名**
 
 ```ts
 db.close(): Promise<void>
 ```
 
+**参数**
+
+无；不接受 options、signal 或 timeoutMs，传入非 undefined 参数会 reject `INVALID_ARGUMENT`。
+
+**返回值**
+
+`Promise<void>`，成功 resolve `undefined`。重复调用也成功；关闭过程中的调用复用关闭 Promise。
+
+**行为与错误**
+
+只作用于当前 execution 的句柄，不授予额外权限。物理关闭失败为 `CLOSE_FAILED`，Runtime teardown
+期间可 reject `CANCELED`；完整字段见[错误](#错误)。关闭本身不承诺撤销已经提交的写入。
+
 `close()` 可重复调用。第一次开始关闭后，句柄拒绝新的 `open` 后操作，正常 close 会等待已经进入该句柄队列
 的操作结束，再释放连接、Rows、Stmt、worker、队列和 AbortSignal listener。脚本忘记 `close()` 时，
 execution teardown 仍会关闭所有归该 execution 的句柄；但业务脚本应始终在 `finally` 中显式关闭。
+
+**示例**
+
+```js
+try {
+  console.log(await db.query('SELECT id, title FROM tasks'));
+} finally {
+  await db.close();
+}
+```
 
 ## 单语句、排队、取消与写入结果
 
@@ -188,7 +370,8 @@ execution teardown 仍会关闭所有归该 execution 的句柄；但业务脚�
 native worker 执行，Goja 参数读取、Promise settlement 和 AbortSignal listener 都回到所属 EventLoop，
 不会把 SQLite 的锁等待、执行或结果读取阻塞到 JavaScript EventLoop 上。
 
-execution cancel、`timeoutMs`、`AbortSignal`、SQL 错误和脚本异常都会取消/清理仍在运行的工作。正常的
+execution cancel 或未捕获脚本异常会清理 execution 的工作；单次 `timeoutMs`、`AbortSignal` 或
+SQL 错误结束对应操作，不意味着所有健康句柄都被关闭。正常的
 主动 `close()` 不抢占已接受的 FIFO 操作，而是在它们结束后释放连接；取消覆盖排队、锁等待、SQL 执行和
 行读取，而不是只用 `Promise.race` 留下后台 SQL。
 

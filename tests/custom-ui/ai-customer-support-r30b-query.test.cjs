@@ -28,6 +28,7 @@ function harness() {
   const h = {calls, results, win, readHook: null, windowHook: null, freshHook: null, httpHook: null,
     findHook:null,valueHook:null,writeHook:null,actionHook:null,valueReads:0,actions:[],observations:[]};
   const ctx = vm.createContext({target,evidence:'/mock/evidence', log() {},
+    automation:{ingest(){},report:async()=>{},pause(){},revoke(){},takeover(){},handle:async()=>{}},
     panel: {on: (name, handler) => {events.set(name, handler); return () => {};},
       postMessage: async result => results.push(result)},
     freshTarget: async () => h.freshHook ? h.freshHook() : live,
@@ -70,7 +71,8 @@ function harness() {
   vm.runInContext(host.slice(host.indexOf('async function observe('),host.indexOf('async function receipt(')),ctx);
   ctx.realObserve=ctx.observe;ctx.observe=async()=>{};
   vm.runInContext(host.slice(host.indexOf('async function receipt('), host.indexOf('// AI requests read')),ctx);
-  vm.runInContext(host.slice(host.indexOf('async function askAI('), host.indexOf('\nconst subscription=')), ctx);
+  vm.runInContext(host.slice(host.indexOf('async function askAI('), host.indexOf('\nfunction scheduleObservation(')), ctx);
+  vm.runInContext(host.slice(host.indexOf("const off=panel.on('message'"),host.indexOf('\nconst subscription=')),ctx);
   h.ctx = ctx;
   h.request = {type: 'support.aiQuery', requestId: 'query-1', binding: {...ctx.adapter.current.binding}};
   h.ask = (request = h.request) => ctx.askAI(request);
@@ -179,7 +181,7 @@ for (const [name, change] of Object.entries(changes)) {
 for (const flag of ['closed', 'revoked', 'paused']) {
   test(`result AX pending: ${flag} is rechecked after asynchronous reads`, async () => {
     const h = harness(), entered = deferred(), release = deferred();
-    h.readHook = async n => {if (n === 2) {entered.resolve(); await release.promise;}};
+    h.readHook = async n => {if (n === 3) {entered.resolve(); await release.promise;}};
     const work = h.ask();
     await entered.promise;
     // Exercise the flag check independently of adapter generation invalidation.

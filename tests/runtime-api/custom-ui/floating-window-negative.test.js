@@ -65,14 +65,14 @@
     const overflow = await helper.expectUIError(() => maximum.addButton('max32', 'Max 32', 'timer'), 'INVALID_SPEC', 'FloatingWindow.addButton');
     equal(overflow.targetId, 'max32');
     const verticalMaximum = new FloatingWindow({ orientation: 'vertical' });
-    for (let index = 0; index < 5; index += 1) verticalMaximum.addButton('vertical' + index, 'Vertical ' + index, 'timer');
-    const verticalOverflow = await helper.expectUIError(() => verticalMaximum.addButton('vertical5', 'Vertical 5', 'timer'), 'INVALID_SPEC', 'FloatingWindow.addButton');
-    equal(verticalOverflow.targetId, 'vertical5');
+    for (let index = 0; index < 81; index += 1) verticalMaximum.addButton('vertical' + index, 'Vertical ' + index, 'timer');
+    const verticalOverflow = await helper.expectUIError(() => verticalMaximum.addButton('vertical81', 'Vertical 81', 'timer'), 'INVALID_SPEC', 'FloatingWindow.addButton');
+    equal(verticalOverflow.targetId, 'vertical81');
     const constrained = new FloatingWindow({ toolbar: { maxColumns: 2, maxRows: 2 } });
     for (let index = 0; index < 4; index += 1) constrained.addButton('constrained' + index, 'Constrained ' + index, 'timer');
     const constrainedOverflow = await helper.expectUIError(() => constrained.addButton('constrained4', 'Constrained 4', 'timer'), 'INVALID_SPEC', 'FloatingWindow.addButton');
     equal(constrainedOverflow.targetId, 'constrained4');
-    helper.evidence.negative = { status: 'passed', unsafeIconsRejected: 10, invalidLayoutRejected: 5, invalidPlacementRejected: 8, invalidOrientationRejected: true, duplicateRejected: true, invalidStateRejected: true, thirtyThirdRejected: true, verticalSixthRejected: true, constrainedFifthRejected: true };
+    helper.evidence.negative = { status: 'passed', unsafeIconsRejected: 10, invalidLayoutRejected: 5, invalidPlacementRejected: 8, invalidOrientationRejected: true, duplicateRejected: true, invalidStateRejected: true, thirtyThirdRejected: true, verticalEightySecondRejected: true, constrainedFifthRejected: true };
     helper.persist();
   });
 })();

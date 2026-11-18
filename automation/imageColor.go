@@ -353,12 +353,13 @@ func (ic *ImageColor) FindColorBlocks(imageStr, colorStr string, options interfa
 	blocks = ic.mergeOverlappingBlocks(blocks)
 	blocks = ic.classifyBlockShapes(searchArea, blocks, targetColor, threshold)
 
-	// Convert to map array and adjust coordinates
+	// SubImage preserves source bounds, so detected coordinates are already
+	// image-relative; adding the ROI origin here would offset them twice.
 	result := make([]map[string]interface{}, len(blocks))
 	for i, block := range blocks {
 		result[i] = map[string]interface{}{
-			"x":      block.X + x,
-			"y":      block.Y + y,
+			"x":      block.X,
+			"y":      block.Y,
 			"width":  block.Width,
 			"height": block.Height,
 			"area":   block.Area,
@@ -1086,7 +1087,7 @@ func (ic *ImageColor) ToHSL(colorStr string) (string, error) {
 	}
 
 	r, g, b, _ := c.RGBA()
-	h, s, l := rgbToHSL(r, g, b)
+	h, s, l := rgbToHSL(r>>8, g>>8, b>>8)
 	return fmt.Sprintf("hsl(%f,%f%%,%f%%)", h, s, l), nil
 }
 
@@ -1098,7 +1099,7 @@ func (ic *ImageColor) ToHSLA(colorStr string) (string, error) {
 	}
 
 	r, g, b, a := c.RGBA()
-	h, s, l := rgbToHSL(r, g, b)
+	h, s, l := rgbToHSL(r>>8, g>>8, b>>8)
 	return fmt.Sprintf("hsla(%f,%f%%,%f%%,%f)", h, s, l, float64(a>>8)/255.0), nil
 }
 

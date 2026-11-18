@@ -57,7 +57,11 @@ function harness(settings = {}) {
   const sandbox = {
     UI,
     window: {getActiveWindow: async () => settings.activeWindow ? settings.activeWindow(state) : clone(state.window)},
-    mouse: {clickPoint: async () => { calls.mouse += 1; if (settings.mouseError) throw settings.mouseError; }},
+    mouse: {clickPoint: async () => {
+      calls.mouse += 1;
+      if (settings.mouseError) throw settings.mouseError;
+      if (settings.onMouse) settings.onMouse();
+    }},
     page: {
       screenshot: async () => { calls.screenshot += 1; if (settings.screenshot) await settings.screenshot(); return 'ZmFrZQ=='; },
       waitForTimeout: async milliseconds => { if (settings.wait) await settings.wait(milliseconds); },
@@ -84,6 +88,7 @@ function harness(settings = {}) {
       },
     };
   }
+  if (settings.runOCR) sandbox.Vision = {runOCR: settings.runOCR};
   if (settings.vlm) {
     sandbox.DesktopVision = {
       getCapabilities: () => Object.assign({policyAllowed: true, configured: true, sharedMultimodal: true}, settings.vlmCapabilities || {}),
@@ -137,10 +142,10 @@ async function rejects(run, code) {
       nativeInput: () => ({ok: true, completed: [{action: 'invoke', actionState: 'acknowledged', requestId: 'native-request-C'}]}), snapshot: {
       complete: true, truncated: false, backend: 'fixture-ax', root: {
         role: 'button', name: 'Save', identifier: 'save', enabled: true, actions: ['invoke'],
-        // macOS global display points are the documented native coordinate
-        // space that safely maps to current WindowInfo screen coordinates.
-        bounds: null,
-        nativeBounds: {x: 150, y: 250, width: 60, height: 30, coordinateSpace: 'macos-global-display-points-top-left'}, children: [],
+        // The native owner publishes calibrated screen bounds; raw native
+        // coordinates remain diagnostic and must not override that evidence.
+        bounds: {x: 150, y: 250, width: 60, height: 30, coordinateSpace: 'screen'},
+        nativeBounds: {x: 900, y: 900, width: 60, height: 30, coordinateSpace: 'macos-global-display-points-top-left'}, children: [],
       },
     }});
     const result = await h.UI.tapText('Save', {within: clone(WIN)});
@@ -154,16 +159,37 @@ async function rejects(run, code) {
     assert.strictEqual(sequence.completed[0].requestId, 'native-request-C');
   });
 
-  await test('C1 only a two-point macOS native frame edge drift is clipped into the current scope', async () => {
-    const h = harness({ocr: [], snapshot: {
-      complete: true, truncated: false, backend: 'fixture-ax', root: {
-        role: 'button', name: 'Edge', identifier: 'edge', enabled: true, actions: ['invoke'], bounds: null,
-        nativeBounds: {x: 100, y: 470, width: 80, height: 31, coordinateSpace: 'macos-global-display-points-top-left'}, children: [],
-      },
-    }});
-    const result = await h.UI.findText('Edge', {within: clone(WIN)});
-    assert(result && result.source === 'accessibility');
-    assert.strictEqual(result.bounds.y + result.bounds.height, 500);
+  await test('C1 missing, untagged or out-of-scope screen bounds cannot be guessed or clipped from native bounds', async () => {
+    const nativeBounds = {x: 100, y: 470, width: 80, height: 31,
+      coordinateSpace: 'macos-global-display-points-top-left'};
+    for (const bounds of [null, {x: 150, y: 250, width: 60, height: 30},
+      {x: 150, y: 250, width: 60, height: 30, coordinateSpace: 'macos-global-display-points-top-left'},
+      {x: 100, y: 470, width: 80, height: 31, coordinateSpace: 'screen'}]) {
+      const h = harness({ocr: [], snapshot: {
+        complete: true, truncated: false, backend: 'fixture-ax', root: {
+          role: 'button', name: 'Edge', identifier: 'edge', enabled: true, actions: ['invoke'],
+          bounds, nativeBounds, children: [],
+        },
+      }});
+      assert.strictEqual(await h.UI.findText('Edge', {within: clone(WIN)}), null);
+      assert.strictEqual(await h.UI.hasText('Edge', {within: clone(WIN)}), false);
+      await rejects(() => h.UI.tapText('Edge', {within: clone(WIN)}), 'TARGET_NOT_FOUND');
+      assert.strictEqual(h.calls.nativeInput, 0);
+      assert.strictEqual(h.calls.mouse, 0);
+      assert.strictEqual(h.calls.vlm, 0);
+    }
+  });
+
+  await test('C2 distinct calibrated Accessibility targets remain ambiguous before input', async () => {
+    const h = harness({snapshot: {complete: true, truncated: false, root: {children: [150, 300].map(x => ({
+      role: 'button', name: 'Save', enabled: true, actions: ['invoke'],
+      bounds: {x, y: 250, width: 60, height: 30, coordinateSpace: 'screen'}, children: [],
+    }))}}});
+    const caught = await rejects(() => h.UI.tapText('Save', {within: clone(WIN)}), 'AMBIGUOUS_TARGET');
+    assert.strictEqual(caught.candidateCount, 2);
+    assert.strictEqual(h.calls.nativeInput, 0);
+    assert.strictEqual(h.calls.mouse, 0);
+    assert.strictEqual(h.calls.vlm, 0);
   });
 
   await test('D local unresolved accepts one valid fresh VLM candidate and submits one input', async () => {
@@ -217,7 +243,7 @@ async function rejects(run, code) {
       structured('STATE_UNKNOWN', 'native input completion unknown', {actionState: 'unknown'}), snapshot: {
         complete: true, truncated: false, backend: 'fixture-ax', root: {
           role: 'button', name: 'Save', identifier: 'save', enabled: true, actions: ['invoke'],
-          bounds: {x: 150, y: 250, width: 60, height: 30}, children: [],
+          bounds: {x: 150, y: 250, width: 60, height: 30, coordinateSpace: 'screen'}, children: [],
         },
       }});
     const caught = await rejects(() => h.UI.tapText('Save', {within: clone(WIN)}), 'STATE_UNKNOWN');
@@ -231,23 +257,75 @@ async function rejects(run, code) {
     const h = harness({snapshot: {
       complete: true, truncated: false, backend: 'fixture-ax', root: {
         role: 'staticText', name: 'Display', value: '110',
-        bounds: {x: 150, y: 220, width: 200, height: 30}, children: [],
+        bounds: {x: 150, y: 220, width: 200, height: 30, coordinateSpace: 'screen'}, children: [],
       },
     }});
     assert.strictEqual(await h.UI.readText({within: clone(WIN)}), '110');
     assert.strictEqual(h.calls.ocr, 0);
   });
 
-  await test('K1 readText accepts the documented macOS native display bounds', async () => {
+  await test('K1 readText consumes the screen bounds published by the native owner', async () => {
     const h = harness({snapshot: {
       complete: true, truncated: false, backend: 'fixture-ax', root: {
-        role: 'staticText', name: 'Primary display', value: '660', bounds: null,
-        nativeBounds: {x: 150, y: 220, width: 200, height: 30,
+        role: 'staticText', name: 'Primary display', value: '660',
+        bounds: {x: 150, y: 220, width: 200, height: 30, coordinateSpace: 'screen'},
+        nativeBounds: {x: 900, y: 900, width: 200, height: 30,
           coordinateSpace: 'macos-global-display-points-top-left'}, children: [],
       },
     }});
     assert.strictEqual(await h.UI.readText({within: clone(WIN)}), '660');
     assert.strictEqual(h.calls.ocr, 0);
+  });
+  await test('readText only sends tagged screen regions to the local provider', async () => {
+    const region = {x: WIN.x, y: WIN.y, width: 10, height: 10};
+    const routes = [];
+    const h = harness({runOCR: async options => {
+      routes.push(options);
+      return {lines: [{text: 'observed'}]};
+    }});
+    for (const coordinateSpace of [undefined, 'image']) {
+      await rejects(() => h.UI.readText({within: clone(WIN), region: {...region, coordinateSpace}}), 'INVALID_ARGUMENT');
+    }
+    assert.strictEqual(h.calls.ax, 0);
+    assert.strictEqual(h.calls.screenshot, 0);
+    assert.strictEqual(await h.UI.readText({within: clone(WIN), region: {...region, coordinateSpace: 'screen'}}), 'observed');
+    assert.strictEqual(routes.length, 1);
+    assert.strictEqual(routes[0].provider, 'local');
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(routes[0], 'fallback'), false);
+  });
+
+  await test('K2 readText cannot return a native value without valid screen evidence or another readable source', async () => {
+    for (const bounds of [null, {x: 150, y: 220, width: 200, height: 30},
+      {x: 150, y: 220, width: 200, height: 30, coordinateSpace: 'macos-global-display-points-top-left'},
+      {x: 100, y: 470, width: 80, height: 31, coordinateSpace: 'screen'}]) {
+      const h = harness({snapshot: {complete: true, truncated: false, root: {
+        role: 'staticText', name: 'Display', value: '660', bounds,
+        nativeBounds: {x: 150, y: 220, width: 200, height: 30,
+          coordinateSpace: 'macos-global-display-points-top-left'}, children: [],
+      }}});
+      // This fixture has no Vision OCR owner, so zero valid native candidates
+      // must fail instead of returning the uncalibrated value.
+      await rejects(() => h.UI.readText({within: clone(WIN)}), 'NOT_SUPPORTED');
+      assert.strictEqual(h.calls.screenshot, 0);
+      assert.strictEqual(h.calls.ocr, 0);
+      assert.strictEqual(h.calls.nativeInput, 0);
+      assert.strictEqual(h.calls.mouse, 0);
+    }
+  });
+
+  await test('K3 readText counts distinct calibrated nodes even when their values are equal', async () => {
+    for (const values of [['660', '660'], ['660', '110']]) {
+      const h = harness({snapshot: {complete: true, truncated: false, root: {children: values.map((value, index) => ({
+        role: 'staticText', name: 'Display', value,
+        bounds: {x: 150, y: 220 + 40 * index, width: 200, height: 30, coordinateSpace: 'screen'}, children: [],
+      }))}}});
+      const caught = await rejects(() => h.UI.readText({within: clone(WIN)}), 'AMBIGUOUS_TARGET');
+      assert.strictEqual(caught.candidateCount, 2);
+      assert.strictEqual(h.calls.screenshot, 0);
+      assert.strictEqual(h.calls.ocr, 0);
+      assert.strictEqual(h.calls.nativeInput, 0);
+      assert.strictEqual(h.calls.mouse, 0);
+    }
   });
 
   await test('waiting sequence rejects a foreground switch during observation in locate before input', async () => {
@@ -266,7 +344,7 @@ async function rejects(run, code) {
     const h = harness({ocr: [ocr('Save', 150, 250)], snapshot: {
       complete: true, truncated: false, backend: 'fixture-ax', root: {
         role: 'button', name: 'Save', enabled: true, actions: ['invoke'],
-        bounds: {x: 380, y: 420, width: 50, height: 30}, children: [],
+        bounds: {x: 380, y: 420, width: 50, height: 30, coordinateSpace: 'screen'}, children: [],
       },
     }});
     await rejects(() => h.UI.tapText('Save', {within: clone(WIN)}), 'AMBIGUOUS_TARGET');
@@ -373,7 +451,7 @@ async function rejects(run, code) {
         assert.strictEqual(options.timeout, 65);
         now += 20;
         return { complete: true, truncated: false, root: { role: 'button', name: 'Save', enabled: true,
-          actions: ['invoke'], bounds: { x: 150, y: 250, width: 40, height: 20 } } };
+          actions: ['invoke'], bounds: { x: 150, y: 250, width: 40, height: 20, coordinateSpace: 'screen' } } };
       },
       nativeInput: options => {
         assert.strictEqual(options.timeout, 45);
@@ -394,7 +472,7 @@ async function rejects(run, code) {
       const h = harness({ Date: { now: () => now }, snapshot: () => {
         if (failure === 'cancel') controller.abort(); else now += 11;
         return { complete: true, truncated: false, root: { role: 'button', name: 'Save', enabled: true,
-          actions: ['invoke'], bounds: { x: 150, y: 250, width: 40, height: 20 } } };
+          actions: ['invoke'], bounds: { x: 150, y: 250, width: 40, height: 20, coordinateSpace: 'screen' } } };
       } });
       await rejects(() => h.UI.tapText('Save', { within: clone(WIN), timeout: 10, signal: controller.signal }),
         failure === 'cancel' ? 'CANCELED' : 'TIMEOUT');
@@ -427,7 +505,7 @@ async function rejects(run, code) {
     const controller = new AbortController();
     const h = harness({ snapshot: { complete: true, truncated: false, root: {
       role: 'button', name: 'Save', enabled: true, actions: ['invoke'],
-      bounds: { x: 150, y: 250, width: 40, height: 20 },
+      bounds: { x: 150, y: 250, width: 40, height: 20, coordinateSpace: 'screen' },
     } }, nativeInput: () => {
       controller.abort();
       return { ok: true, completed: [{ actionState: 'acknowledged' }] };
@@ -452,6 +530,21 @@ async function rejects(run, code) {
     assert.deepStrictEqual(budgets, [10, 4]);
     assert.strictEqual(h.calls.mouse, 0);
     assert.strictEqual(h.calls.nativeInput, 0);
+  });
+
+  await test('text sequences retain the last acknowledged input when canceled before returning', async () => {
+    for (const method of ['tapTexts', 'tapTargets']) {
+      const controller = new AbortController();
+      const fixture = harness({ax: false, ocr: [ocr('Save', 150, 250)],
+        onMouse: () => controller.abort()});
+      const caught = await rejects(() => fixture.UI[method](['Save'], {
+        within: clone(WIN), signal: controller.signal, intervalMs: 0,
+      }), 'CANCELED');
+      assert.strictEqual(caught.actionState, 'acknowledged');
+      assert.strictEqual(caught.completed.length, 1);
+      assert.strictEqual(caught.completed[0].ok, true);
+      assert.strictEqual(fixture.calls.mouse, 1);
+    }
   });
 
   await test('window revalidation cannot submit input after cancellation or deadline expiry', async () => {
@@ -499,6 +592,48 @@ async function rejects(run, code) {
     assert.strictEqual(caught.completed.length, 0);
     assert.strictEqual(h.calls.mouse, 0);
     assert.strictEqual(h.calls.nativeInput, 0);
+  });
+
+  await test('legacy RegExp waits discard late OCR observations', async () => {
+    for (const method of ['waitText', 'waitTextGone']) {
+      for (const elapsed of [10, 80]) {
+        const win = {title:'Evidence',id:'fixture:7:9',pid:7,handle:9,x:40,y:60,width:200,height:120};
+        let now = 100;
+        const host = {
+          Date: { now: () => now },
+          mouse: { click() { throw Error('unexpected input'); } },
+          window: {async getActiveWindow() { return {...win}; }},
+          Screen: {
+            getVirtualBounds: () => ({x:0,y:0,width:640,height:480}),
+            getDisplays: () => [{index:1,isPrimary:true,pixelWidth:640,pixelHeight:480,id:'fixture',x:0,y:0,width:640,height:480,scale:1}],
+          },
+          page: {
+            async screenshot() { return 'fixture-image'; },
+            async waitForTimeout() { throw Error('unexpected extra polling'); },
+          },
+          ImageColor: { getSize() { return [200,120]; } },
+          Vision: { async runOCR() {
+            now += elapsed;
+            return {lines: method === 'waitText' ? [
+              {text:'example',confidence:0.99,bbox:{x:5,y:5,width:40,height:20}},
+            ] : []};
+          }},
+        };
+        vm.createContext(host);
+        for (const name of ['005-geometry','006-ui','013-ui-perception']) {
+          vm.runInContext(fs.readFileSync(path.join(__dirname, '../../polyfills', name+'.js'), 'utf8'),host);
+        }
+
+        const observation = vm.runInContext('UI.' + method + '(/example/, {timeout:20})', host);
+        if (elapsed === 80) {
+          await rejects(() => observation, 'TIMEOUT');
+        } else {
+          const result = await observation;
+          assert.strictEqual(method === 'waitText' ? result.text : result, method === 'waitText' ? 'example' : true);
+        }
+        assert.strictEqual(now, 100 + elapsed);
+      }
+    }
   });
 
   console.log(`PASS ${count} UI Perception Resolver deterministic tests`);

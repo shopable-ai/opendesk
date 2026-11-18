@@ -3,28 +3,62 @@ package automation
 import (
 	"crypto/rand"
 	"fmt"
+	"reflect"
 
 	"github.com/dop251/goja"
 )
 
 const webCryptoMaxRandomBytes = 65536
 
-var webCryptoIntegerTypedArrays = map[string]struct{}{
-	"Int8Array":         {},
-	"Uint8Array":        {},
-	"Uint8ClampedArray": {},
-	"Int16Array":        {},
-	"Uint16Array":       {},
-	"Int32Array":        {},
-	"Uint32Array":       {},
-	"BigInt64Array":     {},
-	"BigUint64Array":    {},
+var webCryptoIntegerTypedArrays = map[reflect.Type]struct{}{
+	reflect.TypeOf([]int8(nil)):   {},
+	reflect.TypeOf([]uint8(nil)):  {},
+	reflect.TypeOf([]int16(nil)):  {},
+	reflect.TypeOf([]uint16(nil)): {},
+	reflect.TypeOf([]int32(nil)):  {},
+	reflect.TypeOf([]uint32(nil)): {},
+	reflect.TypeOf([]int64(nil)):  {},
+	reflect.TypeOf([]uint64(nil)): {},
+}
+
+type webCryptoViewAccessors struct {
+	buffer, byteOffset, byteLength goja.Callable
 }
 
 func registerWebCrypto(runtimeValue *goja.Runtime) error {
+	// Capture the intrinsic getters before user code can replace prototypes or
+	// shadow properties. They read TypedArray internal slots, not lookalikes.
+	prototype := runtimeValue.Get("Uint8Array").ToObject(runtimeValue).Get("prototype").ToObject(runtimeValue).Prototype()
+	describe, _ := goja.AssertFunction(runtimeValue.Get("Object").ToObject(runtimeValue).Get("getOwnPropertyDescriptor"))
+	get := func(key goja.Value) (goja.Callable, error) {
+		descriptor, err := describe(goja.Undefined(), prototype, key)
+		if err != nil {
+			return nil, err
+		}
+		getter, ok := goja.AssertFunction(descriptor.ToObject(runtimeValue).Get("get"))
+		if !ok {
+			return nil, fmt.Errorf("TypedArray intrinsic getter is unavailable")
+		}
+		return getter, nil
+	}
+	var accessors webCryptoViewAccessors
+	for _, entry := range []struct {
+		key         goja.Value
+		destination *goja.Callable
+	}{
+		{runtimeValue.ToValue("buffer"), &accessors.buffer},
+		{runtimeValue.ToValue("byteOffset"), &accessors.byteOffset},
+		{runtimeValue.ToValue("byteLength"), &accessors.byteLength},
+	} {
+		getter, err := get(entry.key)
+		if err != nil {
+			return fmt.Errorf("failed to register crypto.getRandomValues: %w", err)
+		}
+		*entry.destination = getter
+	}
 	cryptoObject := runtimeValue.NewObject()
 	if err := cryptoObject.Set("getRandomValues", func(call goja.FunctionCall) goja.Value {
-		return webCryptoGetRandomValues(runtimeValue, call)
+		return webCryptoGetRandomValues(runtimeValue, call, accessors)
 	}); err != nil {
 		return fmt.Errorf("failed to register crypto.getRandomValues: %w", err)
 	}
@@ -39,29 +73,34 @@ func registerWebCrypto(runtimeValue *goja.Runtime) error {
 	return nil
 }
 
-func webCryptoGetRandomValues(runtimeValue *goja.Runtime, call goja.FunctionCall) goja.Value {
+func webCryptoGetRandomValues(runtimeValue *goja.Runtime, call goja.FunctionCall, accessors webCryptoViewAccessors) goja.Value {
 	value := call.Argument(0)
 	if goja.IsUndefined(value) || goja.IsNull(value) {
 		panic(runtimeValue.NewTypeError("crypto.getRandomValues requires an integer TypedArray"))
 	}
 
-	object := value.ToObject(runtimeValue)
-	constructor := object.Get("constructor")
-	if goja.IsUndefined(constructor) || goja.IsNull(constructor) {
-		panic(runtimeValue.NewTypeError("crypto.getRandomValues requires an integer TypedArray"))
-	}
-	constructorName := constructor.ToObject(runtimeValue).Get("name").String()
-	if _, ok := webCryptoIntegerTypedArrays[constructorName]; !ok {
+	// Goja's intrinsic tag still reads the mutable constructor.name. ExportType
+	// instead identifies its actual native element type; the intrinsic buffer
+	// getter below additionally proves this is a real TypedArray view.
+	if _, ok := webCryptoIntegerTypedArrays[value.ExportType()]; !ok {
 		panic(runtimeValue.NewTypeError("crypto.getRandomValues requires an integer TypedArray"))
 	}
 
-	bufferValue := object.Get("buffer")
+	bufferValue, err := accessors.buffer(value)
+	if err != nil {
+		panic(runtimeValue.NewTypeError("crypto.getRandomValues requires an integer TypedArray"))
+	}
 	buffer, ok := bufferValue.Export().(goja.ArrayBuffer)
 	if !ok {
 		panic(runtimeValue.NewTypeError("crypto.getRandomValues requires an integer TypedArray"))
 	}
-	byteOffset := object.Get("byteOffset").ToInteger()
-	byteLength := object.Get("byteLength").ToInteger()
+	offset, offsetErr := accessors.byteOffset(value)
+	length, lengthErr := accessors.byteLength(value)
+	if offsetErr != nil || lengthErr != nil {
+		panic(runtimeValue.NewTypeError("crypto.getRandomValues received an invalid TypedArray"))
+	}
+	byteOffset := offset.ToInteger()
+	byteLength := length.ToInteger()
 	if byteOffset < 0 || byteLength < 0 || byteLength > webCryptoMaxRandomBytes {
 		message := fmt.Sprintf("crypto.getRandomValues accepts at most %d bytes", webCryptoMaxRandomBytes)
 		rangeError, err := runtimeValue.New(runtimeValue.Get("RangeError").ToObject(runtimeValue), runtimeValue.ToValue(message))

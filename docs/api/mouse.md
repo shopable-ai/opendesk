@@ -1,4 +1,5 @@
 ---
+docType: reference
 title: Mouse API
 description: OpenDesk JavaScript Runtime 的全局鼠标移动、点击、拖拽、位置读取与滚轮接口。
 order: 60
@@ -25,13 +26,13 @@ order: 60
 
 ### 坐标与按钮
 
-`click()` / `move()` 使用全局虚拟桌面逻辑坐标。优先使用 [`Geometry`](geometry.md) 或 [`UI`](desktop-ui.md) 生成的 tagged point，并在输入前确认目标窗口。
+`click()` / `move()` 使用全局虚拟桌面逻辑坐标。必须显式传入有限的 JavaScript 数字，允许负值。小数向零截断，截断后的坐标必须在有符号 32 位整数范围内。省略坐标、传入其他类型或超出范围时，调用在检查输入权限之前同步抛错。优先使用 [`Geometry`](geometry.md) 或 [`UI`](desktop-ui.md) 生成的 tagged point，并在输入前确认目标窗口。
 
-`button` 只支持 `left`、`right`、`middle`。鼠标输入调用成功不等于目标应用业务状态已完成，输入后仍应读取状态或截图验证。
+`button` 只支持 `left`、`right`、`middle`。本页方法同步执行：动作方法成功返回 `undefined`，读取方法直接返回坐标，错误同步抛出。鼠标输入调用成功不等于目标应用业务状态已完成，输入后仍应读取状态或截图验证。
 
 ### 权限与平台
 
-macOS 发送全局输入需要 Accessibility 权限；截图验证另需 Screen Recording。`mouse.click()`、`mouse.move()`、`mouse.down()`、`mouse.up()` 和实际发送滚动的 `mouse.wheel()` 会先做无提示的当前进程权限检查；未授权时以包含 `PERMISSION_DENIED` 的错误拒绝且不发送输入。`mouse.clickForPID()` 仅在启用 cgo 的 macOS 构建中可用，并且不会降级为普通全局点击。
+macOS 发送全局输入需要 Accessibility 权限；截图验证另需 Screen Recording。`mouse.click()`、`mouse.move()`、`mouse.down()`、`mouse.up()` 和实际发送滚动的 `mouse.wheel()` 会先做无提示的当前进程权限检查；未授权时以包含 `PERMISSION_DENIED` 的错误同步抛出且不发送输入。`mouse.clickForPID()` 仅在启用 cgo 的 macOS 构建中可用，并且不会降级为普通全局点击。
 
 ## mouse.click(x, y, options?)
 
@@ -39,7 +40,7 @@ macOS 发送全局输入需要 Accessibility 权限；截图验证另需 Screen 
 
 **签名**
 ```ts
-mouse.click(x: number, y: number, options?: OpenDeskMouseClickOptions): Promise<void>;
+mouse.click(x: number, y: number, options?: OpenDeskMouseClickOptions): void;
 ```
 
 **参数**
@@ -54,15 +55,15 @@ mouse.click(x: number, y: number, options?: OpenDeskMouseClickOptions): Promise<
 
 **返回值**
 
-`Promise<void>`，成功 resolve `undefined`。
+`undefined`，同步返回。
 
 **行为与错误**
 
-默认路径移动后成对 down/up。`clickCount <= 0` 当前不发送点击。非法按钮或坐标会拒绝；不会保证命中指定进程。
+默认路径移动后成对 down/up。`clickCount <= 0` 当前不发送点击。非法按钮或坐标会同步抛错；不会保证命中指定进程。
 
 **示例**
 ```js
-await mouse.click(400, 300, { button: 'left', clickCount: 2, delay: 80 });
+mouse.click(400, 300, { button: 'left', clickCount: 2, delay: 80 });
 ```
 
 ## mouse.clickPoint(point, options?)
@@ -71,7 +72,7 @@ await mouse.click(400, 300, { button: 'left', clickCount: 2, delay: 80 });
 
 **签名**
 ```ts
-mouse.clickPoint(point: OpenDeskScreenPoint, options?: OpenDeskMouseClickOptions): Promise<void>;
+mouse.clickPoint(point: OpenDeskScreenPoint, options?: OpenDeskMouseClickOptions): void;
 ```
 
 **参数**
@@ -83,16 +84,16 @@ mouse.clickPoint(point: OpenDeskScreenPoint, options?: OpenDeskMouseClickOptions
 
 **返回值**
 
-`Promise<void>`。
+`undefined`，同步返回。
 
 **行为与错误**
 
-裸 `{x,y}`、OCR image bbox 或其他坐标空间抛 `INVALID_ARGUMENT`。内部复用 `mouse.click(point.x, point.y, options)`。
+裸 `{x,y}`、OCR image bbox、其他坐标空间或非有限坐标抛 `INVALID_ARGUMENT`。内部复用 `mouse.click(point.x, point.y, options)`，坐标超出输入范围时由 `mouse.click()` 同步拒绝。
 
 **示例**
 ```js
 const win = await window.getActiveWindow();
-await mouse.clickPoint(Geometry.center(win));
+mouse.clickPoint(Geometry.center(win));
 ```
 
 ## mouse.clickForPID(processID, x, y)
@@ -101,7 +102,7 @@ await mouse.clickPoint(Geometry.center(win));
 
 **签名**
 ```ts
-mouse.clickForPID(processID: number, x: number, y: number): Promise<void>;
+mouse.clickForPID(processID: number, x: number, y: number): void;
 ```
 
 **参数**
@@ -114,16 +115,16 @@ mouse.clickForPID(processID: number, x: number, y: number): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`undefined`，同步返回。
 
 **行为与错误**
 
-调用会验证权限、PID、显示器、窗口 owner、命中元素及其 `AXPress` 支持；任一步失败都拒绝，不重试、不补点、不降级为 `mouse.click()`。非 macOS / 无 cgo 明确不支持。
+调用会验证权限、PID、显示器、窗口 owner、命中元素及其 `AXPress` 支持；任一步失败都同步抛错，不重试、不补点、不降级为 `mouse.click()`。非 macOS / 无 cgo 明确不支持。
 
 **示例**
 ```js
 const active = await window.getActiveWindow();
-await mouse.clickForPID(active.pid, point.x, point.y);
+mouse.clickForPID(active.pid, point.x, point.y);
 ```
 
 ## mouse.move(x, y, options?)
@@ -132,7 +133,7 @@ await mouse.clickForPID(active.pid, point.x, point.y);
 
 **签名**
 ```ts
-mouse.move(x: number, y: number, options?: OpenDeskMouseMoveOptions): Promise<void>;
+mouse.move(x: number, y: number, options?: OpenDeskMouseMoveOptions): void;
 ```
 
 **参数**
@@ -147,17 +148,17 @@ mouse.move(x: number, y: number, options?: OpenDeskMouseMoveOptions): Promise<vo
 
 **返回值**
 
-`Promise<void>`。
+`undefined`，同步返回。
 
 **行为与错误**
 
 未指定 `durationMs` 时保持兼容行为：`steps <= 1` 直接移动，大于 1 时按旧有的每步约 1ms 采样；`curve` 只改变这些采样点的位置。指定 `durationMs` 时，native automation owner 在该总预算内按单调时间表发出采样点；未指定 `steps` 时使用约 16ms 的自动采样间隔并设内部上限。`easeInOut` 使用 `3t² - 2t³`，起点和终点速度连续且为 0，最后一个采样点固定为目标坐标。
 
-`durationMs` 包含 macOS 必需的有界 Quartz 稳定间隔，因此可与外部 `sleep` 预算相加；实际墙钟时间仍可能受系统调度产生小幅正向误差。Windows、Linux 与 macOS 共用相同的曲线、取整和采样规则；macOS 在按钮保持按下时发送对应拖拽事件。execution 取消会中止剩余等待和后续采样，Promise 拒绝并把指针留在最后一个已提交的点。非法 duration、curve 或坐标会拒绝。
+`durationMs` 包含 macOS 必需的有界 Quartz 稳定间隔，因此可与外部 `sleep` 预算相加；实际墙钟时间仍可能受系统调度产生小幅正向误差。Windows、Linux 与 macOS 共用相同的曲线、取整和采样规则；macOS 在按钮保持按下时发送对应拖拽事件。execution 取消会中止剩余等待和后续采样，调用同步抛错并把指针留在最后一个已提交的点。非法 duration、curve 或坐标会同步抛错。
 
 **示例**
 ```js
-await mouse.move(900, 300, { durationMs: 420, curve: 'easeInOut' });
+mouse.move(900, 300, { durationMs: 420, curve: 'easeInOut' });
 ```
 
 ## mouse.down(options?)
@@ -166,7 +167,7 @@ await mouse.move(900, 300, { durationMs: 420, curve: 'easeInOut' });
 
 **签名**
 ```ts
-mouse.down(options?: OpenDeskMouseButtonOptions): Promise<void>;
+mouse.down(options?: OpenDeskMouseButtonOptions): void;
 ```
 
 **参数**
@@ -177,7 +178,7 @@ mouse.down(options?: OpenDeskMouseButtonOptions): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`undefined`，同步返回。
 
 **行为与错误**
 
@@ -185,7 +186,7 @@ mouse.down(options?: OpenDeskMouseButtonOptions): Promise<void>;
 
 **示例**
 ```js
-await mouse.down({ button: 'left' });
+mouse.down({ button: 'left' });
 ```
 
 ## mouse.up(options?)
@@ -194,7 +195,7 @@ await mouse.down({ button: 'left' });
 
 **签名**
 ```ts
-mouse.up(options?: OpenDeskMouseButtonOptions): Promise<void>;
+mouse.up(options?: OpenDeskMouseButtonOptions): void;
 ```
 
 **参数**
@@ -205,7 +206,7 @@ mouse.up(options?: OpenDeskMouseButtonOptions): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`undefined`，同步返回。
 
 **行为与错误**
 
@@ -213,7 +214,7 @@ mouse.up(options?: OpenDeskMouseButtonOptions): Promise<void>;
 
 **示例**
 ```js
-await mouse.up({ button: 'left' });
+mouse.up({ button: 'left' });
 ```
 
 ## mouse.getPos()
@@ -249,7 +250,7 @@ console.log(position.x, position.y);
 
 **签名**
 ```ts
-mouse.wheel(options?: OpenDeskMouseWheelOptions): Promise<void>;
+mouse.wheel(options?: OpenDeskMouseWheelOptions): void;
 ```
 
 **参数**
@@ -263,7 +264,7 @@ mouse.wheel(options?: OpenDeskMouseWheelOptions): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`undefined`，同步返回。
 
 **行为与错误**
 
@@ -271,9 +272,9 @@ mouse.wheel(options?: OpenDeskMouseWheelOptions): Promise<void>;
 
 **示例**
 ```js
-await mouse.wheel({ deltaY: 300, steps: 3, delay: 20 });
+mouse.wheel({ deltaY: 300, steps: 3, delay: 20 });
 ```
 
 ## 错误
 
-全局鼠标方法会对非法坐标、按钮和选项明确失败。macOS 当前进程没有 Accessibility 权限时，输入方法返回包含 `PERMISSION_DENIED` 的错误，不再把系统拒绝的静默 no-op 报告为成功。`clickPoint()` 使用结构化 `INVALID_ARGUMENT`。真实输入完成后不要把 Promise resolve 解释为业务成功。
+全局鼠标方法会对非法坐标、按钮和选项明确失败。macOS 当前进程没有 Accessibility 权限时，输入方法同步抛出包含 `PERMISSION_DENIED` 的错误，不再把系统拒绝的静默 no-op 报告为成功。`clickPoint()` 的点格式校验使用结构化 `INVALID_ARGUMENT`。同步返回只表示调用完成，不证明目标应用业务成功。

@@ -4,12 +4,15 @@ package browserbridge
 
 import (
 	"context"
+ "encoding/json"
 	"errors"
 	"io"
 )
 
 type Installation struct {
 	ApprovedExtensions string
+	ConnectionUpdateVersion int
+	RetainedConnections string
 	ConnectionID string
 	ParentRoot string
 	ParentCredentialDigest string
@@ -34,6 +37,7 @@ func SetupAutomatic(string,string,string,string) (map[string]any,error) {return 
 func SetupContext(context.Context,string,string,string,string) (map[string]any,error) {return nil,errPlatform}
 func Doctor() map[string]any {return map[string]any{"installed":false,"socketExists":false,"error":"E_PLATFORM"}}
 func Cleanup() (map[string]any,error) {return nil,errPlatform}
+func RecoverSocketContext(context.Context,SocketRecoveryOptions) (map[string]any,error) {return nil,errPlatform}
 func ManifestFor(string,string) (string,error) {return "",errPlatform}
 type Host struct{}
 func NewHost(Installation,string,io.Reader,io.Writer) (*Host,error) {return nil,errPlatform}
@@ -50,3 +54,14 @@ func ResolveProject(string) (map[string]any,error) {return nil,errPlatform}
 func WorkspaceAdd(string,string) (map[string]any,error) {return nil,errPlatform}
 func WorkspaceList() (map[string]any,error) {return nil,errPlatform}
 func WorkspaceRevoke(string) (map[string]any,error) {return nil,errPlatform}
+
+// Dedicated file MCP transport remains unavailable on unsupported platforms.
+type FilesMCPClient struct{}
+func NewFilesMCPClient(string)(*FilesMCPClient,error){return nil,errPlatform}
+func (*FilesMCPClient) Call(context.Context,string,json.RawMessage)(json.RawMessage,error){return nil,errPlatform}
+func (*FilesMCPClient) Close()error{return nil}
+type FilesMCPLease struct{GrantID string}
+func GrantFilesMCP(context.Context,string,string)(*FilesMCPLease,error){return nil,errPlatform}
+func RevokeFilesMCP(context.Context,string)error{return errPlatform}
+func (*FilesMCPLease) Done()<-chan struct{}{return nil}
+func (*FilesMCPLease) Close()error{return nil}

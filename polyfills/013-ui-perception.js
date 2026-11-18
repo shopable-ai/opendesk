@@ -1,5 +1,5 @@
 // Unified, Runtime-owned observation resolver for high-level UI text APIs.
-// It deliberately owns no credentials, provider choice, or model input action.
+// It owns no credentials or model input action.
 (function (g) {
   'use strict';
 
@@ -130,6 +130,10 @@
   }
   function readOptions(raw, operation) {
     const result = assertOptions(raw, operation, ['within', 'timeout', 'maxDepth', 'maxNodes', 'region', 'signal']);
+    if (result.region !== undefined &&
+        (!result.region || result.region.coordinateSpace !== 'screen' || !bounds(result.region))) {
+      fail('INVALID_ARGUMENT', operation, 'region must be a non-empty tagged screen region', { phase: 'arguments' });
+    }
     result.timeout = timeout(result, operation);
     signal(result.signal, operation);
     if (result.maxDepth !== undefined && (!Number.isInteger(result.maxDepth) || result.maxDepth < 1 || result.maxDepth > 32)) {
@@ -312,33 +316,9 @@
     } catch (_) { return false; }
   }
   function accessibilityBounds(node, win) {
-    const direct = bounds(node && node.bounds);
+    // Only the native owner may calibrate platform coordinates to screen.
+    const direct = node && node.bounds && node.bounds.coordinateSpace === 'screen' ? bounds(node.bounds) : null;
     if (direct && contains({ x: win.x, y: win.y, width: win.width, height: win.height }, direct)) return direct;
-    // Accessibility publishes nativeBounds only when a platform conversion is
-    // unavailable. macOS explicitly labels this particular global, top-left
-    // coordinate space; it is the same logical screen space used by WindowInfo
-    // and has no scale/axis conversion to guess. Other native coordinate spaces
-    // remain unusable for pointer geometry until their native owner exposes a
-    // reliable screen `bounds` conversion.
-    const native = node && node.nativeBounds;
-    if (native && native.coordinateSpace === 'macos-global-display-points-top-left') {
-      const converted = bounds(native);
-      if (!converted) return null;
-      const scope = { x: win.x, y: win.y, width: win.width, height: win.height };
-      if (contains(scope, converted)) return converted;
-      // WindowInfo and AX frames can differ by one rounded display point at a
-      // native window edge. Accept only that bounded representation mismatch,
-      // intersect it with the current scope, and reject every larger/outside
-      // frame. This never projects a native coordinate across displays.
-      const left = Math.max(scope.x, converted.x), top = Math.max(scope.y, converted.y);
-      const right = Math.min(scope.x + scope.width, converted.x + converted.width);
-      const bottom = Math.min(scope.y + scope.height, converted.y + converted.height);
-      const drift = Math.max(left - converted.x, top - converted.y,
-        converted.x + converted.width - right, converted.y + converted.height - bottom);
-      if (drift <= 2 && right > left && bottom > top) {
-        return { x: left, y: top, width: right - left, height: bottom - top, coordinateSpace: 'screen' };
-      }
-    }
     return null;
   }
   function walk(root, fn) {
@@ -661,6 +641,11 @@
         phase = 'input';
         const sent = await sendInput(resolution, options, operation);
         completed.push(sent);
+        if (options.signal && options.signal.aborted) {
+          fail('CANCELED', operation, 'text sequence was canceled after input', {
+            actionState: sent.actionState || 'acknowledged',
+          });
+        }
       } catch (caught) {
         throw tapSequenceError(caught, operation, index, sequence[index], phase, completed);
       }
@@ -678,56 +663,63 @@
   async function readText(rawOptions) {
     const operation = 'UI.readText';
     const options = readOptions(rawOptions, operation);
-    checkCanceled(signal(options.signal, operation), operation);
+    const deadline = Date.now() + options.timeout;
+    remaining(deadline, options.signal, operation);
     const win = options.within === undefined ? await activeWindow(operation) : options.within;
+    remaining(deadline, options.signal, operation);
     if (!validWindow(win)) fail('STALE_TARGET', operation, 'within must be a resolved window');
     const region = readRegion(options, win, operation);
-    let nativeFailure = null;
-    if (availability()) {
-      try {
-        const snapshot = await g.Accessibility.snapshot({
-          within: win, timeout: Math.min(options.timeout, 30000),
-          maxDepth: options.maxDepth === undefined ? 32 : options.maxDepth,
-          maxNodes: options.maxNodes === undefined ? 5000 : options.maxNodes,
-          properties: ['name', 'value', 'bounds', 'nativeBounds'],
-        });
-        if (!snapshot || snapshot.complete !== true || snapshot.truncated === true) {
-          nativeFailure = error('SEARCH_INCOMPLETE', operation, 'Accessibility read did not prove a complete observation');
-        } else {
-          const values = [];
-          walk(snapshot.root, function (node) {
-            if (node && (typeof node.value === 'string' || typeof node.value === 'number') && String(node.value).trim()) {
-              const rect = accessibilityBounds(node, win);
-              if (rect && contains(region, rect)) values.push(String(node.value));
-            }
-          });
-          const uniqueValues = values.filter(function (value, index) { return values.indexOf(value) === index; });
-          if (uniqueValues.length === 1) return uniqueValues[0];
-          if (uniqueValues.length > 1) {
-            fail('AMBIGUOUS_TARGET', operation, 'multiple readable native values are inside the requested scope', { candidateCount: uniqueValues.length });
-          }
-        }
-      } catch (caught) {
-        if (caught && caught.code === 'AMBIGUOUS_TARGET') throw caught;
-        nativeFailure = caught && caught.code ? caught : error('BACKEND_FAILED', operation, 'Accessibility read failed');
+    async function checkFresh() {
+      remaining(deadline, options.signal, operation);
+      await currentWindow(win, operation, true);
+      remaining(deadline, options.signal, operation);
+    }
+    await checkFresh();
+    if (!availability()) {
+      fail('NOT_SUPPORTED', operation, 'a complete native text observation is unavailable', { phase: 'capability' });
+    }
+    let snapshot;
+    try {
+      snapshot = await g.Accessibility.snapshot({
+        within: win, timeout: Math.min(remaining(deadline, options.signal, operation), 30000),
+        maxDepth: options.maxDepth === undefined ? 32 : options.maxDepth,
+        maxNodes: options.maxNodes === undefined ? 5000 : options.maxNodes,
+        properties: ['name', 'value', 'bounds'],
+      });
+    } catch (caught) {
+      remaining(deadline, options.signal, operation);
+      throw caught && caught.code ? caught : error('BACKEND_FAILED', operation, 'Accessibility read failed');
+    }
+    await checkFresh();
+    if (!snapshot || snapshot.complete !== true || snapshot.truncated === true) {
+      fail('SEARCH_INCOMPLETE', operation, 'Accessibility read did not prove a complete observation');
+    }
+    const values = [];
+    walk(snapshot.root, function (node) {
+      if (node && (typeof node.value === 'string' || typeof node.value === 'number') && String(node.value).trim()) {
+        const rect = accessibilityBounds(node, win);
+        if (rect && contains(region, rect)) values.push(String(node.value));
       }
+    });
+    if (values.length === 1) return values[0];
+    if (values.length > 1) {
+      fail('AMBIGUOUS_TARGET', operation, 'multiple readable native objects are inside the requested scope', { candidateCount: values.length });
     }
     if (!g.page || typeof g.page.screenshot !== 'function' || !g.Vision || typeof g.Vision.runOCR !== 'function') {
-      if (nativeFailure) throw nativeFailure;
       fail('NOT_SUPPORTED', operation, 'no local text observation source is available', { phase: 'capability' });
     }
     let image;
     try { image = await g.page.screenshot({ target: 'screen', clip: region, returnType: 'base64' }); }
     catch (_) { fail('SCREENSHOT_FAILED', operation, 'could not capture the requested read scope'); }
+    await checkFresh();
     let result;
-    try { result = await g.Vision.runOCR({ image: image, timeoutMs: Math.min(options.timeout, 30000) }); }
+    try { result = await g.Vision.runOCR({ provider: 'local', image: image, timeoutMs: Math.min(remaining(deadline, options.signal, operation), 30000) }); }
     catch (caught) { throw caught && caught.code ? caught : error('OCR_FAILED', operation, 'local OCR read failed'); }
-    await currentWindow(win, operation, false);
+    await checkFresh();
     const lines = result && Array.isArray(result.lines) ? result.lines.filter(function (line) {
       return line && typeof line.text === 'string' && line.text.trim();
     }) : [];
     if (!lines.length) {
-      if (nativeFailure) throw nativeFailure;
       fail('TARGET_NOT_FOUND', operation, 'no readable text exists in the requested scope');
     }
     lines.sort(function (left, right) {
@@ -812,7 +804,8 @@
     if (Array.isArray(targets) && targets.length && targets.every(function (target) {
       return typeof target === 'string' || (plain(target) && Object.keys(target).length === 1 && typeof target.text === 'string');
     })) {
-      return tapTexts(targets.map(function (target) { return typeof target === 'string' ? target : target.text; }), options);
+      const result = await tapTexts(targets.map(function (target) { return typeof target === 'string' ? target : target.text; }), options);
+      return Object.assign({}, result, { action: 'tapTargets' });
     }
     return base.tapTargets(targets, options);
   };

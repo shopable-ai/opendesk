@@ -2,16 +2,39 @@ package automation
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/dop251/goja"
 	"github.com/go-vgo/robotgo"
 )
 
-type Keyboard struct{}
+type Keyboard struct {
+	// Optional per-instance backend for the input boundary fixture.
+	send func(key, action string, modifiers []string) error
+}
 
 func NewKeyboard() *Keyboard {
 	return &Keyboard{}
+}
+
+// Reject coercion at the JavaScript input boundary. For example, a numeric
+// argument or an object with toString must not become a valid printable key.
+func mapKeyboardToJS(runtime *goja.Runtime, keyboard *Keyboard) map[string]any {
+	methods := AutoMapObject(runtime, keyboard)
+	for _, name := range []string{"press", "down", "up", "combination"} {
+		invoke := methods[name].(func(goja.FunctionCall) goja.Value)
+		methods[name] = func(call goja.FunctionCall) goja.Value {
+			for i, argument := range call.Arguments {
+				if _, ok := argument.(goja.String); !ok {
+					panic(runtime.NewTypeError("keyboard key at position %d must be a string", i+1))
+				}
+			}
+			return invoke(call)
+		}
+	}
+	return methods
 }
 
 // Type types the given text string
@@ -42,78 +65,97 @@ func (k *Keyboard) TypeForPID(processID int, text string) error {
 	return nil
 }
 
-// Press presses and releases a single key
+// Press presses and releases a single key.
 func (k *Keyboard) Press(key string) error {
-	if key == "" {
-		return fmt.Errorf("key cannot be empty")
-	}
-
-	// Convert common key names
-	key = normalizeKeyName(key)
-
-	robotgo.KeyTap(key)
-	time.Sleep(50 * time.Millisecond)
-	return nil
+	return k.sendKey(key, "", nil)
 }
 
-// Down holds down a key
+// Down holds down a key.
 func (k *Keyboard) Down(key string) error {
-	if key == "" {
-		return fmt.Errorf("key cannot be empty")
-	}
-
-	// Convert common key names
-	key = normalizeKeyName(key)
-
-	robotgo.KeyToggle(key, "down")
-	time.Sleep(50 * time.Millisecond)
-	return nil
+	return k.sendKey(key, "down", nil)
 }
 
-// Up releases a key
+// Up releases a key.
 func (k *Keyboard) Up(key string) error {
-	if key == "" {
-		return fmt.Errorf("key cannot be empty")
-	}
-
-	// Convert common key names
-	key = normalizeKeyName(key)
-
-	robotgo.KeyToggle(key, "up")
-	time.Sleep(50 * time.Millisecond)
-	return nil
+	return k.sendKey(key, "up", nil)
 }
 
-// Combination presses multiple keys simultaneously
+// Combination sends the final key with the preceding modifiers as one shortcut.
 func (k *Keyboard) Combination(keys ...string) error {
 	if len(keys) == 0 {
 		return fmt.Errorf("no keys provided")
 	}
-
-	// Convert all keys
-	normalizedKeys := make([]string, len(keys))
-	for i, key := range keys {
-		if strings.TrimSpace(key) == "" {
-			return fmt.Errorf("key cannot be empty")
+	modifiers := make([]string, len(keys)-1)
+	for i, key := range keys[:len(keys)-1] {
+		modifier := strings.ToLower(normalizeKeyName(key))
+		switch modifier {
+		case "command":
+			modifier = "cmd"
+		case "control":
+			modifier = "ctrl"
+		case "right_shift":
+			modifier = "rshift"
 		}
-		normalizedKeys[i] = normalizeKeyName(key)
+		switch modifier {
+		case "alt", "ralt", "lalt", "cmd", "rcmd", "lcmd",
+			"ctrl", "rctrl", "lctrl", "shift", "rshift", "lshift":
+			modifiers[i] = modifier
+		default:
+			return fmt.Errorf("invalid modifier at position %d: %q", i+1, key)
+		}
+	}
+	primary := keys[len(keys)-1]
+	if strings.TrimSpace(primary) == "" {
+		return fmt.Errorf("key cannot be empty")
+	}
+	return k.sendKey(primary, "", modifiers)
+}
+
+func (k *Keyboard) sendKey(key, action string, modifiers []string) error {
+	if key == "" || (key != " " && strings.TrimSpace(key) == "") {
+		return fmt.Errorf("key cannot be empty")
+	}
+	normalized := normalizeKeyName(key)
+	lower := strings.ToLower(normalized)
+	// robotgo's exported Keycode table is for hooks, not keyboard input.
+	// Its tap/toggle path silently sends key code zero for unknown names.
+	if !(len(lower) == 1 && lower[0] >= ' ' && lower[0] <= '~') &&
+		!slices.Contains(robotgoInputKeyNames, lower) {
+		return fmt.Errorf("unsupported key %q", key)
 	}
 
-	if len(normalizedKeys) == 1 {
-		return k.Press(normalizedKeys[0])
+	var err error
+	switch {
+	case k.send != nil:
+		err = k.send(normalized, action, modifiers)
+	case action != "":
+		err = robotgo.KeyToggle(normalized, action)
+	case len(modifiers) == 0:
+		err = robotgo.KeyTap(normalized)
+	default:
+		err = robotgo.KeyTap(normalized, modifiers)
 	}
-
-	// Send the final key with the preceding modifiers as one paired shortcut.
-	// Toggling printable characters independently can crash macOS keyboard
-	// layout discovery when JavaScript resumes on a background timer thread.
-	primary := normalizedKeys[len(normalizedKeys)-1]
-	modifiers := normalizedKeys[:len(normalizedKeys)-1]
-	if err := robotgo.KeyTap(primary, modifiers); err != nil {
-		return fmt.Errorf("failed to press key combination: %v", err)
+	if err != nil {
+		return fmt.Errorf("keyboard input for %q: %w", key, err)
 	}
 	time.Sleep(50 * time.Millisecond)
 	return nil
 }
+
+// Named input keys from the private robotgo v0.110.5 keyNames table.
+// A recognized key may still be unavailable on the current platform.
+var robotgoInputKeyNames = strings.Fields(`
+    backspace delete enter tab esc escape up down right left home end pageup pagedown
+    f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 f14 f15 f16 f17 f18 f19 f20 f21 f22 f23 f24
+    cmd lcmd rcmd command alt lalt ralt ctrl lctrl rctrl control shift lshift rshift right_shift
+    capslock space print printscreen insert menu
+    audio_mute audio_vol_down audio_vol_up audio_play audio_stop audio_pause audio_prev audio_next
+    audio_rewind audio_forward audio_repeat audio_random
+    num0 num1 num2 num3 num4 num5 num6 num7 num8 num9 num_lock
+    numpad_0 numpad_1 numpad_2 numpad_3 numpad_4 numpad_5 numpad_6 numpad_7 numpad_8 numpad_9 numpad_lock
+    num. num+ num- num* num/ num_clear num_enter num_equal
+    lights_mon_up lights_mon_down lights_kbd_toggle lights_kbd_up lights_kbd_down
+`)
 
 // normalizeKeyName converts common key names to robotgo format
 func normalizeKeyName(key string) string {
@@ -124,8 +166,8 @@ func normalizeKeyName(key string) string {
 		"Shift":       "shift",
 		"Alt":         "alt",
 		"AltGraph":    "alt", // Right Alt
-		"CapsLock":    "caps",
-		"NumLock":     "numlock",
+		"CapsLock":    "capslock",
+		"NumLock":     "num_lock",
 		"ScrollLock":  "scrolllock",
 		"PrintScreen": "printscreen",
 		"Pause":       "pause",
@@ -173,29 +215,29 @@ func normalizeKeyName(key string) string {
 
 		// Numpad keys
 		"NumpadEnter":    "enter",
-		"NumpadDivide":   "numpaddivide",
-		"NumpadMultiply": "numpadmultiply",
-		"NumpadSubtract": "numpadsubtract",
-		"NumpadAdd":      "numpadadd",
-		"NumpadDecimal":  "numpaddecimal",
-		"Numpad0":        "numpad0",
-		"Numpad1":        "numpad1",
-		"Numpad2":        "numpad2",
-		"Numpad3":        "numpad3",
-		"Numpad4":        "numpad4",
-		"Numpad5":        "numpad5",
-		"Numpad6":        "numpad6",
-		"Numpad7":        "numpad7",
-		"Numpad8":        "numpad8",
-		"Numpad9":        "numpad9",
+		"NumpadDivide":   "num/",
+		"NumpadMultiply": "num*",
+		"NumpadSubtract": "num-",
+		"NumpadAdd":      "num+",
+		"NumpadDecimal":  "num.",
+		"Numpad0":        "num0",
+		"Numpad1":        "num1",
+		"Numpad2":        "num2",
+		"Numpad3":        "num3",
+		"Numpad4":        "num4",
+		"Numpad5":        "num5",
+		"Numpad6":        "num6",
+		"Numpad7":        "num7",
+		"Numpad8":        "num8",
+		"Numpad9":        "num9",
 
 		// Media keys
-		"AudioVolumeMute":    "volumemute",
-		"AudioVolumeDown":    "volumedown",
-		"AudioVolumeUp":      "volumeup",
+		"AudioVolumeMute":    "audio_mute",
+		"AudioVolumeDown":    "audio_vol_down",
+		"AudioVolumeUp":      "audio_vol_up",
 		"MediaPlayPause":     "playpause",
-		"MediaTrackPrevious": "prevtrack",
-		"MediaTrackNext":     "nexttrack",
+		"MediaTrackPrevious": "audio_prev",
+		"MediaTrackNext":     "audio_next",
 
 		// Browser keys
 		"BrowserBack":      "browserback",

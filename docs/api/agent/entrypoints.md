@@ -197,7 +197,7 @@ docType: index
 维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
 
 
-- `docs/api/ai-cli.md` SHA-256 `da5bb15c0d9df8e85eaa656dff05d19ecf60514e3dff459e28be418b3d9217a4`
+- `docs/api/ai-cli.md` SHA-256 `52e2ca3331cc5451a09be67300a50a12db99dc3f8dc3d2102ee130aa1c311f40`
 
 - `docs/api/http-server.md` SHA-256 `a88ec56dab863b0fa5b95953a8f84a840676966ccc2646e5c7dfa6b806326718`
 

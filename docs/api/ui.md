@@ -26,6 +26,8 @@ docType: reference
 
 `ui` 全局始终存在，但默认 dormant。CLI 可用 `-ui` 显式授权当前 execution，也可以由严格项目配置声明：
 
+可信本机 MCP 宿主也可用 `--allow-script-execution --script-capabilities=custom-ui` 授权普通脚本；客户端工具参数不能自行开启 UI。授权仅表示 `enabled`，不保证兼容 host、系统会话或方法可用；`ui.getCapabilities()` 诊断不创建窗口，真实可用性仍需相应 host 证据。默认 MCP、HTTP 和 Scheduler execution 的限制保留。
+
 ```json
 {
   "schemaVersion": 1,
@@ -100,6 +102,10 @@ HTTP UI 还要求 server 已启用 UI、单次请求声明 `"capabilities":["ui"
 **FloatingWindow**
 
 `FloatingWindow` 是同一 Custom UI driver 上的 typed native toolbar。公开方法以本页各自 H2 为准；完整 TypeScript shape 还可参照 `types/FloatingWindow.d.ts`。
+
+| 属性 | 用途 |
+| --- | --- |
+| `FloatingWindow.id` | 当前实例的 execution 内窗口标识；不是操作系统窗口 ID。 |
 
 ## 公共状态与事件
 
@@ -550,6 +556,8 @@ ui.createWindow(spec: WindowSpec): Promise<WindowHandle>
 | `interactionGroup` | string | 同一 execution 内相关 surface 的稳定组名；组内切换不产生 `interactionOutside`。 |
 | `theme` | `system \| dark` | 默认 `system`。 |
 | `content` | object | 受限 HTML/CSS 与本地资源声明。 |
+
+`position` 与旧 `bounds` 必须恰好提供一种，不能都省略或混用；新 `position` 也不能与旧 `size` / `placement` 混用。`title` 默认空字符串，`alwaysOnTop`、`draggable`、`keyEvents` 默认 `false`，省略 `interactionGroup` 表示没有声明分组。absolute bounds 必须包含有限坐标与正的有限宽高；anchor 必须提供 size，其他定位字段使用本页 placement 约束。
 
 `content`：
 
@@ -1157,7 +1165,7 @@ const off = save.on('click', () => console.log('save'));
 
 ## new FloatingWindow(options?)
 
-创建 compact typed native toolbar；只有当前 execution 已授权 UI 时可用。
+声明 compact typed native toolbar；真正显示仍要求当前 execution 已授权 UI，并有可用的 Custom UI host。
 
 **签名**
 
@@ -1171,17 +1179,18 @@ new FloatingWindow(options?: FloatingWindowOptions): FloatingWindow
 
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
+| `id` | 自动生成 | 可选窗口标识，规则见 [FloatingWindow.id](#floatingwindowid)。 |
 | `position` | 无 | `{mode:'absolute',x,y}` 或 `{mode:'anchor',horizontal,vertical,margin?,display?}`。 |
 | `x` / `y` | `100 / 100` | 旧 absolute compatibility 写法；必须成对，不与 `position` 混用。 |
 | `theme` | `dark` | 当前只支持 dark。 |
 | `title` | `Toolbar` | native title。 |
 | `alwaysOnTop` | `true` | native 置顶。 |
 | `draggable` | `true` | 是否允许 native dragging。 |
-| `orientation` | `horizontal` | horizontal 最多 32 个 content item；vertical 最多 5 个。 |
+| `orientation` | `horizontal` | horizontal 最多 32 个 content item；vertical 最多 81 个。 |
 | `tooltipPosition` | `auto`（省略） | 不可变窗口选项：`'auto' \| 'right' \| 'left' \| 'top' \| 'bottom'`；macOS tooltip 首选方向。Windows 不接受显式字段，包括 `'auto'`。 |
 | `toolbar.maxWidth` | `960` | horizontal 最大 outer width，60–960。 |
-| `toolbar.maxColumns` | `19` | 每行最大 content item 数。 |
-| `toolbar.maxRows` | 自动 | 1–32；与其他限制共同计算 capacity。 |
+| `toolbar.maxColumns` | `19` | 仅 horizontal：每行最大 content item 数。 |
+| `toolbar.maxRows` | 自动 | 仅 horizontal：1–32；与其他限制共同计算 capacity。 |
 
 **返回值**
 
@@ -1190,6 +1199,8 @@ new FloatingWindow(options?: FloatingWindowOptions): FloatingWindow
 **行为与错误**
 
 Button/Label/control 固定 40pt 高，结构项不占 content quota；布局超限或冲突 position 返回 `INVALID_SPEC`。显示前声明结构，显示后只允许非结构状态更新。
+
+vertical 保持单列，最多 81 个 content item、161 个总 item；按完整内容自然增加高度，保持 40pt 目标、8pt 间距和原生标题栏，不滚动、不截断、不分页。vertical 不能设置 `maxWidth/maxColumns/maxRows`。需要锚点定位时仍受现有屏幕可用空间约束。
 
 `tooltipPosition` 只在构造时指定，没有运行时 setter。空字符串、`null`、显式 `undefined`、未知枚举或非字符串均返回 `INVALID_SPEC`。Windows 对五个合法显式值（包括 `'auto'`）返回 `UNSUPPORTED_CAPABILITY`；省略字段保留原生 WinForms tooltip 行为。
 
@@ -1204,6 +1215,44 @@ const toolbar = new FloatingWindow({
   position: {mode:'anchor', horizontal:'right', vertical:'center', margin:16},
   toolbar: {maxColumns: 6}
 });
+```
+
+## FloatingWindow.id
+
+读取当前 toolbar 实例在所属 execution 内的窗口标识。
+
+**签名**
+
+```ts
+readonly id: string
+```
+
+**参数**
+
+无（属性读取）。
+
+**返回值**
+
+`string`。构造器的 `options.id` 去除首尾空白后非空时使用该值，且必须匹配
+`[A-Za-z][A-Za-z0-9_-]{0,63}`；省略或空白值生成 `floating-toolbar-<递增序号>`。
+
+**行为与错误**
+
+- 标识在构造时分配，早于首次 `show()`；读取不创建 native 窗口、不请求权限，也不做外部 UI 定位。
+- 同一 execution 内重复标识在构造时以 `DUPLICATE_ID` 失败，非法标识以 `INVALID_SPEC` 失败；属性读取本身没有异步等待或 native 错误。
+- 类型将此属性视为只读。当前 JavaScript 对象未强制冻结该字段，手动赋值不会重命名底层窗口；不要赋值或删除。
+- `hide()` / `close()` 不清空该字段；关闭后仍能读到原值，但这不证明窗口仍存在或可再次显示。它不是 OS window ID，也不承诺跨 execution 稳定。
+- 构造及读取也以当前 execution 已获得显式 Custom UI 授权为前提：禁用 UI 的普通 MCP execution 不注入 `FloatingWindow`，直接构造会因全局名称未定义而失败，不能把它当作无授权的纯数据 API。授权边界见[平台、授权与运行模式](#平台授权与运行模式)。
+- 已授权并注入构造器后，没有匹配的可用 native host 仍可声明实例并读取 id；真正显示才要求可用 host，并受 macOS/Windows 与 Linux 限制。读到字符串只证明构造与标识合同，不证明 UI host 可用、窗口已显示或桌面权限已取得。
+
+**示例**
+
+前提：宿主已显式授权当前 execution 的 Custom UI，并已注入 `FloatingWindow`。
+以下仅声明并读取，不显示窗口、不调用 native 方法，也不请求或提升权限；不可在 UI 未授权的普通 MCP execution 中使用：
+
+```js
+const toolbar = new FloatingWindow({ id: 'status-toolbar' });
+console.log(toolbar.id); // status-toolbar
 ```
 
 ## FloatingWindow.addButton(id, label, icon, callback?)
@@ -1396,7 +1445,7 @@ addSlider(id, label, {min?, max?, value?, step?, disabled?, width?}?, callback?)
 
 **参数**
 
-默认 `min:0,max:100,step:1`；value 必须位于范围内。
+默认 `min:0,max:100,step:1,value:min,width:180,disabled:false`。min/max/step/value 必须有限，`min < max`、`0 < step <= max-min`，value 位于闭区间内；width 范围 80–360。非法类型、范围或 width 在声明时同步抛 `INVALID_SPEC`。
 
 **返回值**
 
@@ -1716,7 +1765,7 @@ Button id。
 
 **返回值**
 
-包含 label/icon/active/disabled/busy/error/badge/revision/tooltip/Accessibility/localBounds/screenBounds 等。text 按钮的 `icon` 回读 `{text:'继续'}`，`iconPresentation` 仅为 `{kind:'text'}`，`renderedText` 是实际可见文字：busy 时为“稍候”，完成后恢复声明文字；内置图标/图片的 `renderedText` 为空。tooltip 与 Accessibility name 仍来自独立的 `label`。
+包含 label/icon/active/disabled/busy/error/badge/revision/tooltip/Accessibility/localBounds/screenBounds 等。text 按钮的 `icon` 回读 `{text:'继续'}`，`iconPresentation` 仅为 `{kind:'text'}`，`renderedText` 是实际可见文字：busy 时仅显示旋转指示器，`renderedText` 为空，完成后恢复声明文字；内置图标/图片的 `renderedText` 为空。busy 不改写声明文字、tooltip 或来自独立 `label` 的 Accessibility name。
 
 **行为与错误**
 
@@ -1806,6 +1855,8 @@ show(): Promise<WindowState>
 
 首次 show 前必须至少有一个 content item，且结构边界闭合合法。
 
+首次创建或显示失败会 reject；如果失败后的清理也失败，错误消息同时保留原始原因与 cleanup 失败。资源仍由当前 execution 管理，应关闭或等待 execution 清理，不能因 show reject 就假定原生资源不存在。
+
 **示例**
 
 ```js
@@ -1860,7 +1911,9 @@ close(): Promise<WindowState | null>
 
 **行为与错误**
 
-终结后不可继续修改。
+终结后不可继续修改。首次 `show()` 的创建或显示仍在途时，`close()` 会取消该创建并等待其交回资源；即使 native driver 忽略取消并迟到交付窗口，也必须关闭后才能成功返回，成功后不会再由该创建发起 Show。
+
+取消/Show 失败后的 worker 清理，以及 native 创建已交付资源但首次状态读取失败后的清理，均使用独立、最多三秒的 cleanup context，避免已取消 context 跳过清理或无期限持有窗口操作锁。该清理失败不会报告创建成功；窗口引用与 ID 继续由 owner 保留。显式 `close()` 若因 native close 失败而 reject，可重试 `close()`，不能重试 show 来创建第二个窗口。原生调用仍需 driver 响应 context；本合同不保证强制中断任意系统调用。
 
 **示例**
 
@@ -1912,11 +1965,11 @@ setPosition(x: number, y: number): Promise<Bounds | WindowState>
 
 **返回值**
 
-兼容返回形状由现有类型声明约束。
+首次创建完成前只保存本地声明并 resolve `Bounds`；窗口已创建后 resolve host readback `WindowState`。
 
 **行为与错误**
 
-成功后当前位置成为 absolute 结果。
+成功后当前位置成为 absolute 结果。参数校验错误同步抛出；已有窗口的 native 操作错误通过 Promise 拒绝。首次 show 尚在途时应等待 show 完成再做运行时移动。
 
 **示例**
 
@@ -1940,11 +1993,11 @@ left/center/right × top/center/bottom，可选 margin/display。
 
 **返回值**
 
-兼容返回形状由现有类型声明约束。
+首次创建完成前保存本地 normalized `WindowPlacement` 并 resolve 该声明；已有窗口时 resolve host readback `WindowState`。
 
 **行为与错误**
 
-一次性明确重定位，不是持续布局约束。
+一次性明确重定位，不是持续布局约束。未创建窗口时 `display: 'current'` 不可用，会同步抛出错误；参数/normalize 错误也同步抛出。已有窗口操作错误通过 Promise 拒绝。
 
 **示例**
 
@@ -2015,12 +2068,14 @@ toolbar.onControlChange('live', e => console.log(e.value));
 **签名**
 
 ```ts
-onError(callback: (error: UIError) => unknown | Promise<unknown>): void
+onError(callback: (error: ClawdeskUIError) => unknown | Promise<unknown>): void
 ```
 
 **参数**
 
-error callback。
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `callback` | `(error: ClawdeskUIError) => unknown \| Promise<unknown>` | 是 | 无 | 接收 toolbar 回调错误。 |
 
 **返回值**
 
@@ -2028,7 +2083,7 @@ error callback。
 
 **行为与错误**
 
-用于显式处理 `UI_CALLBACK_FAILED`；不吞掉 native driver 事实。
+按钮的回调失败时，handler 收到 `UI_CALLBACK_FAILED`，其 `operation`、`windowId`、`targetId` 和 `capability` 标识失败来源。传入非函数会同步抛出 `INVALID_SPEC`。窗口和驱动操作的失败由各自的调用报告。
 
 **示例**
 
@@ -2052,11 +2107,11 @@ boolean。
 
 **返回值**
 
-兼容返回形状由当前类型声明约束。
+首次创建完成前保存本地声明并 resolve boolean；已有窗口时 resolve host readback `WindowState`。
 
 **行为与错误**
 
-不改变业务状态。
+不改变业务状态。本地声明成功不是已修改 native window level；已有窗口的 driver 错误通过 Promise 拒绝。
 
 **示例**
 
@@ -2080,11 +2135,11 @@ boolean。
 
 **返回值**
 
-host readback。
+首次创建完成前返回本地 declared `WindowState`（hidden、visible=false、onScreen=false），没有调用 host；已有窗口时返回 host readback。
 
 **行为与错误**
 
-不重新创建 toolbar。
+不重新创建 toolbar。非 boolean 参数、无效本地结构会同步抛错；已有窗口的 native 操作错误通过 Promise 拒绝。
 
 **示例**
 
@@ -2140,7 +2195,7 @@ waitUntilClosed(): Promise<WindowState>
 
 **行为与错误**
 
-推荐的生命周期等待方法。
+必须先 `await toolbar.show()`；首次 show 完成前调用会同步抛 `INVALID_STATE`。已取得窗口后返回等待关闭的 Promise，execution 取消通过 Promise 拒绝。
 
 **示例**
 
@@ -2168,7 +2223,7 @@ run(): Promise<WindowState>
 
 **行为与错误**
 
-没有独立 run loop，也不会创建第二个 Runtime。
+没有独立 run loop，也不会创建第二个 Runtime。与 waitUntilClosed 相同，必须先 await show；创建未完成时同步抛 INVALID_STATE。
 
 **示例**
 
@@ -2190,7 +2245,7 @@ Custom UI 常见结构化错误：
 | `UI_EVENT_QUEUE_OVERFLOW` / `UI_DRIVER_FAILURE` / `UI_HOST_NOT_FOUND` | event queue、driver 或 host 故障。 |
 | `UI_CALLBACK_FAILED` | Button/control callback 抛错或 rejection。 |
 
-错误可带 `operation`、`windowId`、`targetId`、`capability`。不要用 UI 可见性当业务成功证据。
+错误可带 `operation`、`windowId`、`targetId`、`capability`。操作失败与失败清理同时发生时，`message` 保留原始原因与可识别的 `cleanup failed` 原因；结构化字段继续标识主操作错误。不要用 UI 可见性当业务成功证据。
 
 ## 主题、图标与详细设计规范
 

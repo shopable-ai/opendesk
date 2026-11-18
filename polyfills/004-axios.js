@@ -13,7 +13,7 @@ if (typeof globalThis.AbortController !== 'function') {
 
     function dispatchAbortListener(signal, listener, event) {
         try {
-            listener.call(signal, event);
+            Promise.resolve(listener.call(signal, event)).catch(reportAbortListenerFailure);
         } catch (_) {
             reportAbortListenerFailure();
         }
@@ -133,8 +133,11 @@ const axios = (function() {
             });
 
             if (parts.length > 0) {
-                const separator = url.indexOf('?') === -1 ? '?' : '&';
-                return `${url}${separator}${parts.join('&')}`;
+                const fragmentAt = url.indexOf('#');
+                const base = fragmentAt === -1 ? url : url.slice(0, fragmentAt);
+                const fragment = fragmentAt === -1 ? '' : url.slice(fragmentAt);
+                const separator = base.indexOf('?') === -1 ? '?' : /[?&]$/.test(base) ? '' : '&';
+                return `${base}${separator}${parts.join('&')}${fragment}`;
             }
 
             return url;

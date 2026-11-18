@@ -41,7 +41,7 @@ declare global {
   }
 
   interface OpenDeskWebhookHandle {
-    /** Business label scoped to the current execution. */
+    /** Trimmed business label scoped to this execution; remains readable after close. Do not assign: facade assignment cannot rename the native listener. */
     readonly name: string;
     /** Actual loopback URL allocated for this listener instance. */
     readonly url: string;

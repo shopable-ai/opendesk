@@ -130,12 +130,23 @@
     const itemOverflow = await helper.expectUIError(() => maxItems.addSeparator('over-item-limit'), 'INVALID_SPEC', 'FloatingWindow.addSeparator');
     equal(itemOverflow.capability, 'item');
 
+    const verticalMaxItems = new FloatingWindow({ orientation: 'vertical' });
+    verticalMaxItems.addButton('button0', 'Button 0', 'timer');
+    for (let index = 1; index < 81; index += 1) {
+      verticalMaxItems.addSpacer('space' + index);
+      verticalMaxItems.addButton('button' + index, 'Button ' + index, 'timer');
+    }
+    const verticalItemOverflow = await helper.expectUIError(
+      () => verticalMaxItems.addSeparator('over-vertical-item-limit'), 'INVALID_SPEC', 'FloatingWindow.addSeparator');
+    equal(verticalItemOverflow.capability, 'item', '162nd vertical item did not hit the total-item limit');
+    equal(verticalItemOverflow.targetId, 'over-vertical-item-limit');
+
     helper.evidence.primitives = {
       declared, shown, moveEvents, closeEvents, moves,
       horizontal: { copy, reply, order, help, screenshot: primitiveVisual },
       wrapping: { shown: wrapShown, screenshot: wrapVisual },
       vertical: { shown: verticalShown, screenshot: verticalVisual },
-      limits: { maxButtons: 32, maxItems: 63, verticalButtons: 5, verticalItems: 9 },
+      limits: { maxButtons: 32, maxItems: 63, verticalButtons: 81, verticalItems: 161 },
       accessibility: { structuralItemsAreNotButtonState: true, nativeSourceContract: true },
     };
     helper.persist();

@@ -1,4 +1,5 @@
 ---
+docType: reference
 title: System API
 description: 系统信息、进程、网络、目录、用户与系统状态查询。
 order: 380
@@ -276,6 +277,8 @@ System.logout({ confirm: true, force: false });
 
 ## System.getSystemInfo()
 
+**签名**：`System.getSystemInfo(): OpenDeskSystemInfo`。无参数，同步返回对象。host、CPU、memory 三组读取分别尝试；任一组失败只省略该组字段，当前 owner 不上抛该读取错误。因此 `{}` 或缺字段是允许的部分结果，不能当作完整硬件识别成功。CPU 字段取列表第一项，`cpuCores` 不是整机总核心数；内存为字节、`uptime` 为秒。无独立 timeout/signal。
+
 ```js
 const info = System.getSystemInfo();
 console.log(JSON.stringify(info, null, 2));
@@ -298,6 +301,8 @@ console.log(JSON.stringify(info, null, 2));
 
 ## System.getSystemMetrics()
 
+**签名**：`System.getSystemMetrics(): Record<string, number>`。无参数，同步调用；CPU 使用率采样窗口约一秒，会阻塞当前 JavaScript。CPU、内存、根目录磁盘分别读取，失败组省略；当前 owner 返回部分对象且不上抛这些读取错误。比例字段为百分比，`availableMemory`/`availableDisk` 为字节；没有独立 timeout/signal，不能用 AbortSignal 抢占采样。
+
 ```js
 const metrics = System.getSystemMetrics();
 console.log(metrics);
@@ -312,9 +317,11 @@ console.log(metrics);
 
 ## System.getProcessList()
 
+**签名**：`System.getProcessList(): OpenDeskProcessInfo[]`。无参数，同步查询宿主 OS 进程。进程枚举失败同步抛 GoError；枚举成功后，每条记录固定有下列六个字段，单个属性读取失败被忽略并保留该次调用返回值（通常为空字符串或零），不代表该属性已准确取得。权限、进程退出和采样时点会影响结果；没有独立 timeout/signal。命令行和用户名可能含私密信息，示例只输出数量。
+
 ```js
 const list = System.getProcessList();
-console.log(JSON.stringify(list.slice(0, 10), null, 2));
+console.log('process count:', list.length);
 ```
 
 **单项通常包含**
@@ -327,18 +334,107 @@ console.log(JSON.stringify(list.slice(0, 10), null, 2));
 
 ## System.killProcess(pid)
 
+**签名**：`System.killProcess(pid: number): void`。同步请求终止指定进程，成功返回 `undefined`；不是 Promise，也不等待进程最终退出。通用桥接将参数转为 Go `int32`，没有额外正整数或范围检查；调用方必须先验证 PID、进程身份与终止授权。查找进程或 OS kill 失败同步抛 GoError，不承诺稳定 code；没有单次取消/超时。它可以终止宿主或其他任务，不能用作通用资源清理。
+
 ```js
-await System.killProcess(12345);
+// 仅定义；调用前必须核对 PID 与终止授权。
+function terminateOwnedProcess(pid) { System.killProcess(pid); }
+```
+
+## System.getNetworkInterfaces()
+
+读取本机逐网卡累计 I/O 计数，不发起网络连接或探测远端。
+
+**签名**
+```ts
+System.getNetworkInterfaces(): OpenDeskNetworkInterfaceInfo[];
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+同步返回数组，每项字段如下；没有接口时可为空数组。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `name` | `string` | OS 网卡名称，非 IP/MAC 地址。 |
+| `bytesSent` | `number` | 累计发送字节数。 |
+| `bytesRecv` | `number` | 累计接收字节数。 |
+| `packetsSent` | `number` | 累计发送包数。 |
+| `packetsRecv` | `number` | 累计接收包数。 |
+| `errors` | `number` | 接收与发送错误计数之和。 |
+| `drops` | `number` | 接收与发送丢包计数之和。 |
+
+**行为与错误**
+
+普通 OpenDesk JavaScript 直接调用全局 `System`，无需 `await`。由 native owner 查询本机 OS 统计；支持范围及计数可用性取决于当前平台的 gopsutil backend，不保证不同系统字段同样精细。不要求桌面 Accessibility、录屏或麦克风授权，也不触发这些权限请求；宿主 OS 的查询权限仍适用。它不是接口地址清单，也不返回速率；计数重置、系统采样时点和 JavaScript number 精度影响解释，不能据此证明网络可达。
+
+底层统计读取失败同步抛出 JavaScript GoError，不承诺稳定 code 或空数组降级。没有 signal、timeout 或单次取消参数；同步查询不能由 JavaScript AbortSignal 抢占。
+
+**示例**
+
+普通 OpenDesk 脚本中只输出数量，不记录接口标识或地址：
+
+```js
+const interfaces = System.getNetworkInterfaces();
+console.log('interface count:', interfaces.length);
+```
+
+## System.getPowerInfo()
+
+读取平台命令提供的电源/电池原始文本，不改变电源状态。
+
+**签名**
+```ts
+System.getPowerInfo(): OpenDeskPowerInfo;
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+同步返回对象，唯一可选字段 `batteryData?: string` 是命令 stdout 原文；可能为空字符串。不是规范化的电量、充电状态或百分比结构。缺少字段与空字符串不能解释成“没有电池”或“电量为零”。
+
+**行为与错误**
+
+普通 OpenDesk JavaScript 直接调用全局 `System`，无需 `await`。macOS 执行 `pmset -g batt`；Windows 执行 `WMIC Path Win32_Battery Get EstimatedChargeRemaining,BatteryStatus`；Linux 执行 `upower -i /org/freedesktop/UPower/devices/battery_BAT0`。输出语言、格式、命令安装及 OS 权限取决于主机；Linux 不自动发现其他电池设备。其他平台返回 `{}`。
+
+这些只读命令不请求桌面、录屏或音频权限，不调用关机/睡眠。命令不存在、权限不足或退出失败均被当前 owner 吞掉，返回 `{}`，没有错误字段，也不抛出该命令错误。不要把空对象当作查询成功的电池状态。
+
+调用同步阻塞至子命令结束；当前实现没有命令 timeout/context、signal 或单次取消入口，不能靠外层 Promise 或 AbortSignal 中断它。
+
+**示例**
+
+普通 OpenDesk 脚本中只检查是否取得文本，避免记录主机原始输出：
+
+```js
+const power = System.getPowerInfo();
+console.log('power text available:', typeof power.batteryData === 'string');
 ```
 
 ## System.getNetworkConnections()
 
+**签名**：`System.getNetworkConnections(): OpenDeskNetworkConnectionInfo[]`。无参数，同步查询 OS 当前连接，不发起连接。每项固定包含数值 `fd`、`family`、`type`、`pid`，字符串 `localAddr`、`remAddr`、`status`；地址按 `<IP>:<port>` 拼接，不是可直接解析的规范 URL（IPv6 未补方括号）。字段可用性、连接可见范围和权限依赖 gopsutil 平台 backend；查询失败同步抛 GoError，不承诺稳定 code 或空列表降级。无独立 timeout/signal。
+
 ```js
 const conns = System.getNetworkConnections();
-console.log(JSON.stringify(conns.slice(0, 20), null, 2));
+console.log('connection count:', conns.length);
 ```
 
 ## System.getWorkingDirectory()
+
+**签名**
+
+```ts
+System.getWorkingDirectory(): string
+```
+
+无参数。同步返回**宿主进程**当前工作目录；不是 `Execution.workdir`，不会因 execution 绑定不同目录而改变。获取失败同步抛错，没有独立 timeout/signal。业务文件路径应使用 `Execution.workdir` 或 `path.resolve()`；不要通过改变进程 cwd 修正执行目录。
 
 ```js
 console.log(System.getWorkingDirectory());
@@ -346,15 +442,21 @@ console.log(System.getWorkingDirectory());
 
 ## System.getExecutablePath()
 
+**签名**：`System.getExecutablePath(): string`。无参数，同步返回宿主进程可执行文件路径，来自 OS `Executable` 查询；不是当前脚本路径，也不保证已经解析 symlink。查询失败同步抛 GoError；没有独立 timeout/signal。
+
 ```js
 console.log(System.getExecutablePath());
 ```
 
 ## System.getDirectoryContents(path)
 
+**签名**：`System.getDirectoryContents(path: string): Array<Record<string, unknown>>`。同步读取目录直接子项，不递归。路径直接传 OS，相对路径基于**宿主进程 cwd**，与 `File` 的 execution 路径解析不同；业务代码应传明确绝对路径。目录读取失败同步抛 GoError；逐项 `stat` 失败跳过该项，因此成功列表也不保证是完整快照。无独立 timeout/signal。
+
+每项固定包含：`name: string`（名称）、`size: number`（OS size）、`mode: string`（Go FileMode 文本）、`isDir: boolean`，以及 `modTime`（当前通用桥接暴露的 native `time.Time` 对象，不是 JS Date 或保证的 ISO 字符串）。需要 JSON 时间值时应自行明确转换，不能依赖该 native 对象的默认 JSON 投影。
+
 ```js
-const items = System.getDirectoryContents('.');
-console.log(JSON.stringify(items, null, 2));
+const items = System.getDirectoryContents(Execution.workdir);
+console.log('entry count:', items.length);
 ```
 
 **每一项通常包含**
@@ -366,11 +468,16 @@ console.log(JSON.stringify(items, null, 2));
 
 ## System.getUserInfo()
 
+**签名**：`System.getUserInfo(): Record<string, unknown>`。无参数，同步返回 `username`、`userDomain`、`userProfile`、`homePath` 四个字符串，分别直接读取**宿主进程**环境 `USERNAME`、`USERDOMAIN`、`USERPROFILE`、`HOME`，缺失为空字符串，不跨平台补全账户资料。`hostname?: string` 仅在 OS 主机名查询成功时存在，失败不抛出。该旧接口与隔离的 `Execution.env` / `System.getEnv()` 快照不同，空 execution 环境不屏蔽这些宿主字段。没有独立 timeout/signal；避免记录个人标识。
+
 ```js
-console.log(JSON.stringify(System.getUserInfo(), null, 2));
+const user = System.getUserInfo();
+console.log('hostname available:', typeof user.hostname === 'string');
 ```
 
 ## System.isAdministrator()
+
+**签名**：`System.isAdministrator(): boolean`。无参数、同步返回。Windows 尝试只读打开 `\\.\PHYSICALDRIVE0`，打开成功才为 `true`，任何打开失败为 `false`；其他平台仅判断当前 UID 是否为零。它不是完整的权限/capability 检查，也不申请或提升权限；不抛出该 Windows 打开错误，无独立 timeout/signal。
 
 ```js
 console.log(System.isAdministrator());
@@ -378,11 +485,16 @@ console.log(System.isAdministrator());
 
 ## System.getFingerprint()
 
+**签名**：`System.getFingerprint(): string`。无参数、同步调用 machineid 的应用域保护标识，域名沿用 `testMonkey`；不是随机 execution ID 或公开硬件序列号。稳定性依赖底层 OS machine ID 与当前域，不保证跨系统重装、容器或 machine ID 变更后保持不变。读取/派生失败同步抛 GoError（含 `failed to generate hardware fingerprint`），不承诺稳定 code；没有独立 timeout/signal。不要将其输出到共享日志。
+
 ```js
-console.log(System.getFingerprint());
+const fingerprint = System.getFingerprint();
+console.log('fingerprint available:', fingerprint.length > 0);
 ```
 
 ## System.toJSON(data)
+
+**签名**：`System.toJSON(data: unknown): string`。同步将桥接导出的值交给 Go JSON marshal，以两个空格缩进，返回 JSON **字符串**，不会写文件；不是 `JSON.stringify()` 的替代合同。循环结构、不支持的 Go JSON 值或 NaN/Infinity 等编码失败同步抛 GoError，不承诺稳定 code；没有单次 timeout/signal。需要 JavaScript 的 `toJSON`、replacer 或 undefined 行为时使用标准 `JSON.stringify()`。
 
 ```js
 const text = System.toJSON({ hello: 'world' });
@@ -396,24 +508,93 @@ console.log(text);
 
 ## System.shutdown(delay)
 
-```js
-await System.shutdown(60);
+请求系统关机。
+
+**签名**
+
+```ts
+System.shutdown(delay: number): void;
 ```
 
-**说明**
-- delay 单位按实现传给系统命令
-- 不同系统行为略有差异
+**参数**
+
+`delay` 按秒表达，建议显式提供非负整数。当前通用桥接将输入转为 Go `int`，省略为 `0`，没有独立的非负、有限值或整数范围验证；不要依赖桥接校验用户输入。
+
+**返回值**
+
+同步成功返回 `undefined`，无 Promise。
+
+**行为与错误**
+
+Windows 执行 `shutdown /s /t <delay>`；macOS/Linux 执行 `shutdown -h +<delay/60>`，整数除法向零截断为分钟。`0..59` 秒均变成 `+0`，并非等待这些秒数；负数继续参与命令构造，最终行为由平台命令决定。
+
+无确认步骤、单次 `signal` 或命令 timeout。命令不存在、权限不足或退出失败同步抛出 Error；其他平台抛出不支持错误。不承诺稳定错误 code，命令成功不证明最终电源状态已改变。
+
+**示例**
+
+```js
+// 仅定义；调用此函数会请求真实关机。
+function requestShutdown() { System.shutdown(120); }
+```
 
 ## System.restart(delay)
 
+请求系统重启。
+
+**签名**
+
+```ts
+System.restart(delay: number): void;
+```
+
+**参数**
+
+`delay` 按秒表达，建议显式提供非负整数。当前通用桥接转换为 Go `int`，省略为 `0`，没有独立的非负、有限值或整数范围验证。
+
+**返回值**
+
+同步成功返回 `undefined`，无 Promise。
+
+**行为与错误**
+
+Windows 执行 `shutdown /r /t <delay>`；macOS/Linux 执行 `shutdown -r +<delay/60>`，整数除法向零截断。`0..59` 秒均变成 `+0`，并非等待这些秒数。负数继续参与命令构造。
+
+无确认步骤、单次 `signal` 或命令 timeout。命令不存在、权限不足或退出失败同步抛出 Error；其他平台抛出不支持错误。没有稳定错误 code，命令成功不证明最终重启已完成。
+
+**示例**
+
 ```js
-await System.restart(60);
+// 仅定义；调用此函数会请求真实重启。
+function requestRestart() { System.restart(120); }
 ```
 
 ## System.sleep()
 
+请求系统睡眠。
+
+**签名**
+
+```ts
+System.sleep(): void;
+```
+
+**参数**
+
+无。
+
+**返回值**
+
+同步成功返回 `undefined`，无 Promise。
+
+**行为与错误**
+
+Windows 执行 `rundll32.exe powrprof.dll,SetSuspendState 0,1,0`；macOS 执行 `pmset sleepnow`；Linux 执行 `systemctl suspend`。无确认步骤、单次 `signal` 或命令 timeout。命令不存在、权限不足或退出失败同步抛出 Error；其他平台抛出不支持错误。没有稳定错误 code，命令成功不证明最终睡眠状态。
+
+**示例**
+
 ```js
-await System.sleep();
+// 仅定义；调用此函数会请求真实睡眠。
+function requestSleep() { System.sleep(); }
 ```
 
 ## System / page：权限关系

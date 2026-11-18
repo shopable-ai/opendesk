@@ -184,7 +184,7 @@ func writeRuntimeTemplate(t *testing.T, target string) string {
 		app := filepath.Join(root, "OpenDesk.app")
 		writeFixture(t, app, "Contents/MacOS/opendesk", "runtime")
 		writeFixture(t, app, "Contents/Helpers/opendesk-ui-host", "ui host")
-		writeFixture(t, app, "Contents/MacOS/polyfills/000.js", "polyfill")
+		writeFixture(t, app, "Contents/Resources/polyfills/000.js", "polyfill")
 		writeFixture(t, app, "Contents/Resources/OpenDeskAppBuilder/template.json", `{"schemaVersion":1,"kind":"opendesk-app-builder-template","target":"macos"}`)
 		writeFixture(t, app, "Contents/Resources/AppMode/old.js", "old user payload")
 		writeFixture(t, app, "Contents/_CodeSignature/CodeResources", "obsolete signature")

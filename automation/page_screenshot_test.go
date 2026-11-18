@@ -2,12 +2,45 @@ package automation
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
 	"path/filepath"
 	"testing"
 )
+
+func TestResolveScreenshotCaptureAreaDoesNotBroadenUnavailableTargets(t *testing.T) {
+	missingWindow := func() (*WindowInfo, error) { return nil, fmt.Errorf("fixture window unavailable") }
+	missingDisplay := func(int) map[string]interface{} { return nil }
+	primary := func() (int, int) { t.Fatal("unexpected fallback to primary screen"); return 0, 0 }
+
+	for _, options := range []ScreenshotOptions{
+		{Target: screenshotTargetActiveWindow},
+		{Target: screenshotTargetScreen, DisplayIndex: 9},
+		{Target: screenshotTargetScreen, DisplayIndex: 9, Clip: &ClipOptions{Width: 10, Height: 10}},
+	} {
+		if _, err := resolveScreenshotCaptureArea(options, missingWindow, missingDisplay, primary); err == nil {
+			t.Fatalf("unavailable target resolved successfully: %+v", options)
+		}
+	}
+
+	window := func() (*WindowInfo, error) {
+		return &WindowInfo{X: -20, Y: 12, Width: 250, Height: 140, Handle: 42}, nil
+	}
+	area, err := resolveScreenshotCaptureArea(ScreenshotOptions{Target: screenshotTargetActiveWindow}, window, missingDisplay, primary)
+	if err != nil || area.windowID != 42 || area.X != -20 || area.source != screenshotTargetActiveWindow {
+		t.Fatalf("active capture lost the window origin or identity: area=%+v err=%v", area, err)
+	}
+
+	display := func(index int) map[string]interface{} {
+		return map[string]interface{}{"x": -240, "y": -120, "width": index * 100, "height": 200}
+	}
+	area, err = resolveScreenshotCaptureArea(ScreenshotOptions{Target: screenshotTargetScreen, DisplayIndex: 2}, missingWindow, display, primary)
+	if err != nil || area.Width != 200 || area.X != -240 || area.source != screenshotTargetScreen {
+		t.Fatalf("explicit display lost its bounds: area=%+v err=%v", area, err)
+	}
+}
 
 func TestParseScreenshotOptionsFromStructPointer(t *testing.T) {
 	raw := &ScreenshotOptions{

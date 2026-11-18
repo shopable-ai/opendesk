@@ -108,7 +108,7 @@ Events.once(type: string, options?: { timeout?: number }): Promise<OpenDeskDeskt
 
 **行为与错误**
 
-超时抛 `TIMEOUT`；未知事件、平台不支持或 backend 失败使用与 `on()` 相同的结构化错误。
+等待超时后 Promise 以 `TIMEOUT` 拒绝，排队事件须在截止前分发给等待者。超时值须为正的有限数值，小于 1 纳秒的正值按 1 纳秒处理。未知事件、平台不支持或 backend 失败使用与 `on()` 相同的结构化错误。
 
 **示例**
 ```js
@@ -122,7 +122,7 @@ console.log(changed.data.changeCount);
 
 **签名**
 ```ts
-Events.getCapabilities(): OpenDeskEventsCapabilities;
+Events.getCapabilities(): OpenDeskDesktopEventCapabilities;
 ```
 
 **参数**
@@ -131,7 +131,7 @@ Events.getCapabilities(): OpenDeskEventsCapabilities;
 
 **返回值**
 
-`OpenDeskEventsCapabilities`，包含每种事件的 `supported`、`backend`、`platform` 和 interval 信息。
+`OpenDeskDesktopEventCapabilities`，包含每种事件的 `supported`、`backend`、`platform` 和 interval 信息。
 
 **行为与错误**
 

@@ -206,37 +206,56 @@ func (n *NotificationsRuntime) waitFor(call goja.FunctionCall) goja.Value {
 	return n.startAsync("Notifications.waitFor", func(parent context.Context) (interface{}, error) {
 		ctx, cancel := context.WithTimeout(parent, options.timeout)
 		defer cancel()
-
-		baseline := map[string]bool{}
-		if !options.includeExisting {
-			existing, err := n.backend.List(ctx)
-			if err != nil {
-				return nil, err
-			}
-			for _, record := range existing {
-				baseline[record.ID] = true
-			}
-		}
-
-		ticker := time.NewTicker(options.pollInterval)
-		defer ticker.Stop()
-		for {
-			records, err := n.backend.List(ctx)
-			if err != nil {
-				return nil, err
-			}
-			if match, ok := findNotificationMatch(records, baseline, options); ok {
-				return match, nil
-			}
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-ticker.C:
-			}
-		}
+		return n.waitForMatch(ctx, options)
 	}, func(value interface{}) goja.Value {
 		return n.runtime.ToValue(projectNotification(value.(NotificationRecord), options.includeContent))
 	})
+}
+
+// waitForMatch is the worker-only polling seam; it never accesses Goja.
+func (n *NotificationsRuntime) waitForMatch(ctx context.Context, options notificationWaitOptions) (NotificationRecord, error) {
+	list := func() ([]NotificationRecord, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		records, err := n.backend.List(ctx)
+		// Native reads may finish after the context boundary. Do not use
+		// their result or start another read after cancellation/timeout.
+		if contextErr := ctx.Err(); contextErr != nil {
+			return nil, contextErr
+		}
+		return records, err
+	}
+	baseline := map[string]bool{}
+	if !options.includeExisting {
+		existing, err := list()
+		if err != nil {
+			return NotificationRecord{}, err
+		}
+		for _, record := range existing {
+			baseline[record.ID] = true
+		}
+	}
+	ticker := time.NewTicker(options.pollInterval)
+	defer ticker.Stop()
+	for {
+		records, err := list()
+		if err != nil {
+			return NotificationRecord{}, err
+		}
+		match, ok := findNotificationMatch(records, baseline, options)
+		if err := ctx.Err(); err != nil {
+			return NotificationRecord{}, err
+		}
+		if ok {
+			return match, nil
+		}
+		select {
+		case <-ctx.Done():
+			return NotificationRecord{}, ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func (n *NotificationsRuntime) dismiss(call goja.FunctionCall) goja.Value {

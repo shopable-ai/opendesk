@@ -367,7 +367,7 @@ func (u *CustomUIRuntime) jsUIObject() map[string]any {
 		"closeAll": func(goja.FunctionCall) goja.Value {
 			return u.startAsync("closeAll", func(ctx context.Context) (any, error) {
 				return nil, u.session.CloseWindows(ctx)
-			}, nil)
+			}, func(any) goja.Value { return goja.Undefined() })
 		},
 		"on": func(call goja.FunctionCall) goja.Value {
 			return u.addListener("", "", call.Argument(0).String(), call.Argument(1))
@@ -885,6 +885,30 @@ func finiteCustomUINumber(value float64) bool {
 	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }
 
+// Keep operation metadata separate from the original error tree so joined
+// cleanup failures and outer context remain available to callers.
+type customUIOperationFailure struct {
+	original error
+	details  customui.Error
+}
+
+func (e *customUIOperationFailure) Error() string {
+	if _, ok := e.original.(*customui.Error); ok {
+		return e.details.Error()
+	}
+	return e.details.Operation + ": " + e.original.Error()
+}
+
+func (e *customUIOperationFailure) Unwrap() error { return e.original }
+
+func (e *customUIOperationFailure) As(target any) bool {
+	if uiErr, ok := target.(**customui.Error); ok {
+		*uiErr = &e.details
+		return true
+	}
+	return false
+}
+
 func customUIOperationError(err error, operation, windowID string) error {
 	if err == nil {
 		return nil
@@ -898,7 +922,7 @@ func customUIOperationError(err error, operation, windowID string) error {
 	if copy.WindowID == "" {
 		copy.WindowID = windowID
 	}
-	return &copy
+	return &customUIOperationFailure{original: err, details: copy}
 }
 
 func jsonCompatible(value any) any {

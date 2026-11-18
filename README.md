@@ -21,11 +21,12 @@ OpenDesk 是一个本地桌面自动化运行时。你可以直接运行 JavaScr
 open /Applications/OpenDesk.app
 ```
 
-从源码构建官方 bundle：
+从源码构建官方 bundle（首次先配置本机固定签名身份）：
 
 ```bash
+./scripts/setup_macos_signing.sh
 ./scripts/build_macos_app.sh
-open dist/OpenDesk.app
+./scripts/open_macos_app.sh
 ```
 
 源码开发时也可以显式运行同一个官方 App Mode 包：
@@ -322,11 +323,14 @@ Center 等产品能力由同一个 App Shell 生命周期管理，而不是通�
 
 ### 开发者从源码构建
 
-只有开发或制作发行包时才需要 Go。构建 App：
+只有开发或制作发行包时才需要 Go。首次执行 `./scripts/setup_macos_signing.sh`，以后用同一身份构建 App：
 
 ```bash
 ./scripts/build_macos_app.sh
 ```
+
+本机自签开发不需要 Apple 付费会员。配置位置、原证书恢复、首次 ad-hoc 迁移、A/B 连续性检查及
+Developer ID 发行边界见 [macOS 开发签名与权限延续](docs/development/macos-signing.md)。
 
 构建结果位于 `dist/OpenDesk.app`，默认已经包含官方 App Mode payload。可以直接验证源码 package：
 

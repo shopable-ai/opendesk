@@ -316,8 +316,9 @@ try {
 
 取消只影响显式接收该 `signal` 的 HTTP 请求、`http.download()` 或 SQLite 操作，不会自动终止任意
 JavaScript 函数。首次 `abort(reason)` 保留 reason，后续调用幂等。某个同步 `onabort` 或 listener
-抛错不会阻断剩余 listener 和 native 取消；listener 返回的 Promise 不会自动 await，失败通过 Runtime
-的 console error 通道报告而不复制任意 listener 错误正文。
+抛错不会阻断剩余 listener 和 native 取消；listener 返回的 Promise/thenable 不会自动 await，
+但其 rejection 会被处理，通过 Runtime console error 通道报告固定消息
+`AbortSignal listener failed`，不复制任意 listener 错误正文，也不会因未处理的 rejection 使 execution 失败。
 `throwIfAborted()` 不包装取消原因，调用方可按对象身份捕获传给首次 `abort(reason)` 的值。
 HTTP 错误和 deadline 语义见 [HTTP and Axios](http.md)；SQLite 的超时、写入状态和清理语义见
 [SQLite API](sqlite.md)。
@@ -595,7 +596,9 @@ writer 的 `write()`、`close()` 和 `abort()` 均返回 Promise；`ready` 与 `
 **行为与错误**
 
 同一时间只允许一个 writer。写入会串行调用 sink；sink 抛错或 rejected Promise 会使 writer 操作和
-`closed` 失败。当前 compatibility contract 不实现浏览器完整的 size algorithm/backpressure 模型。
+`closed` 失败。调用 `close()` 后拒绝新写入，已经接受的写入仍按顺序完成，再调用 sink 的 `close()`；
+关闭 Promise 与 `writer.closed` 在 sink 完成关闭后才成功。controller 已报告错误时不会被后续关闭覆盖。
+当前 compatibility contract 不实现浏览器完整的 size algorithm/backpressure 模型。
 
 **示例**
 
@@ -637,7 +640,9 @@ new TransformStream(transformer?)
 **行为与错误**
 
 controller 支持 `enqueue()`、`error()` 和 `terminate()`；transform/flush 可同步返回或返回 Promise。
-转换错误会传播到 writer 和 readable 侧。
+start/transform/flush 抛错或返回 rejected Promise，以及 `controller.error(reason)`，会使两侧进入错误状态：
+当前 writer 操作、`writer.closed`、pending `reader.read()` 与 `reader.closed` 均以原始 reason 拒绝，
+不会让 readable 继续挂起。正常关闭会等待已接受输入和 flush，readable 在消费完输出后返回 `done: true`。
 
 **示例**
 

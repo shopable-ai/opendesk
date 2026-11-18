@@ -1,13 +1,72 @@
 import AppKit
 
-// An independent, local-only test client. There is deliberately no send action,
-// server, script interpreter, or IPC that supplies observations to the assistant.
+// An independent, local-only test client: simulated sends never use a network or
+// represent WeChat delivery. Oracle output is for the independent test only.
+// BEGIN HEADLESS FIXTURE MODEL (also exercised without launching AppKit)
+enum FixtureSendMode: String, CaseIterable {
+    case success, failure, unknownDelivered = "unknown-delivered", unknownNotDelivered = "unknown-not-delivered"
+}
+struct FixtureMessage {
+    let id: String
+    let text: String
+    let who: String
+    var oracle: [String: Any] { ["id": id, "text": text, "who": who] }
+    var axIdentifier: String { "support.message.\(id).\(who)" }
+    var axValue: String { "\(who == "customer" ? "客户" : "客服") · \(id)\n\(text)" }
+}
+struct FixtureSendResult {
+    let action: Int
+    let session: String
+    let status: String
+    let mode: FixtureSendMode
+    let delivered: Bool
+    let messageID: String?
+    let reason: String
+    // The visible receipt deliberately omits delivery truth for unknown results.
+    var receipt: String { "action=\(action) session=\(session) result=\(status) reason=\(reason)" }
+    var oracle: [String: Any] {
+        ["action": action, "session": session, "status": status, "mode": mode.rawValue, "delivered": delivered,
+         "messageId": messageID as Any? ?? NSNull(), "reason": reason]
+    }
+}
+final class SupportChatFixture {
+    private var serial = 0
+    private(set) var messages: [[FixtureMessage]] = [[], [], []]
+    private(set) var sendActions = 0
+    private(set) var sendResults: [FixtureSendResult] = []
+    @discardableResult func append(_ text: String, who: String, selected: Int) -> FixtureMessage {
+        serial += 1
+        let message = FixtureMessage(id: "t\(selected+1)-m\(serial)", text: text, who: who)
+        messages[selected].append(message)
+        if messages[selected].count > 30 { messages[selected].removeFirst() }
+        return message
+    }
+    // One local UI event publishes the controller's maximum bounded batch.
+    // No timers, observation injection or automatic send is involved.
+    @discardableResult func customerBurst(_ text: String, selected: Int) -> [FixtureMessage] {
+        (0..<8).map { _ in append(text, who: "customer", selected: selected) }
+    }
+    func send(_ text: String, selected: Int, mode: FixtureSendMode) -> FixtureSendResult {
+        sendActions += 1
+        let valid = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && text.utf16.count <= 4000
+        let delivered = valid && (mode == .success || mode == .unknownDelivered)
+        let message = delivered ? append(text, who: "agent", selected: selected) : nil
+        let status = !valid || mode == .failure ? "failed" : mode == .success ? "sent" : "unknown"
+        let result = FixtureSendResult(action: sendActions, session: "t\(selected+1)", status: status, mode: mode,
+            delivered: delivered, messageID: message?.id,
+            reason: !valid ? "invalid-draft" : mode == .failure ? "injected-failure" : status == "unknown" ? "receipt-unavailable" : "local-only")
+        sendResults.append(result)
+        return result
+    }
+}
+// END HEADLESS FIXTURE MODEL
 final class SupportChat: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTextViewDelegate {
     var window: NSWindow!
     let names = ["林女士", "陈先生", "周女士"]
     var selected = 0
-    var serial = 0
-    var messages: [[(String, String)]] = [[], [], []]
+    let fixture = SupportChatFixture()
+    let sendMode = NSPopUpButton(frame: .zero, pullsDown: false)
+    let sendResult = NSTextField(labelWithString: "尚无本地模拟发送")
     var drafts = ["", "", ""]
     let session = NSTextField(labelWithString: "")
     let transcript = NSStackView()
@@ -64,8 +123,8 @@ final class SupportChat: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
             root.topAnchor.constraint(equalTo: window.contentView!.topAnchor),
             root.bottomAnchor.constraint(equalTo: window.contentView!.bottomAnchor)
         ])
-        root.addArrangedSubview(label("独立测试聊天 · 仅本地消息和草稿", size: 19))
-        root.addArrangedSubview(label("在下方输入客户消息并添加，助手通过 Accessibility 读取真实窗口。没有发送按钮。", size: 12))
+        root.addArrangedSubview(label("独立测试聊天 · 本地模拟发送", size: 19))
+        root.addArrangedSubview(label("仅测试 fixture：模拟发送不联网，结果不代表微信。未知结果请由独立 oracle 核验，勿盲目重发。", size: 12))
         let contacts = NSStackView()
         contacts.spacing = 8
         for i in 0..<3 {
@@ -101,8 +160,12 @@ final class SupportChat: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         input.font = .systemFont(ofSize: 14)
         root.addArrangedSubview(input)
         input.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -36).isActive = true
-        root.addArrangedSubview(button("添加客户消息", id: "support.add-message", action: #selector(addMessage)))
-        root.addArrangedSubview(label("客服草稿 · 只写入，不发送", size: 13))
+        let messageControls = NSStackView()
+        messageControls.spacing = 8
+        messageControls.addArrangedSubview(button("添加客户消息", id: "support.add-message", action: #selector(addMessage)))
+        messageControls.addArrangedSubview(button("突发 8 条（测试）", id: "support.add-burst", action: #selector(addBurst)))
+        root.addArrangedSubview(messageControls)
+        root.addArrangedSubview(label("客服草稿 · 点击测试按钮才本地模拟发送", size: 13))
         draftScroll.hasVerticalScroller = true
         draftScroll.borderType = .bezelBorder
         for (i, editor) in draftViews.enumerated() {
@@ -121,6 +184,23 @@ final class SupportChat: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         draftScroll.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -36).isActive = true
         draftScroll.heightAnchor.constraint(equalToConstant: 108).isActive = true
         root.addArrangedSubview(button("清空当前草稿（测试）", id: "support.clear-draft", action: #selector(clearDraft)))
+        let sendControls = NSStackView()
+        sendControls.spacing = 8
+        sendMode.addItems(withTitles: ["正常（仅本地）", "确定失败", "未知（本地已落入）", "未知（本地未落入）"])
+        sendMode.selectItem(at: 0)
+        sendMode.setAccessibilityIdentifier("support.fixture.send-mode")
+        sendMode.setAccessibilityLabel("测试专用发送故障注入；默认正常")
+        sendControls.addArrangedSubview(sendMode)
+        sendControls.addArrangedSubview(button("切换模式（测试）", id: "support.fixture.cycle-send-mode", action: #selector(cycleSendMode)))
+        sendControls.addArrangedSubview(button("模拟发送（仅本地测试）", id: "support.fixture.send", action: #selector(sendDraft)))
+        root.addArrangedSubview(sendControls)
+        sendResult.setAccessibilityIdentifier("support.fixture.send-result")
+        sendResult.setAccessibilityLabel("本地模拟发送回执；unknown 不表示成功或失败")
+        sendResult.font = .monospacedSystemFont(ofSize: 10, weight: .regular)
+        sendResult.lineBreakMode = .byWordWrapping
+        sendResult.maximumNumberOfLines = 0
+        root.addArrangedSubview(sendResult)
+        sendResult.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -36).isActive = true
         render()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -132,9 +212,9 @@ final class SupportChat: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
     func render() {
         session.stringValue = "t\(selected+1) · \(names[selected])"
         transcript.arrangedSubviews.forEach { transcript.removeArrangedSubview($0); $0.removeFromSuperview() }
-        for (id, text) in messages[selected] {
-            let row = label("客户 · \(id)\n\(text)")
-            row.setAccessibilityIdentifier("support.message.\(id).customer")
+        for message in fixture.messages[selected] {
+            let row = label(message.axValue)
+            row.setAccessibilityIdentifier(message.axIdentifier)
             transcript.addArrangedSubview(row)
             row.widthAnchor.constraint(equalTo: transcript.widthAnchor, constant: -20).isActive = true
         }
@@ -153,11 +233,33 @@ final class SupportChat: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         let text = String(input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).prefix(400))
         guard !text.isEmpty else { return }
         drafts[selected] = draft.string
-        serial += 1
-        messages[selected].append(("t\(selected+1)-m\(serial)", text))
-        if messages[selected].count > 30 { messages[selected].removeFirst() }
+        fixture.append(text, who: "customer", selected: selected)
         input.stringValue = ""
         render()
+    }
+    @objc func addBurst() {
+        let text = String(input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).prefix(400))
+        guard !text.isEmpty else { return }
+        drafts[selected] = draft.string
+        fixture.customerBurst(text, selected: selected)
+        input.stringValue = ""
+        render()
+    }
+    @objc func sendDraft() {
+        drafts[selected] = draft.string
+        let mode = FixtureSendMode.allCases[sendMode.indexOfSelectedItem]
+        let result = fixture.send(draft.string, selected: selected, mode: mode)
+        // Preserve drafts on failed/unknown receipts. An unknown receipt must
+        // never encourage an automatic retry, even if the local message exists.
+        if result.status == "sent" { drafts[selected] = "" }
+        sendResult.stringValue = result.receipt
+        render()
+        NSAccessibility.post(element: sendResult, notification: .valueChanged)
+    }
+    @objc func cycleSendMode() {
+        sendMode.selectItem(at: (sendMode.indexOfSelectedItem + 1) % FixtureSendMode.allCases.count)
+        NSAccessibility.post(element: sendMode, notification: .valueChanged)
+        recordOracle()
     }
     @objc func clearDraft() { draft.string = ""; drafts[selected] = ""; recordOracle() }
     func textDidChange(_ notification: Notification) { drafts[selected] = draft.string; recordOracle() }
@@ -165,8 +267,13 @@ final class SupportChat: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTe
         guard let path = ProcessInfo.processInfo.environment["OPENDESK_SUPPORT_CHAT_ORACLE"], window != nil else { return }
         let record: [String: Any] = ["pid": ProcessInfo.processInfo.processIdentifier,
             "windowNumber": window.windowNumber, "session": "t\(selected+1)", "draft": draft.string,
-            "messages": messages[selected].map { ["id": $0.0, "text": $0.1] },
-            "sendActions": 0, "at": Date().timeIntervalSince1970]
+            "messages": fixture.messages[selected].map { $0.oracle },
+            "fixture": "local-only-not-wechat", "sendMode": FixtureSendMode.allCases[sendMode.indexOfSelectedItem].rawValue,
+            "sendActions": fixture.sendActions, "sendResults": fixture.sendResults.map { $0.oracle },
+            "sessions": (0..<names.count).map { i in
+                ["session": "t\(i+1)", "messages": fixture.messages[i].map { $0.oracle },
+                 "draft": i == selected ? draft.string : drafts[i]] as [String: Any]
+            }, "at": Date().timeIntervalSince1970]
         if let data = try? JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]) {
             try? data.write(to: URL(fileURLWithPath: path), options: .atomic)
         }

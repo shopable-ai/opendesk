@@ -1,3 +1,8 @@
+// This seam uses the in-memory UI driver and an App Shell without a native host.
+// It verifies the JS result contract without opening a real menu or window.
+const menuUpdate = await automation.app.updateMenuItem('opendesk.quit', { label: 'Quit' });
+if (menuUpdate !== undefined) throw new Error('updateMenuItem must resolve undefined');
+
 const panel = await ui.createWindow({
   id: 'main',
   title: 'App Shell lifecycle seam',

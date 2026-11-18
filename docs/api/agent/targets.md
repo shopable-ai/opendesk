@@ -82,7 +82,7 @@ WindowTarget 与 WindowInfo 不混用；唯一性/新鲜度/坐标按公共约�
 | `page.captureScreen(options?: OpenDeskPageScreenshotOptions): Promise<string \| ArrayBuffer \| OpenDeskScreenshotResult \| null>;` | 截屏兼容入口，返回形式与 `page.screenshot()` 一致。 | 依选项：采集/生成文件或资源；继承本节限制 | [page.captureScreen](../page.md#pagecapturescreenoptions)；`read page page.captureScreen` |
 | `page.checkPermissions(options?: OpenDeskPermissionOptions): Promise<OpenDeskPermissionReport>;` | 读取跨平台权限快照。 | 需核对正文；不能假定无副作用；继承本节限制 | [page.checkPermissions](../page.md#pagecheckpermissionsoptions)；`read page page.checkPermissions` |
 | `page.checkScreenshotPermissions(): Record<string, unknown>;` | 检查截图相关权限。 | 需核对正文；不能假定无副作用；继承本节限制 | [page.checkScreenshotPermissions](../page.md#pagecheckscreenshotpermissions)；`read page page.checkScreenshotPermissions` |
-| `page.ensureMacPermissions(options?: Record<string, unknown>): Promise<OpenDeskPermissionReport>;` | page.ensureMacPermissions；所属能力：当前 execution、可见范围与截图/应用权限；等待不证明业务结果。 | 需核对正文；不能假定无副作用；继承本节限制 | [page.ensureMacPermissions](../page.md)；`read page page.ensureMacPermissions` **正文缺口：禁止据类型直接生成调用** |
+| `page.ensureMacPermissions(options?: OpenDeskEnsureMacPermissionOptions): Promise<OpenDeskPermissionReport>;` | 兼容权限 guard；新脚本使用 `page.ensurePermissions()`。 | 需核对正文；不能假定无副作用；继承本节限制 | [page.ensureMacPermissions](../page.md#pageensuremacpermissionsoptions)；`read page page.ensureMacPermissions` |
 | `page.ensurePermissions(options?: OpenDeskPermissionOptions): Promise<OpenDeskPermissionReport>;` | 严格确保所需权限已满足。 | 需核对正文；不能假定无副作用；继承本节限制 | [page.ensurePermissions](../page.md#pageensurepermissionsoptions)；`read page page.ensurePermissions` |
 | `page.goto(url: string): Promise<void>;` | 交给系统默认方式打开 URL。 | 需核对正文；不能假定无副作用；继承本节限制 | [page.goto](../page.md#pagegotourl)；`read page page.goto` |
 | `page.keyboard: OpenDeskKeyboard;` | page.keyboard；所属能力：当前 execution、可见范围与截图/应用权限；等待不证明业务结果。 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [page.keyboard](../page.md)；`read page page.keyboard` 共享整页兜底 |
@@ -101,7 +101,7 @@ WindowTarget 与 WindowInfo 不混用；唯一性/新鲜度/坐标按公共约�
 | `page.waitFor(milliseconds: number, options?: { signal?: AbortSignal \| null }): Promise<void>;`（2 个声明；--types 核对） | 分派到固定等待或条件等待。 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [page.waitFor](../page.md#pagewaitforvalue-options)；`read page page.waitFor` |
 | `page.waitForAll<T>(promises: Array<Promise<T> \| T>, options?: { timeout?: number; signal?: AbortSignal \| null }): Promise<T[]>;` | 有界等待一组值/Promise。 | 等待/订阅；回调副作用由调用方决定，须清理；继承本节限制 | [page.waitForAll](../page.md#pagewaitforallvalues-options)；`read page page.waitForAll` |
 | `page.waitForFunction<T>(predicate: (...args: any[]) => T \| Promise<T>, options?: OpenDeskPageWaitOptions, ...args: any[]): Promise<T>;` | 轮询条件，带独立 deadline。 | 等待/订阅；回调副作用由调用方决定，须清理；继承本节限制 | [page.waitForFunction](../page.md#pagewaitforfunctionfn-options-args)；`read page page.waitForFunction` |
-| `page.waitForNavigation(options?: { timeout?: number }): Promise<void>;` | page.waitForNavigation；所属能力：当前 execution、可见范围与截图/应用权限；等待不证明业务结果。 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [page.waitForNavigation](../page.md)；`read page page.waitForNavigation` **正文缺口：禁止据类型直接生成调用** |
+| `page.waitForNavigation(options?: { timeout?: number }): Promise<void>;` | 兼容轮询 executable 字段变化，不观察浏览器导航。 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [page.waitForNavigation](../page.md#pagewaitfornavigationoptions)；`read page page.waitForNavigation` |
 | `page.waitForTimeout(milliseconds: number, options?: { signal?: AbortSignal \| null }): Promise<void>;` | 非阻塞固定等待。 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [page.waitForTimeout](../page.md#pagewaitfortimeoutms-options)；`read page page.waitForTimeout` |
 
 
@@ -131,18 +131,18 @@ WindowTarget 与 WindowInfo 不混用；唯一性/新鲜度/坐标按公共约�
 维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
 
 
-- `docs/api/app.md` SHA-256 `52578f1d4d53ba790343a94d6f3ac931607993cb2eebbb6da9c9f7b5c252cc39`
+- `docs/api/app.md` SHA-256 `036f062d3db43442da879e6770af2ffcfcb8febc21b295458bf0e96cf3f61ea9`
 
 - `types/App.d.ts` SHA-256 `e4220ee0659274e619c693a36a6e581af7c7f346304f0cf4879432f9309fc0ef`
 
-- `docs/api/window.md` SHA-256 `a1bda3a0b3041c546274887e588d2f7ba7a5021f88ef36a8294543a92b515594`
+- `docs/api/window.md` SHA-256 `fc29db0816531054b4762c4d1653a30a83d8043c2499e319da0c4fb40c0a8c7e`
 
 - `types/window.d.ts` SHA-256 `7e3d6adf9dcdde9271616dbc289e480c6e4d4a4c8273cc1747fc16748b705101`
 
-- `docs/api/page.md` SHA-256 `97bce04f6f4bd2f6e20ed2a46bdf86972db7c5cae880bee5feea6c8fcc9d98c7`
+- `docs/api/page.md` SHA-256 `8afb24a52b10afbdd6bffcea0bcb8938f8ecba901eb3c13d3e2f9f09a83bed54`
 
-- `types/page.d.ts` SHA-256 `bed6a9d357676b3af10051c4c265925b2219cca3746b0354bfe14d138c343244`
+- `types/page.d.ts` SHA-256 `4c685701776ba6085269d12a1aee0d1d34c6c4e9e678b4d377e3dd87de8cc9ff`
 
-- `docs/api/geometry.md` SHA-256 `383b3ee662653f470c2f2f4a0f5cbae2ba2d5c53a46aed864af3a5a26e40f812`
+- `docs/api/geometry.md` SHA-256 `07971187f4998e998569437a62f1023f618dfacf533052a9cd1ecfdc0d4fe6f8`
 
 - `types/Geometry.d.ts` SHA-256 `831ef6e8951735d7d5d55f51fa5cdb96cad357cc01861a482520e56587523cbb`

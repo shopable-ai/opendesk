@@ -37,7 +37,7 @@ docType: index
 
 | 精确方法；主要输入 → 输出（签名） | 解决的问题 | 副作用；适用限制 | 契约获取 |
 | --- | --- | --- | --- |
-| `keyboard.combination(...keys: string[]): void;` | 顺序按下并逆序释放组合键。 | 有：输入/应用或系统状态改变；继承本节限制 | [keyboard.combination](../input.md#keyboardcombinationkeys)；`read input keyboard.combination` |
+| `keyboard.combination(...keys: string[]): void;` | 以前缀修饰键触发最后一个主键。 | 有：输入/应用或系统状态改变；继承本节限制 | [keyboard.combination](../input.md#keyboardcombinationkeys)；`read input keyboard.combination` |
 | `keyboard.down(key: string): void;` | 按住一个键。 | 有：输入/应用或系统状态改变；继承本节限制 | [keyboard.down](../input.md#keyboarddownkey)；`read input keyboard.down` |
 | `keyboard.press(key: string): void;` | 按下并释放单个键。 | 有：输入/应用或系统状态改变；继承本节限制 | [keyboard.press](../input.md#keyboardpresskey)；`read input keyboard.press` |
 | `keyboard.type(text: string): void;` | 输入文本。 | 有：输入/应用或系统状态改变；继承本节限制 | [keyboard.type](../input.md#keyboardtypetext)；`read input keyboard.type` |
@@ -108,25 +108,25 @@ docType: index
 维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
 
 
-- `docs/api/mouse.md` SHA-256 `e4b729ea4cfbd084e6be0fa46b3b92c3d62e3c01817d7f420e93b9d535f46a0f`
+- `docs/api/mouse.md` SHA-256 `451a4367101dc19fce5051377ae213df948580a73fe8f6e5a69027815b5e34bd`
 
 - `types/mouse.d.ts` SHA-256 `d842af24c1794e87aa294e38c79fe1795f16508baaf7493d5887cb52a7770580`
 
-- `docs/api/input.md` SHA-256 `3404e1cf58d0623a54b23da03893ce02d1325b158902cbe9dea24cb42594f99b`
+- `docs/api/input.md` SHA-256 `dbb89e51af0758077a702d2402f961de9a3558100e4eceb629e4e0773b17e100`
 
 - `types/keyboard.d.ts` SHA-256 `47b60300ec0a88eddb18bfcca0ce6fce6a7c9a02d127fdd3b927bfb596efed2b`
 
 - `types/touchscreen.d.ts` SHA-256 `30061c0e4e62d604a49cb420a7513e339001e9a5ec8152b51f1dcdbbdc9837f1`
 
-- `docs/api/clipboard.md` SHA-256 `f679a270e3c9f8b0ca90c157cabc8f1e9848a8219477c07a65178ed566d2261f`
+- `docs/api/clipboard.md` SHA-256 `bdc3b0c357a5044b1427b73a7fed1e9cd22d550535f1e557faf7655e768e3733`
 
 - `types/clipboard.d.ts` SHA-256 `e7e65393d9908e0bdc63d758902dd3d1edca9d89734efbd1d4eaf966782066f2`
 
-- `docs/api/global-shortcut.md` SHA-256 `3796a8de6730dc0277d9dc747dcef7a89ed8483760c4cf26cf6f0dae3ba0c98b`
+- `docs/api/global-shortcut.md` SHA-256 `08a0ed5cdc575e4b3137582b1527611f4346980d82cc216bcdc76ac8dbe874ad`
 
 - `types/globalShortcut.d.ts` SHA-256 `3315ad1c08c15dcd853dd77088749b6cd4b87f651ef0a0e980cdd22d863265cc`
 
-- `docs/api/events.md` SHA-256 `20b400138adb6b62242f138306b7747509148c67daf8dfe0bea60d378b93b170`
+- `docs/api/events.md` SHA-256 `ed7895b04b278428a0de88e690c3ca3b3d08861972ebb435bec660b2735006ae`
 
 - `types/Events.d.ts` SHA-256 `f187fa3310a0ade4b44e9685746e85d55d61d3d982f6a38628e7c7dbaf0be646`
 

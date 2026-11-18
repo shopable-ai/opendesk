@@ -17,6 +17,27 @@
     }
     throw Error('Timed out: '+label+(lastError?' · '+lastError:''));
   };
+  // Only WebKit's explicitly unmaterialized tree may be observed again.
+  // This helper never submits input or changes scope/backend.
+  async function reactSnapshot(w,properties){
+    const start=Date.now(),keys=['id','pid','handle','x','y','width','height'];
+    const verify=current=>assert(keys.every(k=>current[k]===w[k]),'React AX window identity/geometry changed');
+    for(let attempt=1;attempt<=8;attempt++){
+      assert(Date.now()-start<1200,'React AX snapshot wait budget exhausted');
+      const current=await assistantWindow();verify(current);
+      const remaining=1200-(Date.now()-start);
+      assert(remaining>0,'React AX snapshot wait budget exhausted');
+      const snapshot=await Accessibility.snapshot({within:current,maxDepth:24,maxNodes:1800,properties,timeout:remaining});
+      verify(await assistantWindow());
+      assert(Date.now()-start<1200,'React AX snapshot wait budget exhausted');
+      if(snapshot.complete===true&&snapshot.truncated===false)return snapshot;
+      assert(snapshot.complete===false&&snapshot.truncated===false&&snapshot.reason==='unmaterialized',
+        'React AX snapshot incomplete: '+snapshot.reason);
+      log('react-ax-read-wait',{attempt,reason:snapshot.reason,stats:snapshot.stats});
+      if(attempt<8)await sleep(100);
+    }
+    throw Error('React AX snapshot wait budget exhausted');
+  }
   const tree=async w=>Accessibility.snapshot({within:w,maxDepth:24,maxNodes:1800,properties:['role','name','identifier','value','actions','enabled','bounds']});
   const chat=async()=>{
     const w=await window.getAppWindow(target);
@@ -50,28 +71,72 @@
   async function assistantWindow(){const s=await panel.getState();return window.current({id:'darwin:'+s.hostPid+':native:'+s.nativeWindowId,pid:s.hostPid,handle:s.nativeWindowId,title:s.title||'OpenDesk · AI 客服助手 R2.3',...s.bounds});}
   async function shot(name){const w=await chat(),s=await panel.getState();const x=Math.min(w.x,s.bounds.x),y=Math.min(w.y,s.bounds.y);
     await page.screenshot({clip:{x,y,width:Math.max(w.x+w.width,s.bounds.x+s.bounds.width)-x,height:Math.max(w.y+w.height,s.bounds.y+s.bounds.height)-y},path:File.join(evidence,name+'.png'),returnType:'path'});}
-  async function clickReact(name,role='button',action={action:'invoke'}){
+  async function clickReact(name,role='button',action={action:'invoke'},reacquiredScope=null){
     await idle();
     await wait(async()=>(await panel.getState()).visible,'assistant visible before human control');
-    const w=await assistantWindow(),snap=await Accessibility.snapshot({within:w,maxDepth:24,maxNodes:1800,
-      properties:['role','name','identifier','actions','enabled','checked','bounds']});
+    const w=await assistantWindow(),snap=await reactSnapshot(w,['role','name','identifier','actions','enabled','checked','bounds']);
     await File.writeJSON(File.join(evidence,'react-ax.json'),snap);
     const candidates=OpenDeskSupportNative.nodes(snap).filter(n=>n.role===role&&(typeof name==='string'?n.name===name:name.test(n.name||'')));
     assert(candidates.length===1,'React target missing/ambiguous: '+name);
     const node=candidates[0],b=node.bounds,now=await assistantWindow();
+    assert(!reacquiredScope||(w.pid===reacquiredScope.pid&&w.handle===reacquiredScope.handle),'Assistant identity changed during reacquire');
     assert(node.enabled!==false&&b?.coordinateSpace==='screen','React control lacks calibrated screen bounds');
     assert(['pid','handle','x','y','width','height'].every(k=>w[k]===now[k]),'Assistant moved during preflight');
-    const x=b.x+b.width/2,y=b.y+b.height/2;
-    assert(x>now.x&&x<now.x+now.width&&y>now.y&&y<now.y+now.height,'Control outside exact assistant');
     if(action.action==='setChecked'){
       assert(typeof node.checked==='boolean','Checkbox state unavailable');
-      if(node.checked===action.checked)return;
+      if(node.checked===action.checked){
+        log('human-control-already-satisfied',{name:node.name,role,checked:node.checked});return;
+      }
     }
-    // One directed AX hit-test/press against this helper PID. No global click,
-    // cached element mapping, fallback, or retry after an uncertain action.
     log('human-control-preflight',{name:node.name,role,pid:now.pid,windowId:now.handle,bounds:b});
-    await mouse.clickForPID(now.pid,x,y);
-    await sleep(150);await idle();
+    const inside=b.width>0&&b.height>0&&b.x>now.x&&b.y>now.y&&
+      b.x+b.width<now.x+now.width&&b.y+b.height<now.y+now.height;
+    if(inside){
+      // Titlebar AX refs have unreliable AXWindow mapping after restore.
+      // Keep the proven PID-scoped press, with a fresh exact-bounds preflight.
+      const fresh=await reactSnapshot(now,['role','name','enabled','checked','bounds']);
+      const matches=OpenDeskSupportNative.nodes(fresh).filter(n=>n.role===role&&n.name===node.name);
+      assert(matches.length===1&&matches[0].enabled!==false,'React target changed before PID press');
+      const actual=matches[0],bounds=actual.bounds,final=await assistantWindow();
+      assert(['pid','handle','x','y','width','height'].every(k=>w[k]===final[k]),'Assistant moved before PID press');
+      assert(bounds?.coordinateSpace==='screen'&&['x','y','width','height'].every(k=>b[k]===bounds[k]),'React control bounds changed before PID press');
+      if(action.action==='setChecked'){
+        assert(typeof actual.checked==='boolean','Fresh checkbox state unavailable');
+        if(actual.checked===action.checked)return;
+      }
+      await mouse.clickForPID(final.pid,bounds.x+bounds.width/2,bounds.y+bounds.height/2);
+      log('human-control-action',{name:node.name,role,backend:'mouse.clickForPID'});
+      await sleep(150);await idle();
+      if(action.action==='setChecked')await wait(async()=>{
+        const current=await assistantWindow();
+        assert(current.pid===w.pid&&current.handle===w.handle,'Assistant identity changed during readback');
+        const observed=OpenDeskSupportNative.nodes(await reactSnapshot(current,['role','name','checked'])).filter(n=>n.role===role&&n.name===node.name);
+        return observed.length===1&&observed[0].checked===action.checked;
+      },'React checkbox independent readback: '+node.name);
+      return;
+    }
+    // This host's WebKit refs reject AXWindow calibration after restore. Scroll
+    // the exact panel, independently observe movement, then locate again.
+    assert(node.actions?.includes(action.action),'React control does not advertise '+action.action);
+    const scrolls=reacquiredScope?.scrolls||0;
+    assert(scrolls<8,'React control scroll budget exhausted');
+    assert(b.x>now.x&&b.x+b.width<now.x+now.width,'React control outside horizontal scope');
+    const final=await assistantWindow();
+    assert(['pid','handle','x','y','width','height'].every(k=>w[k]===final[k]),'Assistant moved before scroll');
+    // The right gutter belongs to PanelScroll; the center may be a native
+    // select whose wheel handler consumes scrolling at its own limit.
+    await mouse.move(final.x+final.width-6,final.y+final.height/2);
+    const direction=b.y<final.y?-1:1;
+    await mouse.wheel({deltaY:direction*Math.min(400,Math.max(100,Math.abs(b.y-(final.y+final.height/2))))});
+    log('human-control-scroll',{name:node.name,scrolls:scrolls+1,direction});
+    await wait(async()=>{
+      const current=await assistantWindow();
+      assert(current.pid===w.pid&&current.handle===w.handle,'Assistant identity changed during scroll');
+      const observed=OpenDeskSupportNative.nodes(await reactSnapshot(current,['role','name','bounds'])).filter(n=>n.role===role&&n.name===node.name);
+      assert(observed.length===1,'React target changed during scroll');
+      return observed[0].bounds?.coordinateSpace==='screen'&&direction*(observed[0].bounds.y-b.y)<-1;
+    },'independent scroll movement: '+node.name);
+    return clickReact(name,role,action,{pid:w.pid,handle:w.handle,scrolls:scrolls+1});
   }
   try{
     // The foreground-only observer cannot bind until this run's fixture is

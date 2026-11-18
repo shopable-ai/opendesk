@@ -10,8 +10,9 @@ import (
 )
 
 type AutomationRuntime struct {
-	vision  *automation.Vision
-	browser *automation.BrowserDOMRuntime
+	vision        *automation.Vision
+	browser       *automation.BrowserDOMRuntime
+	buildIdentity processBuildIdentity
 }
 
 func NewAutomationRuntime(container *pkgContainer.Container) *AutomationRuntime {
@@ -19,11 +20,13 @@ func NewAutomationRuntime(container *pkgContainer.Container) *AutomationRuntime 
 	if container != nil && container.Vision() != nil {
 		vision = container.Vision()
 	}
-	return &AutomationRuntime{vision: vision}
+	return &AutomationRuntime{vision: vision, buildIdentity: currentBuildIdentity()}
 }
 
 func (r *AutomationRuntime) Status() (map[string]any, error) {
 	status := map[string]any{"status": "ok"}
+	status["buildIdentity"] = r.buildIdentity
+	status["desktop"] = map[string]any{"windowTool": "tm_window", "operations": []string{"activate", "read", "ocr"}, "scope": "exact current windowId from tm_list_windows", "nativeText": "bounded window.getContent; app/backend dependent", "ocr": "local, foreground window or window-local region; no model image transfer", "accessibilityRefsAndActions": "not granted by tm_window; consult host Runtime capabilities", "scriptsAndShell": "not granted by tm_window", "unknownInput": "stop and observe; never replay"}
 	if r.vision != nil {
 		status["vision"] = "enabled"
 	}
@@ -55,6 +58,13 @@ func (r *AutomationRuntime) FocusWindow(title string) error {
 		return fmt.Errorf("title is required")
 	}
 	return wrapRuntimeError("focus_window", automation.NewWindowManager().Focus(title))
+}
+
+func (r *AutomationRuntime) OpenApp(appName string) error {
+	if strings.TrimSpace(appName) == "" {
+		return fmt.Errorf("appName is required")
+	}
+	return wrapRuntimeError("open_app", automation.NewPage().OpenApp(appName))
 }
 
 func (r *AutomationRuntime) GetDisplays() ([]map[string]any, error) {
@@ -285,13 +295,11 @@ func stringOrDefault(args map[string]any, key, fallback string) string {
 }
 
 func splitKeyChord(raw string) []string {
-	parts := strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == '+' })
-	out := make([]string, 0, len(parts))
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part != "" {
-			out = append(out, part)
-		}
+	parts := strings.Split(strings.ReplaceAll(raw, "+", ","), ",")
+	for i, part := range parts {
+		// Keep empty components so Keyboard.Combination can reject them
+		// before an invalid chord degrades to an ordinary key press.
+		parts[i] = strings.TrimSpace(part)
 	}
-	return out
+	return parts
 }

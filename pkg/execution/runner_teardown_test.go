@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -361,4 +362,145 @@ func writeRunnerTeardownWAV(t *testing.T, path string) {
 	if err := os.WriteFile(path, content, 0o600); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// Production Runner fixture only. Public assertions stay in formal Runtime JS.
+func TestRunJavaScriptEventsDeferredCountersPrivateBackendSeam(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", ".runtime", "tests", "mcp-depth", "deadline-events", "runner"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.MkdirAll(root, 0755); err != nil {
+		t.Fatal(err)
+	}
+	workDir, err := os.MkdirTemp(root, "run-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	script, err := os.ReadFile(filepath.Join("..", "..", "tests", "runtime-api", "seams", "events-deferred-counters.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts, err := PrepareArtifacts(filepath.Join(workDir, "artifacts"), "events-counters", ".js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := &runnerCounterEventBackend{}
+	var evidence []byte
+	result, _, runErr := Run(Request{
+		Context: context.Background(), ExecutionID: "events-counters", SourceLabel: "synthetic Events counters Runner seam",
+		Ext: ".js", WorkDir: workDir, ScriptContent: script, Artifacts: artifacts, Timeout: 5 * time.Second,
+		Selection:                  TerminalSelection{Mode: "quiet", Categories: map[string]bool{}},
+		DesktopEventBackendFactory: func() automation.DesktopEventBackend { return backend },
+		InternalResultSink: func(value []byte) error {
+			var message struct {
+				Kind  string `json:"kind"`
+				Count int    `json:"count"`
+			}
+			if err := json.Unmarshal(value, &message); err != nil {
+				return err
+			}
+			switch message.Kind {
+			case "emit":
+				return backend.emitBatch(message.Count)
+			case "checkpoint":
+				backend.mu.Lock()
+				defer backend.mu.Unlock()
+				if backend.emit != nil {
+					return fmt.Errorf("synthetic backend listener retained after unsubscribe")
+				}
+			case "result":
+				evidence = append([]byte(nil), value...)
+			default:
+				return fmt.Errorf("unknown fixture control %q", message.Kind)
+			}
+			return nil
+		},
+	})
+	if runErr != nil || result.Status != ExecutionStatusSucceeded {
+		t.Fatalf("Events Runner seam status=%s error=%v artifacts=%s", result.Status, runErr, workDir)
+	}
+	if len(evidence) == 0 {
+		t.Fatal("formal JS did not complete its assertions")
+	}
+	t.Logf("Runner synthetic evidence: %s", evidence)
+	if err := os.WriteFile(filepath.Join(workDir, "result.json"), evidence, 0600); err != nil {
+		t.Fatal(err)
+	}
+	log, err := os.ReadFile(artifacts.EventLogPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundCleanup := false
+	for _, line := range strings.Split(strings.TrimSpace(string(log)), "\n") {
+		var event RunEvent
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			t.Fatal(err)
+		}
+		if event.Kind != "cleanup" || event.Message != "runtime async resources drained" {
+			continue
+		}
+		foundCleanup = true
+		for _, key := range []string{"eventSubscriptions", "eventPending", "timers", "workers", "promiseCallbacks"} {
+			if value, ok := event.Fields[key].(float64); !ok || value != 0 {
+				t.Fatalf("private cleanup counter %s=%v", key, event.Fields[key])
+			}
+		}
+	}
+	if !foundCleanup {
+		t.Fatal("Runner did not publish its private cleanup counters")
+	}
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+	if backend.ordinal != 13 || backend.starts != 5 || backend.stops != 5 || backend.closes != 1 || backend.waits != 1 || backend.emit != nil {
+		t.Fatalf("private backend lifecycle writes/start/stop/close/wait/active=%d/%d/%d/%d/%d/%t", backend.ordinal, backend.starts, backend.stops, backend.closes, backend.waits, backend.emit != nil)
+	}
+	t.Logf("private backend cleaned; artifacts=%s", workDir)
+}
+
+type runnerCounterEventBackend struct {
+	mu                                    sync.Mutex
+	emit                                  func(automation.DesktopEvent)
+	ordinal, starts, stops, closes, waits int
+}
+
+func (*runnerCounterEventBackend) Capabilities() map[automation.DesktopEventType]automation.DesktopEventCapability {
+	return map[automation.DesktopEventType]automation.DesktopEventCapability{automation.DesktopEventDisplayChanged: {Supported: true, Backend: "synthetic-counter", Platform: "test"}}
+}
+func (b *runnerCounterEventBackend) Subscribe(_ context.Context, _ automation.DesktopEventType, emit func(automation.DesktopEvent), _ func(error)) (automation.DesktopEventBackendHandle, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.starts++
+	b.emit = emit
+	return &runnerCounterEventHandle{backend: b}, nil
+}
+func (b *runnerCounterEventBackend) emitBatch(count int) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.emit == nil || count < 1 || count > 4 {
+		return fmt.Errorf("invalid synthetic event batch")
+	}
+	for i := 0; i < count; i++ {
+		b.ordinal++
+		b.emit(automation.DesktopEvent{Type: automation.DesktopEventDisplayChanged, Backend: "synthetic-counter", Data: map[string]interface{}{"ordinal": b.ordinal}})
+	}
+	return nil
+}
+func (b *runnerCounterEventBackend) Close() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.closes++
+	b.emit = nil
+	return nil
+}
+func (b *runnerCounterEventBackend) Wait() { b.mu.Lock(); defer b.mu.Unlock(); b.waits++ }
+
+type runnerCounterEventHandle struct {
+	backend *runnerCounterEventBackend
+	once    sync.Once
+}
+
+func (h *runnerCounterEventHandle) Unsubscribe() error {
+	h.once.Do(func() { h.backend.mu.Lock(); defer h.backend.mu.Unlock(); h.backend.stops++; h.backend.emit = nil })
+	return nil
 }

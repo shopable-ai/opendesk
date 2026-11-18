@@ -35,6 +35,6 @@ docType: index
 维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
 
 
-- `docs/api/browser-dom.md` SHA-256 `e7c35039f7e5850aaaa65b0626ba9bce8be77bb239c5e0236eaf019c94025a66`
+- `docs/api/browser-dom.md` SHA-256 `464a84582cb5e86d7f5b60efb8cac1079d9d41f2516459bad63308d7e6115301`
 
 - `types/BrowserDOM.d.ts` SHA-256 `0ce26c0fb372daaabe7ac466dac44de91c98defb618b172144def0bc20eba286`

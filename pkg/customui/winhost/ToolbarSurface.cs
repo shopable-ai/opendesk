@@ -58,8 +58,9 @@ internal sealed class ToolbarSurface : Surface
     private void Plan()
     {
         var items=J.A(toolbar,"items").OfType<JsonObject>().ToArray();
-        if(items.Length==0||items.Length>63)throw new HostError("INVALID_SPEC","toolbar item count invalid");
         bool vertical=J.S(toolbar,"orientation")=="vertical";
+        int contentCount=items.Count(i=>J.S(i,"type") is not ("separator" or "spacer"));
+        if(items.Length==0||items.Length>(vertical?161:63)||contentCount<1||contentCount>(vertical?81:32))throw new HostError("INVALID_SPEC","toolbar item count invalid");
         float Width(JsonObject i)=>J.S(i,"type") switch{"button"=>40,"separator"=>vertical?40:1,"spacer"=>vertical?40:0,"label"=>(float)J.N(J.O(i,"label"),"width"),_=>(float)J.N(J.O(i,"control"),"width")};
         if(vertical){
             float y=8,max=40;string previous="";
@@ -167,7 +168,7 @@ internal sealed class ToolbarSurface : Surface
         result["screenBounds"]=J.Rect(peer.RectangleToScreen(peer.ClientRectangle));
         result["accessibilityName"]=peer.AccessibleName??"";
         if(kind=="button"){
-            result.Remove("iconImage");result["renderedText"]=d.ContainsKey("text")&&J.B(J.O(d,"state"),"busy")?"稍候":J.S(d,"text");result["tooltip"]=tips.GetToolTip(peer);result["tooltipVisible"]=ReferenceEquals(tooltipPeer,peer)&&Native.VisibleTooltip();
+            result.Remove("iconImage");result["renderedText"]=J.B(J.O(d,"state"),"busy")?"":J.S(d,"text");result["tooltip"]=tips.GetToolTip(peer);result["tooltipVisible"]=ReferenceEquals(tooltipPeer,peer)&&Native.VisibleTooltip();
             result["iconPresentation"]=Icons.Presentation(d);
             result["accessibilityValue"]=J.S(d,"badge");
         }else if(kind=="label"){
@@ -224,8 +225,9 @@ internal sealed class IconButton : Button
         var d=spec();var state=J.O(d,"state");bool active=J.B(state,"active"),busy=J.B(state,"busy");
         e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;e.Graphics.Clear(active?Color.FromArgb(55,95,135):Color.FromArgb(35,35,39));
         float scale=DeviceDpi/96f;Color foreground=Enabled?Color.White:Color.Gray;
-        if(d.ContainsKey("text")){
-            string text=busy?"稍候":J.S(d,"text");
+        if(busy){using var pen=new Pen(Color.LightSkyBlue,2*scale);e.Graphics.DrawArc(pen,10*scale,10*scale,20*scale,20*scale,(float)(Stopwatch.GetTimestamp()/(double)Stopwatch.Frequency*240%360),260);}
+        else if(d.ContainsKey("text")){
+            string text=J.S(d,"text");
             using var font=new Font("Segoe UI",12,FontStyle.Regular);
             using var format=(StringFormat)StringFormat.GenericTypographic.Clone();
             format.FormatFlags|=StringFormatFlags.NoWrap;
@@ -235,11 +237,10 @@ internal sealed class IconButton : Button
             e.Graphics.SetClip(new RectangleF(4*scale,4*scale,Width-8*scale,Height-8*scale));
             e.Graphics.TranslateTransform((Width-size.Width*factor)/2,(Height-size.Height*factor)/2);
             e.Graphics.ScaleTransform(factor,factor);
-            using var brush=new SolidBrush(busy?Color.White:foreground);
+            using var brush=new SolidBrush(foreground);
             e.Graphics.DrawString(text,font,brush,PointF.Empty,format);
             e.Graphics.Restore(saved);
-        }else if(busy){using var pen=new Pen(Color.LightSkyBlue,2*scale);e.Graphics.DrawArc(pen,10*scale,10*scale,20*scale,20*scale,(float)(Stopwatch.GetTimestamp()/(double)Stopwatch.Frequency*240%360),260);}
-        else if(d["iconImage"] is JsonObject raster){
+        }else if(d["iconImage"] is JsonObject raster){
             string key=J.S(raster,"dataBase64");
             if(key!=imageKey){image?.Dispose();using var bytes=new MemoryStream(Convert.FromBase64String(key));using var decoded=Image.FromStream(bytes);image=new Bitmap(decoded);imageKey=key;}
             if(image!=null){float size=(J.S(raster,"renderingMode")=="original"?OriginalIconSize:TemplateIconSize)*scale,factor=Math.Min(size/image.Width,size/image.Height);var r=new RectangleF((Width-image.Width*factor)/2,(Height-image.Height*factor)/2,image.Width*factor,image.Height*factor);

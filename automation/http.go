@@ -47,6 +47,8 @@ type HTTPClient struct {
 	workDir      string
 	downloadsOK  bool
 	webhooksOK   bool
+	webhookJSON  *goja.Object
+	webhookParse goja.Callable
 
 	workers         *httpWorkers
 	nextID          uint64 // event-loop owner only
@@ -275,13 +277,16 @@ func (h *HTTPClient) requestFromOptions(options *goja.Object) (httpRequest, func
 func (h *HTTPClient) requestContext(timeoutValue goja.Value) (context.Context, context.CancelFunc) {
 	timeout := defaultHTTPRequestTimeout
 	if timeoutValue != nil && !goja.IsUndefined(timeoutValue) && !goja.IsNull(timeoutValue) {
-		milliseconds := timeoutValue.ToInteger()
-		if milliseconds <= 0 {
+		milliseconds := timeoutValue.ToFloat()
+		if !(milliseconds > 0) {
 			return context.WithCancel(h.context)
 		}
-		const maxMilliseconds = int64((24 * time.Hour) / time.Millisecond)
-		if milliseconds > maxMilliseconds {
-			milliseconds = maxMilliseconds
+		const maxMilliseconds = (24 * time.Hour) / time.Millisecond
+		// Keep a positive sub-millisecond timeout from becoming the disabled value.
+		if milliseconds < 1 {
+			milliseconds = 1
+		} else if milliseconds > float64(maxMilliseconds) {
+			milliseconds = float64(maxMilliseconds)
 		}
 		timeout = time.Duration(milliseconds) * time.Millisecond
 	}
@@ -446,7 +451,9 @@ func (h *HTTPClient) toValue(response httpResponse) goja.Value {
 	}
 	must(value.Set("status", response.status))
 	must(value.Set("statusText", response.statusText))
-	must(value.Set("headers", response.headers))
+	// A named http.Header exposes Go methods to Goja instead of its map keys.
+	// The public response contract is a header record, never a Go method object.
+	must(value.Set("headers", map[string][]string(response.headers)))
 	return value
 }
 
@@ -471,6 +478,9 @@ func (h *HTTPClient) CancelPending() {
 		}
 		pending.cancel()
 	}
+	// Even a normally drained last listener retains its execution-scoped host
+	// identity so close/reopen cannot race. Teardown releases that registry entry.
+	localWebhookHosts.Delete(h)
 }
 
 // Wait blocks until network workers have observed cancellation. It does not

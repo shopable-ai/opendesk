@@ -12,10 +12,17 @@ export interface Observation {
 export interface Receipt {
   type:'support.receipt'; requestId:string; binding:Binding; status:'verified'|'refused'|'unknown'; draft?:string; reason:string;
 }
-export type NativeMessage=Observation|Receipt|AiResult;
+export type AutomationAction='enable'|'pause'|'resume'|'revoke'|'takeover';
+export interface AutomationStatus {
+  type:'support.automationStatus'; binding:Binding;
+  mode:'disabled'|'enabling'|'enabled'|'paused'|'revoked'|'locked';
+  reason:string; requests:number; queued:number; lastOutcome:null|'confirmed'|'failed'|'unknown';
+}
+export type AutomationRequest={type:'support.automation';action:AutomationAction;binding:Binding};
+export type NativeMessage=Observation|Receipt|AiResult|AutomationStatus;
 export type SettingsRequest={type:'support.settings';permission?:false;paused?:boolean;follow?:boolean};
 export type FillRequest={type:'support.fillDraft';requestId:string;binding:Binding;text:string;expectedDraft:string};
-export type OutgoingMessage={type:'support.aiCancel'}|{type:'support.ready'}|{type:'support.clientReady';protocol:1}|SettingsRequest|FillRequest|AiQueryRequest|{
+export type OutgoingMessage=AutomationRequest|{type:'support.aiCancel'}|{type:'support.ready'}|{type:'support.clientReady';protocol:1}|SettingsRequest|FillRequest|AiQueryRequest|{
   type:'support.rendered';revision:number;binding:Binding;tab:string;latestText:string;replyText:string;draft:string;receipt:string;
 };
 export interface DesktopBridge {
@@ -43,13 +50,20 @@ export function sameBinding(a:Binding|null,b:Binding):boolean {
   return !!a&&a.generation===b.generation&&a.pid===b.pid&&a.windowId===b.windowId&&
     a.customerId===b.customerId&&a.messageId===b.messageId;
 }
-// Only these two data envelopes enter state. Never interpret chat text as commands.
+// Only validated data envelopes enter state. Never interpret chat text as commands.
 export function parseNativeMessage(input:unknown):NativeMessage|null {
   let v:unknown=input;
   try{if(text(v))v=JSON.parse(v);}catch{return null;}
   if(!record(v)||!isBinding(v.binding))return null;
   const binding:Binding={generation:v.binding.generation,pid:v.binding.pid,windowId:v.binding.windowId,
     customerId:v.binding.customerId,messageId:v.binding.messageId};
+  if(v.type==='support.automationStatus'){
+    if(!among(v.mode,['disabled','enabling','enabled','paused','revoked','locked'])||
+      !text(v.reason)||!integer(v.requests)||!integer(v.queued)||
+      (v.lastOutcome!==null&&!among(v.lastOutcome,['confirmed','failed','unknown'])))return null;
+    return {type:v.type,binding,mode:v.mode as AutomationStatus['mode'],reason:v.reason,
+      requests:v.requests,queued:v.queued,lastOutcome:v.lastOutcome as AutomationStatus['lastOutcome']};
+  }
   if(v.type==='support.aiResult'){
     const statuses=['ready','blocked','error'],retrieval=['supported','partial','unverified','conflict','unavailable'];
     if(!text(v.requestId)||!v.requestId||v.requestId.length>40||

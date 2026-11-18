@@ -173,6 +173,7 @@ func changeExtension(id string, approve bool) (map[string]any, error) {
 func installationJSON(cfg Installation) ([]byte, error) {
 	return json.MarshalIndent(map[string]any{
 		"name": cfg.Name, "extensionId": cfg.ExtensionID, "approvedExtensions": cfg.ApprovedExtensions, "browser": cfg.Browser,
+		"retainedConnections": cfg.RetainedConnections,
 		"userDataDir": func() any {
 			if cfg.UserDataDir == "" {
 				return nil

@@ -7,8 +7,8 @@ order: 20
 # AI CLI
 
 `opendesk ai` 是 Stable Desktop Runtime 的薄 CLI 适配层，面向 Codex、Claude Code 和其他
-shell Coding Agent。它不会重做截图、窗口、输入或 Vision backend；你的使用顺序通常是
-发现能力 → 找窗口 → 截取最小区域 → 执行动作 → 验证 → 保存 recipe。
+shell Coding Agent。它复用现有窗口、输入与 Vision owner。按业务步骤选择结构化查询、原生语义、
+局部图像或已有 JavaScript；截图与 OCR 不是每次任务的必经步骤。
 
 ## 最快开始
 
@@ -29,12 +29,12 @@ shell Coding Agent。它不会重做截图、窗口、输入或 Vision backend�
 复杂且已验证的流程应保存为可阅读、可版本控制的普通 JavaScript Workflow：
 
 ```bash
-./dist/opendesk ai run workflows/macos/calculator/calculate-and-reuse-result.js
+./dist/opendesk ai run examples/ai-cli/macos-calculator-recipe.js --input '{"expression":"125*8","expected":"1000","followUp":{"expression":"{result}/4+37","expected":"287"}}'
 ```
 
-Workflow 把 Goal、Success Criteria、业务步骤与验证写在脚本中；默认不要求 `--input`。
-`Execution.input` 默认为 `{}`，只作为部署配置或确有必要变化的业务数据的可选覆盖。作者约定和
-当前边界见 [`workflows/README.md`](../../workflows/README.md)。
+此现有 Calculator 示例需要 `--input`。输入进入 `Execution.input`，`expected` 仅用于独立断言；
+第二段消费第一次实际读取值。普通 JS 作者流程见[自动化脚本工作流](../../workflows/agent-to-recipe/WORKFLOW.md)。
+以上命令均从仓库根目录运行。
 
 `schema` 是全部命令和参数的机器可读索引；下一节说明所有命令共用的输出与错误 contract。
 
@@ -130,12 +130,10 @@ compatibility recipe，正确命令为：
 如果省略 `--input`，`ai run` 会注入默认的 `{}`，recipe 将报错
 `Execution.input.expression must be a non-empty string`。直接改成
 `./dist/opendesk -script examples/ai-cli/macos-calculator-recipe.js` 也不等价：`-script` 没有
-`--input` 参数，且不保证等待该 recipe 末尾的 `main();` Promise。不需要输入的 Calculator
-Workflow 是 `workflows/macos/calculator/calculate-and-reuse-result.js`，不要把它与这个底层参数化
-recipe 混为同一个入口。
+`--input` 参数，且不保证等待该 recipe 末尾的 `main();` Promise。该 Calculator 示例需要明确输入；不提供不存在的无参数 Workflow 路径。
 
-该参数化 recipe 默认要求 Accessibility 路径通过：先用完整 snapshot 验证 Basic layout 和所有
-distinct 按钮，再由 `UI.tapTargets()` 按序 invoke；最终结果由独立的 Accessibility Display 连续稳定
+该参数化 recipe 默认要求 Accessibility 路径通过：先用完整 snapshot 验证精确窗口、所有
+distinct 按钮及 Display 读取通道，再由 `UI.tapTargets()` 按序 invoke；最终结果由独立的 Accessibility Display 连续稳定
 读数验证。它不会把 OCR 的 `†` 当作乘号，也不会默认降级到视觉输入。只有输入明确包含
 `"visualFallback":"ocr"` 时，才允许使用原有 OCR + PID-scoped AXPress fallback，并在结果中报告实际 backend。
 
@@ -243,20 +241,19 @@ does not claim background-app scrolling.
 ./opendesk ai image color --image .runtime/ai/shot.png --color '#ff0000'
 ```
 
-Use Vision only when window metadata and deterministic coordinates cannot solve the task. `detect-ui` returns
-compact matched elements; it does not automatically click them.
+Choose Vision for visual content that needs image evidence. Native text, structured elements and existing
+JavaScript can solve other steps directly. `detect-ui` returns compact matched elements; it does not automatically click them.
 
 ## Workflows and compatibility recipes: explore once, automate repeatedly
 
 面向用户的主要入口是普通 JavaScript Workflow，而不是不断增加的 CLI 参数：
 
 ```bash
-./dist/opendesk ai run workflows/macos/calculator/calculate-and-reuse-result.js
+./dist/opendesk ai run examples/ai-cli/macos-calculator-recipe.js --input '{"expression":"125*8","expected":"1000","followUp":{"expression":"{result}/4+37","expected":"287"}}'
 ```
 
-这个 Calculator Workflow 默认执行 `125*8`，从最小 Display ROI OCR 得到真实 `firstResult`，再
-执行 `firstResult/4+37` 并验证第二次 OCR 为 `287`。它是一个 Fresh Run 脚本，不依赖在线 Agent/LLM
-规划。
+上例由参数指定 `125*8`，读取真实 Display 后再执行 `{result}/4+37`。默认使用已核验的原生语义
+路径，独立验证两次实际读数；平台、Calculator 布局和权限必须满足示例自身的合同。
 
 底层 recipe 仍可用于参数化测试或兼容旧调用：
 

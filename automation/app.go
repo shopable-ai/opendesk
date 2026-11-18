@@ -357,6 +357,9 @@ func (a *AppRuntime) matches(ctx context.Context, target appTarget) ([]desktopAp
 		return nil, err
 	}
 	apps, err := a.backend.List(ctx)
+	if contextErr := ctx.Err(); contextErr != nil {
+		return nil, contextErr
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -379,6 +382,9 @@ func (a *AppRuntime) waitForPresent(ctx context.Context, target appTarget, readi
 		}
 		if readiness == "window" {
 			for _, app := range matches {
+				if err := ctx.Err(); err != nil {
+					return false, err
+				}
 				ready, err := a.window(app.PID)
 				if err != nil {
 					return false, err
@@ -419,7 +425,15 @@ func (a *AppRuntime) waitUntil(ctx context.Context, predicate func(context.Conte
 	ticker := time.NewTicker(appPollInterval)
 	defer ticker.Stop()
 	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		ready, err := predicate(ctx)
+		// A snapshot/window probe may return successfully after ignoring its
+		// context. Such a result cannot satisfy an expired or canceled wait.
+		if contextErr := ctx.Err(); contextErr != nil {
+			return contextErr
+		}
 		if err != nil {
 			return err
 		}

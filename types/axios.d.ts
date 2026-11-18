@@ -26,11 +26,13 @@ declare global {
   }
 
   interface OpenDeskAxiosInstance {
+    /** Mutate fields on this shared object; replacing it does not replace request()'s captured defaults. */
     defaults: OpenDeskAxiosConfig;
     interceptors: {
       request: OpenDeskAxiosInterceptorManager<OpenDeskAxiosConfig>;
       response: OpenDeskAxiosInterceptorManager<OpenDeskAxiosResponse>;
     };
+    /** Merges captured defaults, awaits interceptors, then validates status. T does not validate response data. */
     request<T = unknown>(config: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;
     get<T = unknown>(url: string, config?: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;
     post<T = unknown>(url: string, data?: unknown, config?: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;

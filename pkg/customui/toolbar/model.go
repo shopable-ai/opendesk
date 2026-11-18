@@ -17,7 +17,7 @@ const (
 
 	MinButtons         = 1
 	MaxButtons         = 32
-	MaxVerticalButtons = 5
+	MaxVerticalButtons = 81
 	// MaxItems is deliberately derived from the compact content limit: at most
 	// one structural boundary can appear between two adjacent content groups.
 	// It prevents structural items from becoming an unbounded resource bypass.

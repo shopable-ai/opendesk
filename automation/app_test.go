@@ -5,13 +5,140 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/eventloop"
 )
+
+type waitBoundaryProbe struct {
+	lists        atomic.Int64
+	windows      atomic.Int64
+	terminalSeen atomic.Bool
+	deadlineSeen atomic.Bool
+	lastContext  context.Context // List and window probes run in the same worker.
+	cancel       context.CancelFunc
+}
+
+func (p *waitBoundaryProbe) hold(ctx context.Context, canceled bool) {
+	if canceled {
+		p.cancel()
+	}
+	<-ctx.Done() // Return a successful backend result only AFTER the boundary.
+	p.terminalSeen.Store(true)
+	p.deadlineSeen.Store(errors.Is(ctx.Err(), context.DeadlineExceeded))
+}
+
+func (p *waitBoundaryProbe) snapshot() map[string]interface{} {
+	return map[string]interface{}{
+		"lists": p.lists.Load(), "windows": p.windows.Load(),
+		"terminalSeen": p.terminalSeen.Load(), "deadlineSeen": p.deadlineSeen.Load(),
+	}
+}
+
+type boundaryAppBackend struct {
+	*memoryAppBackend
+	list func(context.Context) ([]desktopApplicationState, error)
+}
+
+func (b *boundaryAppBackend) List(ctx context.Context) ([]desktopApplicationState, error) {
+	return b.list(ctx)
+}
+
+// E2 private worker seam only: no Goja runtime or public App method calls.
+func TestAppPrivateWaitBoundary(t *testing.T) {
+	for _, scenario := range []string{
+		"launch-timeout", "exit-timeout", "window-timeout", "window-list-timeout",
+		"launch-cancel", "exit-cancel", "window-cancel", "pre-cancel",
+		"launch-success", "exit-success", "window-success",
+	} {
+		t.Run(scenario, func(t *testing.T) {
+			parent, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			ctx, deadlineCancel := context.WithTimeout(parent, 30*time.Millisecond)
+			defer deadlineCancel()
+			probe := &waitBoundaryProbe{cancel: cancel}
+			backend := &boundaryAppBackend{memoryAppBackend: newMemoryAppBackend(nil)}
+			backend.list = func(ctx context.Context) ([]desktopApplicationState, error) {
+				probe.lists.Add(1)
+				probe.lastContext = ctx
+				if scenario == "launch-timeout" || scenario == "exit-timeout" || scenario == "window-list-timeout" || scenario == "launch-cancel" || scenario == "exit-cancel" {
+					probe.hold(ctx, strings.HasSuffix(scenario, "-cancel"))
+				}
+				if strings.HasPrefix(scenario, "exit-") {
+					return nil, nil
+				}
+				return []desktopApplicationState{{PID: 101, BundleIdentifier: "com.opendesk.synthetic"}}, nil
+			}
+			manager := &AppRuntime{backend: backend, window: func(int64) (bool, error) {
+				probe.windows.Add(1)
+				if scenario == "window-timeout" || scenario == "window-cancel" {
+					probe.hold(probe.lastContext, scenario == "window-cancel")
+				}
+				return true, nil
+			}}
+			if scenario == "pre-cancel" {
+				cancel()
+			}
+			target := appTarget{Kind: appTargetBundleID, Value: "com.opendesk.synthetic"}
+			started := time.Now()
+			var err error
+			if strings.HasPrefix(scenario, "exit-") {
+				err = manager.waitUntil(ctx, func(ctx context.Context) (bool, error) {
+					matches, err := manager.matches(ctx, target)
+					return len(matches) == 0, err
+				})
+			} else {
+				readiness := "process"
+				if strings.HasPrefix(scenario, "window-") {
+					readiness = "window"
+				}
+				_, err = manager.waitForPresent(ctx, target, readiness)
+			}
+			lists, windows := int64(1), int64(0)
+			if scenario == "pre-cancel" {
+				lists = 0
+			}
+			if strings.HasPrefix(scenario, "window-") && scenario != "window-list-timeout" {
+				windows = 1
+			}
+			assertPrivateWaitBoundary(t, scenario, probe, err, started, lists, windows)
+			launches, terminations, _ := backend.Counts()
+			if launches != 0 || terminations != 0 {
+				t.Fatalf("private wait performed actions: %d/%d", launches, terminations)
+			}
+		})
+	}
+}
+
+func assertPrivateWaitBoundary(t *testing.T, scenario string, probe *waitBoundaryProbe, err error, started time.Time, lists, windows int64) {
+	t.Helper()
+	var expected error = context.DeadlineExceeded
+	if strings.HasSuffix(scenario, "-success") {
+		expected = nil
+	} else if strings.HasSuffix(scenario, "-cancel") {
+		expected = context.Canceled
+	}
+	t.Logf("E2 private scenario=%s error=%v elapsed=%s observed=%v", scenario, err, time.Since(started), probe.snapshot())
+	if !errors.Is(err, expected) {
+		t.Fatalf("private wait error=%v, want %v", err, expected)
+	}
+	if probe.lists.Load() != lists || probe.windows.Load() != windows {
+		t.Fatalf("private calls=%d/%d, want %d/%d", probe.lists.Load(), probe.windows.Load(), lists, windows)
+	}
+	if expected != nil && scenario != "pre-cancel" {
+		if !probe.terminalSeen.Load() || probe.deadlineSeen.Load() != errors.Is(expected, context.DeadlineExceeded) {
+			t.Fatal("backend did not independently observe the requested context boundary before returning")
+		}
+		if errors.Is(expected, context.DeadlineExceeded) && time.Since(started) < 20*time.Millisecond {
+			t.Fatal("deadline fixture returned early")
+		}
+	}
+}
 
 func TestAppTargetValidationAndProjection(t *testing.T) {
 	runtimeValue := goja.New()

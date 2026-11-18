@@ -43,6 +43,7 @@ type Host struct {
 	socketInfo os.FileInfo
 	connectionInfo os.FileInfo
 	releaseConnection func()
+	releaseSocketLifecycle func()
 	ready bool
 	localDev bool
 	localDevMulti bool
@@ -67,6 +68,10 @@ type Host struct {
 	aiHTTPServer *http.Server
 	aiPending int
 	aiControlPending int
+	managedServices bool
+	managedProviders map[string]*managedProvider
+	managedPending map[string]*pendingManaged
+	managedStateMu sync.Mutex
 	localFiles bool
 	files *nativeFiles
 	filesPending int
@@ -84,6 +89,7 @@ func NewHost(cfg Installation,origin string,input io.Reader,output io.Writer) (*
 	if err!=nil{return nil,err}
 	return &Host{cfg:cfg,origin:origin,input:input,output:output,clients:make(map[*localClient]bool),
 		pending:make(map[string]*pendingCall),pendingFences:make(map[string]bool),devPending:make(map[string]*pendingDev),
+		managedProviders:make(map[string]*managedProvider),managedPending:make(map[string]*pendingManaged),
 		internalIDs:make(map[string]bool),modern:make(map[*localClient]*modernProvider),leases:make(map[string]devLease),legacyQueries:make(map[string]chan Fields),ai:browserai.NewManager(browserai.Options{}),files:files,done:make(chan struct{})},nil
 }
 func (h *Host) sendChrome(raw []byte) error {
@@ -126,6 +132,9 @@ func (h *Host) Close() {
 		clients:=make([]*localClient,0,len(h.clients))
 		for client:=range h.clients{clients=append(clients,client)}
 		for _,p:=range h.devPending{p.timer.Stop()}
+		for _,p:=range h.managedPending{p.timer.Stop()}
+		h.managedPending=make(map[string]*pendingManaged)
+		h.managedProviders=make(map[string]*managedProvider)
 		ai:=h.ai
 		aiHTTP:=h.aiHTTPServer
 		files:=h.files
@@ -142,6 +151,7 @@ func (h *Host) Close() {
 				_ = os.Remove(h.cfg.SocketPath)
 			}
 		}
+		if h.releaseSocketLifecycle!=nil { h.releaseSocketLifecycle() }
 		h.retireConnection()
 		if h.releaseConnection!=nil { h.releaseConnection() }
 	})
@@ -154,6 +164,10 @@ func (h *Host) startSocket() error {
 	defer h.mu.Unlock()
 	if h.closed{return ErrClosed}
 	if err:=requireDir(filepath.Dir(h.cfg.SocketPath));err!=nil{return err}
+	if h.cfg.SocketPath!=filepath.Join(h.cfg.InstallRoot,"agent.sock"){return errors.New("E_SOCKET_INVALID")}
+	release,err:=lockSocketLifecycle(h.cfg.InstallRoot)
+ if err!=nil{return err}
+ h.releaseSocketLifecycle=release
 	if _,err:=os.Lstat(h.cfg.SocketPath);err==nil{return errors.New("E_SOCKET_IN_USE")}else if !os.IsNotExist(err){return err}
 	listener,err:=net.ListenUnix("unix",&net.UnixAddr{Name:h.cfg.SocketPath,Net:"unix"})
 	if err!=nil{return err}
@@ -215,17 +229,19 @@ func (h *Host) serveLocal(c *localClient) {
 	reader:=bufio.NewReaderSize(c.socket,MaxBytes+2)
 	authBytes,err:=ReadLine(reader)
 	if err!=nil{return}
+	if h.serveFilesMCPAuth(c, authBytes, reader) { return }
 	auth,_:=Decode(authBytes)
-	if h.cfg.ConnectionID!="" && verifyClientInstallation(h.cfg)!=nil{return}
+	if h.cfg.ConnectionID!="" && h.verifyInstallation()!=nil{return}
 	if Int(auth,"v")!=1 || String(auth,"kind")!="auth" ||
 		!CredentialValid(String(auth,"credential")) ||
 		subtle.ConstantTimeCompare([]byte(String(auth,"credential")),[]byte(h.cfg.ClientCredential))!=1{
 		return
 	}
-	h.mu.Lock();ready:=h.ready;dev:=h.localDev;multi:=h.localDevMulti;devAccess:=h.localDevAccess;devSource:=h.localDevSource;filesReady:=h.localFiles;h.mu.Unlock()
+	h.mu.Lock();ready:=h.ready;dev:=h.localDev;multi:=h.localDevMulti;devAccess:=h.localDevAccess;devSource:=h.localDevSource;filesReady:=h.localFiles;servicesReady:=h.managedServices;h.mu.Unlock()
 	if err=h.sendLocal(c,MustEncode(map[string]any{
 		"v":1,"kind":"authenticated","browserReady":ready,
 		"connectionId":h.cfg.ConnectionID,"extensionId":h.cfg.ExtensionID,
+		"managedServicesVersion":func()int{if servicesReady{return ManagedServicesVersion};return 0}(),
 		"localDevVersion":func()int{if dev{return 1};return 0}(),
         "localDevMultiVersion":func()int{if multi{return 1};return 0}(),
         "localDevAccessVersion":func()int{if devAccess{return 1};return 0}(),
@@ -236,8 +252,10 @@ func (h *Host) serveLocal(c *localClient) {
 	payload,err:=ReadLine(reader)
 	if err!=nil{return}
 	f,err:=Decode(payload);if err!=nil{return}
-	if h.cfg.ConnectionID!="" { if err:=verifyClientInstallation(h.cfg);err!=nil{return} }
+	if h.cfg.ConnectionID!="" { if err:=h.verifyInstallation();err!=nil{return} }
 	if Int(f,"v")!=1{return}
+	if String(f,"kind")=="files-mcp.grant" || String(f,"kind")=="files-mcp.revoke" {h.serveFilesMCPControl(c,payload,reader);return}
+	if String(f,"kind")=="services.register" {h.serveManagedProvider(c,payload,reader);return}
 	if String(f,"kind")=="project.changed" {
 		// Internal, credential-authenticated local grant refresh. A file
 		// change is NEVER a Browser run request or an extra execution API.
@@ -347,14 +365,14 @@ func (h *Host) serveLocal(c *localClient) {
 	}
 }
 func (h *Host) handleChrome(raw []byte) error {
-	if h.cfg.ConnectionID!="" {if err:=verifyClientInstallation(h.cfg);err!=nil{return err}}
+	if h.cfg.ConnectionID!="" {if err:=h.verifyInstallation();err!=nil{return err}}
 	f,err:=Decode(raw);if err!=nil{return err}
 	h.mu.Lock();ready:=h.ready;h.mu.Unlock()
 	if !ready {
 		if Int(f,"v")!=1 || String(f,"kind")!="welcome" ||
 			String(f,"extensionId")!=h.cfg.ExtensionID ||
 			String(f,"extensionVersion")==""{return errors.New("E_NATIVE_HANDSHAKE")}
-		h.mu.Lock();h.ready=true;h.localDev=Int(f,"localDevVersion")==1;h.localDevMulti=Int(f,"localDevMultiVersion")==1;h.localDevAccess=Int(f,"localDevAccessVersion")==1;h.localDevSource=Int(f,"localDevSourceVersion")==LocalDevSourceVersion;h.localFiles=Int(f,"localFilesVersion")==FilesVersion;h.mu.Unlock()
+		h.mu.Lock();h.ready=true;h.managedServices=Int(f,"managedServicesVersion")==ManagedServicesVersion;h.localDev=Int(f,"localDevVersion")==1;h.localDevMulti=Int(f,"localDevMultiVersion")==1;h.localDevAccess=Int(f,"localDevAccessVersion")==1;h.localDevSource=Int(f,"localDevSourceVersion")==LocalDevSourceVersion;h.localFiles=Int(f,"localFilesVersion")==FilesVersion;h.mu.Unlock()
 		// The built-in Go provider never touches the disk before the browser
 		// has authorized Native and completed the exact welcome handshake.
 		// With no user file grants, keep Node's original disconnected state.
@@ -372,6 +390,8 @@ func (h *Host) handleChrome(raw []byte) error {
 	}
 	if Int(f,"v")!=1{return ErrSchema}
 	switch String(f,"kind"){
+	case "services.request":
+		return h.handleManagedRequest(raw)
 	case "files.request":
 		return h.handleFiles(raw)
 	case "ai.request":
@@ -477,7 +497,7 @@ func (h *Host) Run() error {
 	if err:=h.startSocket();err!=nil{return err}
 	go h.watchConnectionAuthorization()
 	if err:=h.startAIHTTP();err!=nil{return err}
-	if err:=h.sendChrome(MustEncode(map[string]any{"v":1,"kind":"hello","workflowAiVersion":1,"localFilesVersion":FilesVersion,"localDevMultiVersion":1,"localDevAccessVersion":1,"localDevSourceVersion":LocalDevSourceVersion}));err!=nil{return err}
+	if err:=h.sendChrome(MustEncode(map[string]any{"v":1,"kind":"hello","managedServicesVersion":ManagedServicesVersion,"workflowAiVersion":1,"localFilesVersion":FilesVersion,"localDevMultiVersion":1,"localDevAccessVersion":1,"localDevSourceVersion":LocalDevSourceVersion}));err!=nil{return err}
 	timer:=time.AfterFunc(handshakeTimeout,func(){
 		h.mu.Lock();ready:=h.ready;h.mu.Unlock()
 		if !ready{h.Close()}

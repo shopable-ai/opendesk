@@ -10,7 +10,12 @@ import {createInterface} from 'node:readline';
 const digest = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const safeId = value => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(value);
 const fail = code => {throw Object.assign(new Error(code), {code, outcome: 'NOT_DISPATCHED'});};
+function failureResponse(requestId, error, outcome) {
+  const code = typeof error?.code === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(error.code) ? error.code : 'BROWSER_ADAPTER_ERROR';
+  return {requestId: requestId ?? null, error: {code, outcome}, outcome};
+}
 const operations = new Set(['status', 'tabs', 'observe', 'locate', 'read', 'fill', 'click', 'wait', 'verify']);
+const actionOperations = new Set(['fill', 'click']);
 let config, client, limits, tracePath, coreTracePath, redact;
 const semantics = new Map(), seen = new Set();
 
@@ -127,7 +132,7 @@ async function call(request) {
       denied = true;
     } else {
       const inventory = await client.request('tabs');
-      if (inventory.error) response = inventory;
+      if (inventory.error) response = failureResponse(request.requestId, inventory.error, 'NOT_DISPATCHED');
       else {
         const selected = inventory.result.tabs.find(item => item.tab === config.tab);
         try { denied = !selected || new URL(selected.url).origin !== config.origin; }
@@ -135,16 +140,33 @@ async function call(request) {
       }
     }
   }
-  if (denied) response = {requestId: request.requestId, error: {code: 'PERMISSION_DENIED', outcome: 'NOT_DISPATCHED'}, outcome: 'NOT_DISPATCHED'};
+  if (denied) response = failureResponse(request.requestId, {code: 'PERMISSION_DENIED'}, 'NOT_DISPATCHED');
+  const actionRequested = !response && actionOperations.has(request.operation);
   if (!response) response = await client.request(request.operation, request.params,
     {requestId: request.requestId, ...(request.timeoutMs === undefined ? {} : {timeoutMs: request.timeoutMs})});
+  if (response?.requestId !== request.requestId) {
+    return failureResponse(request.requestId, {code: 'BROWSER_ADAPTER_RESPONSE_INVALID'}, 'OUTCOME_UNKNOWN');
+  }
+  // Core rejections and local Client disconnect/timeout supply the outcome at
+  // different levels. Fill only missing fields, leaving contradictions for
+  // the native owner's wire validation.
+  if (response.error) {
+    if (response.outcome === undefined) response.outcome = response.error.outcome;
+    if (response.error.outcome === undefined) response.error.outcome = response.outcome;
+  }
   if (request.operation === 'tabs' && response.result?.tabs) {
     response.result.tabs = response.result.tabs.filter(item => {
       try { return new URL(item.url).origin === config.origin; } catch { return false; }
     });
   }
-  response.requestId = request.requestId;
-  return record(request, response, startedAt, denied);
+  try {
+    return record(request, response, startedAt, denied);
+  } catch (error) {
+    // Evidence production happens after the Core request. Its failure cannot
+    // establish that a requested action never reached the browser.
+    if (actionRequested) return failureResponse(request.requestId, error, 'OUTCOME_UNKNOWN');
+    throw error;
+  }
 }
 
 const lines = createInterface({input: process.stdin, crlfDelay: Infinity});
@@ -158,10 +180,8 @@ try {
       process.stdout.write(JSON.stringify(response) + '\n');
     } catch (error) {
       // Never serialize arbitrary exception text or the original request.
-      const outcome = error.outcome || (['fill', 'click'].includes(message?.operation) ? 'OUTCOME_UNKNOWN' : 'NOT_DISPATCHED');
-      process.stdout.write(JSON.stringify({requestId: message?.requestId ?? null,
-        error: {code: /^[A-Z][A-Z0-9_]+$/.test(error.code || '') ? error.code : 'BROWSER_ADAPTER_ERROR', outcome},
-        outcome}) + '\n');
+      const outcome = error?.outcome || (actionOperations.has(message?.operation) ? 'OUTCOME_UNKNOWN' : 'NOT_DISPATCHED');
+      process.stdout.write(JSON.stringify(failureResponse(message?.requestId, error, outcome)) + '\n');
     }
   }
 } finally {client?.close();}

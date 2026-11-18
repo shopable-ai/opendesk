@@ -4,11 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"sync"
+
+	"github.com/dop251/goja"
 )
 
 const fileHandleDefaultReadMaxBytes = 8 * 1024 * 1024
+const fileHandleMaxTruncateSize = 1<<53 - 1
 
 // FileHandle is the deliberately small, script-safe result of File.open().
 // It avoids reflecting *os.File into Goja, which would expose host-only APIs
@@ -24,6 +28,49 @@ type FileHandle struct {
 
 func newFileHandle(fs *FileSystem, file *os.File) *FileHandle {
 	return &FileHandle{fs: fs, file: file}
+}
+
+// Validate the original JS value before the reflection bridge can coerce a
+// string or truncate a fraction to the native int parameter.
+func fileHandleJSObject(runtime *goja.Runtime, handle *FileHandle) map[string]interface{} {
+	object := AutoMapObject(runtime, handle)
+	for _, name := range []string{"read", "readBytes"} {
+		wrapped := object[name].(func(goja.FunctionCall) goja.Value)
+		object[name] = func(call goja.FunctionCall) goja.Value {
+			valid := len(call.Arguments) == 0
+			if len(call.Arguments) == 1 {
+				limit := fileHandleNumber(call.Arguments[0])
+				valid = limit >= 1 && limit <= fileHandleDefaultReadMaxBytes && math.Trunc(limit) == limit
+			}
+			if !valid {
+				panic(runtime.NewGoError(fmt.Errorf("maxBytes must be an integer from 1 through %d", fileHandleDefaultReadMaxBytes)))
+			}
+			return wrapped(call)
+		}
+	}
+	truncate := object["truncate"].(func(goja.FunctionCall) goja.Value)
+	object["truncate"] = func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 1 {
+			size := fileHandleNumber(call.Arguments[0])
+			if size >= 0 && size <= fileHandleMaxTruncateSize && math.Trunc(size) == size {
+				return truncate(call)
+			}
+		}
+		panic(runtime.NewGoError(errors.New("truncate size must be one non-negative safe integer")))
+	}
+	return object
+}
+
+func fileHandleNumber(value goja.Value) float64 {
+	if _, object := value.(*goja.Object); !object {
+		switch number := value.Export().(type) {
+		case int64:
+			return float64(number)
+		case float64:
+			return number
+		}
+	}
+	return math.NaN()
 }
 
 func (h *FileHandle) withFile(operation string, callback func(*os.File) error) error {

@@ -3,6 +3,9 @@
 (0,eval)(File.read(File.join(Execution.scriptDir,'desktop/native-adapter.js')));
 (0,eval)(File.read(File.join(Execution.scriptDir,'desktop/query-api-adapter.js')));
 (0,eval)(File.read(File.join(Execution.scriptDir,'desktop/business-files.js')));
+(0,eval)(File.read(File.join(Execution.scriptDir,'desktop/business-validator.generated.js')));
+(0,eval)(File.read(File.join(Execution.scriptDir,'desktop/controlled-reply.js')));
+(0,eval)(File.read(File.join(Execution.scriptDir,'desktop/fixture-automation.js')));
 const businessFiles=OpenDeskSupportBusinessFiles.createTransport(File);
 const config=await File.readJSON(System.getEnv('OPENDESK_SUPPORT_LAUNCH'));
 const evidence=config.evidence;
@@ -17,8 +20,11 @@ const panel=await ui.createTrustedWindow({id:'supportReactR23',kind:'floating',t
 let bound=null,closed=false,revoked=false,paused=false,follow=true,ready=false,visible=false;
 let authorizationGeneration=0;
 let queue=Promise.resolve(),timer=null,dirty=false,latestRender=null;
+let queueDepth=0,observationPending=null;
 let lastError='',lastBounds='',lastPublished=0;
 const requestIds=new Set();
+const contextOf=c=>JSON.stringify(c.messages);
+const pendingTurn=c=>c.messages.at(-1)?.who==='customer';
 const aiRequestIds=new Set();
 const aiInflight=new Set();
 const log=(type,data)=>{
@@ -33,6 +39,7 @@ async function publish(observation){
   log('observation',{observation});
 }
 async function invalidate(reason,hide){
+  automation.pause();
   const current=adapter.current;
   if(current?.observing||current?.reason!==reason)await publish(adapter.invalidate(reason));
   if(hide&&visible){await panel.hide();visible=false;log('hidden',{reason,state:await panel.getState()});}
@@ -84,6 +91,8 @@ async function observe(reason){
   if(result.changed){await File.writeJSON(File.join(evidence,'ax-latest.json'),snapshot);log('extracted',{reason,events:result.events,source:snapshot.requestId});}
   if(closed||revoked||paused||authorization!==authorizationGeneration)return;
   if(ready&&(result.changed||lastPublished!==result.observation.revision))await publish(result.observation);
+  automation.ingest(result.observation.conversation,result.observation.binding);
+  await automation.report();
   if(!ready)return;
   if(follow){
     const anchor={x:after.x,y:after.y,width:after.width,height:after.height};
@@ -119,6 +128,8 @@ async function fill(request,authorization=authorizationGeneration){
     if(closed||revoked||paused)throw Error('Observation closed, paused or revoked');
     if(requestIds.has(request.requestId))throw Error('Duplicate request; no repeated action');
     const text=adapter.validateFill(request);
+    const context=contextOf(adapter.current.conversation);
+    if(!pendingTurn(adapter.current.conversation))throw Error('Customer turn already answered');
     requestIds.add(request.requestId);
     if(requestIds.size>500)throw Error('Request budget exhausted; relaunch explicitly');
     const w=await freshTarget();
@@ -127,7 +138,7 @@ async function fill(request,authorization=authorizationGeneration){
     const snap=await exactSnapshot(w),actual=OpenDeskSupportNative.parse(snap);
     checkAuthority();
     const latest=actual.messages.filter(m=>m.who==='customer').at(-1);
-    if(actual.customerId!==request.binding.customerId||latest?.id!==request.binding.messageId||actual.draft!==request.expectedDraft||!adapter.matches(request.binding))throw Error('Conversation, latest message, or draft changed before input');
+    if(!pendingTurn(actual)||contextOf(actual)!==context||actual.customerId!==request.binding.customerId||latest?.id!==request.binding.messageId||actual.draft!==request.expectedDraft||!adapter.matches(request.binding))throw Error('Conversation, latest message, or draft changed before input');
     ref=await Accessibility.find({identifier:'support.draft.'+actual.customerId},{within:w,maxDepth:20,maxNodes:500});
     checkAuthority();
     if(!ref)throw Error('Unique draft field unavailable');
@@ -141,7 +152,7 @@ async function fill(request,authorization=authorizationGeneration){
     const finalValue=await Accessibility.read(ref,{properties:['value','identifier']});
     checkAuthority();
     if(finalValue.properties.identifier!=='support.draft.'+request.binding.customerId||finalValue.properties.value!==request.expectedDraft)throw Error('Manual draft changed before input');
-    if(before.properties.identifier!=='support.draft.'+request.binding.customerId||before.properties.value!==request.expectedDraft||finalConversation.customerId!==request.binding.customerId||finalConversation.messages.filter(m=>m.who==='customer').at(-1)?.id!==request.binding.messageId||finalConversation.draft!==request.expectedDraft||!front||!sameWindow(front)||!adapter.matches(request.binding)||closed||revoked||paused)throw Error('Final draft precondition changed');
+    if(!pendingTurn(finalConversation)||contextOf(finalConversation)!==context||before.properties.identifier!=='support.draft.'+request.binding.customerId||before.properties.value!==request.expectedDraft||finalConversation.customerId!==request.binding.customerId||finalConversation.messages.filter(m=>m.who==='customer').at(-1)?.id!==request.binding.messageId||finalConversation.draft!==request.expectedDraft||!front||!sameWindow(front)||!adapter.matches(request.binding)||closed||revoked||paused)throw Error('Final draft precondition changed');
     if(before.properties.value!==text){
       attempted=true;
       const action=await Accessibility.perform(ref,{action:'setValue',value:text});
@@ -157,7 +168,7 @@ async function fill(request,authorization=authorizationGeneration){
     if(!after)throw Error('Target lost after draft action');
     const readbackSnapshot=await exactSnapshot(after),readback=OpenDeskSupportNative.parse(readbackSnapshot);
     checkAuthority();
-    if(readback.customerId!==request.binding.customerId||readback.messages.filter(m=>m.who==='customer').at(-1)?.id!==request.binding.messageId||readback.draft!==text||!adapter.matches(request.binding)||closed||paused||revoked)throw Error('Draft readback identity/value mismatch');
+    if(!pendingTurn(readback)||contextOf(readback)!==context||readback.customerId!==request.binding.customerId||readback.messages.filter(m=>m.who==='customer').at(-1)?.id!==request.binding.messageId||readback.draft!==text||!adapter.matches(request.binding)||closed||paused||revoked)throw Error('Draft readback identity/value mismatch');
     await File.writeJSON(File.join(evidence,'draft-readback-'+request.requestId+'.json'),readbackSnapshot);
     checkAuthority();
     const result=adapter.accept(after,readbackSnapshot);await publish(result.observation);
@@ -192,7 +203,14 @@ async function askAI(request){
       if(observed.customerId!==request.binding.customerId||
          latest?.id!==request.binding.messageId||!latest.text.trim()||
          latest.text!==adapter.current.conversation.messages.filter(m=>m.who==='customer').at(-1)?.text)return;
-      ctx={requestId:request.requestId,binding:{...request.binding},question:latest.text};
+      if(!pendingTurn(observed))return;
+      // Merge only the bounded, unanswered customer turn; IDs stay native IDs.
+      const lastAgent=observed.messages.map(m=>m.who).lastIndexOf('agent');
+      const turn=observed.messages.slice(lastAgent+1);
+      if(turn.length>8||turn.reduce((n,m)=>n+m.text.length,0)>3800){
+        await panel.postMessage(OpenDeskSupportQueryAPI.failed(queryConfig,request,'CONTEXT_LIMIT'));return;
+      }
+      ctx={requestId:request.requestId,binding:{...request.binding},question:turn.map(m=>m.text).join('\n'),context:contextOf(observed)};
     });
     if(!ctx)return;
     // The owner queue can yield before dispatch. Recheck live authority and
@@ -200,6 +218,8 @@ async function askAI(request){
     const front=await window.getAppWindow(target);
     if(closed||revoked||paused||authorization!==authorizationGeneration||
       !adapter.matches(ctx.binding)||!front||!sameWindow(front)||!front.isForeground)return;
+    const dispatchContext=OpenDeskSupportNative.parse(await exactSnapshot(front));
+    if(!authorized()||contextOf(dispatchContext)!==ctx.context||!pendingTurn(dispatchContext))return;
     let result;
     if(!queryConfig)result=OpenDeskSupportQueryAPI.failed(null,ctx,'NOT_CONFIGURED');
     else{
@@ -233,7 +253,7 @@ async function askAI(request){
       if(closed||revoked||paused||authorization!==authorizationGeneration||
         !after||!sameWindow(after)||!after.isForeground||
         observed.customerId!==ctx.binding.customerId||latest?.id!==ctx.binding.messageId||
-        latest.text!==ctx.question||!adapter.matches(ctx.binding)){
+        contextOf(observed)!==ctx.context||!pendingTurn(observed)||!adapter.matches(ctx.binding)){
         log('ai-stale',{requestId:ctx.requestId});return;
       }
       await panel.postMessage(result);
@@ -243,11 +263,77 @@ async function askAI(request){
     });
   }finally{aiInflight.delete(request.requestId);}
 }
-function enqueue(work){queue=queue.then(()=>closed?undefined:work()).catch(async error=>{
+function enqueue(work){
+  if(queueDepth>=16){automation?.pause();return Promise.reject(Error('Native operation queue limit; no retry'));}
+  queueDepth++;
+  queue=queue.then(()=>closed?undefined:work()).catch(async error=>{
   const message=String(error);
   if(lastError!==message){lastError=message;log('failure',{message});}
   await invalidate(message,true);
-});return queue;}
+}).finally(()=>{queueDepth--;});return queue;}
+function scheduleObservation(reason){
+  dirty=true;
+  if(observationPending)return observationPending;
+  observationPending=enqueue(async()=>{dirty=false;await observe(reason);}).finally(()=>{observationPending=null;});
+  return observationPending;
+}
+async function controlledState(){
+  const authorization=authorizationGeneration;
+  const check=()=>{if(closed||revoked||paused||authorization!==authorizationGeneration)throw Error('Fixture authority unavailable');};
+  check();const w=await freshTarget();check();
+  if(!w||!w.isForeground)throw Error('Fixture not foreground');
+  const snapshot=await exactSnapshot(w);check();
+  const after=await window.getAppWindow(target);check();
+  if(!after||!after.isForeground||!sameWindow(after))throw Error('Fixture target changed');
+  const result=adapter.accept(after,snapshot);await publish(result.observation);check();
+  return {w,snapshot,conversation:OpenDeskSupportNative.parse(snapshot),binding:result.observation.binding,check};
+}
+let monotonicNow=Date.now();
+const automation=OpenDeskSupportFixtureAutomation.create({target,adapter,
+  domain:OpenDeskSupportBusinessDomain,
+  clock:{now:()=>{monotonicNow=Math.max(monotonicNow,Date.now());return monotonicNow;},setTimeout,clearTimeout},
+  authorized:()=>!closed&&!paused&&!revoked&&adapter.current?.observing===true,
+  read:()=>enqueue(controlledState),
+  publish:message=>closed?undefined:panel.postMessage(message),log,
+  action:request=>enqueue(async()=>{
+    const {kind,text,scope,before,guard}=request;
+    const matches=state=>{
+      state.check();guard();
+      if(String(state.w.handle)!==scope.window||state.conversation.customerId!==scope.customer||
+        state.conversation.draft!==before.draft||
+        JSON.stringify(state.conversation.messages.map(m=>({id:m.id,role:m.who,text:m.text})))!==
+        JSON.stringify(before.messages.map(m=>({id:m.id,role:m.role,text:m.text}))))throw Error('Final controlled context or draft changed');
+    };
+    const first=await controlledState();matches(first);
+    const identifier=kind==='draft'?'support.draft.'+scope.customer:'support.fixture.send';
+    const ref=await Accessibility.find({identifier},{within:first.w,maxDepth:20,maxNodes:500});
+    if(!ref)throw Error('Unique fixture action unavailable');
+    try{
+      const fresh=await controlledState();matches(fresh);
+      const properties=await Accessibility.read(ref,{properties:['identifier','value','actions','enabled']});
+      fresh.check();guard();
+      if(properties.properties.identifier!==identifier||properties.properties.enabled===false)throw Error('Final fixture reference changed');
+      if(kind==='draft'&&(before.draft!==''||properties.properties.value!==''))throw Error('Existing manual draft preserved');
+      const receiptBefore=OpenDeskSupportNative.nodes(fresh.snapshot).find(n=>n.identifier==='support.fixture.send-result')?.value||'';
+      const action=await Accessibility.perform(ref,kind==='draft'?{action:'setValue',value:text}:{action:'invoke'});
+      log('controlled-native-action',{kind,scope,action});
+      if(!['acknowledged','not_needed'].includes(action.actionState))throw Error('Controlled input state unknown');
+      const after=await controlledState();after.check();guard();
+      if(after.conversation.customerId!==scope.customer)throw Error('Session changed after controlled action');
+      if(kind==='draft'){
+        if(after.conversation.draft!==text)throw Error('Controlled draft readback failed');
+        return {status:'draft-verified'};
+      }
+      const receiptAfter=OpenDeskSupportNative.nodes(after.snapshot).find(n=>n.identifier==='support.fixture.send-result')?.value||'';
+      const parsed=/^action=(\d+) session=(t[123]) result=(sent|failed|unknown) reason=/.exec(receiptAfter);
+      const old=/^action=(\d+)/.exec(receiptBefore);
+      if(!parsed||parsed[2]!==scope.customer||Number(parsed[1])!==(old?Number(old[1]):0)+1||parsed[3]==='unknown')return {status:'unknown'};
+      if(parsed[3]==='failed')return {status:'failed'};
+      const sent=after.conversation.messages.filter(m=>m.who==='agent'&&m.text===text&&
+        !before.messages.some(old=>old.id===m.id));
+      return sent.length===1?{status:'sent',messageId:sent[0].id}:{status:'unknown'};
+    }finally{await Accessibility.release(ref);}
+  })});
 const off=panel.on('message',event=>{
   let message=event.value;
   if(typeof message==='string'){try{message=JSON.parse(message);}catch{return;}}
@@ -260,37 +346,41 @@ const off=panel.on('message',event=>{
     // Synchronous invalidation; a pending HTTP/AX operation may finish, but it
     // cannot authorize another protected read or publish a result.
     authorizationGeneration++;
+    automation.takeover();
   }else if(message.type==='support.settings'){
     // Invalidate immediately on the owner loop, including while an AX promise
     // is pending. Only resuming the same still-authorized instance is allowed.
-    if(message.permission===false){authorizationGeneration++;revoked=true;adapter.revoke();}
+    if(message.permission===false){authorizationGeneration++;revoked=true;automation.revoke();adapter.revoke();}
     if(typeof message.paused==='boolean'){
       if(paused!==message.paused)authorizationGeneration++;
       paused=message.paused;
+      if(paused)automation.pause();
     }
     if(typeof message.follow==='boolean')follow=message.follow;
-    enqueue(async()=>{if(revoked)await publish(adapter.current);else if(paused)await invalidate('已暂停观察',false);else await observe('explicit-resume');});
+    enqueue(async()=>{if(revoked)await publish(adapter.current);else if(paused)await invalidate('已暂停观察',false);else await observe('explicit-resume');await automation.report();});
   }else if(message.type==='support.ready'){
     ready=true;enqueue(()=>observe('react-ready'));
   }else if(message.type==='support.rendered'){
     latestRender=message;log('react-rendered',{render:message});
     File.writeJSON(File.join(evidence,'react-rendered.json'),message);
   }else if(message.type==='support.fillDraft'){
+    automation.takeover();
     const authorization=authorizationGeneration;
     enqueue(()=>fill(message,authorization));
   }
+  else if(message.type==='support.automation')void automation.handle(message).catch(error=>log('controlled-command-failed',{error:String(error)}));
   else if(message.type==='support.aiQuery')void askAI(message).catch(()=>log('ai-failure',{code:'AI_HOST_FAILURE'}));
   else log('rejected-message',{messageType:message.type});
 });
-const offClose=panel.on('close',()=>{authorizationGeneration++;closed=true;revoked=true;adapter.revoke();});
+const offClose=panel.on('close',()=>{authorizationGeneration++;automation.revoke();closed=true;revoked=true;adapter.revoke();});
 const subscription=window.watchAppWindow(target,hint=>{
   log('window-hint',{hint});dirty=true;
   if(hint.reasons.some(r=>['target-invalidated','window-destroyed','app-terminated-changed'].includes(r))){
     // The hint alone never grants a new window identity.
     return enqueue(()=>invalidate('目标窗口或进程已失效',true));
-  }else return enqueue(()=>observe('hint:'+hint.reason));
+  }else return scheduleObservation('hint:'+hint.reason);
 });
-function tick(){timer=setTimeout(async()=>{try{await enqueue(()=>observe(dirty?'hint-fallback':'1000ms-revalidation'));dirty=false;}finally{if(!closed)tick();}},1000);}
+function tick(){timer=setTimeout(async()=>{try{await scheduleObservation(dirty?'hint-fallback':'1000ms-revalidation');await automation.report();}finally{if(!closed)tick();}},1000);}
 try{
   // Creating the UI host can move focus away from the launcher's own chat.
   // Resolve and activate the existing exact window; never launch a replacement.
@@ -299,14 +389,14 @@ try{
   await window.activate(initial);
   log('startup',{execution:Execution.id,config,capabilities:Accessibility.getCapabilities(),watch:subscription.capabilities});
   await enqueue(()=>observe('startup'));tick();
-  if(config.verify||config.verifyAI){
-    const verify=(0,eval)(File.read(File.join(File.cwd(),config.verifyAI?'tests/custom-ui/ai-customer-support-r30b-native.js':'tests/custom-ui/ai-customer-support-r23-native.js')));
+  if(config.verify||config.verifyAI||config.verifyControlled){
+    const verify=(0,eval)(File.read(File.join(File.cwd(),config.verifyControlled?'tests/custom-ui/ai-customer-support-controlled-native.js':config.verifyAI?'tests/custom-ui/ai-customer-support-r30b-native.js':'tests/custom-ui/ai-customer-support-r23-native.js')));
     await verify({panel,target,evidence,adapter,observe:()=>enqueue(()=>observe('test-revalidate')),
-      idle:()=>queue,getRender:()=>latestRender,getBound:()=>bound,log});
+      idle:()=>queue,getRender:()=>latestRender,getBound:()=>bound,getAutomation:()=>automation.status(),log});
     await panel.close();
   }else await panel.waitUntilClosed();
 }finally{
-  closed=true;if(timer)clearTimeout(timer);subscription.unsubscribe();off();offClose();
+  automation.revoke();closed=true;if(timer)clearTimeout(timer);subscription.unsubscribe();off();offClose();
   await queue;await panel.close();
   log('cleanup',{window:await panel.getState()});
 }

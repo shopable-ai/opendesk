@@ -20,7 +20,7 @@ function harness(options = {}) {
     {identifier: 'support.draft.t1', value: draft},
     {identifier: 'support.message.t1-m1.customer', value: '客户 · t1-m1\n退款进度？'},
   ]}});
-  const ctx = vm.createContext({closed: false, revoked: false, paused: false, target, evidence: '/mock',
+  const ctx = vm.createContext({closed: false, revoked: false, paused: false, authorizationGeneration:0, target, evidence: '/mock',
     requestIds: new Set(), panel: {postMessage: async value => receipts.push(value)},
     log() {}, File: {join: (...parts) => parts.join('/'), writeJSON: async () => {}},
     freshTarget: async () => win, sameWindow: w => w === win,
@@ -45,6 +45,7 @@ function harness(options = {}) {
   ctx.adapter = ctx.OpenDeskSupportNative.create(target);
   ctx.adapter.accept(win, snapshot());
   ctx.invalidate = async reason => ctx.adapter.invalidate(reason);
+  vm.runInContext("const contextOf=c=>JSON.stringify(c.messages);const pendingTurn=c=>c.messages.at(-1)?.who==='customer';",ctx);
   vm.runInContext(fillSource, ctx);
   const request = {type: 'support.fillDraft', requestId: 'request-1', binding: ctx.adapter.current.binding,
     text: '人工选择的回复', expectedDraft: ''};
@@ -98,14 +99,27 @@ test('verified receipt carries the exact request ID and observed text; duplicate
   assert.equal(h.receipts.at(-1).status, 'refused');
 });
 
+test('an own reply arriving after draft input makes the result unknown and stops further writes',async()=>{
+  const h=harness({snapshot:(_ctx,n,snap)=>{
+    if(n===3)snap.root.children.push({identifier:'support.message.t1-m2.agent',value:'客服 · t1-m2\n人工已答复'});
+    return snap;
+  }});
+  await h.ctx.fill(h.request);
+  assert.equal(h.actions.length,1);
+  assert.equal(h.receipts.at(-1).status,'unknown');
+  assert.equal(h.ctx.paused,true);
+  await h.ctx.fill({...h.request,requestId:'request-2'});
+  assert.equal(h.actions.length,1);
+});
+
 test('pause during an in-flight tree read stops acceptance without hiding the resume control', async () => {
   const h = harness({snapshot: (ctx, _n, snap) => {ctx.paused = true; return snap;}});
   const invalidations = [];
   h.ctx.invalidate = async (reason, hide) => {invalidations.push({reason, hide}); h.ctx.adapter.invalidate(reason);};
   vm.runInContext(observeSource, h.ctx);
   await h.ctx.observe('mock-only');
-  assert.deepEqual(invalidations, [{reason: '已暂停观察', hide: false}]);
-  assert.equal(h.ctx.adapter.current.observing, false);
+  assert.deepEqual(invalidations, []);
+  assert.equal(h.actions.length,0);
 });
 
 test('revocation during a tree read retains the revoked generation and reason', async () => {

@@ -263,11 +263,11 @@ App Mode 中返回当前 App Shell / package 信息，当前契约包括：
 {
   enabled: false,
   available: false,
-  reason: 'APP_MODE_DISABLED'
+  reason: 'not an App Mode execution'
 }
 ```
 
-调用方应以 `enabled` / `available` 作为能力判断，不要通过 package path、process title 或其他实现细节猜测当前 execution 类型。
+调用方应以 `enabled` / `available` 作为能力判断；`reason` 是诊断说明，不是稳定错误码。不要通过 package path、process title 或其他实现细节猜测当前 execution 类型。
 
 **行为与错误**
 

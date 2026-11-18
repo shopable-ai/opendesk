@@ -542,6 +542,16 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 }
 @end
 
+// Explicit AX child arrays bypass AppKit's normal hidden-subview filtering.
+// Keep peers for later page reuse, but do not export hidden pages to clients.
+static NSArray *CDVisibleAccessibilityChildren(NSArray<NSView *> *children) {
+	NSMutableArray *visible = [NSMutableArray array];
+	for (NSView *view in children) {
+		if (!view.hiddenOrHasHiddenAncestor) [visible addObject:view];
+	}
+	return visible.copy;
+}
+
 @interface CDContentView : NSView
 @property(nonatomic, weak) WKWebView *webView;
 @property(nonatomic, weak) CDDragOverlayView *dragOverlay;
@@ -569,7 +579,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 	// wrapper to VoiceOver. Accessory processes hosting a nonactivating NSPanel
 	// do not reliably export the remote WebKit subtree, so validated buttons are
 	// mirrored by non-drawing native AXButton children below.
-	if (self.nativeAccessibilityChildren.count) return self.nativeAccessibilityChildren;
+	if (self.nativeAccessibilityChildren.count) return CDVisibleAccessibilityChildren(self.nativeAccessibilityChildren);
 	return self.webView ? @[self.webView] : @[];
 }
 
@@ -631,7 +641,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 }
 
 - (BOOL)accessibilityPerformPress {
-	if (!self.enabled || self.callbackBusy || !self.targetID.length) return NO;
+	if (!self.enabled || self.hiddenOrHasHiddenAncestor || self.callbackBusy || !self.targetID.length) return NO;
 	[self.eventDelegate accessibilityButtonDidPress:self.targetID];
 	return YES;
 }
@@ -739,7 +749,7 @@ static NSString *CDBridgeSource(NSArray *controls, NSString *css, BOOL draggable
 
 @implementation CDDialogWindow
 - (NSArray *)accessibilityChildren {
-	if (self.dialogAccessibilityChildren.count) return self.dialogAccessibilityChildren;
+	if (self.dialogAccessibilityChildren.count) return CDVisibleAccessibilityChildren(self.dialogAccessibilityChildren);
 	return [super accessibilityChildren];
 }
 @end
@@ -1199,7 +1209,7 @@ static BOOL CDInteractionGroupContainsWindow(CDWindowController *controller, NSW
 - (void)accessibilityButtonDidPress:(NSString *)targetID {
 	if (self.closed || ![self.controlIDs containsObject:targetID]) return;
 	CDWebAccessibilityButtonProxy *button = self.webAccessibilityButtons[targetID];
-	if (!button || !button.enabled || button.callbackBusy) return;
+	if (!button || !button.enabled || button.hiddenOrHasHiddenAncestor || button.callbackBusy) return;
 	[self emitType:@"click" target:targetID body:@{} reason:nil];
 }
 

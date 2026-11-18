@@ -53,6 +53,49 @@ Markdown 与 HTML 的渲染归 Browser。建议 Markdown 净化后显示，HTML 
 
 本轮没有文件删除、目录创建、后台文件监听或多文件事务。现有父目录中的新文件使用独占创建，目标已存在则返回错误，不覆盖已有内容。
 
+
+### P0 ChatGPT 图片：有界只读检查（2026-11-04）
+
+可信扩展可在现有已认证、已协商的 `opendesk.local-files.v1` 连接上调用
+`files.inspectImage({workspaceId, path, leaseEpoch})`；`files.status.methods` 包含此方法。
+参数沿用 `filesLocation`，`path` 必须是授权工作区内的相对路径，不能传入绝对路径、
+`absolutePath` 或写入正文。`leaseEpoch` 沿用既有合同：新客户端发送当前租约，
+无 CLI 绑定时发送空字符串；省略仅保留既有兼容行为，不构成授权。
+
+成功的 `files.response.result` 仅含以下元数据（不含图片字节或 Base64）：
+
+```json
+{
+  "workspaceId": "workspace-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "path": "images/result.png",
+  "absolutePath": "/trusted/granted/workspace/images/result.png",
+  "format": "png",
+  "width": 1024,
+  "height": 1024,
+  "bytes": 123456,
+  "sha256": "<原始压缩文件字节的64位小写SHA-256>"
+}
+```
+
+仅允许 `.png`、`.jpg`、`.jpeg`（后缀不区分大小写），`format` 为 `png` 或 `jpeg`。
+压缩文件最多 **8 MiB（8,388,608 字节）**；先用对应 Go 标准库配置解码检查
+**宽 × 高 ≤ 16,777,216 像素**（用除法避免溢出），再完整执行 `png.Decode` 或
+`jpeg.Decode`，不是只读头部。格式损坏、截断、HTML、SVG、内容与后缀不符返回
+`E_FILES_TYPE`；字节或像素超限返回 `E_FILES_LIMIT`；不存在的图片或父目录返回
+`E_FILES_NOT_FOUND`。错误不包含绝对路径。
+
+此方法复用原文件引擎的安装身份、会话、grant、租约/撤销与进程间锁，沿用安全目录根
+和 inode 校验、逐层路径检查、同设备、当前用户所有权、禁止符号链接/硬链接及宽松写权限。
+文件仅以只读 no-follow 描述符读取，并校验两次有界快照；返回前再检查根与父目录身份。
+只读 grant 同样可以检查图片；方法不建立新 grant、不写文件、不产生写入回执，也不下载图片。
+原 `files.list/read/write/create` 的文本后缀和 32 KiB 限制保持不变，不因此支持图片读写。
+
+`absolutePath` 是本方法在**既有可信 Native 协议**中的明确例外，仅供可信控制器定位已授权图片；
+不得转发到网页、模型对话、页面 SDK、用户脚本或 purpose-bound MCP 文件通道。
+本次没有增加网页直连、二进制传输、写入或下载接口。
+Go 定向测试只能证明解码器、协议和文件引擎边界；真实 Runtime、Chrome、ChatGPT 图片核心操作
+仍为 **NOT_TESTED**，由 Browser 主任务独立验证。
+
 ## Native 协议
 
 原 `com.shopable.opendesk_browser.agent` Host 与 60 KiB 帧保持不变。既有 CLI → Browser 十个 RPC 和 `dev.request` 单文件脚本 Provider 也不改变。

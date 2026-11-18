@@ -1,4 +1,5 @@
 ---
+docType: reference
 title: ImageColor API
 description: 同尺寸图像差异、模板匹配、颜色判断、裁剪、缩放与图像辅助分析。
 order: 120
@@ -38,8 +39,12 @@ order: 120
 | `ImageColor.findRedChannel(image, x, y, width?, height?)` | 红色通道筛选 |
 | `ImageColor.findGreenChannel(image, x, y, width?, height?)` | 绿色通道筛选 |
 | `ImageColor.findBlueChannel(image, x, y, width?, height?)` | 蓝色通道筛选 |
-| `ImageColor.toRGB / toRGBA / toHSL / toHSLA` | 颜色格式转换 |
+| `ImageColor.toRGB(color)` | 六位 hex 转 RGB 字符串 |
+| `ImageColor.toRGBA(color)` | 六位 hex 转 RGBA 字符串 |
+| `ImageColor.toHSL(color)` | 六位 hex 转 HSL 字符串 |
+| `ImageColor.toHSLA(color)` | 六位 hex 转 HSLA 字符串 |
 | `ImageColor.isColorSimilar(target, gradient, tolerance?)` | 颜色相似判断 |
+| `ImageColor.analyzeLayout(image, options?)` | 纯图像布局分析 |
 
 方法名是 Go 导出名映射到 JS 后的 lowerCamelCase 形式。
 
@@ -64,7 +69,9 @@ order: 120
 
 `template` 也可以是非空的图片数组，用于同一控件的明确视觉状态，例如微信左侧“消息”按钮的
 灰色未选中和绿色选中图。每张图分别匹配，返回全体中置信度最高的候选；置信度相同则按数组顺序
-选择。不要把两个状态拼进一张图片，也不要仅为兼容状态变化而降低 `threshold`。
+选择；后项只有置信度严格更高时才替换前项，不能因坐标更靠前或缩放比例更小而覆盖等分的前项。
+单张模板内部的等分候选仍按 `y`、`x`、`scale` 从小到大选择。不要把两个状态拼进一张图片，
+也不要仅为兼容状态变化而降低 `threshold`。
 
 路径会先被尝试打开，之后才会尝试 raw base64；不再用字符串长度猜测输入类型，所以超过 100 字符的合法路径不会被误判成 base64。
 
@@ -166,7 +173,7 @@ const action = unselectedMatch.found ? 'tap-unselected' : 'do-not-tap';
 
 ## ImageColor.findImages(source, template, options?)
 
-参数继承 `findImage`，并增加 `maxResults`：
+匹配选项沿用 [ImageColor.findImage](#imagecolorfindimagesource-template-options)。本方法只接受单个模板，并增加 `maxResults`。
 
 | 参数 | 类型与默认值 | 作用 |
 | --- | --- | --- |
@@ -483,6 +490,10 @@ const result = JSON.parse(raw);
 
 ## ImageColor.findColorBlocks(image, color, options)
 
+返回的 `x` / `y` 始终相对于完整输入图像，非 ROI 局部坐标；设置非零 `options.x` / `options.y`
+只限制搜索区域，不会再次偏移返回坐标。ROI 截断色块时，宽高和面积只计算区域内的部分；
+当前只保留匹配像素数大于 20 的连通色块。结果是数组，无命中返回 `[]`。
+
 ```js
 const blocks = ImageColor.findColorBlocks(base64Image, '#ffffff', {
   x: 0,
@@ -542,17 +553,277 @@ const [width, height] = ImageColor.getSize('./.runtime/examples/screen.png');
 ImageColor.save(image, './.runtime/examples/out.jpg', 'jpg', 90);
 ```
 
-## ImageColor：颜色通道与格式转换
+## ImageColor.findRedChannel(image, x, y, width?, height?)
 
-`findRedChannel` / `findGreenChannel` / `findBlueChannel` 会在给定区域中寻找第一个明显的非灰度对应通道像素，适合做简单颜色信号判断。
+在指定图像区域按列扫描，返回首个红通道大于 20 且非近灰色的像素颜色。
 
-颜色格式转换方法用于 RGB / RGBA / HSL / HSLA 之间转换；具体参数形态以当前源码和 `types/ImageColor.d.ts` 为辅助参考。
+**签名**
+
+```ts
+ImageColor.findRedChannel(image: string, x: number, y: number, width?: number, height?: number): string;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `image` | string | 是 | 无 | 本地 PNG/JPEG 路径、PNG/JPEG data URL 或 raw base64；相对路径基于当前工作目录。 |
+| `x` | number | 是 | 无 | 起始像素列；使用整数。 |
+| `y` | number | 是 | 无 | 起始像素行；使用整数。 |
+| `width` | number | 否 | 图像右边界减 x | 扫描宽度；使用整数。 |
+| `height` | number | 否 | 图像下边界减 y | 扫描高度；使用整数。 |
+
+**返回值**
+
+同步返回小写 `#rrggbb` 字符串；无合格像素返回空字符串 `""`。不返回坐标或通道图像。
+
+**行为与错误**
+
+- 外层递增 x，内层递增 y；矩形右、下边界不包含在扫描范围内。
+- 像素取 `RGBA()` 的高 8 位通道值。命中要求 `r > 20`，并且 RGB 三对通道差不全都小于 10；通道值恰为 20 不命中，差恰为 10 已不属于近灰色。该通道无需是最大通道。
+- 透明图像使用预乘 Alpha 的 RGB，不单独筛选 Alpha；返回值不含 Alpha。
+- 右、下越界部分停止扫描；起点位于右/下边界外、宽或高非正时返回空字符串。负起点不报参数错误，PNG/JPEG 边界外的采样不命中；建议传图像内坐标与正尺寸。极大整数没有额外溢出校验。
+- 图像在扫描前解码，因此空区域也不会跳过输入错误。空输入、缺失/不可读文件、非法 base64、损坏或不支持的图像同步抛错；data URL 必须含 `;base64,` 和非空有效图像数据。不把错误转为空字符串。
+- 不采集屏幕、不写文件、无网络或模型调用；本地路径会读取文件。无需桌面权限。
+
+**示例**
+
+从仓库根目录运行脚本，使用已有确定性 PNG fixture：
+
+```js
+const color = ImageColor.findRedChannel('examples/image-color/fixtures/expected.png', 0, 0);
+console.log(color); // #rrggbb 或空字符串
+```
+
+## ImageColor.findGreenChannel(image, x, y, width?, height?)
+
+在指定图像区域按列扫描，返回首个绿通道大于 20 且非近灰色的像素颜色。
+
+**签名**
+
+```ts
+ImageColor.findGreenChannel(image: string, x: number, y: number, width?: number, height?: number): string;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `image` | string | 是 | 无 | 本地 PNG/JPEG 路径、PNG/JPEG data URL 或 raw base64；相对路径基于当前工作目录。 |
+| `x` | number | 是 | 无 | 起始像素列；使用整数。 |
+| `y` | number | 是 | 无 | 起始像素行；使用整数。 |
+| `width` | number | 否 | 图像右边界减 x | 扫描宽度；使用整数。 |
+| `height` | number | 否 | 图像下边界减 y | 扫描高度；使用整数。 |
+
+**返回值**
+
+同步返回小写 `#rrggbb` 字符串；无合格像素返回空字符串 `""`。不返回坐标或通道图像。
+
+**行为与错误**
+
+- 外层递增 x，内层递增 y；矩形右、下边界不包含在扫描范围内。
+- 像素取 `RGBA()` 的高 8 位通道值。命中要求 `g > 20`，并且 RGB 三对通道差不全都小于 10；通道值恰为 20 不命中，差恰为 10 已不属于近灰色。该通道无需是最大通道。
+- 透明图像使用预乘 Alpha 的 RGB，不单独筛选 Alpha；返回值不含 Alpha。
+- 右、下越界部分停止扫描；起点位于右/下边界外、宽或高非正时返回空字符串。负起点不报参数错误，PNG/JPEG 边界外的采样不命中；建议传图像内坐标与正尺寸。极大整数没有额外溢出校验。
+- 图像在扫描前解码，因此空区域也不会跳过输入错误。空输入、缺失/不可读文件、非法 base64、损坏或不支持的图像同步抛错；data URL 必须含 `;base64,` 和非空有效图像数据。不把错误转为空字符串。
+- 不采集屏幕、不写文件、无网络或模型调用；本地路径会读取文件。无需桌面权限。
+
+**示例**
+
+从仓库根目录运行脚本，使用已有确定性 PNG fixture：
+
+```js
+const color = ImageColor.findGreenChannel('examples/image-color/fixtures/expected.png', 0, 0);
+console.log(color); // #rrggbb 或空字符串
+```
+
+## ImageColor.findBlueChannel(image, x, y, width?, height?)
+
+在指定图像区域按列扫描，返回首个蓝通道大于 20 且非近灰色的像素颜色。
+
+**签名**
+
+```ts
+ImageColor.findBlueChannel(image: string, x: number, y: number, width?: number, height?: number): string;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `image` | string | 是 | 无 | 本地 PNG/JPEG 路径、PNG/JPEG data URL 或 raw base64；相对路径基于当前工作目录。 |
+| `x` | number | 是 | 无 | 起始像素列；使用整数。 |
+| `y` | number | 是 | 无 | 起始像素行；使用整数。 |
+| `width` | number | 否 | 图像右边界减 x | 扫描宽度；使用整数。 |
+| `height` | number | 否 | 图像下边界减 y | 扫描高度；使用整数。 |
+
+**返回值**
+
+同步返回小写 `#rrggbb` 字符串；无合格像素返回空字符串 `""`。不返回坐标或通道图像。
+
+**行为与错误**
+
+- 外层递增 x，内层递增 y；矩形右、下边界不包含在扫描范围内。
+- 像素取 `RGBA()` 的高 8 位通道值。命中要求 `b > 20`，并且 RGB 三对通道差不全都小于 10；通道值恰为 20 不命中，差恰为 10 已不属于近灰色。该通道无需是最大通道。
+- 透明图像使用预乘 Alpha 的 RGB，不单独筛选 Alpha；返回值不含 Alpha。
+- 右、下越界部分停止扫描；起点位于右/下边界外、宽或高非正时返回空字符串。负起点不报参数错误，PNG/JPEG 边界外的采样不命中；建议传图像内坐标与正尺寸。极大整数没有额外溢出校验。
+- 图像在扫描前解码，因此空区域也不会跳过输入错误。空输入、缺失/不可读文件、非法 base64、损坏或不支持的图像同步抛错；data URL 必须含 `;base64,` 和非空有效图像数据。不把错误转为空字符串。
+- 不采集屏幕、不写文件、无网络或模型调用；本地路径会读取文件。无需桌面权限。
+
+**示例**
+
+从仓库根目录运行脚本，使用已有确定性 PNG fixture：
+
+```js
+const color = ImageColor.findBlueChannel('examples/image-color/fixtures/expected.png', 0, 0);
+console.log(color); // #rrggbb 或空字符串
+```
+
+## ImageColor.toRGB(color)
+
+将六位十六进制 RGB 颜色转换为 RGB 字符串。
+
+**签名**
+
+```ts
+ImageColor.toRGB(color: string): string;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `color` | string | 是 | 无 | 六位 hex，允许一个前导 `#`，如 `#ff0000` 或 `FF0000`。 |
+
+**返回值**
+
+同步返回 `rgb(r,g,b)` 格式字符串，无空格。RGB 为 0..255 整数。
+
+**行为与错误**
+
+- 大小写 hex 均可；不修剪空白。不支持三位/八位 hex、颜色名称、`rgb()`、`rgba()`、`hsl()` 或 `hsla()` 输入，也不提供这些格式之间的通用互转。
+- 去掉一个可选 `#` 后长度必须为 6，否则同步抛出含 `invalid hex color length` 的错误；长度为 6 但包含非 hex 字符时同步抛解析错误。失败不返回空字符串。
+- 纯数据同步计算，不访问文件、屏幕、网络或模型，无桌面权限要求。
+
+**示例**
+
+在 OpenDesk Runtime 中运行，无外部输入前置条件：
+
+```js
+console.log(ImageColor.toRGB('#ff0000'));
+// rgb(255,0,0)
+```
+
+## ImageColor.toRGBA(color)
+
+将六位十六进制 RGB 颜色转换为 RGBA 字符串。
+
+**签名**
+
+```ts
+ImageColor.toRGBA(color: string): string;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `color` | string | 是 | 无 | 六位 hex，允许一个前导 `#`，如 `#ff0000` 或 `FF0000`。 |
+
+**返回值**
+
+同步返回 `rgba(r,g,b,a)` 格式字符串，无空格。RGB 为 0..255 整数。 Alpha 固定为 `1.000000`，不读取输入 Alpha。
+
+**行为与错误**
+
+- 大小写 hex 均可；不修剪空白。不支持三位/八位 hex、颜色名称、`rgb()`、`rgba()`、`hsl()` 或 `hsla()` 输入，也不提供这些格式之间的通用互转。
+- 去掉一个可选 `#` 后长度必须为 6，否则同步抛出含 `invalid hex color length` 的错误；长度为 6 但包含非 hex 字符时同步抛解析错误。失败不返回空字符串。
+- 纯数据同步计算，不访问文件、屏幕、网络或模型，无桌面权限要求。
+
+**示例**
+
+在 OpenDesk Runtime 中运行，无外部输入前置条件：
+
+```js
+console.log(ImageColor.toRGBA('#ff0000'));
+// rgba(255,0,0,1.000000)
+```
+
+## ImageColor.toHSL(color)
+
+将六位十六进制 RGB 颜色转换为 HSL 字符串。
+
+**签名**
+
+```ts
+ImageColor.toHSL(color: string): string;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `color` | string | 是 | 无 | 六位 hex，允许一个前导 `#`，如 `#ff0000` 或 `FF0000`。 |
+
+**返回值**
+
+同步返回 `hsl(h,s%,l%)` 格式字符串，无空格。H 为角度，通常在 0..360；S、L 为 0..100 百分数。灰色 H、S 为 0；黑色 L 为 0、白色 L 为 100。H/S/L 保留六位小数。
+
+**行为与错误**
+
+- 大小写 hex 均可；不修剪空白。不支持三位/八位 hex、颜色名称、`rgb()`、`rgba()`、`hsl()` 或 `hsla()` 输入，也不提供这些格式之间的通用互转。
+- 去掉一个可选 `#` 后长度必须为 6，否则同步抛出含 `invalid hex color length` 的错误；长度为 6 但包含非 hex 字符时同步抛解析错误。失败不返回空字符串。
+- 纯数据同步计算，不访问文件、屏幕、网络或模型，无桌面权限要求。
+
+**示例**
+
+在 OpenDesk Runtime 中运行，无外部输入前置条件：
+
+```js
+console.log(ImageColor.toHSL('#ff0000'));
+// hsl(0.000000,100.000000%,50.000000%)
+```
+
+## ImageColor.toHSLA(color)
+
+将六位十六进制 RGB 颜色转换为 HSLA 字符串。
+
+**签名**
+
+```ts
+ImageColor.toHSLA(color: string): string;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `color` | string | 是 | 无 | 六位 hex，允许一个前导 `#`，如 `#ff0000` 或 `FF0000`。 |
+
+**返回值**
+
+同步返回 `hsla(h,s%,l%,a)` 格式字符串，无空格。H 为角度，通常在 0..360；S、L 为 0..100 百分数。灰色 H、S 为 0；黑色 L 为 0、白色 L 为 100。H/S/L 保留六位小数。 Alpha 固定为 `1.000000`，不读取输入 Alpha。
+
+**行为与错误**
+
+- 大小写 hex 均可；不修剪空白。不支持三位/八位 hex、颜色名称、`rgb()`、`rgba()`、`hsl()` 或 `hsla()` 输入，也不提供这些格式之间的通用互转。
+- 去掉一个可选 `#` 后长度必须为 6，否则同步抛出含 `invalid hex color length` 的错误；长度为 6 但包含非 hex 字符时同步抛解析错误。失败不返回空字符串。
+- 纯数据同步计算，不访问文件、屏幕、网络或模型，无桌面权限要求。
+
+**示例**
+
+在 OpenDesk Runtime 中运行，无外部输入前置条件：
+
+```js
+console.log(ImageColor.toHSLA('#ff0000'));
+// hsla(0.000000,100.000000%,50.000000%,1.000000)
+```
 
 ## ImageColor.isColorSimilar(target, gradient, tolerance)
 
-用于比较目标色是否与给定渐变/颜色集合相似。
+比较两个六位 hex 颜色字符串，不接受渐变或颜色数组。
 
-默认 tolerance 在未正确传值时会采用当前实现的默认值。
+`tolerance` 省略、非正或大于 1 时使用 `0.85`；结果中的 `data` 为 `similarity >= tolerance`。无效颜色会抛错。
 
 ## ImageColor.analyzeLayout(image, options?)
 
@@ -578,12 +849,15 @@ console.log(layout);
 | `options.minSeparatorScore` / `maxSeparatorCandidates` | number | 可选；分隔线筛选阈值与候选数。 |
 | `options.minSeparatorSpanRatio` | number | 可选；候选在目标轴上的最小连续支撑覆盖率，范围 `0..1`，默认 `0.30`；设为 `0` 可关闭此过滤用于基线对照。 |
 | `options.separatorThresholdMode` | `adaptive` / `fixed` | 可选；默认 `adaptive`，根据当前区域候选 score 分布提高实际阈值；`fixed` 始终使用 `minSeparatorScore`，用于确定性基线或显式固定策略。 |
-| `options.profile` | string | 可选；分析预设名称。 |
+| `options.profile` | string | 可选兼容字段；当前通用布局核心忽略其值，不应用分析预设。非空（去掉首尾空白后）时在 `warnings` 中返回忽略提示。 |
 | `options.cellColorMode` | `mean` / `median` / `trimmed` / `dominant` | 可选；网格颜色统计方式。 |
 | `options.boundarySpanWidth` | number | 可选；边界判断宽度。 |
 | `options.separatorHints` | object | 可选；`vertical` / `horizontal` 各为 `{label?,from,to}[]`，用于提供分隔线提示。 |
 
 返回 `Record<string, unknown>`；结果形状会随图像内容变化，调用方应检查字段存在性，不应把它当作稳定的 DOM 结构。
+
+`profile` 不改变网格、区域或分隔线结果；省略或传空白字符串时不产生该兼容 warning。
+需要提供布局先验时，应显式传 `separatorHints`，不要依赖 `profile` 名称隐式加载配置。
 
 `debug.thresholds[]` 会按递归区域和方向记录 `mean`、`stdDev`、`percentile75`、`adaptiveThreshold` 与最终 `appliedThreshold`。即使选择 `fixed`，仍保留 adaptive 对照值，便于解释两种策略的差异。
 

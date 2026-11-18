@@ -31,9 +31,9 @@ static const CGFloat CDToolbarVerticalPadding = 8.0;
 static const CGFloat CDToolbarMinOuterWidth = 60.0;
 static const CGFloat CDToolbarMaxOuterWidth = 960.0;
 static const NSUInteger CDToolbarMaxColumns = 19;
-static const NSUInteger CDToolbarMaxVerticalButtons = 5;
+static const NSUInteger CDToolbarMaxVerticalButtons = 81;
 static const NSUInteger CDToolbarMaxItems = 63;
-static const NSUInteger CDToolbarMaxVerticalItems = 9;
+static const NSUInteger CDToolbarMaxVerticalItems = 161;
 static const NSUInteger CDToolbarMaxImageBytes = 512 * 1024;
 static const NSUInteger CDToolbarMaxTotalImageBytes = 4 * 1024 * 1024;
 static const NSUInteger CDToolbarMaxImageDimension = 1024;
@@ -486,7 +486,7 @@ static NSScreen *CDToolbarTooltipScreen(NSRect anchor) {
 	self.badgeLabel.stringValue = self.badgeText;
 	[self layoutBadge];
 	self.badgeLabel.hidden = !self.badgeText.length || self.toolbarBusy;
-	if (self.toolbarBusy && !self.buttonText.length) {
+	if (self.toolbarBusy) {
 		self.busyIndicator.hidden = NO;
 		[self.busyIndicator startAnimation:nil];
 	} else {
@@ -523,9 +523,9 @@ static NSScreen *CDToolbarTooltipScreen(NSRect anchor) {
 		NSBezierPath *focus = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds, 2, 2) xRadius:6 yRadius:6];
 		[NSColor.keyboardFocusIndicatorColor setStroke]; focus.lineWidth = 2; [focus stroke];
 	}
-	if (self.toolbarBusy && !self.buttonText.length) return;
+	if (self.toolbarBusy) return;
 	if (self.buttonText.length) {
-		NSString *text = self.toolbarBusy ? @"稍候" : self.buttonText;
+		NSString *text = self.buttonText;
 		NSFont *font = [NSFont systemFontOfSize:13 weight:NSFontWeightRegular];
 		NSColor *color = self.toolbarDisabled ? CDToolbarColor(0.56, 0.60, 0.67) : NSColor.whiteColor;
 		NSDictionary *attributes = @{NSFontAttributeName:font, NSForegroundColorAttributeName:color};
@@ -1633,7 +1633,7 @@ static NSDictionary *CDToolbarLayoutForSpec(NSDictionary *spec, NSString **messa
 	return @{
 		@"id": button.targetID, @"label": button.semanticLabel ?: @"", @"icon": button.iconName ?: @"", @"badge": button.badgeText ?: @"",
 		@"text": button.buttonText ?: @"", @"state": state,
-		@"renderedText": button.toolbarBusy && button.buttonText.length ? @"稍候" : (button.buttonText ?: @""), @"tooltip": button.semanticLabel ?: @"",
+		@"renderedText": button.toolbarBusy ? @"" : (button.buttonText ?: @""), @"tooltip": button.semanticLabel ?: @"",
 		@"tooltipVisible": @(button.tooltipPanel.visible),
 		@"iconPresentation": button.iconPresentation ?: @{},
 		@"accessibilityName": button.accessibilityLabel ?: @"",

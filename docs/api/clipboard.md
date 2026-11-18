@@ -1,4 +1,5 @@
 ---
+docType: reference
 title: Clipboard API
 description: OpenDesk JavaScript Runtime 的文本与富格式系统剪贴板 API。
 order: 170
@@ -45,14 +46,17 @@ order: 170
 
 ### Rich payload limits
 
-| 限制 | 最大值 |
-| --- | ---: |
-| 单次聚合读写 | 16 MiB |
-| 单个 `text` / `html` | 4 MiB |
-| 文件数量 | 256 |
-| 单个路径 | 4096 bytes |
+| 操作 | 限制 | 最大值 |
+| --- | --- | ---: |
+| `read()` | 本次实际读取正文的聚合字节数，由 `maxBytes` 指定 | 默认 16 MiB，可设为 `1..16777216` 的整数 |
+| `write()` | 本次全部 representation 的聚合字节数 | 16 MiB |
+| `write()` | 单个 `text` / `html` | 4 MiB |
+| `write()` | 文件数量 | 256 |
+| `write()` | 单个路径 | 4096 bytes |
 
-RTF / PNG 按 base64 解码后的原始 bytes 计数；text / HTML / path 按 UTF-8 bytes 计数。PNG 校验签名和可解码 header；RTF 必须有 RTF header。
+RTF / PNG 按 base64 解码后的原始 bytes 计数；text / HTML / path 按 UTF-8 bytes 计数。读取的聚合计数只包含请求且存在的正文，不包含格式元数据或 base64 编码膨胀。`read()` 不应用写入侧的单个 text/HTML、文件数量和单路径限制，也不执行写入侧的 PNG / RTF 校验；读取结果不保证能直接通过 `write()` 校验。
+
+`write()` 在写入前校验 PNG 签名和可解码 header，RTF 必须有 RTF header；文件路径必须是存在的、规范化绝对路径。
 
 ## clipboard.copy(text)
 
@@ -160,7 +164,7 @@ clipboard.read(
 | --- | --- | --- | --- | --- |
 | `options` | `OpenDeskClipboardReadOptions` | 否 | `{}` | 富格式读取选项。 |
 | `options.formats` | `string[]` | 否 | 全部可识别格式 | 要读取正文的 canonical formats；空数组只读元数据。 |
-| `options.maxBytes` | `number` | 否 | backend 默认 | 本次读取总字节上限。 |
+| `options.maxBytes` | `number` | 否 | `16777216`（16 MiB） | 本次实际读取正文的聚合字节上限；必须是 `1..16777216` 的整数。 |
 
 **返回值**
 
@@ -168,7 +172,7 @@ clipboard.read(
 
 **行为与错误**
 
-Runtime 在读取前后核对 `changeCount`；剪贴板变化时自动重试一次，仍无法得到一致 snapshot 时抛 `CLIPBOARD_CHANGED`。`formats: []` 不读取正文，只返回元数据。恢复操作者剪贴板前应检查 `unsupportedNativeFormats`，非空时当前 API 不能保证无损恢复这些私有格式。
+Runtime 在读取前后核对 `changeCount`；剪贴板变化时自动重试一次，仍无法得到一致 snapshot 时抛 `CLIPBOARD_CHANGED`。`formats: []` 不读取正文，只返回元数据。正文聚合字节数超过 `maxBytes` 时抛 `PAYLOAD_TOO_LARGE`；读取不应用写入侧的细分限制，见 [Rich payload limits](#rich-payload-limits)。恢复操作者剪贴板前应检查 `unsupportedNativeFormats`，非空时当前 API 不能保证无损恢复这些私有格式。
 
 **示例**
 
@@ -211,7 +215,7 @@ clipboard.write(
 
 **行为与错误**
 
-Runtime 逐项读取并验证本次请求的 representation；只写入 format 标识但正文不一致时抛 `VERIFICATION_FAILED`。复制 HTML 时建议同时提供纯文本 fallback。未知格式、超限 payload 或 backend 不支持时明确抛错，不 silent ignore。
+Runtime 先按 [Rich payload limits](#rich-payload-limits) 的写入限制校验 payload，再写入并逐项读取验证本次请求的 representation；只写入 format 标识但正文不一致时抛 `VERIFICATION_FAILED`。复制 HTML 时建议同时提供纯文本 fallback。未知格式、超限 payload 或 backend 不支持时明确抛错，不 silent ignore。
 
 **示例**
 
@@ -271,7 +275,7 @@ clipboard.getCapabilities(): OpenDeskClipboardCapabilities;
 
 **行为与错误**
 
-不读取剪贴板正文。富格式 capability 不改变其他平台上稳定文本 `copy()` / `paste()` 的合同。
+不读取剪贴板正文。`limits.maxPayloadBytes` 是聚合上限；`maxTextBytes`、`maxFiles`、`maxPathBytes` 描述写入校验，不是读取侧逐项限制。富格式 capability 不改变其他平台上稳定文本 `copy()` / `paste()` 的合同。
 
 **示例**
 

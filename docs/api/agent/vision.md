@@ -35,17 +35,17 @@ docType: index
 
 | 精确方法；主要输入 → 输出（签名） | 解决的问题 | 副作用；适用限制 | 契约获取 |
 | --- | --- | --- | --- |
-| `ImageColor.analyzeLayout(image: string, options?: OpenDeskLayoutAnalyzeOptions): Record<string, unknown>;` | 对本地图像或 base64 图像做纯图像布局分析，返回区域、分隔线和层级信息。它不调用 OCR，也不操作桌面；需要文本语义时与 `Vision.runOCR()` 或 `…（摘要） | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [ImageColor.analyzeLayout](../image-color.md#imagecoloranalyzelayoutimage-options)；`read image-color ImageColor.analyzeLayout` |
+| `ImageColor.analyzeLayout(image: string, options?: OpenDeskLayoutAnalyzeOptions): Record<string, unknown>;` | 纯图像布局分析 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [ImageColor.analyzeLayout](../image-color.md#imagecoloranalyzelayoutimage-options)；`read image-color ImageColor.analyzeLayout` |
 | `ImageColor.clip(image: string, options?: OpenDeskImageCropOptions): string;` | 裁剪图片 | 依选项：采集/生成文件或资源；继承本节限制 | [ImageColor.clip](../image-color.md#imagecolorclipimage-options)；`read image-color ImageColor.clip` |
 | `ImageColor.diff(actualImage: string, expectedImage: string, options?: OpenDeskImageDiffOptions): OpenDeskImageDiffResult;` | 确定性比较两张同尺寸图像 | 需核对正文；不能假定无副作用；继承本节限制 | [ImageColor.diff](../image-color.md#imagecolordiffactualimage-expectedimage-options)；`read image-color ImageColor.diff` |
-| `ImageColor.findBlueChannel(image: string, x: number, y: number, width?: number, height?: number): string;` | 蓝色通道筛选 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [ImageColor.findBlueChannel](../image-color.md)；`read image-color ImageColor.findBlueChannel` **正文缺口：禁止据类型直接生成调用** |
+| `ImageColor.findBlueChannel(image: string, x: number, y: number, width?: number, height?: number): string;` | 蓝色通道筛选 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [ImageColor.findBlueChannel](../image-color.md#imagecolorfindbluechannelimage-x-y-width-height)；`read image-color ImageColor.findBlueChannel` |
 | `ImageColor.findColor(image: string, color: string, options?: OpenDeskFindColorOptions): string;` | 查找颜色 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [ImageColor.findColor](../image-color.md#imagecolorfindcolorimage-color-options)；`read image-color ImageColor.findColor` |
 | `ImageColor.findColorBlocks(image: string, color: string, options?: OpenDeskFindColorOptions): OpenDeskColorBlock[];` | 查找同色块 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [ImageColor.findColorBlocks](../image-color.md#imagecolorfindcolorblocksimage-color-options)；`read image-color ImageColor.findColorBlocks` |
-| `ImageColor.findGreenChannel(image: string, x: number, y: number, width?: number, height?: number): string;` | 绿色通道筛选 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [ImageColor.findGreenChannel](../image-color.md)；`read image-color ImageColor.findGreenChannel` **正文缺口：禁止据类型直接生成调用** |
+| `ImageColor.findGreenChannel(image: string, x: number, y: number, width?: number, height?: number): string;` | 绿色通道筛选 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [ImageColor.findGreenChannel](../image-color.md#imagecolorfindgreenchannelimage-x-y-width-height)；`read image-color ImageColor.findGreenChannel` |
 | `ImageColor.findImage(sourceImage: string, templateImage: OpenDeskImageTemplate, options?: OpenDeskFindImageOptions): OpenDeskFindImageResult;` | 找到单个最高置信度模板目标 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [ImageColor.findImage](../image-color.md#imagecolorfindimagesource-template-options)；`read image-color ImageColor.findImage` |
 | `ImageColor.findImages(sourceImage: string, templateImage: string, options?: OpenDeskFindImagesOptions): OpenDeskFindImageResult[];` | 找到多个去重后的同模板目标 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [ImageColor.findImages](../image-color.md#imagecolorfindimagessource-template-options)；`read image-color ImageColor.findImages` |
 | `ImageColor.findPos(sourceImage: string, templateImage: string, threshold?: number): OpenDeskTemplateMatchResult;` | 兼容的旧单目标模板匹配入口 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [ImageColor.findPos](../image-color.md#imagecolorfindpossource-template-threshold)；`read image-color ImageColor.findPos` |
-| `ImageColor.findRedChannel(image: string, x: number, y: number, width?: number, height?: number): string;` | 红色通道筛选 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [ImageColor.findRedChannel](../image-color.md)；`read image-color ImageColor.findRedChannel` **正文缺口：禁止据类型直接生成调用** |
+| `ImageColor.findRedChannel(image: string, x: number, y: number, width?: number, height?: number): string;` | 红色通道筛选 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [ImageColor.findRedChannel](../image-color.md#imagecolorfindredchannelimage-x-y-width-height)；`read image-color ImageColor.findRedChannel` |
 | `ImageColor.getSize(image: string): [number, number] \| null;` | 获取宽高 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [ImageColor.getSize](../image-color.md#imagecolorgetsizeimage)；`read image-color ImageColor.getSize` |
 | `ImageColor.hasColor(image: string, color: string, x: number, y: number, width?: number, height?: number, threshold?: number): boolean;` | 区域是否包含颜色 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [ImageColor.hasColor](../image-color.md#imagecolorhascolor)；`read image-color ImageColor.hasColor` |
 | `ImageColor.isColorSimilar(targetColor: string, compareColor: string, tolerance?: number): OpenDeskColorSimilarityResult;` | 颜色相似判断 | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [ImageColor.isColorSimilar](../image-color.md#imagecoloriscolorsimilartarget-gradient-tolerance)；`read image-color ImageColor.isColorSimilar` |
@@ -54,10 +54,10 @@ docType: index
 | `ImageColor.pixel(image: string, x: number, y: number): string;` | 读取图像像素 | 需核对正文；不能假定无副作用；继承本节限制 | [ImageColor.pixel](../image-color.md#imagecolorpixelimage-x-y)；`read image-color ImageColor.pixel` |
 | `ImageColor.resize(image: string, width: number, height: number): string;` | 缩放图片 | 依选项：采集/生成文件或资源；继承本节限制 | [ImageColor.resize](../image-color.md#imagecolorresizeimage-width-height)；`read image-color ImageColor.resize` |
 | `ImageColor.save(image: string, path: string, format?: "png" \| "jpeg" \| "jpg" \| string, quality?: number): boolean;` | 保存图片 | 依选项：采集/生成文件或资源；继承本节限制 | [ImageColor.save](../image-color.md#imagecolorsaveimage-path-format-quality)；`read image-color ImageColor.save` |
-| `ImageColor.toHSL(color: string): string;` | ImageColor.toHSL；所属能力：ImageColor | 需核对正文；不能假定无副作用；继承本节限制 | [ImageColor.toHSL](../image-color.md)；`read image-color ImageColor.toHSL` **正文缺口：禁止据类型直接生成调用** |
-| `ImageColor.toHSLA(color: string): string;` | ImageColor.toHSLA；所属能力：ImageColor | 需核对正文；不能假定无副作用；继承本节限制 | [ImageColor.toHSLA](../image-color.md)；`read image-color ImageColor.toHSLA` **正文缺口：禁止据类型直接生成调用** |
-| `ImageColor.toRGB(color: string): string;` | 颜色格式转换 | 需核对正文；不能假定无副作用；继承本节限制 | [ImageColor.toRGB](../image-color.md)；`read image-color ImageColor.toRGB` **正文缺口：禁止据类型直接生成调用** |
-| `ImageColor.toRGBA(color: string): string;` | ImageColor.toRGBA；所属能力：ImageColor | 需核对正文；不能假定无副作用；继承本节限制 | [ImageColor.toRGBA](../image-color.md)；`read image-color ImageColor.toRGBA` **正文缺口：禁止据类型直接生成调用** |
+| `ImageColor.toHSL(color: string): string;` | 六位 hex 转 HSL 字符串 | 需核对正文；不能假定无副作用；继承本节限制 | [ImageColor.toHSL](../image-color.md#imagecolortohslcolor)；`read image-color ImageColor.toHSL` |
+| `ImageColor.toHSLA(color: string): string;` | 六位 hex 转 HSLA 字符串 | 需核对正文；不能假定无副作用；继承本节限制 | [ImageColor.toHSLA](../image-color.md#imagecolortohslacolor)；`read image-color ImageColor.toHSLA` |
+| `ImageColor.toRGB(color: string): string;` | 六位 hex 转 RGB 字符串 | 需核对正文；不能假定无副作用；继承本节限制 | [ImageColor.toRGB](../image-color.md#imagecolortorgbcolor)；`read image-color ImageColor.toRGB` |
+| `ImageColor.toRGBA(color: string): string;` | 六位 hex 转 RGBA 字符串 | 需核对正文；不能假定无副作用；继承本节限制 | [ImageColor.toRGBA](../image-color.md#imagecolortorgbacolor)；`read image-color ImageColor.toRGBA` |
 
 
 ## Screen
@@ -91,14 +91,14 @@ docType: index
 维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
 
 
-- `docs/api/vision.md` SHA-256 `5a880ab71d2e5a76200562e6bec7cb6a5dc577f62bf15f6d4b60772294b3b9a7`
+- `docs/api/vision.md` SHA-256 `2610e6cfa7731eec883a55dc3951a833b70accc5e1c80c029f812a5968acf26f`
 
 - `types/Vision.d.ts` SHA-256 `b218b4064c58f284a6f4dca16cd121689eda483a633380fb5e87e860dad53031`
 
-- `docs/api/image-color.md` SHA-256 `c42c2124f44ea1b9eafb5c45308c96d7f69ac074b0926f30217e49c7f9bce632`
+- `docs/api/image-color.md` SHA-256 `184858decef3b7ca2fc885f310e14ec12898fb599451a12f1f78f31b315166d9`
 
-- `types/ImageColor.d.ts` SHA-256 `976a097d32ba73371f5e4e3fd87b36577129d574f5f62319c5c6df917d3459f1`
+- `types/ImageColor.d.ts` SHA-256 `af07cb527b3b94805482e721af7755802e17c162bcbe131abc80d395f9966496`
 
-- `docs/api/screen.md` SHA-256 `fd86be0f53cad025c4c9c4bba250220e22f0374e185c0385445b09b255d8cbde`
+- `docs/api/screen.md` SHA-256 `25b4a3a9e272526f413cb88bd43e038d3317d1dc7bafcf57915976f27205d31d`
 
-- `types/Screen.d.ts` SHA-256 `1ba0f1bee4d46d723c0bd0efd501ad044900d0f909347a640c118fa3dcc945eb`
+- `types/Screen.d.ts` SHA-256 `6f870d2f7aed34484970a9734bdd18be84cdfd79ecff87538bca9a9ae734d305`

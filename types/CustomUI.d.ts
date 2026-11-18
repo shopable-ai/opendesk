@@ -19,6 +19,18 @@ declare global {
     height: number;
   }
 
+  type ClawdeskUIHorizontalPlacement = "left" | "center" | "right";
+  type ClawdeskUIVerticalPlacement = "top" | "center" | "bottom";
+  type ClawdeskUIInitialPlacementDisplay = "active" | "primary";
+
+  interface ClawdeskUIError extends Error {
+    code: string;
+    operation: string;
+    windowId: string;
+    targetId: string;
+    capability: string;
+  }
+
   interface ClawdeskUIWindowPlacement {
     horizontal: string;
     vertical: string;
@@ -71,17 +83,17 @@ declare global {
     content: ClawdeskUIContentSpec;
   }
 
-  type TrustedJSON = null | boolean | number | string | TrustedJSON[] | { [key: string]: TrustedJSON };
-  interface TrustedWindowSpec {
+  type ClawdeskUITrustedJSON = null | boolean | number | string | ClawdeskUITrustedJSON[] | { [key: string]: ClawdeskUITrustedJSON };
+  interface ClawdeskUITrustedWindowSpec {
     id: string;
     kind?: "normal" | "floating";
     title?: string;
     position: ClawdeskUIInitialPosition;
     content: { file: string; basePath?: string; sha256: string };
   }
-  interface TrustedWindowHandle extends ClawdeskUIWindowHandle {
+  interface ClawdeskUITrustedWindowHandle extends ClawdeskUIWindowHandle {
     /** Data only: UTF-8 JSON <=64 KiB, depth <=32, <=4096 values. */
-    postMessage(value: TrustedJSON): Promise<void>;
+    postMessage(value: ClawdeskUITrustedJSON): Promise<void>;
   }
 
   interface ClawdeskUIControlDescriptor {
@@ -236,7 +248,7 @@ declare global {
     readonly id: string;
     getState(): Promise<ClawdeskUIControlState>;
     update(patch: ClawdeskUIControlPatch): Promise<ClawdeskUIControlState>;
-    on(type: EventType | "*", listener: (event: UIEvent) => void | Promise<void>): () => void;
+    on(type: ClawdeskUIEventSelector, listener: ClawdeskUIEventListener): ClawdeskUIUnsubscribe;
   }
 
   interface ClawdeskUIWindowHandle {
@@ -255,7 +267,7 @@ declare global {
     setDraggable(enabled: boolean): Promise<ClawdeskUIWindowState>;
     waitUntilClosed(): Promise<ClawdeskUIWindowState>;
     control(id: string): ClawdeskUIControlHandle;
-    on(type: EventType | "*", listener: (event: UIEvent) => void | Promise<void>): () => void;
+    on(type: ClawdeskUIEventSelector, listener: ClawdeskUIEventListener): ClawdeskUIUnsubscribe;
   }
 
   interface ClawdeskUIToastHandle {
@@ -272,21 +284,24 @@ declare global {
 
   interface ClawdeskUI {
     /** Preferred OpenDesk-owned transient feedback API. */
-    toast(messageOrOptions: string | ToastOptions): Promise<ToastHandle>;
+    toast(messageOrOptions: string | ClawdeskUIToastOptions): Promise<ClawdeskUIToastHandle>;
     /** @deprecated Use toast(). */
-    notify(messageOrOptions: string | NotificationOptions): Promise<NotificationHandle>;
-    getCapabilities(): Capabilities;
-    createWindow(spec: WindowSpec): Promise<WindowHandle>;
+    notify(messageOrOptions: string | ClawdeskUIToastOptions): Promise<ClawdeskUIToastHandle>;
+    getCapabilities(): ClawdeskUICapabilities;
+    createWindow(spec: ClawdeskUIWindowSpec): Promise<ClawdeskUIWindowHandle>;
     /** macOS 11+, local self-contained HTML with required SHA-256. */
-    createTrustedWindow(spec: TrustedWindowSpec): Promise<TrustedWindowHandle>;
+    createTrustedWindow(spec: ClawdeskUITrustedWindowSpec): Promise<ClawdeskUITrustedWindowHandle>;
     closeAll(): Promise<void>;
-    on(type: EventType | "*", listener: (event: UIEvent) => void | Promise<void>): () => void;
+    on(type: ClawdeskUIEventSelector, listener: ClawdeskUIEventListener): ClawdeskUIUnsubscribe;
   }
 
   /** Lowercase ui owns OpenDesk Custom UI. It is distinct from uppercase UI desktop automation. */
   var ui: ClawdeskUI;
 
   // Canonical documentation uses these concise public names.
+  type TrustedJSON = ClawdeskUITrustedJSON;
+  type TrustedWindowSpec = ClawdeskUITrustedWindowSpec;
+  type TrustedWindowHandle = ClawdeskUITrustedWindowHandle;
   type ToastOptions = ClawdeskUIToastOptions;
   type ToastHandle = ClawdeskUIToastHandle;
   type NotificationOptions = ClawdeskUIToastOptions;

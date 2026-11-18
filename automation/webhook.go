@@ -140,6 +140,13 @@ type localWebhookHost struct {
 
 var localWebhookHosts sync.Map // map[*HTTPClient]*localWebhookHost
 
+func existingWebhookHost(h *HTTPClient) *localWebhookHost {
+	if value, ok := localWebhookHosts.Load(h); ok {
+		return value.(*localWebhookHost)
+	}
+	return nil
+}
+
 // registerWebhook installs the private native bridge before polyfills load.
 // The facade captures and removes these methods from http, leaving only
 // Webhook.listen as the public API. Keeping registration explicit makes the
@@ -147,6 +154,12 @@ var localWebhookHosts sync.Map // map[*HTTPClient]*localWebhookHost
 func registerWebhook(httpMethods map[string]interface{}, client *HTTPClient) {
 	if httpMethods == nil || client == nil {
 		return
+	}
+	// Capture the Runtime intrinsic before user code can replace JSON.parse.
+	// Go json.Number must never cross the bridge as a reflected string object.
+	if client.runtime != nil {
+		client.webhookJSON = client.runtime.Get("JSON").ToObject(client.runtime)
+		client.webhookParse, _ = goja.AssertFunction(client.webhookJSON.Get("parse"))
 	}
 	httpMethods["webhookOpen"] = client.WebhookOpen
 	httpMethods["webhookHeaders"] = client.WebhookHeaders
@@ -251,7 +264,10 @@ func (h *HTTPClient) WebhookHeaders(id string) (map[string]string, error) {
 	if err := h.webhookAvailable(); err != nil {
 		return nil, err
 	}
-	host := webhookHostFor(h)
+	host := existingWebhookHost(h)
+	if host == nil {
+		return nil, fmt.Errorf("WEBHOOK_CLOSED: listener is closed")
+	}
 	host.mu.Lock()
 	defer host.mu.Unlock()
 	listener := host.listeners[id]
@@ -271,9 +287,13 @@ func (h *HTTPClient) WebhookNext(id string) (goja.Value, error) {
 	if h == nil || h.runtime == nil || h.loop == nil {
 		return nil, fmt.Errorf("WEBHOOK_UNAVAILABLE: Webhook requires an event-loop-owned Runtime")
 	}
-	host := webhookHostFor(h)
+	host := existingWebhookHost(h)
 	promise, resolve, reject := h.runtime.NewPromise()
 	value := h.runtime.ToValue(promise)
+	if host == nil {
+		_ = reject(h.runtime.NewGoError(fmt.Errorf("WEBHOOK_CLOSED: listener is closed")))
+		return value, nil
+	}
 
 	host.mu.Lock()
 	listener := host.listeners[id]
@@ -310,7 +330,10 @@ func (h *HTTPClient) WebhookRespond(id, requestID string, envelope map[string]in
 	if h == nil || h.runtime == nil || h.loop == nil {
 		return fmt.Errorf("WEBHOOK_UNAVAILABLE: Webhook requires an event-loop-owned Runtime")
 	}
-	host := webhookHostFor(h)
+	host := existingWebhookHost(h)
+	if host == nil {
+		return fmt.Errorf("WEBHOOK_REQUEST_UNKNOWN: listener is closed")
+	}
 
 	host.mu.Lock()
 	listener := host.listeners[id]
@@ -370,7 +393,10 @@ func (h *HTTPClient) WebhookClose(id string) error {
 	if h == nil {
 		return nil
 	}
-	host := webhookHostFor(h)
+	host := existingWebhookHost(h)
+	if host == nil {
+		return nil
+	}
 	host.closeListener(id, "LISTENER_CLOSED_NOT_STARTED")
 	return nil
 }
@@ -426,6 +452,20 @@ func (host *localWebhookHost) watch(generation *webhookServerGeneration) {
 	case <-host.owner.context.Done():
 		host.cancelExecution(generation)
 	case <-generation.stop:
+		// Closing the last listener revokes new calls, but accepted connections
+		// can still be reading a body or completing a handler response. Retain
+		// the worker until they drain; cancellation must close them explicitly.
+		_ = generation.server.Shutdown(host.owner.context)
+		if host.owner.context.Err() != nil {
+			host.cancelExecution(generation)
+		} else {
+			// The listener was already closed by stopGenerationLocked, so a
+			// drained Shutdown can return net.ErrClosed. That is not execution
+			// cancellation and must not revoke a newly opened generation.
+			_ = generation.server.Close()
+		}
+		// Keep the execution's host identity until owner teardown. Removing it
+		// here races a concurrent WebhookOpen that already acquired this host.
 	}
 }
 
@@ -618,9 +658,19 @@ func (host *localWebhookHost) dispatch(id string) {
 		_ = payload.Set("deliveryId", request.deliveryID)
 	}
 	_ = payload.Set("receivedAt", request.receivedAt.UTC().Format(time.RFC3339Nano))
-	_ = payload.Set("body", request.body)
 	_ = payload.Set("canceled", cancelPromise)
 	host.mu.Unlock()
+	encoded, err := json.Marshal(request.body)
+	if err != nil || host.owner.webhookParse == nil {
+		host.failActiveDispatch(id, request, fmt.Errorf("WEBHOOK_BODY_INVALID: JSON decoding unavailable"))
+		return
+	}
+	body, err := host.owner.webhookParse(host.owner.webhookJSON, host.owner.runtime.ToValue(string(encoded)))
+	if err != nil {
+		host.failActiveDispatch(id, request, err)
+		return
+	}
+	_ = payload.Set("body", body)
 
 	if cancelReason != "" {
 		_ = cancelResolve(cancelReason)

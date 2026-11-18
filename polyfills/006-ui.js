@@ -2530,12 +2530,13 @@
       validateTextQuery(query, operation);
       const options = validateOptions(rawOptions, operation, 'text');
       const matcher = compileTextMatcher(query, options, rawOptions, operation);
-      const started = Date.now();
+      const deadline = Date.now() + options.timeout;
       let lastObservation = null;
       let lastError = null;
-      while (Date.now() - started <= options.timeout) {
+      while (Date.now() < deadline) {
         try {
           const found = await discoverTexts(matcher, options, operation);
+          if (Date.now() >= deadline) break;
           lastObservation = { candidateCount: found.candidates.length, candidates: found.candidates };
           const candidate = chooseCandidate(found.candidates, options, operation);
           if (candidate) return candidate;
@@ -2543,8 +2544,9 @@
           if (error && error.code === 'AMBIGUOUS_TARGET') throw error;
           lastError = errorSummary(error);
         }
-        if (Date.now() - started >= options.timeout) break;
-        await delay(options.polling);
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) break;
+        await delay(Math.min(options.polling, remaining));
       }
       fail('TIMEOUT', operation, 'timed out waiting for text to appear', {
         timeout: options.timeout,
@@ -2559,19 +2561,21 @@
       validateTextQuery(query, operation);
       const options = validateOptions(rawOptions, operation, 'text');
       const matcher = compileTextMatcher(query, options, rawOptions, operation);
-      const started = Date.now();
+      const deadline = Date.now() + options.timeout;
       let lastObservation = null;
       let lastError = null;
-      while (Date.now() - started <= options.timeout) {
+      while (Date.now() < deadline) {
         try {
           const found = await discoverTexts(matcher, options, operation);
+          if (Date.now() >= deadline) break;
           lastObservation = { candidateCount: found.candidates.length, candidates: found.candidates };
           if (found.candidates.length === 0) return true;
         } catch (error) {
           lastError = errorSummary(error);
         }
-        if (Date.now() - started >= options.timeout) break;
-        await delay(options.polling);
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) break;
+        await delay(Math.min(options.polling, remaining));
       }
       fail('TIMEOUT', operation, 'timed out waiting for text to disappear', {
         timeout: options.timeout,

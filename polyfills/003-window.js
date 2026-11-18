@@ -104,7 +104,9 @@ const originalActivateWindow = window.activate;
                 pids = group === null ? [] : group.pids;
             }
             // Even an absent application must not hide an enumeration failure.
-            const rows = nativeList.call(facade);
+            const rows = selector && own(selector, 'pid')
+                ? nativeList.call(facade, { pid: selector.pid })
+                : nativeList.call(facade);
             if (!Array.isArray(rows) || rows.some(row => !row || typeof row !== 'object' || Array.isArray(row))) {
                 throw failure('BACKEND_FAILED', operation, 'Window backend did not return a snapshot array');
             }

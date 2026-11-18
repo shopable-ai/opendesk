@@ -319,7 +319,7 @@ const chrome = await window.getWindowByTitle('Google Chrome');
 
 **签名**
 ```ts
-window.focus(title: string): Promise<void>;
+window.focus(title: string): void;
 ```
 
 **参数**
@@ -330,9 +330,11 @@ window.focus(title: string): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步调用并同步抛出错误；`await` 可接收返回值，但不会让 native 调用异步执行。
 
 macOS 可能依赖 Accessibility/System Events；Windows 受 foreground-lock policy 约束。失败不会 silent success。
 
@@ -347,7 +349,7 @@ await window.focus('Safari');
 
 **签名**
 ```ts
-window.setWindowBounds(title: string, x: number, y: number, width: number, height: number): Promise<void>;
+window.setWindowBounds(title: string, x: number, y: number, width: number, height: number): void;
 ```
 
 **参数**
@@ -362,9 +364,11 @@ window.setWindowBounds(title: string, x: number, y: number, width: number, heigh
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步调用并同步抛出错误；`await` 可接收返回值，但不会让 native 调用异步执行。
 
 目标不唯一、stale、不支持或 readback/verification 失败时 reject。
 
@@ -379,7 +383,7 @@ await window.setWindowBounds('Safari', 100, 80, 1280, 900);
 
 **签名**
 ```ts
-window.setWidth(title: string, width: number): Promise<void>;
+window.setWidth(title: string, width: number): void;
 ```
 
 **参数**
@@ -391,9 +395,11 @@ window.setWidth(title: string, width: number): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步调用并同步抛出错误；`await` 可接收返回值，但不会让 native 调用异步执行。
 
 保留其他 bounds；平台/目标/参数失败明确 reject。
 
@@ -408,7 +414,7 @@ await window.setWidth('Safari', 1200);
 
 **签名**
 ```ts
-window.setHeight(title: string, height: number): Promise<void>;
+window.setHeight(title: string, height: number): void;
 ```
 
 **参数**
@@ -420,9 +426,11 @@ window.setHeight(title: string, height: number): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步调用并同步抛出错误；`await` 可接收返回值，但不会让 native 调用异步执行。
 
 保留其他 bounds；失败明确 reject。
 
@@ -437,7 +445,7 @@ await window.setHeight('Safari', 900);
 
 **签名**
 ```ts
-window.maximize(title: string): Promise<void>;
+window.maximize(title: string): void;
 ```
 
 **参数**
@@ -448,9 +456,11 @@ window.maximize(title: string): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步调用并同步抛出错误；`await` 可接收返回值，但不会让 native 调用异步执行。
 
 依赖平台窗口 backend；Partial/Unsupported 以 capability 和结构化错误表达。
 
@@ -465,7 +475,7 @@ await window.maximize('Safari');
 
 **签名**
 ```ts
-window.minimize(title: string): Promise<void>;
+window.minimize(title: string): void;
 ```
 
 **参数**
@@ -476,9 +486,11 @@ window.minimize(title: string): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步调用并同步抛出错误；`await` 可接收返回值，但不会让 native 调用异步执行。
 
 目标解析和平台限制与其他 mutation 一致。
 
@@ -493,7 +505,7 @@ await window.minimize('Safari');
 
 **签名**
 ```ts
-window.restore(title: string): Promise<void>;
+window.restore(title: string): void;
 ```
 
 **参数**
@@ -504,9 +516,11 @@ window.restore(title: string): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步调用并同步抛出错误；`await` 可接收返回值，但不会让 native 调用异步执行。
 
 恢复平台支持的最小化/最大化状态；不支持时明确失败。
 
@@ -521,7 +535,7 @@ await window.restore('Safari');
 
 **签名**
 ```ts
-window.restoreByPID(pid: number): Promise<void>;
+window.restoreByPID(pid: number): void;
 ```
 
 **参数**
@@ -532,9 +546,11 @@ window.restoreByPID(pid: number): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步调用并同步抛出错误；`await` 可接收返回值，但不会让 native 调用异步执行。
 
 PID 不存在、平台不支持或 backend 失败时 reject。
 
@@ -549,7 +565,7 @@ await window.restoreByPID(12345);
 
 **签名**
 ```ts
-window.minimizeByPID(pid: number): Promise<void>;
+window.minimizeByPID(pid: number): void;
 ```
 
 **参数**
@@ -560,9 +576,11 @@ window.minimizeByPID(pid: number): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步调用并同步抛出错误；`await` 可接收返回值，但不会让 native 调用异步执行。
 
 不支持/目标不存在明确失败。
 
@@ -577,7 +595,7 @@ await window.minimizeByPID(12345);
 
 **签名**
 ```ts
-window.maximizeByPID(pid: number): Promise<void>;
+window.maximizeByPID(pid: number): void;
 ```
 
 **参数**
@@ -588,9 +606,11 @@ window.maximizeByPID(pid: number): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步调用并同步抛出错误；`await` 可接收返回值，但不会让 native 调用异步执行。
 
 不支持/目标不存在明确失败。
 
@@ -605,7 +625,7 @@ await window.maximizeByPID(12345);
 
 **签名**
 ```ts
-window.closeWindow(title: string): Promise<void>;
+window.closeWindow(title: string): void;
 ```
 
 **参数**
@@ -616,9 +636,11 @@ window.closeWindow(title: string): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步调用并同步抛出错误；`await` 可接收返回值，但不会让 native 调用异步执行。
 
 只提交窗口关闭动作，不保证目标应用业务数据已保存。多匹配/失效/平台失败会 reject。
 
@@ -633,7 +655,7 @@ await window.closeWindow('Untitled - TextEdit');
 
 **签名**
 ```ts
-window.closeActiveWindow(): Promise<void>;
+window.closeActiveWindow(): void;
 ```
 
 **参数**
@@ -642,9 +664,11 @@ window.closeActiveWindow(): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步调用并同步抛出错误；`await` 可接收返回值，但不会让 native 调用异步执行。
 
 活动窗口不可解析或 backend 不支持时 reject。
 
@@ -659,7 +683,7 @@ await window.closeActiveWindow();
 
 **签名**
 ```ts
-window.kill(processId: number): Promise<void>;
+window.kill(processId: number): void;
 ```
 
 **参数**
@@ -670,9 +694,11 @@ window.kill(processId: number): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步调用并同步抛出错误；`await` 可接收返回值，但不会让 native 调用异步执行。
 
 这是强副作用操作，可能造成未保存内容丢失。更完整的应用生命周期优先使用 [App.terminate()](app.md#appterminatetarget-options)。
 
@@ -714,7 +740,7 @@ console.log(window.title());
 
 **签名**
 ```ts
-window.getTitle(selector: string): Promise<string>;
+window.getTitle(selector: string): string;
 ```
 
 **参数**
@@ -725,9 +751,11 @@ window.getTitle(selector: string): Promise<string>;
 
 **返回值**
 
-`Promise<string>`。
+`string`。
 
 **行为与错误**
+
+同步调用并同步抛出错误；`await` 可接收返回值，但不会让 native 调用异步执行。
 
 无法唯一解析时使用窗口结构化错误。
 
@@ -764,11 +792,11 @@ console.log(window.content());
 
 ## window.getContent(selector)
 
-读取指定窗口可访问文本内容。
+同步读取指定窗口可访问的非保护文本内容。
 
 **签名**
 ```ts
-window.getContent(selector: string): Promise<string>;
+window.getContent(selector: string): string;
 ```
 
 **参数**
@@ -779,15 +807,23 @@ window.getContent(selector: string): Promise<string>;
 
 **返回值**
 
-`Promise<string>`。
+`string`。macOS 返回 AX 层级中后代控件的非空名称及字符串/数字/布尔值，按深度优先顺序以换行连接；同一控件中相同的名称和值只输出一次。窗口根标题不作为内容返回，完整但没有文本的层级返回空字符串。
 
 **行为与错误**
 
-目标选择或内容 backend 不可用时 reject。
+目标选择或内容 backend 不可用时抛出错误。
+
+macOS 使用已经解析的单个窗口 PID/native handle，只读观察该窗口的 Accessibility 层级，不聚焦、不输入、不展开菜单、不创建 element ref，也不重新按标题选择替代窗口。读取前后核验同一窗口身份、标题、可执行路径及几何；后代节点在读取文本前后还须证明所属 PID 和 AXWindow。窗口关闭、替换或读取期间移动/改变身份时抛出 `STALE_TARGET`。
+
+固定限制为 2 秒协作式 deadline、最大深度 8（窗口根为 0）、512 个节点（含根）和 65,536 UTF-8 字节返回文本（含换行）。到达限制、层级未完整提供、无法安全观察的菜单或无法证明后代所属窗口时整次抛出错误，不返回部分文本或标题 fallback。内容/完整性超限使用 `BACKEND_FAILED`，超时使用 `TIMEOUT`；已有读取正在清理或执行时，新请求直接抛出 `BACKEND_FAILED`，不排队。
+
+需要已有的 macOS Accessibility 系统权限，不提示授权；权限不足时抛出 `PERMISSION_DENIED`。secure text 节点及其整个子树明确排除在内容范围外：不读取或返回其名称、值或子节点，继续读取其他非保护内容。标准标题栏关闭、最小化、缩放和全屏按钮也按原生 role/subrole 排除整个子树，不查询其文本或子节点；这些窗口管理控件不属于正文。排除不视为快照不完整。其余正文节点仍须证明同一 AXWindow，不能因属性缺失而放宽归属检查。无 cgo backend 时抛出 `NOT_SUPPORTED`。这条窗口专用读取路径不启用或扩大 Runtime `Accessibility` 全局的授权。
+
+上述字节数限制返回文本，不是目标应用或原生 AX provider 的内存上限：现有 backend 会先接收原生属性/子节点数组。deadline 也不能抢占正在返回的原生调用；请求等待该调用及资源释放结束，不遗留脱离请求的 worker。应用未通过 AX 提供的文本（例如图片或未物化内容）不由 OCR、剪贴板或其他窗口补齐。
 
 **示例**
 ```js
-console.log(await window.getContent('Notes'));
+console.log(window.getContent('Notes'));
 ```
 
 ## window.list(target?)
@@ -986,7 +1022,7 @@ console.log(focused);
 
 **签名**
 ```ts
-window.setAlwaysOnTop(title: string, alwaysOnTop: boolean): Promise<void>;
+window.setAlwaysOnTop(title: string, alwaysOnTop: boolean): void;
 ```
 
 **参数**
@@ -998,9 +1034,11 @@ window.setAlwaysOnTop(title: string, alwaysOnTop: boolean): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步调用并同步抛出错误；`await` 可接收返回值，但不会让 native 调用异步执行。
 
 当前 capability 主要在 Windows Stable；不支持平台明确 `NOT_SUPPORTED`。
 
@@ -1015,7 +1053,7 @@ await window.setAlwaysOnTop('Tool', true);
 
 **签名**
 ```ts
-window.unsetTopMost(title: string): Promise<void>;
+window.unsetTopMost(title: string): void;
 ```
 
 **参数**
@@ -1026,9 +1064,11 @@ window.unsetTopMost(title: string): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步调用并同步抛出错误；`await` 可接收返回值，但不会让 native 调用异步执行。
 
 平台不支持时明确失败。
 
@@ -1043,7 +1083,7 @@ await window.unsetTopMost('Tool');
 
 **签名**
 ```ts
-window.bringToTop(title: string, pid?: number): Promise<void>;
+window.bringToTop(title: string, pid?: number): void;
 ```
 
 **参数**
@@ -1055,9 +1095,11 @@ window.bringToTop(title: string, pid?: number): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步调用并同步抛出错误；`await` 可接收返回值，但不会让 native 调用异步执行。
 
 Windows 受 foreground-lock policy 约束，macOS 依赖当前 backend/权限；失败明确 reject。
 

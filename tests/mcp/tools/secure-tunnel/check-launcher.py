@@ -18,7 +18,7 @@ with patch.object(getpass,'getpass',return_value=fake): exec(code,ns)
 assert ns.pop('key')==fake
 functions=compile_nodes([n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name in ('stop','run_client','reap_cancelled','group_alive','redact','load_saved_key','operator_output','open_log')])
 checks=[]
-base={'fcntl':fcntl,'os':os,'signal':signal,'subprocess':subprocess,'sys':sys,'time':time,'queue':queue,'threading':threading,'Path':Path,'stat':stat,'re':re,'key':fake}
+base={'contextlib':contextlib,'fcntl':fcntl,'os':os,'signal':signal,'subprocess':subprocess,'sys':sys,'time':time,'queue':queue,'threading':threading,'Path':Path,'stat':stat,'re':re,'key':fake}
 for where in ('before-entry','starting-state','during-popen'):
     prior=Mock(poll=lambda:0); fresh=Mock(pid=123456,poll=Mock(return_value=None))
     scope={**base,'child':prior,'stop_requested':False,'CLIENT':Path('/dummy-official-client'),'env':{},'REPO':p.parent}
@@ -36,7 +36,7 @@ for where in ('before-entry','starting-state','during-popen'):
         if where=='during-popen': launch.assert_called_once();reaper.assert_called_once_with(fresh)
         else: launch.assert_not_called();reaper.assert_not_called()
     checks.append(where)
-output_root=p.parents[4]/'.runtime/tests/mcp-chatgpt-web/launcher-regression'
+output_root=Path(os.environ.get('OPENDESK_TUNNEL_TEST_ROOT',str(p.parents[4]/'.runtime/tests/mcp-chatgpt-web')))/'launcher-regression'
 output_root.mkdir(parents=True,exist_ok=True)
 output_dir=Path(tempfile.mkdtemp(prefix='run-',dir=output_root))
 with tempfile.TemporaryDirectory(prefix='synthetic-',dir=output_dir) as tmp:
@@ -183,6 +183,40 @@ with tempfile.TemporaryDirectory(prefix='synthetic-',dir=output_dir) as tmp:
     assert mode_checks==['doctor','doctor','online']
     (output_dir/'preflight-regression.json').write_text(json.dumps({'manifestPreflightRejections':preflight_checks,'preflightBeforeKeyRead':True,
         'exclusiveRunLock':'PASS','oneUseMarker':'PASS','doctorOnlineStages':mode_checks,'realKeyUsed':False,'realClientStarted':False},indent=2)+'\n')
+    # Exercise files-mode completion with O_EXCL logging and real persisted
+    # state. Only an owned synthetic Python client is started, never official.
+    files_completion=[]
+    for cancelled in (True,False):
+        files_run=root/('files-cancelled' if cancelled else 'files-completed');files_run.mkdir(mode=0o700)
+        fixture_client=Path(sys.executable)
+        run_scope={**base,'hashlib':hashlib,'json':json,'child':None,'stop_requested':False,
+                   'CLIENT':fixture_client,'FILES_MODE':True,
+                   'FILES_PINS':{str(fixture_client):hashlib.sha256(fixture_client.read_bytes()).hexdigest()},
+                   'env':{},'REPO':root,'RUN':files_run}
+        exec(functions,run_scope)
+        exec(compile_nodes([n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='state']),run_scope)
+        original_reaper=run_scope['reap_cancelled']
+        run_scope['reap_cancelled']=lambda process,fn=original_reaper:fn(process,grace=(0.3,0.3,2))
+        payload='SYNTHETIC_PRIVATE_PAYLOAD_DO_NOT_LOG'
+        program='import time;print('+repr(payload+' '+fake)+',flush=True)'+(';time.sleep(60)' if cancelled else '')
+        opened_log=run_scope['open_log']
+        run_scope['open_log']=Mock(wraps=opened_log)
+        with contextlib.redirect_stdout(io.StringIO()) as captured:
+            started=time.monotonic()
+            result=run_scope['run_client']('online',['-c',program],0.25 if cancelled else 5)
+            assert time.monotonic()-started<5
+            run_scope['open_log'].assert_called_once_with('online')
+        assert result==(130 if cancelled else 0)
+        assert not run_scope['group_alive'](run_scope['child'])
+        fields=json.loads((files_run/'launcher-state.json').read_text())
+        assert fields['stage']=='online' and fields['status']=='stopped'
+        assert fields['cancelled']==cancelled
+        assert fields['exit_code']==run_scope['child'].returncode
+        log=files_run/'online.redacted.log';text=log.read_text()
+        assert log.stat().st_mode&0o777==0o600
+        assert text==json.dumps({'stage':'online','code':'OK' if fields['exit_code']==0 else 'E_CLIENT_STOPPED'})+'\n'
+        assert payload not in text+captured.getvalue() and fake not in text+captured.getvalue()
+        files_completion.append('cancelled' if cancelled else 'completed')
     setup_failures=[]
     for failure in ('running-state-write','reader-thread-start'):
         run_scope={**base,'child':None,'stop_requested':False,'CLIENT':Path(sys.executable),'env':{},'REPO':root,'RUN':root,'state':lambda **kw:None}
@@ -310,7 +344,7 @@ with tempfile.TemporaryDirectory(prefix='synthetic-',dir=output_dir) as tmp:
     # External supervisor intentionally never reads the launcher's stdout until
     # after SIGINT and exit: this exercises an actual saturated OS pipe.
     external=root/'saturated-launcher.py'
-    external.write_text("import ast,fcntl,json,os,queue,re,signal,stat,subprocess,sys,threading,time\nfrom pathlib import Path\n"+
+    external.write_text("import ast,fcntl,json,os,queue,re,signal,stat,subprocess,sys,threading,time\nfrom pathlib import Path\nimport contextlib\n"+
         "tree=ast.parse(Path("+repr(str(p))+ ").read_text())\n"+
         "names="+repr(['stop','run_client','reap_cancelled','group_alive','redact','operator_output','open_log'])+"\n"+
         "exec(compile(ast.Module(body=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name in names],type_ignores=[]),'<launcher-functions>','exec'))\n"+
@@ -349,5 +383,5 @@ with tempfile.TemporaryDirectory(prefix='synthetic-',dir=output_dir) as tmp:
             try:os.killpg(owned_pid,signal.SIGKILL)
             except ProcessLookupError:pass
         external_child.stdout.close();external_child.stderr.close()
-result={'externalStdoutSaturationCancellation':'PASS','lateOnlineLogCreationRejected':log_races,'doctorSafeAppend':'PASS','deniedKillpgCleanup':'EXPLICIT_CLEANUP_FAILED_WITHOUT_HANG','echoControlFailure':'ABORTED_BEFORE_RAW_INPUT','fallbackReadCalls':0,'realKeyUsed':False,'realClientStarted':False,'cancelWindowsCovered':checks,'savedKeyRejections':rejected,'profileModes':profile_checks,'redaction':'PASS','realSyntheticProcessLifecycle':lifecycle,'setupFailuresCleaned':setup_failures,'oversizedOutput':'ABORTED_WITHOUT_LOGGING_CONTENT','queuePressureMaximum':max(peak),'ownedSyntheticGroupsAbsent':True,'manifestPreflightRejections':preflight_checks,'preflightBeforeKeyRead':True,'exclusiveRunLock':'PASS','oneUseMarker':'PASS','doctorOnlineStages':mode_checks}
+result={'filesOnlineCompletion':files_completion,'externalStdoutSaturationCancellation':'PASS','lateOnlineLogCreationRejected':log_races,'doctorSafeAppend':'PASS','deniedKillpgCleanup':'EXPLICIT_CLEANUP_FAILED_WITHOUT_HANG','echoControlFailure':'ABORTED_BEFORE_RAW_INPUT','fallbackReadCalls':0,'realKeyUsed':False,'realClientStarted':False,'cancelWindowsCovered':checks,'savedKeyRejections':rejected,'profileModes':profile_checks,'redaction':'PASS','realSyntheticProcessLifecycle':lifecycle,'setupFailuresCleaned':setup_failures,'oversizedOutput':'ABORTED_WITHOUT_LOGGING_CONTENT','queuePressureMaximum':max(peak),'ownedSyntheticGroupsAbsent':True,'manifestPreflightRejections':preflight_checks,'preflightBeforeKeyRead':True,'exclusiveRunLock':'PASS','oneUseMarker':'PASS','doctorOnlineStages':mode_checks}
 (output_dir/'launcher-input-regression.json').write_text(json.dumps(result,indent=2)+'\n');print(json.dumps({**result,'evidenceDirectory':str(output_dir)}))

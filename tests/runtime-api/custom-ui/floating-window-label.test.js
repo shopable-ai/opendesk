@@ -127,10 +127,11 @@
     await helper.expectUIError(() => invalidPatch.updateLabel('status', { verticalAlignment: 'baseline' }), 'INVALID_SPEC', 'FloatingWindow.updateLabel');
 
     const verticalMaximum = new FloatingWindow({ orientation: 'vertical' });
-    for (let index = 0; index < 5; index += 1) verticalMaximum.addLabel('label' + index, 'Label ' + index);
+    for (let index = 0; index < 81; index += 1) verticalMaximum.addLabel('label' + index, 'Label ' + index);
     const overflow = await helper.expectUIError(
-      () => verticalMaximum.addLabel('label5', 'Label 5'), 'INVALID_SPEC', 'FloatingWindow.addLabel');
+      () => verticalMaximum.addLabel('label81', 'Label 81'), 'INVALID_SPEC', 'FloatingWindow.addLabel');
     equal(overflow.capability, 'label');
+    equal(overflow.targetId, 'label81', '82nd vertical label did not hit the content limit');
 
     helper.evidence.labels = {
       declared, shown, centered: centeredLabel, topAligned, updated: label,
@@ -140,7 +141,7 @@
       nativeHorizontalCenter: true, nativeVerticalAlignment: true,
       labelOnly: true, accessibility: {
         role: label.accessibilityRole, name: label.accessibilityName, value: label.accessibilityValue,
-      }, verticalContentLimit: 5,
+      }, verticalContentLimit: 81,
     };
     helper.persist();
   });

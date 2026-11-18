@@ -480,6 +480,13 @@ No tray menu, Permission Center JavaScript, CLI command or recipe helper may ind
 
 ## Implementation boundary
 
+macOS source builds use the pinned certificate workflow in
+[macOS development signing](../development/macos-signing.md). Certificate continuity
+and TCC consent are separate checks: a changed B must satisfy A's designated
+requirement, then the actual App owner must separately prove each granted capability.
+An initial ad-hoc-to-certificate migration may need user consent once; routine builds
+must not reset TCC, cache a grant, or silently fall back to ad-hoc signing.
+
 The implemented P0 permission source of truth remains `automation/permissions*.go`.
 
 Effective capability/readiness should be added as a small runtime-owned companion layer rather than expanding `PermissionStatus` to contain unrelated states. A reasonable code split is:

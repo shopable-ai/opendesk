@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """One-run operator launcher. Never stores or prints the runtime key."""
 import atexit
+import contextlib
 import fcntl
 import getpass
 import argparse
@@ -11,6 +12,7 @@ from pathlib import Path
 import queue
 import re
 import signal
+import shlex
 import stat
 import subprocess
 import sys
@@ -88,7 +90,7 @@ def check_fresh_run(run):
         path = run / name
         if path.exists() or path.is_symlink():
             sys.exit('Prepared run was already used or has unknown online state; prepare a fresh run.')
-    for name in ('launcher-state.json', 'doctor.redacted.log'):
+    for name in ('launcher-state.json', 'doctor.redacted.log', 'client-processes.jsonl'):
         path = run / name
         if path.is_symlink() or (path.exists() and not path.is_file()):
             sys.exit('Launcher output must be a regular file, without symbolic links.')
@@ -112,6 +114,18 @@ def preflight(run):
     check_fresh_run(run)
     try:
         expected = json.loads(manifest.read_text())
+        if expected.get('mode', 'nonce') not in ('nonce', 'files'):
+            raise ValueError('invalid mode')
+        if expected.get('mode') == 'files':
+            core = checked_path(expected['coreRun'], directory=True)
+            if core.parent != REPO / '.runtime/tests/mcp-files-core' or run.parent != core / 'tunnel':
+                raise ValueError('invalid files run')
+            credential = checked_path(expected['filesBridgeCredentialFile'])
+            info, parent = credential.stat(), credential.parent.stat()
+            if (info.st_uid != os.getuid() or info.st_nlink != 1
+                    or stat.S_IMODE(info.st_mode) != 0o600
+                    or parent.st_uid != os.getuid() or stat.S_IMODE(parent.st_mode) != 0o700):
+                raise ValueError('invalid private reference')
         client = checked_path(expected['client'])
         organization = expected['organizationId']
         if not isinstance(organization, str) or not re.fullmatch(r'org-[A-Za-z0-9_-]+', organization):
@@ -120,6 +134,10 @@ def preflight(run):
             raise ValueError('invalid proof directory')
         hashes = expected['sha256']
         required = {str(path) for path in (SOURCE, SOURCE.with_name('stdio-audit.py'), SOURCE.with_name('prepare-run.py'), binary, client, profile)}
+        if expected.get('mode') == 'files':
+            required.add(str(checked_path(expected['binaryProvenance']['record'])))
+            if str(credential) in hashes:
+                raise ValueError('credential content must never be pinned')
         if not isinstance(hashes, dict) or not required.issubset(hashes):
             raise ValueError('missing artifact hashes')
         for path, digest in hashes.items():
@@ -130,6 +148,34 @@ def preflight(run):
                 raise ValueError('changed artifact')
         if not os.access(client, os.X_OK) or not os.access(binary, os.X_OK):
             raise ValueError('non-executable artifact')
+        # Optional local transport instrumentation is pinned to one fresh profile.
+        fault = expected.get('faultInjection')
+        if expected.get('mode') == 'files' or fault is not None:
+            commands = [json.loads(line.split('command: ', 1)[1]) for line in profile.read_text().splitlines()
+                        if line.startswith('      command: ')]
+            if len(commands) != 1:
+                raise ValueError('invalid profile command')
+            tokens = shlex.split(commands[0])
+            flag, marker_flag = '--drop-write-response-for-request-id', '--drop-write-response-marker'
+            if fault is None:
+                if flag in tokens or marker_flag in tokens:
+                    raise ValueError('unrecorded fault injection')
+            else:
+                if expected.get('mode') != 'files' or not isinstance(fault, dict):
+                    raise ValueError('fault requires files mode')
+                target = fault.get('requestId')
+                if not isinstance(target, str) or not re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', target):
+                    raise ValueError('invalid fault UUID')
+                marker = run / ('.drop-write-response-' + target + '.used')
+                if (fault != {'flag': flag, 'requestId': target, 'marker': str(marker)}
+                        or marker.exists() or marker.is_symlink()):
+                    raise ValueError('fault is not fresh and local')
+                for option, value in ((flag, target), (marker_flag, str(marker))):
+                    if tokens.count(option) != 1 or tokens.index(option) + 1 >= len(tokens) or tokens[tokens.index(option) + 1] != value:
+                        raise ValueError('fault profile mismatch')
+                info = run.stat()
+                if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+                    raise ValueError('fault run must be private')
         # Validate the substitution before prompting for any credential.
         if len(re.findall(r'^  api_key:.*$', profile.read_text(), re.MULTILINE)) != 1:
             raise ValueError('invalid runtime-key reference')
@@ -183,13 +229,16 @@ try:
     CLIENT, ORGANIZATION = preflight(RUN)
 except OSError:
     sys.exit('Prepared run cannot be safely opened or locked.')
+FILES_MODE = json.loads((RUN / 'online-artifacts.json').read_text()).get('mode') == 'files'
+FILES_PINS = json.loads((RUN / 'online-artifacts.json').read_text())['sha256'] if FILES_MODE else {}
 stored_key = None
 if options.key_file is not None:
     secret_path, stored_key = load_saved_key(options.key_file)
 elif not sys.stdin.isatty() or not sys.stderr.isatty():
     sys.exit('Run in your local interactive terminal; secret input requires a TTY.')
 
-operator_output('OpenDesk official Tunnel: only one new nonce proof file. No desktop/general file tools.' + '\n')
+operator_output(('OpenDesk official Tunnel: dedicated four-tool Files Bridge.' if FILES_MODE else
+                 'OpenDesk official Tunnel: only one new nonce proof file. No desktop/general file tools.') + '\n')
 operator_output('Use a runtime key with Tunnels Read + Use in the selected Personal organization.' + '\n')
 operator_output('The key is hidden and sent only to the official tunnel-client; saved keys use a file: reference.' + '\n')
 try:
@@ -278,6 +327,10 @@ def run_client(stage, args, timeout):
     if stop_requested:
         state(stage=stage, status='stopped', exit_code=130, cancelled=True, time=time.time())
         return 130
+    if globals().get('FILES_MODE', False):
+        with CLIENT.open('rb') as program:
+            if hashlib.file_digest(program, 'sha256').hexdigest() != FILES_PINS.get(str(CLIENT)):
+                raise RuntimeError('E_CLIENT_ARTIFACT_CHANGED')
     reader = None
     reader_error = []
     cleaned = False
@@ -285,52 +338,76 @@ def run_client(stage, args, timeout):
     child = subprocess.Popen([str(CLIENT), *args], env=env, cwd=REPO,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
         errors='replace', start_new_session=True)
-    try:
-        if stop_requested:
-            reap_cancelled(child)
-            cleaned = True
-            state(stage=stage, status='stopped', exit_code=130, cancelled=True, time=time.time())
-            return 130
-        state(stage=stage, status='running', launcher_pid=os.getpid(), client_pid=child.pid, time=time.time())
-        output = queue.Queue(maxsize=128)
-        def read_output():
-            try:
-                pending = b''
-                fd = child.stdout.fileno()
-                os.set_blocking(fd, False)
-                while not reader_stop.is_set() and not stop_requested:
-                    try:
-                        chunk = os.read(fd, 4096)
-                    except BlockingIOError:
-                        reader_stop.wait(0.05)
-                        continue
-                    pending += chunk
-                    while b'\n' in pending or (not chunk and pending):
-                        line, separator, pending = pending.partition(b'\n')
-                        line += separator
-                        if len(line) > 16384:
+    with contextlib.ExitStack() as logs:
+        try:
+            if stop_requested:
+                reap_cancelled(child)
+                cleaned = True
+                state(stage=stage, status='stopped', exit_code=130, cancelled=True, time=time.time())
+                return 130
+            process_fields = {}
+            if globals().get('FILES_MODE', False):
+                with CLIENT.open('rb') as program:
+                    program_sha = hashlib.file_digest(program, 'sha256').hexdigest()
+                if program_sha != FILES_PINS.get(str(CLIENT)):
+                    raise RuntimeError('E_CLIENT_ARTIFACT_CHANGED')
+                process_fields = {'program': str(CLIENT), 'sha256': program_sha}
+                fd = os.open(RUN / 'client-processes.jsonl',
+                             os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+                try:
+                    info = os.fstat(fd)
+                    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                            or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o600):
+                        raise RuntimeError('E_PROCESS_EVIDENCE')
+                    evidence = os.fdopen(fd, 'a')
+                except BaseException:
+                    os.close(fd)
+                    raise
+                with evidence:
+                    evidence.write(json.dumps({'stage': stage, 'pid': child.pid, **process_fields}) + '\n')
+            state(stage=stage, status='running', launcher_pid=os.getpid(), client_pid=child.pid,
+                  **process_fields, time=time.time())
+            output = queue.Queue(maxsize=128)
+            def read_output():
+                try:
+                    pending = b''
+                    fd = child.stdout.fileno()
+                    os.set_blocking(fd, False)
+                    while not reader_stop.is_set() and not stop_requested:
+                        try:
+                            chunk = os.read(fd, 4096)
+                        except BlockingIOError:
+                            reader_stop.wait(0.05)
+                            continue
+                        pending += chunk
+                        while b'\n' in pending or (not chunk and pending):
+                            line, separator, pending = pending.partition(b'\n')
+                            line += separator
+                            if len(line) > 16384:
+                                reader_error.append('Client log line exceeded the 16384-byte safety limit.')
+                                stop(None, None)
+                                return
+                            while not reader_stop.is_set() and not stop_requested:
+                                try:
+                                    output.put(line.decode('utf-8', errors='replace'), timeout=0.1)
+                                    break
+                                except queue.Full:
+                                    continue
+                        if len(pending) > 16384:
                             reader_error.append('Client log line exceeded the 16384-byte safety limit.')
                             stop(None, None)
                             return
-                        while not reader_stop.is_set() and not stop_requested:
-                            try:
-                                output.put(line.decode('utf-8', errors='replace'), timeout=0.1)
-                                break
-                            except queue.Full:
-                                continue
-                    if len(pending) > 16384:
-                        reader_error.append('Client log line exceeded the 16384-byte safety limit.')
-                        stop(None, None)
-                        return
-                    if not chunk:
-                        break
-            except Exception:
-                reader_error.append('Client log reader failed; raw data suppressed.')
-                stop(None, None)
-        reader = threading.Thread(target=read_output, daemon=True)
-        reader.start()
-        deadline = time.monotonic() + timeout
-        with open_log(stage) as log:
+                        if not chunk:
+                            break
+                except Exception:
+                    reader_error.append('Client log reader failed; raw data suppressed.')
+                    stop(None, None)
+            reader = threading.Thread(target=read_output, daemon=True)
+            reader.start()
+            deadline = time.monotonic() + timeout
+            # Retain the exclusively created log through cleanup and metadata output;
+            # never reopen an online path that another actor could replace.
+            log = logs.enter_context(open_log(stage))
             while True:
                 if time.monotonic() >= deadline:
                     stop(None, None)
@@ -343,30 +420,36 @@ def run_client(stage, args, timeout):
                     if cleaned and not reader.is_alive():
                         break
                     continue
+                # File mode must never retain arbitrary client/child strings, even redacted.
+                if globals().get('FILES_MODE', False):
+                    continue
                 safe = redact(line)
                 log.write(safe)
                 log.flush()
                 operator_output(safe)
-        code = child.wait(timeout=5)
-        if reader_error:
-            raise RuntimeError(reader_error[0])
-    finally:
-        try:
-            if not cleaned or group_alive(child):
-                reap_cancelled(child)
-        except Exception as error:
-            state(stage=stage, status='cleanup_failed', launcher_pid=os.getpid(),
-                  client_pid=child.pid, client_pgid=child.pid, cancelled=stop_requested,
-                  error=str(error), time=time.time())
-            raise
+            code = child.wait(timeout=5)
+            if reader_error:
+                raise RuntimeError(reader_error[0])
         finally:
-            reader_stop.set()
-            if reader is not None and reader.ident is not None:
-                reader.join(timeout=1)
-            # Reader uses only nonblocking os.read, never a buffered stream lock.
-            child.stdout.close()
-    state(stage=stage, status='stopped', exit_code=code, cancelled=stop_requested, time=time.time())
-    return 130 if stop_requested else code
+            try:
+                if not cleaned or group_alive(child):
+                    reap_cancelled(child)
+            except Exception as error:
+                state(stage=stage, status='cleanup_failed', launcher_pid=os.getpid(),
+                      client_pid=child.pid, client_pgid=child.pid, cancelled=stop_requested,
+                      error='E_CLIENT_CLEANUP' if globals().get('FILES_MODE', False) else str(error), time=time.time())
+                raise
+            finally:
+                reader_stop.set()
+                if reader is not None and reader.ident is not None:
+                    reader.join(timeout=1)
+                # Reader uses only nonblocking os.read, never a buffered stream lock.
+                child.stdout.close()
+        if globals().get('FILES_MODE', False):
+            log.write(json.dumps({'stage': stage, 'code': 'OK' if code == 0 else 'E_CLIENT_STOPPED'}) + '\n')
+        logs.close()  # Flush/close successfully before publishing stopped state.
+        state(stage=stage, status='stopped', exit_code=code, cancelled=stop_requested, time=time.time())
+        return 130 if stop_requested else code
 
 with tempfile.TemporaryDirectory(prefix='launcher-profile-', dir=RUN / 'tmp') as profile_dir:
     # Resolve the selected mode before official profile parsing; no key literal is saved.

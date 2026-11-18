@@ -655,7 +655,9 @@ func createJSMethodWrapper(runtime *goja.Runtime, receiver reflect.Value, method
 
 				// 特殊处理 interface{} 类型
 				if elemType.Kind() == reflect.Interface {
-					goArg = reflect.ValueOf(jsArg.Export())
+					if exported := jsArg.Export(); exported != nil {
+						goArg = reflect.ValueOf(exported)
+					}
 				} else {
 					if err := runtime.ExportTo(jsArg, goArg.Addr().Interface()); err != nil {
 						panic(runtime.NewGoError(fmt.Errorf("failed to convert variadic parameter %d: %v", i, err)))
@@ -720,7 +722,7 @@ func jsValueForResult(runtime *goja.Runtime, result interface{}) goja.Value {
 		if v == nil {
 			return goja.Null()
 		}
-		return runtime.ToValue(AutoMapObject(runtime, v))
+		return runtime.ToValue(fileHandleJSObject(runtime, v))
 	case *Browser:
 		if v == nil {
 			return goja.Null()
@@ -756,8 +758,8 @@ func autoMapPageResult(runtime *goja.Runtime, page *Page) map[string]interface{}
 	for name, method := range pageMethods {
 		pageObj[name] = method
 	}
-	pageObj["mouse"] = AutoMapObject(runtime, page.Mouse)
-	pageObj["keyboard"] = AutoMapObject(runtime, page.Keyboard)
+	pageObj["mouse"] = mapMouseToJS(runtime, page.Mouse)
+	pageObj["keyboard"] = mapKeyboardToJS(runtime, page.Keyboard)
 	pageObj["touchscreen"] = AutoMapObject(runtime, page.Touchscreen)
 	return pageObj
 }
@@ -812,8 +814,8 @@ func MapPageToJS(runtime *goja.Runtime, page *Page) error {
 	pageMethods := AutoMapObject(runtime, page)
 
 	// 创建各个组件的方法映射
-	mouseMethods := AutoMapObject(runtime, page.Mouse)
-	keyboardMethods := AutoMapObject(runtime, page.Keyboard)
+	mouseMethods := mapMouseToJS(runtime, page.Mouse)
+	keyboardMethods := mapKeyboardToJS(runtime, page.Keyboard)
 	touchscreenMethods := AutoMapObject(runtime, page.Touchscreen)
 
 	// 创建完整的 page 对象结构
@@ -883,6 +885,11 @@ func resolveResourceDirWithSink(name string, sink EventSink) (string, error) {
 	}
 
 	if execDir, err := getExecutableDirWithSink(sink); err == nil {
+		// Signed macOS bundles seal JavaScript as resources, rather than
+		// treating every .js file in Contents/MacOS as executable nested code.
+		if filepath.Base(execDir) == "MacOS" && filepath.Base(filepath.Dir(execDir)) == "Contents" {
+			candidates = append(candidates, filepath.Join(filepath.Dir(execDir), "Resources", name))
+		}
 		appendProbeChain(execDir)
 	}
 	if wd, err := os.Getwd(); err == nil {
@@ -1180,8 +1187,8 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	}
 
 	page := NewPageWithContext(opts.Context)
-	mouseMethods := AutoMapObject(runtime, page.Mouse)
-	keyboardMethods := AutoMapObject(runtime, page.Keyboard)
+	mouseMethods := mapMouseToJS(runtime, page.Mouse)
+	keyboardMethods := mapKeyboardToJS(runtime, page.Keyboard)
 	touchscreenMethods := AutoMapObject(runtime, page.Touchscreen)
 
 	runtime.Set("mouse", mouseMethods)
@@ -1253,7 +1260,23 @@ func InitJSWithOptions(runtime *goja.Runtime, opts InitJSOptions) error {
 	}
 
 	// 初始化完成后切换到真实脚本日志接收器，避免把运行期脚本日志继续记为 framework。
-	runtime.Set("console", AutoMapObject(runtime, NewConsoleWithSink(opts.EventSink)))
+	scriptConsoleMethods := AutoMapObject(runtime, NewConsoleWithSink(opts.EventSink))
+	for _, name := range []string{"log", "info", "warn", "error", "debug"} {
+		method := scriptConsoleMethods[name].(func(goja.FunctionCall) goja.Value)
+		scriptConsoleMethods[name] = func(call goja.FunctionCall) goja.Value {
+			arguments := append([]goja.Value(nil), call.Arguments...)
+			for index, argument := range arguments {
+				if goja.IsUndefined(argument) {
+					arguments[index] = runtime.ToValue("undefined")
+				} else if goja.IsNull(argument) {
+					arguments[index] = runtime.ToValue("null")
+				}
+			}
+			call.Arguments = arguments
+			return method(call)
+		}
+	}
+	runtime.Set("console", scriptConsoleMethods)
 
 	screen := NewScreen()
 	screenMethods := AutoMapObject(runtime, screen)

@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--relay', type=Path, default=Path(__file__).with_name('stdio-audit.py'))
 options = parser.parse_args()
 repo = Path(__file__).resolve().parents[4]
-output = repo / '.runtime/tests/mcp-chatgpt-web/relay-regression'
+output = Path(os.environ.get('OPENDESK_TUNNEL_TEST_ROOT', str(repo / '.runtime/tests/mcp-chatgpt-web'))) / 'relay-regression'
 output.mkdir(parents=True, exist_ok=True)
 root = Path(tempfile.mkdtemp(prefix='run-', dir=output))
 os.chmod(root, 0o700)

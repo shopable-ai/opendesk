@@ -1,4 +1,5 @@
 ---
+docType: reference
 title: Audio API
 description: 系统音量、静音、设备发现与实验性的声音模式监听。
 order: 240
@@ -31,6 +32,22 @@ order: 240
 ### 音量
 
 音量使用 `0..1` 的有限 `number`。硬件/backend 可能量化 readback，因此 `setVolume()` 后读取值不保证与输入浮点数逐位一致。
+
+### 系统控制、设备与错误
+
+本节只适用于音量、静音和设备查询，不代替 `watchSound()` / `waitForSound()` 的独立合同。默认 backend 仅 macOS 且启用 CGO 时使用 CoreAudio；其他平台及 macOS 非 CGO 构建当前为 unavailable，控制/设备方法抛 `NOT_SUPPORTED`，不回退到 shell。macOS 仍依赖设备实际提供的属性。
+
+这些方法同步执行，没有单次 signal/timeout。由 Audio owner 返回的失败是带稳定 `code`、`operation` 的 Error，`operation` 为当前公开方法全名（如 `Audio.toggleMute`，也包括其内部读取阶段失败）。不要依赖 message 文案。参数对象自身抛出的 JS 异常不保证具有这些字段。
+
+| code | 条件 |
+| --- | --- |
+| `INVALID_ARGUMENT` | `setVolume` 缺值、null/undefined、不接受的导出类型、非有限数或超出 `0..1`。当前桥接会拆箱 Number 对象，不是严格的 primitive-only 校验。 |
+| `NOT_SUPPORTED` | backend 不支持、设备缺少对应属性，或写入属性不可设置。 |
+| `DEVICE_UNAVAILABLE` | 控制方法找不到默认输出设备；或取得默认设备 ID 后，枚举中找不到该设备。 |
+| `BACKEND_FAILED` | 其他 CoreAudio OSStatus、枚举/数据处理失败或非 AudioError；设置后读取的系统调用失败也可能属于此类。 |
+| `READBACK_FAILED` | 音量成功读取值非有限/越界；或 mute 的成功 readback 与请求不符。不是所有读取失败的统称。 |
+
+设置后的任何错误都不能证明设备 mutation 未发生；不要自动重复 toggle。设备枚举成功为空数组时表示没有匹配设备；CoreAudio 的单项 metadata 读取失败可能降级为空串、零或默认值，通道读取失败也可能使设备被过滤，不提供逐项错误保证。
 
 ### Pattern watch options
 
@@ -77,7 +94,7 @@ Audio.getVolume(): number;
 
 **行为与错误**
 
-同步读取；当前平台/backend 不支持或读取失败时明确抛错。
+同步读取；可抛 `NOT_SUPPORTED`、`DEVICE_UNAVAILABLE`、`BACKEND_FAILED`、`READBACK_FAILED`，具体见公共错误合同。
 
 **示例**
 ```js
@@ -90,7 +107,7 @@ console.log(Audio.getVolume());
 
 **签名**
 ```ts
-Audio.setVolume(value: number): void;
+Audio.setVolume(value: number): number;
 ```
 
 **参数**
@@ -101,11 +118,11 @@ Audio.setVolume(value: number): void;
 
 **返回值**
 
-`undefined`。
+backend 设置后的实际音量 readback，范围 `0..1`；可能量化，不保证与输入浮点数逐位一致。
 
 **行为与错误**
 
-超出范围或非法值拒绝；backend mutation 失败明确抛错。
+同步调用；可抛 `INVALID_ARGUMENT`、`NOT_SUPPORTED`、`DEVICE_UNAVAILABLE`、`BACKEND_FAILED`、`READBACK_FAILED`。量化后仍处于范围内的 readback 是成功。抛错不证明设置未发生。
 
 **示例**
 ```js
@@ -131,7 +148,7 @@ Audio.isMuted(): boolean;
 
 **行为与错误**
 
-同步读取；不支持时明确失败。
+同步读取；可抛 `NOT_SUPPORTED`、`DEVICE_UNAVAILABLE`、`BACKEND_FAILED`；当前没有独立的 `READBACK_FAILED` 校验。
 
 **示例**
 ```js
@@ -144,7 +161,7 @@ console.log(Audio.isMuted());
 
 **签名**
 ```ts
-Audio.mute(): void;
+Audio.mute(): boolean;
 ```
 
 **参数**
@@ -153,11 +170,11 @@ Audio.mute(): void;
 
 **返回值**
 
-`undefined`。
+经校验的实际静音状态，成功为 `true`。
 
 **行为与错误**
 
-只修改 mute 状态；backend 不支持或 mutation 失败时抛错。
+同步修改 mute 状态；可抛 `NOT_SUPPORTED`、`DEVICE_UNAVAILABLE`、`BACKEND_FAILED`、`READBACK_FAILED`，失败不证明设置未发生。
 
 **示例**
 ```js
@@ -170,7 +187,7 @@ Audio.mute();
 
 **签名**
 ```ts
-Audio.unmute(): void;
+Audio.unmute(): boolean;
 ```
 
 **参数**
@@ -179,11 +196,11 @@ Audio.unmute(): void;
 
 **返回值**
 
-`undefined`。
+经校验的实际静音状态，成功为 `false`。
 
 **行为与错误**
 
-backend 不支持或 mutation 失败时抛错。
+同步调用；可抛 `NOT_SUPPORTED`、`DEVICE_UNAVAILABLE`、`BACKEND_FAILED`、`READBACK_FAILED`，失败不证明设置未发生。
 
 **示例**
 ```js
@@ -209,7 +226,7 @@ Audio.toggleMute(): boolean;
 
 **行为与错误**
 
-读取并执行一次对应 mutation；不支持时明确失败。
+先读取再执行一次对应 mutation，不是原子操作；可抛 `NOT_SUPPORTED`、`DEVICE_UNAVAILABLE`、`BACKEND_FAILED`、`READBACK_FAILED`。失败时结果可能未知，不能自动重放 toggle。
 
 **示例**
 ```js
@@ -235,7 +252,7 @@ Audio.getOutputDevices(): OpenDeskAudioDevice[];
 
 **行为与错误**
 
-同步读取设备 metadata；不创建音频 capture。
+同步读取设备 metadata；不创建音频 capture。无匹配设备返回 `[]`；不支持抛 `NOT_SUPPORTED`，枚举/数据处理失败抛 `BACKEND_FAILED`。单项 metadata 降级见公共约定。
 
 **示例**
 ```js
@@ -261,7 +278,7 @@ Audio.getInputDevices(): OpenDeskAudioDevice[];
 
 **行为与错误**
 
-同步读取设备 metadata；backend 失败时明确抛错。
+同步读取设备 metadata；无匹配设备返回 `[]`，不支持抛 `NOT_SUPPORTED`，枚举/数据处理失败抛 `BACKEND_FAILED`。单项 metadata 降级见公共约定。
 
 **示例**
 ```js
@@ -287,7 +304,7 @@ Audio.getDefaultOutput(): OpenDeskAudioDevice | null;
 
 **行为与错误**
 
-没有可解析默认设备时返回 `null`；backend 失败不伪装成 `null`。
+CoreAudio 报告无默认设备时返回 `null`。取得默认 ID 后，枚举中找不到该设备抛 `DEVICE_UNAVAILABLE`；不支持抛 `NOT_SUPPORTED`，其他查询/枚举失败抛 `BACKEND_FAILED`。
 
 **示例**
 ```js
@@ -313,7 +330,7 @@ Audio.getDefaultInput(): OpenDeskAudioDevice | null;
 
 **行为与错误**
 
-没有可解析默认设备时返回 `null`。
+CoreAudio 报告无默认设备时返回 `null`。取得默认 ID 后，枚举中找不到该设备抛 `DEVICE_UNAVAILABLE`；不支持抛 `NOT_SUPPORTED`，其他查询/枚举失败抛 `BACKEND_FAILED`。
 
 **示例**
 ```js
@@ -406,6 +423,8 @@ Audio.getCapabilities(): OpenDeskAudioCapabilities;
 **行为与错误**
 
 只读取 capability，不修改音量，也不启动 capture。调用方必须以 `patternWatch` 实际 capability 判断监听是否可用。
+
+默认 CoreAudio backend 的控制探测失败也可体现为 `false`；不能仅据该值区分不支持、没有默认设备或读取失败，也不保证下一次控制调用成功。
 
 **示例**
 ```js

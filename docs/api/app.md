@@ -164,7 +164,7 @@ if (App.isRunning({ name: 'Calculator' })) {
 
 ```ts
 App.launch(
-  target: OpenDeskAppTarget,
+  target: Exclude<OpenDeskAppTarget, number | { pid: number }>,
   options?: OpenDeskAppLaunchOptions,
 ): Promise<OpenDeskAppGroup>;
 ```
@@ -173,7 +173,7 @@ App.launch(
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `target` | `OpenDeskAppTarget` | 是 | 无 | 要启动或激活的应用 identity。 |
+| `target` | `OpenDeskAppTarget` | 是 | 无 | 要启动或激活的应用 identity；不接受数字 PID 或 `{pid}`。 |
 | `options` | `OpenDeskAppLaunchOptions` | 否 | `{}` | 启动与 readiness 选项。 |
 | `options.waitUntilReady` | `'process' \| 'window'` | 否 | `'process'` | 启动后等待条件。 |
 | `options.timeout` | `number` | 否 | `10000` ms | 等待 readiness 的 timeout。 |
@@ -245,7 +245,7 @@ const app = await App.waitForLaunch('Calculator', {
 ```ts
 App.waitForExit(
   target: OpenDeskAppTarget,
-  options?: OpenDeskAppWaitOptions,
+  options?: { timeout?: number },
 ): Promise<true>;
 ```
 
@@ -254,7 +254,7 @@ App.waitForExit(
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
 | `target` | `OpenDeskAppTarget` | 是 | 无 | 要等待退出的应用 identity。 |
-| `options` | `OpenDeskAppWaitOptions` | 否 | `{}` | 等待选项。 |
+| `options` | `{ timeout?: number }` | 否 | `{}` | 仅接受 `timeout`；`waitUntilReady` 等未知字段会拒绝。 |
 | `options.timeout` | `number` | 否 | `10000` ms | timeout。 |
 
 **返回值**
@@ -318,7 +318,7 @@ await App.terminate({ bundleId: 'com.apple.calculator' });
 ```ts
 App.restart(
   target: OpenDeskAppTarget,
-  options?: OpenDeskAppRestartOptions,
+  options?: OpenDeskAppLaunchOptions & { force?: boolean },
 ): Promise<OpenDeskAppGroup>;
 ```
 
@@ -327,7 +327,7 @@ App.restart(
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
 | `target` | `OpenDeskAppTarget` | 是 | 无 | 要重启的应用 identity。 |
-| `options` | `OpenDeskAppRestartOptions` | 否 | `{}` | 终止、启动和 readiness 选项。 |
+| `options` | `OpenDeskAppLaunchOptions & { force?: boolean }` | 否 | `{}` | 终止、启动和 readiness 选项。 |
 
 **返回值**
 

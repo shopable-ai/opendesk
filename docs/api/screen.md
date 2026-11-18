@@ -1,4 +1,5 @@
 ---
+docType: reference
 title: Screen API
 description: 屏幕信息、显示器枚举、像素读取、截图，以及实验性的 macOS 区域选择与录屏。
 order: 90
@@ -35,7 +36,9 @@ order: 90
 
 ### Display identity
 
-`getDisplays()` 的 `index` 为当前 1-based 顺序；`id` 是当前系统会话的 display ID；`hardwareId` 是 vendor/model/serial/unit 组合线索，不是跨机器全局 UUID。显示器拓扑变化后应重新读取。
+`getDisplays()` 的 `index` 为当前 1-based 顺序；正常枚举时，`id` 是当前系统会话的 display ID，`hardwareId` 是 vendor/model/serial/unit 组合线索，不是跨机器全局 UUID。显示器拓扑变化后应重新读取。
+
+`getWidth()`、`getHeight()`、`getDisplays()`、`getPrimaryDisplay()`、`getDisplay()` 与 `getVirtualBounds()` 共用兼容 fallback：平台枚举报错或返回空列表时，不暴露该枚举错误，而是合成一个主屏条目。该条目的 `index: 1`、`id: 'primary'`、`hardwareId: 'unknown:primary'`、`isPrimary: true`、`x/y: 0`、`scale: 1`；逻辑与像素宽高都来自基础主屏尺寸读取，未提供的硬件字段为零值。此结果不证明真实显示器拓扑、硬件身份或缩放比例；虚拟桌面边界也仅覆盖这个 fallback 主屏。
 
 ### 坐标
 
@@ -68,7 +71,7 @@ Screen.getWidth(): number;
 
 **行为与错误**
 
-同步读取；backend 不可用时明确失败。
+同步返回主屏宽度；枚举失败或为空时采用 [Display identity](#display-identity) 所述主屏 fallback，不保证暴露枚举错误。
 
 **示例**
 ```js
@@ -94,7 +97,7 @@ Screen.getHeight(): number;
 
 **行为与错误**
 
-同步读取当前主显示器。
+同步返回主屏高度；枚举失败或为空时采用 [Display identity](#display-identity) 所述主屏 fallback。
 
 **示例**
 ```js
@@ -120,7 +123,7 @@ Screen.getDisplays(): OpenDeskDisplayInfo[];
 
 **行为与错误**
 
-顺序与 `page.screenshot({displayIndex})` 对齐。只读取 snapshot，不监听后续拓扑变化。
+正常枚举的顺序与 `page.screenshot({displayIndex})` 对齐。只读取 snapshot，不监听后续拓扑变化。枚举失败或为空时返回 [Display identity](#display-identity) 所述的单个合成主屏条目。
 
 **示例**
 ```js
@@ -146,7 +149,7 @@ Screen.getPrimaryDisplay(): OpenDeskDisplayInfo;
 
 **行为与错误**
 
-无法读取主显示器时明确失败。
+从当前 snapshot 选主屏；没有标记主屏时取第一项。平台枚举失败或为空时返回 [Display identity](#display-identity) 所述的合成主屏，不会因此明确抛出枚举错误。
 
 **示例**
 ```js
@@ -174,7 +177,7 @@ Screen.getDisplay(index: number): OpenDeskDisplayInfo | null;
 
 **行为与错误**
 
-只读取当前 snapshot。
+只读取当前 snapshot；枚举失败或为空时，`index: 1` 对应 [Display identity](#display-identity) 所述的主屏 fallback。
 
 **示例**
 ```js
@@ -200,7 +203,7 @@ Screen.getVirtualBounds(): OpenDeskScreenRegion;
 
 **行为与错误**
 
-只读 snapshot，适合全局坐标验证。
+只读 snapshot。正常枚举时返回全部显示器的联合边界；枚举失败或为空时只返回 [Display identity](#display-identity) 所述主屏 fallback 的边界，不能据此验证完整多屏拓扑。
 
 **示例**
 ```js
@@ -213,7 +216,7 @@ console.log(Screen.getVirtualBounds());
 
 **签名**
 ```ts
-Screen.getDisplayCapabilities(): OpenDeskDisplayCapabilities;
+Screen.getDisplayCapabilities(): OpenDeskDisplayControlCapabilities;
 ```
 
 **参数**
@@ -222,7 +225,7 @@ Screen.getDisplayCapabilities(): OpenDeskDisplayCapabilities;
 
 **返回值**
 
-`OpenDeskDisplayCapabilities`。
+`OpenDeskDisplayControlCapabilities`。
 
 **行为与错误**
 
@@ -295,7 +298,7 @@ console.log(Screen.listDisplayModes(display.id));
 
 **签名**
 ```ts
-Screen.setDisplayMode(displayId: string, modeId: string): OpenDeskSetDisplayModeResult;
+Screen.setDisplayMode(displayId: string, modeId: string): OpenDeskDisplayModeChangeResult;
 ```
 
 **参数**
@@ -307,7 +310,7 @@ Screen.setDisplayMode(displayId: string, modeId: string): OpenDeskSetDisplayMode
 
 **返回值**
 
-`OpenDeskSetDisplayModeResult`，包含 readback 后的 current mode。
+`OpenDeskDisplayModeChangeResult`，包含 readback 后的 current mode。
 
 **行为与错误**
 
@@ -374,7 +377,7 @@ Screen.pixels(points: Array<[number, number] | {x:number;y:number}>, scaled?: bo
 
 **行为与错误**
 
-非法点列表明确失败；当前 `scaled:false` 不承诺额外特殊换算。
+列表必须是数组。每一项必须是恰有两项的数组，或提供 `x` 和 `y` 的对象。每个坐标必须为有限的数值，向零截断后的整数须在有符号 32 位范围内。任一项无效时，整个调用在读取第一个像素前同步抛错。空列表返回 `[]`。合法点无法取色时，其对应结果为 `""`。当前 `scaled:false` 不承诺额外特殊换算。
 
 **示例**
 ```js
@@ -387,26 +390,26 @@ console.log(Screen.pixels([[100, 100], { x: 200, y: 200 }], true));
 
 **签名**
 ```ts
-Screen.screenshot(options?: OpenDeskScreenshotOptions): Promise<OpenDeskScreenshotResult>;
+Screen.screenshot(options?: OpenDeskPageScreenshotOptions): Promise<string | ArrayBuffer | OpenDeskScreenshotResult | null>;
 ```
 
 **参数**
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `options` | `OpenDeskScreenshotOptions` | 否 | `{}` | 参数见 [`page.screenshot()`](page.md#pagescreenshotoptions)。 |
+| `options` | `OpenDeskPageScreenshotOptions` | 否 | `{}` | 参数见 [`page.screenshot()`](page.md#pagescreenshotoptions)。 |
 
 **返回值**
 
-与 `page.screenshot()` 完全一致。
+`Promise<string | ArrayBuffer | OpenDeskScreenshotResult | null>`，实际值由 `returnType` 决定，与 [`page.screenshot()`](page.md#pagescreenshotoptions) 完全一致。
 
 **行为与错误**
 
-Canonical method：`page.screenshot()`；没有第二套截图 backend/合同。
+Canonical method：[`page.screenshot()`](page.md#pagescreenshotoptions)；没有第二套截图 backend/合同。此 alias 保留真正的 Promise 返回与 reject 语义。
 
 **示例**
 ```js
-await Screen.screenshot({ target: 'screen', returnType: 'base64' });
+await page.screenshot({ target: 'screen', returnType: 'base64' });
 ```
 
 ## Screen.selectRegion(options?)

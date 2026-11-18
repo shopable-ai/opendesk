@@ -216,7 +216,7 @@ const keypad = Geometry.regionPercent(win, { left: 0, top: 35, width: 100, heigh
 
 **签名**
 ```ts
-Geometry.regionByEdges(target: OpenDeskGeometryTarget, options: OpenDeskGeometryEdgeRegionOptions): OpenDeskScreenRegion;
+Geometry.regionByEdges(target: OpenDeskGeometryTarget, options: OpenDeskGeometryEdgeRegion): OpenDeskScreenRegion;
 ```
 
 **参数**
@@ -250,7 +250,7 @@ const footer = Geometry.regionByEdges(win, { left: 16, right: 16, bottom: 12, he
 
 **签名**
 ```ts
-Geometry.inset(target: OpenDeskGeometryTarget, margins: number | OpenDeskGeometryMargins): OpenDeskScreenRegion;
+Geometry.inset(target: OpenDeskGeometryTarget, margins: OpenDeskGeometryInset): OpenDeskScreenRegion;
 ```
 
 **参数**
@@ -258,7 +258,7 @@ Geometry.inset(target: OpenDeskGeometryTarget, margins: number | OpenDeskGeometr
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
 | `target` | `OpenDeskGeometryTarget` | 是 | 无 | 父目标。 |
-| `margins` | `number \| OpenDeskGeometryMargins` | 是 | 无 | 单值四边相同，或逐边指定。 |
+| `margins` | `OpenDeskGeometryInset` | 是 | 无 | 单值四边相同，或逐边指定。 |
 
 **返回值**
 
@@ -279,7 +279,7 @@ const inner = Geometry.inset(footer, { left: 12, right: 12, top: 4, bottom: 8 })
 
 **签名**
 ```ts
-Geometry.anchorPoint(target: OpenDeskGeometryTarget, position: OpenDeskGeometryAnchorPosition, options?: { inset?: number | OpenDeskGeometryMargins }): OpenDeskScreenPoint;
+Geometry.anchorPoint(target: OpenDeskGeometryTarget, position: OpenDeskGeometryAnchorPosition, options?: { inset?: OpenDeskGeometryInset }): OpenDeskScreenPoint;
 ```
 
 **参数**
@@ -288,7 +288,7 @@ Geometry.anchorPoint(target: OpenDeskGeometryTarget, position: OpenDeskGeometryA
 | --- | --- | --- | --- | --- |
 | `target` | `OpenDeskGeometryTarget` | 是 | 无 | 父目标。 |
 | `position` | `OpenDeskGeometryAnchorPosition` | 是 | 无 | `top-left` 到 `bottom-right`。 |
-| `options.inset` | `number \| OpenDeskGeometryMargins` | 否 | `0` | 选锚点前的内缩。 |
+| `options.inset` | `OpenDeskGeometryInset` | 否 | `0` | 选锚点前的内缩。 |
 
 **返回值**
 
@@ -358,7 +358,7 @@ Geometry.intersect(regionA: OpenDeskScreenRegion, regionB: OpenDeskScreenRegion)
 
 **示例**
 ```js
-const visible = Geometry.intersect(footer, Screen.getVirtualBounds());
+const visible = Geometry.intersect(footer, { ...Screen.getVirtualBounds(), coordinateSpace: 'screen' });
 ```
 
 ## 错误

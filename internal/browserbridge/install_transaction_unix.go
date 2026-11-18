@@ -91,6 +91,9 @@ func withInstallationLock(ctx context.Context, fn func() (map[string]any, error)
 	return withInstallLock(ctx, true, fn)
 }
 func withInstallLock(ctx context.Context, exclusive bool, fn func() (map[string]any, error)) (map[string]any, error) {
+	return withInstallLockPolicy(ctx, exclusive, true, fn)
+}
+func withInstallLockPolicy(ctx context.Context, exclusive, recoverJournal bool, fn func() (map[string]any, error)) (map[string]any, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -126,8 +129,23 @@ func withInstallLock(ctx context.Context, exclusive bool, fn func() (map[string]
 	}
 	defer syscall.Flock(fd, syscall.LOCK_UN)
 	if exclusive {
-		if err = recoverInstallation(dir); err != nil {
-			return nil, err
+		root, rootErr := installRootChecked()
+		if rootErr != nil {
+			return nil, rootErr
+		}
+		if _, rootErr = os.Lstat(root); rootErr == nil {
+			release, lockErr := lockSocketLifecycle(root)
+			if lockErr != nil {
+				return nil, lockErr
+			}
+			defer release()
+		} else if !os.IsNotExist(rootErr) {
+			return nil, rootErr
+		}
+		if recoverJournal {
+			if err = recoverInstallation(dir); err != nil {
+				return nil, err
+			}
 		}
 	}
 	if err = ctx.Err(); err != nil {
@@ -163,6 +181,9 @@ func validateJournal(j installationJournal) error {
 		return err
 	}
 	c := j.Config
+	if c.ConnectionUpdateVersion != 0 || !validRetainedConnections(c.RetainedConnections) {
+		return errors.New("E_INSTALL_JOURNAL")
+	}
 	if !validApprovedExtensions(c) || c.ConnectionID!="" || c.ParentRoot!="" || c.ParentCredentialDigest!="" || j.Format != "opendesk.native-install-transaction.v1" || c.Name != HostName || c.SocketPath != filepath.Join(root, "agent.sock") || !filepath.IsAbs(c.Executable) || c.InstallRoot != root || c.Provider != "opendesk" || !ExtensionIDValid(c.ExtensionID) || !CredentialValid(c.ClientCredential) {
 		return errors.New("E_INSTALL_JOURNAL")
 	}
@@ -218,7 +239,7 @@ func validateJournal(j installationJournal) error {
 	}
 	if existed == 3 {
 		var prior Installation
-		if json.Unmarshal(j.Files[1].Before, &prior) != nil || prior.Name != HostName || prior.Provider != c.Provider || prior.InstallRoot != c.InstallRoot || prior.SocketPath != c.SocketPath || prior.ExtensionID != c.ExtensionID || prior.Browser != c.Browser || prior.UserDataDir != c.UserDataDir || prior.ClientCredential != c.ClientCredential || !filepath.IsAbs(prior.Executable) {
+		if json.Unmarshal(j.Files[1].Before, &prior) != nil || prior.ConnectionUpdateVersion != 0 || !validRetainedConnections(prior.RetainedConnections) || prior.Name != HostName || prior.Provider != c.Provider || prior.InstallRoot != c.InstallRoot || prior.SocketPath != c.SocketPath || prior.ExtensionID != c.ExtensionID || prior.Browser != c.Browser || prior.UserDataDir != c.UserDataDir || prior.ClientCredential != c.ClientCredential || !filepath.IsAbs(prior.Executable) {
 			return errors.New("E_INSTALL_JOURNAL")
 		}
 		oldWrapper, legacy, err := expectedWrapper(prior.Executable)

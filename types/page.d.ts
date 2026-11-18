@@ -68,6 +68,14 @@ declare global {
     reason?: string;
   }
 
+  interface OpenDeskEnsureMacPermissionOptions {
+    capabilities?: OpenDeskPermissionCapability[];
+    section?: OpenDeskPermissionOptions["section"];
+    openSettingsOnFail?: boolean;
+    forceOpenSettings?: boolean;
+    strict?: boolean;
+  }
+
   interface OpenDeskPageWaitOptions {
     timeout?: number;
     polling?: number;
@@ -104,7 +112,8 @@ declare global {
     checkScreenshotPermissions(): Record<string, unknown>;
     openMacOSPrivacySettings(section?: string): Record<string, unknown>;
     requestMacPermissions(options?: Record<string, unknown>): Record<string, unknown>;
-    ensureMacPermissions(options?: Record<string, unknown>): Promise<OpenDeskPermissionReport>;
+    /** Compatibility guard; prefer ensurePermissions(). May request system permissions. */
+    ensureMacPermissions(options?: OpenDeskEnsureMacPermissionOptions): Promise<OpenDeskPermissionReport>;
     requestMacAutomationPermission(targetApp?: string): Record<string, unknown>;
 
   }

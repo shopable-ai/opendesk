@@ -92,13 +92,14 @@ async function harness(initial = library(), follow = true, mode, shared) {
   function NativeToolbar(options) {
     const panel = makePanel({ id: 'nativeBar' + panels.length, kind: 'floating', native: true,
       options: clone(options), position: { bounds: { x: options.position.x, y: options.position.y,
-        width: 60, height: 284 } } }); // Simulated native geometry, not a Runtime claim.
+        width: 60, height: 88 } } }); // Simulated native geometry, not a Runtime claim.
     const buttons = new Map();
     panel.buttons = buttons;
     panel.addButton = (id, label, icon, callback) => {
-      assert.ok(buttons.size < 5, 'native vertical capacity');
+      assert.ok(buttons.size < 81, 'native vertical capacity');
       assert.ok(!buttons.has(id));
       buttons.set(id, { label, icon: clone(icon), callback, disabled: false });
+      panel.state.bounds.height=40+48*buttons.size;
     };
     panel.addSeparator = () => {};
     panel.updateButton = async (id, patch) => {
@@ -240,7 +241,7 @@ async function harness(initial = library(), follow = true, mode, shared) {
       calls.confirms.push(clone(options));
       return env.answers.length ? env.answers.shift() : false;
     } },
-    clipboard: { copy: text => { calls.copies.push(text); env.clipboard=text; },
+    clipboard: { copy: text => { hooks.copy?.(text);calls.copies.push(text); env.clipboard=text; },
       paste: () => hooks.clipboardRead ? hooks.clipboardRead() : env.clipboard },
     console: { log: value => calls.logs.push(String(value)), error: value => calls.logs.push(String(value)) },
     Date:class extends Date {static now(){return env.now??Date.now();}},
@@ -286,14 +287,51 @@ async function harness(initial = library(), follow = true, mode, shared) {
           if(field.textInputState.selection.location<env.editorText.length)field.textInputState.selection.location++;
           return;
         }
-        assert.deepEqual(keys,['Meta','v']);
+        assert.fail('unexpected key input: '+keys.join('+'));
+      },type:async text=>{
+        (calls.editorTypes??=[]).push(text);
         if(hooks.editorPaste)return hooks.editorPaste(field);
         const {location,length}=field.textInputState.selection;assert.equal(length,0);
-        env.editorText=env.editorText.slice(0,location)+env.clipboard+env.editorText.slice(location);
-        field.value=env.editorText;field.textInputState.selection={location:location+env.clipboard.length,length:0};
+        env.editorText=env.editorText.slice(0,location)+text+env.editorText.slice(location);
+        field.value=env.editorText;field.textInputState.selection={location:location+text.length,length:0};
       }};
       context.mouse={clickPoint:async point=>{(calls.editorFocus??=[]).push(clone(point));field.focused=true;}};
       return field;
+    },
+    installEditors(windows){
+      // Real main/targets/insert, isolated native dependencies per exact window.
+      this.useRealInsertion();
+      const editors=new Map(),refs=new Map();
+      for(const win of windows){
+        const model=win.model,body='原稿 '+win.id+' 😀 ';
+        editors.set(win.id,{model,body,field:{role:'textField',nativeRole:'AXTextArea',
+          name:model==='codex'?'随心输入':model==='claude-code'?'Prompt':'',enabled:true,focused:true,
+          value:body,bounds:{x:win.x+320,y:win.y+win.height-90,width:win.width-360,height:60,coordinateSpace:'screen'},
+          textInputState:{unit:'utf16',composition:'unknown',markedRange:null,selection:{location:body.length,length:0}}}});
+      }
+      context.Accessibility.find=async(selector,options)=>{
+        const id=options.within.id,editor=editors.get(id);assert.ok(editor);
+        assert.equal(options.within.id,env.active.id);
+        for(const k of Object.keys(selector))assert.equal(editor.field[k],selector[k]);
+        const ref={kind:'AccessibilityElementRef',id:id+':'+refs.size};refs.set(ref,{id,released:false});
+        (calls.multiFinds??=[]).push({id,depth:options.maxDepth});return ref;
+      };
+      context.Accessibility.read=async ref=>{
+        const saved=refs.get(ref);assert.ok(saved&&!saved.released);assert.equal(saved.id,env.active?.id);
+        return {properties:clone(editors.get(saved.id).field)};
+      };
+      context.Accessibility.release=async ref=>{
+        const saved=refs.get(ref);assert.ok(saved&&!saved.released);saved.released=true;return true;
+      };
+      context.keyboard={combination:async()=>assert.fail('unexpected shortcut'),type:async text=>{
+        const editor=editors.get(env.active.id),range=editor.field.textInputState.selection;
+        assert.equal(range.length,0);
+        (calls.multiPastes??=[]).push(env.active.id);
+        editor.body=editor.body.slice(0,range.location)+text+editor.body.slice(range.location);
+        editor.field.value=editor.body;
+        editor.field.textInputState.selection={location:range.location+text.length,length:0};
+      }};
+      return {editors,refs};
     },
     installWatcher(){context.window.watchAppWindow=(scope,callback)=>{
       if(hooks.watch)return hooks.watch(scope,callback);
@@ -699,45 +737,48 @@ test('toolbar focus never activates a remembered target or pastes when it is not
   const receipt=JSON.parse(h.calls.logs.find(s=>s.startsWith('CODEX_SHORTCUT_INSERT=')).split('=')[1]);
   assert.equal(receipt.code,'NOT_FOREGROUND');assert.equal(receipt.actionState,'not_started');
 });
-test('toolbar reuses quick-replies native FloatingWindow with five fixed buttons', async () => {
+test('toolbar shows every enabled prompt without a paging button or unused slots', async () => {
   const h = await harness(); await h.api.rebuild();
   const bar = h.api.bar();
   assert.equal(bar.spec.native, true);
   assert.equal(bar.spec.options.orientation, 'vertical');
   assert.equal(bar.spec.options.draggable, true);
   assert.equal(bar.spec.options.theme, 'dark');
-  assert.equal(bar.buttons.size, 5);
+  assert.equal(bar.buttons.size, 2);
+  assert.equal(bar.spec.options.toolbar,undefined);
   assert.deepEqual(bar.buttons.get('settings').icon, {path:'assets/opendesk-logo.png',renderingMode:'original'});
   assert.equal([...bar.buttons.keys()][0], 'settings');
   assert.match(bar.buttons.get('settings').label, /管理提示词/);
   assert.deepEqual(bar.buttons.get('p0').icon, {text:'你好'});
-  assert.deepEqual(bar.buttons.get('p1').icon, {text:'空'});
-  assert.deepEqual(bar.buttons.get('next').icon, {text:'一页'});
+  assert.equal(bar.buttons.has('p1'),false);
+  assert.equal(bar.buttons.has('next'),false);
   for (const button of bar.buttons.values()) {
     assert.ok(button.icon.text || button.icon.path, 'every action has visible content');
     assert.ok(button.badge == null, 'text never uses a red badge');
     if (button !== bar.buttons.get('settings')) assert.equal(button.icon.path, undefined);
   }
-  assert.equal(bar.buttons.get('p1').disabled, true);
-  assert.equal(bar.buttons.get('next').disabled, true);
   assert.equal(bar.spec.content, undefined, 'native bar has no handwritten HTML');
 });
-test('native paging wraps and copies the displayed prompt without creating another window', async () => {
+test('all enabled prompts are registered without pagination or a scroll viewport', async () => {
   const doc = library();
   doc.prompts = Array.from({ length: 80 }, (_, i) => ({ ...prompt, id: 'ps_item_' + i,
     body: '正文' + i, label: '项' + i, order: i }));
   const h = await harness(doc); await h.api.rebuild(); const bar = h.api.bar();
+  assert.equal(bar.buttons.size,81);
+  assert.equal(bar.buttons.has('next'),false);
+  assert.equal(bar.state.bounds.height,3928);
   await bar.click('p0');
-  await bar.click('next'); await bar.click('p0');
-  assert.deepEqual(h.calls.copies, ['正文0', '正文3']);
-  for (let i = 1; i < 26; i++) await bar.click('next');
-  assert.match(bar.buttons.get('next').label, /27\/27/);
-  assert.equal(bar.buttons.get('next').badge, null);
-  assert.match(bar.buttons.get('p1').label, /正文79/);
-  assert.equal(bar.buttons.get('p2').disabled, true);
-  await bar.click('next'); await bar.click('p0');
-  assert.equal(h.calls.copies.at(-1), '正文0');
+  await bar.click('p3');await bar.click('p79');
+  assert.deepEqual(h.calls.copies,['正文0','正文3','正文79']);
+  assert.match(bar.buttons.get('p79').label,/正文79/);
   assert.equal(h.panels.length, 1);
+});
+test('empty library shows one disabled placeholder with management guidance', async () => {
+  const doc=library();doc.prompts=[];
+  const h=await harness(doc);await h.api.rebuild();
+  assert.equal(h.api.bar().buttons.size,2);
+  assert.equal(h.api.bar().buttons.get('p0').disabled,true);
+  assert.equal(h.api.bar().buttons.get('p0').label,'暂无启用的提示词，请在管理器中添加或导入');
 });
 test('native save updates existing buttons and retains toolbar identity', async () => {
   const h = await harness(); await h.api.rebuild(); const bar = h.api.bar();
@@ -746,6 +787,33 @@ test('native save updates existing buttons and retains toolbar identity', async 
   assert.deepEqual(bar.buttons.get('p0').icon, {text:'新词'});
   await bar.click('p0'); assert.deepEqual(h.calls.copies, ['新正文']);
   assert.equal(h.panels.length, 1);
+});
+test('adding or disabling prompts rebuilds the native list and invalidates old callbacks',async()=>{
+  const h=await harness();await h.api.rebuild();const previous=h.api.bar();
+  await h.api.persist(next=>{next.prompts.push({...prompt,id:'ps_added_01',body:'新增正文',label:'新增',order:1});});
+  const expanded=h.api.bar();
+  assert.notEqual(expanded,previous);assert.equal(previous.state.status,'closed');
+  assert.deepEqual([...expanded.buttons.keys()],['settings','p0','p1']);
+  assert.equal(expanded.state.bounds.height,184);
+  assert.equal(h.panels.filter(p=>!p.spec.native).length,0,'replacement must not open the manager');
+  await previous.buttons.get('p0').callback();assert.deepEqual(h.calls.copies,[]);
+  await expanded.click('p1');assert.deepEqual(h.calls.copies,['新增正文']);
+  await h.api.persist(next=>{next.prompts[0].enabled=false;});
+  const compact=h.api.bar();assert.equal(compact.buttons.size,2);
+  assert.equal(compact.buttons.get('p0').icon.text,'新增');
+  assert.equal(expanded.state.status,'closed');
+});
+test('eight prompts increase toolbar height without scrolling or changing it on target resize',async()=>{
+  const doc=library();doc.prompts=Array.from({length:8},(_,i)=>({...prompt,id:'ps_size_'+i,order:i}));
+  const h=await harness(doc);await h.api.rebuild();const bar=h.api.bar();
+  assert.equal(bar.buttons.size,9);assert.equal(bar.state.bounds.height,472);
+  assert.equal(bar.state.visible,true);assert.equal(bar.spec.options.toolbar,undefined);
+  h.env.active.height=400;await h.api.sync();
+  assert.equal(h.api.bar(),bar);assert.equal(bar.state.visible,false);
+  assert.equal(bar.state.bounds.height,472,'a short target cannot truncate the list');
+  h.env.active.height=800;await h.api.sync();
+  assert.equal(h.api.bar(),bar);assert.equal(bar.state.visible,true);
+  assert.equal(bar.state.bounds.height,472);
 });
 test('native tooltips stay within 60 Unicode characters while copying the entire long body', async () => {
   const doc=library(); doc.prompts[0].body='🚀完整正文'.repeat(800);
@@ -762,7 +830,7 @@ test('prompt callbacks are suppressed during a partial native button refresh', a
 });
 test('failed partial native refresh stays hidden and blocked until a complete refresh succeeds', async () => {
   const h = await harness(); await h.api.rebuild(); const bar = h.api.bar();
-  h.hooks.updateButton = async (panel, id) => { if (id === 'p1') throw error('UI_DRIVER_FAILURE'); };
+  h.hooks.updateButton = async (panel, id) => { if (id === 'p0') throw error('UI_DRIVER_FAILURE'); };
   await assert.rejects(h.api.rebuild(), { code: 'UI_DRIVER_FAILURE' });
   await h.api.sync(); await bar.click('p0');
   assert.equal(bar.state.visible, false);
@@ -802,10 +870,11 @@ test('clipboard mismatch never reports success and a disabled item never copies'
   await assert.rejects(h.api.copy(prompt.id), {code:'CLIPBOARD_CHANGED'});
   assert.ok(!h.calls.logs.some(s => s.startsWith('CODEX_SHORTCUT_COPIED=')));
   assert.notEqual(h.api.bar().buttons.get('p0').icon.text, '已复制');
-  await h.api.bar().click('p1');
+  await h.api.persist(next=>{next.prompts[0].enabled=false;});
+  await h.api.bar().click('p0');
   assert.equal(h.calls.copies.length, 1);
 });
-test('copy feedback never mutates button labels or schedules a reset across pages', async () => {
+test('copy feedback never mutates button labels or schedules a reset in the full list', async () => {
   const doc = library(); doc.prompts = Array.from({length:4}, (_,i) => ({...prompt,id:'ps_more_'+i,body:'正文'+i,label:'项'+i}));
   const h = await harness(doc, false); await h.api.rebuild();
   const original=clone(h.api.bar().buttons.get('p0').icon);
@@ -814,9 +883,8 @@ test('copy feedback never mutates button labels or schedules a reset across page
   assert.deepEqual(h.api.bar().buttons.get('p0').icon, original);
   assert.equal(h.timers.size,0);
   delete h.hooks.updateButton;
-  await h.api.bar().click('next');
-  assert.equal(h.api.bar().buttons.get('p0').icon.text, '项3');
-  await h.api.bar().click('p0'); assert.equal(h.calls.copies.at(-1), '正文3');
+  assert.equal(h.api.bar().buttons.get('p3').icon.text, '项3');
+  await h.api.bar().click('p3'); assert.equal(h.calls.copies.at(-1), '正文3');
 });
 test('verified copying survives notification failure; manager copy ignores target focus and status', async()=>{
   const h=await harness();await h.api.rebuild();await h.api.openManager();
@@ -1685,15 +1753,15 @@ test('thrown input helper latches unknown, preserves clipboard and warns',async(
 test('observed direct paste reports paste without claiming full readback or blocking the next click',async()=>{
   const h=await editorHarness(library(),false);await h.api.rebuild();await h.api.openManager();
   await h.panel().control('calibrate').emit('click');
-  h.hooks.insert=()=>({status:'inserted',code:'PASTE_OBSERVED',verified:false,actionState:'acknowledged'});
+  h.hooks.insert=()=>({status:'inserted',code:'TEXT_OBSERVED',verified:false,actionState:'acknowledged'});
   await h.api.bar().click('p0');await h.api.bar().click('p0');
   assert.equal(h.calls.inserts.length,2);assert.deepEqual(h.calls.copies,[]);
-  assert.equal(h.calls.toasts.filter(t=>t.message==='已粘贴 · 尚未发送').length,2);
+  assert.equal(h.calls.toasts.filter(t=>t.message.includes('已观察到输入变化，完整正文未验证')).length,2);
   assert.equal(h.calls.toasts.some(t=>/已写入并读回|结果未确认/.test(t.message)),false);
 });
 for(const receipt of [
-  {status:'inserted',code:'PASTE_OBSERVED',verified:false,actionState:'unknown'},
-  {status:'inserted',code:'PASTE_OBSERVED',actionState:'acknowledged'},
+  {status:'inserted',code:'TEXT_OBSERVED',verified:false,actionState:'unknown'},
+  {status:'inserted',code:'TEXT_OBSERVED',actionState:'acknowledged'},
   {status:'inserted',verified:true,actionState:'unknown'},
   {status:'inserted',verified:true},
   {status:'inserted',verified:true,actionState:'not_started'},
@@ -2023,16 +2091,18 @@ test('real main and insertion helper wire default Codex paste, override '+overri
   const h=await harness(doc,false);h.installCodexEditor('prefix suffix');
   h.hooks.composer=()=>assert.fail('focused Codex must not rediscover through a relative hint');
   await h.api.setFollowing(true);await h.api.rebuild();const bar=h.api.bar();
-  assert.equal(bar.buttons.size,5);assert.equal(bar.state.visible,true);
+  assert.equal(bar.buttons.size,2);assert.equal(bar.state.visible,true);
   // Focused insertion stays at the original middle caret on both clicks.
-  h.hooks.editorRead=field=>{if(!h.calls.editorKeys?.length)field.textInputState.selection.location=7;};
+  h.hooks.editorRead=field=>{if(!h.calls.editorTypes?.length)field.textInputState.selection.location=7;};
   for(let i=0;i<2;i++)await bar.buttons.get('p0').callback();
-  assert.deepEqual(h.calls.copies,[doc.prompts[0].body,doc.prompts[0].body]);
+  assert.deepEqual(h.calls.copies,[]);
   assert.equal(h.calls.discovers.length,0);assert.equal(h.calls.inserterOptions.length,0);
   assert.equal(h.env.editorText,'prefix '+doc.prompts[0].body.repeat(2)+'suffix');
-  assert.deepEqual(h.calls.editorKeys,[['Meta','v'],['Meta','v']]);
+  assert.deepEqual(h.calls.editorTypes,[doc.prompts[0].body,doc.prompts[0].body]);
+  assert.deepEqual(h.calls.editorKeys??[],[]);
+  assert.equal(h.calls.toasts.length,0);
   assert.ok(h.calls.editorFinds.every(c=>c.options.maxDepth===64));
-  assert.equal(h.calls.logs.filter(s=>s.startsWith('CODEX_SHORTCUT_INSERT=')&&s.includes('VERIFIED_PASTE')).length,2);
+  assert.equal(h.calls.logs.filter(s=>s.startsWith('CODEX_SHORTCUT_INSERT=')&&s.includes('VERIFIED_TEXT')).length,2);
   assert.equal(bar.buttons.get('p0').icon.text,prompt.label);assert.deepEqual(h.disk(),doc);
 });
 
@@ -2054,9 +2124,9 @@ test('real main selects Codex '+inputMode+' through '+identity+' without using p
   h.hooks.scoped=()=>clone(h.env.active);
   h.hooks.composer=()=>assert.fail('a selector does not qualify Codex text or selection semantics');
   await h.api.setFollowing(true);await h.api.rebuild();const bar=h.api.bar();
-  assert.equal(bar.state.visible,true);assert.equal(bar.buttons.size,5);
+  assert.equal(bar.state.visible,true);assert.equal(bar.buttons.size,2);
   for(let i=0;i<2;i++)await bar.buttons.get('p0').callback();
-  assert.deepEqual(h.calls.copies,[doc.prompts[0].body,doc.prompts[0].body]);
+  assert.deepEqual(h.calls.copies,inputMode==='strict'?[doc.prompts[0].body,doc.prompts[0].body]:[]);
   assert.equal(h.calls.toasts.filter(t=>t.message?.includes('CODEX_EDITOR_UNQUALIFIED')).length,inputMode==='strict'?2:0);
   assert.equal(h.calls.logs.some(s=>s.includes('"status":"inserted"')),inputMode==='paste');
   assert.equal(h.env.editorText,inputMode==='paste'?doc.prompts[0].body.repeat(2):'');
@@ -2076,10 +2146,10 @@ test('real main latches uncertain Codex paste globally and never copies over pen
   const h=await harness(library(),false);h.installCodexEditor('draft');
   h.hooks.editorPaste=field=>{field.value='partial';throw error('TIMEOUT',{actionState:'unknown'});};
   await h.api.setFollowing(true);await h.api.rebuild();const bar=h.api.bar();
-  await bar.click('p0');const keys=h.calls.editorKeys.length,copies=h.calls.copies.length;
+  await bar.click('p0');const keys=h.calls.editorTypes.length,copies=h.calls.copies.length;
   await bar.click('p0');
-  assert.equal(keys,1);assert.equal(h.calls.editorKeys.length,keys);assert.equal(h.calls.copies.length,copies);
-  assert.equal(h.env.clipboard,prompt.body);
+  assert.equal(keys,1);assert.equal(h.calls.editorTypes.length,keys);assert.equal(h.calls.copies.length,copies);
+  assert.equal(h.env.clipboard,undefined);
   assert.ok(h.calls.logs.some(s=>s.startsWith('CODEX_SHORTCUT_INSERT=')&&s.includes('INPUT_BLOCKED')));
   await h.api.openManager();assert.match(h.panel().control('deliveryMode').state.text,/写入已停止/);
 });
@@ -2108,7 +2178,7 @@ test('calibration rechecks the model after its delay and refuses a switch to Cod
   assert.ok(h.calls.toasts.some(t=>t.level==='error'&&t.message?.includes('目标已切换至尚未资格化的 Codex')));
 });
 
-test('Codex desktop scoped follow shows the five-button bar in its content area without editor qualification',async()=>{
+test('Codex desktop scoped follow shows the prompt list in its content area without editor qualification',async()=>{
   const h=await harness(library(),false),config='/virtual/codex-scope.json';
   h.env.active={...codex(),title:'ChatGPT',exePath:'/Applications/ChatGPT.app/Contents/MacOS/ChatGPT'};
   h.files.set(config,JSON.stringify({schemaVersion:1,scope:{pid:101,
@@ -2128,7 +2198,7 @@ test('Codex desktop scoped follow shows the five-button bar in its content area 
     const expected=anchor(h.env.active);
     assert.equal(bar.state.bounds.x,expected.x);assert.equal(bar.state.bounds.y,expected.y);
   };
-  assert.equal(bar.buttons.size,5);assertPlacement();
+  assert.equal(bar.buttons.size,2);assertPlacement();
   assert.equal(h.watchers.has(101),true);
   assert.equal(h.calls.inserterOptions.length,1);assert.equal(h.calls.discovers.length,0);
   assert.equal(h.calls.inserterOptions[0].editorModel,'codex');
@@ -2198,6 +2268,139 @@ test('application switches during a scoped scan hide the toolbar and never query
   await h.api.setFollowing(true);await h.api.rebuild();
   assert.equal(h.api.bar().state.visible,false);assert.ok(count>=2);
   assert.ok(h.calls.logs.some(s=>s.includes('TARGET_CHANGED')));
+});
+
+for(const replacement of ['application','window'])
+test('calibrated composer expires when switching '+replacement+' instead of hiding the next target',async()=>{
+  const h=await harness(library(),false),config='/virtual/calibrated-switch.json';
+  const first={...codex(),exePath:'/fixture/OpenCode'},next={...codex(),
+    id:'mac:202:502',pid:replacement==='application'?202:101,handle:502,
+    exePath:replacement==='application'?'/fixture/Codex':'/fixture/OpenCode'};
+  h.env.active=first;
+  h.files.set(config,JSON.stringify({schemaVersion:1,scopes:[
+    {pid:101,exePath:first.exePath,profile:'opencode'},
+    ...(replacement==='application'?[{pid:202,exePath:next.exePath,profile:'codex'}]:[]),
+  ]}));
+  h.executionEnv.OPENDESK_SHORTCUTS_TARGET_CONFIG=config;
+  h.hooks.forbidGlobal=true;
+  h.hooks.scoped=scope=>scope.pid===h.env.active?.pid?clone(h.env.active):null;
+  h.hooks.composer=()=>composerTree(h.env.active,650,100);
+  await h.api.setFollowing(true);await h.api.rebuild();await h.api.openManager();
+  await h.panel().control('calibrate').emit('click');
+  await h.panel().control('close').emit('click');
+  await new Promise(resolve=>setImmediate(resolve));await h.api.sync();
+  assert.ok(h.api.state().composerSample,'initial calibration is active');
+  h.env.active=next;await h.api.sync();
+  assert.equal(h.api.bar().state.visible,true,'new window must not inherit the old composer tracker');
+  assert.equal(h.api.state().composerSample,null);
+  assert.equal(h.calls.liveInserterOptions.at(-1).expectedWindow.id,next.id);
+});
+
+for(const replacement of ['application','window','title'])
+test('a click reselects the foreground '+replacement+' before a delayed follow notification',async()=>{
+  const h=await harness(library(),false),config='/virtual/click-switch.json';
+  const first=codex(),next={...codex(),id:replacement==='title'?first.id:'mac:202:502',
+    handle:replacement==='title'?first.handle:502,title:'Changed conversation',
+    pid:replacement==='application'?202:101,
+    exePath:replacement==='application'?'/fixture/OpenCode':first.exePath};
+  h.files.set(config,JSON.stringify({schemaVersion:1,scopes:[
+    {pid:101,exePath:first.exePath,profile:'codex'},
+    ...(replacement==='application'?[{pid:202,exePath:next.exePath,profile:'opencode'}]:[]),
+  ]}));
+  h.executionEnv.OPENDESK_SHORTCUTS_TARGET_CONFIG=config;
+  h.hooks.forbidGlobal=true;
+  h.hooks.scoped=scope=>scope.pid===h.env.active?.pid?clone(h.env.active):null;
+  await h.api.setFollowing(true);await h.api.rebuild();
+  h.env.active=next;
+  h.hooks.insert=()=>{
+    const options=h.calls.liveInserterOptions.at(-1);
+    assert.equal(options.expectedWindow.id,next.id);
+    assert.equal(options.expectedWindow.title,next.title);
+    assert.equal(options.editorModel,replacement==='application'?'opencode':'codex');
+    return {status:'inserted',verified:true,actionState:'acknowledged'};
+  };
+  await h.api.bar().click('p0');
+  assert.ok(h.calls.logs.some(s=>s.startsWith('CODEX_SHORTCUT_INSERT=')&&s.includes('"status":"inserted"')));
+  assert.deepEqual(h.calls.copies,[]);
+});
+
+for(const scoped of [false,true])
+test('three simultaneous apps and two windows each route real insertion independently, scoped '+scoped,async()=>{
+  const h=await harness(library(),false),apps=[
+    {model:'codex',bundleId:'com.openai.codex',path:'/Applications/ChatGPT.app/Contents/MacOS/ChatGPT'},
+    {model:'claude-code',bundleId:'com.anthropic.claudefordesktop',path:'/Applications/Claude.app/Contents/MacOS/Claude'},
+    {model:'opencode',bundleId:'ai.opencode.desktop',path:'/Applications/OpenCode.app/Contents/MacOS/OpenCode'},
+  ];
+  const windows=apps.flatMap((app,index)=>[0,1].map(n=>({...codex(),
+    id:'mac:'+index+':'+n,pid:101+index,handle:501+index*2+n,exePath:app.path,
+    title:'Same title',x:100+index*100,model:app.model})));
+  const original=new Map(windows.map(win=>[win.id,'原稿 '+win.id+' 😀 ']));
+  const {editors,refs}=h.installEditors(windows);
+  h.env.active=windows[0];
+  h.hooks.scoped=scope=>scope.pid===h.env.active?.pid?clone(h.env.active):null;
+  h.hooks.composer=options=>{
+    assert.equal(options.within.id,h.env.active.id);
+    assert.equal(h.env.active.model,'claude-code');return claudeCodeTree(h.env.active);
+  };
+  if(scoped){
+    const config='/virtual/three-apps.json';
+    h.files.set(config,JSON.stringify({schemaVersion:1,scopes:apps.map((app,i)=>({
+      pid:101+i,exePath:app.path,profile:app.model}))}));
+    h.executionEnv.OPENDESK_SHORTCUTS_TARGET_CONFIG=config;h.hooks.forbidGlobal=true;
+    h.hooks.appGet=()=>assert.fail('scoped mode cannot query other apps');
+  }else h.hooks.appGet=app=>{
+    const index=apps.findIndex(item=>item.bundleId===app.bundleId);
+    return index<0?null:{identity:{kind:'bundleId',value:app.bundleId},pids:[101+index],instances:[{pid:101+index}]};
+  };
+  await h.api.setFollowing(true);await h.api.rebuild();const bar=h.api.bar();
+  const counts=new Map();
+  // Both notification-first and click-before-notification paths, including return.
+  for(const [index,win] of [...windows,windows[0],windows[2],windows[4]].entries()){
+    h.env.active=win;
+    if(index%2===0)await h.api.sync();
+    await bar.click('p0');await new Promise(resolve=>setImmediate(resolve));await h.api.sync();
+    counts.set(win.id,(counts.get(win.id)||0)+1);
+    assert.equal(bar.state.visible,true);
+    for(const candidate of windows)
+      assert.equal(editors.get(candidate.id).body,original.get(candidate.id)+prompt.body.repeat(counts.get(candidate.id)||0));
+    assert.ok(h.calls.multiFinds.filter(c=>c.id===win.id).every(c=>c.depth===(win.model==='opencode'?24:64)));
+  }
+  assert.deepEqual(h.calls.multiPastes,[...windows,windows[0],windows[2],windows[4]].map(win=>win.id));
+  const pastes=h.calls.multiPastes.length;
+  h.env.active={...windows[0],id:'unrelated',pid:999,handle:999,exePath:'/fixture/Other'};
+  await bar.click('p0');
+  assert.equal(h.calls.multiPastes.length,pastes,'unconfigured foreground must never receive input');
+  assert.ok(h.calls.logs.some(s=>s.includes('NO_CURRENT_TARGET')));
+  assert.deepEqual(h.disk(),library());assert.equal(h.api.bar(),bar);
+  await h.api.setFollowing(false);await new Promise(resolve=>setImmediate(resolve));
+  assert.ok(Array.from(refs.values()).every(ref=>ref.released),'all window-bound refs released');
+});
+
+test('foreground reselection errors are not started and do not latch later qualified input',async()=>{
+  const h=await harness(library(),false),config='/virtual/reselection-error.json';
+  h.files.set(config,JSON.stringify({schemaVersion:1,scope:{pid:101,exePath:codex().exePath,profile:'codex'}}));
+  h.executionEnv.OPENDESK_SHORTCUTS_TARGET_CONFIG=config;
+  await h.api.setFollowing(true);await h.api.rebuild();
+  h.hooks.scoped=()=>{throw error('TIMEOUT');};await h.api.bar().click('p0');
+  assert.deepEqual(h.calls.inserts,[]);assert.deepEqual(h.calls.copies,[prompt.body]);
+  assert.ok(h.calls.logs.some(s=>s.includes('"code":"TIMEOUT","actionState":"not_started"')));
+  delete h.hooks.scoped;
+  h.hooks.insert=()=>({status:'inserted',verified:true,actionState:'acknowledged'});
+  await h.api.bar().click('p0');assert.equal(h.calls.inserts.length,1);
+});
+
+test('automatic app qualification completing after follow is disabled cannot revive a cached target',async()=>{
+  const h=await harness(library(),false);
+  h.env.active={...codex(),exePath:'/Applications/Claude.app/Contents/MacOS/Claude'};
+  h.env.applications=[{bundleId:'com.anthropic.claudefordesktop'}];
+  h.env.group={identity:{kind:'bundleId',value:'com.anthropic.claudefordesktop'},pids:[101],instances:[{pid:101}]};
+  const win=clone(h.env.active);let enter,release;
+  const ready=new Promise(resolve=>enter=resolve),held=new Promise(resolve=>release=resolve);
+  h.hooks.composer=async()=>{enter();await held;return claudeCodeTree(win);};
+  const pending=h.api.codexWindow();await ready;
+  await h.api.setFollowing(false);release();
+  assert.equal(await pending,null);assert.equal(h.api.state().codeScene,null);
+  assert.equal(h.api.state().following,false);
 });
 
 test('follow startup waits for first native toolbar without showing over an unavailable target',async()=>{
@@ -2706,6 +2909,143 @@ test('partially offscreen target preserves a user drag from the clipped edge',as
   await h.api.sync();assert.equal(bar.state.bounds.x,48);
 });
 
+async function settlePositionDrag(h,x,y){
+  Object.assign(h.api.bar().state.bounds,{x,y});
+  await h.api.drag({bounds:clone(h.api.bar().state.bounds)});
+  const timer=Array.from(h.timers.keys()).find(id=>h.timerDelays.get(id)===160);
+  assert.ok(timer,'a genuine changed native position must schedule persistence');
+  const callback=h.timers.get(timer);h.timers.delete(timer);h.timerDelays.delete(timer);
+  callback();await new Promise(resolve=>setImmediate(resolve));
+  await h.api.sync();
+}
+
+test('consecutive drags can return to the original programmatic position without snapping back',async()=>{
+  const doc=library();doc.settings.offsetX=35;doc.settings.offsetY=-20;
+  const h=await harness(doc);await h.api.rebuild();
+  const initial=clone(h.api.bar().state.bounds);
+  await settlePositionDrag(h,initial.x+70,initial.y+25);
+  assert.equal(h.disk().settings.offsetX,105);assert.equal(h.disk().settings.offsetY,5);
+  await settlePositionDrag(h,initial.x,initial.y);
+  assert.equal(h.disk().settings.offsetX,35);assert.equal(h.disk().settings.offsetY,-20);
+  assert.deepEqual(h.api.bar().state.bounds,initial);
+});
+
+test('a drag returning to its programmatic start before debounce supersedes the earlier frame',async()=>{
+  const h=await harness();await h.api.rebuild();const bar=h.api.bar(),initial=clone(bar.state.bounds);
+  Object.assign(bar.state.bounds,{x:initial.x+70,y:initial.y+25});
+  await h.api.drag({bounds:clone(bar.state.bounds)});
+  const old=Array.from(h.timers.values())[0];
+  await settlePositionDrag(h,initial.x,initial.y);
+  old();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(h.disk().settings.offsetX,0);assert.equal(h.disk().settings.offsetY,0);
+  assert.equal(h.disk().revision,1,'only the final frame owns the save');
+  assert.deepEqual(bar.state.bounds,initial);
+});
+
+test('a delayed programmatic move receipt cannot cancel a verified user drag',async()=>{
+  const h=await harness();await h.api.rebuild();const bar=h.api.bar(),initial=clone(bar.state.bounds);
+  Object.assign(bar.state.bounds,{x:initial.x+70,y:initial.y+25});
+  await h.api.drag({bounds:clone(bar.state.bounds)});
+  await h.api.drag({bounds:initial});
+  const timer=Array.from(h.timers.keys()).find(id=>h.timerDelays.get(id)===160);
+  assert.ok(timer,'stale native readback must leave the valid debounce intact');
+  const callback=h.timers.get(timer);h.timers.delete(timer);h.timerDelays.delete(timer);
+  callback();await new Promise(resolve=>setImmediate(resolve));await h.api.sync();
+  assert.equal(h.disk().settings.offsetX,70);assert.equal(h.disk().settings.offsetY,25);
+});
+
+test('only verified readbacks supersede earlier reads regardless of completion order',async()=>{
+  for(const scenario of ['latest-first','stale-latest']){
+    const h=await harness();await h.api.rebuild();const bar=h.api.bar(),initial=clone(bar.state.bounds),get=bar.getState;
+    const pending=[];bar.getState=()=>new Promise(resolve=>pending.push({resolve,state:clone(bar.state)}));
+    Object.assign(bar.state.bounds,{x:initial.x+40,y:initial.y+10});
+    const old=h.api.drag({bounds:clone(bar.state.bounds)});
+    if(scenario==='latest-first'){
+      Object.assign(bar.state.bounds,{x:initial.x+90,y:initial.y+30});
+      const latest=h.api.drag({bounds:clone(bar.state.bounds)});
+      pending[1].resolve(pending[1].state);await latest;
+      pending[0].resolve(pending[0].state);await old;
+    }else{
+      const stale=h.api.drag({bounds:{...initial,x:initial.x+10}});
+      pending[1].resolve(pending[1].state);await stale;
+      pending[0].resolve(pending[0].state);await old;
+    }
+    bar.getState=get;
+    const timer=Array.from(h.timers.keys()).find(id=>h.timerDelays.get(id)===160);
+    assert.ok(timer);const callback=h.timers.get(timer);h.timers.delete(timer);h.timerDelays.delete(timer);
+    callback();await new Promise(resolve=>setImmediate(resolve));await h.api.sync();
+    assert.equal(h.disk().settings.offsetX,scenario==='latest-first'?90:40);
+    assert.equal(h.disk().settings.offsetY,scenario==='latest-first'?30:10);
+    assert.equal(h.disk().revision,1);
+  }
+});
+
+test('returning to an accepted drag while another read is pending fences that late read',async()=>{
+  const h=await harness();await h.api.rebuild();const bar=h.api.bar(),initial=clone(bar.state.bounds),get=bar.getState;
+  const final={...initial,x:initial.x+40,y:initial.y+10};
+  Object.assign(bar.state.bounds,final);await h.api.drag({bounds:clone(final)});
+  Object.assign(bar.state.bounds,{x:initial.x+90,y:initial.y+30});
+  const stale=clone(bar.state);let release;
+  bar.getState=async()=>{bar.getState=get;await new Promise(resolve=>{release=resolve;});return stale;};
+  const pending=h.api.drag({bounds:clone(bar.state.bounds)});
+  Object.assign(bar.state.bounds,final);await h.api.drag({bounds:clone(final)});
+  release();await pending;
+  const timer=Array.from(h.timers.keys()).find(id=>h.timerDelays.get(id)===160);
+  assert.ok(timer);const callback=h.timers.get(timer);h.timers.delete(timer);h.timerDelays.delete(timer);
+  callback();await new Promise(resolve=>setImmediate(resolve));await h.api.sync();
+  assert.equal(h.disk().settings.offsetX,40);assert.equal(h.disk().settings.offsetY,10);
+  assert.deepEqual(bar.state.bounds,final);assert.equal(h.disk().revision,1);
+});
+
+test('saved offsets survive translation resize height changes hidden roundtrips and process restart',async()=>{
+  const h=await harness();await h.api.rebuild();const initial=clone(h.api.bar().state.bounds);
+  await settlePositionDrag(h,initial.x+75,initial.y-30);
+  const saved=h.disk().settings;
+  const assertPlacement=()=>{
+    const b=h.api.bar().state.bounds;
+    assert.deepEqual({x:b.x,y:b.y},clone(h.api.frame(h.env.active,b.height,saved,
+      [{x:0,y:0,width:1920,height:1080}])));
+    assert.deepEqual(h.disk().settings,saved);
+  };
+  h.env.active.x+=90;h.env.active.y+=20;await h.api.sync();assertPlacement();
+  h.env.active.height+=100;await h.api.sync();assertPlacement();
+  await h.api.persist(next=>{for(let i=1;i<8;i++)next.prompts.push({...prompt,id:'ps_1234567'+i,order:i});});
+  assert.equal(h.api.bar().state.bounds.height,472);assertPlacement();
+  const beforeHide=h.calls.writes.length;
+  await h.api.openManager();await h.panel().control('close').emit('click');assertPlacement();
+  const win=clone(h.env.active);h.env.active={...win,pid:999};await h.api.sync();
+  assert.equal(h.api.bar().state.visible,false);
+  h.env.active={...win,id:'mac:101:777',handle:777};await h.api.sync();assertPlacement();
+  assert.equal(h.calls.writes.length,beforeHide,'automatic placement must not write offsets');
+  const restarted=await harness(h.disk());
+  restarted.env.active={...h.env.active,id:'mac:202:888',pid:202,handle:888,title:'renamed'};
+  restarted.env.group.pids=[202];restarted.env.group.instances=[{pid:202}];
+  await restarted.api.rebuild();assert.deepEqual(restarted.api.bar().state.bounds,h.api.bar().state.bounds);
+});
+
+test('clipping and insufficient space preserve offsets until another genuine drag',async()=>{
+  const doc=library();doc.settings.offsetX=110;doc.settings.offsetY=25;
+  const h=await harness(doc);await h.api.rebuild();const initial=clone(h.api.bar().state.bounds),win=clone(h.env.active);
+  h.env.active.x=-600;await h.api.sync();assert.equal(h.api.bar().state.bounds.x,8);
+  h.env.active.width=350;await h.api.sync();assert.equal(h.api.bar().state.visible,false);
+  h.env.active=clone(win);await h.api.sync();assert.deepEqual(h.api.bar().state.bounds,initial);
+  assert.equal(h.calls.writes.length,0);assert.deepEqual(h.disk(),doc);
+  h.env.active.x=-400;await h.api.sync();assert.equal(h.api.bar().state.bounds.x,26);
+  await settlePositionDrag(h,48,h.api.bar().state.bounds.y);
+  assert.equal(h.disk().settings.offsetX,132);
+  h.env.active=win;await h.api.sync();assert.equal(h.api.bar().state.bounds.x,548);
+});
+
+test('detached toolbar dragging leaves all application offsets unchanged',async()=>{
+  const doc=library();doc.settings.offsetX=65;doc.settings.offsetY=-15;
+  const h=await harness(doc);await h.api.rebuild();await h.api.setFollowing(false);
+  const bar=h.api.bar(),x=bar.state.bounds.x+80,y=bar.state.bounds.y+20;
+  Object.assign(bar.state.bounds,{x,y});await h.api.drag({bounds:clone(bar.state.bounds)});await h.api.sync();
+  assert.equal(h.calls.writes.length,0);assert.deepEqual(h.disk(),doc);
+  assert.equal(bar.state.bounds.x,x);assert.equal(bar.state.bounds.y,y);
+  await h.api.setFollowing(true);assert.equal(bar.state.bounds.x,481);
+});
+
 test('a changed recheck hides the old toolbar before a replacement observation can complete',async()=>{
   const h=await claudeHarness(),bar=h.api.bar();let reads=0,entered,release;
   const ready=new Promise(resolve=>{entered=resolve;}),old=clone(h.env.active);
@@ -2743,20 +3083,48 @@ test('Claude insertion window guards avoid scene scans while explicit context ga
   await assert.rejects(options.verifyContext(),{code:'SCENE_CHANGED'});
 });
 
-test('paste clicks share one busy gate through verification but slow feedback permits the next click',async()=>{
+test('confirmed clicks share one busy gate and resume without notification or clipboard writes',async()=>{
   const h=await claudeHarness(),bar=h.api.bar();
   let entered,release;const started=new Promise(resolve=>{entered=resolve;});
   h.hooks.insert=async()=>{entered();await new Promise(resolve=>{release=resolve;});
     return {status:'inserted',verified:true,actionState:'acknowledged'};};
+  h.hooks.toast=async()=>assert.fail('confirmed input must be silent');
   const first=bar.buttons.get('p0').callback();await started;
   await bar.buttons.get('p0').callback();
   assert.equal(h.calls.inserts.length,1);assert.equal(h.calls.inserterOptions.length,1);
-  let toastStarted,finishToast;const feedback=new Promise(resolve=>{toastStarted=resolve;});
-  h.hooks.toast=async()=>{toastStarted();await new Promise(resolve=>{finishToast=resolve;});};
-  release();await feedback;
+  release();await first;
   h.hooks.insert=async()=>({status:'inserted',verified:true,actionState:'acknowledged'});
-  const second=bar.buttons.get('p0').callback();
-  await new Promise(resolve=>setImmediate(resolve));
+  await bar.buttons.get('p0').callback();
   assert.equal(h.calls.inserts.length,2);assert.equal(h.calls.discovers.length,0);
-  h.hooks.toast=null;finishToast();await Promise.all([first,second]);
+  assert.deepEqual(h.calls.copies,[]);assert.deepEqual(h.calls.toasts,[]);
+});
+
+for(const result of [
+  {status:'rejected',code:'MISSING_FIELD',actionState:'not_started'},
+  {status:'inserted',code:'TEXT_OBSERVED',verified:false,actionState:'acknowledged'},
+  {status:'blocked',code:'READBACK_MISMATCH',actionState:'unknown'},
+])test('notification failure cannot copy again or repeat input '+result.code,async()=>{
+  const h=await editorHarness(library(),false);await h.api.rebuild();await h.api.openManager();
+  await h.panel().control('calibrate').emit('click');
+  h.calls.toasts.length=0;
+  h.hooks.insert=()=>result;h.hooks.toast=async()=>{throw error('NOTIFY_FAILED');};
+  h.hooks.noticeUpdate=async()=>{throw error('NOTIFY_FAILED');};
+  await h.api.bar().click('p0');
+  assert.equal(h.calls.inserts.length,1);
+  assert.deepEqual(h.calls.copies,result.actionState==='not_started'?[prompt.body]:[]);
+  assert.equal(h.calls.toasts.length,0);
+});
+
+test('fallback copy exception never claims copied and a later click remains usable',async()=>{
+  const h=await editorHarness(library(),false);await h.api.rebuild();await h.api.openManager();
+  await h.panel().control('calibrate').emit('click');
+  h.hooks.insert=()=>({status:'rejected',code:'MISSING_FIELD',actionState:'not_started'});
+  h.hooks.copy=()=>{throw error('CLIPBOARD_FAILED');};
+  await h.api.bar().click('p0');
+  assert.equal(h.calls.toasts.some(t=>t.message.includes('已复制完整正文')),false);
+  assert.ok(h.calls.toasts.some(t=>t.level==='error'&&t.message.includes('全文复制未确认')));
+  delete h.hooks.copy;await h.api.bar().click('p0');
+  assert.equal(h.calls.inserts.length,2);assert.equal(h.env.clipboard,prompt.body);
+  const toast=h.calls.toasts.find(t=>t.message.includes('未写入，已复制完整正文'));
+  assert.deepEqual(toast.position,{mode:'anchor',horizontal:'right',vertical:'bottom',margin:24,display:'active'});
 });

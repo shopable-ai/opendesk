@@ -106,12 +106,14 @@ validate-runtime-version:
 	@printf '%s\n' "$(VERSION)" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$$' || { printf 'VERSION must be SemVer without a leading v: %s\n' "$(VERSION)" >&2; exit 1; }
 
 build: validate-runtime-version
+ifeq ($(shell uname -s),Darwin)
+	GO_BIN="$(GO)" ./scripts/build_macos_app.sh
+else
 	$(GO) build -ldflags "$(RUNTIME_VERSION_LDFLAGS)" -o dist/opendesk ./cmd/opendesk
 	$(GO) build -o dist/opendesk-ui-host ./cmd/opendesk-ui-host
+endif
 
 ifeq ($(shell uname -s),Darwin)
-build: build-apple-vision-ocr
-
 # Apple Vision is the default macOS OCR provider. Keep its executable beside
 # the portable CLI so discovery validates and invokes only the current build.
 build-apple-vision-ocr:
@@ -136,7 +138,7 @@ build-apple-vision-ocr:
 endif
 
 build-macos:
-	SKIP_CODESIGN=1 ./scripts/build_macos_app.sh
+	GO_BIN="$(GO)" ./scripts/build_macos_app.sh
 
 smoke: build
 	./dist/opendesk -script scripts/e2e_smoke.js -console-mode script

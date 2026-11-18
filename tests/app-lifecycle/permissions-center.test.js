@@ -27,7 +27,7 @@ function report(overall = 'READY') {
 }
 
 function fixture(initialReport = report(), options = {}) {
-  const calls = {status:0, request:[], settings:[], menu:[], create:0};
+  const calls = {status:0, request:[], settings:[], menu:[], create:0, info:[]};
   const windows = [];
   let currentReport = initialReport;
   const app = {
@@ -77,7 +77,7 @@ function fixture(initialReport = report(), options = {}) {
       return win;
     },
   };
-  const logger = {warn(){}, error(){}};
+  const logger = {info(...args) { calls.info.push(args); }, warn(){}, error(){}};
   const center = PermissionsCenter.create({ui, app, logger});
   return {center, calls, windows, setReport(value) { currentReport = value; }};
 }
@@ -94,6 +94,75 @@ test('system permissions menu label is fixed and preflight is silent', async () 
   assert.equal(PermissionsCenter.menuLabel('READY'), '系统权限…');
   assert.equal(PermissionsCenter.menuLabel('LIMITED'), '系统权限…');
   assert.equal(PermissionsCenter.menuLabel('BLOCKED'), '系统权限…');
+});
+
+test('preflight and refresh log only current owner identity, checkedAt and native permission statuses', async () => {
+  const owner = {...report('LIMITED'), checkedAt:'2026-10-29T08:00:00Z',
+    target:'private target must not be logged', input:'private input must not be logged'};
+  owner.permissions[1] = {...owner.permissions[1], target:'private permission target', input:'private permission input'};
+  const original = structuredClone(owner);
+  const f = fixture(owner);
+  await f.center.preflight('startup');
+  const updated = {...report('BLOCKED'), checkedAt:'2026-10-29T08:01:00Z',
+    identity:{processId:84, launchKind:'app-bundle'}};
+  updated.permissions[0].status = 'unknown';
+  updated.permissions[1].status = 'denied';
+  f.setReport(updated);
+  await f.center.refresh('diagnostics');
+
+  assert.equal(f.calls.info.length, 2);
+  for (const [index, value] of [owner, updated].entries()) {
+    const args = f.calls.info[index];
+    assert.equal(args.length, 1);
+    assert.match(args[0], /^OPENDESK_SYSTEM_PERMISSIONS=/);
+    const diagnostic = JSON.parse(args[0].slice('OPENDESK_SYSTEM_PERMISSIONS='.length));
+    assert.deepEqual(diagnostic, {
+      identity:value.identity, checkedAt:value.checkedAt,
+      permissions:value.permissions.map(({id, status}) => ({id, status})),
+    });
+    assert.doesNotMatch(args[0], /private|"target"|"input"/);
+  }
+  assert.deepEqual(owner, original);
+  assert.equal(f.calls.status, 2);
+  assert.equal(f.calls.create, 0);
+  assert.deepEqual(f.calls.request, []);
+  assert.deepEqual(f.calls.settings, []);
+  assert.deepEqual(f.calls.menu, []);
+});
+
+test('unknown remains unknown and signing mismatch guidance stays a possible diagnosis without automatic actions', async () => {
+  const owner = {...report('LIMITED'), checkedAt:'2026-10-29T08:02:00Z'};
+  const original = structuredClone(owner);
+  const f = fixture(owner);
+  await f.center.open('unknown-status');
+  const win = f.windows[0];
+  await win.trigger('refresh');
+
+  for (const id of ['screen-capture']) {
+    assert.equal(win.updates.get(`status-${id}`).text, '? 需要确认');
+    const description = win.updates.get(`description-${id}`).text;
+    assert.match(description, /系统接口无法可靠确认状态/);
+    assert.match(description, /若系统设置已允许/);
+    assert.match(description, /签名身份变化也可能导致旧授权失配/);
+    assert.match(description, /反复请求无法修复/);
+    assert.match(description, /确认正在运行的版本并重启/);
+    assert.doesNotMatch(description, /当前未授权|已经失配|确定.*失配/);
+  }
+  assert.equal(win.updates.get('status-automation').text, '? 需要确认');
+  const automationDescription = win.updates.get('description-automation').text;
+  assert.match(automationDescription, /请在需要控制目标应用时检查对应授权/);
+  assert.doesNotMatch(automationDescription, /签名|重启|重新授权/);
+  assert.equal(PermissionsCenter.statusLabel('unknown'), '? 需要确认');
+  assert.equal(f.calls.info.length, 2);
+  for (const [line] of f.calls.info) {
+    const diagnostic = JSON.parse(line.slice('OPENDESK_SYSTEM_PERMISSIONS='.length));
+    for (const id of ['screen-capture', 'automation']) {
+      assert.equal(diagnostic.permissions.find(item => item.id === id).status, 'unknown');
+    }
+  }
+  assert.deepEqual(owner, original);
+  assert.deepEqual(f.calls.request, []);
+  assert.deepEqual(f.calls.settings, []);
 });
 
 test('system permissions window is scoped to system authorization and has no aggregate readiness', () => {

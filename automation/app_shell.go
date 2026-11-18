@@ -46,13 +46,13 @@ type AppOwnedScriptSource struct {
 }
 
 type AppOwnedScriptRunRequest struct {
-	ExecutionID       string
-	ScriptPath        string
-	ScopeRoot         string
+	ExecutionID        string
+	ScriptPath         string
+	ScopeRoot          string
 	ExpectedScriptHash string
-	InputJSON         string
-	WorkDir           string
-	LogDir            string
+	InputJSON          string
+	WorkDir            string
+	LogDir             string
 }
 
 // AppOwnedScriptRunResult is the terminal result returned to the product
@@ -83,47 +83,63 @@ type AppOwnedFlowInvocation struct {
 }
 
 type AppOwnedFlowInspection struct {
-	InstallID string `json:"installId"`
-	FlowID string `json:"flowId"`
-	Name string `json:"name"`
-	Version string `json:"version"`
-	PublisherID string `json:"publisherId"`
-	PublisherFingerprint string `json:"publisherFingerprint"`
-	State string `json:"state"`
-	StateReason string `json:"stateReason,omitempty"`
-	Origin string `json:"origin"`
-	ArchiveDigest string `json:"archiveDigest"`
-	ManifestDigest string `json:"manifestDigest"`
-	Runnable bool `json:"runnable"`
-	Protected bool `json:"protected"`
-	Invocation *AppOwnedFlowInvocation `json:"invocation,omitempty"`
+	InstallID            string                  `json:"installId"`
+	FlowID               string                  `json:"flowId"`
+	Name                 string                  `json:"name"`
+	Version              string                  `json:"version"`
+	PublisherID          string                  `json:"publisherId"`
+	PublisherFingerprint string                  `json:"publisherFingerprint"`
+	State                string                  `json:"state"`
+	StateReason          string                  `json:"stateReason,omitempty"`
+	Origin               string                  `json:"origin"`
+	ArchiveDigest        string                  `json:"archiveDigest"`
+	ManifestDigest       string                  `json:"manifestDigest"`
+	Runnable             bool                    `json:"runnable"`
+	Protected            bool                    `json:"protected"`
+	Invocation           *AppOwnedFlowInvocation `json:"invocation,omitempty"`
 }
-type AppOwnedFlowInspectRequest struct { InstallID string }
+type AppOwnedFlowInspectRequest struct{ InstallID string }
 type AppOwnedFlowRunRequest struct {
-	ExecutionID string
-	InstallID string
-	WorkDir string
-	LogDir string
-	InputJSON string
-	ExpectedArchiveDigest string
+	ExecutionID            string
+	InstallID              string
+	WorkDir                string
+	LogDir                 string
+	InputJSON              string
+	ExpectedArchiveDigest  string
 	ExpectedManifestDigest string
 }
 type AppOwnedFlowRunResult struct {
 	ExecutionID string `json:"executionId"`
-	Status string `json:"status"`
-	Error string `json:"error,omitempty"`
-	LogDir string `json:"logDir"`
+	Status      string `json:"status"`
+	Error       string `json:"error,omitempty"`
+	LogDir      string `json:"logDir"`
 }
 type AppOwnedFlowInspector func(context.Context, AppOwnedFlowInspectRequest) (AppOwnedFlowInspection, error)
 type AppOwnedFlowRunner func(context.Context, AppOwnedFlowRunRequest) (AppOwnedFlowRunResult, error)
-type AppOwnedFlowRunError struct { Code string; Result AppOwnedFlowRunResult; Cause error }
+type AppOwnedFlowRunError struct {
+	Code   string
+	Result AppOwnedFlowRunResult
+	Cause  error
+}
+
 func (e *AppOwnedFlowRunError) Error() string {
-	if e == nil { return "App-owned Flow execution failed" }
-	if e.Cause != nil { return e.Cause.Error() }
-	if e.Result.Error != "" { return e.Result.Error }
+	if e == nil {
+		return "App-owned Flow execution failed"
+	}
+	if e.Cause != nil {
+		return e.Cause.Error()
+	}
+	if e.Result.Error != "" {
+		return e.Result.Error
+	}
 	return "App-owned Flow execution failed"
 }
-func (e *AppOwnedFlowRunError) Unwrap() error { if e == nil { return nil }; return e.Cause }
+func (e *AppOwnedFlowRunError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Cause
+}
 
 // AppOwnedScriptRunError preserves a stable product-facing failure category
 // without turning the internal host bridge into a public Runtime API.
@@ -252,7 +268,9 @@ func (a *AppShellRuntime) attachAppOwnedScriptRunner(inspect AppOwnedScriptInspe
 		}
 		return a.startAsyncWithSignal("inspectScript", signal, func(ctx context.Context) (any, error) {
 			result, err := inspect(ctx, request)
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			return appOwnedBridgeJSONValue(result)
 		})
 	}); err != nil {
@@ -268,7 +286,9 @@ func (a *AppShellRuntime) attachAppOwnedScriptRunner(inspect AppOwnedScriptInspe
 			}
 			return a.startAsyncWithSignal("readScript", signal, func(ctx context.Context) (any, error) {
 				result, err := read(ctx, request)
-				if err != nil { return nil, err }
+				if err != nil {
+					return nil, err
+				}
 				return appOwnedBridgeJSONValue(result)
 			})
 		}); err != nil {
@@ -278,7 +298,9 @@ func (a *AppShellRuntime) attachAppOwnedScriptRunner(inspect AppOwnedScriptInspe
 	if reserve != nil {
 		if err := object.Set("reserve", func(goja.FunctionCall) goja.Value {
 			return a.runtime.ToValue(reserve("recipe"))
-		}); err != nil { return fmt.Errorf("register internal App-owned Script execution allocator: %w", err) }
+		}); err != nil {
+			return fmt.Errorf("register internal App-owned Script execution allocator: %w", err)
+		}
 	}
 	if err := object.Set("run", func(call goja.FunctionCall) goja.Value {
 		request, signal, err := decodeAppOwnedScriptRunRequest(call.Argument(0))
@@ -289,7 +311,9 @@ func (a *AppShellRuntime) attachAppOwnedScriptRunner(inspect AppOwnedScriptInspe
 		}
 		return a.startAsyncWithSignal("runScript", signal, func(ctx context.Context) (any, error) {
 			result, err := run(ctx, request)
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			return appOwnedBridgeJSONValue(result)
 		})
 	}); err != nil {
@@ -302,87 +326,183 @@ func (a *AppShellRuntime) attachAppOwnedFlowRunner(inspect AppOwnedFlowInspector
 	object := a.runtime.NewObject()
 	if err := object.Set("inspect", func(call goja.FunctionCall) goja.Value {
 		request, signal, err := decodeAppOwnedFlowInspectRequest(call.Argument(0))
-		if err != nil { promise, _, reject := a.runtime.NewPromise(); _ = reject(appShellJSError(a.runtime, "INVALID_ARGUMENT", "inspectFlow", err.Error())); return a.runtime.ToValue(promise) }
+		if err != nil {
+			promise, _, reject := a.runtime.NewPromise()
+			_ = reject(appShellJSError(a.runtime, "INVALID_ARGUMENT", "inspectFlow", err.Error()))
+			return a.runtime.ToValue(promise)
+		}
 		return a.startAsyncWithSignal("inspectFlow", signal, func(ctx context.Context) (any, error) {
 			result, err := inspect(ctx, request)
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			return appOwnedBridgeJSONValue(result)
 		})
-	}); err != nil { return fmt.Errorf("register internal App-owned Flow inspector: %w", err) }
+	}); err != nil {
+		return fmt.Errorf("register internal App-owned Flow inspector: %w", err)
+	}
 	if reserve != nil {
 		if err := object.Set("reserve", func(goja.FunctionCall) goja.Value {
 			return a.runtime.ToValue(reserve("flow"))
-		}); err != nil { return fmt.Errorf("register internal App-owned Flow execution allocator: %w", err) }
+		}); err != nil {
+			return fmt.Errorf("register internal App-owned Flow execution allocator: %w", err)
+		}
 	}
 	if err := object.Set("run", func(call goja.FunctionCall) goja.Value {
 		request, signal, err := decodeAppOwnedFlowRunRequest(call.Argument(0))
-		if err != nil { promise, _, reject := a.runtime.NewPromise(); _ = reject(appShellJSError(a.runtime, "INVALID_ARGUMENT", "runFlow", err.Error())); return a.runtime.ToValue(promise) }
+		if err != nil {
+			promise, _, reject := a.runtime.NewPromise()
+			_ = reject(appShellJSError(a.runtime, "INVALID_ARGUMENT", "runFlow", err.Error()))
+			return a.runtime.ToValue(promise)
+		}
 		return a.startAsyncWithSignal("runFlow", signal, func(ctx context.Context) (any, error) {
 			result, err := run(ctx, request)
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			return appOwnedBridgeJSONValue(result)
 		})
-	}); err != nil { return fmt.Errorf("register internal App-owned Flow runner: %w", err) }
+	}); err != nil {
+		return fmt.Errorf("register internal App-owned Flow runner: %w", err)
+	}
 	return a.runtime.GlobalObject().DefineDataProperty("__opendeskFlowExecution", object, goja.FLAG_FALSE, goja.FLAG_FALSE, goja.FLAG_FALSE)
 }
 
 func appOwnedOptionalString(object *goja.Object, name string) (string, error) {
 	field := object.Get(name)
-	if field == nil || goja.IsUndefined(field) || goja.IsNull(field) { return "", nil }
+	if field == nil || goja.IsUndefined(field) || goja.IsNull(field) {
+		return "", nil
+	}
 	exported, ok := field.Export().(string)
-	if !ok { return "", fmt.Errorf("options.%s must be a string", name) }
+	if !ok {
+		return "", fmt.Errorf("options.%s must be a string", name)
+	}
 	return strings.TrimSpace(exported), nil
 }
 
 func appOwnedRequiredString(object *goja.Object, name string) (string, error) {
 	field := object.Get(name)
-	if field == nil || goja.IsUndefined(field) || goja.IsNull(field) { return "", fmt.Errorf("options.%s is required", name) }
+	if field == nil || goja.IsUndefined(field) || goja.IsNull(field) {
+		return "", fmt.Errorf("options.%s is required", name)
+	}
 	exported, ok := field.Export().(string)
-	if !ok || strings.TrimSpace(exported) == "" { return "", fmt.Errorf("options.%s must be a non-empty string", name) }
+	if !ok || strings.TrimSpace(exported) == "" {
+		return "", fmt.Errorf("options.%s must be a non-empty string", name)
+	}
 	return strings.TrimSpace(exported), nil
 }
 func decodeAppOwnedFlowInspectRequest(value goja.Value) (AppOwnedFlowInspectRequest, goja.Value, error) {
-	object, ok := value.(*goja.Object); if !ok { return AppOwnedFlowInspectRequest{}, nil, errors.New("inspect options must be an object") }
-	installID, err := appOwnedRequiredString(object, "installId"); if err != nil { return AppOwnedFlowInspectRequest{}, nil, err }
+	object, ok := value.(*goja.Object)
+	if !ok {
+		return AppOwnedFlowInspectRequest{}, nil, errors.New("inspect options must be an object")
+	}
+	installID, err := appOwnedRequiredString(object, "installId")
+	if err != nil {
+		return AppOwnedFlowInspectRequest{}, nil, err
+	}
 	return AppOwnedFlowInspectRequest{InstallID: installID}, object.Get("signal"), nil
 }
 func decodeAppOwnedFlowRunRequest(value goja.Value) (AppOwnedFlowRunRequest, goja.Value, error) {
-	object, ok := value.(*goja.Object); if !ok { return AppOwnedFlowRunRequest{}, nil, errors.New("run options must be an object") }
-	executionID, err := appOwnedOptionalString(object, "executionId"); if err != nil { return AppOwnedFlowRunRequest{}, nil, err }
-	installID, err := appOwnedRequiredString(object, "installId"); if err != nil { return AppOwnedFlowRunRequest{}, nil, err }
-	workDir, err := appOwnedRequiredString(object, "workdir"); if err != nil { return AppOwnedFlowRunRequest{}, nil, err }
-	logDir, err := appOwnedRequiredString(object, "logDir"); if err != nil { return AppOwnedFlowRunRequest{}, nil, err }
-	archiveDigest, err := appOwnedRequiredString(object, "expectedArchiveDigest"); if err != nil { return AppOwnedFlowRunRequest{}, nil, err }
-	manifestDigest, err := appOwnedRequiredString(object, "expectedManifestDigest"); if err != nil { return AppOwnedFlowRunRequest{}, nil, err }
+	object, ok := value.(*goja.Object)
+	if !ok {
+		return AppOwnedFlowRunRequest{}, nil, errors.New("run options must be an object")
+	}
+	executionID, err := appOwnedOptionalString(object, "executionId")
+	if err != nil {
+		return AppOwnedFlowRunRequest{}, nil, err
+	}
+	installID, err := appOwnedRequiredString(object, "installId")
+	if err != nil {
+		return AppOwnedFlowRunRequest{}, nil, err
+	}
+	workDir, err := appOwnedRequiredString(object, "workdir")
+	if err != nil {
+		return AppOwnedFlowRunRequest{}, nil, err
+	}
+	logDir, err := appOwnedRequiredString(object, "logDir")
+	if err != nil {
+		return AppOwnedFlowRunRequest{}, nil, err
+	}
+	archiveDigest, err := appOwnedRequiredString(object, "expectedArchiveDigest")
+	if err != nil {
+		return AppOwnedFlowRunRequest{}, nil, err
+	}
+	manifestDigest, err := appOwnedRequiredString(object, "expectedManifestDigest")
+	if err != nil {
+		return AppOwnedFlowRunRequest{}, nil, err
+	}
 	inputJSON := "{}"
-	if field := object.Get("inputJSON"); field != nil && !goja.IsUndefined(field) && !goja.IsNull(field) { exported, ok := field.Export().(string); if !ok { return AppOwnedFlowRunRequest{}, nil, errors.New("options.inputJSON must be a string") }; inputJSON = exported }
-	if len(inputJSON) > 256<<10 { return AppOwnedFlowRunRequest{}, nil, errors.New("options.inputJSON is too large") }
+	if field := object.Get("inputJSON"); field != nil && !goja.IsUndefined(field) && !goja.IsNull(field) {
+		exported, ok := field.Export().(string)
+		if !ok {
+			return AppOwnedFlowRunRequest{}, nil, errors.New("options.inputJSON must be a string")
+		}
+		inputJSON = exported
+	}
+	if len(inputJSON) > 256<<10 {
+		return AppOwnedFlowRunRequest{}, nil, errors.New("options.inputJSON is too large")
+	}
 	return AppOwnedFlowRunRequest{ExecutionID: executionID, InstallID: installID, WorkDir: workDir, LogDir: logDir, InputJSON: inputJSON, ExpectedArchiveDigest: archiveDigest, ExpectedManifestDigest: manifestDigest}, object.Get("signal"), nil
 }
 
 func decodeAppOwnedScriptInspectRequest(value goja.Value) (AppOwnedScriptInspectRequest, goja.Value, error) {
 	object, ok := value.(*goja.Object)
-	if !ok { return AppOwnedScriptInspectRequest{}, nil, errors.New("inspect options must be an object") }
+	if !ok {
+		return AppOwnedScriptInspectRequest{}, nil, errors.New("inspect options must be an object")
+	}
 	scriptPath, err := appOwnedRequiredString(object, "scriptPath")
-	if err != nil { return AppOwnedScriptInspectRequest{}, nil, err }
+	if err != nil {
+		return AppOwnedScriptInspectRequest{}, nil, err
+	}
 	scopeRoot, err := appOwnedOptionalString(object, "scopeRoot")
-	if err != nil { return AppOwnedScriptInspectRequest{}, nil, err }
+	if err != nil {
+		return AppOwnedScriptInspectRequest{}, nil, err
+	}
 	return AppOwnedScriptInspectRequest{ScriptPath: scriptPath, ScopeRoot: scopeRoot}, object.Get("signal"), nil
 }
 
 func decodeAppOwnedScriptRunRequest(value goja.Value) (AppOwnedScriptRunRequest, goja.Value, error) {
-	if value == nil || goja.IsUndefined(value) || goja.IsNull(value) { return AppOwnedScriptRunRequest{}, nil, errors.New("run options are required") }
+	if value == nil || goja.IsUndefined(value) || goja.IsNull(value) {
+		return AppOwnedScriptRunRequest{}, nil, errors.New("run options are required")
+	}
 	object, ok := value.(*goja.Object)
-	if !ok { return AppOwnedScriptRunRequest{}, nil, errors.New("run options must be an object") }
-	scriptPath, err := appOwnedRequiredString(object, "scriptPath"); if err != nil { return AppOwnedScriptRunRequest{}, nil, err }
-	workDir, err := appOwnedRequiredString(object, "workdir"); if err != nil { return AppOwnedScriptRunRequest{}, nil, err }
-	logDir, err := appOwnedRequiredString(object, "logDir"); if err != nil { return AppOwnedScriptRunRequest{}, nil, err }
-	executionID, err := appOwnedOptionalString(object, "executionId"); if err != nil { return AppOwnedScriptRunRequest{}, nil, err }
-	scopeRoot, err := appOwnedOptionalString(object, "scopeRoot"); if err != nil { return AppOwnedScriptRunRequest{}, nil, err }
-	expectedScriptHash, err := appOwnedOptionalString(object, "expectedScriptHash"); if err != nil { return AppOwnedScriptRunRequest{}, nil, err }
-	inputJSON, err := appOwnedOptionalString(object, "inputJSON"); if err != nil { return AppOwnedScriptRunRequest{}, nil, err }
-	if inputJSON == "" { inputJSON = "{}" }
-	if len(inputJSON) > 256<<10 { return AppOwnedScriptRunRequest{}, nil, errors.New("options.inputJSON is too large") }
+	if !ok {
+		return AppOwnedScriptRunRequest{}, nil, errors.New("run options must be an object")
+	}
+	scriptPath, err := appOwnedRequiredString(object, "scriptPath")
+	if err != nil {
+		return AppOwnedScriptRunRequest{}, nil, err
+	}
+	workDir, err := appOwnedRequiredString(object, "workdir")
+	if err != nil {
+		return AppOwnedScriptRunRequest{}, nil, err
+	}
+	logDir, err := appOwnedRequiredString(object, "logDir")
+	if err != nil {
+		return AppOwnedScriptRunRequest{}, nil, err
+	}
+	executionID, err := appOwnedOptionalString(object, "executionId")
+	if err != nil {
+		return AppOwnedScriptRunRequest{}, nil, err
+	}
+	scopeRoot, err := appOwnedOptionalString(object, "scopeRoot")
+	if err != nil {
+		return AppOwnedScriptRunRequest{}, nil, err
+	}
+	expectedScriptHash, err := appOwnedOptionalString(object, "expectedScriptHash")
+	if err != nil {
+		return AppOwnedScriptRunRequest{}, nil, err
+	}
+	inputJSON, err := appOwnedOptionalString(object, "inputJSON")
+	if err != nil {
+		return AppOwnedScriptRunRequest{}, nil, err
+	}
+	if inputJSON == "" {
+		inputJSON = "{}"
+	}
+	if len(inputJSON) > 256<<10 {
+		return AppOwnedScriptRunRequest{}, nil, errors.New("options.inputJSON is too large")
+	}
 	return AppOwnedScriptRunRequest{
 		ExecutionID: executionID, ScriptPath: scriptPath, ScopeRoot: scopeRoot,
 		ExpectedScriptHash: expectedScriptHash, InputJSON: inputJSON, WorkDir: workDir, LogDir: logDir,
@@ -749,6 +869,12 @@ func (a *AppShellRuntime) finishAsync(runtime *goja.Runtime, id uint64, value an
 		_ = pending.reject(appShellAsyncJSError(runtime, pending.operation, operationErr))
 		return
 	}
+	// Normalize this void mutation on the Runtime owner, without changing
+	// nullable results returned by other App Shell operations.
+	if pending.operation == "updateMenuItem" && value == nil {
+		_ = pending.resolve(goja.Undefined())
+		return
+	}
 	_ = pending.resolve(value)
 }
 
@@ -900,16 +1026,26 @@ func appShellJSError(runtime *goja.Runtime, code, operation, message string) *go
 func appShellAsyncJSError(runtime *goja.Runtime, operation string, operationErr error) *goja.Object {
 	var scriptErr *AppOwnedScriptRunError
 	if errors.As(operationErr, &scriptErr) {
-		code := strings.TrimSpace(scriptErr.Code); if code == "" { code = "EXECUTION_FAILED" }
+		code := strings.TrimSpace(scriptErr.Code)
+		if code == "" {
+			code = "EXECUTION_FAILED"
+		}
 		object := appShellJSError(runtime, code, operation, scriptErr.Error())
-		_ = object.Set("executionId", scriptErr.Result.ExecutionID); _ = object.Set("status", scriptErr.Result.Status); _ = object.Set("logDir", scriptErr.Result.LogDir)
+		_ = object.Set("executionId", scriptErr.Result.ExecutionID)
+		_ = object.Set("status", scriptErr.Result.Status)
+		_ = object.Set("logDir", scriptErr.Result.LogDir)
 		return object
 	}
 	var flowErr *AppOwnedFlowRunError
 	if errors.As(operationErr, &flowErr) {
-		code := strings.TrimSpace(flowErr.Code); if code == "" { code = "EXECUTION_FAILED" }
+		code := strings.TrimSpace(flowErr.Code)
+		if code == "" {
+			code = "EXECUTION_FAILED"
+		}
 		object := appShellJSError(runtime, code, operation, flowErr.Error())
-		_ = object.Set("executionId", flowErr.Result.ExecutionID); _ = object.Set("status", flowErr.Result.Status); _ = object.Set("logDir", flowErr.Result.LogDir)
+		_ = object.Set("executionId", flowErr.Result.ExecutionID)
+		_ = object.Set("status", flowErr.Result.Status)
+		_ = object.Set("logDir", flowErr.Result.LogDir)
 		return object
 	}
 	return appShellJSError(runtime, "APP_SHELL_ERROR", operation, operationErr.Error())

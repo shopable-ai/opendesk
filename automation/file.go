@@ -67,13 +67,21 @@ func (fs *FileSystem) Path(relativePath string) (string, error) {
 // It does not create or modify filesystem state and fails when the target does not exist.
 func (fs *FileSystem) RealPath(path string) (string, error) {
 	absPath, err := fs.Path(path)
-	if err != nil { return "", err }
+	if err != nil {
+		return "", err
+	}
 	absPath, err = filepath.Abs(absPath)
-	if err != nil { return "", err }
+	if err != nil {
+		return "", err
+	}
 	resolved, err := filepath.EvalSymlinks(absPath)
-	if err != nil { return "", err }
+	if err != nil {
+		return "", err
+	}
 	resolved, err = filepath.Abs(resolved)
-	if err != nil { return "", err }
+	if err != nil {
+		return "", err
+	}
 	return filepath.Clean(resolved), nil
 }
 
@@ -174,7 +182,9 @@ func (fs *FileSystem) Write(path string, text string, encoding ...string) error 
 
 func pathContainsSymlink(path string) (bool, error) {
 	absPath, err := filepath.Abs(path)
-	if err != nil { return false, err }
+	if err != nil {
+		return false, err
+	}
 	absPath = filepath.Clean(absPath)
 	volume := filepath.VolumeName(absPath)
 	root := string(filepath.Separator)
@@ -187,11 +197,17 @@ func pathContainsSymlink(path string) (bool, error) {
 	}
 	current := root
 	for _, part := range strings.Split(rest, string(filepath.Separator)) {
-		if part == "" || part == "." { continue }
+		if part == "" || part == "." {
+			continue
+		}
 		current = filepath.Join(current, part)
 		info, statErr := os.Lstat(current)
-		if statErr != nil { return false, statErr }
-		if info.Mode()&os.ModeSymlink != 0 { return true, nil }
+		if statErr != nil {
+			return false, statErr
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return true, nil
+		}
 	}
 	return false, nil
 }
@@ -201,25 +217,39 @@ func pathContainsSymlink(path string) (bool, error) {
 // so a later parent-path replacement cannot redirect the create operation.
 func (fs *FileSystem) WriteNew(path string, text string, encoding ...string) error {
 	absPath, err := fs.Path(path)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	absPath, err = filepath.Abs(absPath)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	absPath = filepath.Clean(absPath)
 	parent := filepath.Dir(absPath)
 	base := filepath.Base(absPath)
-	if base == "." || base == string(filepath.Separator) || base == "" { return errors.New("File.writeNew requires a file path") }
+	if base == "." || base == string(filepath.Separator) || base == "" {
+		return errors.New("File.writeNew requires a file path")
+	}
 	root, err := os.OpenRoot(parent)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	defer root.Close()
 	redirected, err := pathContainsSymlink(parent)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	if redirected {
 		return errors.New("File.writeNew rejects symbolic-link or reparse-point parent directories")
 	}
 	pathInfo, err := os.Stat(parent)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	rootInfo, err := root.Stat(".")
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	if !os.SameFile(pathInfo, rootInfo) {
 		return errors.New("File.writeNew parent directory changed during authorization")
 	}
@@ -227,17 +257,29 @@ func (fs *FileSystem) WriteNew(path string, text string, encoding ...string) err
 	// Publishing via an exclusive hard link prevents another reader from locking
 	// a half-initialized file that a later failure cleanup could unlink.
 	var nonce [16]byte
-	if _, err := rand.Read(nonce[:]); err != nil { return err }
+	if _, err := rand.Read(nonce[:]); err != nil {
+		return err
+	}
 	temporary := fmt.Sprintf(".opendesk-new-%x", nonce)
-	file, err := root.OpenFile(temporary, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
-	if err != nil { return err }
+	file, err := root.OpenFile(temporary, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return err
+	}
 	defer func() { _ = file.Close(); _ = root.Remove(temporary) }()
-	if _, err := io.WriteString(file, text); err != nil { return err }
-	if err := file.Sync(); err != nil { return err }
-	if err := file.Close(); err != nil { return err }
+	if _, err := io.WriteString(file, text); err != nil {
+		return err
+	}
+	if err := file.Sync(); err != nil {
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
 	// Link fails if base already exists. Never unlink base, including on errors
 	// after publication: it may already be open and locked by another process.
-	if err := root.Link(temporary, base); err != nil { return err }
+	if err := root.Link(temporary, base); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -291,20 +333,36 @@ func (fs *FileSystem) Copy(pathFrom, pathTo string) error {
 		return err
 	}
 
-	source, err := os.Open(absPathFrom)
+	source, err := openRegularRuntimeFile(absPathFrom, os.O_RDONLY, 0)
 	if err != nil {
 		return err
 	}
 	defer source.Close()
 
-	destination, err := os.Create(absPathTo)
+	destination, err := openRegularRuntimeFile(absPathTo, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return err
 	}
 	defer destination.Close()
 
-	_, err = io.Copy(destination, source)
-	return err
+	sourceInfo, err := source.Stat()
+	if err != nil {
+		return err
+	}
+	destinationInfo, err := destination.Stat()
+	if err != nil {
+		return err
+	}
+	if os.SameFile(sourceInfo, destinationInfo) {
+		return errors.New("File.copy source and destination refer to the same file")
+	}
+	if err := destination.Truncate(0); err != nil {
+		return err
+	}
+	if _, err := io.Copy(destination, source); err != nil {
+		return err
+	}
+	return destination.Close()
 }
 
 // RenameWithoutExtension renames a file without changing its extension
@@ -479,7 +537,37 @@ func (fs *FileSystem) Open(path string, mode string) (*FileHandle, error) {
 		return nil, errors.New("invalid file mode")
 	}
 
-	file, err := os.OpenFile(absPath, flag, 0644)
+	file, err := openRegularRuntimeFile(absPath, flag&^os.O_TRUNC, 0644)
+	if err != nil {
+		return nil, err
+	}
+	if flag&os.O_TRUNC != 0 {
+		if err := file.Truncate(0); err != nil {
+			_ = file.Close()
+			return nil, err
+		}
+	}
+	handle := newFileHandle(fs, file)
+	fs.handlesMu.Lock()
+	fs.handles[handle] = struct{}{}
+	fs.handlesMu.Unlock()
+	return handle, nil
+}
+
+// openRegularRuntimeFile rejects special files before opening when known and
+// checks the actual descriptor. Callers delay destructive changes until after
+// this check; the Unix helper also covers a FIFO replacement during open.
+func openRegularRuntimeFile(path string, flags int, permissions os.FileMode) (*os.File, error) {
+	// Reject known special files before opening. The non-blocking Unix open
+	// below also handles a path replaced by a FIFO after this check.
+	if info, err := os.Stat(path); err == nil {
+		if !info.Mode().IsRegular() {
+			return nil, errors.New("File operation supports regular files only")
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
+	file, err := openRuntimeFile(path, flags, permissions)
 	if err != nil {
 		return nil, err
 	}
@@ -490,13 +578,9 @@ func (fs *FileSystem) Open(path string, mode string) (*FileHandle, error) {
 	}
 	if !info.Mode().IsRegular() {
 		_ = file.Close()
-		return nil, errors.New("File.open supports regular files only")
+		return nil, errors.New("File operation supports regular files only")
 	}
-	handle := newFileHandle(fs, file)
-	fs.handlesMu.Lock()
-	fs.handles[handle] = struct{}{}
-	fs.handlesMu.Unlock()
-	return handle, nil
+	return file, nil
 }
 
 func (fs *FileSystem) removeHandle(handle *FileHandle) {

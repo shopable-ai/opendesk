@@ -22,10 +22,13 @@ export function makePrompt(s, task, active) {
 export function deepLink(prompt) { return 'codex://threads/new?prompt=' + encodeURIComponent(prompt); }
 
 export class Workflow {
-  constructor(store, { mode = 'simulate', reviewPolicy = 'manual' } = {}) {
+  #committed;
+  #storageFailed = false;
+  constructor(store, { mode = 'simulate', reviewPolicy = 'manual', nativeExecutionStopped = () => false } = {}) {
     if (!['simulate', 'deeplink', 'native', 'app-server'].includes(mode)) throw Error('INVALID_MODE');
     if (!['manual', 'exact-demo'].includes(reviewPolicy)) throw Error('INVALID_REVIEW_POLICY');
     this.store = store;
+    this.nativeExecutionStopped = nativeExecutionStopped;
     this.s = store.load() || makeState(mode, reviewPolicy);
     if (this.s.reviewPolicy === 'exact-demo' && this.s.mode !== 'simulate') throw Error('DEMO_REVIEW_ONLY');
     if (['reserved','hosted'].includes(this.s.active?.dispatch)) {
@@ -36,13 +39,30 @@ export class Workflow {
       this.#record(prior === 'reserved' ? 'RECOVERED_UNCERTAIN_DISPATCH' : 'RECOVERED_ORPHANED_HOSTED_RUN');
     }
     this.store.save(this.s);
+    this.#committed = structuredClone(this.s);
   }
   #record(type, extra = {}) {
     this.s.history.push({ at: new Date().toISOString(), type, taskId: this.s.active?.taskId ?? null, ...extra });
     if (this.s.history.length > 300) this.s.history.shift();
   }
-  #save() { this.s.revision++; this.store.save(this.s); }
+  #healthy() { if (this.#storageFailed) throw Error('STORAGE_UNAVAILABLE_RESTART_REQUIRED'); }
+  #save() {
+    this.#healthy();
+    this.s.revision++;
+    try {
+      this.store.save(this.s);
+      this.#committed = structuredClone(this.s);
+    } catch (error) {
+      // A failed fsync may follow rename: disk outcome is unknown. Stop this
+      // owner; only a restart can re-read and reconcile the actual durable state.
+      this.#storageFailed = true;
+      this.s = structuredClone(this.#committed);
+      this.s.paused = true;
+      throw error;
+    }
+  }
   #active(args) {
+    this.#healthy();
     const a = this.s.active;
     if (!a) throw Error('NO_ACTIVE_ATTEMPT');
     if (!args || typeof args !== 'object') throw Error('INVALID_ARGUMENTS');
@@ -51,18 +71,23 @@ export class Workflow {
     eq(args.taskVersion, task.version);
     return { a, task };
   }
-  #unique(id, payload) {
+  #duplicate(id, payload) {
     if (typeof id !== 'string' || !/^[a-zA-Z0-9_:-]{1,150}$/.test(id)) throw Error('EVENT_ID_INVALID');
     const fingerprint = JSON.stringify(payload);
     if (Object.hasOwn(this.s.seen, id)) {
       if (this.s.seen[id] !== fingerprint) throw Error('EVENT_ID_CONFLICT');
-      return false;
+      return true;
     }
+    return false;
+  }
+  #unique(id, payload) {
+    if (this.#duplicate(id, payload)) return false;
     if (Object.keys(this.s.seen).length >= 1000) throw Error('DEDUP_CAPACITY_REACHED');
-    this.s.seen[id] = fingerprint;
+    this.s.seen[id] = JSON.stringify(payload);
     return true;
   }
   #reserveNext() {
+    this.#healthy();
     if (this.s.paused || this.s.active) return null;
     const next = this.s.tasks.find(t => t.status === 'queued' && t.dependsOn.every(d => this.s.tasks.find(x => x.id === d)?.status === 'accepted'));
     if (!next) return null;
@@ -75,16 +100,23 @@ export class Workflow {
     return this.pending();
   }
   pending() {
-    if (!this.s.active) return null;
+    if (this.#storageFailed || !this.s.active) return null;
     const t = this.s.tasks.find(x => x.id === this.s.active.taskId);
     return { workflowId: this.s.workflowId, taskId: t.id, taskVersion: t.version,
       attemptId: this.s.active.attemptId, prompt: makePrompt(this.s, t, this.s.active),
       deepLink: deepLink(makePrompt(this.s, t, this.s.active)), dispatch: this.s.active.dispatch };
   }
-  start() { if (this.s.active || this.s.tasks.every(t => t.status === 'accepted')) throw Error('ALREADY_STARTED_OR_FINISHED'); this.s.paused = false; this.#record('WORKFLOW_STARTED'); this.#save(); return this.#reserveNext(); }
-  pause() { if (!this.s.paused) { this.s.paused = true; this.#record('PAUSED'); this.#save(); } return this.publicState(); }
-  resume() { if (this.s.paused) { this.s.paused = false; this.#record('RESUMED'); this.#save(); } return this.#reserveNext(); }
+  start() { this.#healthy(); if (this.s.active || this.s.tasks.every(t => t.status === 'accepted')) throw Error('ALREADY_STARTED_OR_FINISHED'); this.s.paused = false; this.#record('WORKFLOW_STARTED'); this.#save(); return this.#reserveNext(); }
+  pause() { this.#healthy(); if (!this.s.paused) { this.s.paused = true; this.#record('PAUSED'); this.#save(); } return this.publicState(); }
+  resume() {
+    this.#healthy();
+    if (['unknown','blocked'].includes(this.s.active?.dispatch)) throw Error('DISPATCH_RECONCILIATION_REQUIRED');
+    if (this.s.active?.error) throw Error('RETRY_NOT_SAFE');
+    if (this.s.paused) { this.s.paused = false; this.#record('RESUMED'); this.#save(); }
+    return this.#reserveNext();
+  }
   dispatchResult({ attemptId, status, threadId = null }) {
+    this.#healthy();
     const a = this.s.active;
     if (!a || a.attemptId !== attemptId || a.dispatch !== 'reserved') throw Error('DISPATCH_NOT_RESERVED');
     if (!['prepared', 'draft', 'hosted', 'unknown', 'blocked'].includes(status)) throw Error('DISPATCH_RESULT_INVALID');
@@ -120,6 +152,7 @@ export class Workflow {
   progress(x) {
     requireFields(x, ['workflowId','taskId','taskVersion','attemptId','nonce','eventId','percent','message']);
     const { a } = this.#active(x); eq(x.nonce, a.nonce);
+    if (this.#duplicate('mcp:' + x.eventId, x)) return { duplicate: true };
     if (!a.claimed || a.result !== null) throw Error('NOT_CLAIMED_OR_ALREADY_SUBMITTED');
     if (!Number.isInteger(x.percent) || x.percent < 0 || x.percent > 100 || typeof x.message !== 'string' || x.message.length > 500) throw Error('PROGRESS_INVALID');
     if (!this.#unique('mcp:' + x.eventId, x)) return { duplicate: true };
@@ -128,6 +161,7 @@ export class Workflow {
   submit(x) {
     requireFields(x, ['workflowId','taskId','taskVersion','attemptId','nonce','eventId','result','evidence']);
     const { a } = this.#active(x); eq(x.nonce, a.nonce);
+    if (this.#duplicate('mcp:' + x.eventId, x)) return { duplicate: true };
     if (!a.claimed || a.result !== null) throw Error('NOT_CLAIMED_OR_ALREADY_SUBMITTED');
     if (typeof x.result !== 'string' || !x.result.trim() || x.result.length > 2000 || typeof x.evidence !== 'string' || x.evidence.length > 2000) throw Error('RESULT_INVALID');
     if (!this.#unique('mcp:' + x.eventId, x)) return { duplicate: true };
@@ -142,6 +176,7 @@ export class Workflow {
     a.error = x.code; this.s.paused = true; this.s.tasks.find(t => t.id === a.taskId).status = 'blocked'; this.#record('MCP_ERROR', { code: x.code }); this.#save(); return { accepted: true };
   }
   hostedEvent(attemptId, status) {
+    if (this.#storageFailed) return false;
     const a=this.s.active;
     if (!a || a.attemptId!==attemptId || !['reserved','hosted'].includes(a.dispatch)) return false;
     if (!['completed','failed','interrupted'].includes(status)) status='unknown';
@@ -150,8 +185,10 @@ export class Workflow {
     this.#record('APP_SERVER_TURN_'+status.toUpperCase()+'_NOT_DESKTOP_EVIDENCE'); this.#save();return true;
   }
   retryFailed(attemptId, evidence) {
+    this.#healthy();
     const a=this.s.active;
     if (!a || a.attemptId!==attemptId || !a.error || !a.stopObserved) throw Error('RETRY_NOT_SAFE');
+    if (['reserved','unknown','blocked'].includes(a.dispatch)) throw Error('DISPATCH_RECONCILIATION_REQUIRED');
     if (typeof evidence!=='string' || evidence.trim().length<12 || evidence.length>500) throw Error('RETRY_REVIEW_REQUIRED');
     this.s.paused=true;this.#record('OPERATOR_APPROVED_RETRY_AFTER_STOP',{evidence});
     this.s.tasks.find(t=>t.id===a.taskId).status='queued';this.s.active=null;this.#save();return this.publicState();
@@ -164,8 +201,10 @@ export class Workflow {
     }
   }
   approve(attemptId, evidence) {
+    this.#healthy();
     const a = this.s.active;
     if (!a || a.attemptId !== attemptId) throw Error('ATTEMPT_MISMATCH');
+    if (['reserved','unknown','blocked'].includes(a.dispatch)) throw Error('DISPATCH_RECONCILIATION_REQUIRED');
     if (!a.claimed || !a.stopObserved || !a.result || a.error) throw Error('REVIEW_NOT_READY');
     if (typeof evidence !== 'string' || evidence.trim().length < 4 || evidence.length > 500) throw Error('REVIEW_EVIDENCE_REQUIRED');
     const task = this.s.tasks.find(t => t.id === a.taskId);
@@ -173,9 +212,13 @@ export class Workflow {
     return this.#reserveNext();
   }
   reconcile(attemptId, outcome, evidence) {
+    this.#healthy();
     const a = this.s.active;
     if (!a || a.attemptId !== attemptId || !['unknown','blocked'].includes(a.dispatch)) throw Error('NO_UNCERTAIN_DISPATCH');
     if (!['not_sent','sent'].includes(outcome) || typeof evidence !== 'string' || evidence.trim().length < 12 || evidence.length > 500) throw Error('RECONCILE_EVIDENCE_REQUIRED');
+    if (outcome === 'not_sent' && (a.sessionId || a.claimed || a.result || a.stopObserved || a.error || a.threadId)) throw Error('RECONCILE_CONFLICT_WITH_EXECUTION');
+    if (outcome === 'not_sent' && this.s.mode === 'native' && a.dispatch === 'unknown' &&
+        !this.nativeExecutionStopped(a.attemptId)) throw Error('DISPATCH_EXECUTION_MAY_BE_ACTIVE');
     this.s.paused = true;
     this.#record('OPERATOR_RECONCILED', { outcome, evidence });
     if (outcome === 'not_sent') {
@@ -191,6 +234,6 @@ export class Workflow {
   publicState() {
     const { seen, ...rest } = this.s;
     const active = this.s.active ? { ...this.s.active, nonce: undefined } : null;
-    return structuredClone({ ...rest, active, pending: this.pending(), history: this.s.history.slice(-40) });
+    return structuredClone({ ...rest, active, storageError: this.#storageFailed ? 'STORAGE_UNAVAILABLE_RESTART_REQUIRED' : null, pending: this.pending(), history: this.s.history.slice(-40) });
   }
 }

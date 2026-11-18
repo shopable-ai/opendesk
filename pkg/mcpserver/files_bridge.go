@@ -9,6 +9,7 @@ import (
 	"path"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,17 +23,18 @@ type FilesBridgeBackend interface {
 }
 
 const (
-    // These limits must not exceed the existing Native file service.
-    filesBridgeMaxFrameBytes = 60 * 1024
-    filesBridgeMaxContentBytes = 32 * 1024
+	// These limits must not exceed the existing Native file service.
+	filesBridgeMaxFrameBytes   = 60 * 1024
+	filesBridgeMaxContentBytes = 32 * 1024
 )
 
 // FilesBridgeBackendError is a sanitized transport result. The Native-owner
 // adapter must translate its internal error without exposing paths or secrets.
 type FilesBridgeBackendError struct {
-    Code string
-    Outcome string
+	Code    string
+	Outcome string
 }
+
 func (e *FilesBridgeBackendError) Error() string { return "E_FILES_BRIDGE" }
 
 // FilesBridgeDelivery records local output only. EMITTED is not a remote ACK.
@@ -134,7 +136,7 @@ func (s *Server) filesBridgeToolsList(req Request) Response {
 // erase duplicate keys or encoding/json can match case-insensitive field names.
 // The caller chooses the allowlist; metadata is never an authority channel.
 func strictFilesBridgeObject(raw []byte, allowed ...string) (map[string]json.RawMessage, bool) {
-	if !utf8.Valid(raw) || len(raw) == 0 || len(raw) > filesBridgeMaxFrameBytes {
+	if len(raw) == 0 || len(raw) > filesBridgeMaxFrameBytes || !utf8.Valid(raw) || !validFilesBridgeUnicodeEscapes(raw) {
 		return nil, false
 	}
 	d := json.NewDecoder(bytes.NewReader(raw))
@@ -155,9 +157,14 @@ func strictFilesBridgeObject(raw []byte, allowed ...string) (map[string]json.Raw
 		if len(allowed) > 0 {
 			found := false
 			for _, name := range allowed {
-				if name == key { found = true; break }
+				if name == key {
+					found = true
+					break
+				}
 			}
-			if !found { return nil, false }
+			if !found {
+				return nil, false
+			}
 		}
 		var value json.RawMessage
 		if d.Decode(&value) != nil || bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
@@ -169,8 +176,49 @@ func strictFilesBridgeObject(raw []byte, allowed ...string) (map[string]json.Raw
 		return nil, false
 	}
 	var trailing any
-	if d.Decode(&trailing) != io.EOF { return nil, false }
+	if d.Decode(&trailing) != io.EOF {
+		return nil, false
+	}
 	return fields, true
+}
+
+// encoding/json replaces unpaired UTF-16 surrogates with U+FFFD. Reject them
+// before decoding, so neither file text nor a field name silently changes.
+// Escaped backslashes are skipped; literal "\\ud800" remains ordinary text.
+func validFilesBridgeUnicodeEscapes(raw []byte) bool {
+	for i := 0; i < len(raw); i++ {
+		if raw[i] != '\\' {
+			continue
+		}
+		i++
+		if i >= len(raw) {
+			return false
+		}
+		if raw[i] != 'u' {
+			continue
+		}
+		if i+4 >= len(raw) {
+			return false
+		}
+		code, err := strconv.ParseUint(string(raw[i+1:i+5]), 16, 16)
+		if err != nil {
+			return false
+		}
+		i += 4
+		if code >= 0xd800 && code <= 0xdbff {
+			if i+6 >= len(raw) || raw[i+1] != '\\' || raw[i+2] != 'u' {
+				return false
+			}
+			low, err := strconv.ParseUint(string(raw[i+3:i+7]), 16, 16)
+			if err != nil || low < 0xdc00 || low > 0xdfff {
+				return false
+			}
+			i += 6
+		} else if code >= 0xdc00 && code <= 0xdfff {
+			return false
+		}
+	}
+	return true
 }
 
 func validFilesBridgeEnvelope(raw []byte) bool {
@@ -188,11 +236,17 @@ func filesBridgeRequestWithinLimit(req Request) bool {
 
 func validFilesBridgeParams(method string, raw json.RawMessage) bool {
 	if method == "tools/call" {
-		if !validWebFileCall(raw) { return false }
+		if !validWebFileCall(raw) {
+			return false
+		}
 		fields, ok := strictFilesBridgeObject(raw, "name", "arguments", "_meta")
-		if !ok { return false }
+		if !ok {
+			return false
+		}
 		var name string
-		if json.Unmarshal(fields["name"], &name) != nil || name == "" { return false }
+		if json.Unmarshal(fields["name"], &name) != nil || name == "" {
+			return false
+		}
 		return true
 	}
 	if len(raw) == 0 {
@@ -203,17 +257,27 @@ func validFilesBridgeParams(method string, raw json.RawMessage) bool {
 	switch method {
 	case "initialize":
 		fields, ok = strictFilesBridgeObject(raw, "protocolVersion", "capabilities", "clientInfo", "_meta")
-		if !ok { return false }
+		if !ok {
+			return false
+		}
 		var version string
-		if json.Unmarshal(fields["protocolVersion"], &version) != nil || version == "" { return false }
+		if json.Unmarshal(fields["protocolVersion"], &version) != nil || version == "" {
+			return false
+		}
 		for _, name := range []string{"capabilities", "clientInfo", "_meta"} {
-			if value, present := fields[name]; present && !isJSONObject(value) { return false }
+			if value, present := fields[name]; present && !isJSONObject(value) {
+				return false
+			}
 		}
 		return true
 	case "ping", "tools/list":
 		fields, ok = strictFilesBridgeObject(raw, "_meta")
-		if !ok { return false }
-		if value, present := fields["_meta"]; present { return isJSONObject(value) }
+		if !ok {
+			return false
+		}
+		if value, present := fields["_meta"]; present {
+			return isJSONObject(value)
+		}
 		return true
 	default:
 		return true // Unknown methods are rejected by the existing MCP dispatcher.
@@ -221,17 +285,25 @@ func validFilesBridgeParams(method string, raw json.RawMessage) bool {
 }
 
 func validFilesBridgePath(value string, directory bool) bool {
-	if value == "" { return directory }
+	if value == "" {
+		return directory
+	}
 	if !utf8.ValidString(value) || len(value) > 512 || path.Clean(value) != value ||
 		strings.HasPrefix(value, "/") || strings.ContainsAny(value, "\\\x00") {
 		return false
 	}
 	parts := strings.Split(value, "/")
-	if len(parts) > 16 { return false }
+	if len(parts) > 16 {
+		return false
+	}
 	for _, part := range parts {
-		if part == "" || strings.HasPrefix(part, ".") || strings.EqualFold(part, "node_modules") { return false }
+		if part == "" || strings.HasPrefix(part, ".") || strings.EqualFold(part, "node_modules") {
+			return false
+		}
 		for _, r := range part {
-			if r < 32 || r == 127 { return false }
+			if r < 32 || r == 127 {
+				return false
+			}
 		}
 	}
 	return true
@@ -239,46 +311,66 @@ func validFilesBridgePath(value string, directory bool) bool {
 
 func validateFilesBridgeArguments(name string, args map[string]any) error {
 	tool, exists := filesBridgeTool(name)
-	if !exists || validateToolArguments(tool, args) != nil { return errors.New("E_SCHEMA") }
-	if id, present := args["requestId"]; present && !filesBridgeOperation.MatchString(id.(string)) { return errors.New("E_SCHEMA") }
+	if !exists || validateToolArguments(tool, args) != nil {
+		return errors.New("E_SCHEMA")
+	}
+	if id, present := args["requestId"]; present && !filesBridgeOperation.MatchString(id.(string)) {
+		return errors.New("E_SCHEMA")
+	}
 	if name != "tm_files_status" {
 		if !filesBridgeWorkspace.MatchString(args["workspaceId"].(string)) ||
-			!validFilesBridgePath(args["path"].(string), name == "tm_files_list") { return errors.New("E_SCHEMA") }
+			!validFilesBridgePath(args["path"].(string), name == "tm_files_list") {
+			return errors.New("E_SCHEMA")
+		}
 	}
 	if name == "tm_files_write" {
 		content := args["content"].(string)
 		if len(content) > filesBridgeMaxContentBytes || !utf8.ValidString(content) || strings.ContainsRune(content, 0) ||
-			!filesBridgeSHA.MatchString(args["expectedSha256"].(string)) { return errors.New("E_SCHEMA") }
+			!filesBridgeSHA.MatchString(args["expectedSha256"].(string)) {
+			return errors.New("E_SCHEMA")
+		}
 	}
 	raw, err := json.Marshal(args)
-	if err != nil || len(raw) > filesBridgeMaxFrameBytes { return errors.New("E_FILES_LIMIT") }
+	if err != nil || len(raw) > filesBridgeMaxFrameBytes {
+		return errors.New("E_FILES_LIMIT")
+	}
 	return nil
 }
 
 func filesBridgeFailure(code, outcome string, write bool) map[string]any {
 	accepted, written := "REJECTED", "NOT_APPLICABLE"
-	if write { written = "NOT_WRITTEN" }
+	if write {
+		written = "NOT_WRITTEN"
+	}
 	if outcome == "OUTCOME_UNKNOWN" {
 		accepted = "UNKNOWN"
-		if write { written = "UNKNOWN" }
+		if write {
+			written = "UNKNOWN"
+		}
 	}
 	return map[string]any{"ok": false, "error": map[string]any{"code": code, "message": code, "outcome": outcome},
 		"stages": map[string]any{"requestAccepted": accepted, "fileWritten": written, "readBackVerified": false, "toolResult": "PREPARED"}}
 }
 
 func (f *filesBridge) call(name string, args map[string]any) (map[string]any, error) {
-	if err := validateFilesBridgeArguments(name, args); err != nil { return nil, err }
+	if err := validateFilesBridgeArguments(name, args); err != nil {
+		return nil, err
+	}
 	arguments, _ := json.Marshal(args) // Snapshot caller-owned input; metadata is excluded.
 	write := name == "tm_files_write"
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.closed { return nil, errors.New("E_FILES_BRIDGE_CLOSED") }
+	if f.closed {
+		return nil, errors.New("E_FILES_BRIDGE_CLOSED")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 16*time.Second)
 	defer cancel()
 	raw, err := f.backend.Call(ctx, strings.Replace(name, "tm_files_", "files.", 1), arguments)
 	if err != nil {
 		code, outcome := "E_FILES_BRIDGE", "FAILED_CONFIRMED"
-		if write { outcome = "OUTCOME_UNKNOWN" }
+		if write {
+			outcome = "OUTCOME_UNKNOWN"
+		}
 		var callError *FilesBridgeBackendError
 		if errors.As(err, &callError) && filesBridgeCode.MatchString(callError.Code) {
 			code = callError.Code
@@ -289,60 +381,152 @@ func (f *filesBridge) call(name string, args map[string]any) (map[string]any, er
 		}
 		return filesBridgeFailure(code, outcome, write), nil
 	}
+	return decodeFilesBridgePayload(raw, name), nil
+}
+
+// Native results and historical write receipts share one error/stage contract.
+// Decoding a receipt never dispatches another Native call.
+func decodeFilesBridgePayload(raw json.RawMessage, name string) map[string]any {
+	write := name == "tm_files_write" || name == "receipt"
 	fields, valid := strictFilesBridgeObject(raw, "ok", "data", "error", "stages")
 	var payload map[string]any
 	if !valid || len(fields["ok"]) == 0 || len(fields["stages"]) == 0 || json.Unmarshal(raw, &payload) != nil {
 		outcome := "FAILED_CONFIRMED"
-		if write { outcome = "OUTCOME_UNKNOWN" }
-		return filesBridgeFailure("E_FILES_BRIDGE", outcome, write), nil
+		if write {
+			outcome = "OUTCOME_UNKNOWN"
+		}
+		return filesBridgeFailure("E_FILES_BRIDGE", outcome, write)
 	}
-	if _, ok := payload["ok"].(bool); !ok { return filesBridgeFailure("E_FILES_BRIDGE", unknownFilesBridgeOutcome(write), write), nil }
+	if _, ok := payload["ok"].(bool); !ok {
+		return filesBridgeFailure("E_FILES_BRIDGE", unknownFilesBridgeOutcome(write), write)
+	}
 	// Keep Native's independent state facts. Never promote response preparation
 	// to delivery, or a status query to a fresh readback of current disk bytes.
 	stages, ok := payload["stages"].(map[string]any)
 	stageFields, exactStages := strictFilesBridgeObject(fields["stages"], "requestAccepted", "fileWritten", "readBackVerified", "toolResult")
 	if !ok || !exactStages || len(stageFields) != 4 || stages["toolResult"] != "PREPARED" {
-		return filesBridgeFailure("E_FILES_BRIDGE", unknownFilesBridgeOutcome(write), write), nil
+		return filesBridgeFailure("E_FILES_BRIDGE", unknownFilesBridgeOutcome(write), write)
 	}
 	accepted, acceptedOK := stages["requestAccepted"].(string)
 	written, writtenOK := stages["fileWritten"].(string)
-	_, verifiedOK := stages["readBackVerified"].(bool)
+	verified, verifiedOK := stages["readBackVerified"].(bool)
 	if !acceptedOK || !writtenOK || !verifiedOK ||
 		!containsSchemaString([]string{"ACCEPTED", "REJECTED", "UNKNOWN"}, accepted) ||
 		!containsSchemaString([]string{"CONFIRMED", "NOT_WRITTEN", "UNKNOWN", "NOT_APPLICABLE"}, written) {
-		return filesBridgeFailure("E_FILES_BRIDGE", unknownFilesBridgeOutcome(write), write), nil
+		return filesBridgeFailure("E_FILES_BRIDGE", unknownFilesBridgeOutcome(write), write)
+	}
+	if (!write && (written != "NOT_APPLICABLE" || verified)) ||
+		(write && (written == "NOT_APPLICABLE" ||
+			((written == "CONFIRMED" || written == "UNKNOWN") && accepted == "REJECTED") ||
+			(written == "CONFIRMED" && accepted != "ACCEPTED") ||
+			(verified && written != "CONFIRMED"))) {
+		return filesBridgeFailure("E_FILES_BRIDGE", unknownFilesBridgeOutcome(write), write)
 	}
 	// A malformed success cannot convert an unknown write into a successful tool
-	// result. Failed results retain the owner's separate stage facts unchanged.
+	// result. Consistent failures retain the owner's separate stage facts.
 	if payload["ok"] == true && (accepted != "ACCEPTED" ||
 		(write && (written != "CONFIRMED" || stages["readBackVerified"] != true)) ||
 		(!write && written != "NOT_APPLICABLE")) {
-		return filesBridgeFailure("E_FILES_BRIDGE", unknownFilesBridgeOutcome(write), write), nil
+		return filesBridgeFailure("E_FILES_BRIDGE", unknownFilesBridgeOutcome(write), write)
 	}
 	if data, present := fields["data"]; present && !isJSONObject(data) {
-		return filesBridgeFailure("E_FILES_BRIDGE", unknownFilesBridgeOutcome(write), write), nil
+		return filesBridgeFailure("E_FILES_BRIDGE", unknownFilesBridgeOutcome(write), write)
 	}
 	if problem, present := fields["error"]; present {
 		_, exactError := strictFilesBridgeObject(problem, "code", "message", "outcome")
 		problemMap, objectError := payload["error"].(map[string]any)
 		if !exactError || !objectError || payload["ok"] != false {
-			return filesBridgeFailure("E_FILES_BRIDGE", unknownFilesBridgeOutcome(write), write), nil
+			return filesBridgeFailure("E_FILES_BRIDGE", unknownFilesBridgeOutcome(write), write)
 		}
 		code, codeOK := problemMap["code"].(string)
 		outcome, outcomeOK := problemMap["outcome"].(string)
 		if !codeOK || !outcomeOK || !filesBridgeCode.MatchString(code) ||
 			!containsSchemaString([]string{"NOT_DISPATCHED", "FAILED_CONFIRMED", "OUTCOME_UNKNOWN"}, outcome) {
-			return filesBridgeFailure("E_FILES_BRIDGE", unknownFilesBridgeOutcome(write), write), nil
+			return filesBridgeFailure("E_FILES_BRIDGE", unknownFilesBridgeOutcome(write), write)
+		}
+		if (outcome == "NOT_DISPATCHED" && (accepted != "REJECTED" || verified || (write && written != "NOT_WRITTEN"))) ||
+			(outcome == "FAILED_CONFIRMED" && (accepted == "UNKNOWN" || written == "UNKNOWN")) ||
+			(outcome == "OUTCOME_UNKNOWN" && write && written == "CONFIRMED" && verified) {
+			return filesBridgeFailure("E_FILES_BRIDGE", unknownFilesBridgeOutcome(write), write)
 		}
 		problemMap["message"] = code
+		// Failure diagnostics have no public data contract. Recovery uses the
+		// stable requestId, safe error code and independent stage facts.
+		delete(payload, "data")
 	} else if payload["ok"] != true {
-		return filesBridgeFailure("E_FILES_BRIDGE", unknownFilesBridgeOutcome(write), write), nil
+		return filesBridgeFailure("E_FILES_BRIDGE", unknownFilesBridgeOutcome(write), write)
 	}
-	return payload, nil
+	if name == "tm_files_status" && payload["data"] != nil {
+		dataFields, exactData := strictFilesBridgeObject(fields["data"])
+		if !exactData {
+			return filesBridgeFailure("E_FILES_BRIDGE", "FAILED_CONFIRMED", false)
+		}
+		public := map[string]any{}
+		for field, value := range payload["data"].(map[string]any) {
+			switch field {
+			case "requestId":
+				id, ok := value.(string)
+				if !ok || !filesBridgeOperation.MatchString(id) {
+					return filesBridgeFailure("E_FILES_BRIDGE", "FAILED_CONFIRMED", false)
+				}
+				public[field] = id
+			case "receiptStatus":
+				status, ok := value.(string)
+				if !ok || !containsSchemaString([]string{"KNOWN", "UNKNOWN"}, status) {
+					return filesBridgeFailure("E_FILES_BRIDGE", "FAILED_CONFIRMED", false)
+				}
+				public[field] = status
+			case "receipt":
+				public[field] = decodeFilesBridgePayload(dataFields[field], "receipt")
+			}
+		}
+		payload["data"] = public
+	}
+	if name == "receipt" && payload["data"] != nil {
+		_, exactData := strictFilesBridgeObject(fields["data"])
+		if !exactData {
+			return filesBridgeFailure("E_FILES_BRIDGE", "OUTCOME_UNKNOWN", true)
+		}
+		public := map[string]any{}
+		for field, value := range payload["data"].(map[string]any) {
+			valid := false
+			switch field {
+			case "workspaceId", "path", "requestId", "sha256":
+				text, ok := value.(string)
+				if ok {
+					switch field {
+					case "workspaceId":
+						valid = filesBridgeWorkspace.MatchString(text)
+					case "path":
+						valid = validFilesBridgePath(text, false)
+					case "requestId":
+						valid = filesBridgeOperation.MatchString(text)
+					case "sha256":
+						valid = filesBridgeSHA.MatchString(text)
+					}
+				}
+			case "bytes":
+				number, ok := value.(float64)
+				valid = ok && number >= 0 && number <= filesBridgeMaxContentBytes && number == float64(int(number))
+			case "saved":
+				_, valid = value.(bool)
+			default:
+				continue // No historical body, credential or arbitrary diagnostics.
+			}
+			if !valid {
+				return filesBridgeFailure("E_FILES_BRIDGE", "OUTCOME_UNKNOWN", true)
+			}
+			public[field] = value
+		}
+		payload["data"] = public
+	}
+	return payload
 }
 
 func unknownFilesBridgeOutcome(write bool) string {
-	if write { return "OUTCOME_UNKNOWN" }
+	if write {
+		return "OUTCOME_UNKNOWN"
+	}
 	return "FAILED_CONFIRMED"
 }
 
@@ -351,13 +535,15 @@ func (s *Server) handleFilesBridgeCall(req Request) Response {
 		return s.errorResponse(json.RawMessage("null"), ErrCodeInvalidParams, "invalid file bridge call", nil)
 	}
 	var params struct {
-		Name string `json:"name"`
+		Name      string         `json:"name"`
 		Arguments map[string]any `json:"arguments"`
 	}
 	if json.Unmarshal(req.Params, &params) != nil {
 		return s.errorResponse(req.ID, ErrCodeInvalidParams, "invalid file bridge arguments", nil)
 	}
-	if params.Arguments == nil { params.Arguments = map[string]any{} }
+	if params.Arguments == nil {
+		params.Arguments = map[string]any{}
+	}
 	payload, err := s.filesBridge.call(params.Name, params.Arguments)
 	if err != nil {
 		return s.errorResponse(req.ID, ErrCodeInvalidParams, "file tool or arguments not permitted", nil)
@@ -377,15 +563,30 @@ func (s *Server) filesBridgeResponse(id json.RawMessage, payload map[string]any)
 }
 
 func (f *filesBridge) noteDelivery(req Request, err error) {
-	if req.Method != "tools/call" { return }
-	var params struct { Name string `json:"name"`; Arguments map[string]any `json:"arguments"` }
-	if json.Unmarshal(req.Params, &params) != nil { return }
-	if _, allowed := filesBridgeTool(params.Name); !allowed { return }
+	if req.Method != "tools/call" {
+		return
+	}
+	var params struct {
+		Name      string         `json:"name"`
+		Arguments map[string]any `json:"arguments"`
+	}
+	if json.Unmarshal(req.Params, &params) != nil {
+		return
+	}
+	if _, allowed := filesBridgeTool(params.Name); !allowed {
+		return
+	}
 	event := FilesBridgeDelivery{Tool: params.Name, ToolResult: "EMITTED"}
-	if err != nil { event.ToolResult = "UNKNOWN" }
-	if id, ok := params.Arguments["requestId"].(string); ok && filesBridgeOperation.MatchString(id) { event.RequestID = id }
+	if err != nil {
+		event.ToolResult = "UNKNOWN"
+	}
+	if id, ok := params.Arguments["requestId"].(string); ok && filesBridgeOperation.MatchString(id) {
+		event.RequestID = id
+	}
 	f.mu.Lock()
 	observer := f.delivery
 	f.mu.Unlock()
-	if observer != nil { observer(event) }
+	if observer != nil {
+		observer(event)
+	}
 }

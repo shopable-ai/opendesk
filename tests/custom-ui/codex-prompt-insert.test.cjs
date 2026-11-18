@@ -69,7 +69,7 @@ async function harness() {
     },
     keyboard: { async combination(...keys) {
       assert.deepEqual(keys, ['Meta', 'v']);
-      calls.push(['paste', state.clipboard]);
+      calls.push(['type', state.clipboard]);
       if (hooks.paste) return hooks.paste(state.clipboard);
       field.value += state.clipboard;
     } },
@@ -79,7 +79,7 @@ async function harness() {
   const inserter = createRuntimeInserter(options);
   return { inserter, state, calls, hooks, target, field, runtime, options, createRuntimeInserter, calibrateRuntimeEditor, discoverRuntimeEditor };
 }
-const pasted = h => h.calls.filter(c => Array.isArray(c) && c[0] === 'paste');
+const pasted = h => h.calls.filter(c => Array.isArray(c) && c[0] === 'type');
 const focused = h => h.calls.filter(c => Array.isArray(c) && c[0] === 'focus');
 
 for(const inputMode of ['strict'])
@@ -103,18 +103,21 @@ async function pasteHarness(draft='') {
   h.field.textInputState={unit:'utf16',selection:{location:draft.length,length:0},
     composition:'unknown',markedRange:null};
   h.runtime.System={delay:async()=>{await h.hooks.delay?.();}};
-  h.runtime.keyboard.combination=async(...keys)=>{
+  const combine=async(...keys)=>{
     if(keys.join('+')==='Meta+ArrowDown'){
       h.calls.push(['end']);
       h.field.textInputState.selection={location:h.field.value.length,length:0};
       await h.hooks.end?.();return;
     }
-    assert.deepEqual(keys,['Meta','v']);
-    h.calls.push(['paste',h.state.clipboard]);
-    if(h.hooks.paste)return h.hooks.paste(h.state.clipboard);
+    assert.fail('unexpected key input: '+keys.join('+'));
+  };
+  h.runtime.keyboard.combination=combine;
+  h.runtime.keyboard.type=async text=>{
+    h.calls.push(['type',text]);
+    if(h.hooks.paste)return h.hooks.paste(text);
     const {location,length}=h.field.textInputState.selection;
-    h.field.value=h.field.value.slice(0,location)+h.state.clipboard+h.field.value.slice(location+length);
-    h.field.textInputState.selection={location:location+h.state.clipboard.length,length:0};
+    h.field.value=h.field.value.slice(0,location)+text+h.field.value.slice(location+length);
+    h.field.textInputState.selection={location:location+text.length,length:0};
   };
   h.inserter=h.createRuntimeInserter({...h.options,inputMode:'paste'});
   return h;
@@ -125,7 +128,7 @@ async function codexPasteHarness(draft='',name='随心输入') {
   const h=await pasteHarness(draft);h.logical=draft;
   h.field.name=name;h.field.nativeRole='AXTextArea';
   const project=()=>{h.field.value=h.logical||name+'\n';};project();
-  h.runtime.keyboard.combination=async(...keys)=>{
+  const combine=async(...keys)=>{
     const range=h.field.textInputState.selection;
     if(keys.join('+')==='Meta+ArrowDown'){
       h.calls.push(['end']);h.field.textInputState.selection={location:h.logical.length,length:0};
@@ -134,11 +137,15 @@ async function codexPasteHarness(draft='',name='随心输入') {
     if(keys.join('+')==='ArrowRight'){
       h.calls.push(['right']);if(range.location<h.logical.length)range.location++;return;
     }
-    assert.deepEqual(keys,['Meta','v']);assert.equal(range.length,0);
-    h.calls.push(['paste',h.state.clipboard]);
-    if(h.hooks.paste)return h.hooks.paste(h.state.clipboard);
-    h.logical=h.logical.slice(0,range.location)+h.state.clipboard+h.logical.slice(range.location);
-    h.field.textInputState.selection={location:range.location+h.state.clipboard.length,length:0};project();
+    assert.fail('unexpected key input: '+keys.join('+'));
+  };
+  h.runtime.keyboard.combination=combine;
+  h.runtime.keyboard.type=async text=>{
+    const range=h.field.textInputState.selection;assert.equal(range.length,0);
+    h.calls.push(['type',text]);
+    if(h.hooks.paste)return h.hooks.paste(text);
+    h.logical=h.logical.slice(0,range.location)+text+h.logical.slice(range.location);
+    h.field.textInputState.selection={location:range.location+text.length,length:0};project();
   };
   h.inserter=h.createRuntimeInserter({...h.options,layout:undefined,inputMode:'paste',editorModel:'codex',
     nativeRole:'AXTextArea',searchDepth:64});
@@ -150,10 +157,10 @@ for(const draft of ['', '  原稿 😀 e\u0301\n\t尾部  ', '\n',name+'\n'])
 test('Codex focused paste preserves exact text and unknown IME '+JSON.stringify({name,draft}),async()=>{
   const h=await codexPasteHarness(draft,name),body='  正文 😀 e\u0301\n\t  ';
   const result=await h.inserter.insert(body);
-  assert.equal(result.code,'VERIFIED_PASTE');assert.equal(result.verified,true);
+  assert.equal(result.code,'VERIFIED_TEXT');assert.equal(result.verified,true);
   assert.equal(h.logical,draft+body);assert.equal(h.field.value,draft+body);
   assert.equal(h.field.textInputState.composition,'unknown');
-  assert.deepEqual(pasted(h),[['paste',body]]);assert.equal(focused(h).length,0);
+  assert.deepEqual(pasted(h),[['type',body]]);assert.equal(focused(h).length,0);
   assert.equal(h.calls.some(c=>Array.isArray(c)&&['end','right'].includes(c[0])),false);
   assert.equal(h.state.snapshots,0);assert.equal(h.state.reads,3);
 });
@@ -162,7 +169,7 @@ test('Codex consecutive middle-caret inserts do not move the caret or add separa
   const h=await codexPasteHarness('前😀e\u0301 尾  ');h.field.textInputState.selection.location=5;
   for(const body of ['BODY',' NEXT'])assert.equal((await h.inserter.insert(body)).verified,true);
   assert.equal(h.logical,'前😀e\u0301BODY NEXT 尾  ');
-  assert.deepEqual(pasted(h),[['paste','BODY'],['paste',' NEXT']]);
+  assert.deepEqual(pasted(h),[['type','BODY'],['type',' NEXT']]);
   assert.equal(focused(h).length,0);assert.equal(h.calls.some(c=>Array.isArray(c)&&c[0]==='end'),false);
 });
 
@@ -170,7 +177,7 @@ test('Codex literal placeholder text at caret zero is never stripped from the dr
   const h=await codexPasteHarness('随心输入\n');h.field.textInputState.selection.location=0;
   assert.equal((await h.inserter.insert('BODY')).verified,true);
   assert.equal(h.logical,'BODY随心输入\n');assert.equal(h.field.value,'BODY随心输入\n');
-  assert.deepEqual(pasted(h),[['paste','BODY']]);
+  assert.deepEqual(pasted(h),[['type','BODY']]);
 });
 
 for(const focus of [false,true])for(const draft of ['', '原稿 😀\n  ','随心输入\n'])
@@ -179,7 +186,7 @@ test('Codex fallback distinguishes empty placeholder and literal draft '+JSON.st
   if(focus)h.field.textInputState.selection={location:0,length:Math.min(draft.length,2)};
   const result=await h.inserter.insert('BODY');assert.equal(result.verified,true);
   assert.equal(h.logical,draft+(draft?'\n\n':'')+'BODY');
-  assert.deepEqual(pasted(h),[['paste',(draft?'\n\n':'')+'BODY']]);
+  assert.deepEqual(pasted(h),[['type',(draft?'\n\n':'')+'BODY']]);
   assert.equal(focused(h).length,focus?0:1);
 });
 
@@ -191,8 +198,8 @@ test('Codex rejects '+change+' without paste or retrying a mutation',async()=>{
   if(change==='active-ime')h.field.textInputState.composition='active';
   if(change==='marked-range')h.field.textInputState.markedRange={location:0,length:1};
   if(change==='selection')h.field.textInputState.selection.location=100;
-  if(change==='draft-before-paste')h.hooks.copy=()=>{h.field.value='other draft';};
-  if(change==='caret-before-paste')h.hooks.copy=()=>{h.field.textInputState.selection.location=0;};
+  if(change==='draft-before-paste')h.hooks.read=()=>{if(h.state.reads===2)h.field.value='other draft';};
+  if(change==='caret-before-paste')h.hooks.read=()=>{if(h.state.reads===2)h.field.textInputState.selection.location=0;};
   const result=await h.inserter.insert('BODY');
   assert.equal(result.status,'rejected');assert.equal(result.actionState,'not_started');
   assert.equal(pasted(h).length,0);assert.equal(focused(h).length,0);
@@ -253,9 +260,9 @@ test('ordinary paste preserves exact draft and full body, draft length '+draft.l
   const h=await pasteHarness(draft),body='  正文 e\u0301 😀\n\t尾部  ';
   const expected=draft+body;
   const result=await h.inserter.insert(body);
-  assert.deepEqual(clone(result),{status:'inserted',code:'VERIFIED_PASTE',actionState:'acknowledged',verified:true});
+  assert.deepEqual(clone(result),{status:'inserted',code:'VERIFIED_TEXT',actionState:'acknowledged',verified:true});
   assert.equal(h.field.value,expected);
-  assert.deepEqual(pasted(h),[['paste',body]]);
+  assert.deepEqual(pasted(h),[['type',body]]);
   assert.equal(focused(h).length,0);
   assert.equal(h.calls.at(-1),'release');
 });
@@ -266,7 +273,7 @@ async function claudePasteHarness(draft='',options={}) {
   const length=text=>editorModel==='claude-code'?Array.from(text).length:text.length;
   const h=await pasteHarness(projection(draft));h.logical=draft;h.copyCount=0;
   h.field.textInputState.selection={location:length(draft),length:0};
-  h.runtime.keyboard.combination=async(...keys)=>{
+  const combine=async(...keys)=>{
     if(keys.join('+')==='Meta+a'){
       h.calls.push(['select-all-for-copy']);
       h.field.textInputState.selection={location:0,length:h.logical?length(h.logical):1};return;
@@ -284,14 +291,18 @@ async function claudePasteHarness(draft='',options={}) {
       const r=h.field.textInputState.selection;
       if(r.location<length(h.logical))r.location++;return;
     }
-    assert.deepEqual(keys,['Meta','v']);assert.equal(h.field.textInputState.selection.length,0);
-    h.calls.push(['paste',h.state.clipboard]);
-    if(h.hooks.paste)return h.hooks.paste(h.state.clipboard);
+    assert.fail('unexpected key input: '+keys.join('+'));
+  };
+  h.runtime.keyboard.combination=combine;
+  h.runtime.keyboard.type=async text=>{
+    assert.equal(h.field.textInputState.selection.length,0);
+    h.calls.push(['type',text]);
+    if(h.hooks.paste)return h.hooks.paste(text);
     const offset=h.field.textInputState.selection.location;
     const index=editorModel==='claude-code'?Array.from(h.logical).slice(0,offset).join('').length:offset;
-    h.logical=h.logical.slice(0,index)+h.state.clipboard+h.logical.slice(index);
+    h.logical=h.logical.slice(0,index)+text+h.logical.slice(index);
     h.field.value=projection(h.logical);
-    h.field.textInputState.selection={location:offset+length(h.state.clipboard),length:0};
+    h.field.textInputState.selection={location:offset+length(text),length:0};
   };
   h.inserter=h.createRuntimeInserter({...h.options,inputMode:'paste',editorModel});
   return h;
@@ -303,12 +314,12 @@ for(const draft of ['', '\n', '  原稿 😀 e\u0301\n', '原稿😀', 'a\n\nb']
 test(editorModel+' direct paste preserves logical whitespace despite AX projection '+JSON.stringify(draft),async()=>{
   const h=await claudePasteHarness(draft,{editorModel}),body='  正文 e\u0301 😀\n\t末尾  \n';
   const result=await h.inserter.insert(body);
-  assert.equal(result.code,'PASTE_OBSERVED');assert.equal(result.verified,false);
+  assert.equal(result.code,'TEXT_OBSERVED');assert.equal(result.verified,false);
   assert.equal(result.actionState,'acknowledged');
   assert.equal(h.logical,draft+body);
-  assert.deepEqual(pasted(h),[['paste',body]]);assert.equal(h.copyCount,0);
+  assert.deepEqual(pasted(h),[['type',body]]);assert.equal(h.copyCount,0);
   assert.equal(h.calls.some(c=>Array.isArray(c)&&['end','read-copy','select-all-for-copy','focus'].includes(c[0])),false);
-  assert.equal(h.state.clipboard,body);
+  assert.equal(h.state.clipboard,'');
 });
 
 for(const editorModel of ['claude-code','opencode'])
@@ -316,39 +327,35 @@ test(editorModel+' consecutive direct pastes preserve the middle caret without o
   const h=await claudePasteHarness('prefix suffix',{editorModel});
   h.field.textInputState.selection.location=7;
   for(const body of ['BODY',' NEXT']){
-    assert.equal((await h.inserter.insert(body)).code,'PASTE_OBSERVED');
-    assert.equal(h.state.clipboard,body);
+    assert.equal((await h.inserter.insert(body)).code,'TEXT_OBSERVED');
+    assert.equal(h.state.clipboard,'');
   }
   assert.equal(h.logical,'prefix BODY NEXTsuffix');assert.equal(h.copyCount,0);
   assert.equal(h.field.textInputState.selection.location,16);
-  assert.deepEqual(pasted(h),[['paste','BODY'],['paste',' NEXT']]);
+  assert.deepEqual(pasted(h),[['type','BODY'],['type',' NEXT']]);
   assert.equal(h.calls.some(c=>Array.isArray(c)&&['end','read-copy','select-all-for-copy','focus'].includes(c[0])),false);
 });
 
-for(const receipt of ['unchanged-marker','missing-body','partial-body'])
-test('web fallback postpaste Copy failure latches without retry: '+receipt,async()=>{
-  const h=await claudePasteHarness('original');
-  h.field.focused=false;
-  h.hooks.copyText=()=>{
-    if(receipt!=='unchanged-marker')h.state.clipboard=receipt==='partial-body'?'originalBO':'original';
-  };
+for(const actual of ['unchanged','partial'])
+test('web fallback unknown input preserves clipboard and never dispatches twice: '+actual,async()=>{
+  const h=await claudePasteHarness('original');h.field.focused=false;
+  h.state.clipboard='user clipboard';
+  h.hooks.paste=()=>{if(actual==='partial')h.field.value='partial';throw fail('TIMEOUT');};
   const result=await h.inserter.insert('BODY');
-  assert.equal(result.code,receipt==='unchanged-marker'?'COPY_UNVERIFIED':'READBACK_MISMATCH');
   assert.equal(result.status,'blocked');assert.equal(result.actionState,'unknown');
-  assert.equal(h.logical,'original\n\nBODY');assert.equal(pasted(h).length,1);
-  const calls=h.calls.length,reads=h.state.reads;
-  assert.equal((await h.inserter.insert('BODY')).code,'INPUT_BLOCKED');
-  assert.equal(h.calls.length,calls);assert.equal(h.state.reads,reads);
+  assert.equal(h.state.clipboard,'user clipboard');assert.equal(pasted(h).length,1);
+  const count=h.calls.length;assert.equal((await h.inserter.insert('BODY')).code,'INPUT_BLOCKED');
+  assert.equal(h.calls.length,count);assert.equal(h.copyCount,0);
 });
 
 for(const trailingAX of [false,true])for(const actual of ['', '\n','  原稿 😀 e\u0301\n','a\n\nb',' '])
 test('OpenCode unfocused fallback preserves draft and separator '+JSON.stringify({actual,trailingAX}),async()=>{
   const h=await opencodePasteHarness(actual,trailingAX),body='  正文 😀\n尾  ';
   h.field.focused=false;
-  assert.equal((await h.inserter.insert(body)).verified,true);
+  assert.equal((await h.inserter.insert(body)).code,'TEXT_OBSERVED');
   assert.equal(h.logical,actual+(actual?'\n\n':'')+body);
-  assert.deepEqual(pasted(h),[['paste',(actual?'\n\n':'')+body]]);
-  assert.equal(h.copyCount,1);assert.equal(focused(h).length,1);
+  assert.deepEqual(pasted(h),[['type',(actual?'\n\n':'')+body]]);
+  assert.equal(h.copyCount,0);assert.equal(focused(h).length,1);
 });
 
 test('OpenCode fallback refuses an apparent zero endpoint when Right still advances',async()=>{
@@ -372,7 +379,7 @@ test('plain collapsed caret inserts body at exact UTF-16 offset '+location,async
   const result=await h.inserter.insert(body);
   assert.equal(result.verified,true);
   assert.equal(h.field.value,draft.slice(0,location)+body+draft.slice(location));
-  assert.deepEqual(pasted(h),[['paste',body]]);
+  assert.deepEqual(pasted(h),[['type',body]]);
   assert.equal(h.calls.some(c=>Array.isArray(c)&&c[0]==='end'),false);
   assert.equal(h.state.snapshots,0);assert.equal(focused(h).length,0);
 });
@@ -438,12 +445,24 @@ test('fallback refuses a concurrently edited draft before submitting paste',asyn
   assert.equal(pasted(h).length,0);assert.equal(h.field.value,'user changed draft');
 });
 
-test('ordinary paste checks clipboard immediately before dispatch',async()=>{
-  const h=await pasteHarness();
-  h.hooks.copy=()=>{h.state.clipboard='other application';};
-  const r=await h.inserter.insert('body');
-  assert.equal(r.code,'CLIPBOARD_CHANGED');assert.equal(r.actionState,'not_started');
-  assert.equal(pasted(h).length,0);assert.equal(h.field.value,'');
+for(const model of ['plain','codex','claude-code','opencode'])
+for(const focus of [false,true])
+test('Unicode input never accesses clipboard on success '+JSON.stringify({model,focus}),async()=>{
+  const h=model==='codex'?await codexPasteHarness('draft'):
+    model==='plain'?await pasteHarness('draft'):await claudePasteHarness('draft',{editorModel:model});
+  h.field.focused=focus;h.state.clipboard='user clipboard';
+  Object.assign(h.runtime.clipboard,{copy(){assert.fail('clipboard write');},paste(){assert.fail('clipboard probe');}});
+  const body='  中文 😀 e\u0301\n\t尾  ';
+  const result=await h.inserter.insert(body);
+  assert.equal(result.status,'inserted');assert.equal(result.verified,!['claude-code','opencode'].includes(model));
+  assert.equal(h.logical??h.field.value,'draft'+(focus?'':'\n\n')+body);
+  assert.equal(h.state.clipboard,'user clipboard');assert.equal(pasted(h).length,1);
+});
+
+test('missing Unicode transport rejects without falling back to paste',async()=>{
+  const h=await pasteHarness();delete h.runtime.keyboard.type;
+  assert.equal((await h.inserter.insert('body')).code,'INPUT_UNAVAILABLE');
+  assert.equal(h.calls.length,0);assert.equal(h.state.clipboard,'');
 });
 
 test('ordinary paste rechecks foreground after its initial field read',async()=>{
@@ -877,7 +896,7 @@ test('focused common path qualifies context once, reads without bounds and avoid
   const verifyContext=async()=>{checks++;};
   const helper=h.createRuntimeInserter({...h.options,layout:undefined,inputMode:'paste',verifyContext});
   h.hooks.paste=text=>{
-    assert.equal(checks,1);assert.equal(h.state.reads,1);assert.equal(h.state.snapshots,0);
+    assert.equal(checks,1);assert.equal(h.state.reads,2);assert.equal(h.state.snapshots,0);
     h.field.value+=text;
   };
   assert.equal((await helper.insert('body')).verified,true);assert.equal(checks,1);
@@ -922,7 +941,7 @@ test('prepare is read-only, coalesces find and consumes cached managed ref once'
   assert.equal((await h.inserter.insert('one')).verified,true);
   assert.deepEqual(h.calls.filter(c=>c==='find'||c==='release'),['find','release']);
   assert.equal((await h.inserter.insert('two')).verified,true);
-  assert.deepEqual(pasted(h),[['paste','one'],['paste','two']]);assert.equal(h.field.value,'draftonetwo');
+  assert.deepEqual(pasted(h),[['type','one'],['type','two']]);assert.equal(h.field.value,'draftonetwo');
   assert.deepEqual(h.calls.filter(c=>c==='find'||c==='release'),['find','release','find','release']);
 });
 
@@ -956,7 +975,7 @@ test('busy preparation does not allocate an unused second ref',async()=>{
     assert.equal((await h.inserter.insert('second')).code,'BUSY');
     assert.equal(h.calls.filter(c=>c==='find').length,1);
   }finally{finish.resolve();await pending;}
-  assert.deepEqual(pasted(h),[['paste','first']]);
+  assert.deepEqual(pasted(h),[['type','first']]);
   await h.inserter.dispose();assert.equal(h.calls.filter(c=>c==='release').length,1);
 });
 
@@ -992,10 +1011,10 @@ test(editorModel+' focused selection falls back to end without replacing selecte
   const h=editorModel==='plain'?await pasteHarness('keep selected tail'):
     await claudePasteHarness('keep selected tail',{editorModel});
   h.field.textInputState.selection={location:5,length:8};
-  assert.equal((await h.inserter.insert('BODY')).verified,true);
+  assert.equal((await h.inserter.insert('BODY')).verified,editorModel==='plain');
   assert.equal(editorModel==='plain'?h.field.value:h.logical,'keep selected tail\n\nBODY');
-  assert.deepEqual(pasted(h),[['paste','\n\nBODY']]);assert.equal(focused(h).length,0);
-  const pasteIndex=h.calls.findIndex(c=>Array.isArray(c)&&c[0]==='paste');
+  assert.deepEqual(pasted(h),[['type','\n\nBODY']]);assert.equal(focused(h).length,0);
+  const pasteIndex=h.calls.findIndex(c=>Array.isArray(c)&&c[0]==='type');
   assert.equal(h.calls.slice(0,pasteIndex).filter(c=>Array.isArray(c)&&c[0]==='end').length,1);
 });
 

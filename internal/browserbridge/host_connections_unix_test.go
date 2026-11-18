@@ -61,6 +61,10 @@ func connectionInstallation(t *testing.T) Installation {
 }
 
 func openConnection(t *testing.T, cfg Installation, extensionIDs ...string) (*Host, *io.PipeWriter, *io.PipeReader) {
+	return openPreparedConnection(t, cfg, nil, extensionIDs...)
+}
+
+func openPreparedConnection(t *testing.T, cfg Installation, prepare func(*Host), extensionIDs ...string) (*Host, *io.PipeWriter, *io.PipeReader) {
 	t.Helper()
 	in, w := io.Pipe()
 	r, out := io.Pipe()
@@ -71,6 +75,9 @@ func openConnection(t *testing.T, cfg Installation, extensionIDs ...string) (*Ho
 	h, err := NewConnectionHost(cfg, "chrome-extension://"+extensionID+"/", in, out)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if prepare != nil {
+		prepare(h)
 	}
 	done := make(chan error, 1)
 	go func() { err := h.Run(); out.CloseWithError(err); done <- err }()

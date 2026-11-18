@@ -20,6 +20,8 @@ import (
 
 type Installation struct {
  ApprovedExtensions string
+ ConnectionUpdateVersion int
+ RetainedConnections string
  ConnectionID string
  ParentRoot string
  ParentCredentialDigest string
@@ -151,7 +153,7 @@ func readConfig() (Installation,error) {
 	if _,err:=requireRegular(configPath(),0600);err!=nil{return cfg,err}
 	b,err:=os.ReadFile(configPath());if err!=nil{return cfg,err}
 	if err:=json.Unmarshal(b,&cfg);err!=nil{return cfg,errors.New("E_INSTALL_INVALID")}
-	if cfg.ConnectionID!="" || cfg.ParentRoot!="" || cfg.ParentCredentialDigest!="" || !validApprovedExtensions(cfg) || cfg.Name!=HostName || !ExtensionIDValid(cfg.ExtensionID) ||
+	if cfg.ConnectionID!="" || cfg.ParentRoot!="" || cfg.ParentCredentialDigest!="" || cfg.ConnectionUpdateVersion!=0 || !validRetainedConnections(cfg.RetainedConnections) || !validApprovedExtensions(cfg) || cfg.Name!=HostName || !ExtensionIDValid(cfg.ExtensionID) ||
 		!CredentialValid(cfg.ClientCredential) || cfg.InstallRoot!=root ||
 		cfg.SocketPath!=filepath.Join(root,"agent.sock") ||
 		(cfg.Browser!="chrome" && cfg.Browser!="cft") {
@@ -202,6 +204,10 @@ func shellQuote(s string) string {
 }
 func expectedWrapper(executable string) (string,string,error) {
 	instance,set,err:=nativeInstance();if err!=nil{return "","",err}
+	return expectedWrapperForInstance(executable,instance,set)
+}
+func expectedWrapperForInstance(executable,instance string,set bool) (string,string,error) {
+	if set && !nativeInstancePattern.MatchString(instance){return "","",errors.New("E_INSTALL_INSTANCE")}
 	wrapperEnv:="unset OPENDESK_NATIVE_INSTANCE\n"
 	if set{wrapperEnv="OPENDESK_NATIVE_INSTANCE="+shellQuote(instance)+"\nexport OPENDESK_NATIVE_INSTANCE\n"}
 	expected:="#!/bin/sh\n"+wrapperEnv+"exec "+shellQuote(executable)+" browser native-host \"$@\"\n"
@@ -333,7 +339,8 @@ func setupContext(ctx context.Context,extensionID,browser,userDataDir,executable
 		if prior.Browser!=browser{return nil,errors.New("E_BROWSER_CONFLICT")}
 		if prior.UserDataDir!=userDataDir{return nil,errors.New("E_PROFILE_CONFLICT")}
 		cfg.ApprovedExtensions=prior.ApprovedExtensions
-        if connections,err:=connectionCandidates(prior);err!=nil{return nil,err}else if len(connections)>0{return nil,errors.New("E_SOCKET_IN_USE")}
+        connections,err:=connectionCandidatesForUpdate(prior);if err!=nil{return nil,err}
+        cfg.RetainedConnections,err=retainConnectionRuntimes(connections);if err!=nil{return nil,err}
         cfg.ClientCredential=prior.ClientCredential
 		cfg.CreatedAt=prior.CreatedAt
 		wrapperExecutable=prior.Executable
@@ -360,6 +367,7 @@ func setupContext(ctx context.Context,extensionID,browser,userDataDir,executable
 	manifestBytes,_:=json.MarshalIndent(expectedManifest(cfg),"","  ")
 	if err=commitInstallation(ctx,cfg,[]installMutation{{Path:wrapperFile,Data:[]byte(wrapper),Mode:0700},{Path:configPath(),Data:append(infoBytes,'\n'),Mode:0600},{Path:manifest,Data:append(manifestBytes,'\n'),Mode:0600}});err!=nil{return nil,err}
 	return map[string]any{"installed":true,"extensionId":cfg.ExtensionID,"browser":browser,
+		"activeConnectionsPreserved":retainedConnectionCount(cfg.RetainedConnections),"runtimeActivation":"new-connections",
 		"manifest":manifest,"nativeHost":wrapperFile,"provider":"opendesk"},nil
 }
 func Doctor() map[string]any {

@@ -58,7 +58,8 @@ func isJSONObject(raw json.RawMessage) bool {
 func readOnlyTool(name string) bool {
 	switch name {
 	case "tm_status", "tm_permissions", "tm_list_windows", "tm_get_active_window",
-		"tm_list_displays", "tm_wait_for_window", "tm_screenshot":
+		"tm_list_displays", "tm_wait_for_window", "tm_screenshot",
+		"tm_runtime_capabilities", "tm_api_catalog", "tm_api_read":
 		return true
 	default:
 		return false
@@ -70,6 +71,8 @@ func policyTool(tool Tool, readOnly bool) Tool {
 	// mutate arbitrary applications, and replay need not be idempotent.
 	annotations := ToolAnnotations{DestructiveHint: true, OpenWorldHint: true}
 	switch tool.Name {
+	case "tm_runtime_capabilities", "tm_api_catalog", "tm_api_read", "tm_script_status":
+		annotations = ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true}
 	case "tm_status", "tm_permissions", "tm_list_windows", "tm_get_active_window",
 		"tm_list_displays", "tm_wait_for_window", "tm_analyze_layout":
 		annotations = ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true}

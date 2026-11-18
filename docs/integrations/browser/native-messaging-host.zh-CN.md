@@ -32,9 +32,23 @@ opendesk browser extension revoke --extension-id <第二个真实扩展ID>
 
 `request.get` 的文件参数仍遵守 Browser 原请求合同；未知结果必须显式选择原连接。旧单 Host 的只读对账可显式选择 `--connection legacy`，没有 selector 时即使只剩 legacy 也拒绝对账。Go/Node scoped Workspace CLI 保持租约并输出精确 URL，须在所选连接所属的 Profile 打开；当前不能自动识别并启动该 Profile。原 legacy 启动行为保留。
 
-关闭或撤销一个 Port 不会关闭其他连接。重连使用全新 scope，旧 project/workspace 授权不继承；撤销后即刻重新批准也不会复活旧 scope。scope 发布与批准/撤销共用安装锁，过期的安装快照不能创建连接。批准/撤销先完成事务预检，再永久退役旧 scope；后续失败的错误消息会说明扩展 ID、确认退役数量和安装状态待检查，不能删除 marker 恢复旧授权。修复安装状态后需重新连接和授权。主 ID 不能单独 revoke。短暂安装锁竞争最多等待两秒再校验，不能绕过撤权检查。
+关闭或撤销一个 Port 不会关闭其他连接。重连使用全新 scope，旧 project/workspace 授权不继承；撤销后即刻重新批准也不会复活旧 scope。scope 发布与批准/撤销共用安装锁，过期的安装快照不能创建连接。批准/撤销先完成事务预检，再永久退役旧 scope；后续失败的错误消息会说明扩展 ID、确认退役数量和安装状态待检查，不能删除 marker 恢复旧授权。修复安装状态后需重新连接和授权。主 ID 不能单独 revoke。CLI 对安装锁竞争保留两秒有界等待；新版存活 Host 则持有原帧等待安装发布，直到自己的 Port 关闭可取消，不能因两秒等待耗尽而关闭其他浏览器的 Host，也不能绕过撤权检查。
 
 超时请求释放活跃容量，保留独立、有界的未知结果围栏，避免十二个丢失回执耗尽正常对账/停止槽位。迟到响应只处理自己的 requestId；不得换 ID 自动重放未知效果。本节是核心开发合同，真实证据必须另行绑定当前候选；不表示正式发布、全浏览器矩阵或 Windows Native Host 已通过。
+
+### 多连接期间滚动更新（2026-11-09，源码候选）
+
+日常连接并存不要求关闭浏览器。新版沿原 `opendesk browser update`、安装锁及 wrapper/config/manifest 三文件事务更新默认可执行路径：**已经运行的连接继续保留原版本、凭据和 scope；之后的新连接使用新版本。** 不断开、迁移或重发旧连接的请求，不另建 Broker、daemon 或授权库。选择独立构建的持久版本路径，保留旧运行版本及其配套资源；此事务不覆盖、删除或回滚可执行文件本身，不能把外部原地覆盖 App 文件也解释为已受本机制保护。
+
+新 Host 发布 `ConnectionUpdateVersion=1`。只有全部活动 scoped Host 支持此合同，才允许保留连接更新；旧单 socket 或任何不支持的活动 Host 仍返回 `E_SOCKET_IN_USE`，安装文件保持不变。连接目录可被默认安装与命名实例共享；更新仅在验证另一实例的私有安装、wrapper、manifest 与完整 scope 绑定后排除其连接，不因自报 ParentRoot 跳过。无法校验且不能用 lifetime lock 证明已退休的记录返回 `E_CONNECTION_NOT_READY`。首次从旧版迁移要等相关任务正常结束，再通过原入口安全重连；不要求关闭浏览器或对话，也不以 `pending=0` 猜测未知任务已结束。本轮没有实现自动空闲交接或替用户断开旧连接。
+
+当前安装的 `retainedConnections` 只记录至多八个活动 scope 的精确配置摘要，不授权可执行路径通配或新连接。保留记录也不绕过 extension Origin、父凭据、Profile、私有路径与撤权检查；批准、撤销和再次批准仍使用原永久退休标记。连接清单新增 `liveUpdateSupported`、`runtimeCurrent`；更新结果新增 `activeConnectionsPreserved` 和 `runtimeActivation:"new-connections"`，不能把“默认运行路径已更新”解释为“所有旧连接已换版本”。
+
+v1 摘要是冻结 JSON 字符串数组的 SHA-256，顺序为：域标记 `opendesk.native-connection-runtime.v1`、ApprovedExtensions、ConnectionID、ParentRoot、ParentCredentialDigest、Name、ExtensionID、Browser、UserDataDir、SocketPath、ClientCredential、InstallRoot、Provider、Executable、CreatedAt、InstalledAt。空值保留为空字符串；后续增加 Installation 字段不能改变 v1 摘要。它绑定 scope 配置，不是二进制签名或运行中进程的字节证明。CLI 另核对实际 `os.Executable`，更新前启动的旧 launcher 不能冒充新运行时发布连接。
+
+定向验证覆盖：更新前请求在更新后收到原回包、新旧连接同时可用、连续更新剔除退休 scope、精确绑定与身份负例、旧版/未知活动记录拒绝、取消恢复原 retained 集合、撤权再批准不复活、命名实例并存，以及安装锁争用超过两秒不关闭 Host。当前 race 定向回归 29 个顶层测试、36 项含子测试通过。新编译 CLI/Native 的临时 HOME 联调也通过：两个真实 Native 子进程更新后完成原请求，官方 wrapper 启动新版，独立实例更新不干扰默认实例，关闭后的显式选择不回退；Chrome 端为模拟帧客户端，未使用真实浏览器。原始结果、二进制摘要与隔离 overlay 在 `.runtime/tests/native-rolling-update-20261109/verification.json`。独立源码复审未发现未解决的 P0/P1/P2，复审者未独立运行测试。真实浏览器迁移、真实模型持续推理、签名 App 部署及 production 均为 `NOT_TESTED`。
+
+**签名候选已准备，未部署：** 独立持久路径 `~/.opendesk-browser/native-agent-r1/build-native-rolling-update-20261109/OpenDesk.app` 包含本次 Native 修复及原已审计 CLI 0.162.1；复用同基线、已核验的配套资源，在副本中更新主程序后使用现有固定开发证书重新签名，未修改旧 App。深度严格签名验证通过，`browser ai doctor` 返回 `READY_FOR_TURN / inferenceVerified:false`。另在临时 HOME 中使用真实旧签名 App 与新候选验证：旧活动 Host 拒绝更新且三个安装文件摘要不变、旧请求仍可响应、正常 EOF 后原官方更新成功、wrapper 启动新版并完成请求；Chrome 端仍为模拟帧客户端。证据在 `.runtime/build/native-rolling-update-20261109/candidate-evidence.json` 与上述测试目录的 `legacy-candidate-smoke.json`。日常两条连接仍为能力版本 0，不能用本候选的就绪状态证明它们已迁移，亦未发送模型请求。
 
 > **Mac 本地实施入口 R5（2026-10-10）**：重新编译完整 OpenDesk.app、安装到长期固定路径、让 Chrome 按需启动 Go Native Host，以及通过 Codex CLI 联调真实网页的操作说明见 [Mac 构建、安装与测试](native-mac-build-install-test-r5.zh-CN.md)。可直接复制的本地 Codex GOAL 见 [R5 提示词](../../../prompts/automation/native-messaging-host-mac-codex-r5.zh-CN.md)。该文档不会把模拟 Chrome 或旧 Node Host 的成功外推为真实 Go/Chrome 全链路验收。
 

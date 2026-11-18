@@ -6,6 +6,7 @@ import (
     "bytes"
     "encoding/json"
     "os"
+    "path/filepath"
     "strings"
     "testing"
 
@@ -47,6 +48,29 @@ func TestNoArgumentSetupReusesTrustedInstall(t *testing.T) {
     if !strings.Contains(diagnostics.String(),"E_EXTENSION_ID_CONFLICT") {
         t.Fatalf("missing conflict code: %s",diagnostics.String())
     }
+}
+
+func TestStaleNativeLauncherCannotClaimUpdatedRuntime(t *testing.T) {
+	home, err := os.MkdirTemp("/tmp", "od-cli-runtime-")
+	if err != nil { t.Fatal(err) }
+	t.Cleanup(func(){_ = os.RemoveAll(home)})
+	t.Setenv("HOME", home)
+	executable := filepath.Join(home, "opendesk")
+	if err := os.WriteFile(executable, []byte("#!/bin/sh\nexit 0\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := browserbridge.Setup(cliTestExtensionID, "chrome", "", executable); err != nil {
+		t.Fatal(err)
+	}
+	var out, diagnostics bytes.Buffer
+	code := Execute([]string{"browser", "native-host", "chrome-extension://" + cliTestExtensionID + "/"}, &out, &diagnostics)
+	if code == 0 || !strings.Contains(diagnostics.String(), "E_NATIVE_RUNTIME_CHANGED") || out.Len() != 0 {
+		t.Fatalf("stale runtime published a Native Port: code=%d out=%s diagnostic=%s", code, out.String(), diagnostics.String())
+	}
+	connections, err := browserbridge.Connections()
+	if err != nil || len(connections["connections"].([]map[string]any)) != 0 {
+		t.Fatalf("stale launcher allocated a connection: %v %v", connections, err)
+	}
 }
 
 func TestFreshSetupNeedsPinnedOfficialIDOrFailsClosed(t *testing.T) {

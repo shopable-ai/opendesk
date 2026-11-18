@@ -30,6 +30,7 @@ declare global {
     | "application"
     | "window"
     | "button"
+    | "popUpButton"
     | "checkbox"
     | "radioButton"
     | "textField"

@@ -35,8 +35,11 @@ description: 对已安装 Browser Core 的真实 Tab、Frame、Document 和 DOM 
 八项操作是同步、有限期限的原生调用。它们返回完整结构化响应，不把 Core 错误压成普通
 异常。已知的缺失字段、基础类型错误、无效 scope/condition、缺少 fill value 等在启动
 Client 前返回 `INVALID_ARGUMENT` / `NOT_DISPATCHED`；更深的语义查询、opaque target
-身份及动作可执行性仍由 Browser Core 最终判断。无效或缺失的 Adapter 响应按
-`BROWSER_ADAPTER_RESPONSE_INVALID` / `OUTCOME_UNKNOWN` 安全停止，不自动补发。业务脚本须检查 `error` 和 `outcome`，有错误时停止依赖动作。整个 execution 取消会
+身份及动作可执行性仍由 Browser Core 最终判断。成功和错误响应都必须关联当前
+`requestId`，并包含一致的结果或错误与 `outcome`。收到无效响应返回
+`BROWSER_ADAPTER_RESPONSE_INVALID` / `OUTCOME_UNKNOWN`；提交后断连或未收到响应时返回
+`BROWSER_CLIENT_DISCONNECTED` / `OUTCOME_UNKNOWN`。业务脚本须检查 `error` 和 `outcome`，
+有错误时停止依赖动作。整个 execution 取消会
 关闭所属 Client；关闭不撤回已经产生的 DOM 输入或服务端提交。
 
 响应包含 `requestId`、`result` 或 `error: {code, outcome}`、`outcome`、`executionId`、
@@ -123,7 +126,9 @@ Condition 为 `{kind:'equals', field:'text'|'value', expected:string}` 或
 **返回值** Core 实际动作结果和 before/after evidence；不保证业务终点已经成立。
 
 **行为与错误** fill source 必须来自同一 execution/document 的匹配 read；不匹配为
-`READ_SOURCE_MISMATCH`。`OUTCOME_UNKNOWN` 必须停止，不自动 retry 或重连重放。
+`READ_SOURCE_MISMATCH`。动作交给 Core 后，如果适配器无法生成可信的后验记录，例如发现同一
+请求存在多个 Core 终态，返回对应错误与 `OUTCOME_UNKNOWN`。`OUTCOME_UNKNOWN` 必须停止，
+不自动 retry 或重连重放。如需判断动作是否已生效，另行使用独立只读验证。
 
 **示例** `const filled = BrowserDOM.act({operation:'fill', target:confirmationTarget, value:amount.result.value, sourceReadRequestId:amount.requestId});`
 

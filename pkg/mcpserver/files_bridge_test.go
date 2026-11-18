@@ -885,3 +885,258 @@ func TestFilesBridgeDeliveryObserverNeverUsesModelAuthorityOrRPCID(t *testing.T)
 		t.Fatal("notification generated delivery or mutation evidence")
 	}
 }
+
+func TestFilesBridgeToolsStayOutOfDesktopBrowserAndNonceModes(t *testing.T) {
+	servers := map[string]*Server{
+		"desktop": NewServer(nil),
+		"browser": NewServer(browserContractRuntime{code: "SHOULD_NOT_CALL"}),
+		"nonce":   proofServer(t, proofDir(t)),
+	}
+	for mode, s := range servers {
+		t.Run(mode, func(t *testing.T) {
+			listed := s.Handle(Request{JSONRPC: "2.0", ID: json.RawMessage(`1`), Method: "tools/list"})
+			if listed.Error != nil {
+				t.Fatal(listed.Error)
+			}
+			for _, name := range []string{"tm_files_status", "tm_files_list", "tm_files_read", "tm_files_write"} {
+				if strings.Contains(string(listed.Result), name) {
+					t.Fatalf("%s exposed in %s discovery", name, mode)
+				}
+				if r := s.Handle(filesBridgeTestRequest(t, name, filesBridgeTestArguments(name))); !filesBridgeTestFailed(r) {
+					t.Fatalf("%s callable in %s mode", name, mode)
+				}
+			}
+		})
+	}
+}
+
+// These fixtures prove MCP preserves Native denials, not that Native currently
+// implements the missing authenticated authorization/receipt channel.
+func TestFilesBridgeNativeDenialsRemainErrorsWithoutRetry(t *testing.T) {
+	for _, code := range []string{"E_WORKSPACE_REVOKED", "E_WORKSPACE_READ_ONLY", "E_FILES_ACCESS", "E_FILES_CONFLICT", "E_REQUEST_CONFLICT"} {
+		t.Run(code, func(t *testing.T) {
+			backend := &filesBridgeTestBackend{response: filesBridgeTestJSON(t, map[string]any{
+				"ok":     false,
+				"error":  map[string]any{"code": code, "message": "/private/native/socket token=secret-token", "outcome": "NOT_DISPATCHED"},
+				"stages": map[string]any{"requestAccepted": "REJECTED", "fileWritten": "NOT_WRITTEN", "readBackVerified": false, "toolResult": "PREPARED"},
+			})}
+			s := filesBridgeTestServer(t, backend)
+			r := s.Handle(filesBridgeTestRequest(t, "tm_files_write", filesBridgeTestArguments("tm_files_write")))
+			payload, isError := filesBridgeTestPayload(t, r)
+			problem := payload["error"].(map[string]any)
+			if !isError || payload["ok"] != false || problem["code"] != code || problem["message"] != code || problem["outcome"] != "NOT_DISPATCHED" {
+				t.Fatalf("Native denial changed: %s", r.Result)
+			}
+			if strings.Contains(string(r.Result), "/private/native") || strings.Contains(string(r.Result), "secret-token") || len(backend.recorded()) != 1 {
+				t.Fatal("Native denial leaked diagnostics or retried a mutation")
+			}
+		})
+	}
+}
+
+func TestFilesBridgeFailureAndReceiptNeverExposeDiagnosticData(t *testing.T) {
+	for _, historical := range []bool{false, true} {
+		t.Run(fmt.Sprintf("historical-%v", historical), func(t *testing.T) {
+			failure := map[string]any{
+				"ok":     false,
+				"data":   map[string]any{"socket": "/private/native/socket", "token": "secret-token"},
+				"error":  map[string]any{"code": "E_FILES_ACCESS", "message": "/private/native/socket token=secret-token", "outcome": "NOT_DISPATCHED"},
+				"stages": map[string]any{"requestAccepted": "REJECTED", "fileWritten": "NOT_WRITTEN", "readBackVerified": false, "toolResult": "PREPARED"},
+			}
+			name, args := "tm_files_write", filesBridgeTestArguments("tm_files_write")
+			raw := filesBridgeTestJSON(t, failure)
+			if historical {
+				name, args = "tm_files_status", map[string]any{"requestId": filesBridgeTestRequestID}
+				raw = filesBridgeTestReply(map[string]any{"requestId": filesBridgeTestRequestID, "receiptStatus": "KNOWN", "receipt": failure}, false)
+			}
+			backend := &filesBridgeTestBackend{response: raw}
+			s := filesBridgeTestServer(t, backend)
+			r := s.Handle(filesBridgeTestRequest(t, name, args))
+			payload, isError := filesBridgeTestPayload(t, r)
+			if isError == historical || len(backend.recorded()) != 1 {
+				t.Fatal("sanitization changed the operation or retried it")
+			}
+			if historical {
+				payload = payload["data"].(map[string]any)["receipt"].(map[string]any)
+			}
+			if payload["ok"] != false || payload["error"].(map[string]any)["code"] != "E_FILES_ACCESS" {
+				t.Fatal("sanitization lost the Native denial")
+			}
+			for _, marker := range []string{"/private/native", "secret-token", "token="} {
+				if strings.Contains(string(r.Result), marker) {
+					t.Fatalf("diagnostic leaked in MCP text: %s", r.Result)
+				}
+			}
+		})
+	}
+}
+
+func TestFilesBridgeHistoricalReceiptExposesOnlyPublicWriteMetadata(t *testing.T) {
+	receipt := filesBridgeTestReply(map[string]any{
+		"saved": true, "workspaceId": filesBridgeTestWorkspace, "path": "notes/example.txt", "requestId": filesBridgeTestRequestID,
+		"sha256": strings.Repeat("a", 64), "bytes": 3,
+		"socket": "/private/native/socket", "token": "secret-token", "content": "private old body",
+	}, true)
+	backend := &filesBridgeTestBackend{response: filesBridgeTestReply(map[string]any{
+		"requestId": filesBridgeTestRequestID, "receiptStatus": "KNOWN", "receipt": receipt,
+	}, false)}
+	s := filesBridgeTestServer(t, backend)
+	r := s.Handle(filesBridgeTestRequest(t, "tm_files_status", map[string]any{"requestId": filesBridgeTestRequestID}))
+	payload, isError := filesBridgeTestPayload(t, r)
+	if isError {
+		t.Fatal("public write receipt rejected")
+	}
+	data := payload["data"].(map[string]any)["receipt"].(map[string]any)["data"].(map[string]any)
+	if len(data) != 6 || data["saved"] != true || data["sha256"] != strings.Repeat("a", 64) || data["bytes"] != float64(3) || data["requestId"] != filesBridgeTestRequestID {
+		t.Fatalf("public receipt metadata changed: %+v", data)
+	}
+	for _, marker := range []string{"/private/native", "secret-token", "private old body"} {
+		if strings.Contains(string(r.Result), marker) {
+			t.Fatalf("historical receipt leaked diagnostics/body: %s", r.Result)
+		}
+	}
+}
+
+func TestFilesBridgeContradictoryStagesCannotConfirmWriteOrReadback(t *testing.T) {
+	for _, tc := range []struct {
+		name, outcome, accepted, written string
+		verified                         bool
+	}{
+		{"undispatched-written", "NOT_DISPATCHED", "ACCEPTED", "CONFIRMED", true},
+		{"failed-write-unknown", "FAILED_CONFIRMED", "ACCEPTED", "UNKNOWN", false},
+		{"failed-acceptance-unknown", "FAILED_CONFIRMED", "UNKNOWN", "NOT_WRITTEN", false},
+		{"rejected-written", "OUTCOME_UNKNOWN", "REJECTED", "CONFIRMED", false},
+		{"readback-without-write", "FAILED_CONFIRMED", "ACCEPTED", "NOT_WRITTEN", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			backend := &filesBridgeTestBackend{response: filesBridgeTestJSON(t, map[string]any{
+				"ok": false, "error": map[string]any{"code": "E_FILES_IO", "message": "E_FILES_IO", "outcome": tc.outcome},
+				"stages": map[string]any{"requestAccepted": tc.accepted, "fileWritten": tc.written, "readBackVerified": tc.verified, "toolResult": "PREPARED"},
+			})}
+			s := filesBridgeTestServer(t, backend)
+			filesBridgeTestUnknownError(t, s.Handle(filesBridgeTestRequest(t, "tm_files_write", filesBridgeTestArguments("tm_files_write"))))
+			if len(backend.recorded()) != 1 {
+				t.Fatal("contradictory result triggered redispatch")
+			}
+		})
+	}
+	t.Run("status-cannot-claim-readback", func(t *testing.T) {
+		backend := &filesBridgeTestBackend{response: json.RawMessage(`{"ok":true,"data":{},"stages":{"requestAccepted":"ACCEPTED","fileWritten":"NOT_APPLICABLE","readBackVerified":true,"toolResult":"PREPARED"}}`)}
+		s := filesBridgeTestServer(t, backend)
+		r := s.Handle(filesBridgeTestRequest(t, "tm_files_status", map[string]any{"requestId": filesBridgeTestRequestID}))
+		payload, isError := filesBridgeTestPayload(t, r)
+		if !isError || payload["stages"].(map[string]any)["readBackVerified"] != false {
+			t.Fatal("status query became current disk readback evidence")
+		}
+	})
+}
+
+func TestFilesBridgeFailureAfterWritePreservesKnownStageFacts(t *testing.T) {
+	for _, outcome := range []string{"FAILED_CONFIRMED", "OUTCOME_UNKNOWN"} {
+		backend := &filesBridgeTestBackend{response: filesBridgeTestJSON(t, map[string]any{
+			"ok": false, "error": map[string]any{"code": "E_FILES_IO", "message": "E_FILES_IO", "outcome": outcome},
+			"stages": map[string]any{"requestAccepted": "ACCEPTED", "fileWritten": "CONFIRMED", "readBackVerified": false, "toolResult": "PREPARED"},
+		})}
+		s := filesBridgeTestServer(t, backend)
+		payload, isError := filesBridgeTestPayload(t, s.Handle(filesBridgeTestRequest(t, "tm_files_write", filesBridgeTestArguments("tm_files_write"))))
+		stages := payload["stages"].(map[string]any)
+		if !isError || stages["requestAccepted"] != "ACCEPTED" || stages["fileWritten"] != "CONFIRMED" || stages["readBackVerified"] != false || payload["error"].(map[string]any)["outcome"] != outcome {
+			t.Fatal("post-write failure lost independently known facts")
+		}
+	}
+}
+
+func TestFilesBridgeStatusExposesOnlyPublicReceiptFields(t *testing.T) {
+	backend := &filesBridgeTestBackend{response: filesBridgeTestReply(map[string]any{
+		"requestId": filesBridgeTestRequestID, "receiptStatus": "UNKNOWN",
+		"token": "SYNTHETIC_STATUS_SECRET", "socket": "/private/synthetic/socket",
+		"principal": map[string]any{"capability": "SYNTHETIC_STATUS_SECRET"},
+	}, false)}
+	s := filesBridgeTestServer(t, backend)
+	r := s.Handle(filesBridgeTestRequest(t, "tm_files_status", map[string]any{"requestId": filesBridgeTestRequestID}))
+	payload, isError := filesBridgeTestPayload(t, r)
+	data, ok := payload["data"].(map[string]any)
+	if isError || !ok || len(data) != 2 || data["requestId"] != filesBridgeTestRequestID || data["receiptStatus"] != "UNKNOWN" {
+		t.Fatalf("status did not restrict its public data: %s", r.Result)
+	}
+	for _, marker := range []string{"SYNTHETIC_STATUS_SECRET", "/private/synthetic", "capability", "principal"} {
+		if strings.Contains(string(r.Result), marker) {
+			t.Fatal("status leaked a private backend field")
+		}
+	}
+	if len(backend.recorded()) != 1 {
+		t.Fatal("status sanitization dispatched another operation")
+	}
+}
+
+func TestFilesBridgeStatusRejectsMalformedPublicFields(t *testing.T) {
+	for _, tc := range []struct {
+		name, field string
+		value       any
+	}{
+		{"invalid-request-id", "requestId", "/private/synthetic/socket"},
+		{"request-id-type", "requestId", 42},
+		{"invalid-receipt-status", "receiptStatus", "SYNTHETIC_STATUS_SECRET"},
+		{"receipt-status-type", "receiptStatus", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			backend := &filesBridgeTestBackend{response: filesBridgeTestReply(map[string]any{tc.field: tc.value}, false)}
+			s := filesBridgeTestServer(t, backend)
+			r := s.Handle(filesBridgeTestRequest(t, "tm_files_status", map[string]any{}))
+			payload, isError := filesBridgeTestPayload(t, r)
+			if !isError || payload["ok"] != false || payload["error"].(map[string]any)["code"] != "E_FILES_BRIDGE" {
+				t.Fatalf("malformed status metadata was accepted: %s", r.Result)
+			}
+			if strings.Contains(string(r.Result), "/private/synthetic") || strings.Contains(string(r.Result), "SYNTHETIC_STATUS_SECRET") || len(backend.recorded()) != 1 {
+				t.Fatal("malformed status metadata leaked or caused another call")
+			}
+		})
+	}
+}
+
+func TestFilesBridgeUnicodeEscapesNeverSilentlyChangeWrittenText(t *testing.T) {
+	for _, tc := range []struct {
+		name, encoded, want string
+		reject              bool
+	}{
+		{"lone-high", `\ud800`, "", true},
+		{"lone-low", `\udfff`, "", true},
+		{"high-before-text", `\ud800x`, "", true},
+		{"two-highs", `\ud800\udbff`, "", true},
+		{"reversed-pair", `\udc00\ud800`, "", true},
+		{"separated-pair", `\ud800\\udc00`, "", true},
+		{"paired-emoji", `\ud83d\ude00`, "😀", false},
+		{"uppercase-pair", `\uD83D\uDE00`, "😀", false},
+		{"replacement-escape", `\ufffd`, "�", false},
+		{"replacement-literal", "�", "�", false},
+		{"literal-escape", `\\ud800`, `\ud800`, false},
+		{"escaped-slash-then-pair", `\\\ud83d\ude00`, "\\😀", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			backend := &filesBridgeTestBackend{}
+			s := filesBridgeTestServer(t, backend)
+			req := filesBridgeTestRequest(t, "tm_files_write", filesBridgeTestArguments("tm_files_write"))
+			req.Params = bytes.Replace(req.Params, []byte(`"replacement text\n"`), []byte(`"`+tc.encoded+`"`), 1)
+			if tc.reject {
+				filesBridgeTestReject(t, s, backend, req)
+				responses, _ := filesBridgeTestStream(t, s, string(filesBridgeTestJSON(t, req))+"\n")
+				if len(responses) != 1 || !filesBridgeTestFailed(responses[0]) || len(backend.recorded()) != 0 {
+					t.Fatal("unpaired surrogate crossed the stream Native boundary")
+				}
+				return
+			}
+			r := s.Handle(req)
+			if filesBridgeTestFailed(r) {
+				t.Fatalf("valid Unicode text rejected: %s", r.Result)
+			}
+			calls := backend.recorded()
+			if len(calls) != 1 {
+				t.Fatal("valid write was retried or not dispatched")
+			}
+			var args map[string]any
+			if json.Unmarshal(calls[0].args, &args) != nil || args["content"] != tc.want {
+				t.Fatalf("valid Unicode text changed at Native boundary: %s", calls[0].args)
+			}
+		})
+	}
+}

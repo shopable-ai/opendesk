@@ -7,7 +7,7 @@
   // with the existing UI image owner, but require high-confidence evidence so
   // a broadly similar visual result cannot turn into a silent arbitrary tap.
   const locatorImageThreshold = 0.95;
-  const roles = new Set(['application','window','button','checkbox','radioButton','textField','staticText','menuBar','menu','menuItem','group','list','listItem','table','row','cell','unknown']);
+  const roles = new Set(['application','window','button','popUpButton','checkbox','radioButton','textField','staticText','menuBar','menu','menuItem','group','list','listItem','table','row','cell','unknown']);
   const winKeys = ['id','title','pid','processId','processID','x','y','width','height','exeName','exePath','isForeground','hasFocus','handle','isPopup','index'];
   const scoped = ['findText','findTexts','findTextMatches','hasText','tapText','tapTexts','tapTargets','findImage','findImages','tapImage'];
   function E(code, operation, message, details) {

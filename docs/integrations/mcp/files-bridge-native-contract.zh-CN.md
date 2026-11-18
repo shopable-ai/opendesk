@@ -1,6 +1,8 @@
 # OpenDesk 官方文件 MCP Bridge：Native owner 最小接口合同
 
-状态：**WAITING_FOR_NATIVE_OWNER**。本合同不代表 Native 已完成接线。
+状态（2026-11-10）：**当前账号 Mac 核心文件闭环已通过真实官方 Tunnel 与 ChatGPT WEB 验证**：仅四工具发现、未知 marker 读取、固定 SHA/requestId 一次写入、网页读回与独立磁盘一致、越范围及撤权后文件/历史回执拒绝。实际加载的签名 Native、候选程序 provenance、限定范围与证据见[本轮质量记录](../../quality/mcp/2026-11-10-current-account-tunnel.md)。此结论仅覆盖该 Mac/账号核心场景，不扩展为完整 CI、production 或跨平台验收。
+
+2026-11-03 用户明确授权本对话判断并补齐 Native 缺口，已接管本合同限定的共享代码修改。当前实现计划和最新约束见[实施计划](files-bridge-native-implementation-plan.zh-CN.md)。此前的[本地复核记录](files-bridge-v02-local-check-20261103.zh-CN.md)与[2026-11-02 检查记录](files-bridge-v02-local-check-20261102.zh-CN.md)仅为历史证据；其中 owner 未确认和专用客户端不存在的状态已由本轮授权与实现取代。历史文档中的 M3/M4 状态保留为当时观察；当前核心场景以本轮质量记录为准。
 
 ## 原始产品目标
 
@@ -12,18 +14,19 @@
 - `FilesBridgeBackend.Call(ctx context.Context, method string, args json.RawMessage) (json.RawMessage, error)`：受限后端，MCP 模型入参只允许 workspaceId/relative path、content、expectedSha256、requestId；不接受身份、授权、principal、lease 或 capability 的模型声明。
 - `FilesBridgeBackendError{Code, Outcome}`：只有校验过的错误代码与阶段；不能返回 Socket 绝对路径、密钥、正文或任意底层错误字符串。
 - 传输上限为完整 JSON 60 KiB，正文最多 32 KiB。写操作必须有实际 SHA 和稳定独立 UUID，绝不自动重试 UNKNOWN。
-- `opendesk-mcp --files-bridge-credential-file` 目前存在显式 fail-closed 哨兵 `WAITING_FOR_NATIVE_OWNER`。这不是已连通的生产入口。
+- 原始 JSON 字符串中的 UTF-16 surrogate 必须正确配对；拒绝 Go 解码时会静默替换的孤立 surrogate。合法配对、明确的 U+FFFD 及字面转义文本保持不变。
+- `opendesk-mcp --files-bridge-credential-file <private-json>` 创建专用 Native 客户端并绑定 stdin/stdout，不创建桌面 Runtime；无效私有引用失败关闭，stderr 仅输出固定安全代码。
 
-## 共享 Native owner 的唯一缺口
+## Native 专用认证通道
 
-原文件位于 `internal/browserbridge/files_service_unix.go`，原 Host 分发位于 `internal/browserbridge/host_unix.go`；本对话没有修改它们。只有该文件的唯一 owner 才能增加独立的 purpose-bound、经过可信本地管理端授权的文件 MCP 通道。上一轮候选 `internal/browserbridge/files_mcp_*.go` 和 `internal/browsercli/files_mcp*.go` 是可审阅参考，不得直接与 Browser 对话同时覆盖。
+原文件位于 `internal/browserbridge/files_service_unix.go`，原 Host 分发位于 `internal/browserbridge/host_unix.go`。新增 `files_mcp_*.go` 复用该 Host 持有的同一个 `nativeFiles`、锁及文件执行器；普通 Browser RPC 不增加文件方法。可信本机 CLI 管理 grant/revoke，专用模型客户端仅持有独立 capability。实现期间保留其他 owner 的既有改动和运行服务。
 
-建议实现接口（**当前不存在**）：
+实现接口：
 
 ```go
-// Native-owned API, illustrative contract; not an existing implementation.
 func NewFilesMCPClient(credentialFile string) (*FilesMCPClient, error)
 func (c *FilesMCPClient) Call(ctx context.Context, method string, args json.RawMessage) (json.RawMessage, error)
+func (c *FilesMCPClient) Close() error
 ```
 
 可信本机 grant/revoke 必须绑定当前 Native owner/session、已批准 workspace、活跃 CLI lease、精确文件相对路径（最多 32）、read 或 read-write、期限（最多 1800 秒）、短期独立 capability（私有 0600 文件，私有目录 0700），以及用户另外明确同意将这些正文传送给该专用 ChatGPT Tunnel 的获准调用者。Tunnel identity、MCP caller identity、本地文件访问授权和内容输出授权四者不能混为一谈。本期是共享服务主体，不宣称拥有逐人 OAuth。
@@ -41,11 +44,17 @@ func (c *FilesMCPClient) Call(ctx context.Context, method string, args json.RawM
 
 结果 JSON 仅包含 `ok`、`data`、`error`、`stages`；阶段字段为 `requestAccepted`、`fileWritten`、`readBackVerified`、`toolResult: PREPARED`。写入结果不确定必须 `OUTCOME_UNKNOWN`，不能假装失败确认，也不能新 ID 重新写。MCP 本地 `EMITTED` 不等于 ChatGPT 收到。
 
+MCP 结果清理合同：失败结果不输出 `data`，仅保留安全错误代码、outcome 和一致的阶段事实，`error.message` 固定为代码。`status.data.receipt` 使用同一校验与清理；成功历史写回执的 `data` 仅公开 `saved`（bool）、`workspaceId`、`path`、`requestId`、`sha256`、`bytes`（0–32768 整数），字符串继续使用对应入参/摘要格式校验。历史正文及其他字段不转发，获准 `files.read` 正文不做关键词替换。历史阶段只表示旧操作；status/list/read 顶层 `fileWritten` 必须为 `NOT_APPLICABLE`，`readBackVerified` 为 false。
+
+当前 `status.data` 的最小公开结果只保留可选的 `requestId`（与写入同格式的 UUID）、`receiptStatus`（`KNOWN` 或 `UNKNOWN`）和上述 `receipt`；无回执元数据时允许空对象。不转发 token、capability、principal、底层路径或其他额外字段，已知字段的非法类型或值返回安全错误。未来需要公开其他状态字段时须显式扩展此单一合同与结果校验，不能直接输出 Native 内部对象。
+
+`NOT_DISPATCHED` 不得同时声称已接受/写入/读回；`FAILED_CONFIRMED` 不得包含 UNKNOWN 阶段；写入确认或未知不得配 REJECTED，读回验证须有已接受且确认的写入。矛盾写结果转为 `E_FILES_BRIDGE/OUTCOME_UNKNOWN`，不重新调用后端。合法的“写入已确认、后续验证失败/未知”保留 `ACCEPTED/CONFIRMED/false`，不得改写为未写入。
+
 ## 接线与测试顺序
 
-1. Native owner 在确认 Browser 对话文件归属后，自行审查候选接口并实现 purpose-bound 认证，不新增普通 RPC。没有 owner 许可时保持当前 fail closed。
-2. 只由 MCP owner 更新 `cmd/opendesk-mcp` 的哨兵函数：创建 Native 客户端、将 Native 私有错误转换为 `FilesBridgeBackendError`、调用 `mcpserver.NewFilesBridgeServer`，绑定 stdin/stdout；不转发文件正文到日志。
+1. 审查 purpose-bound 认证、可信本机授权和每次调用的锁内权限检查，不新增普通文件 RPC。
+2. `cmd/opendesk-mcp` 创建 Native 客户端、将 Native 私有错误转换为 `FilesBridgeBackendError`、调用 `mcpserver.NewFilesBridgeServer`，绑定 stdin/stdout；不转发文件正文到日志。
 3. 执行 `go test ./pkg/mcpserver -run 'TestFilesBridge' -count=1`，再运行 Native owner 的 IPC / grant / revoke 定向 Go 测试，以及 `go test ./cmd/opendesk-mcp`。测试结果另记真实退出码。
-4. 在 Mac 使用既有 `tests/mcp/tools/secure-tunnel/` 准备/启动器，不重新创建 Tunnel/key。实测仅四工具发现、未知 marker 读取、显式有限修改、SHA 对账、撤销后拒绝。现阶段 M3/M4：NOT_TESTED。
+4. 在 Mac 使用既有 `tests/mcp/tools/secure-tunnel/` 准备/启动器，不重新创建 Tunnel/key。实测仅四工具发现、未知 marker 读取、显式有限修改、SHA 对账、撤销后拒绝。2026-11-10 当前账号的上述核心场景已实际通过，详见本轮质量记录；其他验收范围按各自计划处理。
 
-边界：本 MCP 任务没有修改 `internal/browserbridge/`、`internal/browsercli/`、`opendesk-browser/src/native-agent/` 或 `projects/webflow/`。
+边界：本轮 Native 修改限于专用认证、可信管理入口与原文件执行器接线；不修改 Browser 扩展或 Web Flow，不创建第二套文件服务。

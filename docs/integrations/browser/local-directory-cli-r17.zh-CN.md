@@ -99,3 +99,30 @@ go vet ./internal/browserbridge ./internal/browsercli
 权限恢复回归在修复前 4 个子项全部失败，旧 `leaseEpoch` 确实得到 `saved:true`；原始失败记录保留于 `go-permission-aba-before.log`。修复后的 `go-permission-aba-after.log` 为原 4 子项通过，最终 `go-permission-aba-race.log` 还覆盖两个独立 CLI 子进程、旧成功回执、目录 B 保持读写、owner 释放和新代次接入。失败证据未改写为历史 PASS。
 
 R17 默认读写通过只证明目录接入与文件权限部分。WebCodex 还必须在指定的同一官方 ChatGPT 对话执行结构化读取请求、Native 读取、自动回填、用户网页发送、模型依据真实内容提出修改、审阅采用、显式保存，并完成两轮和独立磁盘读回。这里不是向 ChatGPT 注册 MCP 工具；普通网页与模型不持有 Native 凭据或文件 RPC。当前 Mac 安装身份、浏览器加载身份、P0 随机标记与两轮网页闭环均为 `NOT_TESTED`，使用 Browser 对应本轮提交的 Mac 验收任务继续。
+
+
+## 同实例遗留 socket 的显式恢复（2026-10-30，开发源码）
+
+新增本地管理员入口 `browser socket recover`，仍由 Go Native `browserbridge` 拥有，不通过网页、MCP 或另一个服务开放。此入口只退役精确匹配的 socket；不执行 setup/cleanup、不改配对、credential、manifest 或 grants，也不派发 AI。`requestReconciled: false` 明确表示恢复没有证明任何旧 AI 请求的终态。安装中的旧 executable 只有重新构建并核对后才具备新入口；本节不表示已发布。
+
+必须先安全静止本实例旧 Host 及其启动方。扩展本机连接设置关闭且对应 Host 已退出是一种可核对的准备方式；不可结束未知进程。没有监听者、连接拒绝、新锁成功都不能独立证明旧启动方静止。`--legacy-quiesced true` 是操作者对这项独立证据的明确声明，不能由程序自动填入。原 unknown 请求继续只查/停，不能用恢复、重开或新 requestId 绕过。
+
+先用当前源码构建的 executable 执行：
+
+```sh
+opendesk browser socket recover --extension-id <原扩展ID> --dry-run true
+```
+
+核对返回的 `device`、`inode` 与原实例身份和新鲜观察一致，再在旧启动方仍静止时执行：
+
+```sh
+opendesk browser socket recover --extension-id <原扩展ID> --expected-device <device> --expected-inode <inode> --legacy-quiesced true
+```
+
+每个 flag 都需要值；`--dry-run` 默认 false。应用必须同时给定正十进制设备号、inode 和明确的静止声明。活动监听、生命周期锁占用、非精确身份、权限/符号链接、连接超时或未完成安装 journal 均拒绝；socket-only 恢复不会自动回滚安装事务。成功只表示 `state: socket-retired, changed: true`，之后可沿原已授权连接入口恢复。若 fsync 失败则返回 OUTCOME_UNKNOWN，不自动重试。
+
+Host 从 bind 前持有实例锁到自身 socket 清理结束；安装/update/cleanup/恢复按全局安装锁→实例生命周期锁顺序执行。锁文件保留以避免拆分互斥域。该协议约束遵守协议的新 owner；不声称新锁已覆盖旧二进制，也不抵御同 UID 任意文件替换。相对 dirfd 删除和前后身份核对防止删除另一个路径中的 socket。
+
+定向验证为新增 `TestRecoverSocket*`、`TestSocketRecovery*`，以及受影响的安装事务、原 socket 不覆盖和 Host 关闭测试。真实恢复、重新连接与原 AI 请求对账分别记录，不能用组件测试代替。当前 2026-10-30 开发恢复可复用现有 `tests/browser-native-files/tools/native-host` 组件 executable 调用同一个生产 CLI；它不会替换用户 OpenDesk.app，不能据此声称已安装新的 Host 生命周期代码。
+
+2026-10-30 本机定向恢复已执行：原 CFT149 实例在本机连接设置关闭、旧 Host 进程和 socket 打开句柄均未发现时，先 dry-run，再以原设备号/inode 调用上述生产入口，返回 `socket-retired`。重新开启原连接后，原 `/Applications/OpenDesk.app/Contents/MacOS/opendesk browser doctor` 返回 `connected: true`、同一扩展 ID 与 `nativeConnected: true`。恢复前后六份原配置、wrapper、manifest 与授权文件的 SHA 和权限一致。该次使用源码组件 executable，未替换 OpenDesk.app，故不证明当前安装已包含新生命周期锁。相关两包定向 race 测试与 `go vet` 通过，独立静态审查未发现范围内 P1/P2。原 unknown AI 请求仍无可信历史关联或终态，保持 `NOT_VERIFIED`；未新发推理或应用迟到结果。本机摘要在 `.runtime/tests/native-socket-recovery-01a18b9d/`，不含 credential 正文。

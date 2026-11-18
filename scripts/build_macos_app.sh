@@ -10,13 +10,27 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 DIST_DIR="${DIST_DIR:-${ROOT_DIR}/dist}"
-APP_ROOT="${DIST_DIR}/OpenDesk.app"
+FINAL_APP_ROOT="${DIST_DIR}/OpenDesk.app"
+# Build/sign away from the last good bundle; publish only after verification.
+mkdir -p "${ROOT_DIR}/.runtime/build"
+BUILD_STAGE="$(mktemp -d "${ROOT_DIR}/.runtime/build/macos-app.XXXXXX")"
+BUILD_LOCK=""
+cleanup_build() {
+  if [[ -e "${BUILD_STAGE}/previous.app" && ! -e "${FINAL_APP_ROOT}" ]]; then
+    mv "${BUILD_STAGE}/previous.app" "${FINAL_APP_ROOT}" || return 1
+  fi
+  chmod -R u+w "${BUILD_STAGE}"
+  rm -rf "${BUILD_STAGE}"
+  [[ -z "${BUILD_LOCK}" ]] || rmdir "${BUILD_LOCK}"
+}
+trap cleanup_build EXIT
+APP_ROOT="${BUILD_STAGE}/OpenDesk.app"
 CONTENTS_DIR="${APP_ROOT}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
 RESOURCES_DIR="${CONTENTS_DIR}/Resources"
 HELPERS_DIR="${CONTENTS_DIR}/Helpers"
 EXECUTABLE_PATH="${MACOS_DIR}/opendesk"
-EXECUTABLE_STAGE="${DIST_DIR}/.opendesk-build.$$"
+EXECUTABLE_STAGE="${BUILD_STAGE}/opendesk"
 UI_HOST_APP="${HELPERS_DIR}/OpenDesk UI.app"
 UI_HOST_PATH="${UI_HOST_APP}/Contents/MacOS/opendesk-ui-host"
 STATUS_HELPER_PATH="${HELPERS_DIR}/opendesk-status"
@@ -42,7 +56,9 @@ if [[ ! "${VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9
   exit 1
 fi
 RUNTIME_VERSION_LDFLAGS="-X opendesk/pkg/runtimeversion.Current=${VERSION}"
-CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
+source "${ROOT_DIR}/scripts/macos_signing.sh"
+# Fail before compilation or replacement when the pinned identity is missing.
+macos_signing_load
 NATIVE_EXTENSIONS_SOURCE="${NATIVE_EXTENSIONS_SOURCE:-}"
 # An unset value is the official OpenDesk desktop distribution. Framework
 # maintainers can still opt out explicitly with APP_MODE_PACKAGE=, while an
@@ -65,7 +81,11 @@ export CGO_CFLAGS="${CGO_CFLAGS:+${CGO_CFLAGS} }${MACOS_MIN_VERSION_FLAG}"
 export CGO_LDFLAGS="${CGO_LDFLAGS:+${CGO_LDFLAGS} }${MACOS_MIN_VERSION_FLAG}"
 
 mkdir -p "${DIST_DIR}"
-trap 'rm -f "${EXECUTABLE_STAGE}"' EXIT
+if ! mkdir "${DIST_DIR}/.opendesk-build.lock"; then
+  echo "Another build owns ${DIST_DIR}/.opendesk-build.lock; inspect it before retrying." >&2
+  exit 1
+fi
+BUILD_LOCK="${DIST_DIR}/.opendesk-build.lock"
 
 GO_BIN="${GO_BIN:-$(command -v go || true)}"
 if [[ -z "${GO_BIN}" ]]; then
@@ -88,8 +108,8 @@ fi
 # Besides making the bundle easier to move, -trimpath keeps provenance audits
 # focused on the staged artifact instead of the build machine.
 "${GO_BIN}" build -trimpath -ldflags "${RUNTIME_VERSION_LDFLAGS}" -o "${EXECUTABLE_STAGE}" ./cmd/opendesk
-"${GO_BIN}" build -trimpath -o "${DIST_DIR}/opendesk-ui-host" ./cmd/opendesk-ui-host
-"${GO_BIN}" build -trimpath -o "${DIST_DIR}/opendesk-status" ./cmd/opendesk-status
+"${GO_BIN}" build -trimpath -o "${BUILD_STAGE}/opendesk-ui-host" ./cmd/opendesk-ui-host
+"${GO_BIN}" build -trimpath -o "${BUILD_STAGE}/opendesk-status" ./cmd/opendesk-status
 
 if [[ ! -f "${APP_ICON_SOURCE}" ]]; then
   printf 'App icon is missing: %s\nRun scripts/generate_app_icons.sh first.\n' "${APP_ICON_SOURCE}" >&2
@@ -107,8 +127,8 @@ mkdir -p "${MACOS_DIR}" "${HELPERS_DIR}" "${RESOURCES_DIR}" \
   "${UI_HOST_APP}/Contents/MacOS" "${UI_HOST_APP}/Contents/Resources"
 
 cp "${EXECUTABLE_STAGE}" "${EXECUTABLE_PATH}"
-cp "${DIST_DIR}/opendesk-ui-host" "${UI_HOST_PATH}"
-cp "${DIST_DIR}/opendesk-status" "${STATUS_HELPER_PATH}"
+cp "${BUILD_STAGE}/opendesk-ui-host" "${UI_HOST_PATH}"
+cp "${BUILD_STAGE}/opendesk-status" "${STATUS_HELPER_PATH}"
 cp "${APP_ICON_SOURCE}" "${RESOURCES_DIR}/${APP_ICON_NAME}"
 cp "${APP_ICON_SOURCE}" "${UI_HOST_APP}/Contents/Resources/${APP_ICON_NAME}"
 # Use plutil string insertion so custom app names remain valid XML.
@@ -124,6 +144,7 @@ plutil -insert CFBundleShortVersionString -string "${VERSION}" "${UI_HOST_PLIST}
 plutil -insert CFBundleVersion -string 1 "${UI_HOST_PLIST}"
 plutil -insert LSMinimumSystemVersion -string "${MACOS_DEPLOYMENT_TARGET}" "${UI_HOST_PLIST}"
 plutil -insert LSUIElement -bool true "${UI_HOST_PLIST}"
+
 "${GO_BIN}" run ./scripts/tools/inspector-web-payload \
   -source "${INSPECTOR_WEB_SOURCE}" \
   -destination "${INSPECTOR_WEB_PATH}"
@@ -139,10 +160,10 @@ cat > "${APP_BUILDER_TEMPLATE_PATH}" <<'EOF'
   "target": "macos"
 }
 EOF
-# Keep the checksum portable: an absolute checkout path is not release data.
-(cd "${MACOS_DIR}" && shasum -a 256 "$(basename "${EXECUTABLE_PATH}")") >"${RESOURCES_DIR}/opendesk-payload.sha256"
-rsync -a --delete "${ROOT_DIR}/polyfills/" "${MACOS_DIR}/polyfills/"
-rsync -a --delete "${ROOT_DIR}/jslibs/" "${MACOS_DIR}/jslibs/"
+# JavaScript is sealed resource data, not nested executable code. Keeping it
+# in MacOS makes non-ad-hoc signing demand per-file script signatures/xattrs.
+rsync -a --delete "${ROOT_DIR}/polyfills/" "${RESOURCES_DIR}/polyfills/"
+rsync -a --delete "${ROOT_DIR}/jslibs/" "${RESOURCES_DIR}/jslibs/"
 
 if [[ -n "${APP_MODE_PACKAGE}" ]]; then
   if [[ "${APP_MODE_PACKAGE}" != /* ]]; then
@@ -321,17 +342,29 @@ if [[ -e "${HELPERS_DIR}/clawdesk-ui-host" ]]; then
   exit 1
 fi
 
-if [[ "${SKIP_CODESIGN:-0}" == "1" ]]; then
-  echo "Skipping codesign because SKIP_CODESIGN=1"
-else
-  codesign --force --deep --sign "${CODESIGN_IDENTITY}" "${APP_ROOT}" >/dev/null
-  codesign --verify --deep --strict "${APP_ROOT}"
+macos_signing_sign_app "${APP_ROOT}" "${BUNDLE_ID}"
+
+# Keep the previous verified app until the new app is fully signed. Never
+# patch the contents of a running installed app as a build shortcut.
+if [[ -e "${FINAL_APP_ROOT}" ]]; then
+  mv "${FINAL_APP_ROOT}" "${BUILD_STAGE}/previous.app"
 fi
+if ! mv "${APP_ROOT}" "${FINAL_APP_ROOT}"; then
+  [[ ! -e "${BUILD_STAGE}/previous.app" ]] || mv "${BUILD_STAGE}/previous.app" "${FINAL_APP_ROOT}"
+  exit 1
+fi
+cp "${FINAL_APP_ROOT}/Contents/Helpers/opendesk-status" "${DIST_DIR}/opendesk-status"
+# A signed binary cannot contain a resource with its own final digest: sealing
+# that resource changes the signature again. Keep the final digest beside it.
+shasum -a 256 "${FINAL_APP_ROOT}/Contents/MacOS/opendesk" | awk '{print $1 "  opendesk"}' > "${DIST_DIR}/opendesk-payload.sha256"
+APP_ROOT="${FINAL_APP_ROOT}"
+UI_HOST_PATH="${APP_ROOT}/Contents/Helpers/OpenDesk UI.app/Contents/MacOS/opendesk-ui-host"
+STATUS_HELPER_PATH="${APP_ROOT}/Contents/Helpers/opendesk-status"
+INSPECTOR_WEB_PATH="${APP_ROOT}/Contents/Resources/inspector_web"
 
 # Keep the documented ./dist/opendesk entry point, but execute the signed
-# payload inside OpenDesk.app. This gives a direct CLI invocation the same
-# stable macOS privacy identity as the app bundle instead of creating a second
-# bare-binary TCC client.
+# payload inside OpenDesk.app. TCC responsibility still depends on the actual
+# launch/owner chain; this symlink alone does not grant CLI child permissions.
 rm -f "${DIST_DIR}/opendesk"
 ln -s "OpenDesk.app/Contents/MacOS/opendesk" "${DIST_DIR}/opendesk"
 
@@ -342,11 +375,8 @@ printf 'Bundled Inspector frontend: %s\n' "${INSPECTOR_WEB_PATH}"
 printf 'Built app: %s\n' "${APP_ROOT}"
 printf 'Bundle id: %s\n' "${BUNDLE_ID}"
 printf 'Runtime compatibility version: %s\n' "${VERSION}"
-if [[ "${SKIP_CODESIGN:-0}" == "1" ]]; then
-  printf 'Codesign: skipped\n'
-else
-  printf 'Codesign identity: %s\n' "${CODESIGN_IDENTITY}"
-fi
+printf 'Codesign mode: %s\n' "${MACOS_SIGNING_MODE}"
+printf 'Codesign identity: %s\n' "${CODESIGN_IDENTITY:-none}"
 printf 'Launch with: open "%s"\n' "${APP_ROOT}"
 if [[ -n "${APP_MODE_PACKAGE}" ]]; then
   printf 'Finder/Launchpad launch mode: default App Mode package in Contents/Resources/AppMode\n'

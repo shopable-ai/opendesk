@@ -7,11 +7,11 @@
   function fixture(initial = [row()]) {
     let rows = initial, now = 0, sequence = 0;
     const timers = new Map();
-    const calls = { list: 0, app: [], current: [], activate: [] };
+    const calls = { list: 0, listArgs: [], app: [], current: [], activate: [] };
     const host = {
       window: {
         getCapabilities: () => ({ platform: 'fixture' }),
-        list: () => { calls.list++; return typeof rows === 'function' ? rows() : rows; },
+        list: (...args) => { calls.list++; calls.listArgs.push(args); return typeof rows === 'function' ? rows() : rows; },
         getActiveWindow: () => ({ ID: 'active', ProcessID: 1 }),
         getWindowByTitle: () => ({ ID: 'title', ProcessID: 1 }),
         getFocusWindow: () => ({ ID: 'focus', ProcessID: 1 }),
@@ -100,6 +100,15 @@
     equal(f.win.list({ pid: 1, title: 'Other' }).length, 0);
     equal(f.win.list({ exeName: 'editor' }).length, 0);
   }, ['window.get', 'window.list']);
+  unit('PID scopes reach native list without forwarding public title filters', async () => {
+    const f = fixture([row(), row({ id: 'fixture:1:native:11', width: 0 })]);
+    equal(f.win.list({ pid: 1, title: 'Document' }).length, 2);
+    equal(JSON.stringify(f.calls.listArgs.pop()), JSON.stringify([{ pid: 1 }]));
+    await rejects(() => f.win.get({ pid: 1 }), 'AMBIGUOUS_TARGET');
+    equal(JSON.stringify(f.calls.listArgs.pop()), JSON.stringify([{ pid: 1 }]));
+    f.win.list(); equal(f.calls.listArgs.pop().length, 0);
+    f.win.list({ title: 'Document' }); equal(f.calls.listArgs.pop().length, 0);
+  }, ['window.list', 'window.get']);
   unit('App identities are delegated without duplicate alias interpretation', async () => {
     const f = fixture();
     for (const app of ['计算器', 'Calculator', { bundleId: 'com.apple.calculator' },

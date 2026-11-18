@@ -100,7 +100,9 @@ func (ic *ImageColor) FindImage(sourceInput string, templateInput interface{}, r
 		if err != nil {
 			return nil, fmt.Errorf("template at index %d: %w", input.Index, err)
 		}
-		if bestTemplateIndex < 0 || templateCandidateLess(candidate, best) {
+		// Across variants, equal confidence preserves input-array priority.
+		// Position/scale tie breaking remains local to each template search.
+		if bestTemplateIndex < 0 || candidate.Confidence > best.Confidence {
 			best = candidate
 			bestTemplateIndex = input.Index
 		}
@@ -221,6 +223,9 @@ func parseImageTemplateOptions(raw interface{}, includeMaxResults bool) (imageTe
 			parsed, err := templateMatchInteger(value, "options.maxResults", 1, int64(templateMatchMaxSafeInteger))
 			if err != nil {
 				return options, err
+			}
+			if parsed > int64(math.MaxInt) {
+				parsed = int64(math.MaxInt)
 			}
 			options.MaxResults = int(parsed)
 		}
@@ -579,7 +584,9 @@ func templateMatchChannelDifference(a, b uint8) uint64 {
 }
 
 func selectDistinctTemplateCandidates(grids []templateMatchScoreGrid, threshold float64, maxResults int) []templateMatchCandidate {
-	selected := make([]templateMatchCandidate, 0, maxResults)
+	// maxResults is a ceiling on returned matches, not a request to
+	// reserve memory upfront. The actual matches may be few or zero.
+	selected := make([]templateMatchCandidate, 0, min(maxResults, defaultTemplateMatchMaxResults))
 	for len(selected) < maxResults {
 		var best templateMatchCandidate
 		found := false

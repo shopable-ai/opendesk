@@ -19,7 +19,7 @@ test('headings ignore fenced examples and preserve duplicate anchors/ranges', ()
   assert.equal(d.headings[1].end, 8);
 });
 test('reject unknown paths, methods and sections rather than guessed contract', () => {
-  for (const [d, m] of [['../file','File.read'], ['file','File.notAnAPI'], ['file','#missing'], ['page','page.ensureMacPermissions']]) assert.throws(() => read(d, m));
+  for (const [d, m] of [['../file','File.read'], ['file','File.notAnAPI'], ['file','#missing'], ['page','page.notAnAPI']]) assert.throws(() => read(d, m));
 });
 test('readJSON includes shared errors/cancellation without all File methods', () => {
   const p = read('file', 'File.readJSON');
@@ -42,6 +42,38 @@ test('aliases and scoped methods retrieve canonical owner', () => {
   assert.ok(read('ui','ui.notify').output.includes('## ui.toast('));
   assert.ok(read('desktop-ui','scope.tapTexts').output.includes('## UI.tapTexts('));
   assert.ok(read('http','http.get').output.includes('## http.request('));
+});
+test('Custom UI creation and returned-handle packets retain exact public types', () => {
+  for (const [selector, names] of [
+    ['ui.toast', ['ClawdeskUIToastOptions', 'ClawdeskUIToastHandle']],
+    ['ui.createWindow', ['ClawdeskUIWindowSpec', 'ClawdeskUIWindowHandle', 'ClawdeskUIControlHandle']],
+    ['ui.createTrustedWindow', ['ClawdeskUITrustedWindowSpec', 'ClawdeskUITrustedWindowHandle', 'ClawdeskUITrustedJSON']],
+    ['WindowHandle.control', ['ClawdeskUIControlHandle']],
+    ['ControlHandle.on', ['ClawdeskUIEventListener']],
+  ]) {
+    const packet = read('ui', selector, true);
+    assert.ok(packet.report.returnedRanges.some(range => range.reason === 'exact-type-member-not-behavior'), selector);
+    for (const name of names) {
+      assert.ok(packet.report.returnedRanges.some(range => range.reason === `public-type:${name}`), name);
+    }
+    assert.equal(reader.verifyPacket(root, packet.output, packet.report).ok, true);
+  }
+});
+test('precise file handle packets retain creation mode and teardown ownership', () => {
+  const packet = read('file', 'FileHandle.read', true);
+  assert.ok(packet.output.includes('## FileHandle.read('));
+  assert.ok(packet.output.includes('## File.open('));
+  assert.match(packet.output, /Runtime teardown/);
+  assert.match(packet.output, /8 MiB/);
+  assert.equal(reader.verifyPacket(root, packet.output, packet.report).ok, true);
+  assert.ok(read('file', 'File.createWithDirs').output.includes('截断'));
+});
+test('storage methods retain shared persistence failure and isolation limits', () => {
+  const packet = read('storage', 'AppStorage.setItem');
+  assert.ok(packet.output.includes('## AppStorage.setItem('));
+  assert.match(packet.output, /磁盘错误只写诊断/);
+  assert.match(packet.output, /不是 execution 隔离存储/);
+  assert.equal(reader.verifyPacket(root, packet.output, packet.report).ok, true);
 });
 test('global queueMicrotask does not load URL/streams/crypto contracts', () => {
   const p = read('global-apis','queueMicrotask');
@@ -114,7 +146,8 @@ test('generated catalogs, local links and independent inventories remain covered
   fs.writeFileSync(path.join(out,'coverage.json'),JSON.stringify(report,null,2)+'\n');
   assert.deepEqual(report.errors, []); assert.equal(report.groups,config.groups.length);
   assert.ok(report.declaredReferenceDocs > 0); assert.ok(report.declaredTypeGlobals > 0);
-  assert.ok(report.sourceContractGaps.some(x=>x.name==='page.ensureMacPermissions'));
+  assert.deepEqual(report.sourceContractGaps, []);
+  assert.equal(report.contractReadiness, 'no-detected-gaps');
 });
 test('catalog check does not require the legacy runtime-api.ai.json file', () => {
   assert.equal(fs.existsSync(path.join(root,'docs/api/runtime-api.ai.json')), false, 'retired JSON must stay deleted');
@@ -231,6 +264,15 @@ test('packet verification rejects stale source and omitted dependencies', () => 
     fs.appendFileSync(path.join(temp,'docs/api/file.md'),'\nsource drift\n');
     assert.throws(()=>reader.verifyPacket(temp,before.output,before.report),/PACKET_SOURCE_OR_PLAN_CHANGED/);
   } finally {fs.rmSync(temp,{recursive:true});}
+});
+test('packet verification accepts JSON key reordering and rejects ledger tampering', () => {
+  const packet = read('file', 'File.appendBytes', true);
+  const reorder = value => Array.isArray(value) ? value.map(reorder) : value && typeof value === 'object'
+    ? Object.fromEntries(Object.entries(value).reverse().map(([key, item]) => [key, reorder(item)])) : value;
+  const report = reorder(JSON.parse(JSON.stringify(packet.report)));
+  assert.equal(reader.verifyPacket(root, packet.output, report).ok, true);
+  report.programReads[0].sha256 = '0'.repeat(64);
+  assert.throws(() => reader.verifyPacket(root, packet.output, report), /PACKET_SOURCE_OR_PLAN_CHANGED/);
 });
 test('output limit refuses the entire packet, never a success-shaped prefix', () => {
   const p=read('file','File.readJSON');

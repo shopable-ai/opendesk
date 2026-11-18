@@ -10,7 +10,7 @@
 ## 1. 成功路径（推荐）
 
 核心原则：
-- 调用主体固定：长期使用同一个 `.app` 或固定二进制。
+- 调用主体固定：长期使用同一证书和 `.app`；仅固定路径不能保证授权延续。
 - 脚本路径固定：尽量使用绝对路径，避免工作目录变化。
 - 先做权限预检：`checkScreenshotPermissions()`。
 
@@ -94,13 +94,16 @@ Screenshot result: backend=... source=... displayIndex=... output=(width=... hei
 - 之前同命令可用，重编译后偶发不可用。
 
 处理：
-- 通常不需要每次重置权限。
-- 若使用 ad-hoc 签名（`codesign -`）且系统判定身份变化，可能出现漂移。
-- 建议使用固定签名身份：
+- 不要每次重置权限。ad-hoc 的旧授权可能绑定某次构建的 CDHash，内容改变后无法匹配。
+- 首次配置本机固定证书，以后复用同一证书/私钥；配置缺失时构建会明确失败：
 
 ```bash
-CODESIGN_IDENTITY="Apple Development: Your Name (TEAMID)" ./scripts/build_macos_app.sh
+./scripts/setup_macos_signing.sh
+./scripts/build_macos_app.sh
 ```
+
+首次从 ad-hoc 迁移可能需要用户重新授权一次。后续以 A/B designated requirement 检查和实际 App
+各项权限验收为准；签名完整不等于已获系统授权。见 [开发签名与恢复](../../development/macos-signing.md)。
 
 ## 4. Agent/Codex CLI 调用规范
 
@@ -128,23 +131,9 @@ CODESIGN_IDENTITY="Apple Development: Your Name (TEAMID)" ./scripts/build_macos_
 
 混用会增加权限主体变化和时序不一致风险。
 
-## 5. 什么时候需要重置权限
+## 5. 旧授权异常时的处理顺序
 
-仅在以下情况建议重置：
-- `checkScreenshotPermissions()` 持续 `ok=false`
-- 明确换了调用主体（例如从 Terminal 切到 `.app`）
-- 系统权限页显示状态异常
-
-常用重置命令示例：
-
-```bash
-tccutil reset AppleEvents com.opendesk.cli
-tccutil reset AppleEvents com.apple.Terminal
-tccutil reset AppleEvents com.googlecode.iterm2
-```
-
-重置后再走一次权限触发脚本：
-
-```bash
-open dist/OpenDesk.app --args -script examples/mac/request-macos-permissions.js -timeout 2
-```
+先确认实际 owner PID、加载路径、签名证书及旧版本要求，再正常重启并从真实 App 重新检查。
+系统设置里显示允许而当前进程无法确认时，签名身份失配只是一种可能原因，重复请求不能修复它。
+只有确认首次身份迁移或旧记录确实失配时，才由用户按对应系统权限页处理旧记录、为新身份授权；
+不自动重置 TCC，不把持续失败简单解释为“再删一次权限”，也不重置 Terminal 或其他应用的授权。

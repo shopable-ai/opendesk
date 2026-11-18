@@ -473,9 +473,29 @@ OPENDESK_LIVE_CLIPBOARD_TEST=1 go test ./automation -run '^TestDarwinRichClipboa
 |---|---|---|---|---|---|---|
 | `pkg/mcpserver/files_bridge_test.go` | `KEEP_PACKAGE` | 是：独立工具集合、严格 wire/schema、IPC adapter 与实际输出 observer | 四工具、一般工具拒绝、身份字段/通知、整帧/UTF-8/SHA、稳定操作 ID、UNKNOWN 对账、历史回执和输出失败 | 内存 IPC 边界 fake 与受控流 writer；不操作真实用户磁盘 | 防止普通 MCP 能力混入、元数据授权、超预算及未知结果伪成功/自动重放 | MCP 私有 adapter seam；生产文件安全由 Native 定向测试覆盖，真实 Tunnel 独立验收。 |
 
-当前独立层仅增加 `pkg/mcpserver/files_bridge_test.go`；Native owner 的测试尚未提交。当前 Go 测试未在正式工作区运行；两者不得互相冒充。
+2026-11-02 独立协议层只增加 `pkg/mcpserver/files_bridge_test.go`。2026-11-03 补齐 Native 专用认证后，定向 Go 测试已在当前工作区执行，执行证据见本轮 core run；单测仍不替代真实部署或网页验收。
+
+### Browser managed-services 内部 wire/schema
+
+| 文件 | 分类 | 私有访问 | 业务边界 | 依赖 | 断言价值 | 保留理由 |
+|---|---|---|---|---|---|---|
+| `internal/browserbridge/managed_services_test.go` | `KEEP_PACKAGE` | 是：未导出的 managed-services wire/schema decoder、owner/descriptor/error 严格解析和 read 分类 | 固定内部协议的 JS 合同相容向量、精确字段、重复/null/未知字段、60 KiB、UUID/安全整数、规范 localhost origin 与 opaque 业务 object | 纯 Go 内存 JSON fixture；不启动 Runtime、Node、Chrome、Socket 或真实服务 | 防止 envelope/身份歧义、跨语言字符串边界漂移、非法来源和错误结果形状进入 Host；业务字段及内部 null 保持不解释 | 仅 Native 私有 schema 白盒，不替代 Host 路由、身份认证或真实 Go/Node/Chrome 集成验收。 |
+
+### Managed services Host 内部转发
+
+| 文件 | 分类 | 私有访问 | 业务边界 | 依赖 | 断言价值 | 保留理由 |
+|---|---|---|---|---|---|---|
+| `internal/browserbridge/host_services_unix_test.go` | `KEEP_PACKAGE` | 是：私有 Native/socket Host、registry/pending/timeout | 原认证、版本、精确 owner/epoch、并发与单调编号、断连未知和退出清理 | 临时 Unix socket 与内存 Chrome 流；显式 process fixture 可被 Browser 的 Node 测试消费 | 防止越权登记、序号复用、迟到回包与断连重放 | 不新增公开 Runtime API，不替代真实 Chrome/安装/Native 授权；业务仍在 Node。 |
 
 | `automation/custom_ui_app_ownership_internal_test.go` | `KEEP_PACKAGE` | 是：私有 AppOwned 注入、native appQuit queue 与 App Shell owner | 附属窗口退出路由、公开 listener 隔离及主窗口独占关闭策略 | 纯内存 Goja、事件队列与 Shell，无 native host | 防止共享 UI Host 退出误杀父进程或泄漏内部退出事件 | 内部 transport/lifecycle seam，不重复 Runtime 公共 API 测试。 |
+
+### 文件 MCP 专用 Native 认证接线（2026-11-03）
+
+| 文件 | 分类 | 私有访问 | 业务边界 | 依赖 | 断言价值 | 保留理由 |
+|---|---|---|---|---|---|---|
+| `internal/browserbridge/files_mcp_unix_test.go` | `KEEP_PACKAGE` | 是：同一 nativeFiles 的 capability、lease/fence、receipt 与 Unix 认证分支 | 精确授权、SHA 幂等、撤权/ABA/过期、私有凭据和 UNKNOWN 不重放 | 私有临时文件、Unix Socket、内存 Chrome 流；不接真实浏览器 | 防止专用认证越权及撤权后历史回执泄漏 | Native 内部安全 seam；真实安装和 ChatGPT 链路另验。 |
+| `cmd/opendesk-mcp/main_test.go` | `KEEP_PACKAGE` | 是：main 子进程入口及 nativeFilesBackend 错误转换 | 模式隔离、失败关闭、秘密清理和单次发送 | 自身测试子进程、内存失败后端；不创建桌面 Runtime | 防止混合模式激活桌面及未知写自动重放 | MCP CLI 内部接线 seam；不代替 Native IPC 或 Tunnel 实测。 |
+| `internal/browserbridge/files_mcp_acl_darwin_test.go` | `KEEP_PACKAGE` | 是：专用私有文件 opener 与创建前隐私检查 | macOS ACL 在0600/0700下的读取、目录遍历和继承风险 | 临时文件/目录及合成 chmod ACL；不访问真实凭据 | 防止 capability 或可信approval因扩展ACL泄漏或被改写 | Darwin 内部文件隐私 seam；不替代安装或网页验收。 |
 
 ### Native 多连接隔离（2026-11-04）
 
@@ -483,3 +503,24 @@ OPENDESK_LIVE_CLIPBOARD_TEST=1 go test ./automation -run '^TestDarwinRichClipboa
 |---|---|---|---|---|---|---|
 | `internal/browserbridge/host_connections_unix_test.go` | `KEEP_PACKAGE` | 是：Host pending/fence、连接 publication 与私有安装快照 | 同安装多个 Native Port、同 requestId 路由、断连及未知回包 | 私有临时安装、真实 Unix Socket 与 Native pipes | 防止连接互抢、超时重放、迟到响应结算新请求 | Native transport/lifecycle seam；不替代真实 Chrome。 |
 | `internal/browserbridge/host_connection_security_unix_test.go` | `KEEP_PACKAGE` | 是：安装锁、scope store、精确 Origin 与永久退役 marker | 批准/撤销、快速恢复、授权隔离、共享文件操作锁及安全退役 | 真实私有文件、Unix Socket 与 Native pipes | 防止短暂锁竞争误断其他 Port、旧授权复活或身份切换 | 内部安全 seam；真实 Profile 与签名候选证据独立记录。 |
+| `internal/browserbridge/files_mcp_connection_unix_test.go` | `KEEP_PACKAGE` | 是：专用 grant/revoke 控制连接的 selector、认证帧及身份固定 seam | 显式连接路由、不回退 legacy、实际认证版本/就绪/连接与扩展身份验证 | 临时私有配置和 Unix Socket；不接真实浏览器 | 防止探测与实际连接身份漂移后授权到错误 Native owner | 30 个定向临时 Socket 场景 RED→GREEN；真实 Native 与网页调用另验。 |
+
+### MCP 应用启动接线（2026-11-18）
+
+| 文件 | 分类 | 私有访问 | 业务边界 | 依赖 | 断言价值 | 保留理由 |
+|---|---|---|---|---|---|---|
+| `pkg/mcpserver/app_open_test.go` | `KEEP_PACKAGE` | 是：MCP 私有 dispatch、schema、可选 launcher seam 和 read-only allowlist | 应用启动恰好转发一次、非法参数先拒绝、错误不重试、只读模式不开放 | 纯内存 Runtime fake；不启动应用、不发送输入 | 防止 Shell/额外参数混入、缺能力伪成功和只读越权 | MCP 内部 adapter seam；已有 page.openApp 公共 API 未改变，真实启动与聚焦由独立 WEB 验收。 |
+
+### MCP 精确窗口接线（2026-11-18）
+
+| 文件 | 分类 | 私有访问 | 业务边界 | 依赖 | 断言价值 | 保留理由 |
+|---|---|---|---|---|---|---|
+| `pkg/mcpserver/window_test.go` | `KEEP_PACKAGE` | 是：私有 schema、dispatch、窗口和 Vision adapter seam | 精确身份、激活后置条件、观察前后校验、局部 OCR 映射与返回预算、只读拒绝 | 内存 fake 和 PNG；无桌面输入 | 防止歧义输入、失效结果、图像泄漏和未知动作重试 | 不替代原生窗口正文 JS 测试、真实桌面或 ChatGPT Web 验收。 |
+| `pkg/mcpserver/build_identity_test.go` | `KEEP_PACKAGE` | 是：进程构建身份采集与 Status 缓存私有 seam | VCS 缺失/modified 三态、磁盘 SHA256 观测、失败降级及敏感信息白名单 | 内存 BuildInfo、流及失败注入；无桌面或服务 | 防止重复探测、部分摘要伪成功、路径/原始错误泄漏及诊断破坏 status | 内部诊断 seam；不证明内存映像、部署加载或真实 Tunnel/Web 链路。 |
+
+### 下载提交取消临界区（2026-11-18）
+
+| 文件 | 分类 | 私有访问 | 业务边界 | 依赖 | 断言价值 | 保留理由 |
+|---|---|---|---|---|---|---|
+| `automation/http_download_commit_test.go` | `KEEP_PACKAGE` | 是：私有 commit fence 与 context 传播之间的临界区 | 已收到取消但 context 尚未更新时禁止伪成功或发布 | 纯 Go 内存 state 与回调；无文件、网络或桌面 | 确定性证明取消必须返回 CANCELED 而非 false/nil | JS 无法调度进入该锁内的两步间隙；公开下载契约仍由正式 Runtime JS gate 验证。 |
+| `pkg/mcpserver/script_lifecycle_test.go` | `KEEP_PACKAGE` | 是：ScriptService 初始化依赖、受理计数、Manager barrier 与 closing 状态 | artifact/snapshot/emitter 失败、关闭等待与十秒超时、重复取消和自然完成竞态 | 自有临时目录、私有 Manager/Emitter；正常 JS Runtime 由正式 stdio gate 验证 | 防止未受理配额消耗、phantom running、清理尚未完成却释放执行槽和取消覆写终态 | JS 无法安全确定性控制的内部生命周期 seam；不证明 native 硬中断或真实资源 teardown 延迟。 |

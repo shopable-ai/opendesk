@@ -1,6 +1,9 @@
 package automation
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 type focusedWindowPlatform struct {
 	windowManagerPlatform
@@ -106,5 +109,56 @@ func TestWindowFacadeRejectsInvalidGeometryBeforeBackend(t *testing.T) {
 	manager := &WindowManager{impl: &focusedWindowPlatform{}}
 	if code := windowErrorCode(manager.SetWindowBounds("Fixture", 0, 0, 0, 100)); code != WindowInvalidArgument {
 		t.Fatalf("setWindowBounds code=%q", code)
+	}
+}
+
+// ListForPID is an optional native optimization, not a new platform requirement.
+type scopedListPlatform struct {
+	focusedWindowPlatform
+	pid uint32
+	err error
+}
+
+func (p *scopedListPlatform) ListForPID(pid uint32) ([]map[string]interface{}, error) {
+	p.pid = pid
+	return p.rows, p.err
+}
+func TestWindowListPIDDispatchAndFallback(t *testing.T) {
+	scoped := &scopedListPlatform{focusedWindowPlatform: focusedWindowPlatform{rows: []map[string]interface{}{{"processId": uint32(42), "handle": uintptr(99)}}}}
+	manager := &WindowManager{impl: scoped}
+	rows, err := manager.List(map[string]interface{}{"pid": float64(42)})
+	if err != nil || scoped.pid != 42 || len(rows) != 1 || rows[0]["id"] != makeWindowID(42, 99) {
+		t.Fatalf("rows=%v pid=%d err=%v", rows, scoped.pid, err)
+	}
+	scoped.pid = 0
+	if _, err := manager.List(); err != nil || scoped.pid != 0 {
+		t.Fatalf("default list dispatched scoped: %v", err)
+	}
+	cause := errors.New("scoped backend failed")
+	scoped.err = cause
+	if _, err := manager.List(map[string]interface{}{"pid": 42}); !errors.Is(err, cause) {
+		t.Fatalf("scoped error lost: %v", err)
+	}
+	fallback := &WindowManager{impl: &focusedWindowPlatform{rows: []map[string]interface{}{
+		{"processId": uint32(41)}, {"processId": uint32(42)}, {"processId": uint32(42), "handle": uintptr(100)},
+	}}}
+	rows, err = fallback.List(map[string]interface{}{"pid": 42})
+	if err != nil || len(rows) != 2 {
+		t.Fatalf("fallback rows=%v err=%v", rows, err)
+	}
+	rows, err = fallback.List(map[string]interface{}{"pid": 99})
+	if err != nil || rows == nil || len(rows) != 0 {
+		t.Fatalf("absent rows=%v err=%v", rows, err)
+	}
+}
+func TestWindowListRejectsInvalidNativeSelector(t *testing.T) {
+	manager := &WindowManager{impl: nil} // Invalid input must never reach a backend.
+	for _, selector := range []map[string]interface{}{nil, {}, {"pid": 0}, {"pid": 1.5}, {"pid": "42"}, {"pid": uint64(4294967296)}, {"pid": 42, "title": "x"}} {
+		if _, err := manager.List(selector); windowErrorCode(err) != WindowInvalidArgument {
+			t.Fatalf("selector=%v err=%v", selector, err)
+		}
+	}
+	if _, err := manager.List(map[string]interface{}{"pid": 42}, map[string]interface{}{"pid": 43}); windowErrorCode(err) != WindowInvalidArgument {
+		t.Fatalf("extra selector: %v", err)
 	}
 }

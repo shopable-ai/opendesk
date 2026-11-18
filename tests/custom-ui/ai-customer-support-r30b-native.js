@@ -12,14 +12,43 @@
   };
   const events=()=>File.read(File.join(evidence,'events.jsonl')).trim().split('\n').map(s=>JSON.parse(s));
   const requests=()=>events().filter(r=>r.type==='ai-request');
-  const tree=async(w,values=false)=>Accessibility.snapshot({within:w,maxDepth:24,maxNodes:1800,
+  // Only WebKit's explicitly unmaterialized tree may be observed again.
+  // This helper never submits input or changes scope/backend.
+  async function reactSnapshot(w,properties){
+    const start=Date.now(),keys=['id','pid','handle','x','y','width','height'];
+    const verify=current=>assert(keys.every(k=>current[k]===w[k]),'React AX window identity/geometry changed');
+    for(let attempt=1;attempt<=8;attempt++){
+      assert(Date.now()-start<1200,'React AX snapshot wait budget exhausted');
+      const current=await assistant();verify(current);
+      const remaining=1200-(Date.now()-start);
+      assert(remaining>0,'React AX snapshot wait budget exhausted');
+      const snapshot=await Accessibility.snapshot({within:current,maxDepth:24,maxNodes:1800,properties,timeout:remaining});
+      verify(await assistant());
+      assert(Date.now()-start<1200,'React AX snapshot wait budget exhausted');
+      if(snapshot.complete===true&&snapshot.truncated===false)return snapshot;
+      assert(snapshot.complete===false&&snapshot.truncated===false&&snapshot.reason==='unmaterialized',
+        'React AX snapshot incomplete: '+snapshot.reason);
+      log('react-ax-read-wait',{attempt,reason:snapshot.reason,stats:snapshot.stats});
+      if(attempt<8)await sleep(100);
+    }
+    throw Error('React AX snapshot wait budget exhausted');
+  }
+  const tree=async(w,values=false)=>!values?reactSnapshot(w,['role','name','identifier','focused','checked','enabled','actions','bounds']):Accessibility.snapshot({within:w,maxDepth:24,maxNodes:1800,
     properties:['role','name','identifier','focused','checked','enabled','actions','bounds',...(values?['value']:[])]});
-  const chat=async()=>{const w=await window.getAppWindow(target);assert(w&&w.handle===getBound()?.handle,'Owned chat identity/focus changed');return w;};
+  const chat=async()=>{const w=await window.getAppWindow(target);
+    if(!w||w.handle!==getBound()?.handle){
+      const front=await window.getActiveWindow();
+      log('test-focus-mismatch',{authorizedPid:target.pid,foreground:front?{pid:front.pid,exePath:front.exePath}:null});
+      throw Error('Owned chat identity/focus changed');
+    }
+    return w;};
   const parsed=async()=>OpenDeskSupportNative.parse(await tree(await chat(),true));
   async function act(identifier,action){
     const ref=await Accessibility.find({identifier},{within:await chat(),maxDepth:24,maxNodes:1800});
     assert(ref,'Missing fixture '+identifier);
-    try{await Accessibility.perform(ref,action);}finally{await Accessibility.release(ref);}
+    try{const result=await Accessibility.perform(ref,action);
+      assert(['acknowledged','not_needed'].includes(result.actionState),'Fixture action unknown; no retry');
+    }finally{await Accessibility.release(ref);}
   }
   const assistant=async()=>{const s=await panel.getState();assert(s.visible,'Assistant hidden');
     return window.current({id:'darwin:'+s.hostPid+':native:'+s.nativeWindowId,pid:s.hostPid,handle:s.nativeWindowId,title:'OpenDesk · AI 客服助手 R2.3',...s.bounds});};
@@ -31,30 +60,163 @@
     assert(b?.coordinateSpace==='screen'&&['pid','handle','x','y','width','height'].every(k=>w[k]===now[k]),'Control calibration changed');
     return {w,node:matches[0],b};
   }
-  async function click(name,role='button'){
-    const {w,b,node}=await control(name,role);
-    log('ai-human-control',{name:node.name,role,pid:w.pid,windowId:w.handle,bounds:b});
-    const action=role==='checkbox'?{action:'setChecked',checked:node.checked!==true}:{action:'invoke'};
-    assert(node.actions?.includes(action.action),'Control does not advertise '+action.action);
-    const ref=await Accessibility.find({name:node.name,role},{within:w,maxDepth:24,maxNodes:1800});
-    assert(ref,'Control identity changed');
-    try{const result=await Accessibility.perform(ref,action);
-      assert(['acknowledged','not_needed'].includes(result.actionState),'Control action unknown; no retry');
-    }finally{await Accessibility.release(ref);}
-    await sleep(150);await idle();
+  async function pressReact(name,role='button',action={action:'invoke'},reacquiredScope=null){
+    // WebKit reports unclipped descendant bounds. Derive the reply viewport
+    // from its actual AX container and fixed footer, never window bounds alone.
+    const viewport=(snapshot,target,win)=>{
+      // Runtime native node wrappers need not retain JS object identity.
+      // The target's role/name was already proven unique in this fresh tree.
+      const contains=(parent,child)=>(parent.role===child.role&&parent.name===child.name)||
+        (parent.children||[]).some(n=>contains(n,child));
+      const panels=OpenDeskSupportNative.nodes(snapshot).filter(n=>n.role==='group'&&n.name==='推荐回复'&&contains(n,target));
+      if(!panels.length)return {top:win.y,bottom:win.y+win.height};
+      assert(panels.length===1,'Reply viewport ambiguous');
+      const p=panels[0],footers=(p.children||[]).filter(n=>(n.children||[]).some(c=>c.role==='button'&&c.name==='→ 填入聊天草稿'));
+      assert(footers.length===1,'Reply fixed footer unavailable');
+      const footer=footers[0];
+      assert(p.bounds?.coordinateSpace==='screen'&&footer.bounds?.coordinateSpace==='screen'&&
+        Number.isFinite(p.bounds.y)&&Number.isFinite(footer.bounds.y)&&footer.bounds.y>p.bounds.y,
+        'Reply viewport lacks calibrated bounds');
+      return contains(footer,target)?{top:win.y,bottom:win.y+win.height}:{top:p.bounds.y,bottom:footer.bounds.y};
+    };
+    await idle();
+    await wait(async()=>(await panel.getState()).visible,'assistant visible before human control');
+    const w=await assistant(),snap=await reactSnapshot(w,['role','name','identifier','actions','enabled','checked','bounds']);
+    await File.writeJSON(File.join(evidence,'react-ax.json'),snap);
+    const candidates=OpenDeskSupportNative.nodes(snap).filter(n=>n.role===role&&(typeof name==='string'?n.name===name:name.test(n.name||'')));
+    assert(candidates.length===1,'React target missing/ambiguous: '+name);
+    const node=candidates[0],b=node.bounds,now=await assistant();
+    assert(!reacquiredScope||(w.pid===reacquiredScope.pid&&w.handle===reacquiredScope.handle),'Assistant identity changed during reacquire');
+    assert(node.enabled!==false&&b?.coordinateSpace==='screen'&&
+      ['x','y','width','height'].every(k=>Number.isFinite(b[k]))&&b.width>0&&b.height>0,
+      'React control lacks calibrated screen bounds');
+    assert(['pid','handle','x','y','width','height'].every(k=>w[k]===now[k]),'Assistant moved during preflight');
+    if(action.action==='setChecked'){
+      assert(typeof node.checked==='boolean','Checkbox state unavailable');
+      if(node.checked===action.checked){
+        log('human-control-already-satisfied',{name:node.name,role,checked:node.checked});return;
+      }
+    }
+    assert(node.actions?.includes(action.action),'React control does not advertise '+action.action);
+    log('human-control-preflight',{name:node.name,role,pid:now.pid,windowId:now.handle,bounds:b});
+    const clip=viewport(snap,node,now);
+    const inside=b.width>0&&b.height>0&&b.x>now.x&&b.y>clip.top&&
+      b.x+b.width<now.x+now.width&&b.y+b.height<clip.bottom;
+    if(inside){
+      // Titlebar AX refs have unreliable AXWindow mapping after restore.
+      // Reuse r23's PID-scoped press, with a fresh exact-bounds preflight.
+      const fresh=await reactSnapshot(now,['role','name','enabled','checked','actions','bounds']);
+      const matches=OpenDeskSupportNative.nodes(fresh).filter(n=>n.role===role&&n.name===node.name);
+      assert(matches.length===1&&matches[0].enabled!==false,'React target changed before PID press');
+      const actual=matches[0],bounds=actual.bounds,final=await assistant();
+      assert(['pid','handle','x','y','width','height'].every(k=>w[k]===final[k]),'Assistant moved before PID press');
+      assert(bounds?.coordinateSpace==='screen'&&['x','y','width','height'].every(k=>b[k]===bounds[k]),'React control bounds changed before PID press');
+      const freshClip=viewport(fresh,actual,final);
+      assert(freshClip.top===clip.top&&freshClip.bottom===clip.bottom&&
+        bounds.y>freshClip.top&&bounds.y+bounds.height<freshClip.bottom,'React viewport changed before PID press');
+      if(action.action==='setChecked'){
+        assert(typeof actual.checked==='boolean','Fresh checkbox state unavailable');
+        if(actual.checked===action.checked)return;
+      }
+      assert(actual.actions?.includes(action.action),'Fresh control action unavailable');
+      await mouse.clickForPID(final.pid,bounds.x+bounds.width/2,bounds.y+bounds.height/2);
+      log('human-control-action',{name:node.name,role,backend:'mouse.clickForPID'});
+      await sleep(150);await idle();
+      if(action.action==='setChecked')await wait(async()=>{
+        const current=await assistant();
+        assert(current.pid===w.pid&&current.handle===w.handle,'Assistant identity changed during readback');
+        const observed=OpenDeskSupportNative.nodes(await reactSnapshot(current,['role','name','checked'])).filter(n=>n.role===role&&n.name===node.name);
+        return observed.length===1&&observed[0].checked===action.checked;
+      },'React checkbox independent readback: '+node.name);
+      return;
+    }
+    // This host's WebKit refs reject AXWindow calibration after restore. Scroll
+    // the exact panel, independently observe movement, then locate again.
+    const scrolls=reacquiredScope?.scrolls||0;
+    assert(scrolls<8,'React control scroll budget exhausted');
+    assert(b.x>now.x&&b.x+b.width<now.x+now.width,'React control outside horizontal scope');
+    const final=await assistant();
+    assert(['pid','handle','x','y','width','height'].every(k=>w[k]===final[k]),'Assistant moved before scroll');
+    // The right gutter belongs to PanelScroll; the center may be a native
+    // select whose wheel handler consumes scrolling at its own limit.
+    assert(final.width>12&&final.height>0,'Panel gutter outside window');
+    await mouse.move(final.x+final.width-6,(clip.top+clip.bottom)/2);
+    const atWheel=await assistant();
+    assert(['pid','handle','x','y','width','height'].every(k=>final[k]===atWheel[k]),'Assistant moved before wheel');
+    const direction=b.y<clip.top?-1:1;
+    await mouse.wheel({deltaY:direction*Math.min(400,Math.max(100,Math.abs(b.y-(clip.top+clip.bottom)/2)))});
+    log('human-control-scroll',{name:node.name,scrolls:scrolls+1,direction});
+    await wait(async()=>{
+      const current=await assistant();
+      assert(current.pid===w.pid&&current.handle===w.handle,'Assistant identity changed during scroll');
+      const observed=OpenDeskSupportNative.nodes(await reactSnapshot(current,['role','name','bounds'])).filter(n=>n.role===role&&n.name===node.name);
+      assert(observed.length===1,'React target changed during scroll');
+      return observed[0].bounds?.coordinateSpace==='screen'&&direction*(observed[0].bounds.y-b.y)<-1;
+    },'independent scroll movement: '+node.name);
+    return pressReact(name,role,action,{pid:w.pid,handle:w.handle,scrolls:scrolls+1});
   }
-  async function chooseVersion(name){
-    // Version cards may extend below the scroll viewport. Invoke the exact
-    // native AX control directly; never click a point covered by the footer.
-    const {w,node}=await control(name,'checkbox');
-    assert(node.actions?.includes('setChecked'),'Version control has no supported selection action');
-    const ref=await Accessibility.find({name:node.name,role:'checkbox'},{within:w,maxDepth:24,maxNodes:1800});
-    assert(ref,'Version control no longer unique');
-    try{const action=await Accessibility.perform(ref,{action:'setChecked',checked:true});
-      log('ai-version-control',{name:node.name,pid:w.pid,windowId:w.handle,action});
-      assert(['acknowledged','not_needed'].includes(action.actionState),'Version action unknown; no retry');
+  async function click(name,role='button',checked=true){
+    return pressReact(name,role,role==='checkbox'?{action:'setChecked',checked}:{action:'invoke'});
+  }
+  async function chooseVersion(name){return click(name,'checkbox',true);}
+  async function sectionText(name){
+    const w=await assistant(),snap=await tree(w),now=await assistant();
+    assert(['pid','handle','x','y','width','height'].every(k=>w[k]===now[k]),'Source review window changed');
+    const sections=OpenDeskSupportNative.nodes(snap).filter(n=>n.name===name);
+    assert(sections.length===1,'Missing/ambiguous source section '+name);
+    // Whole React trees must not request value: unrelated WebKit controls can
+    // reject value conversion. Read only this unique source subtree instead.
+    for(let attempt=1;attempt<=2;attempt++){
+      const current=await assistant();
+      assert(['pid','handle','x','y','width','height'].every(k=>w[k]===current[k]),'Source review window changed');
+      const ref=await Accessibility.find({name},{within:current,maxDepth:24,maxNodes:1800});
+      assert(ref,'Missing source section '+name);
+      try{
+        const fresh=await tree(await assistant());
+        assert(OpenDeskSupportNative.nodes(fresh).filter(n=>n.name===name).length===1,'Source section changed');
+        const before=await assistant();
+        assert(['pid','handle','x','y','width','height'].every(k=>w[k]===before[k]),'Source review window changed');
+        const section=await tree(ref,true),final=await assistant();
+        assert(['pid','handle','x','y','width','height'].every(k=>w[k]===final[k]),'Source review window changed');
+        OpenDeskSupportNative.nodes(section);return section;
+      }catch(error){
+        // Read-only reacquisition required by the public calibration contract.
+        // No action is replayed, and replaced/moved windows still fail above.
+        if(attempt!==1||error.code!=='STALE_TARGET'||
+          (error.actionState!==undefined&&error.actionState!=='not_started'))throw error;
+        log('source-read-reacquire',{name,attempt,code:error.code});
+      }finally{await Accessibility.release(ref);}
+    }
+  }
+  async function editReply(generated,intended){
+    const editor=await control('编辑知识建议','textField');
+    // Content refs use the exact window. Application-wide search also sees
+    // lazy menus, so it cannot prove completeness without opening those menus.
+    const ref=await Accessibility.find({name:'编辑知识建议',role:'textField'},
+      {within:editor.w,maxDepth:24,maxNodes:1800});
+    assert(ref,'Unique native reply editor unavailable');
+    try{
+      const before=await Accessibility.read(ref,{properties:['role','name','value','focused']});
+      const fresh=await control('编辑知识建议','textField');
+      assert(before.properties.role==='textField'&&before.properties.name==='编辑知识建议'&&
+        before.properties.value===generated&&before.properties.focused===true,'Native editor focus/value not verified');
+      assert(fresh.node.focused===true,'Panel editor focus not verified');
+      const ready=await Accessibility.read(ref,{properties:['value','focused']});
+      assert(ready.properties.focused===true&&ready.properties.value===generated,'Fresh native editor focus/value not verified');
+      const scope=await assistant();
+      assert(['pid','handle','x','y','width','height'].every(k=>editor.w[k]===fresh.w[k]&&editor.w[k]===scope[k])&&
+        ['x','y','width','height'].every(k=>editor.b[k]===fresh.b[k]),'Editor host/window/bounds changed');
+      const action=await Accessibility.perform(ref,{action:'setValue',value:intended});
+      assert(['acknowledged','not_needed'].includes(action.actionState),'Editor action unknown; no retry');
+      const after=await Accessibility.read(ref,{properties:['value']});
+      const current=await control('编辑知识建议','textField');
+      assert(current.w.pid===editor.w.pid&&current.w.handle===editor.w.handle,
+        'Panel editor identity changed during readback');
+      await File.writeJSON(File.join(evidence,'ai-editor-readback.json'),{before,ready,action,after,render:getRender()});
+      assert(after.properties.value===intended,'Native edit value readback differs');
     }finally{await Accessibility.release(ref);}
-    await sleep(150);await idle();
+    // PID AXPress preserves the native completion action without mouse blur.
+    await click('完成编辑');await idle();
   }
   async function shot(name){const w=await chat(),s=await panel.getState(),b=s.bounds;
     const x=Math.min(w.x,b.x),y=Math.min(w.y,b.y);
@@ -115,11 +277,6 @@
     const reviewTree=await tree(await assistant());
     await File.writeJSON(File.join(evidence,'source-review-expanded-ax.json'),reviewTree);
     await shot('01a-source-review-expanded');
-    async function sectionText(name){
-      const ref=await Accessibility.find({name},{within:await assistant(),maxDepth:24,maxNodes:1800});
-      assert(ref,'Missing source section '+name);
-      try{return await tree(ref,true);}finally{await Accessibility.release(ref);}
-    }
     const reviewNodes=OpenDeskSupportNative.nodes(await sectionText('审核元数据 '+request.requestId));
     const contains=(nodes,text)=>nodes.some(n=>(n.name||'').includes(text)||(typeof n.value==='string'&&n.value.includes(text)));
     check('source-review-request-project',contains(reviewNodes,request.requestId)&&contains(reviewNodes,'版本、生效期及适用条件'),{requestId:request.requestId});
@@ -135,27 +292,8 @@
     await click(/^知识建议：/,'checkbox');
     check('human-selected-ai',getRender().replyText===generated,getRender());
     await click('编辑选中回复');
-    const editor=await control('编辑知识建议','textField');
-    const ref=await Accessibility.find({name:'编辑知识建议',role:'textField'},{within:editor.w,maxDepth:24,maxNodes:1800});
-    assert(ref,'Unique native reply editor unavailable');
     const intended=generated+' 已人工核对。';
-    try{
-      const before=await Accessibility.read(ref,{properties:['value','focused']});
-      const scope=await assistant(),state=await panel.getState();
-      assert(before.properties.value===generated&&before.properties.focused===true,'Native editor focus/value not verified');
-      assert(scope.pid===editor.w.pid&&scope.handle===editor.w.handle&&state.hostPid===scope.pid,'Editor host/window changed');
-      const action=await Accessibility.perform(ref,{action:'setValue',value:intended});
-      const after=await Accessibility.read(ref,{properties:['value']});
-      await File.writeJSON(File.join(evidence,'ai-editor-readback.json'),{before,action,after,render:getRender()});
-      assert(after.properties.value===intended,'Native edit value readback differs');
-    }finally{await Accessibility.release(ref);}
-    // Invoke the completion control without a mouse-induced blur. React must
-    // commit the independently read editor value even on this native AX path.
-    const done=await control('完成编辑');
-    const doneRef=await Accessibility.find({name:'完成编辑',role:'button'},{within:done.w,maxDepth:24,maxNodes:1800});
-    assert(doneRef,'Unique completion control unavailable');
-    try{await Accessibility.perform(doneRef,{action:'invoke'});}finally{await Accessibility.release(doneRef);}
-    await idle();
+    await editReply(generated,intended);
     await wait(()=>getRender()?.replyText===intended,'React committed actual native edit');
     const edited=getRender().replyText;
     check('human-edit-react-committed',edited===intended,getRender());
@@ -214,7 +352,7 @@
       if(scenario==='pause'){await click('恢复观察');await observe();await idle();}
     }
     const pending=await query();await click('打开设置');
-    await click('原生窗口授权','checkbox');
+    await click('原生窗口授权','checkbox',false);
     await wait(()=>adapter.current?.reason==='观察授权已撤销'&&!adapter.current.observing,'explicit authorization revocation');
     await observe();
     check('revocation-persists',adapter.current.reason==='观察授权已撤销'&&!adapter.current.observing,adapter.current);

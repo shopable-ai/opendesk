@@ -360,15 +360,46 @@ func (w *WindowManager) GetContent(selector string) (string, error) {
 	return value, wrapWindowError("window.getContent", err, true)
 }
 
-func (w *WindowManager) List() ([]map[string]interface{}, error) {
-	rows, err := w.impl.List()
+// List accepts only an optional native PID scope. Public query composition
+// (title, app groups, executable identity) remains owned by the JS facade.
+func (w *WindowManager) List(selectors ...map[string]interface{}) ([]map[string]interface{}, error) {
+	var pid uint32
+	if len(selectors) > 1 {
+		return nil, windowOperationError("window.list", WindowInvalidArgument, "expected at most one PID selector", nil)
+	}
+	if len(selectors) == 1 {
+		value, ok := exactWindowInteger(selectors[0]["pid"], 1, math.MaxUint32)
+		if !ok || len(selectors[0]) != 1 {
+			return nil, windowOperationError("window.list", WindowInvalidArgument, "native selector must contain only a positive uint32 pid", nil)
+		}
+		pid = uint32(value)
+	}
+	var rows []map[string]interface{}
+	var err error
+	if scoped, ok := w.impl.(interface {
+		ListForPID(uint32) ([]map[string]interface{}, error)
+	}); pid != 0 && ok {
+		rows, err = scoped.ListForPID(pid)
+	} else {
+		rows, err = w.impl.List()
+	}
 	if err != nil {
 		return nil, wrapWindowError("window.list", err, false)
 	}
+	var result []map[string]interface{}
+	if pid != 0 {
+		result = make([]map[string]interface{}, 0, len(rows))
+	}
 	for _, row := range rows {
 		normalizeWindowRow(row)
+		if pid != 0 && uint64Value(row["pid"]) == uint64(pid) {
+			result = append(result, row)
+		}
 	}
-	return rows, nil
+	if pid == 0 {
+		return rows, nil
+	}
+	return result, nil
 }
 
 func (w *WindowManager) GetFocusWindow() (*WindowInfo, error) {

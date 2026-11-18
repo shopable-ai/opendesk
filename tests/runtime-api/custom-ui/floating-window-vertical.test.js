@@ -219,4 +219,33 @@
     helper.persist();
     await ui.closeAll();
   });
+  test({
+    name: 'FloatingWindow vertical eight and 81 item lists grow naturally without a scrolling viewport',
+    tier: 'custom-ui',
+    covers: ['FloatingWindow.constructor', 'FloatingWindow.addButton', 'FloatingWindow.getState', 'FloatingWindow.getButtonState', 'FloatingWindow.show', 'FloatingWindow.close'],
+  }, async () => {
+    for (const count of [8,81]) {
+      const bar = new FloatingWindow({orientation:'vertical',x:40,y:40});
+      for(let i=0;i<count;i++) bar.addButton('item'+i, 'Prompt '+i, {text:String(i)});
+      try {
+        const declared = await bar.getState();
+        equal(declared.bounds.width,60,'natural vertical width changed');
+        equal(declared.bounds.height,33+count*48,'vertical list was capped or truncated');
+        if(count===81) {
+          await helper.expectUIError(() => bar.addButton('overflow','Overflow','timer'), 'INVALID_SPEC', 'FloatingWindow.addButton');
+          // The 81-item geometry is verified before native show: existing placement
+          // rules, rather than scrolling, decide whether a tall bar fits the screen.
+        } else {
+          const shown = await helper.show(bar);
+          const states = await Promise.all(Array.from({length:count},(_,i)=>bar.getButtonState('item'+i)));
+          helper.assertNativeHeight(shown,states,33+count*48,'native vertical list acquired a viewport');
+          for(let i=0;i<count;i++) {
+            equal(states[i].localBounds.y,8+i*48,'native item was scrolled or reordered');
+            equal(states[i].localBounds.height,40,'native target shrank');
+          }
+          equal(states[count-1].id,'item7','last native item was omitted');
+        }
+      } finally { await bar.close(); }
+    }
+  });
 })();

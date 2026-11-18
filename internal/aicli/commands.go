@@ -3,6 +3,7 @@ package aicli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -1186,6 +1187,23 @@ func automationError(err error, operation string) *Error {
 		return &Error{Code: "internal_error", Message: operation + " failed"}
 	}
 	message := err.Error()
+	var windowFailure *automation.WindowError
+	if errors.As(err, &windowFailure) {
+		code := "execution_failed"
+		switch windowFailure.Code {
+		case automation.WindowPermissionDenied:
+			return &Error{Code: "permission_required", Permission: permissionFor(operation), Message: message}
+		case automation.WindowNotFound, automation.WindowStaleTarget:
+			code = "window_not_found"
+		case automation.WindowNotSupported:
+			code = "unsupported_platform"
+		case automation.WindowTimeout:
+			code = "timeout"
+		case automation.WindowInvalidArgument:
+			code = "invalid_argument"
+		}
+		return &Error{Code: code, Message: message}
+	}
 	lower := strings.ToLower(message)
 	if strings.HasPrefix(operation, "vision") {
 		return &Error{Code: "vision_failed", Message: message}

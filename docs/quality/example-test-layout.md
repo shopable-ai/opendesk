@@ -169,3 +169,6 @@ node --test tests/test-architecture/example-explorer-catalog.test.js
 - `internal/browserbridge/admission_digest_test.go` 与 `testdata/admission-digest.json`：实际 Browser canonical/digest 生成的十条跨语言恢复身份向量。
 - `internal/browsercli/admission_unix_test.go`：真实 Go CLI 本地 IPC EOF 路径、自动 ID、恢复身份输出与禁止重放；不是 Chrome 模拟验收。
 - `cmd/opendesk/app_browser_test.go`：产品启动保留已认证 executable/credential。
+
+- `internal/browserbridge/socket_recovery_unix_test.go`：本地精确 orphan socket 恢复、旧启动方静止前置条件、活动/未握手 Host 拒绝、实例生命周期互斥、并发只退役一次、目录/inode/符号链接/journal 保护及安装/grants 原字节保留；仅 Go 内部白盒，不表示 AI 原请求终态。
+- `internal/browsercli/socket_recovery_test.go`：`browser socket recover` 封闭参数、真实临时 Unix orphan 的 dry-run/apply、错误输入零变更；组件 CLI，不等于用户 Chrome 安装或原 AI 请求对账。

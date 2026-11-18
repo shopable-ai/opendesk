@@ -112,7 +112,7 @@ class PayloadTests(unittest.TestCase):
 
     def test_empty_js_payload(self):
         root = self.fixture("macos")
-        (root / "Contents/MacOS/polyfills/example.js").unlink()
+        (root / "Contents/Resources/polyfills/example.js").unlink()
         self.assertFalse(payload.verify(root, "macos")["ok"])
 
     def test_marker_mismatch_and_utf8_bom(self):

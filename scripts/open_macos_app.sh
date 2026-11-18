@@ -8,12 +8,17 @@ set -euo pipefail
 }
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_PATH="${ROOT_DIR}/dist/OpenDesk.app"
+APP_PATH="${OPENDESK_APP:-${ROOT_DIR}/dist/OpenDesk.app}"
 
 if [[ ! -d "${APP_PATH}" ]]; then
   echo "OpenDesk.app not found at ${APP_PATH}" >&2
   exit 1
 fi
+
+source "${ROOT_DIR}/scripts/macos_signing.sh"
+macos_signing_load verify
+bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${APP_PATH}/Contents/Info.plist")"
+macos_signing_verify_app "${APP_PATH}" "${bundle_id}"
 
 args=()
 while [[ $# -gt 0 ]]; do
@@ -37,4 +42,5 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-nohup open "${APP_PATH}" --args "${args[@]}" >/dev/null 2>&1 &
+if [[ ${#args[@]} == 0 ]]; then exec open "${APP_PATH}"; fi
+exec open "${APP_PATH}" --args "${args[@]}"

@@ -1,4 +1,5 @@
 ---
+docType: reference
 title: Page API
 description: page 是 OpenDesk 脚本最常用的桌面入口，负责截图、打开 URL/App、等待与权限处理。
 order: 30
@@ -25,10 +26,12 @@ order: 30
 | `page.waitFor(value, options?)` | 分派到固定等待或条件等待。 |
 | `page.waitForTimeout(ms, options?)` | 非阻塞固定等待。 |
 | `page.waitForFunction(fn, options?, ...args)` | 轮询条件，带独立 deadline。 |
+| `page.waitForNavigation(options?)` | 兼容轮询 executable 字段变化，不观察浏览器导航。 |
 | `page.waitForAll(values, options?)` | 有界等待一组值/Promise。 |
 | `page.checkPermissions(options?)` | 读取跨平台权限快照。 |
 | `page.requestPermissions(options?)` | 请求或引导用户处理跨平台权限。 |
 | `page.ensurePermissions(options?)` | 严格确保所需权限已满足。 |
+| `page.ensureMacPermissions(options?)` | 兼容权限 guard；新脚本使用 `page.ensurePermissions()`。 |
 | `page.checkScreenshotPermissions()` | 检查截图相关权限。 |
 | `page.openMacOSPrivacySettings(section)` | 打开指定 macOS Privacy 设置页。 |
 | `page.requestMacPermissions(options)` | 请求/检查 macOS 权限。 |
@@ -37,6 +40,8 @@ order: 30
 ## 公共约定
 
 ### 等待时间与取消
+
+以下计时/取消约定适用于 `waitForTimeout`、`waitForFunction`、`waitForAll` 及 `waitFor` 对它们的分派；`waitForNavigation` 是独立的旧兼容实现，见其专节。
 
 `ms`、`timeout`、`polling` 必须是 `0..86400000` 内有限 `number`；允许小数，Runtime 调度时转换为整数毫秒。等待方法的 `signal` 可省略或为 `AbortSignal | null`。
 
@@ -68,7 +73,7 @@ order: 30
 
 **签名**
 ```ts
-page.screenshot(options?: OpenDeskScreenshotOptions): Promise<OpenDeskScreenshotResult>;
+page.screenshot(options?: OpenDeskPageScreenshotOptions): Promise<string | ArrayBuffer | OpenDeskScreenshotResult | null>;
 ```
 
 **参数**
@@ -92,7 +97,7 @@ page.screenshot(options?: OpenDeskScreenshotOptions): Promise<OpenDeskScreenshot
 
 **行为与错误**
 
-`clip` 优先于 target；否则 `fullPage` / `target:'screen'` 走屏幕逻辑；其余尝试活动窗口。`clip.width/height` 必须大于 0，`displayIndex` 不能为负，非法 `returnType` 明确拒绝。
+`clip` 优先于 target；否则 `fullPage` / `target:'screen'` 走屏幕逻辑；其余截取活动窗口。找不到活动窗口、窗口尺寸无效或指定显示器不可用时，截图失败。`clip.width/height` 必须大于 0，`displayIndex` 不能为负，非法 `returnType` 明确拒绝。macOS 活动窗口捕获沿用同一次解析得到的窗口 ID。
 
 **示例**
 ```js
@@ -109,14 +114,14 @@ const path = await page.screenshot({
 
 **签名**
 ```ts
-page.captureScreen(options?: OpenDeskScreenshotOptions): Promise<OpenDeskScreenshotResult>;
+page.captureScreen(options?: OpenDeskPageScreenshotOptions): Promise<string | ArrayBuffer | OpenDeskScreenshotResult | null>;
 ```
 
 **参数**
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `options` | `OpenDeskScreenshotOptions` | 否 | `{}` | 截图选项，见 `page.screenshot()`。 |
+| `options` | `OpenDeskPageScreenshotOptions` | 否 | `{}` | 截图选项，见 `page.screenshot()`。 |
 
 **返回值**
 
@@ -165,7 +170,7 @@ await page.goto('https://example.com');
 
 **签名**
 ```ts
-page.openURL(url: string): Promise<void>;
+page.openURL(url: string): void;
 ```
 
 **参数**
@@ -176,9 +181,11 @@ page.openURL(url: string): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步返回，native 失败同步抛错。
 
 Canonical method：`page.goto()`。行为和错误与 `goto()` 一致。
 
@@ -193,7 +200,7 @@ await page.openURL('https://example.com');
 
 **签名**
 ```ts
-page.openApp(appName: string): Promise<void>;
+page.openApp(appName: string): void;
 ```
 
 **参数**
@@ -204,9 +211,11 @@ page.openApp(appName: string): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步返回，native 失败同步抛错。
 
 启动请求失败时拒绝。需要稳定 identity、等待 readiness 或终止/重启时使用 [`App`](app.md)。
 
@@ -221,21 +230,23 @@ await page.openApp('Safari');
 
 **签名**
 ```ts
-page.openURLInApp(appName: string, url: string): Promise<void>;
+page.openURLInApp(appName: string, url: string): void;
 ```
 
 **参数**
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `appName` | `string` | 是 | 无 | 目标应用。 |
+| `appName` | `string` | 是 | 无 | 非空且不能全是空白的目标应用名。 |
 | `url` | `string` | 是 | 无 | 非空 URL。 |
 
 **返回值**
 
-`Promise<void>`。
+`void`。
 
 **行为与错误**
+
+同步返回。应用名为空或全是空白时同步拒绝；native 失败同步抛错。
 
 交给平台 launcher，不提供 DOM 导航语义。无效参数或启动失败时拒绝。
 
@@ -302,7 +313,7 @@ console.log(page.url());
 
 **签名**
 ```ts
-page.waitFor(value: number | Function, options?: OpenDeskWaitOptions): Promise<unknown>;
+page.waitFor(value: number | Function, options?: OpenDeskPageWaitOptions): Promise<unknown>;
 ```
 
 **参数**
@@ -310,7 +321,7 @@ page.waitFor(value: number | Function, options?: OpenDeskWaitOptions): Promise<u
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
 | `value` | `number \| Function` | 是 | 无 | number → `waitForTimeout()`；function → `waitForFunction()`。 |
-| `options` | `OpenDeskWaitOptions` | 否 | `{}` | timeout/polling/signal，按分支转发。 |
+| `options` | `OpenDeskPageWaitOptions` | 否 | `{}` | timeout/polling/signal，按分支转发。 |
 
 **返回值**
 
@@ -361,7 +372,7 @@ await page.waitForTimeout(1000);
 
 **签名**
 ```ts
-page.waitForFunction(fn: Function, options?: OpenDeskWaitForFunctionOptions, ...args: unknown[]): Promise<unknown>;
+page.waitForFunction(fn: Function, options?: OpenDeskPageWaitOptions, ...args: unknown[]): Promise<unknown>;
 ```
 
 **参数**
@@ -390,13 +401,52 @@ const win = await page.waitForFunction(async title => {
 }, { timeout: 10000, polling: 200 }, 'Safari');
 ```
 
+## page.waitForNavigation(options?)
+
+兼容等待 `page.url()` 返回值发生变化；不是浏览器导航完成检测。
+
+**签名**
+```ts
+page.waitForNavigation(options?: { timeout?: number }): Promise<void>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options.timeout` | `number` | 否 | `30000` | 毫秒；旧实现直接比较 elapsed > timeout，不使用公共等待参数校验。 |
+
+**返回值**
+
+`Promise<void>`，检测到返回值不同后 resolve `undefined`。
+
+**行为与错误**
+
+从普通 OpenDesk JavaScript 的全局 `page` 调用，所有平台使用同一 polyfill，无额外权限请求。调用时记录 `page.url()`，立即检查一次，此后每 `100` ms 检查；每轮先检查超时再检查变化。超时时拒绝普通 `Error('Navigation timeout')`，没有稳定 `TIMEOUT` code；`timeout: 0` 也不是同步超时。`options: null` 在解构时同步抛出 `TypeError`，非法 timeout 不保证拒绝（例如 `NaN` 会使超时比较一直为 false）。
+
+当前 native `page.url()` 只返回 `Page.Executable`；打开 URL 不会让它变成浏览器地址。因此正常网页跳转通常只会超时，不能用于网页 readiness 或业务完成判断。请针对实际可观察状态使用 [`page.waitForFunction()`](#pagewaitforfunctionfn-options-args)。
+
+不支持 `signal` 或单次等待取消；外层 `Promise.race` 不会停止轮询，execution 结束时由 Runtime 清理 timer。初始读值及首轮同步异常会拒绝 Promise；后续 timer 回调中的读值异常没有转为该 Promise 的 rejection，不能把它当作可靠的独立 deadline/错误封装。
+
+**示例**
+
+在普通 OpenDesk 脚本中，仅演示兼容入口的超时处理；不打开页面、不证明导航成功：
+
+```js
+try {
+  await page.waitForNavigation({ timeout: 100 });
+} catch (error) {
+  if (error.message !== 'Navigation timeout') throw error;
+}
+```
+
 ## page.waitForAll(values, options?)
 
 有界等待一组值或 Promise，保持输入顺序。
 
 **签名**
 ```ts
-page.waitForAll(values: unknown[], options?: OpenDeskWaitForAllOptions): Promise<unknown[]>;
+page.waitForAll(values: unknown[], options?: { timeout?: number; signal?: AbortSignal | null }): Promise<unknown[]>;
 ```
 
 **参数**
@@ -429,7 +479,7 @@ const [title, active] = await page.waitForAll([
 
 **签名**
 ```ts
-page.checkPermissions(options?: OpenDeskPermissionOptions): Promise<OpenDeskPermissionResult>;
+page.checkPermissions(options?: OpenDeskPermissionOptions): Promise<OpenDeskPermissionReport>;
 ```
 
 **参数**
@@ -441,7 +491,7 @@ page.checkPermissions(options?: OpenDeskPermissionOptions): Promise<OpenDeskPerm
 
 **返回值**
 
-`Promise<OpenDeskPermissionResult>`。
+`Promise<OpenDeskPermissionReport>`。
 
 **行为与错误**
 
@@ -458,7 +508,7 @@ const permissions = await page.checkPermissions({ capabilities: ['screenCapture'
 
 **签名**
 ```ts
-page.requestPermissions(options?: OpenDeskPermissionRequestOptions): Promise<OpenDeskPermissionResult>;
+page.requestPermissions(options?: OpenDeskPermissionOptions): Promise<OpenDeskPermissionReport>;
 ```
 
 **参数**
@@ -473,7 +523,7 @@ page.requestPermissions(options?: OpenDeskPermissionRequestOptions): Promise<Ope
 
 **返回值**
 
-`Promise<OpenDeskPermissionResult>`。
+`Promise<OpenDeskPermissionReport>`。
 
 **行为与错误**
 
@@ -490,18 +540,18 @@ await page.requestPermissions({ capabilities: ['screenCapture', 'accessibility']
 
 **签名**
 ```ts
-page.ensurePermissions(options?: OpenDeskPermissionRequestOptions): Promise<OpenDeskPermissionResult>;
+page.ensurePermissions(options?: OpenDeskPermissionOptions): Promise<OpenDeskPermissionReport>;
 ```
 
 **参数**
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `options` | `OpenDeskPermissionRequestOptions` | 否 | `{}` | 与 `requestPermissions()` 相同的 capability/设置选项。 |
+| `options` | `OpenDeskPermissionOptions` | 否 | `{}` | 与 `requestPermissions()` 相同的 capability/设置选项。 |
 
 **返回值**
 
-`Promise<OpenDeskPermissionResult>`。
+`Promise<OpenDeskPermissionReport>`。
 
 **行为与错误**
 
@@ -512,13 +562,50 @@ page.ensurePermissions(options?: OpenDeskPermissionRequestOptions): Promise<Open
 await page.ensurePermissions({ capabilities: ['screenCapture', 'accessibility'] });
 ```
 
+## page.ensureMacPermissions(options?)
+
+旧权限 guard 的兼容入口；canonical 流程是 [`page.ensurePermissions()`](#pageensurepermissionsoptions)，新脚本使用该方法。
+
+**签名**
+```ts
+page.ensureMacPermissions(options?: OpenDeskEnsureMacPermissionOptions): Promise<OpenDeskPermissionReport>;
+```
+
+**参数**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `options.capabilities` | `OpenDeskPermissionCapability[]` | 否 | 由 section 映射 | 非空数组优先于 section。 |
+| `options.section` | `OpenDeskPermissionOptions['section']` | 否 | `'screenCapture'` | `screenCapture`/`screen` → screenCapture + accessibility；accessibility、inputMonitoring、automation 各取同名项；globalShortcut → accessibility + inputMonitoring；baseline/browserBaseline/browser → screenCapture + accessibility + automation；all 或空值 → 四项全选；未知名称回退 screenCapture + accessibility。 |
+| `options.openSettingsOnFail` | `boolean` | 否 | `true` | 转为 canonical `openSettings`；不是“禁止请求权限”开关。 |
+| `options.forceOpenSettings` | `boolean` | 否 | `false` | 转发到 canonical 流程，需同时允许打开设置才生效。 |
+| `options.strict` | `boolean` | 否 | `true` | 可显式 false，允许返回 `ok:false`。 |
+
+**返回值**
+
+`Promise<OpenDeskPermissionReport>`，结构与 canonical 权限流程一致，包含 `ok`、`os`、`capabilities`、`permissions`，以及按分支提供的 `skipped`、`settingsOpened`、`raw`、`flow` 等信息。
+
+**行为与错误**
+
+普通 OpenDesk JavaScript 通过全局 `page` 调用；异步 facade 委托 canonical guard，不提供单独的 macOS-only 实现。macOS 上可能执行权限探测、系统提示、AppleEvents 探测或导航设置；`openSettingsOnFail:false` 只禁止设置导航，仍可能请求权限，不能当作只读预检。已满足所选权限且未强制导航时跳过请求。不等待用户在设置中完成授权，也不会把 unknown 当作 granted。
+
+非 macOS 返回 `ok:true, skipped:true` 及 unsupported 权限快照，表示此平台不执行该请求，不能据此推断桌面能力可用。macOS 缺失 native 权限 API 或最终权限未就绪时，strict 模式拒绝普通 `Error`；底层错误透传，不承诺稳定错误 code。不支持 `signal`、独立 timeout 或撤销已经发出的系统请求。
+
+**示例**
+
+普通 OpenDesk 脚本中，经用户授权后使用 canonical guard（可能弹出系统授权界面；本轮未执行）：
+
+```js
+await page.ensurePermissions({ capabilities: ['accessibility'], openSettings: true });
+```
+
 ## page.checkScreenshotPermissions()
 
 检查截图相关系统权限。
 
 **签名**
 ```ts
-page.checkScreenshotPermissions(): Promise<OpenDeskPermissionResult>;
+page.checkScreenshotPermissions(): Record<string, unknown>;
 ```
 
 **参数**
@@ -527,9 +614,11 @@ page.checkScreenshotPermissions(): Promise<OpenDeskPermissionResult>;
 
 **返回值**
 
-`Promise<OpenDeskPermissionResult>`。
+`Record<string, unknown>`。
 
 **行为与错误**
+
+同步返回原生 report；native error 同步抛出。不是 canonical `OpenDeskPermissionReport`，须检查当前平台及返回字段。
 
 只检查，不保证自动弹出权限提示。平台不支持时按当前 permission backend 返回明确状态/错误。
 
@@ -544,22 +633,24 @@ console.log(await page.checkScreenshotPermissions());
 
 **签名**
 ```ts
-page.openMacOSPrivacySettings(section: string): Promise<void>;
+page.openMacOSPrivacySettings(section?: string): Record<string, unknown>;
 ```
 
 **参数**
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `section` | `string` | 是 | 无 | Runtime 支持的 Privacy section。 |
+| `section` | `string` | 否 | `all` | 省略或空字符串选择全部 section；仅需一个权限时显式传入。 |
 
 **返回值**
 
-`Promise<void>`。
+`Record<string, unknown>`。
 
 **行为与错误**
 
-仅负责导航系统设置，不将“已打开设置页”解释为权限已授予。非 macOS 或未知 section 明确失败。
+同步返回原生 report；native error 同步抛出。不是 canonical `OpenDeskPermissionReport`，须检查当前平台及返回字段。
+
+仅负责导航系统设置，不将“已打开设置页”解释为权限已授予。未知 section 抛错；非 macOS 返回带说明且 `opened: []` 的 report，不代表已打开设置或获得权限。
 
 **示例**
 ```js
@@ -572,26 +663,28 @@ await page.openMacOSPrivacySettings('accessibility');
 
 **签名**
 ```ts
-page.requestMacPermissions(options: OpenDeskMacPermissionOptions): Promise<OpenDeskPermissionResult>;
+page.requestMacPermissions(options?: { section?: string; openSettings?: boolean; forceOpenSettings?: boolean }): Record<string, unknown>;
 ```
 
 **参数**
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `options` | `OpenDeskMacPermissionOptions` | 是 | 无 | macOS 权限请求选项。 |
+| `options` | `{ section?: string; openSettings?: boolean; forceOpenSettings?: boolean }` | 否 | `{}` | 只读取 `section`、`openSettings` 和 `forceOpenSettings`。 |
 
 **返回值**
 
-`Promise<OpenDeskPermissionResult>`。
+`Record<string, unknown>`。
 
 **行为与错误**
 
-不会把系统设置导航等同于授权成功；实际结果仍以重新检查权限状态为准。非 macOS 明确不支持。
+同步返回原生 report；native error 同步抛出。不是 canonical `OpenDeskPermissionReport`，须检查当前平台及返回字段。
+
+不会把系统设置导航等同于授权成功；实际结果仍以重新检查权限状态为准。默认 `section: 'screenCapture'`、`openSettings: true`、`forceOpenSettings: false`；`screenCapture` / `accessibility` 布尔字段不会选择权限。非 macOS 返回 `ok: true` 的兼容 no-op report，不能据此判定权限可用。
 
 **示例**
 ```js
-const result = await page.requestMacPermissions({ screenCapture: true, accessibility: true });
+const result = await page.requestMacPermissions({ section: 'accessibility', openSettings: true });
 console.log(result);
 ```
 
@@ -601,22 +694,24 @@ console.log(result);
 
 **签名**
 ```ts
-page.requestMacAutomationPermission(targetApp: string): Promise<OpenDeskPermissionResult>;
+page.requestMacAutomationPermission(targetApp?: string): Record<string, unknown>;
 ```
 
 **参数**
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `targetApp` | `string` | 是 | 无 | 非空目标应用标识。 |
+| `targetApp` | `string` | 否 | `System Events` | 空字符串或省略使用默认目标。 |
 
 **返回值**
 
-`Promise<OpenDeskPermissionResult>`。
+`Record<string, unknown>`。
 
 **行为与错误**
 
-仅适用于 macOS Automation/AppleEvents 权限；不用于 Accessibility 或 Screen Recording。平台/target 无效时明确失败。
+同步返回原生 report；native error 同步抛出。不是 canonical `OpenDeskPermissionReport`，须检查当前平台及返回字段。
+
+仅适用于 macOS Automation/AppleEvents 权限；不用于 Accessibility 或 Screen Recording。非 macOS 返回 `ok: false` 的 report；`triggered` 或 `pendingUserConsent` 不代表授权已完成。
 
 **示例**
 ```js
@@ -626,7 +721,7 @@ console.log(result);
 
 ## 错误
 
-所有异步方法都应通过明确 rejection 表达参数、平台、权限、截图或 launcher 失败。等待方法使用稳定 `TIMEOUT` / `CANCELED` / `INVALID_ARGUMENT` 语义，不要解析 message 判断类型。
+除 `waitForNavigation` 专节说明的旧 timer 回调限制外，异步方法通过 rejection 表达参数、平台、权限、截图或 launcher 失败。`waitForTimeout`、`waitForFunction`、`waitForAll` 使用稳定 `TIMEOUT` / `CANCELED` / `INVALID_ARGUMENT` 语义，不要解析 message 判断类型；`waitForNavigation` 不提供这些稳定 code。
 
 ## 平台与能力
 

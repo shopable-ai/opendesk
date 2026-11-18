@@ -844,19 +844,23 @@ UI.readText(options?: OpenDeskUIReadTextOptions): Promise<string>;
 | --- | --- | --- | --- | --- |
 | `options` | `OpenDeskUIReadTextOptions` | 否 | `{}` | 读取范围、deadline 与 cancellation。 |
 | `options.within` | `OpenDeskWindowInfo` | 否 | 当前活动窗口 | 已解析的同一目标 window；不会默认读取全桌面。 |
-| `options.region` | `OpenDeskScreenRegion` | 否 | 整个 `within` | 必须完全位于当前 window 内的更小只读区域。 |
-| `options.timeout` | `number` | 否 | `10000` | 本次 native observation 或 local OCR 的总预算。 |
+| `options.region` | `OpenDeskScreenRegion` | 否 | 整个 `within` | 必须标记 `coordinateSpace: 'screen'`，并完全位于当前 window 内。 |
+| `options.timeout` | `number` | 否 | `10000` | 整次读取共享的总预算，包含窗口核验、native observation、截图和 local OCR；后续 owner 只获得剩余时间。 |
 | `options.maxDepth` | `number` | 否 | `32` | Accessibility snapshot 最大深度。 |
 | `options.maxNodes` | `number` | 否 | `5000` | Accessibility snapshot 最大节点数。 |
 | `options.signal` | `AbortSignal \| null` | 否 | 未设置 | 停止后续 observation；不会撤回 in-flight native read。 |
 
 **返回值**
 
-`Promise<string>`。优先返回当前 Accessibility snapshot 中唯一的实际 `value`；没有唯一 native value 时，才在同一明确 window/region 上执行本地 OCR 并返回当前识别行。它不返回 caller target、expected 或计算结果。
+`Promise<string>`。优先返回当前 Accessibility snapshot 中唯一可读对象的实际 `value`；只有成功、完整且没有有效 native 可读候选的 observation，才在同一明确 window/region 上执行本地 OCR 并返回当前识别行。它不返回 caller target、expected 或计算结果。
 
 **行为与错误**
 
-多个 native value 或多个可读对象抛 `AMBIGUOUS_TARGET`。空的完整 local observation 抛 `TARGET_NOT_FOUND`；Accessibility/OCR/screenshot/scope failure 保留各自错误，不会变成空字符串。窗口 identity 变化抛 `STALE_TARGET`。`readText` 不调用 cloud VLM，也不发送输入。
+多个 native 可读对象即抛 `AMBIGUOUS_TARGET`，即使它们的 value 相同也不合并。native 候选只消费原生 owner 已校准并标记 `coordinateSpace: 'screen'` 的 `bounds`；`bounds: null` 或未校准坐标不会由 facade 猜测或从 `nativeBounds` 转换。
+
+不完整 native observation 抛 `SEARCH_INCOMPLETE`，native 失败保留原错误，均不以 OCR 成功覆盖；native observation 不可用时抛 `NOT_SUPPORTED`。后备 OCR 显式使用 `local` provider，不使用宿主的默认 provider 或其他 provider 回退。空的完整 local observation 抛 `TARGET_NOT_FOUND`；OCR/screenshot/scope failure 保留各自错误，不会变成空字符串。
+
+每次异步 observation 完成后、下一阶段开始前及返回值前，重新核对 signal、剩余预算和同一窗口的 identity/geometry；取消为 `CANCELED`，预算耗尽为 `TIMEOUT`，窗口变化为 `STALE_TARGET`。signal 仅用于阶段间检查，不传入当前未声明该选项的 `Accessibility.snapshot()`，也不保证撤回 in-flight native read。`readText` 不调用 cloud VLM，也不发送输入。
 
 **示例**
 
@@ -1337,7 +1341,7 @@ BACKEND_FAILED
 
 ## 平台与能力
 
-文本和图片能力依赖当前截图、Vision、ImageColor 与输入后端。原生 target 序列与菜单能力为 Experimental，并要求当前 execution 显式启用 Accessibility；HTTP、MCP 与 Scheduler 当前不提供这些操作。
+文本和图片能力依赖当前截图、Vision、ImageColor 与输入后端。原生 target 序列与菜单能力为 Experimental，并要求当前 execution 显式启用 Accessibility。HTTP、默认 MCP 与 Scheduler 不提供这些操作；可信本机 MCP 宿主可通过 `--allow-script-execution --script-capabilities=accessibility` 授权。客户端请求不能自行启用，授权也不证明平台后端或系统权限可用。
 
 当前明确不提供：
 

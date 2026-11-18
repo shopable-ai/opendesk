@@ -1,4 +1,5 @@
 ---
+docType: reference
 title: Input APIs
 description: OpenDesk JavaScript Runtime 的键盘和轻量触屏输入接口。
 order: 70
@@ -16,18 +17,18 @@ OpenDesk 默认注入 `keyboard` 与 `touchscreen`，并提供 `page.keyboard` /
 | `keyboard.press(key)` | 按下并释放单个键。 |
 | `keyboard.down(key)` | 按住一个键。 |
 | `keyboard.up(key)` | 释放一个键。 |
-| `keyboard.combination(...keys)` | 顺序按下并逆序释放组合键。 |
+| `keyboard.combination(...keys)` | 以前缀修饰键触发最后一个主键。 |
 | `touchscreen.tap(x, y)` | 在全局坐标执行一次轻量 tap。 |
 
 ## 公共约定
 
 ### 键名
 
-`keyboard` 会规范化常见键名，例如 `Enter` / `Return` → `enter`、`Escape` → `escape`、`ArrowUp` → `up`、`Meta` → `command`、`Control` → `ctrl`。
+`keyboard` 会规范化常见键名，例如 `Enter` / `Return` → `enter`、`Escape` → `escape`、`ArrowUp` → `up`、`Meta` → `cmd`、`Control` → `ctrl`。
 
 ### 输入边界
 
-这些方法向真实桌面发送输入，不注册系统级快捷键。需要系统快捷键回调时使用 [`globalShortcut`](global-shortcut.md)。Promise resolve 只表示输入调用完成，不证明目标应用业务状态已完成。
+这些方法向真实桌面发送输入，不注册系统级快捷键。需要系统快捷键回调时使用 [`globalShortcut`](global-shortcut.md)。本页方法同步执行，成功返回 `undefined`，已报告的错误同步抛出；没有 Promise 返回。调用完成不证明目标应用业务状态已完成。
 
 **Keyboard APIs**
 
@@ -37,7 +38,7 @@ OpenDesk 默认注入 `keyboard` 与 `touchscreen`，并提供 `page.keyboard` /
 
 **签名**
 ```ts
-keyboard.type(text: string): Promise<void>;
+keyboard.type(text: string): void;
 ```
 
 **参数**
@@ -48,15 +49,15 @@ keyboard.type(text: string): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`undefined`，同步返回。
 
 **行为与错误**
 
-空字符串会拒绝；方法不负责聚焦目标控件，也不验证文本是否被应用接受。
+空字符串会同步抛错；方法不负责聚焦目标控件，也不验证文本是否被应用接受。
 
 **示例**
 ```js
-await keyboard.type('hello world');
+keyboard.type('hello world');
 ```
 
 ## keyboard.press(key)
@@ -65,7 +66,7 @@ await keyboard.type('hello world');
 
 **签名**
 ```ts
-keyboard.press(key: string): Promise<void>;
+keyboard.press(key: string): void;
 ```
 
 **参数**
@@ -76,16 +77,16 @@ keyboard.press(key: string): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`undefined`，同步返回。
 
 **行为与错误**
 
-常见键名会按公共映射规范化；未知或无效键名会拒绝。
+常见键名会按公共映射规范化。非字符串、空键名或不识别的键名在提交输入前同步抛错。键盘后端报告的错误也同步抛出。有效键名的可用性取决于操作系统与键盘布局。
 
 **示例**
 ```js
-await keyboard.press('Enter');
-await keyboard.press('ArrowDown');
+keyboard.press('Enter');
+keyboard.press('ArrowDown');
 ```
 
 ## keyboard.down(key)
@@ -94,7 +95,7 @@ await keyboard.press('ArrowDown');
 
 **签名**
 ```ts
-keyboard.down(key: string): Promise<void>;
+keyboard.down(key: string): void;
 ```
 
 **参数**
@@ -105,19 +106,19 @@ keyboard.down(key: string): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`undefined`，同步返回。
 
 **行为与错误**
 
-不会自动释放；调用方应使用 `try/finally` 与 `keyboard.up()` 成对清理。
+不会自动释放；调用方应使用 `try/finally` 与 `keyboard.up()` 成对清理。键名校验和后端错误处理与 `keyboard.press()` 相同。
 
 **示例**
 ```js
-await keyboard.down('Shift');
+keyboard.down('Shift');
 try {
-  await keyboard.press('ArrowRight');
+  keyboard.press('ArrowRight');
 } finally {
-  await keyboard.up('Shift');
+  keyboard.up('Shift');
 }
 ```
 
@@ -127,7 +128,7 @@ try {
 
 **签名**
 ```ts
-keyboard.up(key: string): Promise<void>;
+keyboard.up(key: string): void;
 ```
 
 **参数**
@@ -138,43 +139,45 @@ keyboard.up(key: string): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`undefined`，同步返回。
 
 **行为与错误**
 
-发送对应 key-up 事件；无效键名会拒绝。
+发送对应 key-up 事件。键名校验和后端错误处理与 `keyboard.press()` 相同。
 
 **示例**
 ```js
-await keyboard.up('Shift');
+keyboard.up('Shift');
 ```
 
 ## keyboard.combination(...keys)
 
-按顺序按下所有键，再逆序释放，形成常用组合键。
+将最后一个键作为主键，前面的键作为修饰键，发送一次成对的组合键输入。
 
 **签名**
 ```ts
-keyboard.combination(...keys: string[]): Promise<void>;
+keyboard.combination(...keys: string[]): void;
 ```
 
 **参数**
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `keys` | `string[]` | 是 | 无 | 非空键名序列。 |
+| `keys` | `string[]` | 是 | 无 | 至少一个键名；最后一项是主键，前缀只能使用修饰键，如 `Meta`、`Control`、`Alt`、`Shift`。 |
 
 **返回值**
 
-`Promise<void>`。
+`undefined`，同步返回。
 
 **行为与错误**
 
-组合按顺序执行 down/up，并非系统级原子快捷键 API。无效键名会使调用拒绝。
+先按公共映射规范化键名，再把前缀合并为修饰键标志，用最后一项执行一次按下/释放；不会依次对所有键调用 `down()` / `up()`。只有一个键时等同 `keyboard.press()`。
+
+无参数、非字符串、空或纯空白键名、不识别的主键，以及任一无效修饰键前缀，都会在提交输入前同步抛错。键盘后端报告的错误也同步抛出。
 
 **示例**
 ```js
-await keyboard.combination('Meta', 'C');
+keyboard.combination('Meta', 'C');
 ```
 
 **Touchscreen API**
@@ -185,7 +188,7 @@ await keyboard.combination('Meta', 'C');
 
 **签名**
 ```ts
-touchscreen.tap(x: number, y: number): Promise<void>;
+touchscreen.tap(x: number, y: number): void;
 ```
 
 **参数**
@@ -197,15 +200,15 @@ touchscreen.tap(x: number, y: number): Promise<void>;
 
 **返回值**
 
-`Promise<void>`。
+`undefined`，同步返回。
 
 **行为与错误**
 
-使用一次左键 down/up 模拟轻量点按；不提供多指、长按或复杂手势。非法坐标会拒绝。
+使用一次左键 down/up 模拟轻量点按；不提供多指、长按或复杂手势。调用方须预先验证坐标；当前实现不提供完整的坐标有效性或范围检查。
 
 **示例**
 ```js
-await touchscreen.tap(500, 600);
+touchscreen.tap(500, 600);
 ```
 
 ## 平台与能力

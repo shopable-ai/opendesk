@@ -13,6 +13,8 @@ P0 is a **local short-processing Webhook**. The HTTP response waits for the regi
 | API | 用途 |
 | --- | --- |
 | `Webhook.listen(name, handler, options?)` | 注册当前 Execution 的本地 POST JSON handler |
+| `handle.url` | 读取本 listener 实际绑定的 loopback URL |
+| `handle.name` | 读取规范化后的 execution 内业务标签 |
 | `handle.requestHeaders()` | 取得调用当前入口所需的认证请求头 |
 | `handle.close()` | 撤销新调用资格并关闭当前 listener |
 
@@ -70,7 +72,7 @@ interface OpenDeskWebhookRequest<TBody = unknown> {
 - `source` 来自 `X-OpenDesk-Source`；缺省为 `external`。
 - `deliveryId` 来自 `X-OpenDesk-Delivery-Id`；缺失时不承诺重复识别。
 - `receivedAt` 是入口接受时间的 UTC RFC3339 时间。
-- `body` 是已经通过大小、编码和 JSON 校验的值。
+- `body` 是已经通过大小、编码和 JSON 校验的 JavaScript 值；JSON 数字为 number，字符串、boolean、null、数组和普通对象保留对应类型。数字精度遵循 JavaScript JSON.parse，不提供任意精度十进制。
 - `signal` 在调用方已离开／等待超时或 Execution 被取消时进入 aborted 状态。它只表达取消信号，不表示外部业务已经回滚，也不保证任意 JavaScript 函数能被单独强杀。
 - 认证请求头不会混入 handler 的业务字段。
 
@@ -85,7 +87,7 @@ handler 必须返回或 resolve：
 }
 ```
 
-`status` 必须是 `200..599` 的整数；`body` 必须可 JSON 编码且不超过 `maxResponseBytes`。HTTP 完成响应只会在 handler 及其 Promise 真正结束后发送。
+`status` 必须是 `200..599` 的整数；`body` 必须可 JSON 编码且不超过 `maxResponseBytes`。`204` 和 `304` 仍检查 handler 的 `body`，但按 HTTP 语义在传输层省略正文；客户端不得对这两种响应执行 JSON 解析。其他状态返回 JSON 正文。HTTP 完成响应只会在 handler 及其 Promise 真正结束后发送；delivery ID 去重仍适用于无正文响应。
 
 **行为与错误**
 
@@ -165,6 +167,81 @@ console.log("OPENDESK_WEBHOOK_READY=" + JSON.stringify({
 普通使用不需要 Go、Node.js 或其他开发工具。OpenDesk 负责运行 JavaScript listener；用户把每次
 启动生成的新 URL 与认证 header 配置给同一台机器上的真实外部 HTTP 调用方。示例文档分别说明
 启动、配置、终端观察、HTTP 成功判断和 `Ctrl+C` 停止方式。
+
+## handle.url
+
+读取注册成功时实际绑定的当前 listener URL。
+
+**签名**
+
+```ts
+readonly url: string
+```
+
+**参数**
+
+无（属性读取）。
+
+**返回值**
+
+`http://127.0.0.1:<OS 分配端口>/<opaque route>` 字符串；不是固定端口，不包含认证 token。
+
+**行为与错误**
+
+- `Webhook.listen()` 成功返回前完成绑定；注册权限、平台、容量与错误见主合同和[生命周期与运行入口](#生命周期与运行入口)。读取属性不再申请权限或发送请求。
+- URL 只属于当前 listener/execution；必须配合 `requestHeaders()` 的本实例凭据。不能缓存为跨 execution 稳定地址。
+- `close()` 或 execution teardown 后字符串仍可读取，但不表示入口可用；重新注册名称不恢复旧 URL/凭据资格。
+- 类型为只读；当前 facade 字段未冻结，赋值不修改 native 路由。不要赋值/删除或自行拼装替代 URL。
+
+**示例**
+
+仅在宿主已授权 webhook 的 execution 中：
+
+```js
+const hook = Webhook.listen('local-status', () => ({ status: 200, body: { ok: true } }));
+try { console.log(hook.url); } finally { hook.close(); }
+```
+
+## handle.name
+
+读取注册时确定的当前 listener 业务标签。
+
+**签名**
+
+```ts
+readonly name: string
+```
+
+**参数**
+
+无（属性读取）。
+
+**返回值**
+
+`string`，即传入 `Webhook.listen()` 的名称去除首尾空白后的值。规范化后必须是
+1–128 字节的有效 UTF-8，不包含控制字符（U+0000–U+001F、U+007F）、`/` 或 `\`。
+
+**行为与错误**
+
+- 名称仅在当前 execution 内标识业务，不是 URL、路由、认证凭据或系统函数名。实际入口由 `handle.url` 给出。
+- 无效名称在 `Webhook.listen()` 时以 `WEBHOOK_INVALID_NAME` 失败；同一 execution 内尚未关闭的同名 listener 以 `WEBHOOK_NAME_CONFLICT` 失败。
+- 读取本身同步、无网络或权限请求；`close()` 后仍可读取原名称，但不证明 listener 仍可接收请求。关闭后可重新注册同名 listener，新实例有自己的 URL 与凭据。
+- 类型声明为只读；当前 facade 的字段没有冻结，手动赋值不会重命名 native listener，也不会改变去重、路由或关闭目标。不要赋值或删除。
+- 创建 handle 已经涉及绑定随机 IPv4 loopback 端口；须先满足[生命周期与运行入口](#生命周期与运行入口)中的宿主授权。普通 HTTP 出站请求权限、Custom UI 权限和 JavaScript 输入都不能替代 webhook 授权。未获准时 `Webhook.listen()` 以 `WEBHOOK_DISABLED` 失败，不能先监听再补授权。
+
+**示例**
+
+仅在已明确授权 webhook 的本地宿主中运行；本例短暂监听 loopback，不发送请求：
+
+```js
+const hook = Webhook.listen('  order-status  ', () => ({ status: 200, body: { ok: true } }));
+try {
+  console.log(hook.name); // order-status
+} finally {
+  hook.close();
+}
+console.log(hook.name); // order-status（已关闭）
+```
 
 ## handle.requestHeaders()
 
@@ -254,16 +331,17 @@ hook.close(); // no-op
 
 Webhook 注册属于当前 Execution，并通过既有 Runtime 网络 worker 生命周期保持执行活跃，不需要 `while (true)` 或轮询保活。
 
-P0 只允许宿主已经授权的 trusted local script、App Mode package entry 或 local AI execution 使用
-本地入口；HTTP、MCP、Scheduler 等远程或调度入口不能通过 JavaScript options、环境变量或请求
-正文自行打开该监听能力。
+只允许宿主已经授权的 trusted local script、App Mode package entry、local AI execution，或以
+`--allow-script-execution --script-capabilities=webhook` 显式启动的可信本地 MCP 脚本使用本地入口。
+HTTP、MCP、Scheduler 等入口不能通过 JavaScript options、环境变量或请求正文自行打开该监听能力。
+MCP 准入与生命周期见 [MCP Runtime 调用](../integrations/mcp/runtime-api.md)。
 
 普通 Webhook 使用首选 `-script`：它直接运行示例并在当前终端观察与停止。`-app <package>` 只在
 调用方已经需要 App Shell、Tray/Menu Bar 或 app lifecycle 时使用；它运行 package manifest 的
 entry，不是任意脚本的别名。尤其 `-app "$PWD/apps/opendesk"` 启动官方产品包，不会代替示例注册
 listener，也不需要为此增加第二套 Webhook API 或产品按钮。
 
-当最后一个 listener 关闭后，入口 worker 可以自然释放；Execution deadline / Ctrl+C / 执行取消仍是最终边界。无法安全停止单个任意 JavaScript handler 时，OpenDesk 不承诺 per-callback 强杀。
+当最后一个 listener 关闭后，不再接受新连接；已接受的连接在完成正文读取及响应后释放。关闭不等待这些连接或 handler；Execution deadline / Ctrl+C / 执行取消仍会关闭未完成连接并等待 native worker 退出。关闭后重新 listen 使用新的入口，不会被旧入口的正常退出撤销。无法安全停止单个任意 JavaScript handler 时，OpenDesk 不承诺 per-callback 强杀。
 
 ## 模式 B 边界
 

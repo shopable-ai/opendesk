@@ -86,7 +86,36 @@ func (b *BrowserDOMRuntime) exchange(input map[string]any) map[string]any {
 	if json.Unmarshal(b.stdout.Bytes(), &response) != nil || len(response) == 0 {
 		return browserFailure("BROWSER_ADAPTER_RESPONSE_INVALID", "OUTCOME_UNKNOWN")
 	}
+	if requestID, isOperation := input["requestId"].(string); isOperation && !validBrowserAdapterReply(response, requestID) {
+		return browserFailure("BROWSER_ADAPTER_RESPONSE_INVALID", "OUTCOME_UNKNOWN")
+	}
 	return response
+}
+
+func validBrowserAdapterReply(response map[string]any, requestID string) bool {
+	if response["requestId"] != requestID {
+		return false
+	}
+	outcome, ok := response["outcome"].(string)
+	if !ok {
+		return false
+	}
+	_, hasResult := response["result"]
+	failure, hasError := response["error"]
+	if outcome == "SUCCEEDED" {
+		return hasResult && !hasError
+	}
+	switch outcome {
+	case "NOT_DISPATCHED", "FAILED_CONFIRMED", "CANCELLED_BEFORE_DISPATCH", "OUTCOME_UNKNOWN":
+		details, ok := failure.(map[string]any)
+		if !ok || hasResult || details["outcome"] != outcome {
+			return false
+		}
+		code, ok := details["code"].(string)
+		return ok && strings.TrimSpace(code) != ""
+	default:
+		return false
+	}
 }
 
 func (b *BrowserDOMRuntime) start() map[string]any {
@@ -294,9 +323,7 @@ func (b *BrowserDOMRuntime) Call(operation string, args map[string]any) map[stri
 		delete(params, "timeoutMs")
 	}
 	response := b.exchange(input)
-	if response["error"] == nil && (response["outcome"] != "SUCCEEDED" || response["requestId"] != input["requestId"]) {
-		response = browserFailure("BROWSER_ADAPTER_RESPONSE_INVALID", "OUTCOME_UNKNOWN")
-	}
+	// Only local transport/protocol failures can reach here without an ID.
 	if response["requestId"] == nil {
 		response["requestId"] = input["requestId"]
 	}

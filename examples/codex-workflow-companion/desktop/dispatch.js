@@ -1,13 +1,16 @@
 // Run only via approved OpenDesk -script from repository root; real Mac gate remains pending.
 // Adapted from examples/workflows/codex-hook-demo/main.js, without another Hook listener.
-const base = System.getEnv('OD_CWF_STATE_DIR') || './.runtime/tests/codex-workflow-companion';
-const command = await File.readJSON(base + '/native-command.json');
-if (!command || !/^[a-f0-9-]{36}$/.test(command.attemptId) ||
+const base = System.getEnv('OD_CWF_STATE_DIR');
+const expectedAttempt = System.getEnv('OD_CWF_NATIVE_ATTEMPT_ID');
+if (!base || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(expectedAttempt || '')) throw Error('COMMAND_INVALID');
+const command = await File.readJSON(base + '/native-command-' + expectedAttempt + '.json', {maxBytes:1048576});
+if (!command || command.attemptId !== expectedAttempt || typeof command.prompt !== 'string' ||
     !command.prompt.startsWith('OD-CWF/v1 run=')) throw Error('COMMAND_INVALID');
 const record = base + '/native-' + command.attemptId + '.json';
 // One-shot reservation BEFORE any irreversible input; do not repeat uncertain actions.
+// File.writeNew is synchronous (void); failure stops before any desktop input.
 File.writeNew(record, JSON.stringify({attemptId:command.attemptId, state:'UNKNOWN_BEFORE_ACTION', at:new Date().toISOString()}));
-const profile = await File.readJSON(base + '/profile.json');
+const profile = await File.readJSON(command.profileFile);
 const semantic = (s, role) => s && s.role === role &&
   ((typeof s.identifier === 'string' && !s.identifier.startsWith('REPLACE_')) ||
    (typeof s.name === 'string' && !s.name.startsWith('REPLACE_'))) &&

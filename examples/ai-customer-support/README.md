@@ -1,6 +1,92 @@
 # OpenDesk Desktop · AI 客服助手
 
+## 人工辅助试用：重建本地 Query 环境（2026-11-06）
+
+沿用下文双实窗、六业务 Tab 和人工审核流程，不新增界面。真实 Query 只生成待审建议；自动发送仅限无网络的本地 fixture。运行结果与限制统一见[试用复现记录](../../docs/quality/ai-customer-support-trial-repro-20261106.md)。
+
+一次性准备（仓库根目录）：需要 Python ≥3.11、Node ≥22、本例已有 npm 依赖、已构建并签名的 `dist/OpenDesk.app`，以及获准的私有 Query 源码和合成项目资料。已验证的上游版本是 `878c619`；它不是本仓库依赖，启动器不下载代码或知识。源码应包含 `apps/query-api/server.py`、`libs/project_knowledge/` 和所选 `projects/.shared/query_context_profiles/`；项目根目录应包含隔离的 `bizhi-app/project.yaml`、知识索引和上下文原文。缺少这些输入时先取得获准副本，不从旧 `.runtime` 的运行结果恢复服务，也不替换知识后端。
+
+Query 使用上游已有 Python 环境；本次实际为 Python 3.14.6、PyYAML 6.0.3、jsonschema 4.26.0（其既有依赖为 attrs 26.1.0、jsonschema-specifications 2025.9.1、referencing 0.37.0、rpds-py 2026.9.1）。本机系统 `python3` 缺少 `yaml`，不能冒称只需标准库；配置 `python` 显式指向获准上游环境的 `bin/python`，启动工具会在读取凭证及创建运行目录前重启为该解释器。使用上游自己的依赖清单准备环境；本工具不安装任何依赖。健康检查只需系统 Python 标准库。
+
+将 `scripts/query-local.example.json` 复制到 `.runtime/ai-customer-support/query-config.json`，填写本机 `python`、`source` 与 `projectsRoot`（绝对路径，或相对于配置文件），保持项目与共享 profile 一致。`port: 0` 由实际 socket 绑定选择空闲端口；显式端口被占用时失败，不停止原监听、不换端口。配置不含密钥，运行目录每次新建，输入只读；项目副本、编译快照和输入 Hash 均落入本次 `.runtime`。
+
+本机现有 HTTP endpoint 拒绝上游 profile 的 `service_tier: standard`，部署工具只在本进程传输边界将其转换为 `default`，不修改模型、provider、知识或上游文件。示例配置的 `plannerTimeoutSeconds: 16` 仅调整本地检索规划单次请求上限（可选整数 1–20，省略沿用上游 8 秒），不增加重试或响应延迟；本机已观察到 8 秒规划超时。Host 的整体 HTTP 超时仍为 30 秒，超时继续保守失败。实际配置、Bootstrap Hash、流式/非流式调用与失败状态分别留证。
+
+`credentialSource: "environment"` 从启动终端继承既有 `QUERY_API_HTTP_LLM_BASE_URL`、`QUERY_API_HTTP_LLM_MODEL`、`QUERY_API_HTTP_LLM_API_KEY`，可选 `QUERY_API_HTTP_LLM_API_STYLE`。不要把密钥写入配置、命令正文或仓库。显式选 `"existing-codex"` 时，只读当前账户 `~/.codex/config.toml` 中的现有模型/HTTP URL 与 `auth.json` 中的既有认证，保留在子进程内存；不启动 Codex CLI、不改模型/provider/认证。该模式要求现有配置具有兼容 HTTP endpoint，不代表所有登录方式均可直接用于 HTTP。
+
+准备完成后，从**仓库根目录**执行普通体验的一条命令：
+
+```sh
+./examples/ai-customer-support/scripts/run-desktop.sh --with-query
+```
+
+在独立测试聊天输入合成问题、点「添加客户消息」；助手点「获取 AI 知识建议」，展开「审核依据」核对原文，人工选用/编辑，再点「填入聊天草稿」。从左侧确认草稿；草稿不是发送。普通服务附加延迟为 **0ms**。关闭右侧助手窗口结束体验，启动器等待 Runtime 正常结束，再关闭自己创建的 fixture 和 Query；已有安装版、其他服务和浏览器不受清理。不要先关闭测试聊天后继续操作隐藏助手。启动前已有 fixture 时会拒绝附着。
+
+可用 `--query-config <配置路径>` 或 `OPENDESK_SUPPORT_QUERY_CONFIG` 选择其他本地配置；不能同时指定外部 Query 端口/项目。仅需本地演示时仍用 `./examples/ai-customer-support/scripts/run-desktop.sh`，无需 Query 配置。
+
+维护者也可单独在前台启动服务（输出目录必须未存在）：
+
+```sh
+python3 examples/ai-customer-support/scripts/local-query.py serve --config .runtime/ai-customer-support/query-config.json --run-dir .runtime/tests/ai-customer-support/query-manual
+```
+
+另一个终端从仓库根目录检查：
+
+```sh
+python3 examples/ai-customer-support/scripts/local-query.py check --run-dir .runtime/tests/ai-customer-support/query-manual
+```
+
+健康检查同时核对实例 ID、PID、实际端口、所选项目、预加载与已加载的编译上下文；不发送模型请求。`ready.json` 只在真正绑定且上下文加载后发布，不能仅凭 HTTP 200 判断就绪。前台 Ctrl-C 正常关闭自己拥有的服务，`cleanup.json` 记录端口是否释放。每次使用新输出目录；不提供从旧 PID 文件终止服务的入口。输入或认证错误不会回显上游异常中的敏感原值。
+
+正式验收与普通体验分开，从仓库根目录串行执行：
+
+```sh
+./examples/ai-customer-support/scripts/run-desktop.sh --verify
+OPENDESK_SUPPORT_CONTROLLED_UNKNOWN_MODE=unknown-delivered ./examples/ai-customer-support/scripts/run-desktop.sh --verify-controlled
+OPENDESK_SUPPORT_CONTROLLED_UNKNOWN_MODE=unknown-not-delivered ./examples/ai-customer-support/scripts/run-desktop.sh --verify-controlled
+./examples/ai-customer-support/scripts/run-desktop.sh --with-query --verify-ai --query-test-response-hold-ms 6000
+```
+
+两种 unknown 使用全新 fixture，分别证明已送达/未送达仍持续锁定；不在未知动作后重发。受控 gate 还检查 8 条突发消息合并、一次动作及有界完成。6000ms 是 AI gate 专用的最短响应时间：从请求开始计时，只补足不足的时间，不向较慢的模型请求再叠加 6 秒；普通命令拒绝该参数。原有外部服务命令（`OPENDESK_SUPPORT_QUERY_PORT=… OPENDESK_SUPPORT_PROJECT_ID=bizhi-app OPENDESK_SUPPORT_QUERY_PROVIDER=auto … --verify-ai`）仍可使用，但必须由维护者独立准备兼容服务；端口不是默认值，启动器不会取得其关闭权。
+
+本次启动的 `desktop/runs/<run-id>/`（基于 `.runtime/tests/ai-customer-support/`）保存源码/构建 Hash、`launch.json`、`owned-processes.json`、原生证据与 `launcher-cleanup.json`。其 `query/` 保存输入 Hash、快照 manifest、实例就绪信息、脱敏 Query/Provider 关联审计和关闭结果。Provider 请求成功、实际响应模型和业务答案语义分别核对，健康检查或服务自报计数不能代替真实调用证据。
+
+小规模合成业务案例（不是新留出集或全面评分）先离线验证，再对上述单独服务的实际端口运行：
+
+```sh
+node --test examples/ai-customer-support/tests/local-query.test.mjs examples/ai-customer-support/tests/trial-business.test.mjs
+TRIAL_QUERY_PORT=<ready.json中的端口> TRIAL_QUERY_PROJECT=bizhi-app node examples/ai-customer-support/tests/trial-business.mjs --live
+```
+
+业务运行器复用当前 Host 查询函数与唯一 reducer，AX 为合成输入，不冒称原生场景；真实 HTTP、人工修改保护、来源 Hash 与需独立审阅的语义分别记录。当前上下文只合并最后一条客服回复后的最多 8 条未回答客户消息，不把已回答的整段历史发送模型；代词消解和完整多轮记忆不在已实现能力内。资料不足须人工核实，不推断真实价格、订单、退款或商家批准。输出默认 `.runtime/tests/ai-customer-support/trial-business/`。
+
+## 2026-11-06 · 本地原生闭环与微信延期
+
+当前仅对无网络的独立测试聊天完善原生辅助、真实 Query 人工审核和明确启用的本地受控回复。微信接入、登录、探针、草稿、双机和发送暂缓，不要求重新登录。已观察到重新登录提示，技术因果未核实。
+
+默认辅助模式；本地自动回复须在设置明确确认账号、PID、窗口、会话及 `builtin-demo-v1` 演示知识，只处理随后消息。它复用预审精确演示规则并带「【OpenDesk 本地测试】」标识，不是模型自动发送。暂停、撤权或人工接管停止动作；恢复不补历史；发送失败暂停、结果未知锁定且不重发。推荐页可展开完整授权范围，启用前仍完整展示确认。
+
+从仓库根目录执行本地受控 gate：`./examples/ai-customer-support/scripts/run-desktop.sh --verify-controlled`。它串行操作本次 fixture 与 React 实窗，分别读取新 AX 消息和独立磁盘 oracle，不读取真实联系人、不发网络消息。此前原生闭环验收的结果及未覆盖场景见[先前原生质量记录](../../docs/quality/ai-customer-support-native-completion-20261106.md)；本次重建部署的最新通过项与未完成项以顶部[试用复现记录](../../docs/quality/ai-customer-support-trial-repro-20261106.md)为准，不用旧 AI gate 成功代替当前整体验收。
+
+桌面/浏览器及微信自动化的许可、平台和维护证据见[有限开源选型报告](../../docs/research/ai-customer-support-automation-options-20261106.md)。本轮仅提炼可复用机制，没有引入依赖或恢复微信操作；近期热榜归属未核实。
+
+## 2026-11-06 · 依据审核与人工交接
+
+原生推荐回复页的「审核依据」仅比对该候选自己的引用，完整列出当前编辑稿的分句与待核实项，不再静默截断前 24 段。文字相同只表示字面比对，不证明来源真实、版本有效或业务适用；其他候选或后续查询的来源不会被借用。
+
+在同页展开「人工交接 · 仅复制」，可预览并复制当前客户问题、选中编辑稿、项目/请求、引用编号与 Hash、未核实内容。编辑、选版本、切换客户后重新派生；暂停或撤权时隐藏。复制只准备交接材料，不代表已转人工、建工单或发送。内容仍仅保存在本次页面内存。
+
+上游参考与本轮取舍见[GitHub 调研记录](../../docs/research/ai-customer-support-references-20261106.md)，验证与边界见[本轮质量记录](../../docs/quality/ai-customer-support-review-20261106.md)。普通入口仍从仓库根目录运行：`./examples/ai-customer-support/scripts/run-desktop.sh`。
+
+开发者从仓库根目录执行：`node examples/ai-customer-support/tests/reply-review-browser.mjs`。此检查通过已安装的 ego-browser 操作正式 HTML，以合成 Native Bridge 和剪贴板写入桩检查引用、交接、编辑与会话隔离；不连接 Query 服务，不证明真实模型、系统剪贴板或原生草稿。证据写入 `.runtime/tests/ai-customer-support/research-improvements-20261106/`，结束后释放本次浏览器资源。
+
 > 2026-10-30 用户纠偏：以已可用的独立聊天实窗 + 右侧约 380px、六业务 Tab 助手为当前基线，支持观察消息和人工填入草稿。此前的平行面板及独立「未连接」App 入口已退役；不能再用旧启动命令替代当前界面。恢复提交与验证边界见[入口清理记录](../../docs/quality/ai-customer-support-ui-retirement-20261030.md)。
+
+## 框架方案与示例归属
+
+本项目是 [JavaScript 桌面应用解决方案](../../docs/frameworks/javascript-desktop-app-solution.md)的第一个业务示例。通用方案说明 JS 应用、界面、Runtime、App Mode、桌面交付及独立测试对象的关系；本目录维护客服业务、数据与协议、具体命令和验收入口。
+
+客服助手通过 JS 入口创建可信窗口并加载 React 页面，复用 OpenDesk Runtime 的公共能力。原生 Demo 中的 `OpenDeskSupportChat.app` 是用 Swift/AppKit 实现的独立测试聊天客户端，承担被观察和操作的外部目标；它与 JS 客服助手属于不同职责。此前独立「未连接」App Mode 已退役，当前使用原生 Demo；消息桥握手不授予真实聊天权限。
 
 ## 数据处理方案：从字段对应开始
 
@@ -84,7 +170,7 @@ npm --prefix examples/ai-customer-support run test:business-browser
 
 从仓库根目录运行：`./examples/ai-customer-support/scripts/run-desktop.sh`。
 
-启动器显式授权自己创建的 `OpenDeskSupportChat.app` 子进程，打开独立测试聊天和约 380px 的原生 React 助手。输入客户消息，点「添加客户消息」，在助手选择推荐，再点「填入聊天草稿」。只有新的原生快照与请求正文一致时才显示 `verified`。测试聊天没有发送动作。
+启动器显式授权自己创建的 `OpenDeskSupportChat.app` 子进程，打开独立测试聊天和约 380px 的原生 React 助手。输入客户消息，点「添加客户消息」，在助手选择推荐，再点「填入聊天草稿」。只有新的原生快照与请求正文一致时才显示 `verified`。测试聊天另有明确的本地模拟发送按钮，不联网；不代表微信或真实客户发送。
 
 切换联系人使用独立聊天的三个按钮。窗口移动/缩放触发提示后重新读回坐标，1000ms 兜底核验；失焦、最小化、关闭或身份失效会停止观察并隐藏助手。暂停和撤销授权使旧请求失效；撤权后须关闭并重新启动本 Demo。已有人工草稿保留，原生模式不提供覆盖确认。
 

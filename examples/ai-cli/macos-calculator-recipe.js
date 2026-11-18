@@ -4,17 +4,17 @@
 // Accessibility. Native input and the final Display oracle do not use OCR:
 //   ./dist/opendesk ai run examples/ai-cli/macos-calculator-recipe.js --input '{"expression":"16*3","expected":"48"}'
 //
-// The text-locator acceptance case maps canonical `*` to the exact visible
-// Calculator glyph `×`, then verifies the real Display ROI result:
+// The text-locator acceptance case resolves canonical `*` to one qualified
+// native Calculator name (or the verified OCR glyph), then reads real Display:
 //   ./dist/opendesk ai run examples/ai-cli/macos-calculator-recipe.js --input '{"expression":"12*3","expected":"36"}'
 //
 // A dependent follow-up uses the first verified Calculator Display result:
 //   ./dist/opendesk ai run examples/ai-cli/macos-calculator-recipe.js --input '{"expression":"125*8","expected":"1000","followUp":{"expression":"{result}/4+37","expected":"287"}}'
 //
-// This recipe supports only the macOS Standard/Basic Calculator layout that
-// was verified at 232x321 points. If another Calculator mode changed the
-// bounds, it selects Basic with the documented Command+1 shortcut, restores
-// the observed position, verifies the safe bounds, and only then clicks keys.
+// Native input/read targets must qualify from a complete exact-window semantic
+// snapshot; they do not consume the old visual key-point/Display-ROI template.
+// Only explicit OCR fallback retains the previously verified 232x321 geometry.
+// Changed candidate/platform scope requires fresh independent qualification.
 
 const CALCULATOR_BUNDLE_ID = 'com.apple.calculator';
 
@@ -61,6 +61,21 @@ const CALCULATOR_BUTTON_TEXT = Object.freeze({
   '=': '=',
 });
 
+// Exact native names observed in complete Calculator snapshots. Visual OCR
+// continues to use CALCULATOR_BUTTON_TEXT alone; aliases are never rewritten.
+const CALCULATOR_SEMANTIC_OPERATOR_NAMES = Object.freeze({
+  '/': Object.freeze(['÷', '除']),
+  '*': Object.freeze(['×', '乘']),
+  '-': Object.freeze(['−', '减']),
+  '+': Object.freeze(['+', '加']),
+  '.': Object.freeze(['.', '点']),
+  '=': Object.freeze(['=', '等于']),
+});
+
+function calculatorSemanticButtonNames(canonicalKey) {
+  return CALCULATOR_SEMANTIC_OPERATOR_NAMES[canonicalKey] || [calculatorButtonText(canonicalKey)];
+}
+
 const CALCULATOR_TEXT_LOCATOR_PROFILES = Object.freeze([
   Object.freeze({ provider: 'apple', lang: 'ch', minConfidence: 0.5 }),
   Object.freeze({ provider: 'paddle', lang: 'en', minConfidence: 0.5 }),
@@ -71,10 +86,10 @@ const CALCULATOR_ACCESSIBILITY_PROFILE = Object.freeze({
   backend: 'accessibility-snapshot+UI.tapTargets',
   role: 'button',
   match: 'exact',
-  maxDepth: 4,
+  maxDepth: 16, // Complete current StandardInputView subtree observed at depth 6.
   maxNodes: 100,
   timeoutMs: 15000,
-  keyPointTolerancePercent: 3,
+  displayNames: Object.freeze(['主显示器']), // Also accepts the observed StandardInputView subtree below.
 });
 
 const CALCULATOR_ACCESSIBILITY_CLEAR_STATES = Object.freeze({
@@ -239,7 +254,8 @@ async function resolveCalculatorWindow() {
     throw new Error('App.launch did not resolve the Calculator bundle/PID group');
   }
   const pids = new Set(application.pids.map(Number));
-  const matches = (await window.list()).filter(item => pids.has(Number(item.pid)));
+  const matches = [];
+  for (const pid of pids) matches.push(...await window.list({ pid }));
   if (matches.length !== 1) {
     throw calculatorError(
       matches.length === 0 ? 'TARGET_NOT_FOUND' : 'AMBIGUOUS_TARGET',
@@ -263,7 +279,8 @@ async function resolveCalculatorWindow() {
 
 async function getCalculatorWindow() {
   if (!calculatorRun) throw new Error('Calculator has not been resolved for this execution');
-  const matches = (await window.list()).filter(item => calculatorRun.pids.has(Number(item.pid)));
+  const matches = [];
+  for (const pid of calculatorRun.pids) matches.push(...await window.list({ pid }));
   if (matches.length !== 1) {
     throw calculatorError('STALE_TARGET', 'Calculator.getWindow', `Calculator window became ambiguous or stale: found ${matches.length}`);
   }
@@ -364,13 +381,31 @@ async function currentVerifiedCalculatorWindow(allowRefocus = false) {
   // Every action/screenshot gate first proves that the original PID group
   // still has exactly one window with the same resolved native identity.
   await currentVerifiedCalculatorWindowIdentity();
-  const current = requireVerifiedCalculatorLayout(await ensureCalculatorActive(allowRefocus, true));
+  const current = requireCalculatorWindowIdentity(await ensureCalculatorActive(allowRefocus, true));
   calculatorRun.window = current;
   return current;
 }
 
+function requireCalculatorWindowIdentity(win) {
+  if (!win || String(win.id) !== String(calculatorRun.window.id)
+    || Number(win.pid) !== Number(calculatorRun.window.pid)
+    || ![win.x, win.y, win.width, win.height].every(Number.isFinite)
+    || win.width <= 0 || win.height <= 0) {
+    throw calculatorError('STALE_TARGET', 'Calculator.verifyIdentity', 'Calculator exact window identity/bounds are unavailable');
+  }
+  return win;
+}
+
 async function currentVerifiedCalculatorWindowIdentity() {
-  return requireVerifiedCalculatorLayout(await getCalculatorWindow());
+  return requireCalculatorWindowIdentity(await getCalculatorWindow());
+}
+
+function requireUnchangedCalculatorSnapshot(before, after) {
+  for (const key of ['id', 'pid', 'handle', 'title', 'x', 'y', 'width', 'height']) {
+    if (before[key] !== after[key]) {
+      throw calculatorError('STALE_TARGET', 'Calculator.verifySnapshot', 'Calculator window changed during its semantic observation');
+    }
+  }
 }
 
 function calculatorKeypadRegion(currentWin) {
@@ -417,9 +452,9 @@ function isUsableCalculatorAccessibility(capabilities) {
     && capabilities.permission
     && capabilities.permission.granted === true
     && typeof Accessibility.snapshot === 'function'
-    && typeof mouse === 'object'
-    && mouse !== null
-    && typeof mouse.clickForPID === 'function';
+    && typeof UI === 'object'
+    && UI !== null
+    && typeof UI.tapTargets === 'function';
 }
 
 function accessibilityCapabilityEvidence(capabilities) {
@@ -433,9 +468,9 @@ function accessibilityCapabilityEvidence(capabilities) {
       && capabilities.implementation.actions
       && capabilities.implementation.actions.invoke === true,
     permissionGranted: capabilities.permission && capabilities.permission.granted === true,
-    pidAxPressAvailable: typeof mouse === 'object'
-      && mouse !== null
-      && typeof mouse.clickForPID === 'function',
+    tapTargetsAvailable: typeof UI === 'object'
+      && UI !== null
+      && typeof UI.tapTargets === 'function',
   };
 }
 
@@ -475,7 +510,7 @@ function compactNativeBounds(bounds) {
 
 function requireAccessibilityRootMatchesWindow(rootBounds, currentWindow, operation) {
   const currentBounds = compactBounds(currentWindow);
-  const tolerance = CALCULATOR_LAYOUT.safeSize.tolerance;
+  const tolerance = 2; // AX/WindowInfo alignment, independent of the visual template.
   if (
     !withinTolerance(rootBounds.x, currentBounds.x, tolerance)
     || !withinTolerance(rootBounds.y, currentBounds.y, tolerance)
@@ -509,12 +544,6 @@ function accessibilityRelativeCenter(node, rootBounds) {
 
 function calculatorAccessibilityTargetEvidence(node, rootBounds, canonicalKey) {
   const relativeCenterPercent = accessibilityRelativeCenter(node, rootBounds);
-  const expectedKeyPointPercent = CALCULATOR_LAYOUT.keyPoints[canonicalKey];
-  const expectedNativePoint = {
-    x: rootBounds.x + rootBounds.width * expectedKeyPointPercent.x / 100,
-    y: rootBounds.y + rootBounds.height * expectedKeyPointPercent.y / 100,
-    coordinateSpace: rootBounds.coordinateSpace,
-  };
   return {
     source: 'accessibility-snapshot',
     role: String(node.role || ''),
@@ -525,8 +554,6 @@ function calculatorAccessibilityTargetEvidence(node, rootBounds, canonicalKey) {
     actions: Array.isArray(node.actions) ? node.actions.slice() : [],
     nativeBounds: compactNativeBounds(node.nativeBounds),
     relativeCenterPercent,
-    expectedKeyPointPercent: { ...expectedKeyPointPercent },
-    expectedNativePoint,
   };
 }
 
@@ -539,22 +566,7 @@ function requireCalculatorAccessibilityTarget(node, rootBounds, canonicalKey, op
     );
   }
   const evidence = calculatorAccessibilityTargetEvidence(node, rootBounds, canonicalKey);
-  const expected = CALCULATOR_LAYOUT.keyPoints[canonicalKey];
-  const actual = evidence.relativeCenterPercent;
   const targetBounds = evidence.nativeBounds;
-  const expectedNativePoint = evidence.expectedNativePoint;
-  const tolerance = CALCULATOR_ACCESSIBILITY_PROFILE.keyPointTolerancePercent;
-  if (
-    Math.abs(actual.x - expected.x) > tolerance
-    || Math.abs(actual.y - expected.y) > tolerance
-  ) {
-    throw calculatorError(
-      'STALE_TARGET',
-      operation,
-      `Calculator Accessibility key ${JSON.stringify(canonicalKey)} does not match the verified Basic layout`,
-      { expected, actual },
-    );
-  }
   const rootTolerancePoints = 4;
   if (
     targetBounds.x < rootBounds.x - rootTolerancePoints
@@ -567,20 +579,6 @@ function requireCalculatorAccessibilityTarget(node, rootBounds, canonicalKey, op
       operation,
       `Calculator Accessibility key ${JSON.stringify(canonicalKey)} falls outside the verified window root`,
       { expected: rootBounds, actual: targetBounds },
-    );
-  }
-  const targetInsetPoints = Math.min(2, targetBounds.width / 4, targetBounds.height / 4);
-  if (
-    expectedNativePoint.x < targetBounds.x + targetInsetPoints
-    || expectedNativePoint.y < targetBounds.y + targetInsetPoints
-    || expectedNativePoint.x > targetBounds.x + targetBounds.width - targetInsetPoints
-    || expectedNativePoint.y > targetBounds.y + targetBounds.height - targetInsetPoints
-  ) {
-    throw calculatorError(
-      'STALE_TARGET',
-      operation,
-      `Calculator key point ${JSON.stringify(canonicalKey)} is not inside its exact-name Accessibility button`,
-      { expected: expectedNativePoint, actual: targetBounds },
     );
   }
   return evidence;
@@ -625,28 +623,32 @@ async function inspectCalculatorAccessibilityTargets(inputSequence, calculationN
     );
   }
   requireAccessibilityRootMatchesWindow(rootBounds, before, 'Calculator.accessibilityPreflight');
+  requireUnchangedCalculatorSnapshot(before, await currentVerifiedCalculatorWindowIdentity());
 
   const buttons = flattenAccessibilityNodes(snapshot.root).filter(node => node.role === 'button');
   const distinct = [];
-  const seenTexts = new Set();
-  for (let index = 0; index < inputSequence.visibleTexts.length; index += 1) {
-    const visibleText = inputSequence.visibleTexts[index];
-    if (seenTexts.has(visibleText)) continue;
-    seenTexts.add(visibleText);
-    distinct.push({ visibleText, canonicalKey: inputSequence.canonicalKeys[index] });
+  const seenKeys = new Set();
+  for (const canonicalKey of inputSequence.canonicalKeys) {
+    if (seenKeys.has(canonicalKey)) continue;
+    seenKeys.add(canonicalKey);
+    distinct.push({ canonicalKey, names: calculatorSemanticButtonNames(canonicalKey) });
   }
   const targets = distinct.map(item => {
-    const matches = buttons.filter(node => String(node.name || '') === item.visibleText);
+    const matches = buttons.filter(node => item.names.includes(String(node.name || '')));
     if (matches.length !== 1) {
       throw targetCountError(
-        item.visibleText,
-        matches.map(node => calculatorAccessibilityTargetEvidence(node, rootBounds, item.canonicalKey)),
+        item.canonicalKey,
+        matches.map(node => ({
+          name: String(node.name || ''),
+          identifier: node.identifier || null,
+          nativeBounds: compactNativeBounds(node.nativeBounds),
+        })),
         'Calculator.accessibilityPreflight',
       );
     }
     return {
       canonicalKey: item.canonicalKey,
-      visibleText: item.visibleText,
+      visibleText: String(matches[0].name),
       ...requireCalculatorAccessibilityTarget(
         matches[0],
         rootBounds,
@@ -656,26 +658,17 @@ async function inspectCalculatorAccessibilityTargets(inputSequence, calculationN
     };
   });
 
-  const buttonsWithCenters = buttons.map(node => ({
-    node,
-    center: accessibilityRelativeCenter(node, rootBounds),
-  }));
-  const expectedClearCenter = CALCULATOR_LAYOUT.keyPoints.clear;
-  const clearTolerance = CALCULATOR_ACCESSIBILITY_PROFILE.keyPointTolerancePercent;
-  const clearCandidates = buttonsWithCenters.filter(item => (
-    Math.abs(item.center.x - expectedClearCenter.x) <= clearTolerance
-      && Math.abs(item.center.y - expectedClearCenter.y) <= clearTolerance
-  ));
+  const clearCandidates = buttons.filter(node => calculatorAccessibilityClearState(node.name) !== null);
   if (clearCandidates.length !== 1) {
     throw calculatorError(
       clearCandidates.length === 0 ? 'TARGET_NOT_FOUND' : 'AMBIGUOUS_TARGET',
       'Calculator.accessibilityPreflight',
-      `Expected one clear button at the verified Calculator key point, found ${clearCandidates.length}`,
+      `Expected one exact-name semantic Calculator clear button, found ${clearCandidates.length}`,
       { candidateCount: clearCandidates.length },
     );
   }
   const clearTarget = requireCalculatorAccessibilityTarget(
-    clearCandidates[0].node,
+    clearCandidates[0],
     rootBounds,
     'clear',
     'Calculator.accessibilityPreflight',
@@ -712,29 +705,18 @@ async function inspectCalculatorAccessibilityTargets(inputSequence, calculationN
     windowIdentity: { id: String(before.id), pid: Number(before.pid) },
     windowBounds: compactBounds(before),
     rootNativeBounds: rootBounds,
-    keypadRegionPercent: { ...CALCULATOR_LAYOUT.keypadRegion },
-    distinctTexts: distinct.map(item => item.visibleText),
+    keypadRegionPercent: null, // Semantic selectors do not consume visual geometry.
+    distinctTexts: targets.map(item => item.name),
     targets,
     clearTarget,
     verified: true,
   };
 }
 
-function isCalculatorDisplayCenter(relativeCenterPercent) {
-  const region = CALCULATOR_LAYOUT.displayRegion;
-  const left = region.x * 100;
-  const top = region.y * 100;
-  const right = (region.x + region.width) * 100;
-  const bottom = (region.y + region.height) * 100;
-  return relativeCenterPercent.x >= left
-    && relativeCenterPercent.x < right
-    && relativeCenterPercent.y >= top
-    && relativeCenterPercent.y < bottom;
-}
-
 function normalizeCalculatorAccessibilityValue(rawValue) {
   const raw = String(rawValue === undefined || rawValue === null ? '' : rawValue).trim();
   const compact = raw
+    .replace(/^\u200e/, '') // Observed leading LRM in StandardInputView; no general bidi stripping.
     .replace(/[\u00a0\u202f\s]/g, '')
     .replace(/\u2212/g, '-');
   if (!/^[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)$/.test(compact)) {
@@ -745,6 +727,29 @@ function normalizeCalculatorAccessibilityValue(rawValue) {
     );
   }
   return compact.replace(',', '.').replace(/^\+/, '');
+}
+
+function requireCalculatorDisplayBounds(node, parentBounds) {
+  const displayNativeBounds = compactNativeBounds(node.nativeBounds);
+  if (!displayNativeBounds || displayNativeBounds.coordinateSpace !== parentBounds.coordinateSpace) {
+    throw calculatorError('STALE_TARGET', 'Calculator.accessibilityDisplay',
+      'Calculator Display lacks comparable native bounds');
+  }
+  const rootTolerancePoints = 4;
+  if (
+    displayNativeBounds.x < parentBounds.x - rootTolerancePoints
+    || displayNativeBounds.y < parentBounds.y - rootTolerancePoints
+    || displayNativeBounds.x + displayNativeBounds.width > parentBounds.x + parentBounds.width + rootTolerancePoints
+    || displayNativeBounds.y + displayNativeBounds.height > parentBounds.y + parentBounds.height + rootTolerancePoints
+  ) {
+    throw calculatorError(
+      'STALE_TARGET',
+      'Calculator.accessibilityDisplay',
+      'Calculator Accessibility Display falls outside the verified window root',
+      { expected: parentBounds, actual: displayNativeBounds },
+    );
+  }
+  return displayNativeBounds;
 }
 
 async function inspectCalculatorAccessibilityDisplay(calculationNumber, stage, timeoutMs) {
@@ -773,61 +778,64 @@ async function inspectCalculatorAccessibilityDisplay(calculationNumber, stage, t
     );
   }
   requireAccessibilityRootMatchesWindow(rootBounds, before, 'Calculator.accessibilityDisplay');
+  requireUnchangedCalculatorSnapshot(before, await currentVerifiedCalculatorWindowIdentity());
 
   const nodes = flattenAccessibilityNodes(snapshot.root);
-  const nonEmptyStaticTexts = nodes.filter(node => (
-    node.role === 'staticText'
-      && node.value !== null
-      && node.value !== undefined
-      && String(node.value).trim() !== ''
-  ));
-  const displayCandidates = nonEmptyStaticTexts.filter(node => (
-    isCalculatorDisplayCenter(accessibilityRelativeCenter(node, rootBounds))
-  ));
+  const namedDisplays = nodes.filter(node => node.role === 'staticText'
+    && CALCULATOR_ACCESSIBILITY_PROFILE.displayNames.includes(node.name));
+  // Current Calculator exposes an unnamed value under this exact native owner.
+  // Count owners and staticText descendants before inspecting values: neither
+  // expected nor numeric-looking content may choose an owner or break a tie.
+  const owners = nodes.filter(node => node.identifier === 'StandardInputView');
+  if (owners.length > 1) {
+    throw calculatorError('AMBIGUOUS_TARGET', 'Calculator.accessibilityDisplay',
+      'Multiple exact StandardInputView owners in the complete window snapshot');
+  }
+  let structuralDisplay = null;
+  if (owners.length === 1) {
+    const owner = owners[0];
+    if (owner.nativeRole !== 'AXScrollArea') {
+      throw calculatorError('STALE_TARGET', 'Calculator.accessibilityDisplay',
+        'StandardInputView native role no longer matches the observed Display owner');
+    }
+    const descendants = flattenAccessibilityNodes(owner).slice(1).filter(node => node.role === 'staticText');
+    if (descendants.length !== 1) {
+      throw calculatorError(descendants.length === 0 ? 'TARGET_NOT_FOUND' : 'AMBIGUOUS_TARGET',
+        'Calculator.accessibilityDisplay', 'StandardInputView must own exactly one staticText descendant');
+    }
+    structuralDisplay = descendants[0];
+    requireCalculatorDisplayBounds(owner, rootBounds);
+    requireCalculatorDisplayBounds(structuralDisplay, compactNativeBounds(owner.nativeBounds));
+
+  }
+  const displayCandidates = Array.from(new Set([
+    ...namedDisplays, ...(structuralDisplay ? [structuralDisplay] : []),
+  ]));
   if (displayCandidates.length !== 1) {
     throw calculatorError(
       displayCandidates.length === 0 ? 'TARGET_NOT_FOUND' : 'AMBIGUOUS_TARGET',
       'Calculator.accessibilityDisplay',
-      `Expected one non-empty Accessibility staticText in the Calculator Display region, found ${displayCandidates.length}`,
+      `Expected one unique named or structurally owned Accessibility Display staticText, found ${displayCandidates.length}`,
       { candidateCount: displayCandidates.length },
     );
   }
-  const buttonsWithCenters = nodes
-    .filter(node => node.role === 'button')
-    .map(node => ({ node, center: accessibilityRelativeCenter(node, rootBounds) }));
-  const expectedClearCenter = CALCULATOR_LAYOUT.keyPoints.clear;
-  const clearTolerance = CALCULATOR_ACCESSIBILITY_PROFILE.keyPointTolerancePercent;
-  const clearCandidates = buttonsWithCenters.filter(item => (
-    Math.abs(item.center.x - expectedClearCenter.x) <= clearTolerance
-      && Math.abs(item.center.y - expectedClearCenter.y) <= clearTolerance
-  ));
+  const clearCandidates = nodes.filter(node => node.role === 'button' && calculatorAccessibilityClearState(node.name) !== null);
   if (clearCandidates.length !== 1) {
     throw calculatorError(
       clearCandidates.length === 0 ? 'TARGET_NOT_FOUND' : 'AMBIGUOUS_TARGET',
       'Calculator.accessibilityDisplay',
-      `Expected one clear button at the verified Calculator key point, found ${clearCandidates.length}`,
+      `Expected one exact-name semantic Calculator clear button, found ${clearCandidates.length}`,
       { candidateCount: clearCandidates.length },
     );
   }
 
   const displayNode = displayCandidates[0];
-  const displayNativeBounds = compactNativeBounds(displayNode.nativeBounds);
-  const rootTolerancePoints = 4;
-  if (
-    displayNativeBounds.x < rootBounds.x - rootTolerancePoints
-    || displayNativeBounds.y < rootBounds.y - rootTolerancePoints
-    || displayNativeBounds.x + displayNativeBounds.width > rootBounds.x + rootBounds.width + rootTolerancePoints
-    || displayNativeBounds.y + displayNativeBounds.height > rootBounds.y + rootBounds.height + rootTolerancePoints
-  ) {
-    throw calculatorError(
-      'STALE_TARGET',
-      'Calculator.accessibilityDisplay',
-      'Calculator Accessibility Display falls outside the verified window root',
-      { expected: rootBounds, actual: displayNativeBounds },
-    );
+  if (displayNode.value === null || displayNode.value === undefined || String(displayNode.value).trim() === '') {
+    throw calculatorError('TARGET_NOT_FOUND', 'Calculator.accessibilityDisplay', 'Display has no readable value');
   }
+  const displayNativeBounds = requireCalculatorDisplayBounds(displayNode, rootBounds);
   const clearTarget = requireCalculatorAccessibilityTarget(
-    clearCandidates[0].node,
+    clearCandidates[0],
     rootBounds,
     'clear',
     'Calculator.accessibilityDisplay',
@@ -870,6 +878,8 @@ async function inspectCalculatorAccessibilityDisplay(calculationNumber, stage, t
         ? null
         : String(displayNode.identifier),
       rawValue,
+      channel: structuralDisplay === displayNode ? 'StandardInputView/staticText' : 'named-staticText',
+      ownerIdentifier: structuralDisplay === displayNode ? 'StandardInputView' : null,
       normalizedResult: normalizeCalculatorAccessibilityValue(rawValue),
       nativeBounds: displayNativeBounds,
       relativeCenterPercent: accessibilityRelativeCenter(displayNode, rootBounds),
@@ -970,6 +980,27 @@ async function selectBasicCalculatorLayout() {
 }
 
 async function normalizeAndVerifyLayout() {
+  const capabilities = calculatorAccessibilityCapabilities();
+  if (capabilities && capabilities.permission && capabilities.permission.granted === false) {
+    throw calculatorError('PERMISSION_DENIED', 'Calculator.accessibilityPreflight',
+      'Calculator Accessibility system permission is unavailable');
+  }
+  if (isUsableCalculatorAccessibility(capabilities)) {
+    const current = await currentVerifiedCalculatorWindowIdentity();
+    const bounds = compactBounds(current);
+    resultDocument.layout = {
+      strategy: 'exact-window-semantic-snapshot',
+      verifiedLayout: null,
+      initialBounds: { ...bounds }, finalBounds: { ...bounds },
+      recoveryActions: [], recovered: false, verified: false,
+      qualification: 'required before input; no visual template claim',
+    };
+    return bounds;
+  }
+  if (!resultDocument.input || resultDocument.input.visualFallback !== 'ocr') {
+    throw calculatorError('CAPABILITY_DISABLED', 'Calculator.accessibilityPreflight',
+      'Native semantic input is unavailable and visual fallback was not explicitly enabled');
+  }
   const safe = CALCULATOR_LAYOUT.safeSize;
   let bounds = await getCalculatorBounds();
   const initialBounds = { ...bounds };
@@ -1110,7 +1141,6 @@ function canFallbackFromAccessibilityPreflight(error) {
   return !!error && [
     'CAPABILITY_DISABLED',
     'NOT_SUPPORTED',
-    'PERMISSION_DENIED',
     'SEARCH_INCOMPLETE',
     'TARGET_NOT_FOUND',
     'AMBIGUOUS_TARGET',
@@ -1158,6 +1188,11 @@ async function qualifyCalculatorTextLocator(inputSequence, verifiedWindow, calcu
   const attempts = [];
 
   const accessibilityCapabilities = calculatorAccessibilityCapabilities();
+  if (accessibilityCapabilities && accessibilityCapabilities.permission
+    && accessibilityCapabilities.permission.granted === false) {
+    throw calculatorError('PERMISSION_DENIED', 'Calculator.accessibilityPreflight',
+      'Calculator Accessibility system permission is unavailable');
+  }
   if (isUsableCalculatorAccessibility(accessibilityCapabilities)) {
     let qualification = null;
     try {
@@ -1175,6 +1210,12 @@ async function qualifyCalculatorTextLocator(inputSequence, verifiedWindow, calcu
       });
     }
     if (qualification) {
+      // Prove the independent Display identity/value channel before even clear
+      // input. Expected values are only consumed later by result assertions.
+      const displayPreflight = await inspectCalculatorAccessibilityDisplay(
+        calculationNumber, 'provider-calibration', CALCULATOR_ACCESSIBILITY_PROFILE.timeoutMs,
+      );
+      qualification.display = displayPreflight.display;
       resultDocument.textLocatorQualifications.push(qualification);
       calculatorRun.textLocator = {
         backend: 'accessibility',
@@ -1208,6 +1249,8 @@ async function qualifyCalculatorTextLocator(inputSequence, verifiedWindow, calcu
     );
   }
 
+  // Explicit fallback cannot inherit semantic bounds as qualified visual geometry.
+  requireVerifiedCalculatorLayout(verifiedWindow);
   const capabilities = await Vision.getCapabilities({});
   const providers = Array.isArray(capabilities.providers) ? capabilities.providers : [];
 
@@ -1340,17 +1383,18 @@ async function recordFailedCalculatorAction(failure) {
   }
 }
 
-function calculatorAccessibilitySequenceTarget(qualification, canonicalKey, visibleText) {
-  const target = canonicalKey === 'clear'
-    ? qualification && qualification.clearTarget
-    : qualification
-      && Array.isArray(qualification.targets)
-      && qualification.targets.find(item => item.canonicalKey === canonicalKey && item.visibleText === visibleText);
-  if (!target || target.role !== 'button' || !target.name) {
+function calculatorAccessibilitySequenceTarget(qualification, canonicalKey) {
+  const matches = canonicalKey === 'clear'
+    ? [qualification && qualification.clearTarget].filter(Boolean)
+    : (qualification && Array.isArray(qualification.targets) ? qualification.targets : [])
+      .filter(item => item.canonicalKey === canonicalKey);
+  const target = matches.length === 1 ? matches[0] : null;
+  if (!target || target.role !== 'button' || !target.name
+    || (canonicalKey !== 'clear' && !calculatorSemanticButtonNames(canonicalKey).includes(target.name))) {
     throw calculatorError(
       'TARGET_NOT_FOUND',
       'Calculator.tapTargets',
-      `Calculator key ${JSON.stringify(visibleText)} lacks a qualified Accessibility locator`,
+      `Calculator key ${JSON.stringify(canonicalKey)} lacks one qualified Accessibility locator`,
     );
   }
   const locator = { role: 'button', name: target.name };
@@ -1358,7 +1402,7 @@ function calculatorAccessibilitySequenceTarget(qualification, canonicalKey, visi
   return { target, step: { locator } };
 }
 
-async function tapCalculatorAccessibilityTargets(sequence, canonicalKeys, rawOptions) {
+async function tapCalculatorAccessibilityTargets(canonicalKeys, rawOptions) {
   const before = await currentVerifiedCalculatorWindow(true);
   const qualification = rawOptions.qualification;
   const qualifiedIdentity = qualification && qualification.windowIdentity;
@@ -1388,11 +1432,11 @@ async function tapCalculatorAccessibilityTargets(sequence, canonicalKeys, rawOpt
     );
   }
 
-  const qualified = sequence.map((visibleText, index) => calculatorAccessibilitySequenceTarget(
+  const qualified = canonicalKeys.map(canonicalKey => calculatorAccessibilitySequenceTarget(
     qualification,
-    canonicalKeys[index],
-    visibleText,
+    canonicalKey,
   ));
+  const observedSequence = qualified.map(item => item.target.name);
   let receipt;
   try {
     receipt = await UI.tapTargets(qualified.map(item => item.step), {
@@ -1412,7 +1456,7 @@ async function tapCalculatorAccessibilityTargets(sequence, canonicalKeys, rawOpt
         phaseOrdinal: Number.isInteger(rawOptions.phaseOrdinal) ? rawOptions.phaseOrdinal + index : index + 1,
         keyIndex: index,
         canonicalKey: canonicalKeys[index],
-        visibleText: sequence[index],
+        visibleText: observedSequence[index],
         windowIdentity: { id: String(before.id), pid: Number(before.pid) },
         windowBounds: beforeBounds,
         target: qualified[index].target,
@@ -1435,7 +1479,7 @@ async function tapCalculatorAccessibilityTargets(sequence, canonicalKeys, rawOpt
       phase: String(rawOptions.phase || 'expression'),
       failedIndex,
       canonicalKey: canonicalKeys[failedIndex] || null,
-      visibleText: sequence[failedIndex] || null,
+      visibleText: observedSequence[failedIndex] || null,
       stage: error && error.failedPhase ? String(error.failedPhase) : 'action',
       completedPrefix: completed.map(item => item.visibleText),
       inputOutcome: error && error.actionState === 'unknown' ? 'unknown' : 'not-dispatched',
@@ -1463,7 +1507,7 @@ async function tapCalculatorAccessibilityTargets(sequence, canonicalKeys, rawOpt
       phaseOrdinal: Number.isInteger(rawOptions.phaseOrdinal) ? rawOptions.phaseOrdinal + index : index + 1,
       keyIndex: index,
       canonicalKey: canonicalKeys[index],
-      visibleText: sequence[index],
+      visibleText: observedSequence[index],
       windowIdentity: { id: String(after.id), pid: Number(after.pid) },
       windowBounds: compactBounds(after),
       target: qualified[index].target,
@@ -1488,7 +1532,7 @@ async function tapCalculatorAccessibilityTargets(sequence, canonicalKeys, rawOpt
       phase: String(rawOptions.phase || 'expression'),
       afterKeyIndex: completed.length - 1,
       afterCanonicalKey: canonicalKeys[completed.length - 1],
-      afterVisibleText: sequence[completed.length - 1],
+      afterVisibleText: observedSequence[completed.length - 1],
       completedPrefix: completed.map(item => item.visibleText),
       inputOutcome: 'dispatched-checkpoint-failed',
       cause: errorEvidence(error),
@@ -1520,7 +1564,7 @@ async function tapCalculatorTexts(texts, rawOptions) {
   if (canonicalKeys.length !== sequence.length) throw new Error('canonicalKeys must match the visible Calculator text sequence');
   const options = calculatorTapOptions(rawOptions);
   if (options.backend === 'accessibility') {
-    return tapCalculatorAccessibilityTargets(sequence, canonicalKeys, rawOptions);
+    return tapCalculatorAccessibilityTargets(canonicalKeys, rawOptions);
   }
   const completed = [];
 
@@ -1784,7 +1828,7 @@ async function clearCalculator(verifiedWindow, locator, calculationNumber) {
       calculationNumber,
       'after-second-clear',
     );
-    const screenshot = await captureCalculatorDisplay(`${calculationNumber}-clear`);
+    const screenshot = await captureCalculatorDisplay(`${calculationNumber}-clear`, true);
     const reset = {
       calculationNumber,
       strategy: 'two-semantic-clear-actions+stable-accessibility-display',
@@ -1887,11 +1931,13 @@ function displayEvidenceName(value) {
   return name;
 }
 
-async function captureCalculatorDisplay(calculationNumber) {
+async function captureCalculatorDisplay(calculationNumber, semantic = false) {
   const active = await currentVerifiedCalculatorWindow(true);
   const bounds = compactBounds(active);
+  if (!semantic) requireVerifiedCalculatorLayout(active);
   const region = CALCULATOR_LAYOUT.displayRegion;
-  const clip = {
+  // Semantic evidence captures the whole exact window, not an unqualified ROI.
+  const clip = semantic ? bounds : {
     x: bounds.x + region.x * bounds.width,
     y: bounds.y + region.y * bounds.height,
     width: region.width * bounds.width,
@@ -2111,7 +2157,7 @@ async function waitForCalculatorResultDisplay(expected, calculationNumber, locat
     calculationNumber,
     'result-oracle',
   );
-  const screenshot = await captureCalculatorDisplay(`${calculationNumber}-accessibility-result-oracle`);
+  const screenshot = await captureCalculatorDisplay(`${calculationNumber}-accessibility-result-oracle`, true);
   return {
     backend: 'accessibility-snapshot',
     rawDisplay: semantic.display.rawValue,
@@ -2153,8 +2199,11 @@ async function evaluateCalculatorExpression(expression, expected, calculationNum
   const reset = await clearCalculator(verifiedWindow, locator, calculationNumber);
   const targetPreflight = await preflightCalculatorTexts(inputSequence, locator, calculationNumber);
   const actionStart = resultDocument.actionTrace.length;
+  const inputTexts = locator.backend === 'accessibility'
+    ? inputSequence.canonicalKeys.map(key => calculatorAccessibilitySequenceTarget(targetPreflight, key).target.name)
+    : inputSequence.visibleTexts;
 
-  await tapCalculatorTexts(inputSequence.visibleTexts, {
+  const inputReceipt = await tapCalculatorTexts(inputTexts, {
     ...locator.options,
     backend: locator.backend,
     qualification: targetPreflight,
@@ -2167,11 +2216,11 @@ async function evaluateCalculatorExpression(expression, expected, calculationNum
   const calculation = {
     expression,
     canonicalKeys: inputSequence.canonicalKeys.slice(),
-    visibleTexts: inputSequence.visibleTexts.slice(),
+    visibleTexts: inputReceipt.completed.map(action => action.visibleText),
     inputBackend: locator.backend,
     locatorProfile: { ...locator.profile },
     ocrProfile: locator.backend === 'ocr' ? { ...locator.profile } : null,
-    keypadRegionPercent: { ...CALCULATOR_LAYOUT.keypadRegion },
+    keypadRegionPercent: locator.backend === 'ocr' ? { ...CALCULATOR_LAYOUT.keypadRegion } : null,
     reset,
     targetPreflight,
     keyActions: resultDocument.actionTrace.slice(actionStart),
@@ -2267,22 +2316,18 @@ async function main() {
       pid: Number(verifiedWindow.pid),
       title: String(verifiedWindow.title || ''),
       bounds: compactBounds(verifiedWindow),
-      layout: CALCULATOR_LAYOUT.name,
+      layout: resultDocument.layout.verifiedLayout,
     };
 
-    const initialScreenshot = await page.screenshot({
-      clip: bounds,
-      path: File.join(Execution.artifactDir, 'calculator-window-initial.png'),
-      returnType: 'object',
-    });
-    if (
-      !initialScreenshot
-      || Number(initialScreenshot.width) !== Math.round(bounds.width)
-      || Number(initialScreenshot.height) !== Math.round(bounds.height)
-    ) {
-      throw new Error('Calculator initial screenshot does not match the verified current window bounds');
-    }
+    // Window bounds are logical points; screenshot dimensions are measured
+    // image pixels. Reuse the exact-window capture and its before/after guard.
+    const initialScreenshot = await captureCalculatorDisplay('window-initial', true);
     resultDocument.initialScreenshot = initialScreenshot.path;
+    resultDocument.initialCapture = {
+      screenBounds: { ...bounds },
+      imageWidth: Number(initialScreenshot.width),
+      imageHeight: Number(initialScreenshot.height),
+    };
     await writeResultDocument();
 
     const firstResult = await evaluateCalculatorExpression(input.expression, input.expected, 1);

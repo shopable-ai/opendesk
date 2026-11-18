@@ -26,6 +26,12 @@ pageWrapper.screenshot = async function(options = {}) {
   return await globalThis.page____Inject.screenshot(options);
 };
 
+// Keep the compatibility entrypoint on its declared Promise contract even
+// when the shared native screenshot owner returns or throws synchronously.
+pageWrapper.captureScreen = async function(options = {}) {
+  return await globalThis.page____Inject.captureScreen(options);
+};
+
 /**
  * Permission facade: provide cross-platform JS API while keeping native Go APIs platform-specific.
  */

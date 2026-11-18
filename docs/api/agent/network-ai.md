@@ -19,14 +19,14 @@ HTTP 请求、当前 execution 的回调、模型及 CLI Agent
 
 | 精确方法；主要输入 → 输出（签名） | 解决的问题 | 副作用；适用限制 | 契约获取 |
 | --- | --- | --- | --- |
-| `axios.defaults: OpenDeskAxiosConfig;` | 默认配置 | 有：网络/子进程，可能传出数据或产生费用；继承本节限制 | [axios.defaults](../http.md)；`read http axios.defaults` **正文缺口：禁止据类型直接生成调用** |
-| `axios.delete<T = unknown>(url: string, config?: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;` | DELETE | 有：网络/子进程，可能传出数据或产生费用；继承本节限制 | [axios.delete](../http.md#axiosput--axiospatch--axiosdelete修改与删除)；`read http axios.delete` |
-| `axios.get<T = unknown>(url: string, config?: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;` | GET | 有：网络/子进程，可能传出数据或产生费用；继承本节限制 | [axios.get](../http.md#axiosget使用-params)；`read http axios.get` |
-| `axios.interceptors: { request: OpenDeskAxiosInterceptorManager<OpenDeskAxiosConfig>; response: OpenDeskAxiosInterceptorManager<OpenDeskAxiosResponse>; };` | 请求拦截器 | 有：网络/子进程，可能传出数据或产生费用；继承本节限制 | [axios.interceptors](../http.md#axiosinterceptors请求与响应拦截器)；`read http axios.interceptors` |
-| `axios.patch<T = unknown>(url: string, data?: unknown, config?: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;` | PATCH | 有：网络/子进程，可能传出数据或产生费用；继承本节限制 | [axios.patch](../http.md#axiosput--axiospatch--axiosdelete修改与删除)；`read http axios.patch` |
-| `axios.post<T = unknown>(url: string, data?: unknown, config?: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;` | POST | 有：网络/子进程，可能传出数据或产生费用；继承本节限制 | [axios.post](../http.md#axiospost提交数据)；`read http axios.post` |
-| `axios.put<T = unknown>(url: string, data?: unknown, config?: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;` | PUT | 有：网络/子进程，可能传出数据或产生费用；继承本节限制 | [axios.put](../http.md#axiosput--axiospatch--axiosdelete修改与删除)；`read http axios.put` |
-| `axios.request<T = unknown>(config: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;` | 任意请求 | 有：网络/子进程，可能传出数据或产生费用；继承本节限制 | [axios.request](../http.md)；`read http axios.request` **正文缺口：禁止据类型直接生成调用** |
+| `axios.defaults: OpenDeskAxiosConfig;` | 默认配置 | 有：网络/子进程，可能传出数据或产生费用；继承本节限制 | [axios.defaults](../http.md#axiosdefaults)；`read http axios.defaults` |
+| `axios.delete<T = unknown>(url: string, config?: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;` | DELETE | 有：网络/子进程，可能传出数据或产生费用；继承本节限制 | [axios.delete](../http.md#axiosdeleteurl-config)；`read http axios.delete` |
+| `axios.get<T = unknown>(url: string, config?: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;` | GET | 有：网络/子进程，可能传出数据或产生费用；继承本节限制 | [axios.get](../http.md#axiosgeturl-config)；`read http axios.get` |
+| `axios.interceptors: { request: OpenDeskAxiosInterceptorManager<OpenDeskAxiosConfig>; response: OpenDeskAxiosInterceptorManager<OpenDeskAxiosResponse>; };` | 请求拦截器 | 有：网络/子进程，可能传出数据或产生费用；继承本节限制 | [axios.interceptors](../http.md#axiosinterceptors)；`read http axios.interceptors` |
+| `axios.patch<T = unknown>(url: string, data?: unknown, config?: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;` | PATCH | 有：网络/子进程，可能传出数据或产生费用；继承本节限制 | [axios.patch](../http.md#axiospatchurl-data-config)；`read http axios.patch` |
+| `axios.post<T = unknown>(url: string, data?: unknown, config?: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;` | POST | 有：网络/子进程，可能传出数据或产生费用；继承本节限制 | [axios.post](../http.md#axiosposturl-data-config)；`read http axios.post` |
+| `axios.put<T = unknown>(url: string, data?: unknown, config?: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;` | PUT | 有：网络/子进程，可能传出数据或产生费用；继承本节限制 | [axios.put](../http.md#axiosputurl-data-config)；`read http axios.put` |
+| `axios.request<T = unknown>(config: OpenDeskAxiosConfig): Promise<OpenDeskAxiosResponse<T>>;` | 任意请求 | 有：网络/子进程，可能传出数据或产生费用；继承本节限制 | [axios.request](../http.md#axiosrequestconfig)；`read http axios.request` |
 | `http.download(url: string, options: OpenDeskHttpDownloadOptions): Promise<OpenDeskHttpDownloadResult>;` | 授权的原生流式 GET 下载到最终文件 | 有：输入/应用或系统状态改变；继承本节限制 | [http.download](../http.md#httpdownloadurl-options原生流式下载)；`read http http.download` |
 | `http.get<T = unknown>(url: string, options?: Omit<OpenDeskHttpRequestOptions, "url" \| "method">): Promise<OpenDeskHttpResponse<T>>;` | GET | 有：网络/子进程，可能传出数据或产生费用；继承本节限制 | [http.get](../http.md#httpgeturl-options)；`read http http.get` |
 | `http.post<T = unknown>(url: string, data?: unknown, options?: Omit<OpenDeskHttpRequestOptions, "url" \| "method" \| "data">): Promise<OpenDeskHttpResponse<T>>;` | POST | 有：网络/子进程，可能传出数据或产生费用；继承本节限制 | [http.post](../http.md#httpposturl-data-options)；`read http http.post` |
@@ -43,9 +43,9 @@ HTTP 请求、当前 execution 的回调、模型及 CLI Agent
 | --- | --- | --- | --- |
 | `Webhook.listen<TBody = unknown, TResponse = unknown>( name: string, handler: (request: OpenDeskWebhookRequest<TBody>) => OpenDeskWebhookResponse<TResponse> \| Promise<OpenDeskWebhookResponse<TResponse>>, options?: OpenDeskWebhookListenOptions …〔长签名需 read --types〕` | 注册当前 Execution 的本地 POST JSON handler | 等待/订阅；回调副作用由调用方决定，须清理；继承本节限制 | [Webhook.listen](../webhook.md#webhooklistenname-handler-options)；`read webhook Webhook.listen` |
 | `handle.close(): void;` | 撤销新调用资格并关闭当前 listener | 需核对正文；不能假定无副作用；继承本节限制 | [handle.close](../webhook.md#handleclose)；`read webhook handle.close` |
-| `handle.name: string;` | handle.name；所属能力：Webhook | 需核对正文；不能假定无副作用；继承本节限制 | [handle.name](../webhook.md)；`read webhook handle.name` **正文缺口：禁止据类型直接生成调用** |
+| `handle.name: string;` | 读取规范化后的 execution 内业务标签 | 需核对正文；不能假定无副作用；继承本节限制 | [handle.name](../webhook.md#handlename)；`read webhook handle.name` |
 | `handle.requestHeaders(): Readonly<Record<string, string>>;` | 取得调用当前入口所需的认证请求头 | 需核对正文；不能假定无副作用；继承本节限制 | [handle.requestHeaders](../webhook.md#handlerequestheaders)；`read webhook handle.requestHeaders` |
-| `handle.url: string;` | handle.url；所属能力：Webhook | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [handle.url](../webhook.md)；`read webhook handle.url` 共享整页兜底 |
+| `handle.url: string;` | 读取本 listener 实际绑定的 loopback URL | 观察/查询；可能读取敏感数据，不等于业务完成；继承本节限制 | [handle.url](../webhook.md#handleurl)；`read webhook handle.url` |
 
 
 ## LLM
@@ -77,20 +77,20 @@ HTTP 请求、当前 execution 的回调、模型及 CLI Agent
 维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。
 
 
-- `docs/api/http.md` SHA-256 `1787a2e1e89008b750360ba826caf55cc8b0ef126bd7ba874b547ae71aa2380e`
+- `docs/api/http.md` SHA-256 `5c335c1ade0724ae7086cebd81706111757d63e9d317d4befd7eb58bd3c9a36a`
 
 - `types/http.d.ts` SHA-256 `3aa8e1b99369c7a34abd5ede951ece764982fee90bcca0b15c716e2fe0c93ed6`
 
-- `types/axios.d.ts` SHA-256 `47bd7958e8d37f15066fdaeb69baf0c037445ebc4cb1414b2ff08789f7e8f010`
+- `types/axios.d.ts` SHA-256 `fb6868d02400e6860819ac59f94731f410a018ea4dbebc52d87cb0414b788e38`
 
-- `docs/api/webhook.md` SHA-256 `3664261c9938811208b2c6deada80d13243874cb2aa94bf447ad2667121a91c0`
+- `docs/api/webhook.md` SHA-256 `4cd3319b3e3c96a1bb8c62a4e2d0e8245ce620211bddab2e54b8136f446a25bb`
 
-- `types/Webhook.d.ts` SHA-256 `da7fdd867b2745d71f53c9941f51ae840ce95f0843c35c5d2ff8cfc7faeeca2d`
+- `types/Webhook.d.ts` SHA-256 `c2fe86b4b4dca8d2713c944cbd61bd93d1e16db2554797de60b736408ff58d10`
 
 - `docs/api/llm.md` SHA-256 `d1538e663024748150e44887c16b193b2bbb797d749e9cd190d826a2d8c43e28`
 
 - `types/LLM.d.ts` SHA-256 `a3cdd4303dc72da5be674c811dfa2e1469984f2776ddd7a47682da4b09d4af10`
 
-- `docs/api/agent.md` SHA-256 `ad75df70c715d322300df3ac1e2187beb90617352004be8ee48ed285584a1439`
+- `docs/api/agent.md` SHA-256 `d2767b51d87c08e676b815880adf2ec41d521f8ff10d680281c3369575a0b8ad`
 
 - `types/Agent.d.ts` SHA-256 `4f9097c9613c98679bb6b5c688ba1cfa3e7b6af918e917dcb1482ca529b48428`

@@ -107,7 +107,7 @@ func decodeFilesRequest(raw []byte) (filesRequest, error) {
 		return req, ErrSchema
 	}
 	switch req.Method {
-	case "files.status", "workspaces.list", "files.list", "files.read", "files.write", "files.create":
+	case "files.status", "workspaces.list", "files.list", "files.read", "files.inspectImage", "files.write", "files.create":
 	default:
 		return req, ErrSchema
 	}

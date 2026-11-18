@@ -36,14 +36,18 @@ func registerSystemEnvironment(runtimeValue *goja.Runtime, environment map[strin
 			panic(runtimeValue.NewTypeError("System.getEnv requires a name and accepts one optional string fallback"))
 		}
 		name := systemEnvironmentName(runtimeValue, call.Argument(0), "System.getEnv")
+		var fallback string
+		if len(call.Arguments) == 2 {
+			var ok bool
+			fallback, ok = call.Argument(1).Export().(string)
+			if !ok {
+				panic(runtimeValue.NewTypeError("System.getEnv fallback must be a string"))
+			}
+		}
 		if value, found := runtimeenv.Lookup(snapshot, name); found {
 			return runtimeValue.ToValue(value)
 		}
 		if len(call.Arguments) == 2 {
-			fallback, ok := call.Argument(1).Export().(string)
-			if !ok {
-				panic(runtimeValue.NewTypeError("System.getEnv fallback must be a string"))
-			}
 			return runtimeValue.ToValue(fallback)
 		}
 		return goja.Undefined()

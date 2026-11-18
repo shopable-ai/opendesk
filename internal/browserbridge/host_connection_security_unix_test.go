@@ -411,7 +411,7 @@ func TestConnectionSecurityInstallContentionPreservesInboundFrame(t *testing.T) 
 		t.Fatal("install contention closed an authorized Host")
 	case <-entry.answer:
 		t.Fatal("response bypassed the installation snapshot lock")
-	case <-time.After(50 * time.Millisecond):
+	case <-time.After(2200 * time.Millisecond):
 	}
 	close(release)
 	released = true

@@ -22,7 +22,7 @@ LAYOUT = {
             "Contents/Info.plist", "Contents/MacOS/opendesk",
             "Contents/Helpers/OpenDesk UI.app/Contents/MacOS/opendesk-ui-host",
         ),
-        "js": ("Contents/MacOS/polyfills", "Contents/MacOS/jslibs"),
+        "js": ("Contents/Resources/polyfills", "Contents/Resources/jslibs"),
         "marker": "Contents/Resources/OpenDeskAppBuilder/template.json",
         "package": "Contents/Resources/AppMode",
         "provenance": "Contents/Resources/OpenDeskAppBuilder/build-provenance.json",

@@ -8,9 +8,42 @@
 
 需要可见的 macOS 桌面及已准备好的配套开发构建。发行安装包不附带 `examples/`；构建由维护者准备。运行后窗口持续打开，直到选择“退出”。已有本入口运行时使用现有窗口，避免同时打开多个管理器。
 
-快捷栏支持配置 **ChatGPT（Codex）桌面应用、Claude 桌面 Code 工作区和 OpenCode**，保留同一套五按钮栏、管理器和提示词库。Codex 现有专属常规 `paste` 候选，不再套用 plain 编辑器模型；真实按钮已验证空稿、多行/Unicode/首尾空白、连续插入、中间光标和非空选区保护。未聚焦追加及完整窗口跟随稳定性仍未通过，最后一处占位同文草稿修复也尚未实窗重验。Claude / OpenCode 的历史实测见 [输入适配记录](../../../docs/quality/codex-prompt-shortcuts-input.md)；Codex 的证据、外部争用与暂停状态见 [桌面适配记录](../../../docs/quality/codex-prompt-shortcuts-codex-desktop.md) 文末。
+快捷栏支持配置 **ChatGPT（Codex）桌面应用、Claude 桌面 Code 工作区和 OpenCode**，共用纵向快捷栏、管理器和提示词库。默认按钮先尝试输入完整正文：使用 `keyboard.type`，全文确认成功后静默结束，不操作剪贴板；只有确认输入尚未开始时才复制完整正文并读回，右下角提示“未写入，已复制完整正文（原因码）。”。结果不明确时锁止后续输入、保留剪贴板，不自动重试。管理器的显式复制和仅复制模式继续可用。
+
+配置值 `inputMode:'paste'` 为兼容旧配置保留，当前表示上述普通 Unicode 输入策略，不再表示使用系统剪贴板。当前候选的离线回归、实际加载和现场验收缺口见 [不占用剪贴板的输入记录](../../../docs/quality/codex-prompt-shortcuts-no-clipboard.md)。旧粘贴候选的实窗证据不转移给当前输入方式；Claude / OpenCode 的历史实测见 [输入适配记录](../../../docs/quality/codex-prompt-shortcuts-input.md)，Codex 的历史证据与暂停状态见 [桌面适配记录](../../../docs/quality/codex-prompt-shortcuts-codex-desktop.md) 文末。
 
 本机根目录 `opendesk` 是转发到 `dist/OpenDesk.app/Contents/MacOS/opendesk` 的构建启动脚本，`dist/opendesk` 也指向同一主程序。维护者应先核对实际入口；不能以其他二进制的运行结果替代本命令。
+
+点击提示词后，处理期间按钮只显示原生旋转指示器，完成后恢复原来的短文字；不再临时显示“稍候”，也不改写 label 或悬停提示。此显示行为需要配套更新的原生宿主。
+
+## 三款应用同时打开与多窗口切换
+
+只运行**一个快捷栏进程**，无需为 Codex、Claude、OpenCode 各开一份。未设置目标配置且管理器中的“目标应用标识”为空时，使用三款内置适配，按当前前台应用及精确窗口自动选择；同一应用的多个窗口也不靠标题区分。若之前保存了 `com.openai.codex`，这代表只跟随 Codex，并不是自动多应用模式；需要在管理器中清空标识再点击“保存标识”，不会自动改写用户已有选择。
+
+若已设置 `OPENDESK_SHORTCUTS_TARGET_CONFIG`，它会替换默认范围。单个 `scope` 只跟随一个明确进程，不会自动发现另两款应用；需要将三个已核对的范围放入同一 `scopes`：
+
+```json
+{
+  "schemaVersion": 1,
+  "scopes": [
+    { "pid": 12345, "exePath": "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT", "profile": "codex" },
+    { "pid": 23456, "exePath": "/Applications/Claude.app/Contents/MacOS/Claude", "profile": "claude-code" },
+    { "pid": 34567, "exePath": "/Applications/OpenCode.app/Contents/MacOS/OpenCode", "profile": "opencode" }
+  ]
+}
+```
+
+PID 和 executable 均须替换为已核对的当前值；同一进程下的多个窗口不重复填写 PID。保存至仓库根目录的 `.runtime/examples/custom-ui/codex-prompt-shortcuts/multi-app.json` 后，从 `/Users/shopme/Documents/workspace/opendesk` 启动：
+
+```bash
+OPENDESK_SHORTCUTS_TARGET_CONFIG=.runtime/examples/custom-ui/codex-prompt-shortcuts/multi-app.json ./opendesk -ui -script examples/custom-ui/codex-prompt-shortcuts/main.js -console-mode script -log-dir .runtime/examples/custom-ui/codex-prompt-shortcuts
+```
+
+范围模式优先于库中的单 Bundle ID 设置；进程重启后须更新 PID 并关闭/开启跟随。未配置的应用、Claude 非 Code 页面及无法唯一确认的输入框仍不输入。
+
+实现按三层分工：`targets.js` 管理应用身份、布局及 `editorPolicy`（输入框 selector/discovery、原生角色、查找深度和文本模型）；`main.js` 管理当前窗口与引用生命周期；`insert.js` 共用输入、防误写和读回流程。换到已适配的普通输入窗口时丢弃旧窗口手工校准，重新定位当前输入框，不让旧测量隐藏新窗口；严格模式或仅靠手工校准的未知应用仍要求重新校准。即使切换通知尚未到达，点击也先重新选择当前前台，再使用该应用的策略。
+
+2026-10-29 22:08 的当前候选已通过 **569/569** 项离线依赖回归，包括三应用各两个同名窗口、通知前点击、切回和旧引用失效。此前粘贴候选曾有三应用共六次真实按钮输入及独立全文相等结果；它们不是当前改用 Unicode 输入候选的实窗资格。当前候选的三应用双窗隔离、移动/缩放后位置与真实点击仍未完整验收。OpenCode 两个原始空框的选区读取仍报错，不能据历史预加空格的成功宣称原始空框可写；Claude 两个旧测试窗的 AX identity 已失效，未继续输入。上述组合命令和文首无配置一行命令也未作为本轮通过。版本、证据及暂停原因见 [多窗口修复记录](../../../docs/quality/codex-prompt-shortcuts-multi-window.md)。
 
 ## 显式 ChatGPT（Codex）桌面范围模式
 
@@ -37,11 +70,11 @@ OPENDESK_SHORTCUTS_TARGET_CONFIG=.runtime/examples/custom-ui/codex-prompt-shortc
 
 内置 `codex` profile 可像 `claude-code` / `opencode` 一样由 scope 自动补入，无需复制整个 `profiles`。只观察配置的精确 PID/executable，接入现有原生窗口变化提示和前台守卫；代码在移动、缩放或换窗后重新定位，切走、窗口不可用或区域放不下时隐藏。打开管理器时隐藏，关闭后恢复；拖动位置按应用身份保存。这些完整变化场景仍需实窗补验。显示位置不依赖校准；稳定目标会后台只读准备唯一 composer 的受管引用，但不因此取得输入资格，点击时仍重新检查。
 
-默认位置沿用已接受的布局：窗口左边缘 +316pt（300pt 侧栏 +16pt 间距），上下各留 16pt，五按钮栏在剩余高度内垂直居中；用户拖动偏移和屏幕裁切继续生效。它不是根据当前 Codex AX 树测量的位置，动态侧栏宽度或输入区避让尚未实窗确认。提示词库为空时先显示管理器，保存至少一条启用的提示词并关闭管理器后体验按钮。
+默认位置沿用已接受的布局：窗口左边缘 +316pt（300pt 侧栏 +16pt 间距），上下各留 16pt，快捷栏在剩余高度内垂直居中；用户拖动偏移和屏幕裁切继续生效。它不是根据当前 Codex AX 树测量的位置，动态侧栏宽度或输入区避让尚未实窗确认。提示词库为空时先显示管理器，保存至少一条启用的提示词并关闭管理器后体验按钮。
 
 与 Claude / OpenCode 共用时，在已有配置的 `scopes` 数组中追加这个完整条目，不要同时保留 `scope`；无需改动提示词库。PID 重启后需更新配置，再关闭/开启跟随重载。显式自定义 `profiles` 中已有的 `codex` descriptor 优先，不被内置规则覆盖。2026-10-29 后续真实执行已加载带隔离范围/合成库配置的 `main.js` 并取得截图和四项全文结果；不等于文首无配置命令或上述占位配置原样通过。Node 回归也不能替代实窗验收。
 
-Codex 候选以深度 64 有界查找窗口内唯一 textField，再要求真实 nativeRole 为 `AXTextArea`、名称为实测的 `随心输入` 或 `和 Codex 一起工作`、enabled 为 true，并读取真实 UTF-16 选区与完整 AX value。未测语言/名称会拒绝，不猜终端或搜索框。空稿实测为“名称＋换行”和 `{0,0}`；不 trim 草稿，真实同文草稿在其实际末尾保留原文。未聚焦后备路径需要真实边界、焦点及完整末尾位置证明，不能仅凭选区折叠就粘贴。派发前再次核对草稿、选区、前台和剪贴板，写后逐字比较 AX 全文；业务插入不为取得回执全选/Copy 或移光标。真实正文恰与占位同文且 caret 为 0 时，AX 预读本身无法区分二者，候选接受保留原文的插入或实测空稿结果，不宣称消除了这种歧义或并发风险。
+Codex 候选以深度 64 有界查找窗口内唯一 textField，再要求真实 nativeRole 为 `AXTextArea`、名称为实测的 `随心输入` 或 `和 Codex 一起工作`、enabled 为 true，并读取真实 UTF-16 选区与完整 AX value。未测语言/名称会拒绝，不猜终端或搜索框。空稿历史实测为“名称＋换行”和 `{0,0}`；不 trim 草稿，真实同文草稿在其实际末尾保留原文。未聚焦后备路径需要真实边界、焦点及完整末尾位置证明，不能仅凭选区折叠就输入。派发前再次核对草稿、选区和前台，写后逐字比较 AX 全文；业务插入不为取得回执全选/Copy 或移光标。真实正文恰与占位同文且 caret 为 0 时，AX 预读本身无法区分二者，候选接受保留原文的插入或历史实测空稿表示，不宣称消除了这种歧义或并发风险。
 
 Codex 的 `strict` 仍在访问 target/ref 前返回 `CODEX_EDITOR_UNQUALIFIED / not_started`，复制完整正文；鼠标校准不启用原子追加。已知 Bundle ID、`ChatGPT.app` 路径及 canonical ID 均使用 Codex 模型，不落入 plain。其他安装路径应保留 profile ID `codex`；任意 ID 加未知 executable 不能静态证明应用类型。普通 paste 不证明 IME inactive 或并发隔离。测试专窗发生外部争用后已停止本任务快捷栏，禁止清理不再精确属于本轮的草稿，须先确保独占桌面时段再恢复验收。
 
@@ -69,13 +102,13 @@ OPENDESK_SHORTCUTS_TARGET_CONFIG=.runtime/examples/custom-ui/codex-prompt-shortc
 
 此模式通过 `window.watchAppWindow({pid,exePath}, callback)` 接收指定进程的原生变化提示，再用 `window.getAppWindow({pid,exePath})` 重新核验；通知本身不能证明前台或 Code 场景。原生监听不可用时记录原因并回退到 250ms 守卫，移动提示合并处理。查询在后台串行执行，静止已显示时跳过重复完整场景同步；不调用 `App.get/list`、全局 `getActiveWindow/current`，也不订阅全局 Events。关闭跟随、退出或运行结束会清理订阅和轮询；非目标前台、窗口消失时隐藏，权限/身份错误不走全局后备。切换到快捷栏自身焦点也不会借全局观察保留目标。进程重启后须核对并更新配置中的 PID，然后关闭并重新开启跟随以重载范围；旧订阅的迟到结果不能接管新范围。
 
-内置 `opencode` profile 提供窗口四周 16pt 的放置边距，以深度 24 查找唯一 AXTextArea，并显式设置 `inputMode:'paste'`。输入框名称可随语言变化，不固化本机“提示词”作为跨语言标识。也可在同一配置的 `profiles` 中提供已有格式的 descriptor，并让 `scope.profile` 精确引用其 ID；未知 profile 拒绝启动。显式范围优先于库内 Bundle ID 设置，不因保存该设置切回全局。没有 `scope` 时保留原兼容模式和五按钮界面。
+内置 `opencode` profile 提供窗口四周 16pt 的放置边距，以深度 24 查找唯一 AXTextArea，并显式设置 `inputMode:'paste'`。输入框名称可随语言变化，不固化本机“提示词”作为跨语言标识。也可在同一配置的 `profiles` 中提供已有格式的 descriptor，并让 `scope.profile` 精确引用其 ID；未知 profile 拒绝启动。显式范围优先于库内 Bundle ID 设置，不因保存该设置切回全局。没有 `scope` 时保留原兼容模式和纵向快捷栏。
 
-插入发现、只读校准和 inserter facade 使用同一范围。常规输入使用现有键鼠和剪贴板 API，不启用 `prepareTextAppend`；焦点输入收到粘贴回执并观察到编辑器变化后提示“已粘贴”，不冒称逐字验证。确认尚未开始输入时可回退全文复制；动作结果不明确时停止并保留剪贴板。支持结构化输入的宿主还可传 `Execution.input.scope`，但不能同时在配置中再传 scope；当前 `-script` 启动使用上述配置方式。
+插入发现、只读校准和 inserter facade 使用同一范围。常规输入使用现有键鼠 API，不启用 `prepareTextAppend`。OpenCode 的 AX value 不能证明逐字一致，观察到变化后提示“已观察到输入变化，完整正文未验证；请检查草稿，尚未发送。”，不复制、不自动重试。确认尚未开始输入时才可回退全文复制；动作结果不明确时停止并保留剪贴板。支持结构化输入的宿主还可传 `Execution.input.scope`，但不能同时在配置中再传 scope；当前 `-script` 启动使用上述配置方式。
 
 多个已核对应用可使用 `scopes` 数组替代 `scope`（二者互斥，最多 16 项）；每项仍完整提供 `pid`、`exePath` 和 `profile`。每轮只查询这些明确配置的进程，不发现其他应用。切换应用或窗口时丢弃旧输入区引用，两个应用在一次扫描中都声称前台时隐藏栏并重新核验。仅提供配置不表示该应用已通过适配验收。
 
-各应用拖动偏移保存在 `settings.positions`，键由 profile 与稳定 executable 身份组成；重置只影响当前应用。旧版 `offsetX/offsetY` 保留供兼容模式使用。拖动停止 160ms 后才准备保存，并再次核对目标、原生最终位置和当前拖动版本；旧帧或已失效目标不写入。保存不弹出遮挡操作的提示。
+各应用拖动偏移保存在 `settings.positions`，键由 profile 与稳定 executable 身份组成；重置只影响当前应用。旧版 `offsetX/offsetY` 保留供兼容模式使用。拖动停止 160ms 后才准备保存，并再次核对目标、原生最终位置和当前拖动版本；旧帧或已失效目标不写入。保存不弹出遮挡操作的提示。完整参照点、恢复规则及验收要求见下文“拖动后的相对位置需求”。
 
 跟随性能和双应用位置的历史验收见 [R22 记录](../../../docs/quality/codex-prompt-shortcuts-r22-follow.md)，本轮事件驱动与后台查询优化见 [R23 记录](../../../docs/quality/codex-prompt-shortcuts-r23-follow.md)。跟随验收不代表安全追加完成；并行输入适配另行记录。
 
@@ -111,7 +144,7 @@ OPENDESK_SHORTCUTS_TARGET_CONFIG=.runtime/tests/codex-prompt-shortcuts-r20/openc
 OPENDESK_SHORTCUTS_TARGET_CONFIG=.runtime/examples/custom-ui/codex-prompt-shortcuts/claude-scoped.json ./opendesk -ui -script examples/custom-ui/codex-prompt-shortcuts/main.js -console-mode script -log-dir .runtime/examples/custom-ui/codex-prompt-shortcuts
 ```
 
-`claude-code` 使用相同五按钮栏和双栏管理器。每次观察均在该精确窗口内读取完整、有界的原生树，核对同一文档中的 `Claude Code` heading、`Primary pane`、唯一 `Prompt` AXTextArea，以及 pane 内的 `Terminal` / `Files` 控件；仅有应用身份或 Code 导航按钮不能通过。已知 Claude bundle/path 的自定义 profile 也执行该场景检查，实际 Prompt 选择器来自场景测量。
+`claude-code` 使用相同纵向快捷栏和双栏管理器。每次观察均在该精确窗口内读取完整、有界的原生树，核对同一文档中的 `Claude Code` heading、`Primary pane`、唯一 `Prompt` AXTextArea，以及 pane 内的 `Terminal` / `Files` 控件；仅有应用身份或 Code 导航按钮不能通过。已知 Claude bundle/path 的自定义 profile 也执行该场景检查，实际 Prompt 选择器来自场景测量。
 
 本版本使用显式深度 64，当前实窗深度为 44；默认 Accessibility 深度与节点/deadline 限制保持原规则。macOS 的空 AXTitle 现在会回退到实际 AXDescription，因此可读到 `Prompt` 等名称。快捷栏按实测主内容区留出 16pt 边距，并限制在输入区上方 12pt；测量失败、窗口变化或离开 Code 时隐藏。返回 Code 后重新测量。稳定窗口可在后台只读准备唯一输入框的受管引用；点击时仍重新核对精确窗口及 Code 场景，并读取同一原生元素。窗口或场景变化即丢弃引用，不复用其他页面的元素。“检查写入条件”使用同一深层选择器，只读检查。
 
@@ -123,9 +156,9 @@ OPENDESK_SHORTCUTS_TARGET_CONFIG=.runtime/examples/custom-ui/codex-prompt-shortc
 
 ## 可以直接体验什么
 
-- 首位是正式 OpenDesk logo，点击打开管理器。后面保留三个提示词槽位与“下一”，合计五个原生按钮。logo 复用 Recorder / Flow Runner 的正式品牌资产，保留原色；原生尺寸为 40×40pt。
-- 默认优先使用 ChatGPT（Codex）桌面应用的已知标识 `com.openai.codex`，开启窗口跟随；目标在前台时显示，其他应用前台时隐藏。真实 Codex 仅部分场景通过，未宣称完整跟随稳定性。按钮点击重新检查目标窗口、实际输入框和追加条件；确认输入未开始时才复制**完整正文**兜底，unknown 时锁止并保留剪贴板。短标签保持不变，工作区右下角独立显示结果。
-- 超过三条时翻页，末页空槽禁用。只更新原按钮，不重建栏。拖动顶部移动；关闭原生栏会打开管理器供恢复或退出。
+- 首位是正式 OpenDesk logo，点击打开管理器，后面依序显示所有启用的提示词。logo 复用 Recorder / Flow Runner 的正式品牌资产，保留原色；按钮尺寸为 40×40pt。
+- 默认开启窗口跟随；未配置范围且“目标应用标识”为空时，按当前前台选择三款内置应用，不固定优先 Codex。保存非空标识则限制到该应用；显式范围仍优先。目标在前台时显示，无关应用前台时隐藏。真实 Codex 仅部分历史场景通过，未宣称当前候选的完整跟随稳定性。按钮点击重新检查目标窗口、实际输入框和追加条件；确认输入未开始时才复制**完整正文**兜底，unknown 时锁止并保留剪贴板。短标签保持不变。
+- 不设“下一”按钮、分页或滚动条，垂直高度随按钮数量增加，例如 8 条提示词加管理按钮为 60×472pt。修改文字时复用原栏，增删或启用状态改变导致数量变化时重新创建。当前仍遵守目标窗口的完整容纳约束，放不下时隐藏，不能把隐藏项目当作可用；按钮数量上限留待后续确定。拖动顶部移动；关闭原生栏会打开管理器供恢复或退出。
 - 点击 logo 打开左右分栏管理器：左侧选择、分页与排序，右侧编辑、保存与复制。已有记录默认选中第一条。管理器显示时隐藏快捷栏，关闭管理后恢复。
 - 管理器“复制所选正文”复制已保存的记录；未保存编辑须先保存或放弃。提示词库为空时先显示管理器。
 
@@ -133,7 +166,7 @@ OPENDESK_SHORTCUTS_TARGET_CONFIG=.runtime/examples/custom-ui/codex-prompt-shortc
 
 ## 复制消息与本地广告演示
 
-复制成功后，工作区右下角显示两条可区分的原生消息：复制反馈约 2.6 秒；另一条“广告演示”包含本地图片和文字，约 5 秒后自动关闭，可提前点 × 关闭。它们不改变按钮文字，不更新管理器底部状态，也不抢键盘焦点。每种消息只复用一个句柄，连续点击更新现有消息及倒计时，不无限叠窗；退出时一起清理。
+显式复制或确认未输入后的全文复制成功后，工作区右下角显示复制反馈约 2.6 秒；配置开启时另一条“广告演示”包含本地图片和文字，约 5 秒后自动关闭，可提前点 × 关闭。全文确认输入成功不显示这两条消息。它们不改变按钮文字，不更新管理器底部状态，也不抢键盘焦点。每种消息只复用一个句柄，连续点击更新现有消息及倒计时，不无限叠窗；退出时一起清理。
 
 展示配置位于脚本旁的 `message-demo.json`：`enabled` 可关闭广告演示，`title`、`text` 和 `image` 分别配置标题、说明和脚本 `assets/` 内的 PNG/JPEG 路径。当前图片复用正式 OpenDesk logo，文案明确标注演示；没有广告投放、遥测、网络请求或自动链接行为。配置无效只记录通知错误，不影响已读回复制的结果。改配置后重新启动入口生效，用户库不受影响。
 
@@ -143,22 +176,22 @@ OPENDESK_SHORTCUTS_TARGET_CONFIG=.runtime/examples/custom-ui/codex-prompt-shortc
 
 ### 本轮常规桌面追加
 
-用户允许简单的常规桌面输入。Claude / OpenCode 以及新增 Codex 候选的内置 profile 均使用 `inputMode:'paste'`；自定义 profile 未指定时仍为 strict。Codex 的四项实窗成功与未测范围见文首链接。
+用户允许简单的常规桌面输入。Claude / OpenCode 以及 Codex 候选的内置 profile 均保留配置值 `inputMode:'paste'`，实际统一派发一次 `keyboard.type`；自定义 profile 未指定时仍为 strict。当前候选的实窗输入尚未通过，历史粘贴证据见文首链接。
 
-本轮配套 macOS Runtime 的 `Accessibility.read` 按请求读取属性，并在读取前后直接核对元素所属的精确 AX/CG 窗口，减少重复查询前台窗口的开销。粘贴前的精确前台守卫、Claude Code 场景检查、选区与草稿检查继续执行。真实按钮样本中，Claude 常用输入的首次有文字帧完成于约 0.99–1.23 秒，OpenCode 约 0.87–0.93 秒；截图采样有自身耗时，这不是瞬时响应或延迟保证。版本、逐字结果、后备路径、提示浮层遮挡和原稿恢复证据见[输入适配记录](../../../docs/quality/codex-prompt-shortcuts-input.md)。
+配套 macOS Runtime 的 `Accessibility.read` 按请求读取属性，并在读取前后直接核对元素所属的精确 AX/CG 窗口。输入前的精确前台守卫、Claude Code 场景检查、选区与草稿检查继续执行。历史粘贴候选的延迟和逐字证据见 [输入适配记录](../../../docs/quality/codex-prompt-shortcuts-input.md)，不能作为当前 Unicode 输入的延迟或正确性证明。
 
 常规输入流程如下：
 
-- 输入框已有焦点且选区为空时，在当前光标处粘贴一次完整正文。不会先移动光标、全选复制、重建完整树或添加两个换行；已有稿件前后内容由普通插入保留。正文的首尾空白、多行、tab、emoji 和组合字符原样交给剪贴板。
+- 输入框已有焦点且选区为空时，在当前光标处输入一次完整正文。不会先移动光标、全选复制、重建完整树或添加两个换行；已有稿件前后内容由普通插入保留。正文的首尾空白、多行、tab、emoji 和组合字符原样交给 `keyboard.type`，不访问剪贴板。
 - 输入框未聚焦或已有选区时，使用已测量的输入框恢复焦点，折叠至全文末尾，再追加正文；非空稿件在此后备路径加两个换行，避免替换原选区。Web 空稿的 AX 换行不能直接当作真实空字符串，仍检查末端边界。
 - 稳定场景可在后台只读准备唯一输入框的受管引用。点击后重新确认应用、PID、精确窗口和当前元素；Claude 进行一次新鲜 Code 场景检查。常用路径不重复 discovery/snapshot，不读取无用 bounds；仅恢复焦点时读取真实控件边界。输入进行期间合并后台完整场景扫描，前台守卫仍运行。
-- Claude/OpenCode 焦点 Web 输入在粘贴回执、编辑器值变化和前台复核后提示“已粘贴 · 尚未发送”，返回 `PASTE_OBSERVED / verified:false`，不为回执全选复制或移光标。两者后备路径才进行写后全文 Copy，核对后缀并恢复末尾。Codex 和 plain 使用完整 AX value 严格比较；Codex 同时保留实测空占位表示，不在业务插入后进行全选/Copy。所有路径均不发送 Enter、不全框设值。
+- Claude/OpenCode 在输入完成、编辑器值变化和前台复核后返回 `TEXT_OBSERVED / verified:false`，提示完整正文未验证，不为回执全选复制或移光标；未聚焦后备路径也遵守同一规则。Codex 和 plain 使用完整 AX value 严格比较，成功返回 `VERIFIED_TEXT / verified:true` 并静默结束；Codex 同时保留历史实测空占位表示。所有路径均不发送 Enter 按键、不全框设值。
 
-Claude Code 的 AX 会投影空行和部分选区偏移，不能当作字节级正文 Oracle。本轮实窗测试用独立控制器在输入完成后复制全文，逐字比较合成正文和预期完整稿件；这份验收证据不等于每次业务输入都做全文复制。阶段计时 `PROMPT_SHORTCUT_INPUT_TIMING` 分别记录按钮回调、粘贴派发、编辑器变化及反馈，不把派发时间称为首次可见时间。实际画面时序与所对应源码快照见 [输入适配记录](../../../docs/quality/codex-prompt-shortcuts-input.md)。
+Claude Code 的 AX 会投影空行和部分选区偏移，不能当作字节级正文 Oracle。历史实窗测试曾用独立控制器复制全文核对，当前业务输入完全不做这种 Copy。阶段计时 `PROMPT_SHORTCUT_INPUT_TIMING` 分别记录按钮回调、`type-start` / `type-dispatched`、编辑器变化及结果，不把派发时间称为首次可见时间。
 
-聚焦或粘贴引发的编辑器尺寸变化可在同一受管引用上重新读取。窗口身份/几何变化、选区不可读、已知组合态 active、非空 marked range 或剪贴板变化会停止。目标失效和 dispose 会阻止尚未发出的输入；每次只允许一个输入，结果不明确时锁止并保留剪贴板，不自动重试。确认尚未开始输入时才允许全文复制兜底。管理器“复制所选正文”和显式 copy 模式始终只复制。
+聚焦或输入引发的编辑器尺寸变化可在同一受管引用上重新读取。窗口身份/几何变化、选区不可读、已知组合态 active 或非空 marked range 会停止。目标失效和 dispose 会阻止尚未发出的输入；每次只允许一个输入，结果不明确时锁止并保留剪贴板，不自动重试。确认尚未开始输入时才允许全文复制兜底；复制或读回失败不报复制成功，通知失败不追加复制或重发输入。管理器“复制所选正文”和显式 copy 模式始终只复制。
 
-这是常规桌面自动化，不提供原子插入、并发编辑隔离或已证明的 IME inactive。Runtime 的 composition 仍为实际的 `unknown`。使用系统纯文本剪贴板；焦点输入后保留正文，后备 Copy 后保留完整稿件。操作期间保持目标窗口稳定，等待反馈后再操作。尚未验证的软件不会因配置了 profile 就取得资格。
+这是常规桌面自动化，不提供原子插入、并发编辑隔离或已证明的 IME inactive。Runtime 的 composition 仍为实际的 `unknown`。macOS 当前 `keyboard.type` 后端使用 Unicode 键盘事件；本轮未改变或验证其他平台后端。操作期间保持目标窗口稳定，等待按钮恢复后再操作。尚未验证的软件不会因配置了 profile 就取得资格。
 
 自定义 profile 可显式指定 `inputMode:'paste'` 或 `'strict'`；省略时为 strict。该字段是本例脚本配置，不是 Runtime API 参数；已知 Codex 仅允许专属 paste 候选，strict 仍拒绝。严格模式的原合同和缺口保留如下。
 
@@ -198,7 +231,21 @@ Claude Code 的 AX 会投影空行和部分选区偏移，不能当作字节级�
 
 以上尺寸、窗口位置、快捷栏尺寸和偏移均使用屏幕逻辑坐标（pt），不是截图或 Retina 屏幕的物理像素。2× 屏幕上 316pt 可对应 632 个物理像素；不要直接把截图像素填入布局，也不要额外给逻辑坐标乘缩放倍数。显示器裁切由入口 `main.js` 的 frame 计算处理：按实际内容区与各屏幕内缩 8pt 边界的交集选屏，只比较能完整容纳 60pt 宽、实际栏高的候选，取可用面积最大者；不按整个窗口或侧栏面积选屏，也不把不同屏幕的窄小碎片合并为可用区域。负坐标保持原值；没有可容纳区域时隐藏。
 
-这是用户接受的默认布局规则，返回 `source:'window-relative-default',composerMeasured:false`，不是 AX 测量结果，不保证识别动态对话内容或输入区。`settings.offsetX/offsetY` 是独立的用户拖动偏移，在布局基准上叠加，不修改侧栏宽度或边距；更换布局配置不会清除已保存偏移。“重置位置”将这两个偏移保存为 0，回到当前布局基准。
+这是用户接受的默认布局规则，返回 `source:'window-relative-default',composerMeasured:false`，不是 AX 测量结果，不保证识别动态对话内容或输入区。用户拖动偏移在布局基准上叠加，不修改侧栏宽度或边距；更换布局配置不会清除已保存偏移。
+
+### 拖动后的相对位置需求
+
+2026-10-29 用户补充：拖动后应大致保留相对位置。本例沿用已有“布局基准 + 逻辑坐标偏移”的合同：快捷栏随目标窗口移动、按新布局重新计算基准并保留用户偏移。这里描述整条快捷栏的位置，不改变提示词排序。
+
+- **参照点与保存值**：以当前应用有效内容区的默认左侧、垂直居中位置作为基准；有有效 composer 测量时沿用其避让约束。松手稳定后，按真实原生栏的最终坐标减去**未做屏幕裁切、用户偏移为零**的基准，得到 `offsetX/offsetY`，单位为 pt。偏移可以为负；不保存屏幕绝对坐标，也不新增百分比坐标或布局模式。
+- **移动、缩放和栏高变化**：目标平移时，快捷栏随目标作相同平移；目标缩放或提示词数量改变时，按当前内容区和实际栏高重新计算基准，再加同一偏移。例如窗口增高 100pt，在其他条件不变且未触发裁切时，垂直居中基准下移 50pt，用户偏移保持原值。不要每轮跟随都回到零偏移。
+- **切换与恢复**：同一应用的不同窗口共用该应用偏移，在每个窗口自己的基准上恢复；不同应用互不覆盖。键使用 profile 与稳定应用身份，不使用 PID、窗口 handle 或标题；进程重启后重新核对身份再恢复。显式路径范围使用 `settings.positions`；既有 Codex Bundle ID 兼容模式继续使用顶层 `settings.offsetX/offsetY`，不静默迁移或改写用户库。
+- **屏幕边界与临时隐藏**：显示时按有效内容区和屏幕边界约束最终位置，放不下整栏时隐藏。自动裁切、目标移动/缩放、管理器开关或隐藏/恢复均不得被当作用户拖动重新落盘，避免暂时的边缘限制永久覆盖用户偏移。用户在裁切后的位置再次真实拖动，则按本次最终坐标重新保存。空间恢复后重新应用已保存偏移。
+- **落盘、取消与重置**：拖动停止 160ms 后复核原生最终帧、窗口几何和原 owner，再合并保存；连续拖动只接纳最新有效帧。切换目标、打开管理器、重置位置、关闭跟随或退出时，取消旧的排队与在途拖动保存。“重置位置”只将当前应用偏移归零，其他应用保持不变；独立复制模式的拖动仅移动原生窗口，不写入跟随目标偏移。
+
+每次接纳经原生读回核验的新位置后，同步更新重复移动过滤标记，因此可以再次拖回最初的程序定位点。迟到或与当前原生帧不符的移动通知不能取消已接纳的拖动保存；重叠读回只让最新有效通知拥有保存权。当前修复及证据边界见[相对位置验证记录](../../../docs/quality/codex-prompt-shortcuts-relative-position.md)。
+
+验收需覆盖：连续两次拖动不弹回；目标平移、缩放及栏高变化后保留偏移；同应用双窗口和跨应用切回；边缘裁切后空间恢复；管理器/隐藏往返；受控重启恢复；重置只影响当前应用；取消后的迟到回调不得覆盖新位置。先用离线回归检查几何与持久化，再核对正式入口实际加载并保留真实拖动前后截图和独立位置读回。历史自有窗口证据、源码已有和 Node 通过均不能替代当前候选的实窗验收；当前三应用完整拖动/恢复验收仍待补齐。
 
 如果用户在获准环境中选择“检查写入条件”，成功校准后可使用独立测得的 composer 边界，并在跟随时只读刷新；其结果标记 `source:'accessibility',composerMeasured:true`，用于将可用区域的下边缘限制到输入区上方 12pt。它不把侧栏和边距变成测量值，也不证明安全写入。默认跟随无需此步骤；启用测量后若当前测量缺失、过期或窗口身份不符，快捷栏隐藏等待有效结果，不静默拿旧测量继续显示。校准只在本次运行有效。
 
@@ -256,7 +303,7 @@ OPENDESK_SHORTCUTS_TARGET_CONFIG=/Users/shopme/Documents/workspace/opendesk/.run
 OPENDESK_CODEX_SHORTCUTS_MODE=copy ./opendesk -ui -script examples/custom-ui/codex-prompt-shortcuts/main.js -console-mode script -log-dir .runtime/examples/custom-ui/codex-prompt-shortcuts
 ```
 
-该显式模式启动后先打开现有管理器，关闭管理器后显示五按钮栏，不注册外部窗口观察；它是回退入口，不代表默认跟随已经验收。
+该显式模式启动后先打开现有管理器，关闭管理器后显示纵向快捷栏，不注册外部窗口观察；它是回退入口，不代表默认跟随已经验收。
 
 唯一活动用户库在固定用户目录：macOS 为 `~/Library/Application Support/OpenDesk/codex-prompt-shortcuts/library.json`，Windows 为 `%APPDATA%/OpenDesk/codex-prompt-shortcuts/library.json`，Linux 为 `$XDG_DATA_HOME/OpenDesk/codex-prompt-shortcuts/library.json`（未设置时使用 `~/.local/share`）。工作目录和进程重启不会改变此路径。结构保持 `schemaVersion:1`、`revision`、`prompts` 和 settings；settings 可选保存按应用隔离的 `positions`，最多 80 条提示词。正文、名称、启停、排序和 Browser 导入/导出继续由同一套逻辑维护；无后台 Browser 同步服务。日志、截图及导出备份均写入 `.runtime/`，不入版本控制。
 
@@ -287,6 +334,8 @@ node --test tests/custom-ui/codex-prompt-shortcuts.test.cjs tests/custom-ui/code
 只按改动选择增量用例，不为本例改动重复运行 tooltip、Toast、catalog 或跨平台历史矩阵。正式 Browser model 双向兼容测试为 `tests/custom-ui/codex-prompt-browser-compat.test.cjs`，通过 `OPENDESK_BROWSER_MODEL` 指向 Browser 仓库的 `examples/sidebar-tools/prompt-shortcuts/trusted/model.js` 后运行；模型校验不等于 Browser UI 迁移。
 
 2026-10-29 收口定向回归使用正式 Browser model，共 **536 项全部通过、0 跳过**，包含真实 main/helper 的依赖模拟、Codex 正向及失败保护、Claude/OpenCode 和 Browser 双向备份兼容。结果为 `.runtime/tests/codex-desktop-session-20261029/closeout-final.tap`；不是 Runtime、Browser UI 或完整桌面通过。
+
+上述 536 项为历史候选。22:08 多窗口接续核对的当前五文件回归为 **569 项通过、0 失败、0 取消、0 跳过**，源码及测试前后指纹一致；结果为 `.runtime/tests/prompt-multi-app-live-20261029/regression-v5.tap`，指纹见同目录 `v5-regression.json`。先前 558 项结果属于粘贴候选；当前普通输入的传输已由并行任务修改，不能沿用旧按钮实测证明新版通过。多窗口接续最后新增真实提示词点击数为 0，未发送消息、未清理草稿。
 
 以下为历史自有窗口验证，不能替代当前 Codex 候选：2026-10-28 完成 22 个自有窗口场景，可见状态/位置收敛和同步结束均在 500ms 内，最长 458ms。另测冷启动为 974ms，原始 `timingPassed:false` 保留，不表述为全部计时通过。拖动 +70/+24 落盘并跨进程恢复，管理器打开取消待提交拖动，点击“重置位置”后偏移读回为 0。
 

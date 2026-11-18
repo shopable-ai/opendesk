@@ -155,11 +155,32 @@ func (w *darwinWindowManager) Current(target WindowInfo) (*WindowInfo, error) {
 }
 
 func (w *darwinWindowManager) Activate(target WindowInfo, timeout time.Duration) (*WindowInfo, error) {
+	return activateDarwinWindowWithCallbacks(target, timeout, w.currentExact, runExactWindowActivationJXA)
+}
+
+func activateDarwinWindowWithCallbacks(
+	target WindowInfo,
+	timeout time.Duration,
+	refresh func(context.Context, WindowInfo) (*WindowInfo, error),
+	activate func(WindowInfo, time.Duration) error,
+) (*WindowInfo, error) {
 	if timeout <= 0 {
 		return nil, fmt.Errorf("activation timeout must be positive")
 	}
-	deadline := time.Now().Add(timeout)
-	current, err := w.currentExact(context.Background(), target)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	deadline, _ := ctx.Deadline()
+	expired := func() bool { return ctx.Err() != nil || !time.Now().Before(deadline) }
+	timeoutError := &WindowError{Code: WindowVerificationFailed, Message: "exact window did not remain foreground within activation timeout"}
+	if expired() {
+		return nil, timeoutError
+	}
+	current, err := refresh(ctx, target)
+	// Native calls can finish successfully after their budget; check before
+	// accepting any result or submitting the single activation request.
+	if expired() {
+		return nil, timeoutError
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -169,11 +190,25 @@ func (w *darwinWindowManager) Activate(target WindowInfo, timeout time.Duration)
 	if current.IsForeground && current.HasFocus {
 		return current, nil
 	}
-	if err := runExactWindowActivationJXA(target, time.Until(deadline)); err != nil {
+	remaining := time.Until(deadline)
+	if remaining <= 0 || expired() {
+		return nil, timeoutError
+	}
+	err = activate(target, remaining)
+	if expired() {
+		return nil, timeoutError
+	}
+	if err != nil {
 		return nil, err
 	}
 	for {
-		current, err = w.currentExact(context.Background(), target)
+		if expired() {
+			return nil, timeoutError
+		}
+		current, err = refresh(ctx, target)
+		if expired() {
+			return nil, timeoutError
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -183,10 +218,11 @@ func (w *darwinWindowManager) Activate(target WindowInfo, timeout time.Duration)
 		if current.IsForeground && current.HasFocus {
 			return current, nil
 		}
-		if !time.Now().Before(deadline) {
-			return nil, &WindowError{Code: WindowVerificationFailed, Message: "exact window did not remain foreground after one activation request"}
+		select {
+		case <-ctx.Done():
+			return nil, timeoutError
+		case <-time.After(20 * time.Millisecond):
 		}
-		time.Sleep(20 * time.Millisecond)
 	}
 }
 
@@ -406,17 +442,36 @@ func (w *darwinWindowManager) GetTitle(selector string) (string, error) {
 }
 
 func (w *darwinWindowManager) Content() (string, error) {
-	// macOS generic automation cannot reliably scrape full window text for all apps.
-	// Returning active window title keeps compatibility without false data.
-	return w.Title()
+	info, err := w.GetActiveWindow()
+	if err != nil {
+		return "", err
+	}
+	if info == nil || !info.IsForeground {
+		return "", windowOperationError("", WindowNotFound, "no verified active window for content read", nil)
+	}
+	return w.windowContent(info)
 }
 
 func (w *darwinWindowManager) GetContent(selector string) (string, error) {
-	return w.GetTitle(selector)
+	info, err := w.GetWindowByTitle(selector)
+	if err != nil {
+		return "", err
+	}
+	return w.windowContent(info)
 }
 
 func (w *darwinWindowManager) List() ([]map[string]interface{}, error) {
 	windows, err := listMacWindows()
+	if err != nil {
+		return nil, err
+	}
+	return macWindowRows(windows), nil
+}
+
+// ListForPID never degrades to an active-window or full-desktop fallback:
+// callers need all windows in this process to establish uniqueness.
+func (w *darwinWindowManager) ListForPID(pid uint32) ([]map[string]interface{}, error) {
+	windows, err := listMacWindows(pid)
 	if err != nil {
 		return nil, err
 	}
@@ -805,9 +860,20 @@ function run() {
 	return &item, nil
 }
 
-func listMacWindows() ([]macWindow, error) {
+func listMacWindows(pids ...uint32) ([]macWindow, error) {
+	var pid uint32
+	if len(pids) > 0 {
+		pid = pids[0]
+	}
+	fail := func(cause error) ([]macWindow, error) {
+		if pid != 0 {
+			return nil, cause
+		}
+		return fallbackMacWindowList(cause)
+	}
 	script := `
-function run() {
+function run(args) {
+	var targetPid = args && args.length ? Number(args[0]) : 0;
 	var se = Application("System Events");
 	var out = [];
 	var frontPid = -1;
@@ -819,17 +885,19 @@ function run() {
 	} catch (e) {}
 
 	var procs = [];
-	try { procs = se.applicationProcesses.whose({visible: true})(); } catch (e) { return "[]"; }
+	try {
+		procs = se.applicationProcesses.whose(targetPid ? {visible: true, unixId: targetPid} : {visible: true})();
+	} catch (e) { if (targetPid) throw e; return "[]"; }
 
 	for (var i = 0; i < procs.length; i++) {
 		var p = procs[i];
 		var pid = 0;
 		var appName = "";
-		try { pid = Number(p.unixId()); } catch (e) {}
+		try { pid = Number(p.unixId()); } catch (e) { if (targetPid) throw e; }
 		try { appName = String(p.name()); } catch (e) {}
 
 		var ws = [];
-		try { ws = p.windows(); } catch (e) { ws = []; }
+		try { ws = p.windows(); } catch (e) { if (targetPid) throw e; ws = []; }
 		for (var j = 0; j < ws.length; j++) {
 			var w = ws[j];
 			var title = "";
@@ -837,8 +905,14 @@ function run() {
 
 			var pos = [0, 0];
 			var size = [0, 0];
-			try { pos = w.position(); } catch (e) {}
-			try { size = w.size(); } catch (e) {}
+			try { pos = w.position(); } catch (e) { if (targetPid) throw e; }
+			try { size = w.size(); } catch (e) { if (targetPid) throw e; }
+			if (targetPid && (!pos || !size || pos.length !== 2 || size.length !== 2 ||
+				!isFinite(Number(pos[0])) || !isFinite(Number(pos[1])) ||
+				!isFinite(Number(size[0])) || !isFinite(Number(size[1])) ||
+				Number(size[0]) <= 0 || Number(size[1]) <= 0)) {
+				throw new Error("invalid scoped window bounds");
+			}
 
 			out.push({
 				title: title,
@@ -864,21 +938,28 @@ function run() {
 	return JSON.stringify(out);
 }`
 
-	out, err := runJXA(script)
+	var args []string
+	if pid != 0 {
+		args = []string{strconv.FormatUint(uint64(pid), 10)}
+	}
+	out, err := runJXA(script, args...)
 	if err != nil {
-		return fallbackMacWindowList(err)
+		return fail(err)
 	}
 
 	if strings.TrimSpace(out) == "" {
-		return fallbackMacWindowList(fmt.Errorf("JXA returned an empty window list"))
+		return fail(fmt.Errorf("JXA returned an empty window list"))
 	}
 
 	var items []macWindow
 	if err := json.Unmarshal([]byte(out), &items); err != nil {
-		return fallbackMacWindowList(fmt.Errorf("failed to parse macOS window list: %w", err))
+		return fail(fmt.Errorf("failed to parse macOS window list: %w", err))
 	}
-	if len(items) == 0 {
-		return fallbackMacWindowList(fmt.Errorf("JXA returned no visible windows"))
+	if items == nil && pid != 0 {
+		return nil, fmt.Errorf("JXA returned a null window list")
+	}
+	if len(items) == 0 && pid == 0 {
+		return fail(fmt.Errorf("JXA returned no visible windows"))
 	}
 
 	normalized := make([]macWindow, 0, len(items))
@@ -887,31 +968,54 @@ function run() {
 		if items[i].Handle == 0 {
 			items[i].Handle, _ = getMacWindowIDForPIDAndBounds(items[i].PID, items[i].X, items[i].Y, items[i].Width, items[i].Height)
 		}
-		if normalizeMacWindowTitle(&items[i]) {
+		keep, err := normalizeMacWindowListRow(&items[i], pid)
+		if err != nil {
+			return nil, err
+		}
+		if keep {
 			normalized = append(normalized, items[i])
 		}
 	}
-	if len(normalized) == 0 {
-		return fallbackMacWindowList(fmt.Errorf("JXA returned no identifiable visible windows"))
+	if len(normalized) == 0 && pid == 0 {
+		return fail(fmt.Errorf("JXA returned no identifiable visible windows"))
 	}
 
 	// AX/JXA can return only the active modal sheet while omitting the visible
 	// parent document.  Merge CoreGraphics rows even on an otherwise successful
 	// JXA response so callers that captured a document identity before a modal
 	// can still re-read that identity and derive safe relative geometry.
-	return mergeMacWindowCoreGraphics(normalized), nil
+	return mergeMacWindowCoreGraphics(normalized, pid, listMacWindowsCoreGraphics)
 }
 
-func mergeMacWindowCoreGraphics(items []macWindow) []macWindow {
-	coreGraphics, err := listMacWindowsCoreGraphics()
+// Scoped observations must not lose a candidate during normalization: doing so
+// could turn a multi-window process into a false unique match.
+func normalizeMacWindowListRow(item *macWindow, pid uint32) (bool, error) {
+	if pid != 0 && (item == nil || item.PID != pid || item.Width <= 0 || item.Height <= 0) {
+		return false, fmt.Errorf("invalid macOS scoped window identity or bounds")
+	}
+	keep := normalizeMacWindowTitle(item)
+	if pid != 0 && !keep {
+		return false, fmt.Errorf("macOS scoped window has no identifiable title")
+	}
+	return keep, nil
+}
+
+func mergeMacWindowCoreGraphics(items []macWindow, pid uint32, list func() ([]macWindow, error)) ([]macWindow, error) {
+	coreGraphics, err := list()
 	if err != nil {
-		return items
+		if pid != 0 {
+			return nil, err
+		}
+		return items, nil
 	}
 	seen := make(map[string]struct{}, len(items))
 	for _, item := range items {
 		seen[macWindowIdentityKey(item)] = struct{}{}
 	}
 	for _, item := range coreGraphics {
+		if pid != 0 && item.PID != pid {
+			continue
+		}
 		key := macWindowIdentityKey(item)
 		if _, ok := seen[key]; ok {
 			continue
@@ -919,7 +1023,7 @@ func mergeMacWindowCoreGraphics(items []macWindow) []macWindow {
 		seen[key] = struct{}{}
 		items = append(items, item)
 	}
-	return items
+	return items, nil
 }
 
 func macWindowIdentityKey(item macWindow) string {

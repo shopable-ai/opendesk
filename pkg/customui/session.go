@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Session struct {
@@ -35,6 +36,9 @@ func NewSession(id, baseDir string, driver Driver, onEvent func(Event)) (*Sessio
 
 func (s *Session) ID() string { return s.id }
 
+// Create can return a non-nil Window with an error if a delivered native
+// resource could not be cleaned up. The session retains that resource, and the
+// caller may retry Close; an error must never hide or mark it closed.
 func (s *Session) Create(ctx context.Context, declaration WindowSpec) (*Window, error) {
 	spec, err := Normalize(declaration, s.baseDir)
 	if err != nil {
@@ -90,23 +94,36 @@ func (s *Session) Create(ctx context.Context, declaration WindowSpec) (*Window, 
 	window.driver = driverWindow
 	state, err := driverWindow.State(ctx)
 	if err != nil {
-		_, _ = driverWindow.Close(context.Background())
-		window.markFailed()
-		s.removeFailedWindow(spec.ID, window)
-		window.operation.Unlock()
-		return nil, withUIErrorContext(wrapDriver("getState", spec.ID, err), "getState", spec.ID, "")
+		return s.cleanupCreatedWindow(window, withUIErrorContext(wrapDriver("getState", spec.ID, err), "getState", spec.ID, ""))
 	}
 	window.setState(state)
-	window.operation.Unlock()
 
 	s.mu.RLock()
-	if s.closed {
-		s.mu.RUnlock()
-		_, _ = window.Close(context.Background())
-		return nil, &Error{Code: CodeCanceled, Operation: "createWindow", WindowID: spec.ID, Message: "custom UI session closed during window creation"}
-	}
+	closed := s.closed
 	s.mu.RUnlock()
+	if closed {
+		return s.cleanupCreatedWindow(window, &Error{Code: CodeCanceled, Operation: "createWindow", WindowID: spec.ID, Message: "custom UI session closed during window creation"})
+	}
+	window.operation.Unlock()
 	return window, nil
+}
+
+// The creating worker still owns operation here. Use an independent deadline:
+// the create context may already be canceled, and teardown waits on this lock.
+func (s *Session) cleanupCreatedWindow(window *Window, cause error) (*Window, error) {
+	defer window.operation.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	state, err := window.driver.Close(ctx)
+	if err != nil {
+		// Do not markFailed (Close treats that as having no resource), remove
+		// the registry entry, or release the ID while native ownership is live.
+		return window, errors.Join(cause, fmt.Errorf("custom UI creation cleanup failed: %w", wrapDriver("close", window.ID(), err)))
+	}
+	window.setState(state)
+	window.markClosed()
+	s.removeFailedWindow(window.ID(), window)
+	return nil, cause
 }
 
 func (s *Session) removeFailedWindow(id string, window *Window) {

@@ -6,13 +6,15 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { Store } from './core/store.mjs';
 import { Workflow } from './core/engine.mjs';
-import { dispatch, validateDeepLink } from './core/adapters.mjs';
+import { uiState } from './core/ui-state.mjs';
+import { dispatch, nativeExecutionStopped } from './core/adapters.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const appRoot = path.join(root, 'examples/codex-workflow-companion');
 const stateDir = process.env.OD_CWF_STATE_DIR || path.join(root, '.runtime/tests/codex-workflow-companion');
 const store = new Store(stateDir);
-const workflow = new Workflow(store, { mode: process.env.OD_CWF_MODE || 'simulate', reviewPolicy: process.env.OD_CWF_REVIEW || 'manual' });
+const workflow = new Workflow(store, { mode: process.env.OD_CWF_MODE || 'simulate', reviewPolicy: process.env.OD_CWF_REVIEW || 'manual',
+  nativeExecutionStopped: attemptId => nativeExecutionStopped(stateDir, attemptId) });
 const secret = randomBytes(32).toString('hex');
 const uiToken = randomBytes(32).toString('hex');
 let base = '';
@@ -27,14 +29,22 @@ async function afterMutation() {
   if (!next || next.dispatch !== 'reserved' || dispatchInFlight.has(next.attemptId)) return;
   dispatchInFlight.add(next.attemptId);
   try {
-    const result = await dispatch(next, workflow.s.mode, {
-      runtimeDir: stateDir, appServer: { onTurnCompleted: status => workflow.hostedEvent(next.attemptId, status) }, profileFile: path.join(stateDir,'profile.json'),
-      openDeskBinary: process.env.OD_CWF_OPENDESK_BINARY,
-    });
+    let result;
+    try {
+      result = await dispatch(next, workflow.s.mode, {
+        runtimeDir: stateDir, appServer: { onTurnCompleted: status => {
+          try { workflow.hostedEvent(next.attemptId, status); }
+          catch { console.error('CWF_HOSTED_STATE_WRITE_FAILED_RESTART_REQUIRED'); }
+        } }, profileFile: path.join(stateDir,'profile.json'),
+        openDeskBinary: process.env.OD_CWF_OPENDESK_BINARY,
+      });
+    } catch (error) {
+      // Dispatch may already have produced external actions. Never replay it.
+      result = { status: error.dispatchPossiblySent ? 'unknown' : 'blocked' };
+    }
+    // A persistence failure here poisons the owner. Do not reinterpret it as a
+    // dispatch failure or attempt another state write with a different outcome.
     workflow.dispatchResult({ attemptId: next.attemptId, ...result });
-  } catch (error) {
-    // Post-reservation failure may have produced external actions: never retry automatically.
-    workflow.dispatchResult({ attemptId: next.attemptId, status: error.dispatchPossiblySent ? 'unknown' : 'blocked' });
   } finally {
     dispatchInFlight.delete(next.attemptId);
   }
@@ -92,7 +102,8 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/state' && req.method === 'GET') {
       if (req.headers['x-od-cwf-ui'] !== uiToken && req.headers.authorization !== 'Bearer '+secret) return json(res,403,{ok:false});
-      return json(res,200,{ok:true, state:workflow.publicState()});
+      const state = workflow.publicState();
+      return json(res,200,{ok:true, state:url.searchParams.get('view') === 'compact' ? uiState(state) : state});
     }
     if (req.method !== 'POST' || !['/api/operator','/api/mcp','/api/hook'].includes(url.pathname)) return json(res,404,{ok:false});
     const internal = req.headers.authorization === 'Bearer '+secret;
@@ -110,7 +121,8 @@ const server = http.createServer(async (req, res) => {
       if (req.headers['x-opendesk-source'] !== 'codex-workflow-companion') return json(res,403,{ok:false});
       result = workflow.hook(body, req.headers['x-opendesk-delivery-id']);
     }
-    await afterMutation();
+    // A status read must never dispatch a task, including after a failed write.
+    if (!(url.pathname === '/api/mcp' && body.name === 'workflow_status')) await afterMutation();
     return json(res,200,{ok:true,result,state:workflow.publicState()});
   } catch (error) { return json(res,400,safeError(error)); }
 });

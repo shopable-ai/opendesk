@@ -1,41 +1,22 @@
 #!/usr/bin/env bash
-
 set -euo pipefail
-
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BIN_PATH="${OPENDESK_BINARY:-${ROOT_DIR}/dist/opendesk}"
-
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  echo "This script is for macOS only." >&2
+[[ "$(uname -s)" == Darwin ]] || { echo 'This script is for macOS only.' >&2; exit 1; }
+APP_PATH="${OPENDESK_APP:-${ROOT_DIR}/dist/OpenDesk.app}"
+BIN_PATH="${APP_PATH}/Contents/MacOS/opendesk"
+if [[ -n "${OPENDESK_BINARY:-}" && "${OPENDESK_BINARY}" != "${BIN_PATH}" && "${OPENDESK_BINARY}" != "${ROOT_DIR}/dist/opendesk" ]]; then
+  echo 'Stable launch requires the signed App owner. Use OPENDESK_APP, not a loose OPENDESK_BINARY.' >&2
   exit 1
 fi
-
-if [[ "${REBUILD:-0}" == "1" ]]; then
-  if ! command -v go >/dev/null 2>&1; then
-    echo "REBUILD=1 requires Go in PATH" >&2
-    exit 1
-  fi
-  echo "[build] compiling stable binary -> ${BIN_PATH}"
-  CGO_ENABLED=1 go build -o "${BIN_PATH}" "${ROOT_DIR}/cmd/opendesk"
-  chmod +x "${BIN_PATH}"
+if [[ "${REBUILD:-0}" == 1 ]]; then
+  [[ "${APP_PATH}" == "${ROOT_DIR}/dist/OpenDesk.app" ]] || { echo 'REBUILD=1 only builds the repository dist app' >&2; exit 1; }
+  "${ROOT_DIR}/scripts/build_macos_app.sh"
 fi
-
-if [[ ! -x "${BIN_PATH}" ]]; then
-  echo "stable OpenDesk binary not found or not executable: ${BIN_PATH}" >&2
-  echo "build it with scripts/build_macos_app.sh or set OPENDESK_BINARY" >&2
-  exit 1
-fi
-
-APP_EXECUTABLE_PATH="${ROOT_DIR}/dist/OpenDesk.app/Contents/MacOS/opendesk"
-BUILD_STAMP_PATH="${ROOT_DIR}/dist/OpenDesk.app/Contents/Resources/opendesk-payload.sha256"
-if [[ -f "${BIN_PATH}" && -f "${BUILD_STAMP_PATH}" ]]; then
-  bin_digest="$(shasum -a 256 "${BIN_PATH}" | awk '{print $1}')"
-  app_digest="$(sed -n '1p' "${BUILD_STAMP_PATH}")"
-  if [[ -z "${app_digest}" || "${app_digest}" != "${bin_digest}" ]]; then
-    echo "[warning] fixed OpenDesk.app is not synchronized with ${BIN_PATH}; rebuild with scripts/build_macos_app.sh" >&2
-  fi
-elif [[ -f "${APP_EXECUTABLE_PATH}" ]]; then
-  echo "[warning] cannot prove fixed OpenDesk.app is synchronized; rebuild with scripts/build_macos_app.sh" >&2
-fi
-
+source "${ROOT_DIR}/scripts/macos_signing.sh"
+macos_signing_load verify
+[[ -x "${BIN_PATH}" ]] || { echo "Signed app not found: ${APP_PATH}" >&2; exit 1; }
+bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${APP_PATH}/Contents/Info.plist")"
+macos_signing_verify_app "${APP_PATH}" "${bundle_id}"
+# CLI execution still has its own responsibility chain. This launcher validates
+# identity; App-owned permission acceptance must use the actual running App.
 exec "${BIN_PATH}" "$@"

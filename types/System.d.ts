@@ -42,6 +42,11 @@ declare global {
     drops: number;
   }
 
+  interface OpenDeskPowerInfo {
+    /** Raw platform command stdout; absent when unavailable or the command fails. */
+    batteryData?: string;
+  }
+
   interface OpenDeskNetworkConnectionInfo {
     fd: number;
     family: number;
@@ -130,7 +135,7 @@ declare global {
     killProcess(pid: number): void;
     getNetworkInterfaces(): OpenDeskNetworkInterfaceInfo[];
     getNetworkConnections(): OpenDeskNetworkConnectionInfo[];
-    getPowerInfo(): Record<string, unknown>;
+    getPowerInfo(): OpenDeskPowerInfo;
     shutdown(delay: number): void;
     restart(delay: number): void;
     /** Suspends the host operating system; use delay() to pause only the script. */

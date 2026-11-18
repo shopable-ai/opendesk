@@ -1206,13 +1206,36 @@
   }
 
   function pathWithin(candidate, root) {
-    const normalizedCandidate = global.path.normalize(candidate);
-    const normalizedRoot = global.path.normalize(root);
+    let normalizedCandidate = global.path.normalize(candidate);
+    let normalizedRoot = global.path.normalize(root);
+    const separator = global.path.sep;
+    if (separator === '\\') {
+      normalizedCandidate = normalizedCandidate.toLowerCase();
+      normalizedRoot = normalizedRoot.toLowerCase();
+    }
     if (normalizedCandidate === normalizedRoot) return true;
-    const separator = normalizedRoot.indexOf('\\') !== -1 ? '\\' : '/';
     const prefix = normalizedRoot.endsWith(separator) ? normalizedRoot : normalizedRoot + separator;
-    if (separator === '\\') return normalizedCandidate.toLowerCase().indexOf(prefix.toLowerCase()) === 0;
     return normalizedCandidate.indexOf(prefix) === 0;
+  }
+
+  function resolveAgentCwd(selection, cwd, operation) {
+    const details = { backend: selection.backend, profile: selection.profile.name };
+    if (!global.File || typeof global.File.realPath !== 'function' || typeof global.File.isDir !== 'function') {
+      fail(operation, 'RUNTIME_UNAVAILABLE', 'File real path resolution is required', 'configuration', details);
+    }
+    let actualRoot;
+    let actualCwd;
+    try {
+      actualRoot = global.File.realPath(selection.allowedCwd);
+      actualCwd = global.File.realPath(cwd);
+      if (!global.File.isDir(actualRoot) || !global.File.isDir(actualCwd)) throw new Error('not a directory');
+    } catch (_) {
+      fail(operation, 'CWD_OUTSIDE_ALLOWED_SCOPE', 'cwd and allowedCwd must resolve to existing directories', 'configuration', details);
+    }
+    if (!pathWithin(actualCwd, actualRoot)) {
+      fail(operation, 'CWD_OUTSIDE_ALLOWED_SCOPE', 'resolved cwd is outside the selected profile allowedCwd', 'configuration', details);
+    }
+    return actualCwd;
   }
 
   function resolveAgentSelection(options, operation) {
@@ -1325,9 +1348,6 @@
     const allowedCwd = resolvePath(profile.allowedCwd || global.Execution.workdir, operation, `profile ${profile.name}.allowedCwd`);
     const profileCwd = profile.cwd ? resolvePath(profile.cwd, operation, `profile ${profile.name}.cwd`) : null;
     const requestedCwd = options.cwd ? resolvePath(options.cwd, operation, 'cwd') : profileCwd;
-    if (requestedCwd && !pathWithin(requestedCwd, allowedCwd)) {
-      fail(operation, 'CWD_OUTSIDE_ALLOWED_SCOPE', 'cwd is outside the selected profile allowedCwd', 'configuration', { backend, profile: profile.name });
-    }
     const backendOptions = Object.assign(
       {},
       profile.backendOptions,
@@ -1517,9 +1537,12 @@
   }
 
   async function runOwnedCommand(selection, args, input, cwd, scope, operation) {
+    scope.check();
+    const actualCwd = resolveAgentCwd(selection, cwd, operation);
+    scope.check();
     try {
       return await global.Command.run(selection.executable, args, {
-        cwd,
+        cwd: actualCwd,
         envMode: 'replace',
         env: safeChildEnvironment(selection, operation),
         timeout: remaining(scope.deadlineAt, operation, selection.backend),

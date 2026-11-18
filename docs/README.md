@@ -20,6 +20,7 @@ OpenDesk 当前保留两类正式文档根：
 | 自动化系统整体怎样设计？ | [自动化总体框架](frameworks/automation-framework.md) |
 | 这个业务任务怎样拆解、交接和验证？ | [自动化任务求解方法](frameworks/automation-problem-solving-framework.md) |
 | 一个具体应用怎样分析和开发？ | [应用自动化开发框架](frameworks/app-development-framework.md) |
+| 怎样用 JS 构建和交付自己的桌面应用？ | [JavaScript 桌面应用解决方案](frameworks/javascript-desktop-app-solution.md) |
 | 一次示范怎样形成可维护自动化？ | [示范到自动化执行方法](frameworks/demonstration-to-automation-pipeline.md) |
 | 能力应该在哪一层扩展？ | [Runtime API 扩展与定制框架](frameworks/runtime-api-extension-framework.md) |
 | OpenDesk 怎样从简单做到复杂？ | [能力开发与成熟度路径](frameworks/capability-development.md) |
@@ -66,6 +67,7 @@ OpenDesk 长期使用的核心开发框架，是桌面自动化开发的重要�
 - `automation-problem-solving-framework.md`：业务任务求解、六类解题模式和步骤交接。
 - `capability-development.md`：能力开发与成熟度路径。
 - `app-development-framework.md`：应用自动化开发框架。
+- `javascript-desktop-app-solution.md`：JS 桌面应用的通用组合方案，涵盖界面、Runtime 交互、App Mode、交付与示例。
 - `demonstration-to-automation-pipeline.md`：示范到自动化执行方法与千牛案例的唯一主流程正文。
 - `runtime-api-extension-framework.md`：能力扩展与交付层级。
 

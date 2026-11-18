@@ -22,6 +22,17 @@
 该命令使用客户端内建的本地控制面与内存队列；其临时 loopback HTTP 入口属于客户端调试设施，
 不是 OpenDesk 产品服务，也不是 OpenAI 官方云端。没有执行云端认证、隧道创建、云端轮询或 ChatGPT 插件调用。
 
+### 活动 Tunnel 的构建身份诊断
+
+桌面 Runtime 的 `tm_status.buildIdentity` 现提供 PID、GOOS/GOARCH、GoVersion（JSON 字段为
+`pid`、`goos`、`goarch`、`goVersion`）、VCS `revision`/`modified`；缺失表示未知，
+`revision` 可省略，`modified` 可为 `null`。可执行文件仅返回 basename、SHA256 与观测时间，
+在本 Runtime 实例初始化时采集并缓存一次；SHA256 是当时磁盘文件的观测，**不是加载内存的证明**。
+采集失败只返回固定错误码，不使 status 失败，也不返回完整路径、argv、环境或密钥。
+核验活动 Tunnel 是否同步，须将该身份与本地 manifest 固定 SHA、现场进程路径/argv/父子关系，
+以及切换后的 fresh 业务调用共同核对；`initialize` 的静态 `serverInfo.version` 或已安装文件哈希
+本身均不能证明活动 Tunnel 已同步。
+
 ## 官方文档与权限
 
 - [Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)：
@@ -372,11 +383,13 @@ key 通过隐藏输入进入子 shell 的环境，客户端读取 profile 中的
 
 上述英文入口与认证选项来自官方文档；三工具专用插件另有真实网页证据，但不证明所有账户均显示相同 UI 或具备访问资格。
 
-### 5. 首次只验证 tm_status 和 7 个只读工具
+### 5. 首次只验证 tm_status 和当前只读工具
 
 保持正式 `run` 进程运行，检查插件发现的工具是否恰好为：
 `tm_status`、`tm_permissions`、`tm_list_windows`、`tm_get_active_window`、
-`tm_list_displays`、`tm_wait_for_window`、`tm_screenshot`，并均有只读标注。
+`tm_list_displays`、`tm_wait_for_window`、`tm_screenshot`、`tm_runtime_capabilities`，并均有只读标注。
+这是 2026-11-18 源码的默认八工具集合；本文早先七工具 probe 是历史版本证据，不据此声称新增工具已通过云端验证。
+若宿主另外配置 `--api-docs-root`，还会发现只读文档工具；不要给该 Tunnel 配置脚本执行选项。
 若出现写工具或工具集不符，先核对 profile 的 `--read-only` 和实际二进制，再刷新发现；不要继续调用。
 
 首次在对话输入框通过 `@` 选择该插件，只请求：
@@ -386,7 +399,7 @@ key 通过隐藏输入进入子 shell 的环境，客户端读取 profile 中的
 ```
 
 检查工具详情中的实际输入、输出和错误；不能用模型文字回答、工具列表出现、doctor 成功或本地 probe
-替代真实云端调用证据。7 个只读工具的列表核验不要求逐一调用；首次不要截图、读取私人窗口或执行桌面输入。
+替代真实云端调用证据。只读工具的列表核验不要求逐一调用；首次不要截图、读取私人窗口或执行桌面输入。
 只有正式客户端轮询、插件发现与这次 `tm_status` 云端调用均实际成功，才能报告该在线路径接入成功。
 
 早先无密钥本地 probe 没有验证任何云端接入；其结论仅为本地兼容。
@@ -398,4 +411,11 @@ key 通过隐藏输入进入子 shell 的环境，客户端读取 profile 中的
 
 已复用原有 MCP Server 的协议处理，在 `pkg/mcpserver/files_bridge.go` 增加四工具专属隔离模式（`tm_files_status`、`tm_files_list`、`tm_files_read`、`tm_files_write`）及定向单元测试。它仅接受经认证的受限 Native 后端接口；不会打开任何工作区路径或 mint grant。原 `--web-file-test-dir` 固定 nonce 模式及桌面模式保持不变。
 
-**当前不可启动正式文件 Bridge：** `opendesk-mcp --files-bridge-credential-file` 在受限 Native owner 完成独立 capability 通道与本地显式授权前明确返回 `WAITING_FOR_NATIVE_OWNER`。不得以普通 Socket、浏览器网页监听、禁用身份验证或三工具旧证明模式充当替代。共享 owner 接线合同见 [files-bridge-native-contract.zh-CN.md](files-bridge-native-contract.zh-CN.md)。原 Tunnel 配置、key 和已有启动器不在本次 MCP-only 提交中改动。真实 Mac 构建、Tunnel 认证、ChatGPT 文件调用及撤权均为 NOT_TESTED。
+**2026-11-02 的历史状态（已由下述当前账号验证取代）：** `opendesk-mcp --files-bridge-credential-file` 在受限 Native owner 完成独立 capability 通道与本地显式授权前明确返回 `WAITING_FOR_NATIVE_OWNER`。不得以普通 Socket、浏览器网页监听、禁用身份验证或三工具旧证明模式充当替代。共享 owner 接线合同见 [files-bridge-native-contract.zh-CN.md](files-bridge-native-contract.zh-CN.md)。原 Tunnel 配置、key 和已有启动器不在本次 MCP-only 提交中改动。真实 Mac 构建、Tunnel 认证、ChatGPT 文件调用及撤权均为 NOT_TESTED。
+
+
+## 2026-11-10：当前账号核心验证
+
+当前组织的官方 Secure MCP Tunnel 已完成真实 ChatGPT WEB 桌面计算器五次点击与受限 Native 文件闭环。文件模式只发现四工具；未知 marker 读取、固定 expected SHA/requestId 准确一次写入、再次读取与独立磁盘 SHA 对账、未批准路径及显式撤权后的正文/历史回执拒绝均通过。只使用原 Native 文件执行器，无第二套文件服务。秘密以0700目录内0600文件保存，仅由官方客户端读取file引用。
+
+具体账号、签名 Native 实际加载、构建来源、当前测试边界和可复用启动命令见[当前账号核心质量记录](../../quality/mcp/2026-11-10-current-account-tunnel.md)。完整 CI、production、跨平台及压力测试继续延期；网页直接图像渲染仍未通过，计算器读数由原网页截图、独立AX与网页local OCR证明。历史共享key的恢复不属于本轮范围。

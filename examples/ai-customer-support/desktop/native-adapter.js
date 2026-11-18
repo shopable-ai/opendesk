@@ -45,13 +45,15 @@
         if(win.pid!==target.pid||win.exePath!==target.exePath||!win.handle||!win.isForeground)throw Error('Unverified target');
         const conversation=parse(snapshot),latest=conversation.messages.filter(m=>m.who==='customer').at(-1);
         const identity=[win.pid,win.handle,conversation.customerId,latest?.id||'none'].join(':');
+        const contextChanged=!!current&&JSON.stringify(current.conversation.messages)!==JSON.stringify(conversation.messages);
         const last=current?.binding;
-        if(!last||last.windowId!==win.handle||last.customerId!==conversation.customerId||last.messageId!==(latest?.id||'none')||!current.observing)generation++;
+        if(!last||last.windowId!==win.handle||last.customerId!==conversation.customerId||last.messageId!==(latest?.id||'none')||!current.observing||contextChanged)generation++;
         const events=[];
         for(const m of conversation.messages){
           const key=win.pid+':'+win.handle+':'+conversation.customerId+':'+m.id,old=seen.get(key);
-          if(old!==undefined&&old!==m.text)throw Error('Same message identity changed body');
-          if(old===undefined){seen.set(key,m.text);events.push({...m,customerId:conversation.customerId,source:{backend:snapshot.backend,requestId:snapshot.requestId,pid:win.pid,windowId:win.handle,identifier:'support.message.'+m.id+'.'+m.who}});}
+          const content=JSON.stringify([m.who,m.text]);
+          if(old!==undefined&&old!==content)throw Error('Same message identity changed body');
+          if(old===undefined){if(seen.size>=2000)throw Error('Observation budget exhausted; explicit relaunch required');seen.set(key,content);events.push({...m,customerId:conversation.customerId,source:{backend:snapshot.backend,requestId:snapshot.requestId,pid:win.pid,windowId:win.handle,identifier:'support.message.'+m.id+'.'+m.who}});}
         }
         const key=JSON.stringify([identity,conversation]);
         const changed=key!==fingerprint;fingerprint=key;

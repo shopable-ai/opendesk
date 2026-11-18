@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const cp = require('node:child_process');
+const {isDeepStrictEqual} = require('node:util');
 const config = require('./api-docs-map');
 const ROOT = path.resolve(__dirname, '..');
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
@@ -23,8 +24,18 @@ function readFile(root, rel, ledger = []) {
   if (!stat.isFile() || stat.size > 2 * 1024 * 1024) throw new Error(`READ_SIZE_OR_TYPE ${rel}`);
   const bytes = fs.readFileSync(absolute);
   const text = new TextDecoder('utf-8', {fatal: true, ignoreBOM: true}).decode(bytes);
-  ledger.push({path: rel, sha256: hash(bytes), ...size(text)});
+  const sha256 = hash(bytes);
+  if (ledger.some(entry => entry.path === rel && entry.sha256 !== sha256)) throw new Error(`SOURCE_CHANGED ${rel}`);
+  ledger.push({path: rel, sha256, ...size(text)});
   return text;
+}
+function assertSourcesStable(root, ledger) {
+  for (const source of new Map(ledger.map(entry => [entry.path, entry])).values()) {
+    // Reapply path, regular-file and UTF-8 checks at the output boundary too.
+    const current = [];
+    readFile(root, source.path, current);
+    if (current[0].sha256 !== source.sha256) throw new Error(`SOURCE_CHANGED ${source.path}`);
+  }
 }
 function parseMarkdown(text) {
   const lines = text.split('\n');
@@ -74,7 +85,9 @@ function directMethod(d, name) {
   const r = new RegExp(`(?:^|[\\s：/])${reEscape(name)}(?:\\s*\\(|$|\\s*[：/])`);
   const matches = d.headings.filter(h => h.level >= 2 && r.test(h.title));
   if (!matches.length && name === 'scope.locator') return d.headings.find(h => h.title === 'UI Scope locator(target)');
-  return matches.sort((a, b) => b.level - a.level || a.title.length - b.title.length)[0];
+  // Canonical methods are H2; a nested shared heading such as
+  // "Command.run() options" cannot replace the method's full contract.
+  return matches.sort((a, b) => a.level - b.level || a.title.length - b.title.length)[0];
 }
 function ownerSection(d, name) {
   let match = directMethod(d, name);
@@ -154,7 +167,7 @@ function typeMethods(root, id, ledger = []) {
       return [...d.members, ...d.parents.flatMap(p => members(p, seen))];
     };
     for (const namespace of config.surfaces[id] || []) {
-      const target = config.instances[namespace] || vars.get(namespace);
+      const target = config.instances[namespace] || config.referenceInstances[namespace] || vars.get(namespace);
       for (const item of members(target)) {
         const name = `${namespace}.${item.name}`;
         const old = out.get(name) || [];
@@ -258,7 +271,10 @@ const conditions = {
 function methodEntries(root, d, ledger = []) {
   const listed = d.id === 'libs' ? new Map() : overview(d), typed = typeMethods(root, d.id, ledger);
   if (d.id === 'window') typed.delete('window.js_beautify');
-  const names = new Set([...listed.keys(), ...typed.keys()]);
+  const names = new Set(listed.keys());
+  for (const name of typed.keys()) {
+    if (!config.referenceInstances[name.split('.')[0]]) names.add(name);
+  }
   for (const h of d.headings) {
     for (const n of config.surfaces[d.id] || []) {
       for (const m of h.title.matchAll(new RegExp(`\\b${reEscape(n)}\\.([\\w$]+)`, 'g'))) names.add(`${n}.${m[1]}`);
@@ -315,7 +331,9 @@ function catalog(root, groupId, ledger = []) {
   const sources = [...new Map(ledger.map(x => [x.path, x])).values()];
   out.push('\n## 生成依据\n\n维护命令：`node scripts/api-docs.js generate`；校验：`node scripts/api-docs.js check`。不能手工改本表；修改 canonical 正文/类型后重生成。下面是内容版本，不把旧行号当成当前定位。\n');
   for (const s of sources) out.push(`- \`${s.path}\` SHA-256 \`${s.sha256}\``);
-  return out.join('\n\n').replace(/(?<=\|)\n\n(?=\|)/g, '\n') + '\n';
+  const output = out.join('\n\n').replace(/(?<=\|)\n\n(?=\|)/g, '\n') + '\n';
+  assertSourcesStable(root, ledger);
+  return output;
 }
 function readContract(root, id, name, withTypes = false) {
   const programReads = [], blocks = [], typeSeeds = [], visited = new Set();
@@ -328,7 +346,7 @@ function readContract(root, id, name, withTypes = false) {
   const shared = (d, method) => {
     const firstH2 = d.headings.find(h => h.level === 2)?.start ?? d.lines.length;
     add(d, {start: 0, end: firstH2}, 'page-preconditions');
-    if (d.id === 'runtime') return;
+    if (d.id === 'runtime' || (d.id === 'http' && method === 'http.download')) return;
     for (const h of d.headings.filter(h => h.level === 2)) {
       if (d.id === 'desktop-ui' && h.title === '公共约定') {
         for (const title of config.uiShared) add(d, section(d, title), 'UI-common');
@@ -391,14 +409,14 @@ function readContract(root, id, name, withTypes = false) {
     merged.push(...blocks.filter(b => b.path === rel && (b.startLine === null || b.typeExcerpt)));
   }
   const snapshot = [...new Map(programReads.map(r => [r.path, r])).values()];
-  // 当前文件在准备输出期间发生变化时失败，不混用两版资料。
-  for (const s of snapshot) if (hash(fs.readFileSync(path.join(root, s.path))) !== s.sha256) throw new Error(`SOURCE_CHANGED ${s.path}`);
   let revision = 'unavailable (source hashes above identify content)';
   try { revision = cp.execFileSync('git', ['rev-parse','HEAD'], {cwd: root, stdio: ['ignore','pipe','ignore']}).toString().trim(); } catch {}
   const output = [`# API 阅读包：${name}`, `Revision: ${revision}`, '这是选中 Reference 的原文与声明依赖，不是执行结果或宿主能力证明。未说明的行为必须补证；不得从类型/示例猜测授权、错误或成功。',
     ...merged.map(b => `<!-- source: ${b.path}:${b.startLine ?? 'member'}-${b.endLine ?? 'member'} sha256=${b.sourceSha256} reason=${b.reason} -->\n\n${b.text}`),
     '<!-- END_API_READING_PACKET: only a packet with this marker is complete -->'].join('\n\n') + '\n';
-  return {output, report: {selection: {doc: id, selector: name, withTypes}, packetSha256: hash(output), revision, programReads: snapshot, returnedRanges: merged.map(({text, ...b}) => ({...b, ...size(text)})), returned: size(output), tokenUsage: null, modelLoaded: false, desktopExecuted: false}};
+  const report = {selection: {doc: id, selector: name, withTypes}, packetSha256: hash(output), revision, programReads: snapshot, returnedRanges: merged.map(({text, ...b}) => ({...b, ...size(text)})), returned: size(output), tokenUsage: null, modelLoaded: false, desktopExecuted: false};
+  assertSourcesStable(root, programReads);
+  return {output, report};
 }
 function checkLinks(root, rel, text) {
   const errors = [];
@@ -445,7 +463,10 @@ function verifyPacket(root, output, report) {
   if (!report?.selection || typeof report.selection.doc !== 'string' || typeof report.selection.selector !== 'string' || typeof report.selection.withTypes !== 'boolean') throw new Error('INVALID_PACKET_PLAN');
   if (typeof output !== 'string' || hash(output) !== report.packetSha256 || size(output).bytes !== report.returned?.bytes || size(output).characters !== report.returned?.characters) throw new Error('PACKET_INCOMPLETE_OR_CHANGED');
   const current = readContract(root, report.selection.doc, report.selection.selector, report.selection.withTypes);
-  if (current.output !== output || JSON.stringify(current.report.returnedRanges) !== JSON.stringify(report.returnedRanges)) throw new Error('PACKET_SOURCE_OR_PLAN_CHANGED');
+  // JSON transports may reorder object keys (including Go's encoding/json).
+  // Preserve array order and every plan value while comparing object keys
+  // semantically. Verify the complete ledger, not only returned line ranges.
+  if (current.output !== output || !isDeepStrictEqual(current.report, report)) throw new Error('PACKET_SOURCE_OR_PLAN_CHANGED');
   return {ok: true, packetSha256: report.packetSha256, returned: size(output), modelLoaded: false};
 }
 function boundedOutput(result, limit) {

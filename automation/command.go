@@ -96,6 +96,7 @@ type CommandRuntime struct {
 	loop        *eventloop.EventLoop
 	enabled     bool
 	environment []string
+	workdir     string
 	eventSink   EventSink
 
 	closing   atomic.Bool
@@ -152,6 +153,7 @@ func registerCommand(runtimeValue *goja.Runtime, opts InitJSOptions) *CommandRun
 		loop:        opts.EventLoop,
 		enabled:     opts.EnableCommand,
 		environment: environment,
+		workdir:     opts.WorkDir,
 		eventSink:   opts.EventSink,
 		processes:   make(map[*commandProcess]struct{}),
 	}
@@ -200,6 +202,9 @@ func (c *CommandRuntime) run(call goja.FunctionCall) goja.Value {
 	spec, signal, err := parseCommandInvocation(call, c.environment)
 	if err != nil {
 		return rejectWith(err)
+	}
+	if spec.cwd == "" {
+		spec.cwd = c.workdir
 	}
 	var process *commandProcess
 	cleanupAbort, preCanceled, err := c.bindAbortSignal(signal, func() {
@@ -685,7 +690,9 @@ func (c *CommandRuntime) ResourceCounts() (workers int64, callbacks int64, proce
 
 func parseCommandInvocation(call goja.FunctionCall, environment []string) (commandSpec, goja.Value, error) {
 	spec := commandSpec{
-		env:            append([]string(nil), environment...),
+		// exec.Cmd interprets nil Env as inheriting the process environment.
+		// An empty Execution.env must stay an explicit, non-nil empty slice.
+		env:            append([]string{}, environment...),
 		maxOutputBytes: commandDefaultMaxOutput,
 		emitOutput:     true,
 	}

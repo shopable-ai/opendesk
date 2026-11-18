@@ -30,6 +30,7 @@ var filesExtensions = map[string]bool{
 type filesReceipt struct {
 	digest   [32]byte
 	response filesResponse
+	confirmed bool
 }
 
 type nativeFiles struct {
@@ -41,6 +42,8 @@ type nativeFiles struct {
 	receipts    map[string]filesReceipt
 	temporary   map[string]workspaceGrant
 	devBindings map[string]devWorkspaceBinding
+	mcpGrants map[string]*filesMCPGrant
+	writeConfirmed bool
 }
 
 func newNativeFiles(cfg Installation) (*nativeFiles, error) {
@@ -70,7 +73,7 @@ func (f *nativeFiles) state() map[string]any {
 func filesCapabilities() map[string]any {
 	return map[string]any{"supported": true, "version": FilesVersion, "maxContentBytes": FilesMaxContentBytes,
 		"maxFrameBytes": MaxBytes, "writePrecondition": "sha256-optimistic", "createExclusive": true, "devLeaseEpoch": 1,
-		"methods": []string{"files.status", "workspaces.list", "files.list", "files.read", "files.write", "files.create"}}
+		"methods": []string{"files.status", "workspaces.list", "files.list", "files.read", "files.inspectImage", "files.write", "files.create"}}
 }
 
 func (f *nativeFiles) Handle(req filesRequest) filesResponse {
@@ -103,6 +106,14 @@ func (f *nativeFiles) Handle(req filesRequest) filesResponse {
 		}
 		f.refreshDevLeaseFences(state)
 	}
+	return f.handleLocked(req, state)
+}
+
+// handleLocked shares the original executor and receipt ledger with the purpose-bound channel.
+// Caller owns f.mu and the workspace-store lock.
+func (f *nativeFiles) handleLocked(req filesRequest, state workspaceStore) filesResponse {
+	f.writeConfirmed = false
+	response := newFilesResponse(req)
 	// Check public lease generation before returning a saved receipt. Reusing a
 	// receipt never writes twice, but a retired binding must not report a new
 	// operation as successful after its owner has exited or reattached.
@@ -119,6 +130,7 @@ func (f *nativeFiles) Handle(req filesRequest) filesResponse {
 				response.Error = filesFailure("E_REQUEST_CONFLICT")
 				return response
 			}
+			f.writeConfirmed = previous.confirmed
 			return previous.response
 		}
 		if len(f.receipts) >= filesMaxMutations {
@@ -128,7 +140,7 @@ func (f *nativeFiles) Handle(req filesRequest) filesResponse {
 		// This ledger is bounded and lasts exactly one native session. It is a
 		// receipt for a known request, never permission to replay an unknown
 		// write after a disconnect or with a new request/session ID.
-		defer func() { f.receipts[req.RequestID] = filesReceipt{digest, response} }()
+		defer func() { f.receipts[req.RequestID] = filesReceipt{digest: digest, response: response, confirmed: f.writeConfirmed} }()
 	}
 	result, err := f.call(req, state)
 	if err != nil {
@@ -210,7 +222,7 @@ func (f *nativeFiles) call(req filesRequest, state workspaceStore) (any, error) 
 		if req.Method == "files.status" {
 			return filesCapabilities(), nil
 		}
-	case "files.list", "files.read":
+	case "files.list", "files.read", "files.inspectImage":
 		if decodeFilesObject(req.Params, &location) != nil {
 			return nil, filesFailure("E_SCHEMA")
 		}
@@ -276,8 +288,11 @@ func (f *nativeFiles) call(req filesRequest, state workspaceStore) (any, error) 
 		// does not create a second access overlay or silently upgrade the lease.
 		return nil, filesFailure("E_FILES_SESSION")
 	}
-	if err := validFilesPath(location.Path, req.Method == "files.list", req.Method != "files.list"); err != nil {
+	if err := validFilesPath(location.Path, req.Method == "files.list", req.Method != "files.list" && req.Method != "files.inspectImage"); err != nil {
 		return nil, err
+	}
+	if req.Method == "files.inspectImage" && filesImageFormat(location.Path) == "" {
+		return nil, filesFailure("E_FILES_TYPE")
 	}
 	root, err := openWorkspaceRoot(grant)
 	if err != nil {
@@ -297,6 +312,9 @@ func (f *nativeFiles) call(req filesRequest, state workspaceStore) (any, error) 
 		return nil, err
 	}
 	defer parent.Close()
+	if req.Method == "files.inspectImage" {
+		return inspectWorkspaceImage(root, parent, parentInfo, grant, dir, base, location.Path)
+	}
 	if req.Method == "files.read" {
 		snapshot, err := readFileSnapshot(parent, base, grant.Device)
 		if err != nil {
@@ -612,6 +630,7 @@ func (f *nativeFiles) saveFile(root, parent *os.Root, parentInfo os.FileInfo, gr
 		// or link occurred; do not invite a second write with another ID.
 		return nil, &filesError{Code: "E_EFFECT_UNKNOWN", Message: "E_EFFECT_UNKNOWN", Outcome: "OUTCOME_UNKNOWN"}
 	}
+	f.writeConfirmed = true
 	// Once committed, any failed verification is an unknown final effect,
 	// never a retryable "not dispatched" error.
 	unknown := &filesError{Code: "E_EFFECT_UNKNOWN", Message: "E_EFFECT_UNKNOWN", Outcome: "OUTCOME_UNKNOWN"}

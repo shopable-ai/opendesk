@@ -51,6 +51,34 @@ test('Code scene requires one complete document, native controls, unique compose
   assert.equal(calls,1);
   assert.deepEqual(plain(result.composer),{x:320,y:700,width:700,height:55,source:'accessibility',composerMeasured:true});
 });
+function detachedCodeTree(){
+  return {complete:true,truncated:false,root:axNode('window','New session',[
+    axNode('unknown','New session',[
+      axNode('unknown','New session',[],{nativeRole:'AXHeading'}),
+      axNode('textField','Prompt',[],{nativeRole:'AXTextArea',identifier:null,
+        bounds:{x:200,y:780,width:800,height:30,coordinateSpace:'screen'}}),
+      ...['Environment: This computer','Folder: /isolated/test','Permissions: Auto','Model: Test','Usage: Context 0']
+        .map(name=>axNode('popUpButton',name)),
+    ],{nativeRole:'AXWebArea',bounds:{x:100,y:130,width:1200,height:770,coordinateSpace:'screen'}}),
+  ])};
+}
+test('detached Claude Code window qualifies by same-document Code controls without main-window chrome',async()=>{
+  for(const measure of [false,true]){
+    const result=await load().inspectClaudeCode({window:sceneWindow,measure,
+      Accessibility:{snapshot:async()=>detachedCodeTree()}});
+    assert.ok(result);if(measure)assert.deepEqual(plain(result.composer),
+      {x:100,y:680,width:800,height:30,source:'accessibility',composerMeasured:true});
+  }
+});
+for(const change of ['environment','folder','permissions','model','usage','duplicate','other-document','heading'])
+test('detached Code scene rejects missing or foreign evidence '+change,async()=>{
+  const tree=detachedCodeTree(),doc=tree.root.children[0];
+  const index={environment:2,folder:3,permissions:4,model:5,usage:6,heading:0}[change];
+  if(index!==undefined)doc.children.splice(index,1);
+  if(change==='duplicate')doc.children.push(structuredClone(doc.children[1]));
+  if(change==='other-document')tree.root.children.push(axNode('unknown','other',[doc.children.pop()],{nativeRole:'AXWebArea'}));
+  assert.equal(await load().inspectClaudeCode({window:sceneWindow,Accessibility:{snapshot:async()=>tree}}),null);
+});
 for(const change of ['heading','terminal','files','duplicate','outside-pane','other-document'])
 test('Code scene rejects '+change+' instead of accepting a generic chat composer',async()=>{
   const tree=codeTree(),doc=tree.root.children[0],pane=doc.children[1];
@@ -162,6 +190,29 @@ test('explicit known bundle preserves its application-specific content adapter',
   assert.equal(fallbackProfile.contentArea({width:900,height:32}),null);
   assert.deepEqual(plain(fallback),{x:16,y:16,width:868,height:668,
     source:'window-relative-fallback',composerMeasured:false});
+});
+
+test('editor location policy keeps each application model separate through aliases and overrides',()=>{
+  const api=load(),byId=id=>api.defaultProfiles.find(p=>p.id===id);
+  for(const [id,model,maxDepth] of [['codex','codex',64],['claude-code','claude-code',64],['opencode','opencode',24]]){
+    const profile=byId(id),scene={editorSelector:{role:'textField',name:'Measured Prompt'}};
+    const policy=api.editorPolicy(profile,scene);
+    assert.equal(policy.model,model);assert.equal(policy.maxDepth,maxDepth);
+    assert.equal(policy.inputMode,'paste');assert.equal(policy.nativeRole,'AXTextArea');
+    assert.deepEqual(plain(policy.selector),plain(id==='claude-code'?scene.editorSelector:profile.editorSelector));
+    const h=fixture();h.groups.set(key(profile.app),group(profile.app,[7]));
+    assert.equal(api.editorPolicy(h.registry.matchPid(7,profile.app.bundleId).profile,scene).model,model);
+  }
+  for(const [path,model] of [['/Applications/ChatGPT.app','codex'],
+    ['/Users/user/Applications/ChatGPT.app/Contents/MacOS/ChatGPT','codex'],
+    ['/Applications/OpenCode.app','opencode'],
+    ['/Users/user/Applications/OpenCode.app/Contents/MacOS/OpenCode','opencode']]){
+    assert.equal(api.editorPolicy({id:'custom-alias',app:{path}}).model,model);
+  }
+  for(const path of ['/Applications/NotOpenCode.app','/Applications/OpenCode.app/Contents/MacOS/Other',
+    '/Applications/OpenCode.app.backup'])assert.equal(api.editorPolicy({app:{path}}).model,'plain');
+  assert.equal(api.editorPolicy({app:{bundleId:'unmeasured.editor'}}).inputMode,'strict');
+  assert.equal(api.editorPolicy({...byId('codex'),scene:'claude-code'}).model,'codex');
 });
 
 test('explicit bundle with conflicting layout profiles is rejected before querying',()=>{
@@ -405,12 +456,15 @@ test('composer remeasures live growth, title, window movement and resize with on
 
 test('composer snapshots calibration identity and exact AND selector against caller mutations',async()=>{
   const h=composerFixture(),original={...h.win};
+  assert.equal(h.tracker.matchesWindow(original),true);
+  assert.equal(h.tracker.matchesWindow({...original,x:-200,title:'New title',width:1200}),true);
   Object.assign(h.editorSelector,{role:'button',name:'Changed',identifier:'changed'});
   Object.assign(h.layout.window,{id:'different',pid:9,handle:10,exePath:'/other'});
   h.options.Accessibility={snapshot(){assert.fail('Dependency replaced');}};
   h.Accessibility.snapshot=()=>assert.fail('Snapshot method replaced');
   await h.tracker.measure(original);
   for(const [key,value] of Object.entries({id:'new-window',pid:43,handle:72,exePath:'/new-process'})){
+    assert.equal(h.tracker.matchesWindow({...original,[key]:value}),false);
     await assert.rejects(h.tracker.measure({...original,[key]:value}),{code:'STALE_TARGET'});
   }
   assert.equal(h.calls.length,1);

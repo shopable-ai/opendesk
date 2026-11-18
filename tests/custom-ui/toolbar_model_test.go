@@ -1,6 +1,7 @@
 package toolbar_test
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 
@@ -287,5 +288,22 @@ func TestToolbarNativeControlValidationAndGeometry(t *testing.T) {
 	}
 	if ValidateBadge("999") != nil || ValidateBadge("NEW!") != nil || ValidateBadge("TOO-LONG") == nil {
 		t.Fatal("button badge bounds changed")
+	}
+}
+
+func TestVerticalToolbarNaturallyGrowsWithoutViewport(t *testing.T) {
+	items := make([]ToolbarItemSpec, 81)
+	for i := range items {
+		items[i] = ButtonItem(ButtonSpec{ID: fmt.Sprintf("item%d", i), Label: "Prompt", Icon: "timer", State: ButtonState{Revision: 1}})
+	}
+	for _, count := range []int{1, 5, 8, 9, 81} {
+		plan, err := Plan(ToolbarSpec{Orientation: OrientationVertical, MaxColumns: 1, Items: items[:count]})
+		wantHeight := float64(ChromeHeight + 2*VerticalPadding + count*40 + (count-1)*8)
+		if err != nil || plan.OuterWidth != 60 || plan.OuterHeight != wantHeight || len(plan.Rows) != 1 || len(plan.Rows[0]) != count || plan.Rows[0][count-1].ID != fmt.Sprintf("item%d", count-1) {
+			t.Fatalf("natural height for %d: %#v, %v", count, plan, err)
+		}
+	}
+	if MaxContentItemsForOrientation(OrientationVertical) != 81 || MaxItemsForOrientation(OrientationVertical) != 161 {
+		t.Fatal("vertical capacity changed")
 	}
 }

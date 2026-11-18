@@ -44,17 +44,27 @@ def load_endpoint():
     return {**cfg, 'url': cfg['url'].rstrip('/') + '/api/hook'}, urlsplit(cfg['url'].rstrip('/') + '/api/hook')
 
 
+def reject(reason):
+    # Callers supply fixed reason codes only; never include Hook data or secrets.
+    print('OD_CWF_HOOK_REJECT=' + reason, file=sys.stderr)
+    return None
+
+
 def identity(raw):
     if not isinstance(raw, dict):
         return None
     session, turn, cwd = raw.get('session_id'), raw.get('turn_id'), raw.get('cwd')
-    if not isinstance(session, str) or not 0 < len(session) <= 200 or not isinstance(turn, str) or not 0 < len(turn) <= 200 or not isinstance(cwd, str):
-        return None
+    if not isinstance(session, str) or not 0 < len(session) <= 200:
+        return reject('SESSION_ID_INVALID')
+    if not isinstance(turn, str) or not 0 < len(turn) <= 200:
+        return reject('TURN_ID_INVALID')
+    if not isinstance(cwd, str) or not cwd or not Path(cwd).is_absolute():
+        return reject('CWD_INVALID')
     try:
         if os.path.commonpath([str(ROOT), str(Path(cwd).resolve())]) != str(ROOT):
-            return None
+            return reject('CWD_OUTSIDE_ROOT')
     except (OSError, ValueError):
-        return None
+        return reject('CWD_INVALID')
     return session, turn
 
 
@@ -64,18 +74,26 @@ def binding_path(session, turn):
 
 
 def parse_event(raw):
+    if not isinstance(raw, dict) or raw.get('hook_event_name') not in ('UserPromptSubmit', 'Stop'):
+        return None
     ids = identity(raw)
     if not ids:
         return None
     session, turn = ids
     if raw.get('hook_event_name') == 'UserPromptSubmit':
-        match = MARKER.match(raw.get('prompt', '') if isinstance(raw.get('prompt'), str) else '')
+        if not isinstance(raw.get('prompt'), str):
+            return reject('PROMPT_INVALID')
+        match = MARKER.match(raw['prompt'])
         if not match:
             return None
         run, task, attempt, nonce = match.groups()
         return ({'protocol': PROTOCOL, 'kind':'prompt', 'workflowId':run, 'taskId':task,
                  'attemptId':attempt,'nonce':nonce,'sessionId':session,'turnId':turn}, True)
-    if raw.get('hook_event_name') == 'Stop' and raw.get('stop_hook_active') is False:
+    if raw.get('hook_event_name') == 'Stop':
+        if not isinstance(raw.get('stop_hook_active'), bool):
+            return reject('STOP_HOOK_ACTIVE_INVALID')
+        if raw['stop_hook_active'] is not False:
+            return None
         file = binding_path(session, turn)
         if not file.is_file() or file.is_symlink() or file.stat().st_mode & 0o077:
             return None

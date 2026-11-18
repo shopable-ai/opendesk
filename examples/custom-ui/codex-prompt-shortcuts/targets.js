@@ -78,6 +78,24 @@
       Number.isInteger(discovery.maxDepth)&&discovery.maxDepth>=1&&discovery.maxDepth<=64;
   }
 
+  // Script-local location policy: identity, editor evidence and text semantics
+  // travel together, including executable-bound/custom aliases. No window/ref
+  // is cached here; the shared insertion engine owns the guarded operation.
+  function editorPolicy(profile,scene=null){
+    const app=profile?.app||{},path=app.path||'';
+    const model=profile?.id==='codex'||app.bundleId==='com.openai.codex'||
+        /\/ChatGPT\.app(?:\/Contents\/MacOS\/ChatGPT)?$/.test(path)?'codex':
+      profile?.scene==='claude-code'?'claude-code':
+      profile?.id==='opencode'||app.bundleId==='ai.opencode.desktop'||
+        /\/OpenCode\.app(?:\/Contents\/MacOS\/OpenCode)?$/.test(path)?'opencode':'plain';
+    const claude=model==='claude-code',codex=model==='codex';
+    return {model,inputMode:profile?.inputMode||'strict',
+      selector:claude?scene?.editorSelector:profile?.editorSelector,
+      discovery:claude?undefined:profile?.editorDiscovery,
+      nativeRole:claude||codex?'AXTextArea':profile?.editorDiscovery?.nativeRole,
+      maxDepth:claude||codex?64:profile?.editorDiscovery?.maxDepth||24};
+  }
+
   function createRegistry({App,profiles=defaultProfiles,scope,scopes}){
     if(scope!==undefined&&scopes!==undefined)throw new TypeError('scope and scopes are mutually exclusive');
     const explicit=scope!==undefined||scopes!==undefined;
@@ -218,7 +236,8 @@
     const identity=Object.fromEntries(identityKeys.map(k=>[k,layout.window[k]]));
     const selector={...editorSelector},selectorKeys=Object.keys(selector);
     const snapshot=Accessibility.snapshot.bind(Accessibility);
-    return {async measure(win){
+    const matchesWindow=win=>validIdentity(win)&&identityKeys.every(k=>win[k]===identity[k]);
+    return {matchesWindow,async measure(win){
       if(!validIdentity(win)||!geometry(win))stop('INVALID_ARGUMENT');
       if(identityKeys.some(k=>win[k]!==identity[k]))stop('STALE_TARGET');
       const frame=Object.fromEntries(geometryKeys.map(k=>[k,win[k]]));
@@ -277,15 +296,30 @@
     const headings=entries.filter(e=>e.node.nativeRole==='AXHeading'&&e.node.name==='Claude Code');
     const panes=matches('group','Primary pane');
     const editors=matches('textField','Prompt');
-    if(headings.length!==1||panes.length!==1||editors.length!==1)return null;
-    const pane=panes[0],editor=editors[0];
+    if(editors.length!==1)return null;
+    const editor=editors[0];
     const inside=(entry,ancestor)=>{for(let e=entry;e;e=e.parent)if(e===ancestor)return true;return false;};
     const control=name=>entries.filter(e=>inside(e,pane)&&e.node.name===name&&
       ['button','checkbox'].includes(e.node.role)&&e.node.enabled===true).length===1;
     const document=entry=>{for(let e=entry;e;e=e.parent)if(e.node.nativeRole==='AXWebArea')return e;return null;};
     const doc=document(editor);
-    if(!doc||!inside(editor,pane)||document(headings[0])!==doc||
-        !control('Terminal')||!control('Files'))return null;
+    if(!doc)return null;
+    let pane=panes.length===1?panes[0]:null;
+    if(headings.length===1&&pane){
+      if(!inside(editor,pane)||document(headings[0])!==doc||!control('Terminal')||!control('Files'))return null;
+    }else{
+      // File > New Session in New Window has no sidebar/Primary pane. Measured
+      // Code-only environment/folder/permissions/model/usage controls must all
+      // belong to the same WebArea as its unique Prompt and matching heading.
+      if(headings.length||panes.length)return null;
+      const local=entries.filter(e=>document(e)===doc);
+      if(local.filter(e=>e.node.nativeRole==='AXHeading'&&e.node.name===doc.node.name&&
+          typeof e.node.name==='string'&&e.node.name.length>0).length!==1)return null;
+      for(const prefix of ['Environment: ','Folder: ','Permissions: ','Model: ','Usage: '])
+        if(local.filter(e=>e.node.role==='popUpButton'&&e.node.enabled===true&&
+            typeof e.node.name==='string'&&e.node.name.startsWith(prefix)&&e.node.name.length>prefix.length).length!==1)return null;
+      pane=doc;
+    }
     const field=editor.node,b=field.bounds;
     const sceneKey=JSON.stringify([doc.node.name,field.identifier]);
     if(field.nativeRole!=='AXTextArea'||field.enabled!==true)stop('COMPOSER_UNAVAILABLE');
@@ -309,5 +343,5 @@
         source:'accessibility',composerMeasured:true}};
   }
 
-  root.OpenDeskPromptTargets={createRegistry,defaultProfiles,createComposerTracker,inspectClaudeCode};
+  root.OpenDeskPromptTargets={createRegistry,defaultProfiles,editorPolicy,createComposerTracker,inspectClaudeCode};
 })(globalThis);

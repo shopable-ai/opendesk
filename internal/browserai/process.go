@@ -201,6 +201,41 @@ func nvmCodexCandidates(home string) []string {
 }
 
 func discoverCodex() (string, error) {
+	executable, _ := os.Executable()
+	return discoverCodexForExecutable(executable)
+}
+
+func discoverCodexForExecutable(executable string) (string, error) {
+	// A separately packaged App may carry the already audited CLI without
+	// changing the user's global CLI. This is an App-owned fixed location,
+	// never a caller/environment-configurable executable. Missing packages
+	// retain normal discovery; a broken present package must fail closed.
+	if canonical, err := filepath.EvalSymlinks(executable); err == nil {
+		macOS := filepath.Dir(canonical)
+		contents := filepath.Dir(macOS)
+		if filepath.Base(macOS) == "MacOS" && filepath.Base(contents) == "Contents" && strings.HasSuffix(filepath.Dir(contents), ".app") {
+			pkg := filepath.Join(contents, "Resources", "codex-01621")
+			if info, err := os.Lstat(pkg); err == nil {
+				if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+					return "", failure("E_CODEX_UNSUPPORTED")
+				}
+				file := filepath.Join(pkg, "bin", "codex")
+				resolved, err := filepath.EvalSymlinks(file)
+				if err != nil || resolved != file {
+					return "", failure("E_CODEX_UNSUPPORTED")
+				}
+				info, err := os.Stat(file)
+				if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0111 == 0 {
+					return "", failure("E_CODEX_UNSUPPORTED")
+				}
+				// inspectExecutable still enforces exact audited version and
+				// schema, then the original structured isolation probe runs.
+				return file, nil
+			} else if !os.IsNotExist(err) {
+				return "", failure("E_CODEX_UNSUPPORTED")
+			}
+		}
+	}
 	if file, err := exec.LookPath("codex"); err == nil && filepath.IsAbs(file) {
 		return file, nil
 	}
@@ -624,11 +659,15 @@ func classifyProviderError(raw json.RawMessage) *Error {
 }
 
 func defaultFactory(ctx context.Context, workspace string) (Agent, Capabilities, error) {
+	return factoryWithDiscovery(ctx, workspace, discoverCodex)
+}
+
+func factoryWithDiscovery(ctx context.Context, workspace string, discover func() (string, error)) (Agent, Capabilities, error) {
 	caps := initialCapabilities()
-	path, err := discoverCodex()
+	path, err := discover()
 	if err != nil {
-		caps.State = "CODEX_MISSING"
-		caps.Reason = "E_CODEX_MISSING"
+		caps.State = providerState(err)
+		caps.Reason = publicError(err).Code
 		return nil, caps, err
 	}
 	caps.CLIInstalled = true

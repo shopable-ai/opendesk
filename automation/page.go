@@ -132,10 +132,11 @@ func (p *Page) Screenshot(options interface{}) (result interface{}, captureErr e
 		)
 	}
 
-	x, y, width, height, source, err := p.resolveScreenshotCaptureArea(opts)
+	area, err := resolveScreenshotCaptureArea(opts, NewWindowManager().GetActiveWindow, NewScreen().GetDisplay, robotgo.GetScreenSize)
 	if err != nil {
 		return "", err
 	}
+	x, y, width, height, source := area.X, area.Y, area.Width, area.Height, area.source
 	log.Printf(
 		"Screenshot request: target=%s source=%s displayIndex=%d fullPage=%v clip=%+v resolved=(x=%d y=%d width=%d height=%d)",
 		opts.Target, source, opts.DisplayIndex, opts.FullPage, opts.Clip, x, y, width, height,
@@ -163,10 +164,10 @@ func (p *Page) Screenshot(options interface{}) (result interface{}, captureErr e
 	useDarwinNative := runtime.GOOS == "darwin" &&
 		(source == "clip" || source == screenshotTargetActiveWindow || (source == screenshotTargetScreen && opts.DisplayIndex > 0))
 	if useDarwinNative {
-		pngBytes, err = p.captureDarwinScreenshotPNG(x, y, width, height, source, opts.DisplayIndex, debugEnabled)
+		pngBytes, err = p.captureDarwinScreenshotPNG(area, opts.DisplayIndex, debugEnabled)
 		if err != nil {
-			// displayIndex relies on macOS native screencapture. Robotgo fallback only supports primary display.
-			if source == screenshotTargetScreen && opts.DisplayIndex > 0 {
+			// Keep a requested window or display bound to the native target.
+			if source == screenshotTargetActiveWindow || opts.DisplayIndex > 0 {
 				return "", err
 			}
 			log.Printf("Darwin native screenshot failed, fallback to robotgo: %v", err)
@@ -220,7 +221,8 @@ func (p *Page) captureRobotgoScreenshotPNG(x, y, width, height int, source strin
 	return buf.Bytes(), nil
 }
 
-func (p *Page) captureDarwinScreenshotPNG(x, y, width, height int, source string, displayIndex int, debugEnabled bool) ([]byte, error) {
+func (p *Page) captureDarwinScreenshotPNG(area screenshotCaptureArea, displayIndex int, debugEnabled bool) ([]byte, error) {
+	x, y, width, height, source := area.X, area.Y, area.Width, area.Height, area.source
 	args := []string{"-x"}
 
 	if displayIndex > 0 && source != screenshotTargetActiveWindow {
@@ -242,17 +244,14 @@ func (p *Page) captureDarwinScreenshotPNG(x, y, width, height int, source string
 		return runDarwinScreencaptureAndRead(args, debugEnabled)
 	}
 
-	usedWindowID := false
 	if source == screenshotTargetActiveWindow {
-		if win, err := NewWindowManager().GetActiveWindow(); err == nil && win != nil && win.Handle != 0 {
-			args = append(args, "-o", "-l", fmt.Sprintf("%d", uint64(win.Handle)))
-			usedWindowID = true
+		if area.windowID == 0 {
+			return nil, fmt.Errorf("active window has no native capture ID")
 		}
-	}
-	if !usedWindowID {
+		args = append(args, "-o", "-l", fmt.Sprintf("%d", area.windowID))
+	} else {
 		args = append(args, "-R", fmt.Sprintf("%d,%d,%d,%d", x, y, width, height))
 	}
-
 	return runDarwinScreencaptureAndRead(args, debugEnabled)
 }
 
@@ -618,93 +617,54 @@ func normalizeScreenshotTarget(target string) (string, error) {
 	}
 }
 
-func (p *Page) resolveScreenshotCaptureArea(opts ScreenshotOptions) (int, int, int, int, string, error) {
-	var x, y, width, height int
-	source := screenshotTargetScreen
-	debugEnabled := screenshotDebugEnabled()
-
-	switch {
-	case opts.Clip != nil:
-		x = opts.Clip.X
-		y = opts.Clip.Y
-		width = opts.Clip.Width
-		height = opts.Clip.Height
-		source = "clip"
-		if debugEnabled && opts.Target == screenshotTargetActiveWindow {
-			log.Printf("[screenshot][debug] clip is set and takes precedence over target=activeWindow (clip uses absolute desktop coords)")
-		}
-	case opts.FullPage || opts.Target == screenshotTargetScreen:
-		if opts.DisplayIndex > 0 {
-			if meta := NewScreen().GetDisplay(opts.DisplayIndex); meta != nil {
-				if value, ok := parseIntValue(meta["x"]); ok {
-					x = value
-				}
-				if value, ok := parseIntValue(meta["y"]); ok {
-					y = value
-				}
-				if w, ok := parseIntValue(meta["width"]); ok {
-					width = w
-				}
-				if h, ok := parseIntValue(meta["height"]); ok {
-					height = h
-				}
-			}
-		}
-		if width <= 0 || height <= 0 {
-			width, height = robotgo.GetScreenSize()
-		}
-		source = screenshotTargetScreen
-	default:
-		clip, err := p.getActiveWindowClip()
-		if err != nil {
-			log.Printf("Screenshot activeWindow fallback to screen: %v", err)
-			width, height = robotgo.GetScreenSize()
-			source = screenshotTargetScreen
-		} else {
-			if debugEnabled {
-				log.Printf(
-					"[screenshot][debug] active window bounds: x=%d y=%d width=%d height=%d",
-					clip.X, clip.Y, clip.Width, clip.Height,
-				)
-			}
-			x = clip.X
-			y = clip.Y
-			width = clip.Width
-			height = clip.Height
-			source = screenshotTargetActiveWindow
-		}
-	}
-
-	if width <= 0 || height <= 0 {
-		return 0, 0, 0, 0, source, fmt.Errorf(
-			"invalid screenshot dimensions: source=%s x=%d y=%d width=%d height=%d",
-			source, x, y, width, height,
-		)
-	}
-
-	return x, y, width, height, source, nil
+type screenshotCaptureArea struct {
+	ClipOptions
+	source   string
+	windowID uint64
 }
 
-func (p *Page) getActiveWindowClip() (*ClipOptions, error) {
-	win, err := NewWindowManager().GetActiveWindow()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get active window bounds: %w", err)
+func resolveScreenshotCaptureArea(opts ScreenshotOptions, activeWindow func() (*WindowInfo, error), display func(int) map[string]interface{}, screenSize func() (int, int)) (screenshotCaptureArea, error) {
+	var area screenshotCaptureArea
+	switch {
+	case opts.Clip != nil:
+		area.ClipOptions = *opts.Clip
+		area.source = "clip"
+		if opts.DisplayIndex > 0 && display(opts.DisplayIndex) == nil {
+			return area, fmt.Errorf("displayIndex %d is unavailable", opts.DisplayIndex)
+		}
+	case opts.FullPage || opts.Target == screenshotTargetScreen:
+		area.source = screenshotTargetScreen
+		if opts.DisplayIndex == 0 {
+			area.Width, area.Height = screenSize()
+			break
+		}
+		meta := display(opts.DisplayIndex)
+		if meta == nil {
+			return area, fmt.Errorf("displayIndex %d is unavailable", opts.DisplayIndex)
+		}
+		area.X, _ = parseIntValue(meta["x"])
+		area.Y, _ = parseIntValue(meta["y"])
+		area.Width, _ = parseIntValue(meta["width"])
+		area.Height, _ = parseIntValue(meta["height"])
+	default:
+		area.source = screenshotTargetActiveWindow
+		win, err := activeWindow()
+		if err != nil {
+			return area, fmt.Errorf("failed to resolve active window for screenshot: %w", err)
+		}
+		if win == nil {
+			return area, fmt.Errorf("no active window for screenshot")
+		}
+		area.ClipOptions = ClipOptions{X: int(win.X), Y: int(win.Y), Width: int(win.Width), Height: int(win.Height)}
+		area.windowID = win.Handle
 	}
-	if win == nil {
-		return nil, fmt.Errorf("active window is nil")
-	}
-	if win.Width <= 0 || win.Height <= 0 {
-		return nil, fmt.Errorf(
-			"invalid active window bounds: x=%d y=%d width=%d height=%d title=%s",
-			win.X, win.Y, win.Width, win.Height, win.Title,
+	if area.Width <= 0 || area.Height <= 0 {
+		return area, fmt.Errorf(
+			"invalid screenshot dimensions: source=%s x=%d y=%d width=%d height=%d",
+			area.source, area.X, area.Y, area.Width, area.Height,
 		)
 	}
-	return &ClipOptions{
-		X:      int(win.X),
-		Y:      int(win.Y),
-		Width:  int(win.Width),
-		Height: int(win.Height),
-	}, nil
+	return area, nil
 }
 
 func (p *Page) wrapScreenshotCaptureError(cause error, x, y, width, height int, source string) error {
@@ -1523,6 +1483,9 @@ func (p *Page) OpenApp(appName string) error {
 
 // OpenURLInApp opens a URL with a specific application when supported.
 func (p *Page) OpenURLInApp(appName, url string) error {
+	if strings.TrimSpace(appName) == "" {
+		return fmt.Errorf("appName cannot be empty")
+	}
 	if url == "" {
 		return fmt.Errorf("url cannot be empty")
 	}
@@ -1530,24 +1493,11 @@ func (p *Page) OpenURLInApp(appName, url string) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		args := []string{}
-		if appName != "" {
-			args = append(args, "-a", appName)
-		}
-		args = append(args, url)
-		cmd = exec.Command("open", args...)
+		cmd = exec.Command("open", "-a", appName, url)
 	case "windows":
-		if appName != "" {
-			cmd = exec.Command("cmd", "/c", "start", "", appName, url)
-		} else {
-			cmd = exec.Command("cmd", "/c", "start", url)
-		}
+		cmd = exec.Command("cmd", "/c", "start", "", appName, url)
 	default:
-		if appName != "" {
-			cmd = exec.Command(appName, url)
-		} else {
-			cmd = exec.Command("xdg-open", url)
-		}
+		cmd = exec.Command(appName, url)
 	}
 
 	if runtime.GOOS == "darwin" {

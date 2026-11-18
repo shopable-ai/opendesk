@@ -1,6 +1,10 @@
 package automation
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/dop251/goja"
@@ -80,6 +84,82 @@ func TestCustomUIInternalAppOwnershipAppliesToAuxiliariesWithoutMainClosePolicy(
 			if spec.AppCloseBehavior != wantClose {
 				t.Fatalf("%s close behavior=%q want=%q", id, spec.AppCloseBehavior, wantClose)
 			}
+		}
+	}
+}
+
+// This private seam checks only error conversion, without invoking the public
+// JavaScript API, a session, or a native UI host.
+func TestCustomUIInternalErrorConversion(t *testing.T) {
+	primaryCause := errors.New("native failure")
+	cleanup := &customui.Error{Code: customui.CodeDriverFailure, Operation: "cleanup", WindowID: "cleanup-window", TargetID: "cleanup-target", Capability: "cleanup", Message: "cleanup failed"}
+	for _, tc := range []struct {
+		name   string
+		code   string
+		window string
+		joined bool
+	}{
+		{"single", customui.CodeDriverFailure, "original-window", false},
+		{"joined", customui.CodeDriverFailure, "original-window", true},
+		{"joined-fallback-window", customui.CodeDriverFailure, "", true},
+		{"canceled", customui.CodeCanceled, "", false},
+		{"joined-canceled", customui.CodeCanceled, "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cause := primaryCause
+			if tc.code == customui.CodeCanceled {
+				cause = context.Canceled
+			}
+			primary := &customui.Error{Code: tc.code, Operation: "native", WindowID: tc.window, TargetID: "target", Capability: "ui", Message: "primary failed", Cause: cause}
+			var input error = primary
+			if tc.joined {
+				input = fmt.Errorf("outer context: %w", errors.Join(primary, cleanup))
+			}
+			converted := customUIOperationError(input, "closeAll", "fallback-window")
+			for _, original := range []error{input, primary, cause} {
+				if !errors.Is(converted, original) {
+					t.Errorf("lost original error %q in %q", original, converted)
+				}
+			}
+			if tc.joined {
+				if !errors.Is(converted, cleanup) || !strings.Contains(converted.Error(), "cleanup failed") || !strings.Contains(converted.Error(), "outer context") {
+					t.Errorf("lost joined cleanup or context: %v", converted)
+				}
+			}
+			wantWindow := tc.window
+			if wantWindow == "" {
+				wantWindow = "fallback-window"
+			}
+			var structured *customui.Error
+			if !errors.As(converted, &structured) || structured.Code != tc.code || structured.Operation != "closeAll" || structured.WindowID != wantWindow || structured.TargetID != "target" || structured.Capability != "ui" {
+				t.Fatalf("incorrect structured metadata: %+v", structured)
+			}
+			runtime := goja.New()
+			jsErr := customUIJSError(runtime, converted)
+			for key, want := range map[string]string{"code": tc.code, "operation": "closeAll", "windowId": wantWindow, "targetId": "target", "capability": "ui"} {
+				if got := jsErr.Get(key).String(); got != want {
+					t.Errorf("%s = %q, want %q", key, got, want)
+				}
+			}
+			if got := jsErr.Get("message").String(); got != converted.Error() {
+				t.Errorf("message = %q, want %q", got, converted.Error())
+			}
+			if primary.Operation != "native" || primary.WindowID != tc.window {
+				t.Fatal("mutated original error")
+			}
+			if !tc.joined {
+				want := *primary
+				want.Operation, want.WindowID = "closeAll", wantWindow
+				if converted.Error() != want.Error() {
+					t.Errorf("single error message changed: %q", converted)
+				}
+			}
+		})
+	}
+	plain := errors.New("plain error")
+	for _, input := range []error{nil, plain, context.Canceled, errors.Join(plain, context.Canceled)} {
+		if got := customUIOperationError(input, "closeAll", "window"); got != input {
+			t.Errorf("unstructured error changed: %v", got)
 		}
 	}
 }

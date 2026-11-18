@@ -67,6 +67,24 @@
     });
   });
 
+  test({ name: 'page.captureScreen returns a Promise for synchronous native success and failure', tier: 'unit', covers: ['page.captureScreen'] }, async () => {
+    const options = { returnType: 'none' };
+    await withNative({ captureScreen: actual => { equal(actual, options); return null; } }, async () => {
+      const pending = page.captureScreen(options);
+      assert(pending instanceof Promise, 'captureScreen returned a synchronous native value');
+      equal(await pending, null);
+    });
+    const cause = new Error('capture-fixture');
+    await withNative({ captureScreen: () => { throw cause; } }, async () => {
+      let pending;
+      try { pending = page.captureScreen(options); } catch (_) { throw new Error('captureScreen threw before returning its Promise'); }
+      assert(pending instanceof Promise, 'captureScreen error did not return a Promise');
+      let caught;
+      try { await pending; } catch (error) { caught = error; }
+      equal(caught, cause, 'captureScreen changed native error identity');
+    });
+  });
+
   test({ name: 'page.goto delegates URL', tier: 'unit', covers: ['page.goto'] }, async () => {
     let actual = null;
     await withNative({ goto: async (url) => { actual = url; } }, async () => page.goto('http://127.0.0.1/goto'));
